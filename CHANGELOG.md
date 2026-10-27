@@ -4,6 +4,48 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-27
 
+**10-27(15) The task-success board measures 6 of the 43 tools we ship, and a gate was counting prose** (P1 metric scope / symbols `board-measures-6-of-43`, `core-tools-counted-comments`)
+
+- **What the references actually do, measured in their own trees.** codex declares **13** tool specs
+  (`codex-rs/core/src/tools/handlers/*_spec.rs`); opencode declares **16**
+  (`packages/core/src/tool/plugin/*.ts`); hermes-agent's root states the rule they both act on — "the
+  core is a narrow waist; capability lives at the edges", because "every model tool is sent on every API
+  call, so the bar for a new *core* tool is high". ocoreai registers **43** typed tool declarations.
+- **The uncomfortable part is about our own instrument, not our surface.** `scripts/eval/run.sh` pins
+  `OCOREAI_EVAL_TOOLS` to read_file / write_file / edit_file / edit_lines / search_files / exec_command —
+  **6 of 43, 14% of the declared surface.** So every figure this project has quoted from the board (the
+  pass count, ms per verified success, tokens per verified success) is a measurement of a 6-tool slice
+  against a 4B model, not of what a user who declares the whole surface asks that model to choose
+  between. The board does print its slice (`scoreboard 39 tasks · 6 tool(s) declared by the server`), so
+  this is not a hidden number — it is a number nobody had to say out loud next to the score. Recorded as
+  an open item with the instrument that closes it: the same 39 tasks and verifiers over the full declared
+  surface, reported beside the 6-tool board. **Nothing here claims 43 is wrong** — it claims this board
+  cannot answer that, and the owner call should read two boards, not taste.
+- **A gate was counting prose, so its number was wrong by two.** `core_tools<=45` ran
+  `git grep -h 'ToolEntry\.typed(' -- Sources/ocoreai/Tools | wc -l`, which also matched a doc comment in
+  `ToolEntry.swift:67` and a reference in `BuiltInTools.swift:7`. Every other claim in the corpus strips
+  comments first; this one did not, so the ceiling was 45 against 43 real declarations — two characters of
+  phantom slack in a ceiling whose whole job is to be tight. The command now strips comments and the
+  ceiling is 43, red-sampled: set to 42, `P4 … command returns 43`.
+- **The gate's own unit was mislabelled, and it had already misled a round.** Every cap in
+  `scripts/agents-md-contract.sh` is `wc -c` — **bytes** — while B1/B2, `docs-budget` and the budgets
+  summary all said "chars". That is how 10-27(13) came to quote char counts (24866 → 22073) against byte
+  caps. The messages now say bytes, the constant block names the unit, and the honest statement of the
+  last round's effect in bytes is: root 24,866 → 22,073 → **22,063** bytes this round, still shrink-only.
+- **Payment, per the ratchet.** Root 22,073 → 22,063 (re-pinned, zero slack): the open-item bullet that
+  names the metric's scope paid for itself out of prose. Corpus 164,454 → 165,123 with the accounting next
+  to the constant: in, the open item that indicts the metric; out, `docs/agent/docs-map.md`'s paragraph
+  restating § Docs Contract (−370 B, a second home for one rule) and trims.
+- **In flight, not green: the k=3 reliability band.** `scripts/eval/repeat.sh` at k=3 on
+  `mlx-community/gemma-4-e2b-it-4bit`, artifacts in `~/ocoreai-eval/repeat-1027-1118-k3/` (outside the
+  repo, so the tree stays clean). It will produce the noise band, the stable-pass/stable-fail/FLAKY split
+  and the paired sign test that every past delta lacked. Run 1 reached 2/2 passes with
+  `prompt=2069 cached=2032` — 98% of the prompt was prefix-cached — and 14.9 s of model time for those
+  two tasks; the board verdict is **pending, not measured**, and is not claimed anywhere in this entry.
+- **Verified this round:** `make docs-check` green (claims 32/32, links 28/28 verified, root and corpus
+  caps zero-slack); `core_tools` red-sampled at 42; B1/B2/P15 red-sampled earlier the same day. No Swift
+  touched, so no build claimed; the eval is a live run, its own evidence.
+
 **10-27(14) Two of the twenty-nine links in the front door pointed at repos that do not exist** (P0 human surface honesty / symbols `dead-comparator-links`, `link-gate-false-green`)
 
 - **The defect, reproduced before anything was written.** Applying the vllm/sglang practice (both run

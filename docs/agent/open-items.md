@@ -32,3 +32,15 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **Two owner questions have data now and no answer** — refresh-vs-refuse when instructions change, and
   cross-conversation prefix sharing. `ReuseRefusalLedger` publishes both; the ledger is opportunity, not a
   capability claim.
+
+- **The board measures 6 of the 43 registered tools.** `scripts/eval/run.sh` pins `OCOREAI_EVAL_TOOLS` to
+  read_file / write_file / edit_file / edit_lines / search_files / exec_command and prints that count in
+  its premise line, so every figure the board has printed is about a 6-tool slice, not the surface a user
+  gets. The registered surface is 43 typed declarations (`core_tools`, now counted without comments — 2 of
+  the 45 it cited were prose). Comparators measured in their own trees: codex 13 tool specs
+  (`codex-rs/core/src/tools/handlers/*_spec.rs`), opencode 16 (`packages/core/src/tool/plugin/`);
+  hermes-agent states the rule — "the core is a narrow waist", "every model tool is sent on every API
+  call, so the bar for a new *core* tool is high". Settled by: the same 39 tasks and verifiers over the
+  full declared surface, reported beside the 6-tool slice. Whether 43 is right for a small local model is
+  then an owner call with two boards to read; nothing here claims 43 is wrong, only that this board
+  cannot answer it.

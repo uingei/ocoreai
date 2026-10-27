@@ -2,19 +2,19 @@
 
 > Injected into every session, so it carries **rules and pointers only**: a root rule is ≤3 lines
 > (what + the one-line evidence + the gate). Dated incidents, measurements and round verdicts live in
-> `CHANGELOG.md` (grep the symbol) or `docs/agent/`; `make docs-check` enforces that split — including
-> "no dates in this file". If this file and the code disagree, the code is the fact: fix whichever is wrong.
+> `CHANGELOG.md` (grep the symbol) or `docs/agent/`; `make docs-check` enforces that split. If this file
+> and the code disagree, the code is the fact: fix whichever is wrong.
 >
-> **Why there is a budget:** every byte here is paid by every session that works on this repo, and the
-> band is not invented — `hermes-agent` gates its root at 12k chars and each root→area chain at 30k
-> "so it loads whole on 128k+ models: long form goes in the guide". Measured across the 21 comparator
-> trees, ours was the largest root of all (24.8k chars, 51% of our own corpus). Long form moves one
-> hop, into the same gated corpus — it is not deleted.
+> **Why there is a budget:** every byte is paid by every session working on this repo, and the
+> band is not invented — `hermes-agent` gates its root at 12k chars and each root→area chain at 30k,
+> "so it loads whole on 128k+ models: long form goes in the guide". Measured across 21 comparator trees
+> ours was the largest root (24,866 chars, 51% of our corpus). Long form moves one hop, into the same
+> gated corpus — it is not deleted.
 
 ## Identity
-- An agent for open models, natively local on Apple silicon: it sees, hears, speaks and codes. One binary.
+- An agent for open models, natively local on Apple silicon: it sees, hears, speaks and codes, in one binary.
 - Deepest slice: the coding/computer agent — reliable Execute → Verify → Recover. Knowledge work and
-  creativity (Apple-native perception, multimodal) are first-class product surfaces, not demos.
+  creativity (Apple-native perception, multimodal) are product surfaces, not demos.
 - Stack: Swift 6.2 · SwiftPM · Hummingbird 2 · SwiftUI · SQLite + FTS5. Dual-channel on-device
   inference: MLX Metal GPU + CoreAI (derived from Apple's `coreai-models` reference, BSD-3).
 
@@ -33,8 +33,7 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 - Every line in git is reviewable, AI or not; "it came from the model" excuses nothing.
 - An improvement answers *the three questions* (what improved, what same-session output proves it, which
   gate goes red if it regresses); missing the third makes it a claim. Full text: `CONTRIBUTING.md`.
-- If upstream already has the answer, consume or reference it and cite `file:line` instead of authoring
-  a local variant.
+- If upstream already has the answer, consume it or cite `file:line` — do not author a local variant.
 
 ## Architecture
 ```
@@ -45,7 +44,7 @@ UI Layer (SwiftUI)           ChatViewModel, SessionManager(SQLite)
 ```
 - `EnginePool` gates backends with inline `#if canImport(CoreAI)`; there is no `BackendProtocol`.
 - The two lanes reach the wire by different routes — MLX through upstream `ChatSession`, MTP around it —
-  and where each line lives, what `SessionPool` actually dedupes and how sampling gets chosen is
+  and where each line lives, what `SessionPool` dedupes and how sampling is chosen is
   `Sources/ocoreai/Engine/AGENTS.md`, which loads inside that subtree instead of in every session.
 
 ## Build / Test / Lint
@@ -125,7 +124,7 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   fails instead of passing vacuously.
 - A fix gates every consumer of the value it changed, not just the emit site.
 - Anything that proves behaviour against a live server ships as a script in `scripts/probes/`, so the
-  claim outlives the session that made it. Index: `scripts/probes/README.md`.
+  claim outlives the session that made it.
 - Process-global state (workspace anchor, `OCOREAI_*`, `HF_ENDPOINT`, a `shared` sensor) is leased, never
   set: `.serialized` orders a suite's *own* tests, not suites against each other, and a lease never spans
   live I/O. Gate: `ProcessGlobalLeaseDisciplineTests`(3).
@@ -145,13 +144,15 @@ Class-J keeps every suite name cited below honest.
 - **Screen capture cannot stream headlessly** (Multimodal/) — `screenStatus` needs a delivered frame.
 - **`tools[]` gaps; two prefix questions await an owner** — `UI/AGENTS.md`, `Handlers/AGENTS.md`,
   `ReuseRefusalLedger`.
+- **The board measures 6 of the 43 registered tools** (scripts/eval/) — `run.sh` prints its slice; the
+  instrument is a full-surface board (codex ships 13 tools, opencode 16).
 
 ## Upstream Audit Dependencies
 Five empirical sources plus comparators; round-by-round verdicts live in `CHANGELOG.md`, one diary, one home.
 1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract, currently `991266ad3`;
    `Package.swift` keeps the pin and a pointer, never a per-commit diary. Bump protocol: audit the
-   consumption surface commit by commit → bump `.revision` → `make audit` (both lockfiles) →
-   `swift build` + `make test-ci` green → verdicts into `CHANGELOG.md`. Upstream sources live under
+   consumption surface → bump `.revision` → `make audit` (both lockfiles) → `swift build` +
+   `make test-ci` green → `CHANGELOG.md`. Upstream sources live under
    `Libraries/`, not `Sources/`; what must hold between clone and pin is `git merge-base --is-ancestor`,
    and "the built checkout is clean and at the pin" is asserted by `scripts/probes/_lib.sh`, not by prose.
 2. **`coreai-models`** — Apple's reference tree, consumed here as `Engine/CoreAI*` (BSD-3; types redefined
@@ -179,14 +180,14 @@ Five empirical sources plus comparators; round-by-round verdicts live in `CHANGE
 - `docs/agent/build-gate-reality.md` — the toolchain / SDK / Metal forensics behind that tiering.
 - `docs/agent/third-party-notices.md` — license composition, the `coreai-models` metric warning, the
   vendored-header table.
-- `docs/agent/closed-items-log.md` — verdicts § Open used to carry prose for (resolved / retracted / phantom).
+- `docs/agent/closed-items-log.md` — verdicts § Open used to carry prose for.
 - `docs/agent/instruction-channel.md` — who delivers the caller's `system`/`developer` text, and what
   refusing to reuse its cache costs.
 - `docs/agent/systemone-decisions.md` — upstream's Jev / System 1 decision API and the cheapest honest slice.
-- `docs/agent/comparator-repos.md` — what each comparator repo is actually good for, measured.
+- `docs/agent/comparator-repos.md` — what each comparator is good for, measured.
 - `docs/agent/codex-runtime.md` — what the coding host is (and is not), skills, sub-agents, escalation.
 - `scripts/probes/README.md` — every live probe: what it asserts, what it measured, which shape goes red.
-- `docs/agent/long-horizon-goal.md` — the ladder, and what would kill it.
+- `docs/agent/long-horizon-goal.md` — the ladder and what kills it.
 
 ## Routing table — working in X → read this first
 | Area | Read | Covers |
@@ -236,7 +237,7 @@ Which doc each audience reads, and when to touch it: `docs/agent/docs-map.md`.
   a test that only detects change; a second home for a decision; a new core tool where a file tool or a
   skill already does it — the last clause is the only one a machine can decide, so it has a ceiling: adding
   a declaration goes red until someone raises the number on purpose.
-<!-- claim:core_tools<=45 :: git grep -h 'ToolEntry\.typed(' -- Sources/ocoreai/Tools | wc -l -->
+<!-- claim:core_tools<=43 :: git grep -h 'ToolEntry\.typed(' -- Sources/ocoreai/Tools | grep -vE '^[[:space:]]*(//|\*)' | wc -l -->
 - **One home per decision, and a side effect is gated where it is declared:** `ToolEntry.isDestructive` is
   the only destructive truth and `securityPrecheck` asks from it (∪ blacklist for names nothing registers):
   a hand-copied matcher list leaves mutating tools unasked. Gate: `DestructiveApprovalGateTests`(5).
@@ -259,8 +260,8 @@ Which doc each audience reads, and when to touch it: `docs/agent/docs-map.md`.
 - **Comments say the *why* the code cannot, in 1–3 lines.** No bug history, dates or audit trails inside
   source comments — that is the commit message. Diffs are read by a human: one logical change per commit.
 - **A lock lives at the cheapest rung that bites:** hook → `make` → CI, priced in runner-seconds (text
-  gates go to ubuntu, arm64 minutes are the expensive seat). A gate nobody can install or ever sees go red
-  is decoration.
+  gates go to ubuntu; arm64 minutes are the expensive seat). A gate nobody can install or sees go red is
+  decoration.
 - **No defensive clutter; no guard for a failure nobody observed.** Validate once at the boundary that owns
   the value and pass typed values inward; quote the failure (a probe line, a red test, a scoreboard row)
   before writing its guard. For a speculative race or security edge case, name the failure mode, likelihood

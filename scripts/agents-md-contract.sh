@@ -84,7 +84,9 @@
 # Usage: bash scripts/agents-md-contract.sh [check|report|budget]
 #   check   default; exit 1 on any violation
 #   report  same output, always exit 0 (for read-only audits)
-#   budget  lower the pinned root cap to the current size (refuses to raise it)
+#   budget  lower the pinned root cap to the current size (refuses to raise it). Unit is BYTES
+#           (wc -c), not characters — the messages used to say "chars", which is how a round of
+#           CHANGELOG arithmetic quoted char counts against byte caps
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -94,7 +96,7 @@ cd "$(dirname "$0")/.."
 # alone, 3/3 with tools alone, 0/3 with both), paid partly by folding a duplicate `required`-strength
 # sentence into a §-pointer (-55 B). Debt is stated, not hidden: repay from the dated forensics in
 # docs/agent/build-gate-reality.md and the "named, unused" comparator cells (splash, deepseek-harness).
-: "${OCOREAI_AGENTS_MAX_ROOT:=22073}"   # pinned 10-27 by `make docs-budget`
+: "${OCOREAI_AGENTS_MAX_ROOT:=22063}"   # pinned 10-27 by `make docs-budget`
                                      # `make docs-budget` may only lower it (B1 stays a ratchet)
 # P13: the injected file carries rules, not diary. Longest allowed line in AGENTS.md, in bytes.
 : "${OCOREAI_AGENTS_MAX_LINE:=400}"
@@ -228,14 +230,21 @@ cd "$(dirname "$0")/.."
 # one gated — `core_tools<=45` re-counts `ToolEntry.typed` declarations and was red-sampled at 44
 # ("command returns 45"). The other three are review heuristics: no gate reads rule prose, and pinning a
 # sentence would be the change-detector test that very rule refuses.
-# 10-27 161755 -> 164454 (+2699). Hot path down, cold path up, both measured: AGENTS.md 24866 ->
+# 10-27 164454 -> 165123 (+669). In: one open item that indicts our own metric — the task-success board runs
+#   6 of the 43 registered tools (run.sh OCOREAI_EVAL_TOOLS), so every score/tok/ms figure so far describes
+#   a 14% slice, not the shipped surface; codex ships 13 tool specs and opencode 16, and hermes-agent
+#   states why that is a rule ("every model tool is sent on every API call"). Out: docs/agent/docs-map.md's
+#   duplicate of § Docs Contract (-370) and prose trims. Unit slip corrected in the same round: every cap
+#   here is BYTES (wc -c) while the messages said "chars" — which is how 10-27(13) quoted char counts
+#   against byte caps. `core_tools` also stopped counting comment lines: 2 of the 45 it cited were prose.
+# 10-27 161755 -> 164454 (+2699). Hot path down, cold path up, both measured: AGENTS.md 24866 chars ->
 #   22073 chars (-2793) by re-homing what only one subtree needs — the two inference lanes into
 #   Engine/AGENTS.md (where `cachedPromptTokenCount`/`prefixReuse` had ALREADY been duplicated) and the
 #   § Open long form + the doc-audience table into docs/agent/{open-items,docs-map}.md. The +2699 is the
 #   headers of those two new hops and the fact that a one-line index still names each item; the debt was
 #   NOT repaid from docs/agent/build-gate-reality.md, whose dated block is load-bearing mechanism, not
 #   forensics — read before cutting it. Root/chain/area caps all moved to measured the same round.
-: "${OCOREAI_CORPUS_MAX_BYTES:=164454}"
+: "${OCOREAI_CORPUS_MAX_BYTES:=165123}"
 
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
 # README whose index pattern rotted cannot report "every probe is documented" vacuously.
@@ -283,14 +292,14 @@ MODE="${1:-check}"
 if [ "$MODE" = budget ]; then
   size=$(wc -c < AGENTS.md | tr -d ' ')
   if [ "$size" -gt "$OCOREAI_AGENTS_MAX_ROOT" ]; then
-    echo "❌ AGENTS.md is $size chars > cap $OCOREAI_AGENTS_MAX_ROOT — the ratchet is shrink-only."
+    echo "❌ AGENTS.md is $size bytes > cap $OCOREAI_AGENTS_MAX_ROOT — the ratchet is shrink-only."
     echo "   Move a dated block to docs/agent/*.md and leave a pointer, then re-run."
     exit 1
   fi
   sed -i '' "s/: \"\${OCOREAI_AGENTS_MAX_ROOT:=.*$/\
 : \"\${OCOREAI_AGENTS_MAX_ROOT:=$size}\"   # pinned $(date +%m-%d) by \`make docs-budget\`/" \
     scripts/agents-md-contract.sh
-  echo "✅ re-pinned root cap $OCOREAI_AGENTS_MAX_ROOT -> $size chars (shrunk $(( OCOREAI_AGENTS_MAX_ROOT - size )))"
+  echo "✅ re-pinned root cap $OCOREAI_AGENTS_MAX_ROOT -> $size bytes (shrunk $(( OCOREAI_AGENTS_MAX_ROOT - size )))"
   exit 0
 fi
 
@@ -349,15 +358,15 @@ guides = [p for p in glob.glob("Sources/**/AGENTS.md", recursive=True)
 
 # ── B1/B2 budgets ────────────────────────────────────────────────────────────
 if root_size > env_int("OCOREAI_AGENTS_MAX_ROOT"):
-    fail.append("B1 AGENTS.md %d chars > cap %d (shrink-only ratchet: move a dated block "
+    fail.append("B1 AGENTS.md %d bytes > cap %d (shrink-only ratchet: move a dated block "
                 "to docs/agent/ and leave a pointer)" % (root_size, env_int("OCOREAI_AGENTS_MAX_ROOT")))
 for p in guides:
     n = os.path.getsize(p)
     if n > env_int("OCOREAI_AGENTS_MAX_AREA"):
-        fail.append("B2 %s %d chars > per-guide cap %d" % (p, n, env_int("OCOREAI_AGENTS_MAX_AREA")))
+        fail.append("B2 %s %d bytes > per-guide cap %d" % (p, n, env_int("OCOREAI_AGENTS_MAX_AREA")))
     chain = root_size + n
     if chain > env_int("OCOREAI_AGENTS_MAX_CHAIN"):
-        fail.append("B2 chain AGENTS.md+%s = %d chars > cap %d" % (p, chain, env_int("OCOREAI_AGENTS_MAX_CHAIN")))
+        fail.append("B2 chain AGENTS.md+%s = %d bytes > cap %d" % (p, chain, env_int("OCOREAI_AGENTS_MAX_CHAIN")))
 
 # ── P13 the injected file stays rule-only: no diary, no prose walls ──────────
 # 10-22: this file stated "Not a diary. A root rule is <=3 lines: what + evidence + the gate.
@@ -1144,7 +1153,7 @@ print("  xrefs     §-refs=%d (floor %d)  anchors=%d  dangling=%d"
 print("  corpus    files=%d bytes=%d/%d  walls=%d  probe-index=%d/%d  doc-orphans=%d  table-defects=%d"
       % (len(sorted(set(CORPUS))), corpus_bytes, env_int("OCOREAI_CORPUS_MAX_BYTES"),
          len(corpus_walls), len(probe_indexed), len(probe_scripts), len(doc_orphans), len(table_bad)))
-print("  budgets   root=%d/%d chars  guides=%d  chain-cap=%d"
+print("  budgets   root=%d/%d bytes guides=%d  chain-cap=%d"
       % (root_size, env_int("OCOREAI_AGENTS_MAX_ROOT"), len(guides), env_int("OCOREAI_AGENTS_MAX_CHAIN")))
 print("  language  english-md=%d (floor %d)  mirror-cjk=%d (floor %d)  diary=%s"
       % (len(lang_zero), env_int("OCOREAI_FLOOR_LANG_SCANNED"),

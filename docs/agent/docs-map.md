@@ -1,7 +1,6 @@
 # Which doc each audience reads, and when to touch it
 
-Long form for § Documentation Map in `AGENTS.md`, which keeps only the three surfaces injected into a
-model at runtime — the ones where a word is a behaviour change.
+Long form for § Documentation Map in `AGENTS.md`.
 
 | Doc | Audience | When to touch |
 |---|---|---|
@@ -15,6 +14,3 @@ model at runtime — the ones where a word is a behaviour change.
 | `CONTRIBUTING.md` | Human + Agent | the three questions, floor/ceiling semantics, the docs contract's operator rules |
 | `scripts/probes/README.md` | Human + Agent | one row per live probe: what it asserts, what it measured, which shape goes red |
 
-**Why the split matters:** agent-facing text is paid by every session that loads it and changes
-what the model does; human-facing text is read once and can be as long as it needs to be. A verdict
-that needs three sentences belongs here, not in the root.
