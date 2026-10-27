@@ -218,7 +218,17 @@ cd "$(dirname "$0")/.."
 # the §Identity pointer that restated the routing table 200 lines below it in this same file (-106 B) and
 # the §Docs Contract restatement of what the script header already owns (-60 B). Scripts are not corpus,
 # so scripts/makefile-parse-check.sh — the gate that would have caught the Makefile — cost nothing.
-: "${OCOREAI_CORPUS_MAX_BYTES:=161178}"
+# 10-27 raise 161178 -> 161755 (+577 net, +1635 gross). In: two rules copied from named trees — pi's staged-
+# paths discipline (several agent sessions share one cwd, so `git add -A` sweeps another session's half-work,
+# and CI cannot tell) and hermes-agent's rejection list ("refused even when well-built"), plus the ceiling
+# that makes one of its clauses decidable. Out, same edit: the §Contribution-policy bullet that restated the
+# three questions' second question (-94 B, merged into it), the verification-layers restatement (-80 B) and
+# the HIG item's "GUI's judge" clause (-45 B). Honesty note for the next editor: of the four refused
+# patterns only "a new core tool where a file tool already does it" is machine-decidable, and it is the only
+# one gated — `core_tools<=45` re-counts `ToolEntry.typed` declarations and was red-sampled at 44
+# ("command returns 45"). The other three are review heuristics: no gate reads rule prose, and pinning a
+# sentence would be the change-detector test that very rule refuses.
+: "${OCOREAI_CORPUS_MAX_BYTES:=161755}"
 
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
 # README whose index pattern rotted cannot report "every probe is documented" vacuously.

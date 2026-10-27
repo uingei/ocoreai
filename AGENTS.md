@@ -26,9 +26,8 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 
 ## Contribution policy
 - Every line in git is reviewable, AI or not; "it came from the model" excuses nothing.
-- No claim without a check: "verified/fixed/aligned" needs same-session command output.
-- An improvement answers *the three questions* (what improved, what output proves it, which gate goes red
-  if it regresses); missing the third makes it a claim. Full text: `CONTRIBUTING.md`.
+- An improvement answers *the three questions* (what improved, what same-session output proves it, which
+  gate goes red if it regresses); missing the third makes it a claim. Full text: `CONTRIBUTING.md`.
 - If upstream already has the answer, consume or reference it and cite `file:line` instead of authoring
   a local variant.
 
@@ -184,9 +183,9 @@ Five empirical sources plus comparators; round-by-round verdicts live in `CHANGE
 3. **`codex`** — semantic axis reference (Rust; nothing linked, nothing redistributed, no per-commit copying).
 4. **Apple Developer Documentation** — public, no login. DocC for intent and semantics, the SDK's
    `.swiftinterface` for exact signatures and `@available` gates, live execution for behaviour.
-5. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: the
-   GUI's judge, so on anything user-visible it is the authority, not codex. 102 topics,
-   none about agents (both counts: that guide) ⇒ `docs/agent/agent-interface-guidelines.md`.
+5. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: on anything
+   user-visible it is the authority, not codex, and none of its topics covers agents (that guide) ⇒
+   `docs/agent/agent-interface-guidelines.md`.
 6. **Comparators** — vllm, sglang, vllm-metal, omlx, mlx-serve, MTPLX, ollama, TensorFold, Strata, splash,
    openclaw, hermes-agent, harness2, goose, opencode: not pins; nothing linked or redistributed, and a
    borrowed verdict stays an inference until a `file:line` in our build says otherwise. Per-repo strengths:
@@ -248,15 +247,21 @@ project is **Human-facing**.
 - **Direct commits to `main`**, no branch ritual; CI on macos-26 (`make test-ci`) is the authority.
   `make docs-check` green when touching this file, `docs/**` or a guide. `CHANGELOG.md` records every
   user-visible change with its commit; `make push-ready` checks the tree: clean, pushed, paired, cites.
-- Verification is three layers: grep → compile → read the matched lines. A single-layer check is speculation.
-  `swift build` exit 0 before any completion claim; audit findings cite `file:line` + commit, and label
-  inference as inference.
+- **One cwd, several sessions:** stage explicit paths and commit only files this session changed — never
+  `git add -A`/`git add .`, which sweeps in another session's half-work (pi's rule; CI cannot tell you).
+- Verification is three layers: grep → compile → read the matched lines; a single-layer check is speculation.
+  `swift build` exit 0 before any completion claim; findings cite `file:line`; label inference as inference.
 - Before writing a symbol, grep for the mechanism that already exists (terminology drift is how
   `InferenceCompactor` would have been born next to `ConversationCompaction`). Before calling an upstream API
   missing, check the sources in § Upstream Audit Dependencies.
 - **Footprint ladder — take the highest rung that solves it:** consume upstream → extend an existing seam →
   opt-in flag/trait → tool or skill → new module → new core/agent-facing surface. A new surface needs a
   consumer that exists today.
+- **Refused even when well-built** (the list hermes-agent keeps too): a guard for a failure nobody quoted;
+  a test that only detects change; a second home for a decision; a new core tool where a file tool or a
+  skill already does it — the last clause is the only one a machine can decide, so it has a ceiling: adding
+  a declaration goes red until someone raises the number on purpose.
+<!-- claim:core_tools<=45 :: git grep -h 'ToolEntry\.typed(' -- Sources/ocoreai/Tools | wc -l -->
 - **One home per decision.** A second copy of a rule is where one of them drifts.
   **A side effect is gated where it is declared:** `ToolEntry.isDestructive` is the only destructive
   truth and `securityPrecheck` asks from it (∪ blacklist for names nothing registers) — a hand-copied
