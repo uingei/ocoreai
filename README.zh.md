@@ -68,7 +68,7 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 
 **方向** —— 开放模型的 Agent，原生本地，为创作、工作与代码而生；面向编码与知识工作的完整 agentic 系统。**编码是最深切片**：Coding/Computer Agent，让 LLM 在端侧可靠完成多步工程任务（**Execute** → **Verify** → **Recover**）。创作（Apple 原生感知/多模态）与知识工作（检索/阅读/写作）是一等产品面，不是附属。推理归上游（MLX / CoreAI），ocoreai 是其上的可靠执行层 —— 跟齐上游，不与之竞争。
 
-**参考** — [Apple Developer 文档](https://developer.apple.com/documentation/)、[mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm)(推理与 SPM pin)、[coreai-models](https://github.com/apple/coreai-models)(CoreAI 路线参照)、[codex](https://github.com/openai/codex)(agent 语义)、[Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines) —— 另有 [vLLM](https://github.com/vllm-project/vllm) / [vLLM-Metal](https://github.com/vllm-project/vllm-metal) / [SGLang](https://github.com/sgl-project/sglang) 作服务化系统参照、[omlx](https://github.com/omlx-ai/omlx) 作生产级参照、[OpenClaw](https://github.com/steipete/clawd) 与 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 作 agent 平台参照。
+**参考** — [Apple Developer 文档](https://developer.apple.com/documentation/)、[mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm)(推理与 SPM pin)、[coreai-models](https://github.com/apple/coreai-models)(CoreAI 路线参照)、[codex](https://github.com/openai/codex)(agent 语义)、[Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines) —— 另有 [vLLM](https://github.com/vllm-project/vllm) / [vLLM-Metal](https://github.com/vllm-project/vllm-metal) / [SGLang](https://github.com/sgl-project/sglang) 作服务化系统参照、[omlx](https://github.com/jundot/omlx) 作生产级参照、[OpenClaw](https://github.com/openclaw/openclaw) 与 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 作 agent 平台参照。
 
 ---
 

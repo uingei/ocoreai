@@ -4,6 +4,45 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-27
 
+**10-27(14) Two of the twenty-nine links in the front door pointed at repos that do not exist** (P0 human surface honesty / symbols `dead-comparator-links`, `link-gate-false-green`)
+
+- **The defect, reproduced before anything was written.** Applying the vllm/sglang practice (both run
+  `lychee` in pre-commit) to our own docs: 32 URLs cited, 29 non-loopback, and 2 returned **404** —
+  `github.com/omlx-ai/omlx` and `github.com/steipete/clawd`, cited in README.md **and** README.zh.md as
+  the "production-grade reference" and the "agent-platform reference". A reader clicks them and lands
+  nowhere. `api.github.com` (authoritative for existence, per § Upstream) gives the real trees:
+  **jundot/omlx** and **openclaw/openclaw**. Both READMEs fixed in the same edit, and both re-probed:
+  200.
+- **Fresh measurement of the ladder, because "first on GitHub" needs a number.** openclaw 393,161 ·
+  hermes-agent 257,428 · opencode (moved sst → **anomalyco**) 221,988 · ollama 184,905 · codex 131,034 ·
+  vllm 95,633 · sglang 38,221 · **omlx 23,078** · coreai-models 2,220 · mlx-swift-lm 847 · **ocoreai 1**.
+  Two readings that matter: the two largest *agent* repos are personal-agent platforms, not coding
+  agents, so the coding-agent bar is opencode/codex; and the closest sibling — local MLX serving, one
+  binary, same domain — sits at 23k **with a Homebrew tap, a DMG and auto-update**, while this repo has
+  0 tags and 0 releases. That is the largest controllable gap on the visibility axis, and it is still an
+  owner call (notarization is money).
+- **The gate caught nothing at first, because the gate was the bug.** The probe ran URLs 8-way parallel
+  and then 3-way; github.com answered 10 of 28, then 13 of 28 — parallelism here **manufactures** the
+  failures a link gate is supposed to detect. Worse, the first version reported transport errors
+  without failing them, so the throttled run printed **green while both real 404s sat in its own output**
+  as "no response". That is the exact failure invariant 1 names, self-inflicted.
+- **What is red now, and where.** Serial by default (`OCOREAI_LINK_PARALLEL`, measured setting 1): any
+  final 4xx is red, and **an unanswered majority is red too** — "could not ask is not a pass", the rule
+  `scripts/ci-status.sh` already applies to CI. `-L` is followed, so a moved repo stays green (opencode's
+  move is a 301 the reader never sees). A handful of stragglers in a healthy run is reported, not failed:
+  `huggingface.co` refuses curl from this host and loads in a browser.
+- **The blocking half is offline, on purpose.** Egress from this host is flaky, so a CI network gate
+  would be muted inside a week — the gitleaks pattern the owner already had deleted. `make links` stays
+  opt-in (it needs egress, ~85 s serial) and CI enforces P19 in `make docs-check`: every outbound URL a
+  doc cites must appear in a VERIFIED_URLS table with the date a human confirmed it, an entry nothing
+  cites is also red (both directions, the COMPARATOR_REFS shape), the scan floors itself at 27, and
+  entries marked `unverified` are capped at 2 so the exception cannot become the rule. Red-sampled all
+  three ways: a cited unverified URL, and `OCOREAI_URL_FLOOR=40`.
+- **Stated limits.** The date in the table is a claim about the day it was written, not a live check: a
+  link that dies next week is caught by `make links`, not by CI — the deliberate trade for a gate that
+  runs with no network. `huggingface.co` is recorded as unverified because no machine reachable here can
+  probe it. `swift build` was not re-run: this commit touches no Swift.
+
 **10-27(13) The injected file was the largest in the field, and the caps protecting it could not go red** (P2 doc discipline / symbols `context-budget-could-not-bite`, `doc-size-is-not-rank`)
 
 - **Measured all 21 comparator trees before touching anything, and the number was uncomfortable:** root

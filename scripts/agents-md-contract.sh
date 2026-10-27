@@ -242,6 +242,7 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_PROBE_FLOOR_INDEX:=20}"
 # P14 floors for the other two index scans (measured 22 tracked .md, 7 files in docs/agent).
 : "${OCOREAI_FLOOR_MD_SCANNED:=15}"
+: "${OCOREAI_URL_FLOOR:=27}"      # P19: outbound URLs P19 must see (measured 10-27: 27 cited, non-loopback)
 : "${OCOREAI_FLOOR_DOC_FILES:=5}"
 : "${OCOREAI_AGENTS_MAX_CHAIN:=36396}" # AGENTS.md + one area guide loaded together (measured 10-27:
 #   root + docs/agent/build-gate-reality.md, the worst root-to-doc chain). 78000 was never approached by any chain this repo has, which made
@@ -303,6 +304,7 @@ OCOREAI_CORPUS_MAX_BYTES="$OCOREAI_CORPUS_MAX_BYTES" \
 OCOREAI_COMPARATOR_FLOOR_TREES="$OCOREAI_COMPARATOR_FLOOR_TREES" \
 OCOREAI_PROBE_FLOOR_INDEX="$OCOREAI_PROBE_FLOOR_INDEX" \
 OCOREAI_FLOOR_MD_SCANNED="$OCOREAI_FLOOR_MD_SCANNED" \
+OCOREAI_URL_FLOOR="$OCOREAI_URL_FLOOR" \
 OCOREAI_FLOOR_DOC_FILES="$OCOREAI_FLOOR_DOC_FILES" \
 OCOREAI_AGENTS_FLOOR_REFS="$OCOREAI_AGENTS_FLOOR_REFS" \
 OCOREAI_AGENTS_FLOOR_CLAIMS="$OCOREAI_AGENTS_FLOOR_CLAIMS" \
@@ -891,6 +893,84 @@ if corpus_walls:
     fail.append("P15 %d line(s) over %d bytes in the agent-facing corpus (outside code fences, "
                 "comments and tables): %s"
                 % (len(corpus_walls), env_int("OCOREAI_CORPUS_MAX_LINE"), "; ".join(corpus_walls[:6])))
+
+# ── P19: every outbound link a doc points at was verified to resolve ─────────────────────────
+# Why this is offline: the live probe (scripts/link-check.sh, `make links`) is honest but cannot be
+# a blocking gate here — egress to github.com from this host is flaky, and on the day this gate was
+# written a throttled run answered 13 of 28 URLs and an earlier version of the probe called that
+# GREEN, hiding the two dead links it existed to catch. A lock that needs the network to know it is
+# red is the gitleaks pattern. So the network part stays opt-in, and what CI checks is decidable
+# offline: a doc may only cite a URL a human confirmed, on a stated date.
+#
+# The defect that started it (verified, same host, 10-27): README.md and README.zh.md both cited
+# github.com/omlx-ai/omlx (the tree is jundot/omlx) and github.com/steipete/clawd (it is
+# openclaw/openclaw) — 404 in the front door, in both languages.
+#
+# It rots in both directions on purpose, like COMPARATOR_REFS above: cite a URL that is not listed
+# and it is red; keep a listed URL nothing cites and that is red too. A date of "unverified" is
+# allowed for a host no available machine can reach (huggingface.co refuses curl here), under a
+# ceiling, so the exception cannot quietly become the rule.
+VERIFIED_URLS = {
+    "https://developer.apple.com/design/human-interface-guidelines": "10-27",
+    "https://developer.apple.com/documentation/": "10-27",
+    "https://developer.apple.com/documentation/foundationmodels": "10-27",
+    "https://developer.apple.com/tutorials/data/design/human-interface-guidelines.json": "10-27",
+    "https://www.apple.com": "10-27",
+    "https://www.swift.org": "10-27",
+    "https://keepachangelog.com/": "10-27",
+    "https://mlx.studio/": "10-27",
+    "https://modelscope.cn": "10-27",
+    "https://modelscope.cn/": "10-27",
+    "https://img.shields.io/badge/License-MIT-yellow.svg": "10-27",
+    "https://img.shields.io/badge/Swift-6.2-orange.svg": "10-27",
+    "https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg": "10-27",
+    "https://github.com/uingei/ocoreai.git": "10-27",
+    "https://github.com/uingei/ocoreai/releases": "10-27",
+    "https://github.com/uingei/ocoreai/actions/workflows/ci.yml": "10-27",
+    "https://github.com/uingei/ocoreai/actions/workflows/ci.yml/badge.svg": "10-27",
+    "https://github.com/uingei/ocoreai/security/advisories/new": "10-27",
+    "https://github.com/apple/coreai-models": "10-27",
+    "https://github.com/ml-explore/mlx-swift-lm": "10-27",
+    "https://github.com/openai/codex": "10-27",
+    "https://github.com/vllm-project/vllm": "10-27",
+    "https://github.com/vllm-project/vllm-metal": "10-27",
+    "https://github.com/sgl-project/sglang": "10-27",
+    "https://github.com/jundot/omlx": "10-27",
+    "https://github.com/openclaw/openclaw": "10-27",
+    "https://github.com/NousResearch/hermes-agent": "10-27",
+    # Refused by every machine this repo can reach (curl and the browser disagree); the URL itself
+    # is the service root, so a stale entry here would mean Hugging Face stopped existing.
+    "https://huggingface.co": "unverified",
+}
+UNVERIFIED_CEILING = 2            # one deliberate exception is a fact; a pile of them is an escape hatch
+LOOPBACK_RE_URL = re.compile(r"^https?://(127\.0\.0\.1|localhost|0\.0\.0\.0|192\.168\.[0-9]+\.[0-9]+)")
+cited_urls = set()
+for _q in md_tracked:
+    for _u in re.findall(r"https?://[A-Za-z0-9._/:%#?=&+-]+", read(_q)):
+        _u = _u.rstrip(").,`\"'>")
+        if not LOOPBACK_RE_URL.match(_u):      # documented examples of a local server, not citations
+            cited_urls.add(_u)
+print("  links     outbound=%d verified=%d unverified=%d (floor %d)"
+      % (len(cited_urls), len(cited_urls) - len([u for u in cited_urls if u not in VERIFIED_URLS]),
+          len([u for u, d in VERIFIED_URLS.items() if d == "unverified"]), env_int("OCOREAI_URL_FLOOR")))
+if len(cited_urls) < env_int("OCOREAI_URL_FLOOR"):
+    fail.append("P19 only %d outbound URL(s) scanned (< floor %d) — the extraction is the premise, "
+                "and a scan that shrinks silently voids the check"
+                % (len(cited_urls), env_int("OCOREAI_URL_FLOOR")))
+_unlisted = sorted(u for u in cited_urls if u not in VERIFIED_URLS)
+if _unlisted:
+    fail.append("P19 %d outbound link(s) in the docs were never verified to resolve: %s — check them "
+                "with `make links` (needs egress) and add the ones that resolve, with today's date"
+                % (len(_unlisted), ", ".join(_unlisted[:5])))
+_stale = sorted(u for u in VERIFIED_URLS if u not in cited_urls)
+if _stale:
+    fail.append("P19 %d verified-URL entr(y|ies) no doc cites: %s — the table is a record of what the "
+                "docs claim, so an entry nothing cites is a record of nothing"
+                % (len(_stale), ", ".join(_stale[:5])))
+_unver = sorted(u for u, d in VERIFIED_URLS.items() if d == "unverified")
+if len(_unver) > UNVERIFIED_CEILING:
+    fail.append("P19 %d entries are marked unverified (> ceiling %d) — an exception that grows is a hole"
+                % (len(_unver), UNVERIFIED_CEILING))
 
 # ── P16 comparator coupling ──────────────────────────────────────────────────
 # A comparator is a dependency you chose to read, not a folder you own. The floor below prices the
