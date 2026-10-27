@@ -94,7 +94,7 @@ cd "$(dirname "$0")/.."
 # alone, 3/3 with tools alone, 0/3 with both), paid partly by folding a duplicate `required`-strength
 # sentence into a §-pointer (-55 B). Debt is stated, not hidden: repay from the dated forensics in
 # docs/agent/build-gate-reality.md and the "named, unused" comparator cells (splash, deepseek-harness).
-: "${OCOREAI_AGENTS_MAX_ROOT:=30388}"   # pinned 10-25 by `make docs-budget`
+: "${OCOREAI_AGENTS_MAX_ROOT:=22073}"   # pinned 10-27 by `make docs-budget`
                                      # `make docs-budget` may only lower it (B1 stays a ratchet)
 # P13: the injected file carries rules, not diary. Longest allowed line in AGENTS.md, in bytes.
 : "${OCOREAI_AGENTS_MAX_LINE:=400}"
@@ -228,7 +228,14 @@ cd "$(dirname "$0")/.."
 # one gated — `core_tools<=45` re-counts `ToolEntry.typed` declarations and was red-sampled at 44
 # ("command returns 45"). The other three are review heuristics: no gate reads rule prose, and pinning a
 # sentence would be the change-detector test that very rule refuses.
-: "${OCOREAI_CORPUS_MAX_BYTES:=161755}"
+# 10-27 161755 -> 164454 (+2699). Hot path down, cold path up, both measured: AGENTS.md 24866 ->
+#   22073 chars (-2793) by re-homing what only one subtree needs — the two inference lanes into
+#   Engine/AGENTS.md (where `cachedPromptTokenCount`/`prefixReuse` had ALREADY been duplicated) and the
+#   § Open long form + the doc-audience table into docs/agent/{open-items,docs-map}.md. The +2699 is the
+#   headers of those two new hops and the fact that a one-line index still names each item; the debt was
+#   NOT repaid from docs/agent/build-gate-reality.md, whose dated block is load-bearing mechanism, not
+#   forensics — read before cutting it. Root/chain/area caps all moved to measured the same round.
+: "${OCOREAI_CORPUS_MAX_BYTES:=164454}"
 
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
 # README whose index pattern rotted cannot report "every probe is documented" vacuously.
@@ -236,8 +243,11 @@ cd "$(dirname "$0")/.."
 # P14 floors for the other two index scans (measured 22 tracked .md, 7 files in docs/agent).
 : "${OCOREAI_FLOOR_MD_SCANNED:=15}"
 : "${OCOREAI_FLOOR_DOC_FILES:=5}"
-: "${OCOREAI_AGENTS_MAX_CHAIN:=78000}" # AGENTS.md + one area guide loaded together
-: "${OCOREAI_AGENTS_MAX_AREA:=16000}"  # each Sources/**/AGENTS.md or docs/agent/*.md
+: "${OCOREAI_AGENTS_MAX_CHAIN:=36396}" # AGENTS.md + one area guide loaded together (measured 10-27:
+#   root + docs/agent/build-gate-reality.md, the worst root-to-doc chain). 78000 was never approached by any chain this repo has, which made
+#   B2 a cap that could not go red — a number that cannot be exceeded is not a limit.
+: "${OCOREAI_AGENTS_MAX_AREA:=14323}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
+#   build-gate-reality.md). Same rule as the chain cap: pinned to the largest file that exists.
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
 : "${OCOREAI_AGENTS_FLOOR_REFS:=50}"
 : "${OCOREAI_AGENTS_FLOOR_CLAIMS:=8}"

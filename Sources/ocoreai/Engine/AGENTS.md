@@ -130,3 +130,20 @@ AGENTS.md moved off their targets with no gate going red; these markers are the 
   regression: one unsandboxed build fixes it. Do not revert engine code to "fix" it.
 - Claims in this file are re-proved by `make docs-check` from the repo root.
 <!-- claim:coreai_engine_files>=14 :: ls Sources/ocoreai/Engine | grep -c '^CoreAI' -->
+
+## The two lanes, and where each line lives
+
+Root § Architecture stops here on purpose: these facts are about the engine, so they cost context only
+inside this subtree.
+
+- MLX lane: `_runInferenceWithMessages()` → `ChatSession` (session pool, guided generation,
+  `toolDispatch`); `ReasoningEventEmitter` on both backends, `KVCacheRuntime`
+  `.turboQuant`/`.affine`, `ThinkingBudget` on the std and MTP lanes.
+- MTP lane: `generate(mtpDrafter:)` bypasses `ChatSession`; tool calls are collected, dispatched and
+  published per iteration via `ToolResultPublisher`, aligned with upstream
+  `MTPSpeculativeTokenIterator`.
+- Sampling: `argmax` when temperature is 0, `multinomialSample` above it, with filters mirroring
+  upstream `CompositeSampler` — `Models/InferenceStubs.swift`.
+- `SessionPool` dedupes the *feed*, not the prefill; whether the cache skipped work is upstream's answer
+  (`cachedPromptTokenCount`), published as `prefixReuse` on `/v1/models/:model/kv-cache` and as
+  `reuseRefusals`. A lane that builds its own cache (guided gen, MTP) is booked as the refusal it was.

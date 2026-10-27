@@ -4,6 +4,50 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-27
 
+**10-27(13) The injected file was the largest in the field, and the caps protecting it could not go red** (P2 doc discipline / symbols `context-budget-could-not-bite`, `doc-size-is-not-rank`)
+
+- **Measured all 21 comparator trees before touching anything, and the number was uncomfortable:** root
+  `AGENTS.md` sizes — mlx-swift-lm 3490, goose 6212, vllm 6358, pi 8638, hermes-agent 11952, opencode
+  14544, deepseek-harness 19113, openclaw 19168, **ocoreai 24866**. Ours was the largest of every tree in
+  the set, 1.7× opencode and 2.1× hermes-agent, and 51% of our own corpus (hermes 7.5%, vllm 13%, opencode
+  18%). `coreai-models` (Apple's own reference) and `omlx` (the closest sibling product) ship **zero**
+  `AGENTS.md`; codex ships 2 area guides and no root, 3285 chars total.
+- **The size question is not the rank question, and the data says so.** codex sits at ~131k stars on 3.3k
+  chars of agent instructions; opencode at ~221.9k on 81k; mlx-serve carries 121855 chars of root guide.
+  Across this set instruction volume has no visible relation to GitHub rank, so shrinking the file is a
+  cost-and-clarity win for the humans and agents working here, not a route to first place — and it is
+  written down that way so nobody "optimises" the wrong axis again.
+- **What actually went wrong was duplication with no home.** `cachedPromptTokenCount` and `prefixReuse`
+  appeared in the root § Architecture *and* in `Sources/ocoreai/Engine/AGENTS.md` — two homes for one
+  decision, one of them paid by every session including those editing UI. The two inference lanes
+  (MLX via `ChatSession`, MTP around it, `ToolResultPublisher`, `KVCacheRuntime`, `CompositeSampler`) are
+  engine facts and now live only in the engine guide, which loads inside that subtree. § Open's long form
+  and the doc-audience table moved to `docs/agent/open-items.md` / `docs/agent/docs-map.md`; the root keeps
+  the address (area + instrument + whose call), because a root rule is ≤3 lines by this file's own rule.
+- **The caps were decoration, and that is the part invariant 1 forbids.** `OCOREAI_AGENTS_MAX_ROOT` was
+  30388 against a 24866-char file (8315 of slack) and `OCOREAI_AGENTS_MAX_CHAIN` was 78000 against a
+  worst-case root-to-doc chain of 36396 (41604 of slack): a limit that cannot be exceeded is not a limit,
+  while the script's own comment already read "a cap with slack in it is a cap nobody enforces". All four
+  are now pinned to measured — root 22073, chain 36396, per-file 14323, corpus 164454 — and each was
+  red-sampled by lowering it and reading the violation (B1 at 22000, B2 at 36000, P15 at 164000).
+- **Nothing was lost, and that was checked, not assumed.** Every symbol the old root carried was extracted
+  and re-grepped across the new corpus: 8 suites, 8 `claim:` ids, 10 `make` targets, 5 scripts, 10
+  `docs/agent/*.md`, 4 probe numbers — zero lost. One candidate loss (`probe 04`) was this checker's regex
+  missing the plural `probes 04, 26`, not a real one. `make docs-check` green.
+- **Debt was NOT repaid where the ledger pointed.** The script names
+  `docs/agent/build-gate-reality.md` as owing bytes, and it is the most dated-looking file in the corpus —
+  reading it first found the opposite of forensics: the metallib-refusal mechanism, the lease-across-network
+  122 s→370 s measurement, the `PlatformPremise` shape that works. Cutting it would have traded
+  load-bearing knowledge for a greener number, so the corpus moved +2699 B instead, visibly, with this
+  accounting next to the constant.
+- **One fiction removed while here:** `docs/agent/docs-map.md` inherited a `REVIEW.md` row from the moved
+  table; `REVIEW.md` does not exist in this tree, so the row is gone rather than hedged.
+- **Stated limit.** The root is still 22073 chars — above opencode's 14544 and hermes-agent's gated 12k.
+  The remaining bulk is § Code Conventions (~3.9k), the command block (~1k) and the routing table (~1.3k),
+  which have no second home: dropping them would stop the root being the rulebook it exists to be. Reaching
+  the 12k band is therefore a product decision about what a session must be told unprompted, not another
+  editing pass, so it is left as the owner's call rather than achieved by deleting rules.
+
 **10-27(12) Two more teachers, one rule that a machine can actually decide** (P2 doc discipline / symbols `core-tools-ceiling`, `rule-prose-has-no-gate`)
 
 - **omlx is the closest sibling and it solved the thing this repo has not.** Its repo carries `Formula/omlx.rb`: `brew tap jundot/omlx <repo-url>` then `brew install jundot/omlx/omlx`, formula built from a tag tarball with `depends_on arch: :arm64` and a macOS floor declared *in the formula*, plus options (`--with-custom-kernel`), a pinned `resource` for a conflicting transitive dep, and `skip_clean "libexec" if MacOS.version >= "27"` because macOS 27's `strip` corrupts Mach-O offsets (llvm/llvm-project#203678) — the same macOS-27 toolchain hazard this repo keeps meeting. Its README adds a DMG with in-app auto-update and a `~/.omlx/bin/omlx` CLI shim. Against that ladder this repo ships nothing: 0 tags, 0 releases, so README's own install sentence points at an empty page.
