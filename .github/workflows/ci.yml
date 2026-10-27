@@ -75,7 +75,10 @@ jobs:
     # mirror (~/.cache/org.swift.swiftpm), not `.build`; per-step attribution needs a token this
     # repo does not have, so this is headroom, not a fix.
     timeout-minutes: 25
-    needs: [governance]
+    # No `needs: [governance]`: this leg's own comment says an authority that a style tool can
+    # cancel is not an authority, and the text gates now live in that job — a quoted typo in the
+    # changelog must not suppress the pattern, format, lockfile and toolchain checks.
+    # (Observed at b2a2fa0: a pre-commit finding on CHANGELOG.md left this leg `skipped`.)
     steps:
       - uses: actions/checkout@v4
 

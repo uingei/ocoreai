@@ -8,6 +8,10 @@
 # and codex/.codespellrc — a spell gate is only affordable if the vocabulary is stated once.
 ignore-words-list = ane,caf,nd,ans,inout,unparseable,uptodate,ontext,allready,optionall,reuseable,alloc,datas,checkin,numer,re-declaring
 # Vendored and generated surfaces are not ours to reword: CXGrammar + dlpack are upstream C,
-# THIRD-PARTY-LICENSES is collected verbatim, and .build is a resolved dependency cache.
-skip = .git*,.build*,.build-clt*,Sources/lib/*,THIRD-PARTY-LICENSES/*,*.json,*.jsonl,*.lock,*.png,*.icns,*.metallib,*.svg,Package.resolved
+# THIRD-PARTY-LICENSES is collected verbatim, and .build is a resolved dependency cache. The diary
+# is skipped for a different reason: it quotes the misspellings it recorded, as evidence, and
+# rewording history to satisfy a spell gate would falsify the record. This file is skipped too
+# (as codex does) for the same reason — a rule that explains itself by quoting a typo must not
+# be tripped by its own explanation.
+skip = .git*,.build*,.build-clt*,Sources/lib/*,*dlpack*,THIRD-PARTY-LICENSES/*,.codespellrc,CHANGELOG.md,CHECKPOINT.md,IDEA.md,*.json,*.jsonl,*.lock,*.png,*.icns,*.metallib,*.svg,Package.resolved
 check-hidden = true
