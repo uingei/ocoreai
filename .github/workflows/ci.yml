@@ -10,12 +10,20 @@ on:
 permissions:
   contents: write
 
-# Every one of the four upstreams this repo learns from sets this (mlx-swift-lm, coreai-models,
-# codex, opencode) and this file did not: a PR push used to stack a second full arm64 run behind
-# the first. Semantics are codex's — a PR/branch group cancels its own stale run, while `main`
-# appends its run id so nothing on main is ever cancelled, because main's run history is the trail.
+# A push supersedes the push before it on the same ref. The wording copied here for years said the
+# semantics were codex's, and they were: codex/.github/workflows/bazel.yml:13 appends the run id for
+# `main` so nothing on main is ever cancelled, and this file pasted that expression. Deliberate
+# divergence, with the number that caused it: eleven pushes to main on 10-28 left five runs in flight
+# at once, four arm64 legs apiece, and the authority leg for HEAD waited over an hour behind verdicts
+# for commits HEAD already contains. codex pays that price in one workflow out of seven and this repo
+# has no per-commit artefact to buy with it; coreai-models/.github/workflows/ci.yml:9 and
+# opencode/.github/workflows/check.yml:12 both group per ref and cancel, the latter reserving the
+# run-id group for a release branch whose every commit owes a quarantine artefact.
+# What is not lost: every push still gets its own run row with its SHA, and a cancelled leg never
+# reads green — scripts/ci-status.sh maps `cancelled` to exit 1, "AUTHORITY NOT GREEN". A tag push
+# keeps its own group (`v0.1.14`), so no push to main can cancel a release run.
 concurrency:
-  group: ocoreai-ci::${{ github.event.pull_request.number > 0 && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}${{ github.ref_name == 'main' && format('::{0}', github.run_id) || ''}}
+  group: ocoreai-ci::${{ github.event.pull_request.number > 0 && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}
   cancel-in-progress: true
 
 jobs:

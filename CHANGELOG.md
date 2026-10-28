@@ -4,6 +4,30 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(18) A push to main supersedes the push before it, because five runs in flight bought nothing** (P1 CI / symbols `concurrency-supersede-main`)
+
+- **What improved.** The `concurrency.group` expression here carried codex's `main`-only run-id suffix, so
+nothing on main was ever cancelled and every push queued a full second set of arm64 legs. It is now one
+group per ref, which is what coreai-models (`ci.yml:9`) and opencode's check workflow (`check.yml:12`)
+both do; opencode reserves the run-id group for a release branch whose every commit owes a quarantine
+artefact, and this repo has no per-commit artefact to buy. The cheaper-looking alternative — skip arm64
+for markdown-only pushes — is refused here on a measured ground: those legs consume markdown, since
+probe 37 asserts a figure inside `AGENTS.md` and probe 39 executes markers out of the published skill.
+
+- **What same-session output proves it.** The API's own numbers for 10-28: eleven pushes to main, five
+runs queued or running at once at 11:22Z, four arm64 legs per run, and HEAD's run still in progress at
+76 minutes — behind verdicts for commits HEAD already contains. `yaml.safe_load` still returns the same
+six jobs and the new group string, so the edit is a scoping change and not a syntax event.
+
+- **Which gate goes red if it regresses.** No new gate, and none was needed: `scripts/ci-status.sh`
+already maps `cancelled` to exit 1 with the words `AUTHORITY NOT GREEN`, which is the exact risk the
+old comment was protecting against. Reader whose action changes: whoever waits for a tag gate — the
+newest push now gets the seat instead of the queue.
+
+- **Honest limits.** A superseded commit no longer earns its own arm64 verdict; its row stays in the run
+list with its SHA and the conclusion `cancelled`. This is a deliberate divergence from the expression
+pasted from codex `bazel.yml`, recorded because the comment removed here claimed codex's semantics.
+
 **10-28(17) The step that runs live probes bounds itself, so a stall names itself in minutes** (P1 CI / symbols `smoke-step-deadline`)
 
 - **What improved.** `Headless serve smoke (macos-26)` carried no bound of its own, so anything inside
