@@ -88,6 +88,9 @@ struct EngineHandle {
         options: InferenceOptions,
         cancellation: InferenceCancellation = .none,
     ) -> AsyncThrowingStream<InferenceEvent, Error> {
+        if ScriptedInference.isEnabled {
+            return ScriptedInference.stream()
+        }
         let metrics = PerRequestMetrics()
         return AsyncThrowingStream { continuation in
             continuation.onTermination = { @Sendable _ in
@@ -134,6 +137,9 @@ struct EngineHandle {
         conversationId: String? = nil,
         cancellation: InferenceCancellation = .none,
     ) -> AsyncThrowingStream<InferenceEvent, Error> {
+        if ScriptedInference.isEnabled {
+            return ScriptedInference.stream()
+        }
         let metrics = PerRequestMetrics()
         return AsyncThrowingStream { continuation in
             continuation.onTermination = { @Sendable _ in

@@ -20,6 +20,11 @@
 #   • every ready model accepts /v1/count-tokens;
 #   • every model row states `vlm` explicitly, and every capability row states
 #     `available` + a reason, so nothing user-visible is an unstated guess.
+#   • `/v1/capabilities` publishes `instructionBudget` — the byte cap the project
+#     instructions were cut to, plus a row per discovered doc. This probe boots with a
+#     workspace it seeds to overflow that cap, so the field is measured under the exact
+#     condition it exists to expose: one doc truncated to the cap, one dropped whole, and
+#     every counter agreeing with its own rows. No absolute path reaches this public row.
 #   • the two capability rows that carry a measured overlay agree with the surfaces that
 #     hold the evidence — `screenshot_capture` vs /v1/multimodal/status, `video_input` vs
 #     the per-model `videoInput` on /v1/models (see the section near the end).
@@ -34,6 +39,23 @@
 # Run: bash scripts/probes/03-capabilities-models-consistency.sh
 PROBE_NAME="03-capabilities-models-consistency"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_lib.sh"
+
+# Seed a workspace whose project instructions overflow the loader's byte cap, so this probe
+# measures `instructionBudget` under the exact condition the row exists to expose. Without
+# the seed the chain is empty on a host with no configured workspace, and every per-doc
+# assertion below would pass by finding nothing.
+INSTR_WS="$(mktemp -d -t ocoreai-instrws-XXXXXX)"
+probe_atexit "rm -rf '$INSTR_WS'"
+mkdir -p "$INSTR_WS/.git" "$INSTR_WS/sub"
+SEED_BYTES=40000
+python3 -c "
+import sys
+header = '# root\n'
+open(sys.argv[1] + '/AGENTS.md', 'w').write(header + 'x' * (int(sys.argv[2]) - len(header)))
+open(sys.argv[1] + '/sub/AGENTS.md', 'w').write('sub rule\n')
+" "$INSTR_WS" "$SEED_BYTES"
+SUB_BYTES="$(wc -c < "$INSTR_WS/sub/AGENTS.md" | tr -d ' ')"
+export OCOREAI_WORKSPACE="$INSTR_WS/sub"
 
 probe_boot
 probe_require_ready_model
@@ -68,6 +90,76 @@ if [ "$BACKEND" = "real" ] || [ "$BACKEND" = "heuristic" ]; then
   probe_ok "tokenizer backend published as '$BACKEND' (every token count on the wire is labelled)"
 else
   probe_fail "no tokenizerBackend / tokenizer_backend on /v1/capabilities — clients cannot tell an estimate from a real count"
+fi
+
+# The sibling of the tokenizer row: a degraded component a client must be able to read. The
+# degradation here is the project-instruction chain being cut at the loader's byte cap,
+# which until 10-28 fell off silently for the model AND for the caller. Two halves: the row
+# must agree with its own per-doc rows (its honest failure mode is a number that disagrees
+# with the rows beneath it), and it must state the seeded overflow exactly — one doc
+# truncated to the cap, one dropped whole, no absolute path on a public endpoint.
+INSTR="$(probe_json "$PROBE_BODY" 'instructionBudget')"
+INSTR_BAD="$(python3 - "$INSTR" "$INSTR_WS" "$SEED_BYTES" "$SUB_BYTES" <<'PY'
+import json, sys
+raw, ws, seed, sub = sys.argv[1].strip(), sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
+if not raw:
+    print("instructionBudget absent from /v1/capabilities"); sys.exit(0)
+try:
+    b = json.loads(raw)
+except Exception:
+    print("instructionBudget not parseable"); sys.exit(0)
+docs = b.get("docs")
+if not isinstance(docs, list):
+    print("instructionBudget.docs is not an array"); sys.exit(0)
+cap = b.get("maxBytes")
+bad = []
+if not isinstance(cap, int) or cap <= 0:
+    print("maxBytes absent or not a positive int — nothing else can be said"); sys.exit(0)
+injected = sum(int(d.get("bytesInjected", -1)) for d in docs)
+if injected != b.get("injectedBytes"):
+    bad.append("injectedBytes %r != sum of docs (%d)" % (b.get("injectedBytes"), injected))
+if injected > cap:
+    bad.append("injectedBytes %d exceeds maxBytes %d" % (injected, cap))
+if len(docs) != b.get("docCount"):
+    bad.append("docCount %r != %d rows" % (b.get("docCount"), len(docs)))
+for key, state in (("truncatedDocs", "truncated"), ("droppedDocs", "dropped")):
+    rows = sum(1 for d in docs if d.get("state") == state)
+    if rows != b.get(key):
+        bad.append("%s %r != %d rows" % (key, b.get(key), rows))
+# Premise floor: the seed must really overflow the cap the server reports, or the exact
+# assertions below would be measuring a chain that never needed cutting.
+if seed <= cap:
+    bad.append("seed %d B does not overflow the reported cap %d — the premise died" % (seed, cap))
+elif [d.get("state") for d in docs] != ["truncated", "dropped"]:
+    bad.append("expected [truncated, dropped], got %r" % [d.get("state") for d in docs])
+elif [d.get("label") for d in docs] != ["<root>/AGENTS.md", "<root>/sub/AGENTS.md"]:
+    bad.append("labels are %r" % [d.get("label") for d in docs])
+elif [d.get("bytesTotal") for d in docs] != [seed, sub]:
+    bad.append("bytesTotal is %r, expected [%d, %d]" % ([d.get("bytesTotal") for d in docs], seed, sub))
+elif [d.get("bytesInjected") for d in docs] != [cap, 0]:
+    bad.append("bytesInjected is %r, expected [%d, 0]" % ([d.get("bytesInjected") for d in docs], cap))
+elif b.get("docCount") != 2 or b.get("truncatedDocs") != 1 or b.get("droppedDocs") != 1:
+    bad.append("counters disagree with the seeded overflow")
+if any(d.get("path") is not None for d in docs):
+    bad.append("a doc row published an absolute path on a public endpoint")
+for candidate in {ws, ws.replace("/", "\\/")}:
+    if candidate in raw:
+        bad.append("the payload carries the workspace path: %s" % candidate)
+        break
+print("none" if not bad else "; ".join(bad))
+PY
+)"
+if [ "$INSTR_BAD" = "none" ]; then
+  INSTR_SUMMARY="$(python3 - "$INSTR" <<'PY'
+import json, sys
+b = json.loads(sys.argv[1])
+print("%d/%d B injected over %d doc(s), %d truncated, %d dropped"
+      % (b["injectedBytes"], b["maxBytes"], b["docCount"], b["truncatedDocs"], b["droppedDocs"]))
+PY
+)"
+  probe_ok "instructionBudget states the seeded overflow exactly: $INSTR_SUMMARY"
+else
+  probe_fail "$INSTR_BAD — the row that exists to expose a silent truncation is wrong or absent"
 fi
 
 CAPS="$(probe_json "$PROBE_BODY" 'capabilities')"

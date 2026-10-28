@@ -26,7 +26,8 @@ DIGEST_LEN = 12
 
 # The fields that decide whether two runs measured the same game. `score` is deliberately not one
 # of them — that is the thing being measured.
-KEY_FIELDS = ("model", "tasks", "tools", "temperature", "approval", "concurrency", "host")
+KEY_FIELDS = ("model", "tasks", "tools", "temperature", "approval", "concurrency", "host", "docs",
+              "binary")
 
 # Inside one root every field above must agree: a repeat of a configuration that states something
 # else is not a repeat. Across two roots the loop is *deliberately* moving one thing, so the
@@ -34,7 +35,7 @@ KEY_FIELDS = ("model", "tasks", "tools", "temperature", "approval", "concurrency
 # descriptions and schemas the model is handed (AGENTS.md § Documentation Map treats them as
 # function-calling contracts), and refusing on that would make the loop unable to judge exactly
 # the experiments it exists to judge. Movement there is the hypothesis, so it is printed instead.
-SURFACE_FIELDS = ("tools",)
+SURFACE_FIELDS = ("tools", "docs")
 INVARIANT_FIELDS = tuple(k for k in KEY_FIELDS if k not in SURFACE_FIELDS)
 
 
@@ -62,7 +63,39 @@ def tools_token(specs):
     return "%d+%s" % (len(specs), _digest(canon.encode("utf-8")))
 
 
-def render(model, tasks_path, tool_specs, temperature, approval, concurrency=1, host=None):
+def docs_token(path):
+    """`none`, or `<basename>+sha256:<12>` over the instruction doc the workspace handed the agent.
+
+    `WorkspaceContext.buildSection` injects `<workspace>/AGENTS.md` into the system prompt, so a run
+    whose workspace holds a doc and a run whose workspace holds none are different instruments — and a
+    run that *thinks* it passed a doc while the file was not there is the vacuous-arm class this file
+    exists to refuse. `none` is a stated value, not an omission: the 39-task board ran with no doc for
+    its whole history, and that has to read as a condition rather than as a missing field.
+    """
+    if not path or path == "none":
+        return "none"
+    with open(path, "rb") as fh:
+        return "%s+%s" % (os.path.basename(path), _digest(fh.read()))
+
+
+def binary_token(path):
+    """`<basename>+<mtime>+<bytes>` for the artefact that actually answered, or `unknown`.
+
+    A board's verdict is a claim about a *build*, while the path `_lib.sh` resolves is whatever sits
+    there: measured 10-27, a run scored against a binary four hours older than the sources it was
+    judging, and nothing in `results.tsv` could show it. mtime+size is not a fingerprint — it is
+    cheap, and it moves when the artefact is rebuilt, which is the difference a paired A/B must not
+    cross silently (a rebuild between arms changes the engine, not the hypothesis). `unknown` is a
+    stated value so an omission cannot be read as a match.
+    """
+    if not path or path in ("none", "unknown"):
+        return "unknown"
+    st = os.stat(path)
+    return "%s+%d+%d" % (os.path.basename(path), int(st.st_mtime), st.st_size)
+
+
+def render(model, tasks_path, tool_specs, temperature, approval, concurrency=1, host=None,
+           docs=None, binary=None):
     """The `k=v …` body, in KEY_FIELDS order — one home for the order and for the separators."""
     fields = [
         ("model", model),
@@ -72,14 +105,17 @@ def render(model, tasks_path, tool_specs, temperature, approval, concurrency=1, 
         ("approval", approval),
         ("concurrency", str(concurrency)),
         ("host", host or "%s %s %s" % (platform.system(), platform.release(), platform.machine())),
+        ("docs", docs_token(docs)),
+        ("binary", binary_token(binary)),
     ]
     return " ".join("%s=%s" % (k, v) for k, v in fields)
 
 
-def build(model, tasks_path, tool_specs, temperature, approval, concurrency=1, host=None):
+def build(model, tasks_path, tool_specs, temperature, approval, concurrency=1, host=None,
+          docs=None, binary=None):
     """The canonical conditions string (without the leading `#` the scoreboard writes)."""
     return "conditions " + render(model, tasks_path, tool_specs, temperature, approval,
-                                  concurrency=concurrency, host=host)
+                                  concurrency=concurrency, host=host, docs=docs, binary=binary)
 
 
 def parse(text):
@@ -126,6 +162,16 @@ def _declared_specs(names):
         raise SystemExit("_conditions.py: no tool names given — a conditions line over zero"
                         " declarations would attribute the score to a server that declares nothing")
     specs = _eval.tool_specs(wanted)
+    if "all" in wanted:
+        # `all` is a word, not a tool name, so "every asked name is declared" cannot be its premise.
+        # The equivalent check is that the server declared a surface at all: `_eval.tool_specs` answers
+        # [] for an unreadable or oddly shaped payload, and a digest over zero tools would credit the
+        # score to a server that declares nothing — the same failure the name check above exists for.
+        if not specs:
+            raise SystemExit("_conditions.py: `all` resolved to zero declarations from the cached"
+                            " GET /v1/tools — the tools digest would cover a surface the run never"
+                            " handed the model")
+        return specs
     missing = sorted(wanted - set(_eval.spec_name(s) for s in specs))
     if missing:
         raise SystemExit("_conditions.py: the cached GET /v1/tools does not declare %s (asked for"
@@ -149,6 +195,13 @@ if __name__ == "__main__":
                         " sends — a literal here would be a second home for the same decision")
     ap.add_argument("--approval", required=True)
     ap.add_argument("--concurrency", default="1")
+    ap.add_argument("--docs", default="none",
+                   help="path to the instruction doc the workspace handed the agent, or `none`"
+                        " (the board's whole history until 10-27) — digested, not named, because a"
+                        " reworded doc is a different instrument")
+    ap.add_argument("--binary", default="unknown",
+                   help="the ocoreai artefact answering the requests; recorded as"
+                        " <name>+<mtime>+<bytes> so a rebuild between arms is visible")
     a = ap.parse_args()
     # Pairs only: `run.sh` writes the `# conditions …` marker itself, so the marker lives at the
     # one site that writes it instead of being invented twice.
@@ -159,4 +212,6 @@ if __name__ == "__main__":
         temperature=a.temperature if a.temperature is not None else _eval.REQUEST_TEMPERATURE,
         approval=a.approval,
         concurrency=a.concurrency,
+        docs=None if a.docs == "none" else a.docs,
+        binary=None if a.binary in ("none", "unknown") else a.binary,
     ))

@@ -45,6 +45,14 @@ how code is written anywhere, it belongs at the root. Two copies of one rule is 
   through `MessageBuilder.buildMessages`, `mergingSteeredTurn` and `persistConversation`, session identity
   is `session_id` / `metadata.session_id`, and each logs one `Assembled prompt [face]: …` line. Gates:
   `AnthropicToolDeliveryTests`(26), `AnthropicThinkingAndToolChannelTests`(24) + probes 13, 22.
+- A knob whose meaning lives in the checkpoint's template is honored on a measurement, not on
+  acceptance: `reasoning_effort` is probed at load by rendering the checkpoint's own template with a
+  sentinel value (`ReasoningEffortLedger`, Engine/), `/v1/models` publishes `honored` |
+  `template_ignores` | `not_observed`, and a word the measurement says cannot reach the model is
+  refused 400 naming the knob, the evidence and both exits (the shape of codex
+  `core/src/session/code_mode_warning.rs:6-24`). Unmeasured is never refused — absence of evidence is
+  not a measured "no", and a refusal costs a caller a turn.
+  Gate: `ReasoningEffortHonestyTests`(9) + probe 38 (both tiers red-sampled).
 - A knob the wire accepts must reach the engine, and the terminal word must be the spec's word. Penalties
   apply when non-zero (upstream semantics), a stop string terminates the turn with `finish_reason: stop`,
   and only the last SSE chunk speaks. One home per decision: `upstreamPenalty`,
@@ -84,5 +92,7 @@ how code is written anywhere, it belongs at the root. Two copies of one rule is 
 - `make test FILTER='WireDTOOptionalityTests'` — a key the spec calls optional decodes when absent.
 - `make test FILTER='GrammarSchemaRegressionTests'` — the schema a constrained answer is promised.
 - `make test FILTER='ToolCallWireContractTests'` — parallelism, terminal word, terminal chunk.
+- `make test FILTER='ReasoningEffortHonestyTests'` — the refusal needs a demand *and* a measured
+  negative; `bash scripts/probes/run.sh 38` decides the same claim on a live server, model-free.
 - `make probes` — the same rows against a live `/v1/*` server, so the claim outlives the session
   that made it.

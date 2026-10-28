@@ -168,9 +168,12 @@ def spec_name(spec):
     return (fn or {}).get("name") if isinstance(fn, dict) else spec.get("name", "")
 
 
-def tool_specs(needed):
-    """Tool declarations come from the server (/v1/tools), never from a copy here: a
-    local copy of the schema is a second truth that drifts when the tool changes."""
+def all_specs():
+    """Every declaration the server answered, in the server's own order and shape.
+
+    Tool declarations come from the server (/v1/tools), never from a copy here: a local copy of a
+    schema is a second truth that drifts when the tool changes.
+    """
     cache = os.environ.get("OCOREAI_TOOLS_CACHE")
     if not cache or not os.path.exists(cache):
         raise SystemExit(
@@ -188,7 +191,61 @@ def tool_specs(needed):
         specs = payload.get("data") or payload.get("tools") or []
     if not isinstance(specs, list):
         return []
+    return specs
+
+
+def tool_specs(needed):
+    """The declarations for the names this scoreboard asks for."""
+    specs = all_specs()
+    if "all" in needed:
+        # The full-surface board must be one word, not a hand-copied list of every registered tool:
+        # a copied name list is the drift class this function exists to refuse, and the goal's rung 2
+        # is exactly the comparison between a 6-tool board and the whole surface.
+        return [s for s in specs if spec_name(s)]
     return [s for s in specs if spec_name(s) in needed]
+
+
+def tool_surface(needed):
+    """What the declarations a turn is handed cost, in the bytes the request carries.
+
+    `json.dumps` with its default separators is what `body` prints the request with, so this is the
+    wire figure and not a proxy for it. The full registered surface is reported beside the board's
+    own figure because the thing being priced is deferral: how much of every prompt is tool text,
+    and what the whole surface would cost instead. codex defers behind `tool_search`, hermes-agent
+    keeps a reserved bridge, pi filters to `modelTools` — and until now our board printed neither
+    number, so 43 declarations rode every turn unpriced.
+    """
+    specs = tool_specs(set(needed.split()))
+    if not specs:
+        raise SystemExit(
+            "surface: no declaration matched %r — a byte figure over zero tools would price a"
+            " surface the run never handed the model" % needed)
+    every = [s for s in all_specs() if spec_name(s)]
+
+    def wire(entries):
+        return len(json.dumps(entries).encode("utf-8"))
+
+    per = sorted(((spec_name(s), len(json.dumps(s).encode("utf-8"))) for s in specs),
+                 key=lambda kv: (-kv[1], kv[0]))
+    return {
+        "board_count": len(specs),
+        "board_bytes": wire(specs),
+        "declared_count": len(every),
+        "declared_bytes": wire(every),
+        "per_tool": per,
+    }
+
+
+def render_surface(figures, top=8):
+    """The `# surface …` line: totals first, then the heaviest declarations by name."""
+    named = " ".join("%s=%d" % (name, size) for name, size in figures["per_tool"][:top])
+    rest = figures["per_tool"][top:]
+    tail = (" others=%d(%d)" % (len(rest), sum(size for _, size in rest))) if rest else ""
+    return ("tools=%d wire_bytes=%d share_of_declared=%d%% declared=%d/%d %s%s" % (
+        figures["board_count"], figures["board_bytes"],
+        round(100 * figures["board_bytes"] / figures["declared_bytes"])
+        if figures["declared_bytes"] else 0,
+        figures["declared_count"], figures["declared_bytes"], named, tail))
 
 
 def main():
@@ -302,6 +359,10 @@ def main():
         if unparsed:
             line += " usage_unparsed=%d(%s)" % (len(unparsed), ",".join(unparsed[:3]))
         print(line)
+
+    elif cmd == "surface":
+        # One line, so `run.sh` can write it into results.tsv beside the cost figures.
+        print(render_surface(tool_surface(sys.argv[2])))
 
     else:
         raise SystemExit("unknown command: %s" % cmd)

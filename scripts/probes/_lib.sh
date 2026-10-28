@@ -557,6 +557,37 @@ probe_require_ready_model() {
     probe_fail "GET /v1/models -> ${PROBE_STATUS:-no response}"
     probe_summary "${PROBE_NAME:-probe}"
   fi
+  if [ -n "${OCOREAI_PROBE_MODEL:-}" ]; then
+    # An arm of a measurement names its own checkpoint. A score is a claim about a model, so the
+    # harness has to be able to say WHICH one rather than inherit whatever /v1/models lists first —
+    # that ordering is what made every published board figure a claim about "the ready model".
+    # Exact id or the bare name after the org prefix; absent is a loud red, never a quiet fallback
+    # to another checkpoint, because an arm that silently ran elsewhere is a wrong number.
+    PROBE_MODEL="$(python3 - "$PROBE_BODY" "$OCOREAI_PROBE_MODEL" <<'PY'
+import json, sys
+want = sys.argv[2]
+try:
+    data = json.loads(sys.argv[1]).get("data", [])
+except Exception:
+    sys.exit(0)
+for m in data:
+    mid = str(m.get("id", ""))
+    if mid == want or mid.split("/")[-1] == want:
+        print(mid)
+        break
+PY
+)"
+    if [ -z "$PROBE_MODEL" ]; then
+      ids="$(printf '%s' "$PROBE_BODY" | python3 -c \
+        'import json,sys; print(", ".join(str(m.get("id","?")) for m in json.load(sys.stdin).get("data",[])))' \
+        2>/dev/null || true)"
+      probe_fail "OCOREAI_PROBE_MODEL=$OCOREAI_PROBE_MODEL is not a model this server reports — the arm" \
+        "would not run on the checkpoint it names. Reported: ${ids:-<none parsed>}"
+      probe_summary "${PROBE_NAME:-probe}"
+    fi
+    probe_note "model $PROBE_MODEL — named by OCOREAI_PROBE_MODEL, not by listing order"
+    return 0
+  fi
   PROBE_MODEL="$(probe_json "$PROBE_BODY" 'data.0.id')"
   if [ -z "$PROBE_MODEL" ]; then
     # Prefer an explicitly ready entry; `state` is how this server says "loadable".

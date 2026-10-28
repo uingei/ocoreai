@@ -2,7 +2,743 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-09-05 → 2026-10-27
+## [Unreleased] — 2026-09-05 → 2026-10-28
+
+**10-28(7) The injector now says what it cut — one resolver feeds the prompt, `/v1/capabilities` and the published skill** (P0 honesty / symbols `instruction-budget-disclosure`, `silent-truncation-fix`)
+
+- **What improved.** The gap 10-28(6) measured is closed by one resolver instead of two stories.
+  `WorkspaceContext.assemble` (`Sources/ocoreai/WorkspaceContext.swift:204`) now measures every discovered doc's
+  fate — `whole` | `truncated` | `dropped` — and both consumers read that one measurement: the injected text
+  carries `Workspace instruction budget N bytes: truncated <path> from A to B bytes` /
+  `dropped <path> (A bytes)` (`noticeLine`, `:272`), placed **before** the docs so the model reads the notice
+  before the truncated rule, and `GET /v1/capabilities` publishes
+  `instructionBudget{maxBytes, injectedBytes, docCount, truncatedDocs, droppedDocs, docs[]}` beside
+  `tokenizerBackend`, the precedent 10-28(6) named. That endpoint is public (it bypasses `AuthMiddleware`), so
+  `docs[].label` is `<root>/…` and `path` is not encoded at all — an absolute path is somebody's home directory
+  — which is also why the row is `Encodable`-only: a `Decodable` copy would have to carry the field back. Third
+  consumer: the artefact a stranger reads. `skills/ocoreai/SKILL.md` §3 and `references/wire.md` now state that
+  `instructionBudget` says whether *your own* instructions arrived intact, and that a non-zero
+  `truncatedDocs`/`droppedDocs` means you say so instead of acting on a tail you never got; the skill's
+  capabilities marker lists the field, so probe 39 executes the sentence rather than trusting it. The wording is
+  borrowed, not invented (deepseek-harness pins it as a fixture; codex at least logs the cut). Rounds also paid
+  their own drift tax: four `file:line` cites retargeted to the post-change lines, the root § Open bullet
+  rewritten from "goes silently" to "disclosed, not gated" (frees bytes), and the `open-items.md` entry
+  restructured into landed-vs-open.
+- **What same-session output proves it.** A live `serve` on this host against a workspace seeded to overflow
+  the cap: `/v1/capabilities` answered
+  `maxBytes 32768, injectedBytes 32768, docCount 2, truncatedDocs 1, droppedDocs 1` with rows
+  `<root>/AGENTS.md 39 012→32 768 truncated` and `<root>/sub/AGENTS.md 37→0 dropped` — the two cases that used
+  to vanish, stated with exact bytes, no absolute path, `tokenizerBackend: real` beside them.
+  `make test FILTER=WorkspaceContext` → **15 tests green** (4 new);
+  `scripts/probes/03-capabilities-models-consistency.sh` → **32 passed, 0 failed**, its new clause printing
+  `32768/32768 B injected over 2 doc(s), 1 truncated, 1 dropped`; probe 39 → **30 passed** with the extended
+  marker; probe 40 → **6 passed, 0 failed** after the skill grew, artefact 28 366 → 29 240 B, and its README
+  figure refreshed rather than left to drift. `swift build` green, `make format-check` clean on the pinned
+  603.0.0, `make docs-check` and `make anchor-check` green, `make spell` clean.
+- **Which gate goes red if it regresses.** Sampled twice in the session that wrote it. Reporting the dropped
+  doc as `whole` turned probe 03 red — `expected [truncated, dropped], got ['truncated', 'whole']` — and three
+  unit expectations with it; silencing the notice and publishing the real path instead of `<root>/` turned three
+  more unit expectations red (6 issues across 3 tests). The split is deliberate: `WorkspaceContextTests`(15)
+  gates the **values** (exact byte deltas, both states, no notice when nothing was cut, no `path` on the row)
+  while probe 03 gates the **wire** (field present, every counter agreeing with its own rows, the seeded
+  overflow exact, no path leak) and now boots against a workspace it seeds itself — without the seed the same
+  assertions pass on an empty chain by finding nothing. The readers whose action changes: a caller deciding
+  whether the project rules in its prompt are complete, and any harness whose trust is the skill's accuracy.
+- **Honest limits.** No behaviour verdict: telling a 2B model that its instructions were cut may itself cost
+  points, and no board arm scores that, so the disclosure's price is unknown (said in `open-items.md`).
+  Injection is still **not gated by capacity** and no UI shows any of it — both owner calls, unchanged from
+  10-28(6). No new probe file was added (the layer is frozen 10-28): the wire claim rides probe 03 and probe
+  39's existing markers, so a dedicated probe remains the owner's gate decision. `skills/` and today's earlier
+  rounds were uncommitted when this landed, and the commit carrying this slice carries them too — `AGENTS.md`,
+  `CHANGELOG.md`, `scripts/probes/README.md`, `docs/agent/*`, `ChatCompletionsRouter.swift` and
+  `WorkspaceContextTests.swift` hold edits from several rounds and cannot be split by path, so this diary entry,
+  not the commit message, is the unit of record. Finally: the notice is one line per assembly, and the wire row
+  is re-measured per request (one stat per doc plus up to 32 KiB from page cache) on a public endpoint —
+  bounded, not free.
+- **Landing hygiene, stated because it is a finding.** Asked what the process got wrong: a day of rounds never
+reached git. `make push-ready` fails on its first check with
+`56 path(s) uncommitted — the round is neither reviewable nor pushed`, and an invisible heap is precisely how
+work escapes CI — a reader clones `origin/main`, not this directory. Landing it also surfaced a stale gate:
+the full `make test` (3 370 tests) reported 6 issues, 2 of them
+`deliveryTargetPinsTheRouteInsteadOfInheritingIt`, which grepped the Makefile for `DEVELOPER_DIR=$(CLT_DIR)`
+and `$(SDKROOT_CLT)` — literals that 10-28(2) deliberately moved into
+`scripts/toolchain-contract.sh print-delivery-env`. A gate that searches for a *copy* of a decision is the
+second home `AGENTS.md` § Working here forbids, and § Testing Quality's "gates every consumer of the value it
+changed" cuts both ways: the test now asserts the ladder itself — the resolver pins `DEVELOPER_DIR` and an SDK
+chosen by name, refuses a host with no CoreAI-free SDK instead of inheriting Xcode's, and `build-app.sh` reads
+that same resolver — so a route that stops being pinned still goes red, and so does a pin that drifted out of
+it. The other 4 issues are real-clock timing tests (`testRateLimitExhaustion`, `queueWakesOnRelease`,
+`hungServerTimeoutCarriesItsComplaint`, `steerArrivingMidWaitEndsItEarly`) that pass when run alone (5/5
+green filtered), so they are recorded as load flakes rather than fixed on hearsay. `make push-ready` green is
+the definition of done here; CI on macos-26 stays the authority for what the suite says.
+
+
+**10-28(6) The twentieth comparator tree, a growth claim that failed its own arithmetic, and the truncation our injector hides** (P0 adoption / symbols `reference-economy-10-28`, `growth-ceiling-10-28`, `silent-truncation-10-28`)
+
+- **What improved.** `~/references` was audited as an **economy** instead of a feature list: 20 trees, each
+  measured for what a stranger actually ranks (stars · age · stars/day · 14-d commits · releases · tag cadence)
+  and for what its instruction corpus *costs* — bytes, and the deepest root→cwd chain against the loader's
+  32 768-byte budget. `deepseek-ai/deepseek-harness` was absent from `docs/agent/comparator-repos.md` and is now
+  a row with four borrowable axes: the injected-corpus budget stated **in the prompt the model reads** and
+  pinned as snapshot fixtures (`snapshots/session/agent-instructions-budget*/`, wording "Workspace instruction
+  budget 700 bytes: truncated … from 1900 to 292 bytes"); oversize **refused, never truncated**
+  (`docs/config-catalog.md:359`) with `truncated`/`total` on every view so no UI can present a partial result as
+  complete (`docs/subsystems/tools.md:623`); an i18n **pairing** record instead of a duplicated translation
+  (`README.i18n.yaml`, per-heading en/zh hashes); intake and review as *tested code*
+  (`.github/issue-management/policy.test.mjs`, `.github/review-ownership/approval-policy.json`,
+  `weighted-approval.yml`) — a tree that runs 263 k stars with `has_issues: false`, which is the whole intake
+  argument in one field. openclaw's `maturity-scorecard.yml` and `update-migration.yml` are recorded beside
+  them. Root gained the distribution rule (§ Adoption) and the silent-tail entry (§ Open); the runbook's
+  leaderboard gained age and stars/day columns for 17 trees.
+- **What same-session output proves it.** One deletion, two measurements, one green wedge. **Deleted:** the
+  ladder's Growth section claimed a best sustained rate of ≈408 stars/day and therefore "#1 is unreachable on
+  any honest schedule", yet the same corpus contains **3 469/day for 76 d** (deepseek-harness), Strata at
+  1 016/day over 34 d and openclaw at 1 163/day, against our 1 star at 136 d — the arithmetic was never the
+  ceiling, distribution is, so that paragraph and the runbook's "~150/day → ~7 years" line are gone rather than
+  corrected. **Measured:** what binds us is the **chain**, not the file — root +
+  `Sources/ocoreai/Engine/AGENTS.md` is **32 045 of 32 768 B (98 %, 723 B of headroom)** over a 46 527-byte
+  4-file corpus, where mlx-serve runs 69 273 (211 %) and deepseek 55 362 (169 %) *because* they budget that
+  chain and disclose the cut; and the cheapest new honesty gap is our own — **we truncate the instructions we
+  inject, silently**: `Sources/ocoreai/WorkspaceContext.swift:169` does `data.prefix(remaining)` under
+  `maxDocBytes = 32*1024` (`:24`) and says nothing to the model or the wire, where codex logs the cut
+  (`agents_md.rs:157`, `:164`) and deepseek prints it into the prompt. **Green wedge:**
+  `scripts/probes/40-stranger-agent-skill-task.sh` ran end-to-end this session —
+  `6 passed, 0 failed, 3 measured, 0 known-open`, `injected_bytes=28366 files=4 tools=1(exec_command)`, premise
+  PASS (the seeded note retrievable through the server's own `/sessions/search`), agent turn HTTP 200
+  `finish=stop` on `mlx-community/Qwen3.6-35B-A3B-4bit`, verifier accepted: a fresh agent holding *only*
+  `skills/ocoreai/` completed a real retrieve-then-write job. Re-read live while writing: deepseek-harness
+  263 784 / 76 d, openclaw 393 227, **us 1 star / 0 forks / 0 watchers / Discussions off / homepage unset**.
+- **Which gate goes red if it regresses.** Probe 40 existed but was **unindexed** — P14 red
+  (`probe-index=39/40`); indexing it makes the discovery surface agree with the tree, and its §1 tier is the
+  standing gate on the wedge: the artefact must inject whole over a 12 000-byte floor and the verifier must
+  reject a wrong deliverable, so `skills/ocoreai/` shrinking, or a lenient checker turning every §2 green into a
+  measurement of itself, goes red **in the sandbox tier** with no Metal and no server. The round also caught its
+  own drift: four docs written hours earlier quoted a **32 021 B / 747 B** chain that the `Engine/` guide had
+  already grown past. The figures were re-measured at that step to 32 045 / 723, and `make docs-check` prints
+  `budgets … deepest-chain=32045/32768` — a reported count, no verdict, priced by the B2 leg that already goes
+  red at the cap — so the next reader re-greps a printed field instead of trusting a paragraph.
+  `make docs-check` green at `probe-index=40/40` and root **21 454/21 461**; `make anchor-check` green (76
+  anchors, drift 0), new deepseek cites included. The comparator axes stay host-local by design: docs-check
+  prints them as outside-tree cites, never runner-visible.
+- **Honest limits.** Nothing shipped: still **0 tags, 0 releases**, and `skills/` is untracked while root
+  cites it, so a fresh clone does not contain the surface this round just proved works — committing it is an
+  owner action. The truncation gap is **recorded, not fixed**: the disclosure line (a model-visible cut notice,
+  then a row beside `tokenizerBackend` on `/v1/capabilities`) is the next slice and needs no new gate to be
+  honest. Four `docs/agent/` files were rewritten today and three sit within 15 bytes of the 15 609-byte
+  per-file cap (comparator 15 599 · runbook 15 604 · goal 15 595), so the next word there is traded, not added;
+  root sits **609 B below** its HEAD size, which is what makes that cap a ratchet rather than a suggestion. The
+  one home for the chain-and-silence finding is now `open-items.md` § *The chain ceiling* — its duplicate entry
+  carried the same cites and the same fix shape, and deleting it freed 1 200 B in a file 7 B from its cap.
+  Comparator figures come from host clones plus one `api.github.com` read at one moment, and stars/day divides a
+  lifetime count by lifetime age, so it flatters young trees. Probe 40 was written in another session's
+  uncommitted work — this round indexed and ran it; the tree still holds ~37 paths that are not this round's,
+  which is why nothing was committed. No Swift changed: no build, no behaviour claim.
+
+**10-28(5) What the best-distributed trees actually run — release cadence, the first screen, and a tag number that pointed backwards** (P0 adoption / symbols `cadence-audit-10-28`, `stale-tag-number`)
+
+- **What improved.** The nine trees the owner named were re-audited for *distribution* mechanisms rather than
+  features (four new to this corpus: sglang, vllm, `coreai-models`, and the release shape of mlx-swift-lm),
+  and the findings went where they change spending: § *The release cadence rule* in
+  `docs/agent/competitor-iteration-paths.md` (measured release counts, asset shapes, the build/publish trust
+  split), § *The first screen* / § *The proof surface* / § *Corrections and new baselines* in
+  `docs/agent/adoption-runbook.md`, and four new `docs/agent/open-items.md` entries — publish-credential
+  split, the measured model catalog owed, P18's priced cap on the locale channel, and the `MLXScriptedLM`
+  re-judge trigger. Two claims died. Root § Adoption told whoever read it to run `git tag v0.1.10`, and the
+  tag *is* the version (`scripts/version.sh`), so obeying it would have published a build numbered below the
+  withdrawn 0.1.13 line — root now names `v0.1.14` and states the arithmetic. And the ladder's S row claimed
+  "36 live probes" where `make docs-check` prints `probe-index=39/39`, while `open-items.md` said "Two
+  probes of 38" where three of 39 run headless today; both now match the command that re-measures them.
+  Rung 1 changed noun: **cadence, not one tag**.
+- **What same-session output proves it.** `api.github.com`, `/releases?per_page=100` per tree (page cap, so
+  "≥"): openclaw ≥100 / 0 d / 103 assets (one is a per-release `dependency-evidence.zip`), codex ≥100 / 0 d /
+  **3 116 assets over 10 releases** across nine per-surface release workflows, opencode ≥100 / 0 d / 360,
+  vllm ≥100 / 9 d / 83, omlx ≥100 / 0 d / 45, pi ≥100 / 6 d / ~10, sglang ≥63 / 9 d / 0, hermes-agent 44 /
+  4 d / 0, `coreai-models` 2 / 15 d / 0, **ocoreai 0 releases and 0 tags** — the last confirmed twice,
+  `git ls-remote --tags origin` empty and `/tags` + `/releases` both `[]`. That second route also retired an
+  unfalsified premise: the diary recorded the withdrawn Releases as "they still resolve", an assumption made
+  because this host holds no token to check — today they do not resolve. First-time baselines written down:
+  watchers (openclaw 1 696 · hermes-agent 984 · opencode 859 · codex 666 · vllm 607 · **us 0**) and open
+  issues+PRs (hermes-agent 51 482 · codex 25 097 · vllm 9 609 · opencode 3 853 · **us 0**), against
+  opencode's five triage workflows answering its 3 853.
+- **Which gate goes red if it regresses.** Two new anchored upstream cites in `open-items.md` (the scripted
+  tokenizer's conformance to upstream's `Tokenizer`, and its README's *Planned* line for transcript tool
+  calls) verify **at the pin** under `make anchor-check` — 74 anchors, was 72 — so "upstream has not
+  delivered that half" cannot rot silently through a bump. Probes 37/38/39 re-ran green over the edited tree
+  (20 / 13 / 30 passed, 0 failed), probe 37 still printing `AGENTS.md quotes 40 advertised tools`: the
+  sentence this round trimmed for bytes is exactly the one a probe greps, so the trade was priced against a
+  live red rather than a guess. `make docs-check` holds root **21 422/21 461** — the cadence rule cost
+  +102 B and was paid for by demoting two § Open evidence sentences to the `open-items.md` entries that
+  already carried them, which is what that section's own rule prescribes — and
+  `docs/agent/long-horizon-goal.md` sits **exactly at 15 609**, so the next word there is traded, not added.
+  `make spell` and `make audit` green.
+- **Honest limits.** Nothing shipped: still 0 tags and 0 releases, and the cadence finding is an **owner
+  policy question** (tag per merge; split build from publish), not an agent action — the agent does not tag
+  unasked. "≥100" is a page cap, not a count, and every release age was read at one moment. The
+  first-screen/proof-surface work is recommended, not built: no anchor nav, no version badge (impossible
+  before a tag), no generated `models.json`. Comparator figures come from host clones plus one live API read
+  — they resolve on this host and never on a runner, which is why `make docs-check` prints them as
+  outside-tree cites. No Swift changed, so no `swift build` and no behaviour claim. `skills/` is still
+  untracked while § Adoption cites it: until it is committed, a fresh clone does not contain the surface the
+  root promises.
+
+**10-28(4) The published skill is executed, not trusted — 19 markers run against a live server and a real checkpoint, and last round's contract claim went red** (P0 adoption / symbols `skill-contract-exec`, `audit-overclaim-contract`)
+
+- **What improved.** Rung 3's wedge (another harness drives `/v1`) landed its artefact and its gate in one
+  move. `skills/ocoreai/` (`SKILL.md` plus `references/wire.md`, `agent-loop.md`,
+  `honesty-and-limits.md`) and `skills/README.md` (install steps for Claude Code, Codex, a plain context
+  file, and the extension shape, following the `mlx-swift-lm/skills/README.md` convention) — every wire
+  claim written as an executable HTML-comment marker inside the paragraph that makes it, so the skill
+  cannot describe a route the server does not answer. `scripts/probes/39-skill-contract-exec.sh` runs them
+  in three tiers (§1 the scripted contract lane, §1b the key boundary, §2 a real checkpoint) and CI runs
+  the probe from the headless-serve smoke step; `README.md` / `README.zh.md` gained a § *Drive it from
+  another agent* pointing at both. **The correction is the substantive half of this round.** Last round
+  asserted "no machine-readable contract over the routes P10 counts" and it was *false*:
+  `GET /v1/capabilities` has served `endpoints[]` since `V1EndpointCatalog` — 34 rows of
+  `{method, path, auth, note}`, `auth` derived from `AuthMiddleware`'s own sets so the index cannot call a
+  blocked route public, method+path pinned to the router by `V1EndpointCatalogTests` with a floor on its own
+  scan. Invariant 2 cuts both ways: a surface under-claimed is the same defect family as one over-claimed,
+  and this one was about to spend the owner's money on a contract that already existed. Fixed in all four
+  live surfaces (`AGENTS.md` § Adoption, `adoption-runbook.md`, `long-horizon-goal.md` rung 6, the README
+  pair); what is genuinely absent is a *standard-format* spec (OpenAPI) and a client generated from it.
+- **What same-session output proves it.** `bash scripts/probes/run.sh 39` → **30 passed, 0 failed**, with
+  **14 `exec:` + 5 `exec-model:` markers executed out of the skill's own text**. §2 is premise-first: one
+  real generation completed on `mlx-community/Qwen3.6-35B-A3B-4bit` before any assertion below it, so those
+  five rows are measurements and not an `unloaded` server agreeing about itself. §1b proved the boundary the
+  skill tells clients to expect — keyless generate → 401 naming the remedy, bearer key → 200
+  `chat.completion`, `/health` still public with keys set. `references/wire.md` was generated from a live
+  `GET /v1/capabilities` (34 endpoints + 12 capability rows) and carries its own re-generate command, because
+  a hand-copied route table is the drift class the note exists to prevent. Probes 37 and 38 re-run green
+  after the doc edits (13 passed / 0 failed on 38). The round also caught itself once the hard way: a trim
+  that removed the advertised-tool count from `AGENTS.md` turned probe 37 red, because that number is read
+  out of the injected file at `scripts/probes/37-scripted-engine-wire.sh:169` and compared with live
+  `/v1/tools` — a doc figure a probe greps is not prose.
+- **Which gate goes red if it regresses.** Probe 39 floors its own marker counts (12/4 against the 14/5
+  present), so a rotted marker pattern, a renamed skill or a deleted `skills/` fails loudly instead of
+  passing by finding nothing — the failure this probe exists to prevent is its own. It sits in
+  `.github/workflows/ci.yml`'s headless-serve smoke step, so the skill cannot quietly rot between releases.
+  `V1EndpointCatalogTests` fails the build when a route is added, renamed or removed on one side of the
+  router/catalog line only. `make docs-check` holds probe-index 39/39, P12 (§ Adoption, § Agents as
+  clients), P2/P9 (the runbook hop exists and is tracked) and P18 (the new `skills/*.md` are English, the
+  zh mirror gained its paragraph: mirror-cjk 3 144). Root budget **21 426/21 461**: the correction cost
+  +21 B, the cap stayed put per the shrink-only rule, and headroom fell 56 → 35 B — stated instead of
+  papered over, because "the injected file only ever gets smaller" is a claim about a file that just got
+  bigger. `make spell`, `make anchor-check` (72 anchors + 220 bare upstream cites), `make audit` all green.
+- **Honest limits.** §2 has not run on a runner: the checkpoint tier needs ready weights, and CI's headless
+  smoke exercises §1 and §1b — so "the measured tier is green" is a local verdict until a push says
+  otherwise. No Swift changed this round, so no behaviour claim and no `swift build`. **Discoverability is
+  unproven**: probe 39 executes the documented calls, it does not show that a fresh agent handed nothing but
+  `skills/ocoreai/` finds it and finishes a task, and an agent that never opens the file never reads it —
+  that instrument is still owed. A standard-format spec and a generated client remain owner calls, and a
+  published contract is precisely a promise about every future release. iOS untouched and unverified.
+  `git tag` is still empty: rung 1 is one person typing `git tag v0.1.10 && git push origin v0.1.10`.
+
+**10-28(3) The reference audit: what the category's #1 actually runs, and the three claims our surface still cannot make** (P0 adoption / symbols `adoption-audit-10-28`, `area-cap-visible-raise`)
+
+- **What improved.** The owner's question was whether this repo can be GitHub's #1 coding agent. Nine named
+  trees plus `openclaw` were audited for the *mechanisms* behind their numbers (not their features), and the
+  answer went where it changes spending: a new `docs/agent/adoption-runbook.md` (cite per mechanism), a
+  `§ Adoption` block in `AGENTS.md`, five rungs of `docs/agent/long-horizon-goal.md`, and six comparator
+  cells. Three findings re-order the work. **(1) The leader consumes a local engine instead of competing with
+  one** — "Models and agent harnesses (Claude, Codex, local models) are plugins you can swap"
+  (`../references/openclaw/README.md:20`) — so the wedge is to be the plugin those harnesses install, and what
+  blocks it is measured: no machine-readable contract over the routes `make docs-check` P10 counts, no
+  generated client, and no published `skills/`, while mlx-swift-lm, coreai-models, vllm, sglang,
+  hermes-agent and openclaw all ship one (two of them with install steps for *another vendor's* agent).
+  **(2) A release is one command a stranger runs**: a runtime-provisioning installer script
+  (`../references/codex/README.md:19`, `../references/openclaw/README.md:30`), a self-serve tap
+  (`../references/omlx/README.md:58`, formula in-repo), and update *inside* the app
+  (`../references/omlx/README.md:53`; openclaw ships Sparkle appcasts) — where we have a DMG behind a tag
+  that does not exist and `Core/UpdateCheck.swift`, which hands Settings a release-page URL. **(3) At 473
+  authors in 14 days the intake policy is the product**: duplicate-work checks as runnable commands
+  (`../references/vllm/AGENTS.md:8`), no busywork (`:21`), fail-closed (`:39`), a human who defends the
+  change and an agent that may draft but not open the PR (`../references/mlx-swift-lm/AGENTS.md:5`, `:24`),
+  merge policy as data (`pi/.github/APPROVED_CONTRIBUTORS`) and CI rights as data
+  (`sglang/.github/CI_PERMISSIONS.json` + `audit_permission.py`).
+- **What same-session output proves it.** Leaderboard off `api.github.com` (HEAD's authority — a mirror
+  proves content, never HEAD): openclaw 393 200 stars / 82 660 forks from a 2025-11-24 creation,
+  hermes-agent 257 674, opencode 222 285, codex 131 259, pi 118 250, omlx 23 102, coreai-models 2 223,
+  mlx-swift-lm 847, **ocoreai 1 / 0 forks / 0 tags**. Cadence off the local clones
+  (`git log --since='14 days ago' --oneline | wc -l`): openclaw 11 427 commits and 473 authors in 30 d,
+  hermes-agent 5 613 commits and 982 authors, opencode 1 107, ours 243 with 3 authors in 90 d. And opencode
+  measured **419 fewer** stars than the 10-26 snapshot in the ladder: a star count is a pruned estimate, so a
+  day-delta is not a target — recorded because it kills a tempting metric before anyone builds on it.
+- **Which gate goes red if it regresses.** `make docs-check` — P9 (the runbook is tracked *and* routed, so a
+  promised evidence hop cannot be absent from a fresh clone), P12 (`§ Adoption`, `§ Rung zero`,
+  `§ The intake machine`, `§ Agents as clients` all resolve), P2/P3 with `make anchor-check` (every
+  `../references/<tree>/<path>:<line>` cite resolves and its line exists), B1/B2. Budgets moved the honest
+  way: `make docs-budget` re-pinned the root cap **21 480 → 21 461** — the injected file gained a five-rule
+  section and still got *smaller*, because nine figures it restated already had one home (eval README,
+  open-items, the diary). The one raise is visible per the rule at the head of the script:
+  `OCOREAI_AGENTS_MAX_AREA` 14 323 → 15 609, with the reason in the same diff, because "Rung zero" plus this
+  audit carried the ladder past the file the cap was pinned to; the host's 32 KiB chain budget and the root
+  ratchet both stayed green and unmoved.
+- **Honest limits.** No Swift changed, so no behaviour claim and no `swift build` run — docs, one shell
+  constant, and the goal. Nothing here closes anything: at the field's best *sustained* rate (~150/day,
+  codex measured) openclaw's present total is ~7 years of growth while the target itself moves, so the
+  objective is the wedge rank, stated in `docs/agent/long-horizon-goal.md` § Rung zero, and "#1" stays a
+  distribution event with a ceiling. Three claims our surface still must not make, each named so nobody
+  makes it by accident: **installable** (no tag, no notarisation, no tap, no in-app update), **agent-drivable
+  by a published contract** (prose and probes only), and **community-scale intake** (one workflow file, four
+  forms, no triage or locale automation).
+
+**10-28(2) The DMG path was broken by an ungated `canImport(CoreAI)` use, and installing the artefact now proves the mission's sentence in 22 s** (P0 adoption + P1 correctness / symbols `delivery-route-one-home`, `installed-app-first-completion`)
+
+- **What improved.** Running the artefact path instead of reasoning about it found a real defect: `LoadedModel.isCoreAIAsset` is declared inside `#if canImport(CoreAI)` while `EnginePool.swift:1468` (`loadedBackendKind()`, the scripted-engine work) used it ungated — so the CoreAI-free delivery build died with `value of type 'LoadedModel' has no member 'isCoreAIAsset'`. The declaration now lives outside the gate (the CoreAI body stays gated; on a route that cannot import the framework the answer is `false`, which is measured, not a stub). The *route* also got one home: `scripts/toolchain-contract.sh print-delivery-env` prints the CoreAI-free SDK, the Metal bin prepend and the search-path flags, consumed by `scripts/build-app.sh` (and therefore `build-dmg.sh`, which had been unbuildable on any host whose newest SDK carries CoreAI) and by `make release`.
+- **What same-session output proves it.** `bash scripts/build-dmg.sh` on the dirty tree → **2 min 22 s** → `dist/ocoreai-0.0.0.dmg` (25 MB) with `✅ artifact is the delivery shape (coreai=no, minos=14.0)`, metallib, 38 bundled notice files, icon, privacy manifest and entitlements. The DMG's `.app` copied into a fresh directory (91 MB, ad-hoc arm64) then passed `scripts/e2e-gui-app.sh` end to end in **22.1 s, zero compiling**: version parity, the listener *is* the bundle, a rendered 900×472 window with 606+ distinct colours, one real turn through its bridge on `mlx-community/gemma-4-e2b-it-4bit`, graceful SIGTERM. `make release` after the target refactor: 6 min 08 s, same verdict. `make test FILTER='Workspace|Scripted|Reasoning|CoreAI'` → **147 tests in 36 suites**, the first run of `ScriptedEngineTests`.
+- **Which gate goes red if it regresses.** The CI leg named "App Store trait compile (macOS 26)" ran the ambient-SDK `swift build` and never looked at the shape it produced, which is how a delivery-breaking use site sat in the tree with every leg green; it now pins the resolver's route, prints it, and judges the binary with `release-artifact-check.sh delivery`. Both build routes call that same checker, so a CoreAI-bearing artefact cannot be reached by accident.
+- **Honest limits.** Not a clean machine: the weights were already in `~/.ocoreai/models`, so a stranger still pays the first-run download the 22 s does not include, and nothing here is notarised. `make release` and the DMG rebuild re-stamped `.build/release/ocoreai`, so the board's `binary` token moved — the four doc arms must be re-run before their figures are compared with new ones (that refusal is the instrument working).
+- **Also in this round.** The publish step's release note is English-first with the Chinese half dropped: it is the first text a stranger reads about a build, and the repo's own rule allows exactly one Chinese file. Verified against live state rather than memory: `scripts/ci-status.sh` exit 0 (every leg that must run on a main push is green, `Release DMG` skipped — it is tag-gated), the four `.github/ISSUE_TEMPLATE` forms parse as YAML, and the labels they set (`bug`, `enhancement`) exist in the repo.
+
+**10-28(1) The prose-shape gate family is deleted rather than demoted — 27 verdict sites and five check ids out** (P2 process / symbols `gate-deletion-10-28`, `diary-excluded-not-ceilinged`)
+
+- **What improved.** The owner's charge — *"so many gates is meaningless"* — had been answered twice with
+  demotions, and a demoted gate is a gate that still runs, still prints and still has to be read. This
+  round deletes: **P13** (dated stamps and >400-byte lines inside `AGENTS.md`), **P15** (corpus line
+  walls), **P16** (comparator coupling — diary coverage, two hand-copied lists, a zero-coupling
+  equality), **P17** (area-guide scan floors), **P20** (verbatim-duplicate bullets), and **P18's diary
+  CJK ceilings**: the diary is *excluded* from the English-by-default rule now, because a ratchet that
+  blocks the owner writing their own log in their own language is friction, not a contract. Net: 27
+  `fail` sites and five ids out of `scripts/agents-md-contract.sh`, 70,401 → 55,926 bytes of gate
+  script, and its report is 10 lines where it was 12 (the guide and comparator rows are gone).
+- **What same-session output proves it.** `make docs-check` green on the cut tree (root 21,494/21,494
+  after `make docs-budget` lowered the cap, `claims=32/32`, `probe-index=38/38`, dangling `§`-refs 0,
+  numbered suite claims 39/39, `router-routes=34`). The cut also caught a lie the deletion created:
+  `AGENTS.md` line 5 claimed "`make docs-check` enforces that split" — with P13 gone that was false, so
+  the file now says what is true (`nothing enforces that split but the byte cap`) and paid for the new
+  § Working here clause out of its own bytes rather than the cap's.
+- **Which gate goes red if it regresses.** None, and that *is* the answer to the charge instead of a
+  dodge: none of the six had a red on record, while every survivor has one — `§`-references that
+  outlived the heading they named (P12), five drifted suite-count claims, one of them advertising more
+  coverage than its file holds (P11), and two README links pointing at repositories that do not exist
+  (P19). Tier rule, one home, `CONTRIBUTING.md`.
+- **What the stack was actually costing was the order of spending, not its exit codes.** 329 of 1415
+  commits here went to docs/CI/gates — one gate commit per three product commits — while `git tag` is
+  still empty and the board still reads 6 of the 43 tools we ship. Nothing in the gate stack can be
+  installed, so none of it is a thing a stranger would rank us on; the sentence now sits in
+  `AGENTS.md` § Working here where every session reads it.
+- **What this does not fix.** Deleting checks ships nothing. Rung zero still waits on the same two
+  actions — a green `macos-26` authority leg and one tag — and the model-gated tool surface
+  (−18.8 pp, 10-27(22)) still waits on the owner. Freezing the gate layer is what makes those the only
+  two things left to spend on.
+
+**10-27(25) The corpus's cost is injection, not size — 2.4 KB injected costs 12.8 pp and the same bytes left uninjected cost nothing** (P1 product-decision evidence + P2 instrument / symbols `injection-vs-presence`, `docs-inert-arm`)
+
+- **What improved.** The board can now separate the three things the 10-27(24) result conflated.
+  `OCOREAI_EVAL_DOCS_INERT=1` lands the same bytes as `AGENTS.inert.md`, which `WorkspaceContext`'s
+  candidate list ignores, so a corpus can be **in the workspace without being in the prompt**;
+  `WorkspaceContextTests` gained `a non-candidate name in the workspace reaches no prompt`, pinning that
+  closed list (the candidate pair, `instructionFiles` empty, and the section carrying none of the bytes)
+  so the arm cannot decay into measuring a stray file as instructions. The arm asserts itself from the
+  run: the injected name must not exist while the inert bytes do, and the server's `systemChars` span
+  is printed as the witness (`3002..3959` inert vs `5543..6500` injected — the same 2,442 B).
+- **Same-session output — one artefact, one task set, one tool surface, four arms at k=3.** `none`
+  **25.00/39** (SD 1.00) · `inert` 2,442 B **24.00** (SD 2.00) · **distilled 2,442 B injected 19.00**
+  (SD 0.00) · **root 21,529 B injected 16.33** (SD 1.53). Paired, McNemar exact two-sided: presence is
+  free (**Δ −1.00 task, −2.6 pp, b=6/c=3, p=0.5078**); **injection is the cost (Δ −5.00, −12.8 pp,
+  b=16/c=1, p=0.0003)**; size beyond 2.4 KB is **not separable at k=3** (Δ −2.67, −6.8 pp, b=14/c=6,
+  p=0.1153); whole-to-whole none→root is −8.67 (−22.2 pp), p<0.0001, replicating 10-27(24)'s −19.7 pp.
+  `fixtures/AGENTS.distilled.md` is a faithful compression of the root — two invariants, build/verify,
+  editing rules, git — so the arm measures bytes and the act of injecting, not a rival rule set.
+- **Why it matters more than the byte budget.** The root's size discipline is the smaller half of the
+  question: on a 2 B-class checkpoint the act of putting *any* instruction corpus in the system prompt
+  costs ~13 pp, and the remaining 19 KB of prose adds nothing separable. Two candidate responses are
+  code/product, not prose: don't inject per-turn docs for checkpoints of this class (the agent can read
+  them on demand — the inert arm shows the file itself is harmless), or move the doc from the front of
+  the system prompt to behind the base prompt (`MessageBuilder` composes
+  `workspaceSection + builtSystemPrompt` today). Neither is a measurement anymore; both are an owner
+  call, recorded with its instrument in `docs/agent/open-items.md`. Trace-level mechanism, unchanged from
+  10-27(24) and *not* a length effect: `edit-replace-all` collapses 3/3 → 0/3 in the distilled arm too,
+  answering that it failed to edit `AGENTS.md` when the task named `notes.md`.
+- **Where the gate bites, with its red samples.** `OCOREAI_EVAL_DOCS_INERT=1` with
+  `OCOREAI_EVAL_DOCS=none` refuses at boot (an inert doc that does not exist). The inert floor fails if
+  `$EVAL_WS/AGENTS.md` appears or the inert bytes vanish — i.e. exactly the case where the arm would
+  silently measure injection again while reporting presence. `bash -n` clean, `_conditions_selftest.py`
+  still 41/41 (the inert arm's `docs` token is the *landing* name, `AGENTS.inert.md+sha`, so a
+  conditions line can never claim an injection that did not happen), `_ledger_selftest.py` green, and
+  the Swift contract test is the gate that keeps the candidate list closed.
+
+**10-27(24) The board can now say what a turn was handed — and it prices this file at −22.2 pp** (P2 process+instrument / symbols `docs-arm-stated`, `corpus-priced-paired`, `artefact-named`)
+
+- **What improved.** Three conditions a scoreboard was quoting without stating. `docs` —
+  `OCOREAI_EVAL_DOCS=none|root|/abs/path`, recorded as `none` or `<basename>+sha256:<12>` of the bytes
+  the workspace handed the agent, and as **surface** so a paired with/without A/B is judgeable rather
+  than refused; the board's whole history was a `without_docs` run that never said so. `binary` —
+  `<name>+<mtime>+<bytes>` of the artefact that answered, plus a floor that refuses to score a tree
+  older than the artefact judging it (both mtimes printed, remedy named, `OCOREAI_EVAL_ALLOW_STALE_BIN=1`
+  when an old build is the point). And a root-cause fix found on the first try: the task loop wipes
+  `$EVAL_WS` before every task, so a doc copied at boot was gone before turn 1 — every turn assembled
+  a doc-free prompt (`systemChars=3002` against a 21,548 B doc) while the run reported a doc arm.
+  `materialize_docs` now runs at boot *and* after every wipe, and an arm whose doc cannot be
+  substantiated at boot exits before it writes a score.
+- **Same-session output: rung 3 measured, twice.** k=3 per arm, same 39 tasks / 6 tools / checkpoint,
+  one conditions field apart. Recorded pair (artefact built from HEAD, root doc 21,529 B):
+  `docs=none` **24/25/26** (mean 25.00/39, 64.1%, SD 1.00) vs `docs=root` **15/18/16** (mean
+  16.33/39, 41.9%, SD 1.53) — **Δ −8.67 tasks (−22.2 pp), McNemar exact two-sided p < 0.0001**,
+  b = 29 / c = 3, no task 0/3 → 3/3. Replicate pair (hours earlier, then-current artefact, 21,548 B):
+  **24.67 → 17.00/39, Δ −7.67 (−19.7 pp), p = 0.0003**, b = 31 / c = 8. The quote is the range
+  **−19.7 to −22.2 pp**, not a point. Premise floor passed in all six `root` runs (39 assembled
+  prompts each, `systemChars` 24,630–25,587), so the doc demonstrably arrived. Mechanisms, read off
+  traces: the doc is a **distractor** (`edit-replace-all` answered *I failed to replace "FOO" with
+  "BAR" in AGENTS.md* — it tried to edit the injected file; identical in both pairs), long context
+  **degrades the tool call** (`fix-boundary-comparison` typed `edit_file(path=…` into the text channel
+  where the doc-free arm passed 3/3), and **narration displaced action** (mean answer 63 B → 100 B,
+  median 27 → 36, with the workspace unchanged). At −22.2 pp the corpus now costs roughly what handing
+  the model all 40 tools cost (−18.8 pp, 10-27(22)) — two halves of the same turn, both priced.
+- **Drift, quoted because it prices every unpaired number in `scripts/eval/`.** The doc-free arm has
+  three measurements today: **22.67** (10-27(22)), **24.67** (this round's replicate) and **25.00**
+  (the recorded pair) — byte-identical `tasks=`/`tools=` digests throughout, differing only in
+  `binary`, which did not exist as a field for the first two. 2.3 tasks across sessions on a board
+  whose within-batch SD is 1.00–1.53: re-running an arm is not re-deriving a number.
+- **Where the gate bites, with its red samples.** The pre-fix run *is* the live sample — `FAIL the doc
+  did not reach every turn: 2 assembled prompt(s), smallest systemChars=3002 < the 21548 B doc` — and
+  the same command after the fix prints `PASS … 24630..25587 ≥ 21529 B`. Pointing `OCOREAI_BIN` at the
+  17:20 artefact while `Sources/` had moved at 20:15 prints both mtimes and refuses before the boot;
+  the fresh artefact passes. Static side, `_conditions_selftest.py` (29 → 41 checks): dropping `docs`
+  from `SURFACE_FIELDS` → 2 defects; removing the field from the renderer → 5; deleting the helper too
+  → the scan floor speaks; hoisting the doc copy above the per-task wipe → `the doc is not
+  re-materialized after the per-task workspace wipe`; demoting `binary` to surface → `a rebuild between
+  arms changes the engine, not the hypothesis`; cutting the `--binary`/mtime wiring → both artefact
+  floors report a rotted scan.
+- **Docs drift repaired on the way** (invariant 1: a doc whose numbers nobody re-greps drifts):
+  `scripts/eval/README.md` said `OCOREAI_EVAL_FLOOR_TASKS` was 18 (34) and `_conditions_selftest.py`
+  ran 25 checks (41), and omitted the family floor and the `OCOREAI_SELFTEST_FLOOR` refusal; `run.sh`
+  claimed a 36-task default set and a 36/52 floor pair (39/52 loaded, so the default set losing five is
+  the failure); reproduce snippets pointed at a staging path no recipe writes (`.build/out/Products/…`),
+  which is how a 17:20 artefact came to be judging a 20:15 tree — they now build first and name
+  `.build/release/ocoreai`. `_repeat_stats.py`'s movement sentence is field-aware: it told a docs A/B
+  that "the schemas/descriptions the model was handed changed", which was the wrong explanation of its
+  own number.
+- **Footprint, per the ladder.** Harness only — no product code, no new core surface: one env knob, two
+  conditions fields, one shell function, two premise floors, one field-aware message. What it decides
+  is owned elsewhere: whether a per-turn instruction corpus should scale with the checkpoint's capacity
+  (distil ~1.5 KB? gate by size? keep the corpus out of the workspace file tree?) —
+  `docs/agent/open-items.md`, and rung 5 of `docs/agent/long-horizon-goal.md`.
+
+**10-27(23) A caller-enableable capability is now gated against the checkpoint that must honor it — and the silent no-op it replaced was live on this host** (P2 surface / symbols `reasoning-effort-face`, `model-gated-refusal`)
+
+- **What improved.** `reasoning_effort` used to be forwarded verbatim into the chat-template context
+  (`ReasoningEffortWire` owns no enum and no word table, deliberately), so on a checkpoint whose template
+  never names the variable the word was dropped before generation — and the caller still got **200** and
+  believed it had asked for thinking control. At load the server now renders the checkpoint's *own*
+  template twice, once with a sentinel value no effort table contains, and records the answer per
+  checkpoint (`ReasoningEffortLedger` → `honored` | `template_ignores` | `not_observed`); `/v1/models`
+  publishes it, and a demanded word the measurement says cannot reach the model is refused **400 naming
+  the knob, the evidence and both exits** — the shape of codex's `unsupported_code_mode_warning`
+  (`core/src/session/code_mode_warning.rs:6-24`), where unknown metadata is never read as enabled. The
+  fail-open direction is pinned too: unmeasured is *not* refused, because absence of evidence is not a
+  measured "no" and a refusal costs a caller a turn they asked for.
+- **Same-session output, against a real checkpoint.** `mlx-community/gemma-4-e2b-it-4bit` renders
+  **identically with and without the kwarg** → the face publishes `template_ignores`, and
+  `{"reasoning_effort":"high"}` on it now returns 400 whose message contains the model id, the knob, the
+  value sent, the ledger's own evidence sentence and both remedies (`Omit reasoning_effort…` / a model
+  whose row says `honored`); the request after it is served, so the refusal is a refusal and not a crash.
+  With no weights resident the scripted lane answers the same turn **200** — the measured negative is the
+  only thing that refuses. `scripts/probes/38-reasoning-effort-honesty.sh` decides all of that: **13
+  assertions, 0 failures**, §1 needing neither Metal nor a download, and
+  `ReasoningEffortHonestyTests`(9) pins the truth table, the closed vocabulary and the remedy wording
+  without a tokenizer.
+- **Where the gate bites, with its red samples.** Pinning the load-time measurement to `nil` turned §2 red
+  (`the load-time template probe never recorded anything for the loaded model`) — that floor is what stops
+  a rotted measurement from reading as honesty. Pinning the refusal rule to `false` turned §2 red too, and
+  the body it printed **is** the bug this gate exists for: `200 … finish_reason:"stop"` with the word
+  silently gone. §1 goes red the other way if `not_observed` ever starts refusing. Both tiers sample;
+  `make docs-check` keeps the probe indexed and every cited suite count honest.
+- **Footprint, per the ladder.** No new core surface: the probe renders through the existing
+  `MLXBridge` handle seam next to `chatTemplateRendersTools`, the decision lives beside the demand rule in
+  `ReasoningEffortWire`, the refusal sits in the seat `ChatHandler` already uses for the numeric and
+  `tool_choice` gates, and the records live **on `EnginePool`** (engine actors own engine/model truth, so an
+  unload drops the claim with the weights) rather than in a `shared` global. `Sources/ocoreai/Handlers/AGENTS.md`
+  and `scripts/probes/README.md` carry the promise and the index; README's per-model disclosure keys name
+  the new field; the root paid its own bytes and re-pinned at **21,548**.
+- **Honest edges, stated before they are used.** The measurement runs on the MLX lane, so a CoreAI-loaded
+  model reports `not_observed` and is never refused — that is the fail-open direction, not a claim about
+  CoreAI. Probe 38 §1's new CI seat sits in the headless-serve smoke step and has not run on a runner
+  yet, so until its first pass it is a candidate gate. And the *surface* half of this item is untouched by
+  design: per-turn tool shortlists change what the composer may promise, so they wait on the owner —
+  `docs/agent/open-items.md`, priced at −18.8 pp by 10-27(22).
+
+**10-27(22) Eleven shape gates deleted, three number gates made to bite, and the first A/B that survives its own noise floor** (P2 process+surface / symbols `gate-tier-triage`, `surface-cost-paired`)
+
+- **The owner's question, taken literally: "so many gates is meaningless."** Measured before answering it:
+  329 of 1415 commits here went to docs/CI/gates — one gate commit per three product commits — across
+  3,367 `@Test` cases, 37 probe scripts, 31 make targets and 78 doc-corpus checks — while `git tag` is empty
+  today (the three existing releases had their tags withdrawn on 10-26, 7 downloads between them).
+  Nothing about the gate stack can be installed, so none of it is what anyone would rank us on.
+  Two of those numbers are now smaller, on the rule written into `CONTRIBUTING.md`: **a check blocks when a
+  red means someone acted on something false; everything else is deleted, not downgraded.**
+- **Deleted (11).** P17's eight area-guide shape rules (H1 wording, title bytes, a governance sentence in
+  the first 8 lines, a scope block naming a directory, a per-guide gate count, a `## Verification` section
+  naming a command, dated stamps) — nine signals a round, none ever red: wallpaper. P14's table column
+  counts and orphan-doc rule, and P15's one-hop line walls — a miscounted column misrenders our prose, it
+  does not send a reader or a caller somewhere wrong. All three are still *counted and printed* as
+  metrics; only the verdict is gone. Also deleted: the corpus byte cap's advisory ghost.
+- **Promoted (5), each red-sampled this session.** P11 `XxxTests`(N) claims (root `EditMismatchRecoveryTests`
+  bumped to 11 → `file holds 10`), P20 verbatim-duplicate bullets (one guide bullet copied → red), and
+  P17's two scan floors (`OCOREAI_FLOOR_AREA_GUIDES=99` → red, proving the floors are load-bearing rather
+  than decorative). Net: **78 checks → 67; 62 block, 5 report** (P2 host-local refs, P16's comparator-diary
+  coverage and its two hand-copied lists). One root bullet lost a duplicated pointer to `build-gate-reality.md`
+  — § Read on demand already carries it — and the root re-pinned at **21,550 B** (was 21,582).
+- **The measurement the gates were never about: a tool surface, priced over 39 tasks.** k=3 per arm on a
+  real checkpoint (`gemma-4-e2b-it-4bit`, temp 0, auto-approval, one serve per run, release binary):
+  6-tool arm **24/21/23** (mean 22.67, 58.1%), full-surface arm **16/15/15** (mean 15.33, 39.3%) —
+  **-7.33 tasks, -18.8 pp**, McNemar exact two-sided **p < 0.0001** (25 tasks pass on the 4,510 B surface
+  and fail on the 25,092 B one; 3 the other way). Losses concentrate in edit/multi-step work
+  (`fix-syntax-error`, `fix-typo-variable`, `read-and-report`, `fix-boundary-comparison` all went 3/3 → 0/3);
+  two exec tasks moved the other way (`exec-sum-column` 0/3 → 2/3), so this is not "fewer tools is better
+  everywhere" — it is *what a turn is handed*.
+- **Why k=3 and not the k=1 figures from 10-27(21).** One run of this board carries a 95% CI half-width of
+  **±6 tasks (15.5 pp)**: identical configs spread 24/21/23, with six flaky tasks
+  (`copy-with-suffix`, `edit-remove-line`, `exec-report-two-numbers`, `fix-off-by-one`, `fix-wrong-key`,
+  `make-failing-test-pass`). An unpaired A/B therefore needs ≥9 tasks to clear 95%, and a paired one 6
+  clean flips. Recorded in AGENTS.md § Testing Quality so the next improvement claim is stated against
+  that floor — including the ~40 earlier rounds whose single-run scoreboard deltas were, by this
+  measurement, unattributable.
+- **A leak this harness had, closed.** `run.sh` installed a raw `trap … EXIT` that replaced `_lib.sh`'s
+  `probe_atexit` chain, so a serve could outlive the run and hold the single-instance lock (the class
+  `_lib.sh` documents). Fixed with `probe_atexit`; **six consecutive runs this round left no process
+  behind** (`pgrep -fl 'ocoreai serve'` empty after both arms), which is the verification, not the diff.
+- **What still has no gate, stated plainly.** The model-gated capability refusal (probe 12 §6: grammar +
+  `tools[]` on one turn ⇒ 0/3) is unmeasured in code, and nothing binds an advertised-tool count to what
+  the loaded checkpoint can actually honor. The next hour goes there and at tag `v0.1.0`, not at check #68.
+
+**10-27(21) The turn's tool surface is priced, and the injected file's tool count turned out to be the wrong number** (P2 surface / symbols `tools-bytes-on-the-board`, `advertised-versus-declared-tools`)
+
+- **What improved.** Every board row now carries what a turn paid for its tool declarations.
+  `scripts/eval/run.sh` writes `# surface …` beside the cost figures, computed by `_eval.py surface` from
+  the server's own `GET /v1/tools` output, and `OCOREAI_EVAL_TOOLS=all` resolves to every declaration the
+  wire answers — so the goal's two boards (a 6-tool slice and the full surface) are now one command
+  apart instead of a hand-copied 40-name list, which is the drift class `_eval.tool_specs` exists to
+  refuse.
+- **Same-session output, taken with nothing resident** (the scripted lane from 10-27(20) is what makes
+  pricing the surface cost seconds instead of a checkpoint): `/v1/tools` advertises **40 tools at
+  25,092 B**; the default 6-tool board is **4,510 B = 18%** of that; the heaviest declarations are
+  `generate_video` 1,479 B, `edit_lines` 1,327 B, `inspect_ui` 1,234 B. Measured line:
+  `tools=6 wire_bytes=4510 share_of_declared=18% declared=40/25092 edit_lines=1327 …`.
+- **The claim this exposed, fixed where it was wrong.** AGENTS.md said "the board measures 6 of the 43
+  registered tools". 43 is what the source *declares* (`core_tools<=43`, still true); `/v1/tools`
+  advertises 40, because `get_plan` and `update_plan` are opt-in (`tools.update_plan.enabled` defaults
+  false, aligned with codex #41744) and are honestly absent. A declaration count was standing in for a
+  surface count in the file injected into every session, and the sentence now names both figures with
+  their provenance. Paying for the correction left the root 244 B smaller than the cap it was pinned to
+  (`make docs-budget`: 21,826 → 21,582).
+- **Where the loop closes.** Probe 37 gained the only check that can bind that number — it runs against a
+  live server, which `make docs-check` does not — so a tool landing or stopping to register now goes red
+  on the runner instead of ageing inside the injected context. Red sample: AGENTS.md edited to "39"
+  printed `quotes 39 advertised tools, /v1/tools answers 40 — fix the sentence … or the registration` and
+  exited 1; restored, 20/20 green. The byte figure is gated by `_efficiency_selftest.py` group 6, whose
+  expected value is the wire text written out by hand rather than recomputed from the code under test:
+  switching to compact separators reported 65 B against a hand-counted 73 B and produced six defects.
+  Group 7 pins the new line's position, because `_repeat_stats._read_run` reads the last `#` line as the
+  score — the wrong order reads `surface tools=2 wire_bytes=68` as a score.
+- **Truth after this.** The pricing half of the open item is settled; the comparison is not run. Whether
+  40 declarations is right for a 4-bit checkpoint, and whether the app loop should keep sending the whole
+  registry (`ChatViewModel.swift:1098`) now that its price prints, are owner calls with a number in hand —
+  and nothing here claims 40 is wrong, only that it was unprinted and mislabelled.
+
+**10-27(20) The gate stack was answering a question nobody asked, and the scripted engine is the answer** (P1 adoption + P3 verdict cost / symbols `gate-tier-split`, `scripted-engine-landed`, `docs-check-shadow-count`)
+
+**A. Gate triage — the owner's charge: "so many gates is meaningless." Measured, that is half right.**
+
+- **What improved.** `make docs-check` now has two tiers, and only the first one blocks. Blocking = a red
+  means a user, a caller or a session is acting on something false (a served surface, a quoted number, a
+  license term, a pointer that sends an agent to the wrong file): B1, B2, P1–P10b, P12, P13, P14's
+  probe-index parity, P16's zero-coupling equality, P18, P19. Everything about the *tidiness of our own
+  prose* is signal, printed as one line per check instead of a paragraph per finding: P11 exact
+  `XxxTests`(N) counts, P14 table column counts + orphan docs, P15 line walls, P16 diary coverage and
+  the two hand-copied lists, P17 guide shape, P20 duplicate bullets. Policy in `CONTRIBUTING.md`.
+- **Why this is the honest reading and not a shrug.** 329 of 1415 commits went to docs/CI/gates against
+  293 to product scopes, and the corpus reached ~171 KB whose defects were overwhelmingly
+  self-referential. The cheapest check to write is a prose-shape check, which is exactly why they
+  multiply; the cost is not the 3 s of runtime, it is the attention budget that stops going to task
+  success — the board still reads 6 of the 43 tools we ship.
+- **Deleted, not demoted.** `OCOREAI_CORPUS_MAX_BYTES` is gone: it capped volume in files no session must
+  load, was already over, and therefore printed the same warning every run — noise that trains a reader
+  to skim. The byte count is still reported, unjudged (`corpus files=20 bytes=171456`).
+- **Red-samples (each demotion proven, not asserted).** A temp `docs/agent/` file printed
+  `P14 ×1 … signals (1, not blocking)` with exit 0 while P7 blocked in the same run; a guide whose title
+  lost its em dash printed `P17 ×1`, exit 0; `ThirdPartyNoticesTests`(17) printed `P11 ×1`, exit 0;
+  `OCOREAI_AGENTS_MAX_ROOT=1000` still went red with B1's remedy. 19 call sites now route to `warn`.
+- **A number in the gate's own output was wrong.** The report line read `claims=32/1 ok`: P10b's local
+  `claims` shadowed P4's list, so the denominator came from the README task-count scan. Fixed by renaming
+  the local; the line now reads `claims=32/32 ok`. A gate whose own report lies is the critique in
+  miniature, and nobody had read that line.
+
+**B. Rung 1 — the model left the contract claims. `Engine/ScriptedInference.swift`**
+
+- **What improved.** `OCOREAI_SCRIPTED_ENGINE=/path/script.json` replaces the *model*, never the wire:
+  reasoning, text and tool calls are replayed through the real handlers, parsers, SSE writer and dispatch
+  path. A contract verdict that used to cost a Metal load and a checkpoint now costs seconds with zero
+  models resident — measured: server up → 4 SSE frames → aggregated turn → shutdown in **2.76 s**, and
+  probe 37's 19 assertions in ~4 s, inside the sandbox tier.
+- **Same-session output.** `/v1/capabilities` → `engineBackend: scripted`, `tokenizerBackend: real`;
+  `/health` → `engineSummary.loadedModels: 0`; streamed deltas
+  `reasoning_content → tool_calls → content → finish_reason: tool_calls → [DONE]`; aggregated turn
+  `finish_reason=tool_calls`, `tool_calls[0] = call_1 / read_file / {"path":"README.md"}`,
+  `usage = 7 / 12 / 19`, and no `prompt_tokens_details` — a replay reuses no prefix, so it books no cache
+  claim (invariant 2). `scripted-model` answers turns and is absent from `/v1/models`.
+- **Two defects found by writing the harness, both fixed at the cause.** (1) `Script` claimed a
+  one-segment script was legal while the synthesized `Decodable` ignored every Swift default — the
+  documented minimal script was `HTTP 500 … Key 'reasoning' not found`; explicit `decodeIfPresent` now
+  makes the defaults real. (2) The unknown-`finishReason` refusal named the bad value but not the file,
+  so an operator running two scripts had to guess which to edit; every scripted refusal now names its
+  path. `prewarmDefaultModel` also returns early under the switch — without that a "model-free" boot
+  still loaded the configured default, which is the claim defeated by one line.
+- **Where the loop closes.** `ScriptedEngineTests`(5) (order, exact declared counts, `cachedPromptTokens
+  == nil`, broken script = named error not an empty turn, blank env = off); probe
+  `37-scripted-engine-wire.sh` (19 assertions, model-free, CI-runnable) indexed in
+  `scripts/probes/README.md`; `scripts/eval/run.sh` reads `engineBackend` from the live surface and
+  refuses to score a replayed run — assertion 19 went red before that guard existed, which is the only
+  reason to believe it; and the existing macos-26 headless-serve smoke step now runs probe 37 instead of
+  a new leg opening.
+- **Truth after this.** Rung 1's claim is *decidable*, not *decided*: probe 37 has never run on a runner,
+  so the CI step is a candidate gate until its first pass. The chain is at 32,512 / 32,768 bytes — 99% of
+  what the host will load for `Engine/` — so the next rule written there pays for itself or truncates its
+  own tail; the two candidates that could pay are recorded in `docs/agent/open-items.md`.
+
+**10-27(19) The intake machine exists: three issue forms, one of them for this project's own worst bug class** (P1 adoption / symbols `intake-forms-landed`, `over-claim-template`, `governance-covers-intake`)
+
+- **What improved.** `.github/ISSUE_TEMPLATE/` went from 0 to 4 files: `bug_report.yml` (10 fields, 5
+  required — the exact command, the raw response, `/v1/capabilities` + `/health` as pasted, model id with
+  quantisation *and* lane, since MLX / CoreAI / MTP behave differently), `feature_request.yml` (problem →
+  workaround → near-miss seam → the check that would prove it, which is the footprint ladder and the three
+  questions asked of a stranger), and `capability_honesty.yml` — the class this repo treats as most
+  serious: a surface claiming more than the engine measured. Rung 0's "a stranger installs and completes
+  one task" needs a route back in; 16 of 20 comparator trees have one and we had none.
+- **Nothing in them is invented.** Every field asks for something the wire really emits: `os`, `version`,
+  `arch`, `capabilities[]` as `{name, available, note}` (`Router/ChatCompletionsRouter.swift:320`), plus
+  `tokenizerBackend` (`:333`) and `screenStatus`; endpoint/field examples are real (`/v1/models/:model/kv-cache`
+  · `prefixReuse`). Labels are restricted to the nine the repo actually carries (`api.github.com` read this
+  session) — a form naming a missing label fails at submit time, which is the intake bug nobody sees.
+  `config.yml` links only the five URLs measured 200 today, and `blank_issues_enabled: false` since the
+  three forms cover the space; discussions stay unlinked (`has_discussions: false`).
+- **Where the loop closes.** README.md and README.zh.md gained one line each pointing at the forms, in the
+  Quick Start where a newcomer actually looks; `https://github.com/uingei/ocoreai/issues` is P19-verified
+  (29 outbound, 29 verified, floor 27). No new gate: the existing ubuntu `governance` presence loop now
+  lists the four files, so a deleted or unrenderable form is caught on the free runner rather than by a
+  stranger's 404.
+- **Rung 0 truth after this.** macos-26 authority legs green (7 legs, `Release DMG` skipped by design),
+  intake 4 files — and still **0 tags**, so the DMG the README describes cannot exist yet. That is one
+  owner command, not an engineering task.
+
+**10-27(18) The gate pile was tried on its own evidence, and one check lost** (P0 discipline / symbols `gate-prices-a-readable-claim`, `corpus-cap-advisory`, `ledger-in-the-enforcer`)
+
+- **The objection, as a measurement.** `make docs-check` holds 22 checks; counted against `CHANGELOG.md`,
+  a minority have ever named a real defect — `P2` refused a glob cite, `P3` found 15 line cites off
+  target, `P8` caught a stale upstream pin, `P10` found two endpoints missing from both READMEs in both
+  languages, `P11` five drifted coverage counts, `P16` forced `pi` into both homes — while most of the
+  rest police our own prose. And the pile has a shape worth naming: 169,691 B of gated documentation
+  about this repo, against a scoreboard of 39 tasks measuring the product with 6 of 43 tools on it, and
+  0 tags / 0 issue templates still outstanding. Gate count is not trust.
+- **The rule that decides.** `CONTRIBUTING.md` now states where the line is: red prices a claim a reader
+  or a caller acts on; everything else prints. It is deliberately two-sided — a gate that has never gone
+  red on real work is decoration with an exit code.
+- **What lost its teeth, and why.** P15's corpus byte cap and its 400-byte line wall became warnings:
+  they price volume in files no session is forced to load, and the same day they blocked a correctness
+  fix — moving 20 machine-only markers out of an injected guide took four edit rounds, one of them over a
+  single byte. The axes that price attention stay red-able: B1 (the root every session loads) and B2
+  (root + nested against the loader's 32 KiB, added one entry above).
+- **The enforcer carried the audit trail it forbids elsewhere.** The cap demanded a ledger: 168 lines of
+  dated round history inside `scripts/agents-md-contract.sh`, in the one repo where the root forbids dated
+  notes in source comments. Cut (−158 lines net), keeping the two lines that are instructions rather than
+  history — `docs/agent/build-gate-reality.md`'s block is load-bearing mechanism, and a comparator tree
+  retires from BOTH homes. Verdicts stay in `CHANGELOG.md`, their only home.
+- **Gate.** `make docs-check` green after the splice (22 checks, 32/32 claims re-run, root
+  21,913/21,935, chain 31,176/32,768); red-ability re-sampled where it still matters — +1,700 B on
+  `Sources/ocoreai/Engine/AGENTS.md` makes B2 name the byte count the model never receives.
+
+**10-27(17) The chain budget was ours instead of the loader's, and an `Engine/` session was losing the tail of its guide** (P0 doc truth / symbols `chain-cap-self-referential`, `engine-guide-tail-truncated`, `board-count-stale-on-human-surface`)
+
+- **What improved.** B2 priced the root plus *the largest file that happened to exist* — 36,396 B, a
+  `docs/agent/` page the host never injects — so it could not go red. The loader that actually assembles
+  this corpus spends ONE budget across the chain root→cwd: 32 KiB, `DEFAULT_PROJECT_DOC_MAX_BYTES` at
+  codex `codex-rs/config/src/config_toml.rs:77`, decremented oldest-first at `agents_md.rs:92`
+  (§ Upstream 3 cites; a comparator's source is not a runner input). Measured against the loader,
+  `AGENTS.md` 21,935 + `Sources/ocoreai/Engine/AGENTS.md` 11,395 = 33,330, so a session whose cwd is
+  `Engine/` was losing 562 B off the end of the guide: the close of the MTP tool-result publishing rule,
+  the sampling-selection rule, then the `SessionPool` prefix-refusal booking rule — in that order. B2 now
+  measures only what the loader concatenates (nested `AGENTS.md`), floors its own file count, and quotes
+  the loader's 32,768 instead of a number derived from our own inventory.
+- **What came out, not what was moved.** The guide's 20 machine-only anchor markers moved to
+  `docs/agent/engine-line-cites.md` (`scripts/anchor-check.sh` and P3 both sweep `docs/agent/*.md`, so
+  coverage is byte-for-byte the same), and a duplicated `SessionPool` bullet plus one meta paragraph
+  left for good. Injected guide 11,395 → 9,263 B; chain 31,176/32,768 (1,592 B of headroom); root
+  21,913/21,935; corpus 169,691/169,714. The root's budget rationale now states the loader's contract
+  rather than a peer's file size, which is the sentence that had already rotted once.
+- **A human-surface number had rotted, in both languages.** Both READMEs stated a 36-task scoreboard
+  while `scripts/eval/tasks.json` holds 39 tasks with none disabled (measured 10-27): the mission's unit,
+  mis-stated on the page a stranger reads, and the Chinese mirror had copied the stale figure, so
+  agreement between the two files proved nothing. Corrected in both. P10b now diffs the stated count
+  against `tasks.json` per language, floors its own hit count, and refuses quiet success when the board
+  file cannot be read. `scripts/eval/README.md` stays out of its reach: those numbers are dated rows.
+- **Gate.** `make docs-check`. Red-sampled, separately: +1,700 B appended to
+  `Sources/ocoreai/Engine/AGENTS.md` makes B2 name the chain and the byte count that never reaches the
+  model; reverting either README's count to 36 makes P10b name that file — so neither mirror passes by
+  accident, and neither gate is a change detector.
+
+**10-27(16) The references were read again, and three of our own claims did not survive it** (P0 doc truth / symbols `reference-round-16`, `root-size-claim-rotted`, `rung3-wrong-instrument`, `ungated-inference-regression`)
+
+- **What improved.** `AGENTS.md` § Open gained three items, each with its instrument, from a pass over
+  the reference trees: (1) a turn's tool surface is unpriced and nothing gates a caller-enableable
+  capability against the model that must honor it — the wire is caller-scoped
+  (`Sources/ocoreai/Tools/ToolRegistry.swift:135`), but the app's own loop sends the whole 43-tool
+  registry every turn (`Sources/ocoreai/UI/ViewModels/ChatViewModel.swift:1098`; 7,361 B of declared
+  description strings alone), while codex declares 13 specs and defers the rest behind `tool_search`
+  (`codex-rs/core/src/tools/handlers/tool_search_spec.rs:19`), hermes-agent bridges 38 tool modules
+  behind three reserved names (`tools/tool_search_catalog.py:15-21`), pi loads deferred matches into the
+  conversation's `modelTools` (`packages/durable/src/tool-search/tool-search.ts:1-13`), and codex,
+  opencode and pi each run tool calls as a *program* (code mode); (2) loop claims spend a live model
+  where every agent tree here uses a fake or mock provider (codex 260 suite files on `wiremock`,
+  hermes-agent `tests/fakes/providers/` replay JSONL, pi `test/suite/harness.ts` under "No real
+  provider APIs, keys, or paid tokens", opencode `packages/http-recorder`); (3) the corpus's own bytes
+  have no lift measurement even though § Documentation Map has demanded "an inference regression" for
+  injected text since it was written — `SystemPromptContractTests` proves assembly, not help, so the
+  demand was a claim pointed at the file that states it, and pi prices exactly that with paired
+  `without_docs`/`with_docs` arms (`packages/evals/README.md:1-14`).
+- **Same axis, model half.** codex refuses a configured mode the loaded model does not advertise and
+  puts the remedy in the message (`core/src/session/code_mode_warning.rs:6-24`, where
+  `used_fallback_model_metadata` counts as unknown rather than enabled). Our measured version of that
+  failure is silent: probe 12 §6 — grammar alone 3/3, tools alone 3/3, both together 0/3. That is
+  invariant 2 on the model axis, and it is now an open item with a named instrument instead of a hole.
+- **Three of our own claims failed re-measurement.** The root file said "ours was the largest root
+  (24,866 chars)" — `wc -c` on each tree's own `AGENTS.md` says mlx-serve 26,486, ours 22,059: second,
+  not first, and the number had already drifted 2,807 B from the text that quoted it (codex ships no
+  root file at all, 3,285 B of guides in total; pi 8,638; hermes-agent 11,952). The ladder's rung 3
+  claimed "every top-five coding agent leads with a recording", measured by `grep -c '!\[' README.md` —
+  the wrong instrument: those trees use HTML `<img>`, and read correctly codex has 1 image and 0
+  recordings in an 81-line README (opencode 4, pi 4, hermes-agent 8, omlx 15), so the honest gap is
+  intake, not media: `.github/ISSUE_TEMPLATE` 3–9 vs our 0, workflow files 14–57 vs our 1 (6 jobs),
+  tags 20–1498 vs our 0. `docs/agent/open-items.md` also cited "ladder rung 6", which the ladder did
+  not have; rung 6 now exists (ACP — goose `agent-client-protocol` 2.2.0, hermes-agent `acp_adapter`).
+- **`pi` became a comparator, by the file's own rule.** It was cited in root prose ("pi's rule") while
+  § Upstream 6 did not name it — the mirror of the defect P16 exists for ("use it or drop the name").
+  Registered in both homes (root § 6: 15 → 16 trees; the refresh loop in
+  `docs/agent/comparator-repos.md`), with a row for the four mechanisms above. Its row's line cites are
+  host-tree cites, never runner inputs.
+- **The ratchet bit, twice, and root paid its own way.** `B1` rejected the first draft at 23,044 B and
+  `P15` the corpus at 166,104 B. Root finished at **22,059 (−4 net) while carrying three new §Open
+  items**, paid by: the stale self-measurement; the whole § Docs Contract section (a *third* home for
+  the docs-gate pointer — § Build / Test / Lint, the header and the routing row all cite
+  `make docs-check` and the script); 7 lines out of § Read on demand whose targets were already cited
+  elsewhere in the same file (counted by occurrence, not eyeballed); two §Open items merged into one
+  Multimodal line; and twelve word-level merges (root: 45 lines in, 48 out). Corpus
+  +4,591, re-pinned with the in/out ledger in `scripts/agents-md-contract.sh`; `make docs-budget`
+  lowered the root cap 22063 → 21935, so neither cap has slack.
+- **The round's own edit produced a new gate.** It duplicated the `tools[]` § Open bullet verbatim —
+  root rule "one home per decision" says that is the defect, and P1-P19 let it through, so the rule was
+  a claim. `P20` now fails any verbatim-duplicate top-level bullet in the injected corpus (fence-aware;
+  paraphrase twins stay a review judgement, because pinning prose similarity is the change-detector test
+  the same section refuses). Red-sampled before it was trusted: duplicating one bullet reports
+  `AGENTS.md:136,137`; green after the dedupe, which is also why root landed 124 B smaller.
+- **Gates that went red, and stayed honest.** `P2` refused a glob cite (`tools/*_tool.py`) and then
+  refused two *declared-absent* files nothing cites any more (`RELEASE-NOTES-1.0.0.md`,
+  `ZIG-PREVIEW.md` — out of `COMPARATOR_REFS`, because an unused declaration is an exemption); `P12`
+  caught a `§ Compile-time gates` reference it could not resolve; `P16` forced pi into both hand-copied
+  lists and reported zero-coupling 6/6 still true. `swift build` was not needed: this round touches no
+  Swift, and `make docs-check` is the gate that owns it (green: 22059/22059, 169838/169838, 16 trees).
+- **Owner calls this round opens.** Whether a scripted engine behind the real wire is allowed in a
+  lower gate tier; whether the per-turn tool surface gets priced (and whether 43 is right for a 4-bit
+  model — two boards, not taste); whether injected prose is measured or reviewed; and the intake
+  rungs (tags, issue templates), which are one commit each and ungated today.
 
 **10-27(15) The task-success board measures 6 of the 43 tools we ship, and a gate was counting prose** (P1 metric scope / symbols `board-measures-6-of-43`, `core-tools-counted-comments`)
 

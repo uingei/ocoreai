@@ -13,6 +13,7 @@ failure modes are live here and both are gated rather than trusted:
           score of every A/B verdict ever taken from this file. The order is pinned here.
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -125,14 +126,94 @@ def main():
                 "run.sh must write `# efficiency` BEFORE `# score`"
                 % ("efficiency-then-score" if order else "score-then-efficiency", score))
 
+    # 6. the tool-surface figures: what a turn's declarations cost, priced against bytes a reader
+    #    can count. The expectation is the WIRE TEXT itself, written out here, so the number is
+    #    checkable by eye rather than recomputed from the code under test — `json.dumps` of a spec
+    #    must reproduce the literal exactly (insertion order, default separators), which is what
+    #    `_eval.py body` puts in the request's `tools` field.
+    entry_a = '{"name": "a", "parameters": {}}'
+    entry_b = '{"name": "bb", "parameters": {"x": 1}}'
+    entry_c = '{"name": "ccc", "parameters": {"y": 2, "z": 3}}'
+    spec_a, spec_b, spec_c = (json.loads(t) for t in (entry_a, entry_b, entry_c))
+    if json.dumps(spec_a) != entry_a:
+        defects.append("`json.dumps` no longer round-trips the literal %r — the byte figure would"
+                       " price a serialization the request never sends" % entry_a)
+    two = "[%s, %s]" % (entry_a, entry_b)
+    three = "[%s, %s, %s]" % (entry_a, entry_b, entry_c)
+    with tempfile.TemporaryDirectory() as cache_root:
+        cache = os.path.join(cache_root, "v1-tools.json")
+        with open(cache, "w", encoding="utf-8") as fh:
+            json.dump({"data": [spec_a, spec_b, spec_c]}, fh)
+        os.environ["OCOREAI_TOOLS_CACHE"] = cache
+        try:
+            fig = _eval.tool_surface("a bb")
+            want = {
+                "board_count": 2,
+                "board_bytes": len(two.encode("utf-8")),
+                "declared_count": 3,
+                "declared_bytes": len(three.encode("utf-8")),
+            }
+            for key, value in want.items():
+                if fig[key] != value:
+                    defects.append("surface %s=%r, want %r (board wire text %r)"
+                                   % (key, fig.get(key), value, two))
+            line = _eval.render_surface(fig)
+            for fragment in ("tools=2", "wire_bytes=%d" % len(two.encode()),
+                             "declared=3/%d" % len(three.encode()),
+                             "share_of_declared=%d%%"
+                             % round(100 * len(two.encode()) / len(three.encode())),
+                             "bb=%d" % len(entry_b.encode()), "a=%d" % len(entry_a.encode())):
+                if fragment not in line:
+                    defects.append("surface line %r is missing %r" % (line, fragment))
+            if line.index("bb=") > line.index("a="):
+                defects.append("surface line must name the heaviest declaration first: %s" % line)
+            # `all` is the full-surface board, and it must be the server's own set — a hand-copied
+            # name list is the drift class `_eval.tool_specs` exists to refuse.
+            every = _eval.tool_surface("all")
+            if (every["board_count"], every["board_bytes"]) != (3, len(three.encode("utf-8"))):
+                defects.append("`all` resolved to %d tool(s)/%d B instead of the whole declared"
+                               " surface (3/%d B): %r"
+                               % (every["board_count"], every["board_bytes"],
+                                  len(three.encode("utf-8")), every["per_tool"]))
+            # A byte figure over zero tools would price a surface the run never handed the model.
+            nobody = subprocess.run([sys.executable, os.path.join(HERE, "_eval.py"), "surface",
+                                     "not_a_tool"], capture_output=True, text=True,
+                                    env=dict(os.environ))
+            if nobody.returncode == 0:
+                defects.append("surface printed %r for a tool the server does not declare — it must"
+                               " refuse, not price an empty surface" % nobody.stdout.strip())
+            elif "no declaration matched" not in (nobody.stderr or ""):
+                defects.append("surface refused without naming why: %s"
+                               % (nobody.stderr or "").strip()[:160])
+        finally:
+            os.environ.pop("OCOREAI_TOOLS_CACHE", None)
+
+    # 7. the new line must not steal the score: `# surface` sits with the cost figures, BEFORE the
+    #    score, because `_read_run` keeps the last `#` line.
+    body = HEADER + "a\twrite\t0\t100\t%s\n" % usage(10, 5)
+    for order, want_score in ((True, "score 22/35"), (False, "surface tools=2 wire_bytes=68")):
+        path = os.path.join(tempfile.mkdtemp(prefix="ocoreai-surface-order-"), "results.tsv")
+        tail = ("# surface tools=2 wire_bytes=68\n# efficiency passes=1/1\n# score 22/35\n"
+                if order else
+                "# score 22/35\n# surface tools=2 wire_bytes=68\n")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(body + tail)
+        _rows, score, _invalid, _nd, _cond = _repeat_stats._read_run(path)
+        if score != want_score:
+            defects.append("surface-line order %s: `_read_run` read the score as %r — run.sh must"
+                           " write `# surface` before `# score`"
+                           % ("surface-then-score" if order else "score-then-surface", score))
+
     if defects:
         print("efficiency self-test: %d defect(s)" % len(defects))
         for d in defects:
             print("  FAIL %s" % d)
         return 1
-    print("efficiency self-test: 5 scenario group(s) green — denominators, zero-pass, broken "
-          "usage, empty run, and the score-line order")
+    print("efficiency self-test: 7 scenario group(s) green — denominators, zero-pass, broken"
+          " usage, empty run, the score-line order, the tool-surface bytes, and where the new line"
+          " may sit")
     print("  ✅ cost per verified success is priced from rows that name their own denominator")
+    print("  ✅ and so is the tool surface every turn carries, down to the declaration that costs most")
     return 0
 
 

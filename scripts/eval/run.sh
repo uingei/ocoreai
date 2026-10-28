@@ -32,11 +32,12 @@ PROBE_NAME="eval-task-success"
 export OCOREAI_APPROVAL_POLICY
 : "${OCOREAI_EVAL_TOOLS:=read_file write_file edit_file edit_lines search_files exec_command}"
 export OCOREAI_EVAL_TOOLS
-# Two sets share this runner: the default 36-task set and the frozen 52-task edit-repair set the
+# Two sets share this runner: the default 39-task set and the frozen 52-task edit-repair set the
 # A/B loop judges with. The floor sits under both so a silently truncated set still goes red —
 # measured 10-24 against the loaded sets (`_eval.py count`), and raised with them: 30 covered a
-# 36/40 pair, 34 covers a 36/52 pair, so the scored set losing eighteen tasks is a failure and the
-# default set losing two is a failure. Screening pools override this env rather than the default.
+# 36/40 pair; 34 covers the 39/52 pair loaded today, so the frozen set losing eighteen tasks is a
+# failure and the default set losing five is a failure. Screening pools override this env rather
+# than the default.
 : "${OCOREAI_EVAL_FLOOR_TASKS:=34}"
 : "${OCOREAI_EVAL_FLOOR_SPECS:=4}"
 # A family floor is a different question from a total floor: 24 tasks with zero edit tasks is
@@ -54,6 +55,71 @@ mkdir -p "$OUT"
 EVAL_WS="${OCOREAI_EVAL_WORKSPACE:-$(mktemp -d -t ocoreai-eval-ws-XXXXXX)}"
 mkdir -p "$EVAL_WS"
 export OCOREAI_WORKSPACE="$EVAL_WS"
+
+# Which instruction doc this arm hands the workspace. `WorkspaceContext.buildSection` injects
+# `<workspace>/AGENTS.md` into the system prompt, so this is the paired arm the goal asks for: the
+# same 39 tasks, the same tools, the same checkpoint, with and without the corpus an agent loads
+# before it types. `none` is the board's whole history and is stated as a value, not left blank.
+#   OCOREAI_EVAL_DOCS=none | root | /abs/path/to/AGENTS.md
+: "${OCOREAI_EVAL_DOCS:=none}"
+DOCS_BYTES=0
+DOCS_ARG=none
+case "$OCOREAI_EVAL_DOCS" in
+  none)
+    # A reused workspace must not carry a doc over from another arm — an inherited doc measures the
+    # previous experiment while reporting this one.
+    for stale in "$EVAL_WS/AGENTS.md" "$EVAL_WS/AGENTS.override.md" "$EVAL_WS/AGENTS.inert.md"; do
+      if [ -e "$stale" ]; then
+        rm -f "$stale"
+        probe_note "removed $stale — OCOREAI_EVAL_DOCS=none says this arm saw no instruction doc"
+      fi
+    done
+    ;;
+  root)
+    DOCS_SRC="$(cd "$HERE/../.." && pwd)/AGENTS.md"
+    ;;
+  *)
+    DOCS_SRC="$OCOREAI_EVAL_DOCS"
+    ;;
+esac
+if [ "$OCOREAI_EVAL_DOCS" != "none" ]; then
+  if [ ! -s "$DOCS_SRC" ]; then
+    probe_fail "OCOREAI_EVAL_DOCS=$OCOREAI_EVAL_DOCS names no readable non-empty doc ($DOCS_SRC) —" \
+      "the arm would measure nothing while reporting a doc, which is the vacuous comparison this" \
+      " harness exists to refuse"
+    # An arm that cannot be substantiated at boot must not reach the score line: the board would
+    # print a number labelled `with_docs` that is a `none` run. `probe_summary` exits non-zero.
+    probe_summary "$PROBE_NAME"
+  fi
+  DOCS_BYTES=$(wc -c < "$DOCS_SRC" | tr -d ' ')
+  probe_require_int "doc size" "$DOCS_BYTES"
+  # `OCOREAI_EVAL_DOCS_INERT=1` separates the two causes the corpus A/B cannot otherwise tell apart:
+  # the bytes *being injected* vs the bytes merely *being in the workspace*. `WorkspaceContext` reads
+  # exactly `AGENTS.override.md` / `AGENTS.md`, so a copy named `AGENTS.inert.md` sits in the tree the
+  # agent works in and reaches no prompt — the floor below asserts that from the run itself (the
+  # injected name never present + the `systemChars` span stays in the doc-free band), not from a claim.
+  DOCS_TARGET="$EVAL_WS/AGENTS.md"
+  if [ "${OCOREAI_EVAL_DOCS_INERT:-0}" = "1" ]; then
+    DOCS_TARGET="$EVAL_WS/AGENTS.inert.md"
+    probe_note "inert arm: bytes land as $(basename "$DOCS_TARGET") — in the workspace, undiscoverable"
+  fi
+  DOCS_ARG="$DOCS_TARGET"
+  probe_note "docs arm: $DOCS_SRC -> $DOCS_TARGET ($DOCS_BYTES B, re-materialized per task)"
+elif [ "${OCOREAI_EVAL_DOCS_INERT:-0}" = "1" ]; then
+  probe_fail "OCOREAI_EVAL_DOCS_INERT=1 with OCOREAI_EVAL_DOCS=none asks for an inert doc that does" \
+    " not exist — name the bytes (`root` or a path) or drop the inert flag"
+  probe_summary "$PROBE_NAME"
+fi
+
+# The doc is written per task, not once at boot: the loop below wipes $EVAL_WS before every task,
+# and a doc copied at boot is gone by the first wipe. Measured 10-27 — every turn assembled a
+# doc-free prompt (systemChars=3002 against a 21,548 B doc) and only the premise floor said so.
+# One home for the copy, called at boot and again after every wipe.
+materialize_docs() {
+  [ "$OCOREAI_EVAL_DOCS" = "none" ] && return 0
+  cp "$DOCS_SRC" "$DOCS_TARGET"
+}
+materialize_docs
 TOOLS_CACHE="$OUT/tools.json"
 
 # A FAIL whose cause never reaches disk is a scoreboard nobody can root-cause: a native turn echoes
@@ -62,7 +128,12 @@ TOOLS_CACHE="$OUT/tools.json"
 # cleanup unless told to keep it (measured 10-27: a task that failed with "the tool execution
 # failed" could not be explained from any artefact), so keep it and ship it beside the run's rows.
 export OCOREAI_PROBE_KEEP_LOGS=1
-trap 'if [ -n "${PROBE_LOG:-}" ] && [ -f "$PROBE_LOG" ]; then cp -f "$PROBE_LOG" "$OUT/server.log" 2>/dev/null; fi' EXIT
+# Registered through `probe_atexit`, NOT a raw `trap … EXIT`: bash keeps one handler per signal, so a
+# trap here silently replaces `probes_cleanup` and the board's own serve is left holding the
+# single-instance lock. Measured 10-27: after a full-surface arm finished, an orphaned release `serve`
+# (pid 97436) survived, and the next `repeat.sh` refused at its pre-flight — the class `_lib.sh`
+# documents at probe_atexit, reproduced by the file that ships the harness.
+probe_atexit 'if [ -n "${PROBE_LOG:-}" ] && [ -f "$PROBE_LOG" ]; then cp -f "$PROBE_LOG" "$OUT/server.log" 2>/dev/null; fi'
 # _eval.py reads the cached /v1/tools payload through this name; an unexported variable
 # here makes every task fail with a KeyError, which is a harness bug wearing a model score.
 export OCOREAI_TOOLS_CACHE="$TOOLS_CACHE"
@@ -110,7 +181,44 @@ if ! python3 "$HERE/_efficiency_selftest.py"; then
   exit 1
 fi
 
+# Which artefact answered, and whether it can even be the artefact this tree describes. A verdict is
+# a claim about a *build*, while `_lib.sh` resolves whatever binary sits on disk: measured 10-27, a
+# board scored a tree whose sources were four hours newer than the binary it ran, and `results.tsv`
+# had no field that could show it. Deliberately judging an older build is allowed — say so.
+EVAL_BIN="$(probe_resolve_binary 2>/dev/null)"
+if [ -z "$EVAL_BIN" ]; then
+  probe_fail "no ocoreai artefact resolved — the conditions line would record the answering build as" \
+    " `unknown`, so no later run could tell whether it matched this one"
+  probe_summary "$PROBE_NAME"
+fi
+BIN_MTIME="$(stat -f %m "$EVAL_BIN")"
+SRC_MTIME="$(git -C "$PROBE_REPO_ROOT" ls-files -z -- Sources Package.swift | xargs -0 stat -f %m \
+  | sort -n | tail -1)"
+probe_require_int "newest tracked source mtime" "$SRC_MTIME"
+probe_note "artefact $EVAL_BIN · mtime $BIN_MTIME · newest tracked source mtime $SRC_MTIME"
+if [ "$BIN_MTIME" -lt "$SRC_MTIME" ] && [ "${OCOREAI_EVAL_ALLOW_STALE_BIN:-}" != "1" ]; then
+  probe_fail "the artefact predates the tree it is being scored against (binary mtime $BIN_MTIME" \
+    "< newest source $SRC_MTIME) — build first (swift build -c release), or set" \
+    " OCOREAI_EVAL_ALLOW_STALE_BIN=1 to judge an older build on purpose"
+  probe_summary "$PROBE_NAME"
+fi
+
 probe_boot
+
+# A score is a claim about a model, so this refuses to run at all when the turn was replayed.
+# `ScriptedInference` exists to decide wire-contract claims without Metal; a scoreboard read from
+# it would publish "the agent finished 30 real coding jobs" about a JSON file. The check reads the
+# surface instead of the environment, so a scripted server someone else started is refused too.
+if probe_api GET /v1/capabilities; then
+  BACKEND="$(probe_json "$PROBE_BODY" 'engineBackend')"
+  if [ "${BACKEND:-}" = "scripted" ]; then
+    probe_fail "engineBackend=scripted — /v1/chat/completions here replays a script, so any score" \
+      "printed from it would be a claim about a model that never ran. Unset OCOREAI_SCRIPTED_ENGINE."
+    probe_summary "$PROBE_NAME"
+  fi
+  probe_note "engineBackend=${BACKEND:-unknown} — a real engine, so a score here describes a model"
+fi
+
 probe_require_ready_model
 
 if ! probe_api GET /v1/tools; then
@@ -167,7 +275,8 @@ printf 'task\tkind\trc\telapsed_ms\tusage\n' > "$RESULTS"
 # as the score, so the score must stay last. `_conditions.py` digests the task file and the
 # server's own tool declarations, and `field_diffs` is what `_repeat_stats.py` refuses on.
 CONDITIONS="$(python3 "$HERE/_conditions.py" --model "$PROBE_MODEL" \
-  --tools "$OCOREAI_EVAL_TOOLS" --approval "$OCOREAI_APPROVAL_POLICY" 2>"$LOADER_ERR")"
+  --tools "$OCOREAI_EVAL_TOOLS" --approval "$OCOREAI_APPROVAL_POLICY" \
+  --docs "$DOCS_ARG" --binary "$EVAL_BIN" 2>"$LOADER_ERR")"
 if [ -z "$CONDITIONS" ]; then
   probe_fail "could not derive the conditions line for this run ($(tail -n 1 "$LOADER_ERR")) — a" \
     "score with no conditions behind it cannot be compared with any other run, so it is not written"
@@ -189,6 +298,7 @@ for id in $(python3 "$HERE/_eval.py" ids); do
   ws="$EVAL_WS"
   # fresh slate per task, so one task's leftover file can never satisfy another's verifier
   find "$EVAL_WS" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  materialize_docs
   python3 "$HERE/_eval.py" create-files "$ws" "$id"
   body="$(python3 "$HERE/_eval.py" body "$ws" "$PROBE_MODEL" "eval-$id" "$OCOREAI_EVAL_TOOLS" "$id")"
 
@@ -266,6 +376,21 @@ fi
 # (a failed turn spent its seconds and its tokens) and every quotient is printed next to its
 # denominator. This line goes BEFORE the score on purpose — `_repeat_stats._read_run` takes the
 # last `#` line as the score, and _efficiency_selftest.py demonstrates the displaced reading.
+
+# The same reasoning prices the surface every turn carried: the tool declarations are prompt bytes
+# the model may never use, and until now their cost was unprinted while every registered tool rode
+# each turn. Written after the rows (so an aborted run cannot leave a `#` line that
+# `_read_run` would read as the score) and before the score, like the cost line.
+SURFACE="$(python3 "$HERE/_eval.py" surface "$OCOREAI_EVAL_TOOLS" 2>"$LOADER_ERR")"
+if [ -z "$SURFACE" ]; then
+  probe_fail "could not derive the tool-surface figures for this run ($(tail -n 1 "$LOADER_ERR")) —" \
+    "a score that cannot say how many prompt bytes its own tool declarations cost prices half the" \
+    " experiment, so nothing is written"
+  probe_summary "$PROBE_NAME"
+fi
+printf '# surface %s\n' "$SURFACE" >> "$RESULTS"
+probe_note "$SURFACE"
+
 EFFICIENCY="$(python3 "$HERE/_eval.py" efficiency "$RESULTS" 2>"$LOADER_ERR")"
 if [ -z "$EFFICIENCY" ]; then
   probe_fail "could not derive the cost figures for this run ($(tail -n 1 "$LOADER_ERR")) — a" \
@@ -274,6 +399,46 @@ if [ -z "$EFFICIENCY" ]; then
 fi
 printf '# efficiency %s\n' "$EFFICIENCY" >> "$RESULTS"
 probe_note "$EFFICIENCY"
+
+# Premise floor, and it is the arm's whole claim: a `with_docs` run whose system prompt did not grow
+# by at least the doc's own bytes measured nothing but noise. `Assembled prompt […]: … systemChars=N`
+# is the server's own log line, so this reads the engine's word rather than inferring from a file
+# that happened to be on disk.
+if [ "$OCOREAI_EVAL_DOCS" != "none" ]; then
+  # Every assembled prompt, not the first one: a doc that reached turn 1 and vanished for the rest
+  # of the board would still pair two different instruments under one label.
+  CHARS="$(grep -oE 'systemChars=[0-9]+' "$PROBE_LOG" 2>/dev/null | cut -d= -f2)"
+  CHARS_N="$(printf '%s\n' "$CHARS" | grep -c '[0-9]')"
+  CHARS_MIN="$(printf '%s\n' "$CHARS" | sort -n | head -1)"
+  CHARS_MAX="$(printf '%s\n' "$CHARS" | sort -n | tail -1)"
+  if [ -z "$CHARS_MIN" ]; then
+    probe_fail "no 'Assembled prompt … systemChars=' line in the server log — the arm cannot show" \
+      " whether the doc reached the prompt, so its score is not attributable to a doc"
+  elif [ "${OCOREAI_EVAL_DOCS_INERT:-0}" = "1" ]; then
+    # The inert arm's claim is the opposite: the bytes were in the workspace and reached no prompt.
+    # `WorkspaceContext` discovers exactly `AGENTS.override.md` / `AGENTS.md` (the candidate list, with
+    # `WorkspaceContextTests` pinning the contract), so the decisive run-side facts are that the
+    # injected name never existed while the inert bytes did. The span is printed because it is the
+    # behavioural witness: those same bytes injected move it by their own size (measured 10-27 — 2,442 B
+    # injected lands at 5,543..6,500 against a doc-free 2,7xx..3,9xx).
+    if [ -e "$EVAL_WS/AGENTS.md" ] || [ ! -e "$DOCS_TARGET" ]; then
+      probe_fail "the inert arm is not inert: $DOCS_TARGET present=$([ -e "$DOCS_TARGET" ] && echo yes || echo no)" \
+        " but $EVAL_WS/AGENTS.md present=$([ -e "$EVAL_WS/AGENTS.md" ] && echo yes || echo no) — the bytes" \
+        " may have been discovered, so this arm cannot separate injection from mere presence"
+    else
+      probe_ok "the bytes sat in the workspace undiscovered ($DOCS_BYTES B as" \
+        " $(basename "$DOCS_TARGET"), no AGENTS.md) — $CHARS_N prompt(s) assembled at" \
+        " systemChars $CHARS_MIN..$CHARS_MAX"
+    fi
+  elif [ "$CHARS_MIN" -lt "$DOCS_BYTES" ]; then
+    probe_fail "the doc did not reach every turn: $CHARS_N assembled prompt(s), smallest" \
+      " systemChars=$CHARS_MIN < the $DOCS_BYTES B doc (largest $CHARS_MAX) — a turn smaller than" \
+      " the doc is a `none` turn wearing a doc label, so this arm is not paired with anything"
+  else
+    probe_ok "the doc reached every turn ($CHARS_N assembled prompt(s), systemChars $CHARS_MIN..$CHARS_MAX" \
+      " ≥ $DOCS_BYTES B) — the arm is real"
+  fi
+fi
 
 printf '# score %s/%s  model %s\n' "$PASS" "$RUN" "$PROBE_MODEL" >> "$RESULTS"
 probe_note "results $RESULTS"

@@ -7,9 +7,17 @@ VERSION="$(bash "$(dirname "$0")/version.sh")"
 BUILD="1"
 APP_NAME="ocoreai"
 
-# 1. Clean release build
-echo "🔨 Building release..."
-swift build -c release --traits appStore
+# 1. Clean release build — on the DELIVERY route, not the ambient toolchain. A host whose newest SDK
+#    ships CoreAI.framework otherwise builds the macOS-27 shape right here, and step 1b (correctly)
+#    refuses it: the DMG path only ever worked on hosts old enough to still default to SDK 26. The
+#    route is resolved by the resolver that owns it, so this script decides the artefact's shape
+#    wherever it runs. A caller that already pinned a route (`make release`, CI) is honoured as-is.
+if [ -z "${SDKROOT:-}" ]; then
+  echo "🔨 Resolving the delivery route (CoreAI-free SDK)..."
+  eval "$(bash "$(dirname "$0")/toolchain-contract.sh" print-delivery-env)"
+fi
+echo "🔨 Building release... sdk=${SDKROOT:-ambient} traits=appStore"
+swift build -c release --traits appStore ${OCOREAI_DELIVERY_FLAGS:-}
 
 # 1b. Judge the shape of what ships. A bare `swift build` produces whichever shape the ambient
 #     SDK carries, and this script's output is the bundle a user installs: an SDK-26 image and a

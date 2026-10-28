@@ -13,7 +13,7 @@
 
 **macOS 14+ · iOS 17+ · Apple Silicon · Swift 6.2 · 纯 SwiftPM**
 
-**测过的 vs 声明的:** 本项目在 macOS 26 上实机执行——全量测试、live `/v1/*` 探针、36 题任务台
+**测过的 vs 声明的:** 本项目在 macOS 26 上实机执行——全量测试、live `/v1/*` 探针、39 题任务台
 都在此机跑过,且 `make release` 断言产物不含 CoreAI、minos=14.0。macOS 14/15:未在真机运行过。
 iOS 17+:仅编译验证(CI 的 `generic/platform=iOS`),iOS 上从未真跑过一次;所以上面那行是
 `Package.swift` 里声明的下限,不是实测结论。
@@ -21,6 +21,8 @@ iOS 17+:仅编译验证(CI 的 `generic/platform=iOS`),iOS 上从未真跑过一
 **用户路径 — 双击即用:** 若 [Releases](https://github.com/uingei/ocoreai/releases) 列出了 `ocoreai-<ver>.dmg`,下载后打开 → 拖到 `应用程序` → 启动。模型在「模型」页推荐列表首启下载;界面跟随系统语言(已内置简体中文)。发布线已清空重发:若那个页面是空的,请用下面的源码构建,几分钟,无需额外配置。
 
 > 首次启动: DMG 均为 ad-hoc 签名(未公证)。若 Gatekeeper 提示"无法打开",在访达的 `应用程序` 里**右键 ocoreai → 打开 → 打开**即可,仅需一次。
+
+**遇到 bug,或者"界面声称超过引擎实测"?** 提 [issue](https://github.com/uingei/ocoreai/issues):模板会要求贴出命令与原始响应,让报告天生可复现——其中一类模板专收"声称多于实测"。
 
 **开发者路径 — 源码构建:**
 
@@ -116,6 +118,12 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 
 
 > 其余路由在设了 `OCOREAI_API_KEYS` 之后一律要 API key —— **包括 `GET /v1/perception`**：它不在 `AuthRoutePolicy.publicPaths` 里，所以是带鉴权的。该集合是这份名单的唯一真源，两者分叉时 `make docs-check` 的 P10 会判红。
+
+---
+
+### 让另一个 Agent 来驱动
+
+`skills/ocoreai/` 是一份对外发布的 skill，教外部 harness——Claude Code、Codex，或任何读 Markdown 文件的 agent——驱动本服务：端点索引、agent 循环契约，以及把 `not_observed` 与 `supported` 分开的诚实词表都在里面。它是被执行验证的，不是被采信的：`bash scripts/probes/run.sh 39` 自起一个服务、跑完每一条文档化的调用，命中的 marker 少于自己的下界就判红。安装：`cp -R skills/ocoreai ~/.codex/skills/`（其他宿主见 `skills/README.md`）。不想读文档的客户端可以直接从 `GET /v1/capabilities` → `endpoints[]` 枚举同一套接口，那份索引由构建门钉在路由上。
 
 ---
 

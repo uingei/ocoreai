@@ -6,15 +6,14 @@
 
 ## The proposition the product is judged on
 
-The instrument below keeps claims true; it is not the product. The falsifiable question: **on Apple
-devices, can ocoreai finish real software-engineering tasks at acceptable cost, and on failure explain,
-recover and verify?** Four axes, scored by the fixed task set (`scripts/eval/`) and its verifiers, never
-by the model's self-report: **correctness** (the task's verifier, not the answer's prose) ·
-**reliability** (the same task at k repeats; recovery from a tool error, a stall, a model swap) ·
-**efficiency** (wall-clock and tokens per *verified* success) · **safety** (a side effect only inside the
-approval boundary, one auditable record each). Acceptance = task success rate, outcome correctness,
-execution reliability, cost per successful task. Explicitly not acceptance: lines of code, commit count,
-supported model count, architectural complexity.
+The instrument below keeps claims true; it is not the product. The falsifiable question: **on Apple devices,
+can ocoreai finish real software-engineering tasks at acceptable cost, and on failure explain, recover and
+verify?** Four axes, scored by the fixed task set (`scripts/eval/`) and its verifiers, never by the model's
+self-report: **correctness** (the task's verifier, not the answer's prose) · **reliability** (the same task at
+k repeats; recovery from a tool error, a stall, a model swap) · **efficiency** (wall-clock and tokens per
+*verified* success) · **safety** (a side effect only inside the approval boundary, one auditable record each).
+Acceptance = task success, outcome correctness, execution reliability, cost per successful task. Explicitly
+not acceptance: lines of code, commit count, supported model count, architectural complexity.
 
 ## The objective (the instrument)
 
@@ -27,15 +26,16 @@ claim coverage → 1.0. The product surface grows only where a gate already meas
 
 | # | quantity | value | how to re-measure |
 |---|---|---|---|
-| B | smallest provable improvement | **6 discordant cells** | exact sign test at the shipped α: `mcnemar_exact(b,0) < 0.05` first holds at b=6 (b=5 → 0.0625) — `scripts/eval/_repeat_stats.py` |
-| B′ | tasks that can produce a cell | set size, pass/fail split and the noise band: `scripts/eval/README.md` (this file does not restate them — a figure in two homes is one drift waiting) | `_repeat_stats.py` on the base root |
-| C | cost of one verdict | one k=6 verdict costs minutes, not seconds — the floor is inference throughput, so a ≤3 min/proposal target is throughput-bound, not orchestration | `stat -f %m` on the run dirs → deltas |
+| B | smallest provable improvement | **6 discordant cells** | `mcnemar_exact(b,0) < 0.05` first holds at b=6 (b=5 → 0.0625) — `scripts/eval/_repeat_stats.py` |
+| B′ | tasks that can produce a cell | set size, pass/fail split, noise band: `scripts/eval/README.md` (not restated here — a figure in two homes drifts) | `_repeat_stats.py` on the base root |
+| C | cost of one verdict | minutes; the floor is inference throughput, so ≤3 min/proposal is throughput-bound, not orchestration | `stat -f %m` on the run dirs → deltas |
 | G | goal-post write surface | **0** (allow = 1 prefix, protected = 15 judgement paths) | `scripts/eval/autoloop-allow.txt` / `autoloop-protected.txt`, gated by `scripts/eval/_autoab_selftest.py` + `_autoab_mutate.py` |
-| S | claim coverage | incomplete: doc claims reproduce, 36 live probes; gaps = MTP acceptance rate (0 sites) | `make docs-check` + the gap list below |
+| S | claim coverage | incomplete: doc claims reproduce, 40 live probes; gaps = MTP acceptance (0 sites) + silent instruction truncation | `make docs-check` + rung 3 |
+
 
 **Why B is the constraint**: stable-pass tasks give *no* upward evidence yet *can* trip the regression veto,
-so the shape is asymmetric on purpose, and a sub-point effect is not measurable at any α — that effort is
-not conservative, it is invisible.
+so the shape is asymmetric on purpose — a sub-point effect is not measurable at any α, and that effort is not
+conservative, it is invisible.
 
 ## The ladder
 
@@ -46,64 +46,134 @@ not conservative, it is invisible.
    windows: CHANGELOG).
 2. **Beat** — C 12 min → ≤3 min: engine stays warm across proposals, contract-class changes judge at
    k=1 by byte-exact gates (they are decidable, so they must not spend statistical budget). *Failure
-   signal*: the floor is inference throughput, not orchestration — that is a quantization/kernel job, not
-   a harness job.
-3. **Coverage** — S gaps 3 → 0: publish MTP acceptance where MTP runs (or keep MTP off the capability
-   face, which is honest today), disclose truncated structured output rather than 200 + invalid JSON, and
-   the UI's focus/number rules are pinned (`UIFocusDisciplineTests`). *Failure signal*: a capability row that
+   signal*: the floor is inference throughput, not orchestration. Measured answer first — every agent
+   tree here judges its loop against a fake or mock provider, so the floor moves by taking the model out
+   of contract claims before it moves by making inference faster (`docs/agent/open-items.md`).
+   **Landed 10-27(20):** `Engine/ScriptedInference.swift` + probe 37 decide that class at k=1 in ~4 s with
+   nothing resident (`engineBackend: scripted`; the scoreboard refuses a replayed run), and CI runs it from the
+   headless-serve smoke step — so the class is ~4 s, with its runner pass unverified.
+3. **Coverage** — S gaps 3 → 0, and 10-28 found a fourth (project instructions truncated with no disclosure — rung 5's *Budget* half, `docs/agent/open-items.md`): publish MTP acceptance where MTP runs (or keep MTP off the capability face, which is honest today), disclose truncated structured output rather than 200 + invalid JSON, and the UI's focus/number rules are pinned (`UIFocusDisciplineTests`). *Failure signal*: a capability row that
    cannot name its measurement site survives a review cycle → the review, not the code, is broken.
 4. **Anti-self-deception** — the mutation set only grows; each cycle re-proves the judges catch a real
-   defect, not just a fabricated board. *Failure signal*: a mutation escapes.
+   defect, not just a fabricated board. *Failure signal*: a mutation escapes. Measured floor for the board this
+   rung judges by (10-27(22), k=3 over 39 tasks): one run is **±6 tasks (15.5 pp)**, so an unpaired Δ under
+   9 tasks and a paired one under 6 clean flips are not evidence — which retroactively disqualifies several
+   earlier rounds whose single-run deltas were read as improvement. It shows up across sessions too — the
+   `docs=none` arm read 22.67 / 24.67 / 25.00 on 10-27 under byte-identical `tasks=`/`tools=` digests — so
+   re-running one arm is not re-deriving one number, which is why `binary=` is a conditions field.
+5. **What a turn is handed** — all three halves of the turn are priced, and the third is new. *Tools*
+   (10-27(22)): handing the turn 40 tools instead of 6 cost **−18.8 pp** on the same 39 tasks (k=3, paired,
+   McNemar exact p < 0.0001). *Text* (10-27(24), replicated twice): injecting this repo's ~21.5 KB
+   `AGENTS.md` cost **25.00 → 16.33/39** (−22.2 pp, p < 0.0001; replicate −19.7 pp), the premise floor having
+   proved the doc reached all 39 turns — per-turn instructions cost a small checkpoint roughly what handing it
+   every tool costs, and the traces say why: the doc gets *edited* as if it were the task's file, and the tool
+   call arrives as narration. The next slice is
+   *selection* on both axes, not *registration* (curve, replicates, distillate: `docs/agent/open-items.md`). *Budget* (10-28): the text also has a cap the surface hides — the deepest chain here is **32 037 B of the 32 768** the loader injects (731 B left),
+   `Sources/ocoreai/WorkspaceContext.swift:229` drops the tail without one word to the model, and four
+   comparator trees already read rulesets their own loader cut (`docs/agent/comparator-repos.md` header); the
+   one tree that states its budget inside the prompt pins that wording as a fixture, and we have neither the
+   disclosure nor a test of it. *Failure signal*: a capability row that cannot name its measurement site
+   survives a review cycle.
 
 ## Rung zero — adoption (the third kill criterion has fired)
 
-"S = 1.0 with no adoption" is measured, not felt (2026-10-26, `api.github.com` — HEAD's only authority;
-a mirror proves content, never HEAD): `openclaw` 393 101 stars / 82 643 forks, `opencode` 222 704 / 29 649
-(**408 stars/day** over 544 d), `claude-code` 153 415, `codex` 130 965 (233/day), `cline` 70 860, `goose`
-55 732, `aider` 49 756 — and **ocoreai 1 star / 0 forks / 0 open issues / 7 DMG downloads across 3
-releases**. The shape is the finding, not the gap: the field's best *sustained* growth is ~408/day, the
-leader is at ~393k, so no honest engineering schedule reaches #1. #1 is a distribution event — bundled,
-defaulted, or virally demoed — and the top four each sit on a machine that manufactures those (two model
-vendors, one large ecosystem, one phenomenon with institutional amplification). Distribution therefore comes
-first, and every rung below is falsifiable:
+"S = 1.0 with no adoption" is measured, not felt: 20 trees with stars, forks, age and stars/day in
+`docs/agent/adoption-runbook.md` § The leaderboard (`api.github.com` — HEAD's only authority; a mirror proves
+content, never HEAD), and **ocoreai 1 star / 0 forks / 0 open issues / 0 watchers / 7 DMG downloads across 3
+releases**, 136 days old. The gap is not the finding, the *shape* is — and the arithmetic that used to
+justify this section is **deleted, not softened (10-28(6))**: it read "the field's best sustained growth is
+~408/day, so no honest engineering schedule reaches #1", yet `deepseek-ai/deepseek-harness` reached 263 687
+stars 76 days after creation, and `Niko1221/Strata` 34 577 in 34 days (rates per tree: the leaderboard).
+Neither elapsed time, star arithmetic nor engineering throughput bounds #1 — the category's own record is an
+eleven-week distribution event — and what bounds it is whether something outside this repo defaults to it:
+the top four each sit on a machine that manufactures one (two model vendors, one large ecosystem, one
+phenomenon with institutional amplification), and two of the three fastest movers are institution-shipped. So
+distribution comes first, the objective stays the wedge rank and not the headline, the two rungs that move a
+stranger's install decision this quarter are 1 (a tag per merge) and 6 (be consumed), and the cheapest parts
+are still unpaid here — Discussions off, no homepage, no `VISION.md`, 0 watchers. Every rung below is
+falsifiable:
 
-0. **Ship.** Done, and now askable: `scripts/ci-status.sh` reports what CI concluded (1 = failed *or
-   skipped*, 2 = could not ask — never green).
-1. **One release per tag.** The publisher is in-repo and needs no owner credential: the `release` job
-   uses the runner's own `${{ github.token }}`. All tags were withdrawn on 10-26 (the last
-   three releases carried 7 downloads), so: green the authority leg → tag → CI publishes.
-   What blocks this is the suite, not a person with a token.
+0. **Ship.** Done, and now askable: `scripts/ci-status.sh` reports what CI concluded, never "green" for a
+   question it could not ask.
+1. **Cadence, not one tag.** Every tree a stranger installs here publishes ≥100 releases with a newest of
+   today; this repo has **0 tags and 0 releases**, measured 10-28 by `git ls-remote --tags origin` (empty)
+   and `api.github.com` (`/tags` and `/releases` both `[]`). The publisher needs no owner credential (the
+   `release` job uses the runner's own `${{ github.token }}`), but `v0.1.10` is the wrong number to type: the
+   tag *is* the version (`scripts/version.sh`) and the withdrawn line reached 0.1.13, so the next number is
+   **`v0.1.14`**, prepared on this host and never pushed. Two things ride on it: the trust signals a first
+   screen can show are outputs of cadence (§ The first screen), and before self-serve publishing, build and
+   publish must split — ours runs repository code inside the job holding    `contents: write` (`competitor-iteration-paths.md` § The release cadence rule). The suite is green
+   (`scripts/ci-status.sh` exits 0 on every leg a main push runs) and the DMG completes a real turn from a
+   fresh directory, so rung 1 waits on a person and a policy, not on code.
 2. **Sixty seconds to first token.** Honest today: `swift build -c release` (minutes) or an ad-hoc-signed
    DMG plus the Gatekeeper right-click. Rung = notarised artefact + Homebrew cask; the metric to floor is
-   *clean machine → first completion*, one command, timed.
-3. **Something to look at.** `grep -c '!\[' README.md` yields only the four badges: no recording, where
-   every top-five coding agent leads with one. Capture machinery already exists (`GUI_REQUIRE_PIXELS`,
-   `scripts/e2e-gui-app.sh`), so a real demo needs no fakery.
+   *clean machine → first completion*, one command, timed. First measured point: 22.1 s from a built DMG to
+   one real completion with weights already cached (`scripts/e2e-gui-app.sh`, exit 0; run detail is the
+   diary's). Not the rung yet: a clean machine also pays the first-run model download, and nothing here is
+   notarised.
+   The leader machine is four parts, each cited in `adoption-runbook.md`: a runtime-provisioning installer
+   script, a self-serve tap/cask, **update inside the app** (ours only *notifies* — `Core/UpdateCheck.swift`
+   returns a release-page URL to Settings; openclaw's mechanism is named in its own root —
+   `appcast.xml`, `appcast-arm64.xml`, `appcast-x86_64.xml`, a per-arch feed the app polls), and a
+   degraded-not-failed install.
+3. **Intake, then a demo.** The premise here was wrong once already (`grep -c '!\['` counts Markdown image
+   syntax the CLI trees do not use; re-measured as `<img>` plus media refs a recording is a product-tree
+   habit, and capture machinery exists — `GUI_REQUIRE_PIXELS`, `scripts/e2e-gui-app.sh`). Corrected 10-28: 4
+   `.github/ISSUE_TEMPLATE` forms and 4 `README.md` media refs now exist, so intake's first commit landed and
+   the demo has not. Past templates the leaders run bots that close stale intake, keep locales fresh, and
+   apply an **intake policy to AI-authored contributions** (duplicate-work check, no busywork, fail-closed, a
+   human who defends it; `adoption-runbook.md` § The intake machine) — that is what 320 author emails in one
+   14-day window costs. Our home for that policy is `CONTRIBUTING.md`, written when outside intake exists to
+   apply it to.
 4. **A wedge the leaders structurally cannot copy**: offline on Apple silicon, one binary, no API key,
-   native screen/camera/speech, MTP lane plus ANE constrained decoding — no comparator tree among 20
-   combines them. Ceiling stated honestly: it is a *niche* wedge, and the leaders are cloud-led, which is
+   native screen/camera/speech, MTP lane plus ANE constrained decoding — no comparator tree here combines
+   them. Ceiling stated honestly: it is a *niche* wedge, and the leaders are cloud-led, which is
    both why they do not copy it and why it caps this ceiling. "Auditable, airgapped coding agent" is the
    framing with the larger audience.
-5. **Amplification, then retention.** 82 643 forks against our 0 is not a code gap; it is a community
-   machine, and it is fed by issue latency, not by gates.
+5. **Amplification, then retention.** 82 660 forks measured 10-28 against our 0 is not a code gap; it is a
+   community machine, fed by issue latency and by the automation that keeps a large intake cheap
+   (`adoption-runbook.md` § The intake machine) — none of it a gate on our own prose.
+6. **Agents as clients — take this before any of the others.** The leader does not compete with a local
+   engine, it *consumes* one: "Models and agent harnesses (Claude, Codex, local models) are plugins you can
+   swap" (`../references/openclaw/README.md:20`), and ocoreai is the only tree here that is model *and*
+   harness on one die, offline, no key. Half landed 10-28: `/v1/capabilities` serves `endpoints[]` (34 rows,
+   `V1EndpointCatalogTests`) and `skills/ocoreai/` is published, probe 39 executing every marker against a live
+   `serve` and a real checkpoint, so the claim carries its gate.
+   Missing: a standard-format spec (OpenAPI) plus a generated client — an owner call, because a public
+   contract is a promise about future releases — and the harder proof that a stranger's agent, handed only the
+   skill, finds it and finishes a task. `scripts/probes/40-stranger-agent-skill-task.sh` is that instrument — a seeded note whose
+   VALUE is reachable only by a live call chain, plus a negative control that must reject a wrong deliverable.
+   Probe 39 executes the artefact; probe 40 is read by it.
+7. **Editors as clients (ACP)** — the rung `docs/agent/open-items.md` already cites: goose ships
+   `agent-client-protocol` 2.2.0 and hermes-agent an `acp_adapter`; a third surface is a new core
+   surface, so it waits on the owner.
 
-What this does **not** mean: retire B/C/G/S. They keep claims true once attention exists; what changed is
-the order of spending, because the objective's noun is the product, not the instrument.
+What this does **not** mean: retire B/C/G/S — they keep claims true once attention exists. What changed is the
+order of spending, because the objective's noun is the product, not the instrument.
+
+**The gate layer is frozen (10-28).** Measured, then cut (counts: CHANGELOG `gate-deletion-10-28`): one gate
+commit per three product commits while `git tag` stayed empty. A new check names the red it was sampled
+against and the reader whose action it changes, or nobody writes it. Freed attention has three addresses —
+rung 1 (a tag-per-merge policy), rung 2's open half (whether 43 declarations suit a 4-bit checkpoint, priced
+at −18.8 pp, owner call), and the measured gallery a first screen needs (§ The first screen).
 
 ## Kill criteria (checked, not felt)
 
 - Two consecutive quarters with B and C unmoved → the bottleneck is model capability, not instrumentation:
-  stop building gauges, spend on data/checkpoint instead.
-- Any change the loop kept and a human reviewer then rejected → the criteria have decoupled from truth:
-  revert to manual k judgement; while the instrument is untrusted, automation is a liability.
-- S = 1.0 with no adoption → honest instrumentation has become a shelter, and the objective's object was
-  the wrong noun.
+  stop building gauges, spend on data/checkpoint.
+- A change the loop kept that a human reviewer then rejected → the criteria decoupled from truth: revert to
+  manual k judgement.
+- S = 1.0 with no adoption → honest instrumentation became a shelter, and the objective's object was the
+  wrong noun.
 
 ## Not on this ladder
 
 Weight-level self-improvement: interface kept, never claimed (no training pipeline here, and a 4-bit
-checkpoint cannot be quietly upgraded into a claim). Multi-machine/MoE staging: outside the hardware
-envelope this product ships in. Putting MTP on the capability face before an acceptance rate exists.
+checkpoint cannot be quietly upgraded into a claim). Multi-machine/MoE staging: outside the hardware envelope
+this product ships in. MTP on the capability face before an acceptance rate exists. And checks on the tidiness
+of our own prose: that family went 10-28, and a check with no quoted failure and no named reader who acts on
+its red does not get written again.
+
 
 *Discordant cell* = one (task, matched run) pair where the two configurations disagree; pairing is
 matched 1:1, never the A×B product (`scripts/eval/README.md`, where the numbers live).

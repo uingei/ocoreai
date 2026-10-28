@@ -1,0 +1,94 @@
+name: Bug report
+description: Something the agent or the server does is wrong — bring the command and the response
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A report carrying the exact command and the raw response usually gets a verdict in one pass.
+        Redact what is private, but keep the shape of the request. Screenshots do not paste into a
+        reproduction; text does.
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: In the order you saw it, including the last thing that worked.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: The one command that shows it
+      description: |
+        CLI, or the raw request and response (keep the SSE `data:` frames):
+        ```bash
+        curl -s http://127.0.0.1:8080/v1/chat/completions \
+          -H 'content-type: application/json' \
+          -d '{"model":"<id>","messages":[{"role":"user","content":"..."}]}'
+        ```
+      render: bash
+    validations:
+      required: true
+  - type: textarea
+    id: engine_state
+    attributes:
+      label: What the engine says about itself
+      description: |
+        Paste both — they are how a report gets attributed to the right lane instead of argued about:
+        `curl -s http://127.0.0.1:8080/v1/capabilities` (`os`, `version`, `arch`, `capabilities[]` as
+        `{name, available, note}`, plus `tokenizerBackend` and `screenStatus`) and
+        `curl -s http://127.0.0.1:8080/health`.
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model id, quantisation, and lane
+      description: Behaviour differs between the MLX lane, CoreAI and the MTP draft lane.
+      placeholder: gemma-4-e2b-it-4bit · 4-bit · MLX
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface
+      options:
+        - macOS app
+        - HTTP API (:8080)
+        - CLI
+        - Dashboard
+        - iOS build
+        - Docs
+  - type: dropdown
+    id: macos
+    attributes:
+      label: macOS version
+      options:
+        - macOS 26
+        - macOS 27 beta
+        - macOS 15
+        - macOS 14
+        - Other
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: The app's Status pane shows Build Info; from source, `git rev-parse --short HEAD`.
+      placeholder: 3d9d5ae
+  - type: checkboxes
+    id: known
+    attributes:
+      label: Before you file
+      options:
+        - label: I searched the open issues for this
+          required: true
+        - label: It is not the known item already listed in docs/agent/open-items.md
+          required: true
+        - label: It reproduces at least twice from the command above
+          required: false

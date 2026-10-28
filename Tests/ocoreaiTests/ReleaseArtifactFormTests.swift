@@ -74,8 +74,14 @@ struct ReleaseArtifactFormTests {
         #expect(deliveryPath == 1, "delivery judges .build/release, saw \(deliveryPath)")
     }
 
-    /// The delivery target pins a route instead of inheriting the host, because the host here is
-    /// exactly the case that breaks it (Xcode SDK 27 carries CoreAI.framework).
+    /// The delivery route is pinned, never inherited — because the host here is exactly the case
+    /// that breaks it (Xcode SDK 27 carries CoreAI.framework). Pinned by the ladder that owns the
+    /// decision, not by a copy of it in the recipe: `release` evals `print-delivery-env`, and the
+    /// same resolver is what `build-app.sh` uses for the .app a user installs. This test is where
+    /// that rule was broken once — it grepped for `DEVELOPER_DIR=$(CLT_DIR)`/`$(SDKROOT_CLT)` and
+    /// went red the day the literals moved into the resolver, which is the second-home AGENTS.md
+    /// forbids. It now asserts the ladder itself, so a route that stops being pinned still goes
+    /// red, and so does a pin that drifts out of the resolver.
     @Test func deliveryTargetPinsTheRouteInsteadOfInheritingIt() throws {
         let makefile = try read("Makefile")
         let start = makefile.range(of: "\nrelease:\n")
@@ -84,13 +90,32 @@ struct ReleaseArtifactFormTests {
             String(makefile[(start!.upperBound)...]).components(
                 separatedBy: "\n\n"
             ).first ?? ""
-        let pinsDeveloperDir = body.contains("DEVELOPER_DIR=$(CLT_DIR)")
-        #expect(pinsDeveloperDir, "delivery pins the CLT route: \(body)")
-        let pinsSdk = body.contains("$(SDKROOT_CLT)")
-        let sdkWord = "explicit SDKROOT, never the MacOSX.sdk symlink"
-        #expect(pinsSdk, "\(sdkWord): \(body)")
+        #expect(
+            body.contains("toolchain-contract.sh") && body.contains("print-delivery-env"),
+            "delivery must take its route from the resolver that owns it, not the ambient host: \(body)"
+        )
+        #expect(
+            body.contains("$$OCOREAI_DELIVERY_FLAGS"),
+            "delivery must pass the resolver's framework/rpath flags, not its own copy: \(body)")
         let judges = body.contains("release-artifact-check.sh delivery")
         #expect(judges, "delivery judges its own artifact: \(body)")
+        // The pin lives in the resolver: the CLT developer dir, an SDK chosen by name, and no
+        // delivery build at all when no CoreAI-free SDK exists (inheriting Xcode's is the defect).
+        let resolver = try read("scripts/toolchain-contract.sh")
+        #expect(
+            resolver.contains("export DEVELOPER_DIR=$CLT_ROOT"),
+            "the resolver no longer pins the CLT route — delivery would inherit the host")
+        #expect(
+            resolver.contains("export SDKROOT=$DELIVERY_SDK"),
+            "the resolver no longer pins an explicit SDK, never the MacOSX.sdk symlink")
+        #expect(
+            resolver.contains("no CoreAI-free MacOSX SDK"),
+            "a host without a CoreAI-free SDK must fail the delivery build, not fall back")
+        // One ladder, two consumers: the installer path reads the same resolver.
+        let bundling = try read("scripts/build-app.sh")
+        #expect(
+            bundling.contains("print-delivery-env"),
+            "the .app a user installs drifted off the delivery ladder")
     }
 
     /// The bundling path — the bundle a user installs — is judged too, not just the binary.

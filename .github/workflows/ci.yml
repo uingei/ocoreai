@@ -27,19 +27,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Verify review infrastructure exists (PR_EVIDENCE.md references)
+      # Verify review infrastructure exists (PR_EVIDENCE.md references), including the intake side:
+      # a stranger's bug report is the cheapest contribution there is, and a form that GitHub refuses
+      # to render (empty description, malformed body) silently costs every one of them.
       - name: Review governance check
         run: |
           set -euo pipefail
           FAIL=0
-          for f in .github/PULL_REQUEST_TEMPLATE.md .github/CODEOWNERS .github/PR_EVIDENCE.md .github/REVIEW.md CONTRIBUTING.md; do
+          for f in .github/PULL_REQUEST_TEMPLATE.md .github/CODEOWNERS .github/PR_EVIDENCE.md .github/REVIEW.md CONTRIBUTING.md \
+                   .github/ISSUE_TEMPLATE/config.yml .github/ISSUE_TEMPLATE/bug_report.yml \
+                   .github/ISSUE_TEMPLATE/capability_honesty.yml .github/ISSUE_TEMPLATE/feature_request.yml; do
             if [ ! -f "$f" ]; then
               echo "❌ Missing: $f — review infrastructure incomplete"
               FAIL=1
             fi
           done
           [ "$FAIL" -eq 1 ] && exit 1
-          echo "✅ Review governance: all infrastructure files present"
+          echo "✅ Review governance: all infrastructure files present (contribution + intake)"
 
       # Text gates belong on the free runner: the macos-26 audit leg costs 715 s a push, and
       # neither of these needs a Swift toolchain. codespell's pin lives in the script (one home),
@@ -353,6 +357,25 @@ jobs:
           [ "$RC" -eq 0 ] || { echo "❌ SIGTERM exit code $RC (expected 0)"; exit 1; }
           echo "✅ headless serve: bound → SIGTERM → exit 0, drain complete"
 
+          # Same binary, nothing resident: probe 37 replays a script through the real handlers and
+          # decides wire-contract claims (SSE framing, tool-call assembly, `usage`, the
+          # `engineBackend` honesty field) in seconds, with no Metal load and no download. It runs
+          # inside this step instead of opening a new leg because a gate that nobody watches go red
+          # is decoration — CI is the only seat that runs on every push, and the scripted engine is
+          # what finally makes the live tier affordable enough to sit here.
+          OCOREAI_BIN="$BIN" bash scripts/probes/run.sh 37
+          # Probe 38's §1 is the same affordance pointed at a capability claim: an unmeasured
+          # checkpoint must never be refused for `reasoning_effort`, and `/v1/models` must publish
+          # `not_observed` instead of silence. §2 needs a checkpoint and prints its own skip note
+          # on a runner that has none, so nothing here pretends the measured half ran.
+          OCOREAI_BIN="$BIN" bash scripts/probes/run.sh 38
+          # Probe 39 executes skills/ocoreai/SKILL.md — the artefact another harness reads to drive /v1 —
+          # marker by marker against this same binary. §1/§1b need no weights (contract + key boundary);
+          # §2 runs the measured lane only when the runner has a checkpoint, and prints its reason when it
+          # does not, so the published skill cannot drift from the served wire without a red on every push.
+          OCOREAI_BIN="$BIN" bash scripts/probes/run.sh 39
+          kill -TERM $SPID 2>/dev/null || true
+
       # ── Release build via xcodebuild ──
       - name: Build (xcodebuild, Release)
         if: ${{ matrix.build_release == true }}
@@ -512,12 +535,22 @@ jobs:
           VER="${GITHUB_REF_NAME#v}"
           SHA=$(shasum -a 256 "dist/ocoreai-${VER}.dmg" | awk '{print $1}')
           SIZE=$(stat -f%z "dist/ocoreai-${VER}.dmg")
-          NOTE="v${VER} — ocoreai: an agent for open models, natively local.
-          双击 DMG → 拖入 Applications。模型在 App 内首启下载 (推荐列表已内置)。
-          首次启动若 Gatekeeper 提示无法打开: 访达→应用程序→右键 ocoreai→打开 (ad-hoc 签名, 仅需一次)。
+          # The note is the first thing a stranger reads about a build of this project, so it is
+          # English-first (the repo's own rule: one Chinese file, README.zh.md) and states only what
+          # the artefact is — ad-hoc signed, not notarised, models fetched inside the app.
+          NOTE="ocoreai v${VER} — an agent for open models, natively local on Apple silicon.
 
-          SHA256: ${SHA}
-          Size: ${SIZE} bytes — 校验: shasum -a 256 ocoreai-${VER}.dmg"
+          One binary, offline, no API key: screen, camera, speech and the coding loop behind one
+          OpenAI-compatible wire.
+
+          Install: open the DMG, drag ocoreai into Applications, launch. Models are downloaded on first
+          run from the in-app list — nothing is fetched before you choose.
+
+          Signed ad-hoc, not notarised: if Gatekeeper refuses the first launch, right-click
+          ocoreai in Applications and choose Open (once).
+
+          SHA-256: ${SHA}
+          Size: ${SIZE} bytes — verify: shasum -a 256 ocoreai-${VER}.dmg"
           # Split ceremony: create release (metadata only, cheap/idempotent),
           # then upload the asset with its own retry loop. Asset upload goes to
           # uploads.github.com — NOT the ArtifactService twirp API that killed
@@ -592,14 +625,21 @@ jobs:
           restore-keys: |
             spm-deps-macos-26-
 
-      # Same command build-app.sh runs. Compile-only — no metallib needed
-      # at build time (MLX resolves it at runtime, see scripts/build-app.sh).
-      - name: Build (release, --traits appStore)
+      # The same route and the same first two steps scripts/build-app.sh runs, so this leg judges the
+      # shape the DMG ships rather than the shape the runner's newest SDK happens to carry. Measured
+      # 10-28: an ungated use of a `#if canImport(CoreAI)` member compiled green on an SDK-27 host and
+      # broke the delivery build (EnginePool.swift called LoadedModel.isCoreAIAsset outside the gate);
+      # `swift build` alone could not see it, because on that host the member exists. The route comes
+      # from scripts/toolchain-contract.sh (one home) and the verdict comes from the artefact.
+      # No metallib is needed at build time (MLX resolves it at runtime — see scripts/build-app.sh).
+      - name: Build + judge the delivery shape (release, --traits appStore)
         run: |
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
-          swift build -c release --traits appStore --target ocoreai
-          echo "✅ appStore trait: release build green"
+          eval "$(bash scripts/toolchain-contract.sh print-delivery-env)"
+          echo "   route: DEVELOPER_DIR=$DEVELOPER_DIR SDKROOT=$SDKROOT"
+          swift build -c release --traits appStore $OCOREAI_DELIVERY_FLAGS
+          bash scripts/release-artifact-check.sh delivery .build/release/ocoreai
 
   ## ── iOS compile-validation (independent job — no matrix sharing) ──
   # ocoreai declares .iOS(.v17) first-class; the #if os(iOS) branches had no CI

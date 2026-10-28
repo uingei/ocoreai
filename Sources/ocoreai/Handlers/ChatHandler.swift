@@ -223,6 +223,23 @@ func chatCompletionsHandler(
         )
     }
 
+    /// Capability gate, measured per checkpoint: a caller that demands thinking control
+    /// gets refused when this server has rendered this checkpoint's own template and seen it
+    /// ignore the kwarg — the word cannot reach the model, so the turn would only look
+    /// controlled. Unmeasured is never refused (`ReasoningEffortLedger`): the pass-through
+    /// stays, and `/v1/models` says `not_observed`. Same seat as the numeric and
+    /// `tool_choice` gates — before the safety guards, before the scheduler.
+    if let refusal = ReasoningEffortWire.refusal(
+        modelId: modelId,
+        requestedValue: request.reasoningEffort,
+        mode: await enginePool.reasoningEffortMode(modelId: modelId)
+    ) {
+        logger.warning(
+            "\(refusal)",
+            metadata: ["error_code": .string("reasoning_effort_unsupported")])
+        throw refusal
+    }
+
     /// NOTE: Empty-messages guard is in the router (ChatCompletionsRouter:148).
     /// If this handler is ever called directly, empty messages will still cause
     /// downstream failures — the router guard is the source of truth.

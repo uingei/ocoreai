@@ -42,9 +42,10 @@ release:
 	@# CoreAI.framework, so a "release" binary silently became the macOS-27 shape that R1 calls
 	@# out-of-delivery — while the CI release leg, on an SDK-26 image, produced the other one.
 	@# Same release name, two different products, nothing comparing them.
-	@$(METAL_PATH_EXPORT)DEVELOPER_DIR=$(CLT_DIR) $(SDKROOT_CLT) swift build -c release \
-	  -Xswiftc -F$(CLT_F) -Xlinker -F$(CLT_F) -Xlinker -rpath -Xlinker $(CLT_F) \
-	  -Xlinker -rpath -Xlinker $(CLT_L)
+	@# The route is printed by the resolver that owns it (print-delivery-env), because the same
+	@# ladder is what scripts/build-app.sh pins for the .app a user installs: one home, two consumers.
+	@eval "$$(bash scripts/toolchain-contract.sh print-delivery-env)" && \
+	  swift build -c release $$OCOREAI_DELIVERY_FLAGS
 	@bash scripts/release-artifact-check.sh delivery .build/release/ocoreai
 
 ## The deliberate macOS-27 route (OCOREAI_TARGET_SDK=macos27): CoreAI blocks compiled IN, so

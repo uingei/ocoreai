@@ -115,6 +115,39 @@ extension MLXModelHandle {
         }
         return withTool.count > bare.count
     }
+
+    /// Does this checkpoint's own chat template read the `reasoning_effort` kwarg?
+    ///
+    /// Same evidence shape as ``chatTemplateRendersTools``: render one probe feed twice and
+    /// compare, rather than reading a config key or grepping the jinja. The value handed in is
+    /// ``ReasoningEffortWire.probeValue`` — a string no effort table contains — so a template
+    /// that reads the kwarg must either interpolate it (render differs) or reject it
+    /// (validation raises); both count as "read it". A template that never names the variable
+    /// renders the same bytes twice.
+    ///
+    /// Ambiguity fails OPEN: a render that cannot run at all, or that fails on the probe for
+    /// a reason unrelated to the kwarg, returns nil — the caller keeps passing the caller's
+    /// word through and says it never measured. Refusing a turn on an inference is the worse
+    /// error (`ReasoningEffortLedger` header).
+    ///
+    /// Cost: one extra template render per model load, cached by ``ReasoningEffortLedger``.
+    nonisolated func chatTemplateReadsReasoningEffort() async -> Bool? {
+        let feed: [[String: any Sendable]] = [["role": "user", "content": "x"]]
+        let tokenizer = await modelContainer.tokenizer
+        guard let bare = try? tokenizer.applyChatTemplate(messages: feed) else {
+            return nil
+        }
+        do {
+            let probe = try tokenizer.applyChatTemplate(
+                messages: feed,
+                tools: nil,
+                additionalContext: [ReasoningEffortWire.key: ReasoningEffortWire.probeValue]
+            )
+            return probe != bare
+        } catch {
+            return true
+        }
+    }
 }
 
 // MARK: - MLX Model Loader

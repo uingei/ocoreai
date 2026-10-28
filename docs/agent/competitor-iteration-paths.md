@@ -55,11 +55,10 @@ edge safe from eviction (dated series: `CHANGELOG.md`).
    subagents arrived late and cheap for every rival — we are already ahead of that order, so spend
    nothing extra there.
 
-**The meta-lesson.** Reading references is not the scarce act; keeping the claims they produce
-true is — 4 of our own 173 bare upstream cites were dead on 10-22. `scripts/upstream-cite-check.sh`
-(now in `make anchor-check`) is the gate: floor 120 on its own scan, every cite resolves in a
-clone/checkout/`.upstream-external-cites.json`, line numbers fit, and an out-of-set cite must
-carry the sha it was verified at.
+**The meta-lesson.** Reading references is not the scarce act; keeping the claims they produce true is.
+The gate is `scripts/upstream-cite-check.sh` (in `make anchor-check`): floor 120 on its own scan, every
+cite resolves in a clone/checkout/`.upstream-external-cites.json`, line numbers fit, and an out-of-set
+cite carries the sha it was verified at.
 
 ## openclaw — 116,620 commits, 2025-11-24 → 2026-10-21
 
@@ -98,3 +97,37 @@ openclaw is deliberately **not** in `scripts/upstream-drift.sh`'s HEAD axes: at 
 commits a day a HEAD window is permanent noise, and a warning that always fires is a warning nobody
 reads when it becomes true. The shape worth adding is a release-tag axis (it publishes Sparkle
 `appcast.xml`) — pending the owner's call on axes.
+
+## The release cadence rule (measured 10-28, `api.github.com`)
+
+`/releases?per_page=100` per tree — "≥100" is the page cap, not a count — and the newest release's age:
+
+| tree | releases | newest | assets, last 10 | what the assets are |
+|---|---|---|---|---|
+| openclaw | ≥100 | 0 d | 103 | per-release `…-dependency-evidence.zip`: the artefact ships its own supply-chain evidence |
+| codex | ≥100 | 0 d | **3 116** | platform × arch × variant, ≈312 per release, from **nine** release workflows (`rust-release.yml`, `python-sdk-release.yml`, `rust-release-windows.yml`, `r2-release.yml`, …) — one pipeline per distribution surface |
+| opencode | ≥100 | 0 d | 360 | per-platform zips incl. `opencode-darwin-x64-baseline.zip` — degraded-not-failed, on the wire |
+| vllm | ≥100 | 9 d | 83 | a wheel per Python × platform |
+| omlx | ≥100 | 0 d | 45 | wheels per Python, plus the DMG a stranger drags |
+| pi | ≥100 | 6 d | ~10 | install package + source tarball |
+| sglang | ≥63 | 9 d | 0 | docs-site route |
+| hermes-agent | 44 | 4 d | 0 | canary + stable + desktop-bundled workflows, no assets |
+| coreai-models | 2 | 15 d | 0 | the reference-tree shape: consumed as a dependency, never installed |
+| **ocoreai** | **0** | — | — | no tag has ever existed here |
+
+The rule this implies, ranked by how much it changes spending:
+
+1. **Cadence, not a tag.** Among trees a stranger *installs*, ≥100 releases and a newest-of-today is the
+   norm, and the trust signals a first screen can show (a version badge, "released 0 days ago") are outputs
+   of that cadence rather than inputs to it. Our `release` job is tag-gated and needs no owner credential,
+   so the gap is a **tag-per-merge policy**, not engineering.
+2. **Build and publish are different trust levels**
+   (`../references/opencode/.github/workflows/release-dry-run.yml:4-9`): build jobs run repository code with
+   no secrets and no `id-token`; sign/publish jobs run in a `release` environment, check out only
+   `.github/release/`, treat artefacts as *data*, and never execute repository code. Ours does not —
+   `.github/workflows/ci.yml:437` builds the app (xcodebuild — repository code) inside the job that holds
+   `contents: write` (`:443`). Split them before self-serve publishing, and add a dry-run route so the
+   release path runs on a PR without publishing anything.
+3. **Ship the evidence with the artefact.** openclaw's per-release `dependency-evidence.zip` answers
+   "what is in this binary" before it is asked; we already generate that answer
+   (`scripts/collect-third-party-licenses.sh`, 38 notice files) and attach it to nothing.

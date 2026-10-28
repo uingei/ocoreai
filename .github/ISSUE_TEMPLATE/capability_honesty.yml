@@ -1,0 +1,57 @@
+name: A surface claims more than the engine measured
+description: The app, the wire, a tool result or a doc promised something this machine did not do
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the bug class this project treats as most serious: the surface never claims more than
+        the engine delivered. A report in this shape has already done half the work — it names the
+        claim, the measurement that contradicts it, and the sentence that should have appeared instead.
+  - type: textarea
+    id: claim
+    attributes:
+      label: The claim, verbatim, and where it renders
+      description: >-
+        Exact words or exact JSON field — the dashboard, `/v1/models`, `/v1/capabilities`, a tool
+        result, the composer, README, a doc. Say which.
+      placeholder: '`/v1/models` reports `video_input` as delivered'
+    validations:
+      required: true
+  - type: textarea
+    id: measured
+    attributes:
+      label: What the engine actually did
+      description: >-
+        A probe line, a log line, or the raw response that contradicts the claim. No measurement?
+        Say so — "I could not make it happen twice" is itself evidence.
+    validations:
+      required: true
+  - type: dropdown
+    id: shape
+    attributes:
+      label: Which kind of over-claim
+      options:
+        - Says available, then refuses without naming the remedy
+        - Counts a saving the engine did not make (prefix, cache, reuse)
+        - Silent absence — no state, no reason, no way out
+        - A capability the loaded model cannot honor
+        - Docs or UI text running ahead of the code
+        - Not sure
+  - type: input
+    id: endpoint_field
+    attributes:
+      label: Endpoint and field
+      description: Where the claim is published, so the fix can be gated at its emit site.
+      placeholder: /v1/models/:model/kv-cache · prefixReuse
+    validations:
+      required: true
+  - type: textarea
+    id: expected_sentence
+    attributes:
+      label: What it should have said, and what it should have offered
+      description: >-
+        Honest state plus the remedy — "tokenizer is heuristic, do X for the real one" — rather than a
+        blank panel or a confident wrong number.
+    validations:
+      required: true

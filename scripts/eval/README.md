@@ -50,14 +50,26 @@ printed as a directory at the start of the run — read the failures, not only t
 
 - the server must have a ready model (`probe_require_ready_model`) — never a silent skip;
 - the pinned dependency checkout must be clean (inherited from `scripts/probes/_lib.sh`);
-- ≥ `OCOREAI_EVAL_FLOOR_TASKS` (18) tasks loaded and ≥ `OCOREAI_EVAL_FLOOR_SPECS` (4) of the
+- ≥ `OCOREAI_EVAL_FLOOR_TASKS` (34) tasks loaded and ≥ `OCOREAI_EVAL_FLOOR_SPECS` (4) of the
   needed tools declared by `GET /v1/tools` — otherwise every task would fail for the wrong
-  reason, which is a harness bug, not a model result;
+  reason, which is a harness bug, not a model result. The default sits under both sets it serves
+  (39 scored, 52 frozen edit-repair), so losing five tasks is a failure, and
+  `OCOREAI_EVAL_FLOOR_FAMILY` (2) is the floor under that: a set missing a whole *family* of
+  tasks is a shrunken instrument even when the total clears;
+- `_verifier_selftest.py` refuses a task file below `OCOREAI_SELFTEST_FLOOR` (20) — a
+  verifier self-test over a near-empty set proves nothing. Screening runs lower it deliberately;
+  a scored run does not;
 - every count read back from `_eval.py` is proven to be an integer (`probe_require_int`, in
   `scripts/probes/_lib.sh`): `[ "" -lt N ]` is a bash *error*, not a comparison, so a task set
   the loader could not parse once printed "2 passed, 0 failed" and exited 0. The guard runs before
   the boot and self-tests on an empty value, because a floor on a non-number is no floor;
-- tool schemas come from `/v1/tools`, so this directory holds no copy to drift.
+- tool schemas come from `/v1/tools`, so this directory holds no copy to drift;
+- the artefact being scored is not older than the tree: `run.sh` compares the binary's mtime against
+  the newest tracked source under `Sources/` + `Package.swift` and refuses before the boot, printing
+  both numbers and the remedy (`swift build -c release`). Judging an older build on purpose — a
+  historical A/B — is `OCOREAI_EVAL_ALLOW_STALE_BIN=1`, stated rather than silent. Measured 10-27: the
+  path most hosts resolve was a 17:20 binary while `Sources/` had moved at 20:15, so a board could
+  score a tree its artefact had never seen.
 
 ## Every task leaves its artefacts on disk
 
@@ -117,8 +129,9 @@ score may have been played under different rules — and `repeat.sh` averages wh
 
 So `run.sh` writes one line above the score:
 
-    # conditions model=mlx-community/gemma-4-e2b-it-4bit tasks=tasks.json+3f2a… tools=6+9c11… \
-      temperature=0.0 approval=auto concurrency=1 host=Darwin 25.4.0 arm64
+    # conditions model=mlx-community/gemma-4-e2b-it-4bit tasks=tasks.json+b709… tools=6+d9b1… \
+      temperature=0.0 approval=auto concurrency=1 host=Darwin 25.6.0 arm64 docs=none \
+      binary=ocoreai+1793110881+93466840
 
 `tasks` digests the file the tasks were loaded from (ids + prompts + verifiers); `tools` digests the
 declaration set the model was actually handed — names, descriptions *and* schemas, order-insensitive,
@@ -129,20 +142,29 @@ instrument. The comparators that got this right record the same thing: ollama wr
 claims cache reuse (`:69`); Strata documents how a number is produced before it quotes one
 (`~/references/Strata/docs/BENCHMARK_PROTOCOL.md`).
 
+`docs` states the instruction doc the workspace handed the agent — `none`, or `<basename>+sha256:<12>`
+of its bytes (§ "The docs arm" below): the board ran doc-free for its whole history and never said so.
+`binary` names the artefact that answered (`<name>+<mtime>+<bytes>`), because a verdict is a claim
+about a *build* while the path the harness resolves is simply whatever sits there — measured 10-27, a
+board scored a tree whose sources were four hours newer than the binary it ran, and no field could show
+it. mtime+bytes is no fingerprint; it moves when the artefact is rebuilt, which is exactly what a
+pairing must not cross silently.
+
 Recording is half of it, so `_repeat_stats.py` refuses:
 
 - **inside one root** — a run whose fingerprint differs from the majority of its root is excluded,
   naming the field (`run-04: tasks tasks.json+a… → tasks.json+b…`);
 - **across two roots** — a base/variant pairing whose *invariant* fields differ (task file, model,
-  temperature, approval policy, concurrency, host) is reported with no p at all.
+  temperature, approval policy, concurrency, host, artefact) is reported with no p at all.
 
 `tools` is deliberately not an invariant across roots: a proposal may edit precisely the tool
 descriptions and schemas it is being judged on (AGENTS.md treats them as function-calling contracts),
 so refusing there would stop the loop deciding the experiments it exists to decide. Movement there is
-printed under the p and recorded as `declarations_moved` in `_autoab_gate.py`'s JSON, so a `keep`
-never reads as if only the engine moved.
+printed under the p and recorded as `declarations_moved` in `_autoab_gate.py`'s JSON (the key covers
+whichever surface field moved — `tools`, `docs`, or both — and the printed sentence names the field it
+is explaining), so a `keep` never reads as if only the engine moved.
 
-Measured over fabricated scoreboards (no GPU; `_conditions_selftest.py` = 25 checks, and these are the
+Measured over fabricated scoreboards (no GPU; `_conditions_selftest.py` = 41 checks, and these are the
 same fixtures by hand):
 
 | fixture | with the conditions line | with the line deleted (red sample) |
@@ -168,6 +190,184 @@ the separator fix, so its `tools` digest covers zero declarations) come back as
 
 i.e. the default set resolves **8 tasks**, not 1, per single-run A/B — every `±1 task` claim this
 directory ever made was inside the noise it could not see.
+
+## What a turn carried: the `# surface` line
+
+A score is also a bill, and the tool declarations are the part of every prompt the model may never use.
+Measured in this repo's own sandbox tier — `OCOREAI_SCRIPTED_ENGINE` boots the real wire with nothing
+resident, so pricing the surface costs seconds instead of a checkpoint:
+
+    # surface tools=6 wire_bytes=4510 share_of_declared=18% declared=40/25092 edit_lines=1327 \
+      edit_file=1051 search_files=577 exec_command=548 read_file=499 write_file=496
+
+| quantity | measured | what it prices |
+|---|---|---|
+| `wire_bytes` (the 6-tool board) | 4,510 B | the `tools` array exactly as the request carries it — `json.dumps` with the separators `body` prints, not a compact proxy |
+| `declared` | 40 tools / 25,092 B | what `GET /v1/tools` advertises today; the source declares 43 typed entries, and `get_plan` / `update_plan` are opt-in, so their absence is honest, not a leak |
+| `share_of_declared` | 18% | what this board asks for against the whole surface — the deferral question in one number |
+| heaviest names | `edit_lines` 1,327 B, `edit_file` 1,051 B | which descriptions to trim first; over `all` the single heaviest declaration the product ships is `generate_video` at 1,479 B |
+
+Why this line exists: codex declares 13 specs and defers the rest behind `tool_search`, hermes-agent
+runs 38 tool modules behind a reserved three-name bridge, pi loads deferred matches into the
+conversation's `modelTools` — and our board printed no figure at all while 40 declarations rode every
+turn. Nothing here claims 40 is the wrong number; it claims the number was unprinted.
+
+Two rules it keeps:
+
+- **`all` is a word, not a list.** `OCOREAI_EVAL_TOOLS=all` resolves through `_eval.tool_specs` to every
+  declaration the server answers, because a hand-copied 40-name list is the drift class this file exists
+  to refuse. The two boards the goal asks for are therefore one command apart:
+  `OCOREAI_EVAL_TOOLS=all bash scripts/eval/run.sh`.
+- **Bytes are refused, not guessed.** Zero matching declarations exits non-zero, and the expected figure
+  in `_efficiency_selftest.py` (group 6) is the wire text written out by hand — so a serialization change
+  goes red rather than quietly repricing history. Red sample: switching to compact separators reported
+  65 B against a hand-counted 73 B, and the heaviest-first ordering is asserted too.
+
+Order matters, as with `# efficiency`: `# surface` is written after the task rows and before
+`# efficiency` and `# score`, because `_repeat_stats._read_run` reads the last `#` line as the score;
+group 7 pins both orders, and the wrong one reads `surface tools=2 wire_bytes=68` as a score.
+
+### What the two boards said — 10-27(22), k=3, paired
+
+The first A/B this scoreboard has produced that survives its own noise floor. Same 39 tasks, same
+verifiers, same checkpoint (`mlx-community/gemma-4-e2b-it-4bit`, temp 0, auto-approval, one serve per
+run, release binary), three runs per arm:
+
+- **6 tools / 4,510 B** — 24/21/23, mean 22.67/39 (58.1%), SD 1.53, six flaky tasks.
+- **all 40 / 25,092 B** — 16/15/15, mean 15.33/39 (39.3%), SD 0.58, three flaky tasks.
+- **Δ -7.33 tasks (-18.8 pp); McNemar exact two-sided p < 0.0001** — 25 tasks pass on the small surface
+  and fail on the large one, 3 the other way. The instrument prints it, it does not average it away:
+  `exec-sum-column` 0/3 → 2/3 and `exec-report-two-numbers` 2/3 → 3/3 *improved* on the full surface,
+  while the edit/fix faces collapsed (`fix-syntax-error`, `fix-typo-variable`, `read-and-report`,
+  `fix-boundary-comparison` all 3/3 → 0/3).
+
+Reproduce exactly:
+
+```bash
+swift build -c release                      # the board judges what it just built
+B=$PWD/.build/release/ocoreai                    # named in `# conditions binary=…`
+OCOREAI_BIN=$B OCOREAI_EVAL_REPEAT_ROOT=/tmp/board6  OCOREAI_EVAL_REPEATS=3 bash scripts/eval/repeat.sh
+OCOREAI_BIN=$B OCOREAI_EVAL_REPEAT_ROOT=/tmp/board40 OCOREAI_EVAL_REPEATS=3 \
+  OCOREAI_EVAL_TOOLS=all bash scripts/eval/repeat.sh
+python3 scripts/eval/_repeat_stats.py --a /tmp/board6 --b /tmp/board40
+```
+
+**The floor, because it prices every number in this file.** One run of 39 tasks carries a 95% CI
+half-width of **±6 tasks (15.5 pp)**: identical configurations spread 24/21/23. So an unpaired A/B needs
+**≥9 tasks** to clear 95% on one run each, and a paired one **6 clean flips** at this discordance.
+Sign test pairs runs, not tasks, which is why `--a/--b` is the honest route when both arms exist —
+`_conditions.py` treats `tools` as a surface field, so the paired output labels the verdict
+`surface moved: …` naming the field that moved, instead of pretending only the engine changed.
+
+### The docs arm: `OCOREAI_EVAL_DOCS`
+
+The board ran **doc-free for its whole history and never said so**. `OCOREAI_EVAL_DOCS` makes the
+instruction doc a stated condition, so the corpus's own budget can be judged instead of assumed:
+
+```bash
+OCOREAI_EVAL_DOCS=none | root | /abs/path/to/AGENTS.md      # default: none
+OCOREAI_EVAL_DOCS_INERT=1                                   # same bytes, landed as AGENTS.inert.md —
+                                                              # in the workspace, never injected
+```
+
+`AGENTS.inert.md` is not one of `WorkspaceContext`'s candidate names (`AGENTS.override.md`, `AGENTS.md`),
+and `WorkspaceContextTests` pins that closed list, so the inert arm separates *injection* from *presence*
+instead of assuming it. The arm's floor asserts it both ways: the injected name must not exist while the
+inert bytes do, and the run prints the `systemChars` span as the behavioural witness.
+
+`root` puts this repo's `AGENTS.md` in the eval workspace, which is where `WorkspaceContext`
+discovers it (`project_root_markers` = `.git`; a temp dir has none above it, so the workspace itself
+is the project root), and `MessageBuilder` folds it into the system prompt *before* the base prompt.
+The conditions line records `docs=none` or `docs=<basename>+<sha12>`, and `docs` is a **surface**
+field, so a paired with/without run is judged as moved surface rather than an invariant break.
+
+**Why the doc is written per task and not once at boot.** The task loop wipes `$EVAL_WS` before
+every task, so a doc copied at boot is gone before turn 1. Measured 10-27: every turn assembled a
+doc-free prompt — `systemChars=3002` against a 21,548 B doc — and the only thing that said so was
+the premise floor below. `materialize_docs` is therefore called at boot *and* after every wipe, and
+`_conditions_selftest.py` goes red if the call ever moves back above the wipe.
+
+**The premise floor** reads the server's own `Assembled prompt … systemChars=N` lines and requires
+**every** turn's system prompt to be at least the doc's byte count: a doc that reached turn 1 and
+vanished afterwards would still pair two different instruments under one label. An arm whose doc
+cannot be substantiated at boot (missing, empty, unreadable) exits before it writes a score line —
+a board labelled `with_docs` that ran doc-free is the vacuous comparison this harness exists to
+refuse. Confound, stated: in this arm the doc is also a *file* in the workspace; none of the 39
+verifiers enumerates the directory (grep of every task field for `ls`/`find`/`wc -l`/globs: the
+listing-shaped hits all name one specific file), so the prompt is the only channel that can move a
+verdict.
+
+#### What the corpus costs — k=3, paired, four arms on one artefact
+
+The `docs` field exists to run this, and on one artefact (`binary=ocoreai+1793110881+93466840`), one
+task set (39) and one tool surface (6) it decomposes the cost. Every arm is k=3; the premise floor
+passed every arm (the injected arms' `systemChars` moved by the doc's own bytes, the inert arm's did
+not: `3002..3959`), and a stray-file confound is ruled out by measurement rather than assertion.
+
+| arm | doc bytes | in the workspace | injected | mean /39 | SD |
+|---|---|---|---|---|---|
+| `docs=none` | 0 | no | no | **25.00** | 1.00 |
+| `OCOREAI_EVAL_DOCS_INERT=1` | 2,442 | yes | **no** | 24.00 | 2.00 |
+| distilled doc, injected | 2,442 | yes | yes | **19.00** | 0.00 |
+| `docs=root` (this repo's `AGENTS.md`) | 21,529 | yes | yes | **16.33** | 1.53 |
+
+Paired verdicts (`_repeat_stats.py --a/--b`, McNemar exact two-sided):
+
+- **Presence is free**: none → inert 2,442 B, Δ −1.00 tasks (−2.6 pp), b=6 / c=3, **p = 0.5078**.
+- **Injection is the cost**: inert → same bytes injected, Δ −5.00 (−12.8 pp), b=16 / c=1,
+  **p = 0.0003** — identical bytes, identical file in the tree, the only difference is that the prompt
+  carried them.
+- **Size beyond that is not separable at k=3**: distillate → root, Δ −2.67 (−6.8 pp), b=14 / c=6,
+  **p = 0.1153**.
+- **Whole-to-whole**: none → root, Δ −8.67 (−22.2 pp), b=29 / c=3, **p < 0.0001**; the replicate pair
+  taken earlier the same day on the then-current artefact gave −7.67 (−19.7 pp), p = 0.0003 — so the
+  range to quote is −19.7 to −22.2 pp.
+
+So the root's byte budget is the *smaller* half of the question. On a 2 B-class checkpoint the act of
+putting an instruction corpus in the system prompt costs ~13 pp, and 19 more kilobytes of prose do not
+add a separable amount. `fixtures/AGENTS.distilled.md` is a faithful compression of the root (two
+invariants, build/verify commands, editing rules, git rules) — content chosen so the arm measures
+bytes and injection, not a different rule set; note the board's tasks never build ocoreai, so
+ocoreai-specific rules are inert weight in every arm.
+
+Three mechanisms, read off traces rather than inferred:
+
+1. **The doc is a distractor as well as context.** `edit-replace-all` (replace `FOO`→`BAR` in
+   `notes.md`) answered `I failed to replace "FOO" with "BAR" in AGENTS.md.` — the injected file became
+   the target of the edit. It also collapses 3/3 → 0/3 in the *distilled* arm, so it is not a length
+   effect.
+2. **The tool call degrades.** `fix-boundary-comparison` answered with a *typed-out*
+   `edit_file(path=Tools/capacity.py, oldString=…` where the doc-free arm passed 3/3 — a call narrated
+   into the text channel instead of emitted.
+3. **Narration replaces action.** Mean answer 63 B → 100 B (median 27 → 36) with the workspace
+   unchanged: `fix-syntax-error` says "I fixed the syntax error in `calc.py`." with the bug still in
+   the file. The verifier catches this class precisely because it reads the workspace, not the prose.
+
+**What it decides, and what it leaves to an owner.** Nothing about the corpus's *content* is measured
+here — this is size-and-seat evidence, and the two candidate fixes are (a) inject nothing per turn for
+checkpoints of this class and let the agent read files on demand, or (b) move the doc from the front of
+the system prompt to behind the base prompt (the seat), which no arm here varies because it is a code
+change. Owner call; `docs/agent/open-items.md`.
+
+```bash
+swift build -c release                      # the board judges what it just built
+B=$PWD/.build/release/ocoreai
+OCOREAI_BIN=$B OCOREAI_EVAL_DOCS=none         OCOREAI_EVAL_REPEAT_ROOT=/tmp/d2-none  OCOREAI_EVAL_REPEATS=3 bash scripts/eval/repeat.sh
+OCOREAI_BIN=$B OCOREAI_EVAL_DOCS_INERT=1 \
+  OCOREAI_EVAL_DOCS=$PWD/scripts/eval/fixtures/AGENTS.distilled.md \
+                               OCOREAI_EVAL_REPEAT_ROOT=/tmp/d4-inert OCOREAI_EVAL_REPEATS=3 bash scripts/eval/repeat.sh
+OCOREAI_BIN=$B OCOREAI_EVAL_DOCS=$PWD/scripts/eval/fixtures/AGENTS.distilled.md \
+                               OCOREAI_EVAL_REPEAT_ROOT=/tmp/d3-dist  OCOREAI_EVAL_REPEATS=3 bash scripts/eval/repeat.sh
+OCOREAI_BIN=$B OCOREAI_EVAL_DOCS=root         OCOREAI_EVAL_REPEAT_ROOT=/tmp/d2-root  OCOREAI_EVAL_REPEATS=3 bash scripts/eval/repeat.sh
+python3 scripts/eval/_repeat_stats.py --a /tmp/d4-inert --b /tmp/d3-dist   # the injection pair
+```
+
+**Drift, because the same configuration now exists three times in this file.** The doc-free arm has been
+measured three times today: **22.67** (§ "What the two boards said"), **24.67** (the earlier root-doc
+pair) and **25.00** (the table above) — byte-identical `tasks=…b709e8aab69d` and
+`tools=…d9b1028a196a` throughout, differing only in `binary`, which did not exist as a field for the
+first two. Spread 2.3 tasks on a board whose within-batch SD is 1.00–2.00: re-running an arm is not
+re-deriving a number, which is why every verdict here is paired.
 
 ## Status — and what it is not
 

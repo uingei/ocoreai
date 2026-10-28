@@ -221,6 +221,7 @@ func buildRouter(
         // engine's and this list strips source prefixes.
         let videoLedger = await enginePool.videoDeliverySnapshot()
         let toolLedger = await enginePool.toolCallDeliverySnapshot()
+        let effortLedger = await enginePool.reasoningEffortSnapshot()
         for i in objects.indices {
             let key = [objects[i].id, "hf:" + objects[i].id, "mscope:" + objects[i].id]
                 .first { videoLedger[$0] != nil }
@@ -242,6 +243,14 @@ func buildRouter(
             objects[i].toolCallDelivery = ToolCallDeliveryLedger.status(
                 of: toolKey.flatMap { toolLedger[$0] })
             objects[i].toolCallEvidence = toolKey.flatMap { toolLedger[$0]?.evidenceLine }
+            // Thinking-control disclosure, measured the same way and published even when it is
+            // the negative: a client choosing whether to send `reasoning_effort` must be able
+            // to tell "this checkpoint ignores it" from "this server has not looked".
+            let effortKey = [objects[i].id, "hf:" + objects[i].id, "mscope:" + objects[i].id]
+                .first { effortLedger[$0] != nil }
+            objects[i].reasoningEffort =
+                (effortKey.flatMap { effortLedger[$0] }
+                ?? .notObserved).wireMode
         }
 
         let response = ModelListResponse(data: objects)
@@ -331,6 +340,19 @@ func buildRouter(
             /// macOS 26 this was silently the heuristic case while the wire still
             /// offered the endpoint (proven 10-12: count-tokens 404s on a ready model).
             let tokenizerBackend: String
+            /// Which engine a served turn comes from: `mlx`, `coreai`, `scripted` (a replayed
+            /// script — see `ScriptedInference`), or `unloaded`. A client needs this because a
+            /// scripted turn is a wire-contract fixture, not a capability: it must never be read
+            /// as a model having done anything, and `scripts/eval/run.sh` refuses to score it.
+            let engineBackend: String
+            /// Instruction-surface truth for the workspace this process injects from: the
+            /// byte cap honoured, what was spent, and how many docs fell off. A project
+            /// instruction that was truncated or never read used to be invisible to the
+            /// model *and* to the caller — the same defect family `tokenizerBackend` was
+            /// added for (a degraded component a client must be able to read), and the
+            /// chain here is 98 % of the cap. Absolute paths stay off this public row;
+            /// `docs[].label` is rooted at `<root>`.
+            let instructionBudget: WorkspaceContext.InstructionBudget
             /// Machine-readable index of this server's HTTP surface. The 404
             /// envelope has pointed clients here for weeks
             /// (`NotFoundEnvelopeMiddleware.swift:53` — "endpoints via
@@ -362,6 +384,14 @@ func buildRouter(
                     screenshot: screen.delivery, screenshotError: screen.error,
                     screenshotLatencyMs: screen.latencyMs, video: video, tool: tool)),
             tokenizerBackend: TokenizerManager.isRealTokenizerBackend ? "real" : "heuristic",
+            engineBackend: await enginePool.loadedBackendKind(),
+            // The same cwd the system prompt is assembled from (`MessageBuilder`), so the
+            // row describes the instructions the model actually gets, not a neighbouring
+            // directory. Read per request: it is a stat plus up to 32 KiB from cache.
+            instructionBudget: WorkspaceContext.instructionBudget(
+                cwd:
+                    SessionWorkspace.currentDirectory()
+                    ?? WorkspaceContext.configuredDirectory() ?? ""),
             endpoints: V1EndpointCatalog.lines,
         )
         return try Response.json(payload)
@@ -1158,6 +1188,14 @@ struct ModelObject: Codable {
     /// Evidence behind `toolCallDelivery`: declaring turns, delivered calls, and the
     /// names that actually came back.
     var toolCallEvidence: String? = nil
+    /// ocoreai extension: whether a `reasoning_effort` the caller sends can reach this
+    /// checkpoint at all — `honored` (its own chat template read the kwarg), `template_ignores`
+    /// (measured: the rendered prompt is identical with and without it, so the word is dropped
+    /// before generation and a chat request asking for it gets 400), or `not_observed`
+    /// (this process never rendered this checkpoint with the kwarg — NOT a statement that the
+    /// model cannot honor it). Measured by rendering at load, never read off a config key;
+    /// see `ReasoningEffortLedger` and probe 38.
+    var reasoningEffort: String? = nil
 }
 
 // MARK: - Count Tokens Request/Response

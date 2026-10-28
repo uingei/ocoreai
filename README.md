@@ -14,7 +14,7 @@
 **macOS 14+ · iOS 17+ · Apple Silicon · Swift 6.2 · Pure SwiftPM**
 
 **Measured vs declared:** executed on macOS 26 — the full test suite, live `/v1/*` probes and the
-36-task scoreboard all run here, and `make release` asserts its artifact is CoreAI-free at
+39-task scoreboard all run here, and `make release` asserts its artifact is CoreAI-free at
 minos 14.0. macOS 14/15: never executed on hardware. iOS 17+: compile-validated only
 (`generic/platform=iOS` in CI) — no iOS runtime has been executed by this project, so the
 platform line above is the declared floor from `Package.swift`, not a measurement.
@@ -26,6 +26,10 @@ republished from a clean slate: if that page lists nothing, use the source build
 
 > First launch: DMGs are ad-hoc signed and **not notarised**. If Gatekeeper refuses one, right-click
 > `ocoreai` in `Applications` → **Open** → **Open** — once, then it starts normally.
+
+**Something wrong, or a promise the machine did not keep?** [Open an issue](https://github.com/uingei/ocoreai/issues):
+the forms ask for the command and the raw response, so a report arrives reproducible — one of them
+exists specifically for "a surface claimed more than the engine measured".
 
 **Build from source (headless engine + HTTP bridge):**
 
@@ -130,7 +134,21 @@ Known boundaries (as of this commit, not aspirations):
 
 > Everything else needs an API key once `OCOREAI_API_KEYS` is set — **including `GET /v1/perception`**, which is keyed because it is absent from `AuthRoutePolicy.publicPaths`. That set is the one home for this list; P10 of `make docs-check` fails if the two diverge.
 
-> **Measured, never inferred.** `GET /v1/models` carries per-model disclosure keys — `vlm`, `contextLength`, `capabilities`, `videoInput`/`videoEvidence`, `toolCallDelivery`/`toolCallEvidence` (`parsed` | `prose_only` | `not_observed`) — and `GET /v1/capabilities` publishes the same measurements aggregated, plus `tokenizerBackend` (`real`/`heuristic`) and the endpoint index. Nothing is inferred from an architecture name or a linked framework: an unmeasured capability is an explicit `not_observed`/`unknown`, never a silent absence, and unloading a model resets its claims. Model ids contain `/`, so percent-encode them (`org/name` → `org%2Fname`) in `/v1/models/:model/…` paths.
+> **Measured, never inferred.** `GET /v1/models` carries per-model disclosure keys — `vlm`, `contextLength`, `capabilities`, `videoInput`/`videoEvidence`, `toolCallDelivery`/`toolCallEvidence` (`parsed` | `prose_only` | `not_observed`),
+> `reasoningEffort` (`honored` | `template_ignores` | `not_observed` — a word your request sends that the
+> checkpoint measurably never reads is refused 400 with the remedy, never answered 200 as if it had landed) — and `GET /v1/capabilities` publishes the same measurements aggregated, plus `tokenizerBackend` (`real`/`heuristic`) and the endpoint index. Nothing is inferred from an architecture name or a linked framework: an unmeasured capability is an explicit `not_observed`/`unknown`, never a silent absence, and unloading a model resets its claims. Model ids contain `/`, so percent-encode them (`org/name` → `org%2Fname`) in `/v1/models/:model/…` paths.
+
+---
+
+### Drive it from another agent
+
+`skills/ocoreai/` is a published skill that teaches an outside harness — Claude Code, Codex, or any agent that
+reads a Markdown file — to drive this server: the endpoint index, the agent-loop contract, and the honesty
+vocabulary that separates `not_observed` from `supported`. It is executed, not trusted:
+`bash scripts/probes/run.sh 39` boots its own server, runs every documented call, and goes red on its own
+floor if it finds too few markers. Install with `cp -R skills/ocoreai ~/.codex/skills/`
+(other hosts: `skills/README.md`). A client that would rather not read prose at all can enumerate the same
+surface from `GET /v1/capabilities` → `endpoints[]`, which is pinned to the router by a build gate.
 
 ---
 

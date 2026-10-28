@@ -26,6 +26,12 @@ enum ReasoningEffortWire {
     /// Chat-template kwarg name consumed by model templates.
     static let key = "reasoning_effort"
 
+    /// A value no template can mistake for a request: it is not a word from any effort
+    /// table, so a template that *reads* the kwarg must react to it (render differently, or
+    /// raise on validation) and a template that ignores it cannot. Naming a legal word here
+    /// would make the probe depend on the word table this file deliberately does not own.
+    static let probeValue = "__ocoreai_probe__"
+
     /// Merge the raw effort value into an existing template context.
     ///
     /// - Parameters:
@@ -48,5 +54,37 @@ enum ReasoningEffortWire {
         var ctx = base ?? [:]
         ctx[key] = raw
         return ctx
+    }
+
+    /// Refuse a demand this checkpoint measurably cannot honor, naming both exits.
+    ///
+    /// Shaped after codex's `unsupported_code_mode_warning` (`core/src/session/
+    /// code_mode_warning.rs:6-24`): the config knob the model does not advertise, the
+    /// evidence for that, then what to do — disable the knob or pick a model that advertises
+    /// it. Ours refuses rather than warns because a demanded word that reaches no template is
+    /// a turn spent under a belief, not a cosmetic loss.
+    ///
+    /// - Returns: the refusal, or nil when there is nothing to refuse — no value asked, or a
+    ///   mode that never measured (`notObserved` keeps the pass-through: invariant 2 says an
+    ///   unmeasured fact is not a false one).
+    static func refusal(
+        modelId: String, requestedValue: String?, mode: ReasoningEffortMode
+    ) -> AppError? {
+        guard ReasoningEffortRule.refuse(callerValue: requestedValue, mode: mode) else {
+            return nil
+        }
+        return .invalidRequest(
+            "'\(modelId)' cannot honor reasoning_effort=\"\(requestedValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "")\": "
+                + "\(mode.reasonPhrase), so the word is dropped before generation — the turn would answer "
+                + "under a thinking-control setting this checkpoint never sees. "
+                + "Omit reasoning_effort for this model, or pick one whose /v1/models row reports "
+                + "reasoningEffort=\"honored\"."
+        )
+    }
+
+    /// The load-time log line for one measurement — the ledger's own sentence, so the wire
+    /// and the log cannot explain one decision with two different reasons.
+    static func logLine(modelId: String, mode: ReasoningEffortMode) -> String {
+        "Reasoning effort \(mode.rawValue) for \(modelId) — \(mode.reasonPhrase)"
     }
 }

@@ -74,6 +74,52 @@ floor. Write a claim together with its instrument, on the same line: `>=` for a 
 shrink (attribution, endpoint rows), `<=` for a ceiling that must not grow (`print`, `try!`, `TODO`),
 and `=` only for facts that move when the doc itself is edited (a pin, a budget).
 
+**Red is for a claim someone acts on; a warning is for everything else.** The test is not "can this be
+checked" but "who is misled when it breaks": a wire field, a tool result, a README sentence, an injected
+line a model obeys ⇒ red; volume and shape in a file nobody is obliged to read ⇒ a printed number. The
+rule is asymmetric on purpose — invariant 1 cuts at the gates too, so a check that has never gone red on
+real work is decoration with an exit code, and a red that blocks a correctness fix taxes the fix, not
+the rot.
+
+**The tiers, named** (`scripts/agents-md-contract.sh` implements this split; a check's own header says
+which tier it is):
+
+- **Blocking** — B1/B2 (injected bytes; the host truncates the chain at 32 KiB, so an over-budget guide
+  silently loses its tail), P1 scan floors, P2/P3/P12 pointers and anchors, P4 claim reproduction,
+  P5/P6/P7/P9 named gates, suites and routing targets, P8 the pin agreement, P10/P10b README vs the
+  served surface, P11 exact `XxxTests`(N) counts, P14 probe-index parity, P18 language, P19 outbound
+  links. Each has a recorded red, not just a rationale: `§`-references that outlived the heading they
+  named, five drifted suite counts (one claiming more coverage than its file holds), and two README
+  links pointing at repositories that do not exist.
+- **Signal** — one warning, the host-local reference note: a cite into `~/references` is colour, never
+  a verdict. Printed as one line per check, never per finding.
+- **Deleted, not demoted** — a warning that is on every run is noise, and noise trains people to
+  skim the gate. Deleted rather than left as signals: 10-27 the corpus byte cap, P14's table column
+  counts and orphan docs; 10-28 the whole prose-shape family — P13 (dated stamps and line walls inside
+  `AGENTS.md`), P15 (corpus line walls), P16 (comparator coupling: diary coverage, two hand-copied
+  lists, a zero-coupling equality), P17 (area-guide scan floors), P20 (verbatim-duplicate bullets) —
+  plus P18's diary CJK ceilings, because a ratchet that blocks the owner writing their own log in
+  their own language is friction, not a contract: the diary is *excluded* from the English rule now.
+  Net 10-28: 27 `fail` sites and five check ids out of `scripts/agents-md-contract.sh`, 70,401 →
+  55,926 bytes of gate script, and its report is 10 lines where it was 12.
+
+Three duties come with that:
+
+- **A new gate pays its own way.** Name the red you sampled to prove it bites, and the reader whose
+  action it changes. Prefer widening an existing check, or making a live probe runnable cheaply, over
+  a new static scan: probe 37 exists so contract claims stop needing bespoke static proxies, and it
+  decides 19 assertions in seconds with no model resident.
+- **Meta-work is measured, not assumed free.** Count the commits that went to gates against the ones
+  that went to product, and price a gate in *attention*, not runner-seconds — a 3 s check that prints
+  prose-shape noise on every run still costs. When the ratio moves the wrong way the fix is to retire
+  a check, not to document it better (the measured figures live in `CHANGELOG.md`, rounds `10-27(20)`
+  and `10-27(22)`).
+- **Gate count is never the deliverable.** 329 of 1415 commits here went to docs/CI/gates — one per
+  three product commits — with 3.3k tests, 37 probes and 78 doc checks, while the repo had **zero
+  tags**: nothing about the gate stack can be installed, so none of it is what a user would rank us
+  on. A gate is worth the false claim it retires; the mission's unit is task success on real jobs
+  (`scripts/eval/run.sh`), and that is where the next hour goes.
+
 > A reviewer must be able to confirm the change works **by watching it happen
 > and inspecting the artifacts you attached.**
 

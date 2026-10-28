@@ -217,6 +217,10 @@ actor EnginePool {
     /// ``ToolCallDeliveryLedger``). Recorded at the wire edge, where delivered means
     /// the client actually received `tool_calls`.
     var toolCallDeliveries = ToolCallDeliveryLedger()
+    /// Per checkpoint: whether its own chat template reads the `reasoning_effort` kwarg.
+    /// Measured at load, dropped at unload, published by `/v1/models` and consulted by the
+    /// chat faces before they spend a turn on a word the template cannot see.
+    var reasoningEfforts = ReasoningEffortLedger()
 
     /// Snapshot for the wire layer: which models this process has completed a video turn
     /// with, and the evidence line each claim carries (`/v1/models` publishes from this).
@@ -227,6 +231,19 @@ actor EnginePool {
     /// Snapshot for the wire layer: per-model tool-call delivery and its evidence line.
     func toolCallDeliverySnapshot() -> [String: ToolCallDeliveryRecord] {
         toolCallDeliveries.deliveries
+    }
+
+    /// Snapshot for the wire layer: per-model `reasoning_effort` honesty
+    /// (`honored` / `template_ignores` / `not_observed`), measured at load by rendering the
+    /// checkpoint's own template. `/v1/models` publishes from this, and a chat request asks it
+    /// before spending a turn on a word the template cannot see.
+    func reasoningEffortSnapshot() -> [String: ReasoningEffortMode] {
+        reasoningEfforts.modes
+    }
+
+    /// The mode for one model id, as the wire sees it (unknown degrades to `notObserved`).
+    func reasoningEffortMode(modelId: String) -> ReasoningEffortMode {
+        reasoningEfforts.mode(modelId: modelId)
     }
 
     /// The wire edge records one completed tool-declaring turn here. Kept on the pool
@@ -480,6 +497,12 @@ actor EnginePool {
     // MARK: - Acquire / Release
 
     func acquire(model modelId: String) async throws -> EngineHandle {
+        // Scripted lane: a script is the model, so nothing is resident and nothing needs to be.
+        // The handle still carries the id, so log lines and ledger keys keep their usual shape —
+        // `engineBackend: scripted` on /v1/capabilities is what marks the turn as not measured.
+        if ScriptedInference.isEnabled {
+            return ScriptedInference.handle(modelId: modelId, pool: self)
+        }
         try await ensureModelLoaded(modelId: modelId)
         return try await _acquireSession(modelId: modelId)
     }
@@ -617,6 +640,9 @@ actor EnginePool {
     func prewarmDefaultModel(_ modelId: String) async {
         guard !loadedModels.keys.contains(modelId) else { return }
         guard !prewarmingModels.contains(modelId) else { return }
+        // A script is the model: prewarming the configured default here would load real weights and
+        // need Metal, which is exactly what this lane exists to avoid.
+        if ScriptedInference.isEnabled { return }
         guard
             isHubModel(modelId)
                 || FileManager.default.fileExists(
@@ -1157,6 +1183,17 @@ actor EnginePool {
             )
             logger.info("\(proseMode.logLine(modelId: modelId))")
         }
+        // Same evidence shape for the other caller-enableable knob this server forwards
+        // verbatim: does this checkpoint's template even read `reasoning_effort`? Measured
+        // here because the answer is a property of these weights, and because a request
+        // cannot afford two template renders to find out.
+        do {
+            let effortMode = reasoningEfforts.record(
+                modelId: modelId,
+                templateReadsKwarg: await mlxHandleToSet.chatTemplateReadsReasoningEffort()
+            )
+            logger.info("\(ReasoningEffortWire.logLine(modelId: modelId, mode: effortMode))")
+        }
         // Persist MLXLanguageModel so executor.respond() can route through
         // capability gates, ToolCallingModeResolution, and ConfigurationResolver
         // on macOS 27. The instance was constructed above and hoisted into mlxLM.
@@ -1415,7 +1452,20 @@ actor EnginePool {
     /// Resolve the default model (first with `defaultModel == true`).
     /// Deterministic: ties broken by ascending model id.
     func defaultModelId() -> String? {
-        pureDefaultModelId(defaults: modelSamplingDefaults)
+        if ScriptedInference.isEnabled { return ScriptedInference.modelId }
+        return pureDefaultModelId(defaults: modelSamplingDefaults)
+    }
+
+    /// Which engine a served turn would actually come from, derived from what is resident — never
+    /// asserted from a build trait. `scripted` wins while a script is loaded, because a replayed
+    /// turn publishes no measurement; `unloaded` is the honest answer when nothing is resident
+    /// (weights on disk are not an engine).
+    func loadedBackendKind() -> String {
+        if ScriptedInference.isEnabled { return ScriptedInference.backendName }
+        guard let first = firstLoadedModelId(), let model = loadedModels[first] else {
+            return "unloaded"
+        }
+        return model.isCoreAIAsset ? "coreai" : "mlx"
     }
 
     /// Every id a request could resolve to RIGHT NOW (loaded registered +
@@ -1426,6 +1476,9 @@ actor EnginePool {
     func resolvableModelIds() async -> Set<String> {
         var ids = Set(loadedModels.keys)
         for r in ModelStore.discoverReady() { ids.insert(r.id) }
+        // The fixture id is resolvable exactly while a script is loaded, so the sampling gate and
+        // the chat route validate against the same truth — and it disappears with the env var.
+        if ScriptedInference.isEnabled { ids.insert(ScriptedInference.modelId) }
         return ids
     }
 
@@ -1580,6 +1633,9 @@ actor EnginePool {
         // off these weights. A reload may be a different checkpoint under the same id, so
         // the answer is re-measured at load rather than trusted from before.
         await ToolProseLedger.shared.forget(modelId: modelId)
+        // And for thinking control: `reasoningEffort` goes back to `not_observed`, so a
+        // reload re-measures instead of refusing on an answer from weights that are gone.
+        reasoningEfforts.forget(modelId: modelId)
         // And for the KV price: the bytes that earned it are gone, so a reload re-prices
         // rather than reserving at a checkpoint that may no longer be the one loaded.
         await KVCachePriceLedger.shared.forget(modelId: modelId)

@@ -1,0 +1,38 @@
+name: Feature or improvement
+description: Start from the job you could not do, not the feature you want
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: job
+    attributes:
+      label: What were you trying to do
+      description: The task in your own words, and the repo or workload it was against.
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What you did instead
+      description: The workaround describes the hole better than the request does.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should exist
+    validations:
+      required: true
+  - type: textarea
+    id: near_miss
+    attributes:
+      label: Which existing tool or endpoint almost does it
+      description: >-
+        An existing seam, a flag or trait, a skill or a tool usually beats a new subsystem — name what
+        came closest, and where it stopped.
+  - type: textarea
+    id: proof
+    attributes:
+      label: How we would know it works
+      description: >-
+        A command plus the result you would read off it. Something that cannot be re-run cannot be kept
+        true, so this is what turns a request into work.

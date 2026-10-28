@@ -270,9 +270,11 @@ def conditions_mismatch(a_root, b_root):
 def conditions_movement(a_root, b_root):
     """What the two sides legitimately differ in, as one quotable line (None when nothing moved).
 
-    The tool digest moving is the agent-facing half of a proposal: the declarations the model is
-    handed change, so the verdict must carry which ones changed rather than implying the two sides
-    ran the same instrument.
+    A surface field moving is the agent-facing half of a proposal: what the turn was handed changed,
+    so the verdict carries *what* changed rather than implying both sides ran one instrument. The
+    sentence names the field it is explaining — a tool digest moving is a changed contract, a docs
+    digest moving is a changed instruction corpus, and telling a docs A/B that "declarations moved"
+    hands the reader the wrong explanation of their own number.
     """
     ma, mb = _majority_pair(a_root, b_root)
     if ma is None or mb is None:
@@ -280,9 +282,13 @@ def conditions_movement(a_root, b_root):
     diffs = COND.field_diffs(ma, mb, only=COND.SURFACE_FIELDS)
     if not diffs:
         return None
-    return "declarations moved: %s — the schemas/descriptions the model was handed changed, so" % (
-        ", ".join("%s %s vs %s" % (k, a, b) for k, a, b in diffs)) + \
-        " this p is about the tool surface, not just the engine"
+    why = {
+        "tools": "the schemas/descriptions the model was handed changed",
+        "docs": "the instruction doc injected into every turn changed",
+    }
+    return "surface moved: %s — %s, so this p is about what the turn was handed, not only the engine" % (
+        ", ".join("%s %s vs %s" % (k, a, b) for k, a, b in diffs),
+        "; ".join(why.get(k, "%s changed" % k) for k, _, _ in diffs))
 
 
 def paired(a_root, b_root):

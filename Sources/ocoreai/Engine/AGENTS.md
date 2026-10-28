@@ -25,6 +25,8 @@ signed bundle (nested code object ⇒ CodeSign dies). Gate: `MetalShaderLibraryT
 - Prefix cache: log what upstream reports — `GenerateCompletionInfo.cachedPromptTokenCount`
   (`EngineEvents.swift`, `EngineInference.swift`). `SessionPool` dedupes the message *feed*; it is
   not evidence of prefill reuse. A HIT that reports 0 reused tokens reused 0 tokens.
+  Publish the measured number as `prefixReuse` on `/v1/models/:model/kv-cache` and the misses as
+  `reuseRefusals`: a lane that builds its own cache (guided gen, MTP) is booked as the refusal it was.
 - Polling: `EnginePool.waitForLoading` sleeps one poll interval (`min(deadline, now +
   loadingPollInterval)`), never to the deadline — sleeping to the deadline inside `while` cost 120 s
   for a model ready in 8 s. Deadline-sleeping is correct only in a single-shot watchdog
@@ -98,30 +100,26 @@ index instead of `continue`ing. Its only caller is `@available(macOS 27.0, *)`
 leave it as the open item it is; a blind edit is a claim, not a fix.
 
 ## Line cites are gated, not trusted
-Every `file:line` this area leans on is asserted below against the working tree (or the pinned
-upstream revision). Round 14 inserted ~27 lines above the ThinkingBudget call and 15 cites across
-AGENTS.md moved off their targets with no gate going red; these markers are the red. Move code, get
-`make anchor-check` to name the cite that drifted.
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:172 Task.sleep(until: deadline -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1409 Float.leastNormalMagnitude -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3044 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3767 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4405 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3868 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4420 components: genComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3891 components: mtpGenComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:886 case "affine" -->
-<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1526 static func rewindHistoryEnd -->
-<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:683 Self.rewindHistoryEnd( -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3215 rewind.source.session.fork( -->
-<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:910 let kvCacheRewindReserveTokens = 1024 -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:14 public struct Message { -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/UserInput.swift:131 public struct Image { -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1723 func fork(history -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:298 func requirePlan -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/KVCache.swift:1015 var maxTrimCount -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1795 func saveCache -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1166 templateMessages = leadingMessages -->
+Every `file:line` this area leans on is asserted by 20 markers in `docs/agent/engine-line-cites.md`,
+parked one hop out because the host truncates root+guide at 32 KiB and a marker is a byte of rule the
+model never reads. Move code, get `make anchor-check` to name the cite that drifted.
+
+## The scripted lane — a contract verdict with no model resident
+`OCOREAI_SCRIPTED_ENGINE` (a script path) replaces the *model*, never the wire: `ScriptedInference`
+replays reasoning, text and tool calls through the real handlers, parsers, SSE writer and dispatch,
+so framing and accounting claims decide at k=1 in seconds instead of a Metal load.
+- It is a fixture, not a capability: `/v1/capabilities` answers `engineBackend: scripted`, derived
+  from what is resident (`EnginePool.loadedBackendKind()`, never a build trait), and
+  `scripts/eval/run.sh` reads that field and refuses to score the run.
+- `scripted-model` is resolvable while a script is loaded and stays out of `/v1/models` — a list a
+  client routes by must not gain a model that cannot load.
+- Nothing is prewarmed (`prewarmDefaultModel` returns early) and nothing claims reuse: `.done`
+  carries no `cachedPromptTokens`, so `usage` publishes no `prompt_tokens_details`.
+- A script's defaults are part of its contract: `Script` decodes with `decodeIfPresent`, because a
+  synthesized `Decodable` ignores Swift defaults and demanded every key — the documented
+  one-segment script was a 500 until that was fixed.
+- Gates: `ScriptedEngineTests`(5) for the producer, probe 37 for the wire, and CI runs probe 37 on
+  every push from the headless-serve smoke step.
 
 ## Verification in this subtree
 - Sandbox route compiles it without escalation; Metal suites self-skip on
@@ -133,9 +131,6 @@ AGENTS.md moved off their targets with no gate going red; these markers are the 
 
 ## The two lanes, and where each line lives
 
-Root § Architecture stops here on purpose: these facts are about the engine, so they cost context only
-inside this subtree.
-
 - MLX lane: `_runInferenceWithMessages()` → `ChatSession` (session pool, guided generation,
   `toolDispatch`); `ReasoningEventEmitter` on both backends, `KVCacheRuntime`
   `.turboQuant`/`.affine`, `ThinkingBudget` on the std and MTP lanes.
@@ -144,6 +139,3 @@ inside this subtree.
   `MTPSpeculativeTokenIterator`.
 - Sampling: `argmax` when temperature is 0, `multinomialSample` above it, with filters mirroring
   upstream `CompositeSampler` — `Models/InferenceStubs.swift`.
-- `SessionPool` dedupes the *feed*, not the prefill; whether the cache skipped work is upstream's answer
-  (`cachedPromptTokenCount`), published as `prefixReuse` on `/v1/models/:model/kv-cache` and as
-  `reuseRefusals`. A lane that builds its own cache (guided gen, MTP) is booked as the refusal it was.

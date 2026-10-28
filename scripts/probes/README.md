@@ -15,14 +15,19 @@ bash scripts/probes/run.sh            # all probes, each boots its own server
 bash scripts/probes/run.sh 02        # just one
 ```
 
-**Needs a real Metal device.** Inside the agent sandbox MLX logs
+**Needs a real Metal device — except 37**, which loads no model by design, and except **38 §1** /
+**39 §1–§1b** / **40 §1**, which are contract tiers written to run without weights; 39 §2 and 40 §2 run the
+measured lane when a checkpoint and a working engine are present and print their own reason when they are not.
+Inside the agent sandbox MLX logs
 `[metal::load_device] No Metal device available`, the engine never reaches ready, and every
 probe fails at boot. That is the harness, not a regression — run them unsandboxed, the same
 route `make test-clt` uses (see `docs/agent/build-gate-reality.md`).
 
 Each probe boots its own `ocoreai serve` on an OS-assigned free port, so runs are
 repeatable and never ride on a GUI instance that happens to be open. Runtime is dominated by
-model load.
+model load — except probe 37, which runs the wire against a replayed script with nothing resident
+(`bash scripts/probes/run.sh 37` decides a contract claim in seconds, in the sandbox tier, and CI
+runs it on every push from the headless-serve smoke step — the only live probe that gets to say that).
 
 ## What is here
 
@@ -40,7 +45,10 @@ Fails when: the wire claims `cached_tokens > 0` that the engine did not deliver,
 Fails when: any spec-legal shape 400/404s, an unlabelled count, same-text shapes disagreeing on one endpoint, the pre-flight counting **less** than the caller's own bytes (it sizes the assembled request, not just the payload), the `system` block dropping out of either endpoint's count, or a malformed body answering 200/500
 
 - `03-capabilities-models-consistency.sh` — Does the discovery surface answer when a client follows it?
-Fails when: the endpoint index is thin or lists a route the live server 404s, a "ready" model rejects `/v1/count-tokens`, or a model/capability row omits `vlm`/`contextLength`/`available`
+    The probe boots with a workspace it seeds to overflow the project-instruction byte cap, so the one row
+    that tells a caller whether *its own instructions* arrived intact is measured under the condition it
+    exists to expose, not on an empty chain that would pass by finding nothing.
+Fails when: the endpoint index is thin or lists a route the live server 404s, a "ready" model rejects `/v1/count-tokens`, a model/capability row omits `vlm`/`contextLength`/`available`, `instructionBudget` leaves `/v1/capabilities` or disagrees with its own `docs[]` rows (a counter off its rows, `injectedBytes` off their sum, bytes over `maxBytes`), the seeded overflow stops reading as one `truncated` plus one `dropped` doc with exact `bytesTotal`/`bytesInjected`, a `label` is not rooted at `<root>/`, or a doc row carries an absolute path onto this public endpoint. Red-sampled 10-28: reporting the dropped doc as `whole` turned it red on the first assertion
 
 - `04-multimodal-honesty.sh` — Does "can see / can hear / can speak" survive contact with the OS?
 Fails when: the status payload publishes verdicts without the permission/device facts behind them, a capture leg returns `success:true` with no bytes, a capture request blocks on a TCC dialog, empty text reports a successful speak, or a `vlm:true` model fails to answer an inline PNG
@@ -194,6 +202,65 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     with the stub hub's sizes (1000150 on an empty cache), a 404'd repo publishes
     `requiredBytes`/`wouldFit`, a seeded repo plans anything but `0` + `locallySatisfied`, or
     an escaping id is planned instead of refused.
+
+- `37-scripted-engine-wire.sh` — can the wire's contract be decided with **no model resident**?
+    The only probe here that needs neither Metal nor a checkpoint: it points
+    `OCOREAI_SCRIPTED_ENGINE` at a script, and `ScriptedInference` replays it through the real
+    handlers, parsers, SSE writer and dispatch path.
+    Fails when: `/v1/capabilities` stops answering `engineBackend: scripted`, `/health` reports a
+    resident model (prewarm would be loading weights the tier exists to avoid), `/v1/models`
+    advertises the fixture id `scripted-model` that cannot load, streamed text leaves out of order
+    or without its reasoning delta / tool call / terminal frame / `[DONE]`, an aggregated turn
+    publishes a `finish_reason`, `tool_calls` id, function name or `usage` count other than the
+    declared 7/12/19, `usage` grows a `prompt_tokens_details` cache claim a replay never earned, a
+    broken script answers 200 with an empty turn instead of naming its cause, or
+    `scripts/eval/run.sh` stops refusing to score a scripted run, or AGENTS.md's quoted advertised-tool
+    count (40) stops matching `GET /v1/tools` — the injected file's number about the tool surface is the
+    only one a runner can check, and `make docs-check` has no server to check it against.
+
+- `38-reasoning-effort-honesty.sh` — does a demanded `reasoning_effort` reach the checkpoint, or only the log?
+    Two tiers, because only one runs without weights. §1 (scripted lane, CI seat, no Metal, no download):
+    an **unmeasured** checkpoint must never be refused and `/v1/models` must publish `not_observed` rather
+    than omit the question. §2 (needs one ready checkpoint; prints a skip note otherwise): the load-time
+    template probe must have recorded something for the loaded model, and on a measured `template_ignores`
+    the demanded word gets 400 naming knob + checkpoint + value + both exits, with the next request served.
+    Fails when: the load probe rots (a loaded model reporting `not_observed` — the face would read as
+    honesty), a measured-negative checkpoint delivers 200 with the word silently dropped (the exact
+    failure this gate exists for), the refusal stops naming one of the five things a client acts on, a
+    `honored` checkpoint gets refused anyway, a `/v1/models` row leaves `honored|template_ignores|not_observed`,
+    or the refusal costs the server its next request. Red-sampled 10-27: pinning the load measurement to
+    `nil` and pinning the refusal rule to `false` each turned §2 red.
+
+- `39-skill-contract-exec.sh` — does the published skill survive being executed?
+    `skills/ocoreai/SKILL.md` is what another harness reads to drive `/v1`, so its sentences are a contract
+    and a contract that rots is a wrong action taken somewhere else. The skill carries its own assertions as
+    markers in the paragraph they belong to (`<!-- exec: METHOD PATH [body] STATUS | substring | … -->`), and
+    this probe boots a server and runs every one: §1 the contract lane (scripted, no weights, no Metal),
+    §1b the key boundary the skill tells callers to expect (401 naming the fix / bearer accepted / `/health`
+    still public), §2 the measured lane against a real checkpoint — `@model` resolved from `/v1/models`, and
+    the tier's premise (one real generation must complete) established **before** any assertion, so a host
+    that cannot generate gets a printed reason instead of a pass or a fake red. Both tiers floor their own
+    marker counts (12 and 4), because a scan that finds nothing must not read as success.
+    Fails when: a documented field leaves a served body, a status changes, a marker line is re-formatted out
+    of recognition, a marker becomes unparseable (balanced-brace scan, loud exit), the marker set shrinks
+    under its floor, the key boundary stops matching what §2 of the skill says, or the measured lane's
+    sentence stops being true of a real checkpoint. Red-sampled 10-28 while it was being written: a
+    dotted-path assertion (`engineSummary.loadedModels`) and a body written before the status each turned it
+    red against the real served bytes — the skill was wrong twice before it was shipped, which is the point.
+
+- `40-stranger-agent-skill-task.sh` — Can an agent whose only knowledge of this server is `skills/ocoreai/` finish a real job?
+    Probe 39 *executes* the artefact; here a model has to be **read by** it, which is how a stranger's harness meets us. The server
+    is seeded per run with a searchable `KEY` and a `VALUE`, and the task names only the `KEY`, so the sole route to the answer is a
+    live call chain: find the search surface inside the artefact, query it, read the snippet, write the file. §1 the instrument (any
+    host, no weights, no server) — the artefact must inject whole (floor 12 000 bytes, the real count printed), the task text must
+    leak no answer, route, method+path pair or query parameter, and the verifier runs against a wrong **and** a correct deliverable,
+    because a lenient checker would turn every §2 green into a measurement of itself. §2 the agent (needs a ready checkpoint) —
+    premise first: the note must be storable and retrievable by the server's own `/sessions/search`; then one turn whose system text
+    is the artefact verbatim and whose `tools[]` is `exec_command` as served by `GET /v1/tools`, never a local copy of a schema.
+    Fails when: the artefact shrinks under the floor, the task hands the agent what it is supposed to find, the verifier accepts a
+    wrong token or rejects a right one, the seeded note is not retrievable, the served tool list lacks `exec_command`, or a fresh
+    agent holding only the skill never writes the token. Green 10-28 on a real checkpoint: 29 240 injected bytes across 4 files, and
+    the secret token came back in the deliverable — the wedge claim measured rather than asserted.
 
 - `_lib.sh` — shared harness
 Fails when: —

@@ -22,6 +22,7 @@ import _conditions as C  # noqa: E402
 
 RUN_SH = os.path.join(HERE, "run.sh")
 STATS_PY = os.path.join(HERE, "_repeat_stats.py")
+COND_PY = os.path.join(HERE, "_conditions.py")
 HEX12 = re.compile(r"^[0-9a-f]{%d}$" % C.DIGEST_LEN)
 
 
@@ -56,6 +57,51 @@ def main():
 
         if line != again:
             defects.append("the same inputs produced two different conditions lines: %r vs %r" % (line, again))
+
+        # The instruction doc a workspace handed the agent. Three things must hold: absence is a
+        # stated `none` (the board ran doc-free for its whole history and that has to be readable),
+        # presence is digested (a reworded corpus is a different instrument), and a docs-only
+        # difference is *surface* movement — refusing on it would make the harness unable to judge
+        # the one experiment the corpus's budget depends on.
+        if C.parse(line).get("docs") != "none":
+            defects.append("a run with no doc must state docs=none, got %r — an omitted field cannot"
+                           " be told apart from a harness that stopped recording" % C.parse(line).get("docs"))
+        doc_path = os.path.join(root, "AGENTS.md")
+        with open(doc_path, "w", encoding="utf-8") as fh:
+            fh.write("# rules\n")
+        with_doc = C.parse(C.build("mlx/probe", a, specs, "0.0", "auto", docs=doc_path))
+        if not str(with_doc.get("docs", "")).startswith("AGENTS.md+"):
+            defects.append("a run with a doc must digest it, got %r" % with_doc.get("docs"))
+        with open(doc_path, "w", encoding="utf-8") as fh:
+            fh.write("# rules \n")
+        moved = C.parse(C.build("mlx/probe", a, specs, "0.0", "auto", docs=doc_path))
+        if moved.get("docs") == with_doc.get("docs"):
+            defects.append("one edited byte in the instruction doc left docs=%s unchanged — a digest"
+                           " that ignores the bytes is a label, not a condition" % moved.get("docs"))
+        if "docs" not in C.SURFACE_FIELDS:
+            defects.append("`docs` is not in SURFACE_FIELDS — a paired with_docs/without_docs A/B would"
+                           " be refused as an invariant break, which is exactly the experiment to run")
+        surface_moved = [k for k, _, _ in C.field_diffs(C.parse(line), with_doc, only=C.SURFACE_FIELDS)]
+        invariant_moved = [k for k, _, _ in C.field_diffs(C.parse(line), with_doc, only=C.INVARIANT_FIELDS)]
+        if surface_moved != ["docs"] or invariant_moved:
+            defects.append("a docs-only difference reported surface=%s invariant=%s — the pair must move"
+                           " together or the pairing is blind" % (surface_moved, invariant_moved))
+        if "def docs_token" not in open(COND_PY, encoding="utf-8").read():
+            defects.append("`docs_token` is gone from _conditions.py — the docs field has no home")
+
+        # The artefact that answered. mtime+bytes is no fingerprint, but it moves when the build is
+        # rebuilt, which is the difference a paired A/B must not cross in silence (measured 10-27: a
+        # board scored a tree four hours newer than the binary it ran, and no field could show it).
+        art_tok = C.binary_token(a)
+        if not re.fullmatch(r"tasks\.json\+\d+\+\d+", art_tok):
+            defects.append("artefact token %r is not <name>+<mtime>+<bytes> — the record would not"
+                           " say which build answered" % art_tok)
+        if C.binary_token("none") != "unknown" or C.binary_token(None) != "unknown":
+            defects.append("an unnamed artefact must state `unknown`, got %r — an omission would read"
+                           " as a match against every later run" % C.binary_token("none"))
+        if "binary" in C.SURFACE_FIELDS:
+            defects.append("`binary` is a SURFACE field — a rebuild between arms changes the engine,"
+                           " not the hypothesis, so the pairing must refuse it")
 
         # The digest must be a digest: equal bytes → equal token, one byte elsewhere → different,
         # and the value must match sha256 recomputed here (a hardcoded token would pass 1-2).
@@ -120,6 +166,14 @@ def main():
     floors = [
         ("run.sh references `_conditions.py`", run.count("_conditions.py") >= 2, ">=2 (builder + selftest)"),
         ("run.sh writes a conditions line", run.count("'# conditions") >= 1, ">=1"),
+        ("run.sh passes --docs to the conditions builder", run.count("--docs") >= 1, ">=1"),
+        ("run.sh names the artefact that answered", run.count('--binary "$EVAL_BIN"') >= 1, ">=1"),
+        ("run.sh floors the artefact against the tree", run.count("BIN_MTIME") >= 4,
+         ">=4 (compare, note and the remedy text)"),
+        ("run.sh re-materializes the instruction doc per task",
+         run.count("materialize_docs") >= 2, ">=2 (the definition + the in-loop call)"),
+        ("run.sh floors the doc arm against the prompt it claims",
+         run.count("systemChars=") >= 1, ">=1 (the premise floor for a with_docs arm)"),
         ("run.sh still writes its score line", run.count("'# score") >= 1, ">=1"),
         ("_repeat_stats.py reads the conditions line", stats.count('"# conditions') >= 1, '>=1'),
         ("_repeat_stats.py compares conditions before averaging", stats.count("field_diffs") >= 2, ">=2"),
@@ -133,6 +187,17 @@ def main():
         if not (0 <= ci < si):
             defects.append("run.sh writes `# conditions` after `# score` (%d vs %d) — load_runs keeps the "
                           "last `#` line as the score, so the score line must come last" % (ci, si))
+
+        # The workspace is wiped before every task, so a doc written once at boot is deleted before
+        # turn 1 (measured 10-27: systemChars=3002 against a 21,548 B doc). The copy therefore has to
+        # sit AFTER the wipe in the loop, and an edit that "tidies" it back up to the boot block would
+        # silently turn the with_docs arm into a labelled none run.
+        wipe = run.rfind("-exec rm -rf {} +")
+        remat = run.rfind("materialize_docs")
+        if not (0 <= wipe < remat):
+            defects.append("the doc is not re-materialized after the per-task workspace wipe (wipe at %d,"
+                           " last `materialize_docs` at %d) — the with_docs arm would run doc-free and"
+                           " report a doc" % (wipe, remat))
 
         # The cross-root refusal must be narrower than the within-root one: a proposal is allowed
         # to edit the tool declarations it is being judged on, and refusing there would stop the
@@ -152,6 +217,9 @@ def main():
         # on this host: `--tools` was split on commas while `_eval.py` splits on whitespace, so a
         # live 6-tool run wrote `tools=0+e3b0c44298fc` — sha256 of the empty string — and nothing
         # went red. The floor below is the gate that would have caught it at boot.
+    # `all` is a word, not a name: the conditions line must digest the SAME set whether the caller
+    # spells every name or asks for the whole surface, or the two boards the scoreboard compares would
+    # differ in a field that is supposed to describe the instrument, not its spelling.
     read_file = {"type": "function", "function": {
         "name": "read_file", "description": "read", "parameters": {"type": "object"}}}
     with tempfile.TemporaryDirectory() as cache_root:
@@ -172,22 +240,47 @@ def main():
                                  " declarations" % label)
                 except SystemExit:
                     pass
+            # `all` is a word, not a name. The conditions line must digest the SAME set whether the
+            # caller spells every name or asks for the whole surface — otherwise the 6-tool board and
+            # the full-surface board differ on a field meant to describe the instrument, not its
+            # spelling — and an empty cache must still refuse rather than digest nothing.
+            every = C._declared_specs("all")
+            if len(every) != 2:
+                defects.append("`all` resolved to %d of the 2 cached declarations" % len(every))
+            if C.tools_token(every) != C.tools_token(got):
+                defects.append("`all` and the explicit name list digest differently (%s vs %s) — the"
+                               " tools condition would describe a spelling"
+                               % (C.tools_token(every), C.tools_token(got)))
+            empty_cache = os.path.join(cache_root, "empty.json")
+            with open(empty_cache, "w", encoding="utf-8") as fh:
+                json.dump({"data": []}, fh)
+            os.environ["OCOREAI_TOOLS_CACHE"] = empty_cache
+            try:
+                C._declared_specs("all")
+                defects.append("`all` digested an empty declared surface without refusing")
+            except SystemExit:
+                pass
+            os.environ["OCOREAI_TOOLS_CACHE"] = cache
         finally:
             if env_cache is None:
                 os.environ.pop("OCOREAI_TOOLS_CACHE", None)
             else:
                 os.environ["OCOREAI_TOOLS_CACHE"] = env_cache
 
-    n = len(C.KEY_FIELDS) + 18
+    n = len(C.KEY_FIELDS) + 32
     print("conditions self-test: %d check(s), %d defect(s)" % (n, len(defects)))
     for d in defects:
         print("  ✘ %s" % d)
     if defects:
         return 1
-    print("  ✅ every conditions field is present and stable, the digests are real sha256 of the bytes "
-          "they name (same bytes match, one edited byte or one renamed tool moves them), the parse "
-          "round-trips, differences are reported only for fields both sides state, and both the "
-          "scoreboard and the aggregator are wired to it at floors the scans can still miss")
+    print("  ✅ every conditions field is present and stable (including `docs`, stated as `none` when"
+          " absent and digested when present and treated as surface movement so a docs A/B is judgeable,"
+          " and `binary`, which names the artefact that answered and stays an invariant so a rebuild"
+          " between arms cannot read as a hypothesis),"
+          " the digests are real sha256 of the bytes they name (same bytes match, one edited byte or one"
+          " renamed tool moves them), the parse round-trips, differences are reported only for fields both"
+          " sides state, and both the scoreboard and the aggregator are wired to it at floors the scans"
+          " can still miss")
     return 0
 
 

@@ -62,9 +62,9 @@ for arg in "$@"; do
   case "$arg" in
     --require-metal) REQUIRE_METAL=1 ;;
     --probe-metal) PROBE_METAL=1 ;;
-    check | report | print-sdk-root | print-metal-bin) MODE="$arg" ;;
+    check | report | print-sdk-root | print-metal-bin | print-delivery-env) MODE="$arg" ;;
     *)
-      echo "usage: $0 [check|report|print-sdk-root|print-metal-bin] [--require-metal] [--probe-metal]" >&2
+      echo "usage: $0 [check|report|print-sdk-root|print-metal-bin|print-delivery-env] [--require-metal] [--probe-metal]" >&2
       exit 2
       ;;
   esac
@@ -288,6 +288,31 @@ if [ "$MODE" = "print-metal-bin" ]; then
   # Contract consumer (Makefile): prepend this dir to PATH and `metal` spawns.
   if [ -n "$METAL_BIN" ] && [ "$METAL" != "ok" ]; then echo "$METAL_BIN"; exit 0; fi
   exit 1
+fi
+
+if [ "$MODE" = "print-delivery-env" ]; then
+  # One home for the DELIVERY ROUTE, printed as shell to eval. What decides it is the artefact's
+  # shape, not the host's newest toolchain: an SDK whose framework dir carries CoreAI builds the
+  # macOS-27 form under the same `swift build -c release` name, and `make release` names the
+  # CoreAI-free form as what ships. So the route is resolved here (the resolver that already owns
+  # print-sdk-root/print-metal-bin) and consumed by `make release` and by scripts/build-app.sh —
+  # the script whose output is the .app a stranger drags into Applications.
+  CLT_ROOT=/Library/Developer/CommandLineTools
+  DELIVERY_SDK=$(DEVELOPER_DIR="$CLT_ROOT" bash "$0" print-sdk-root 2>/dev/null) || DELIVERY_SDK=""
+  if [ -z "$DELIVERY_SDK" ]; then
+    echo "❌ no CoreAI-free MacOSX SDK under $CLT_ROOT — the delivery artefact's shape cannot be" \
+         "built here; install the SDK the contract names (see 'make toolchain-check')" >&2
+    exit 1
+  fi
+  DELIVERY_METAL_BIN=$(bash "$0" print-metal-bin 2>/dev/null) || DELIVERY_METAL_BIN=""
+  CLT_FRAMEWORKS=$CLT_ROOT/Library/Developer/Frameworks
+  CLT_USR_LIB=$CLT_ROOT/Library/Developer/usr/lib
+  echo "export DEVELOPER_DIR=$CLT_ROOT"
+  echo "export SDKROOT=$DELIVERY_SDK"
+  [ -n "$DELIVERY_METAL_BIN" ] && echo "export PATH=$DELIVERY_METAL_BIN:\$PATH"
+  echo "export OCOREAI_DELIVERY_FLAGS='-Xswiftc -F$CLT_FRAMEWORKS -Xlinker -F$CLT_FRAMEWORKS" \
+       "-Xlinker -rpath -Xlinker $CLT_FRAMEWORKS -Xlinker -rpath -Xlinker $CLT_USR_LIB'"
+  exit 0
 fi
 
 FAIL=0

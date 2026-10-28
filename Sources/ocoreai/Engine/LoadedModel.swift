@@ -45,18 +45,28 @@ final class LoadedModel: @unchecked Sendable {
     /// v15: Specialized Core AI model — compiled once at load time, reused across requests.
     /// Stored as Any? to break @available(27.0) transitive leakage into LoadedModel.
     var _preparedModel: Any?
+    #endif
+
     /// True when this model holds a specialized CoreAI asset AND has no MLX handle.
     /// Used by dispatch to force `.ane` channel — such models can only run the ANE lane.
     /// (Dual-lane models with both preparedModel AND mlxModelHandle are NOT CoreAI-only.)
+    /// Declared OUTSIDE the framework gate: `EnginePool.loadedBackendKind()` answers this on every
+    /// route, and the delivery SDK cannot import CoreAI — a gated declaration deletes the delivery
+    /// build at its use site (measured: the DMG/appStore route failed an SDK-26 compile here). With
+    /// no framework there is no CoreAI asset, so `false` is the measured answer, not a stub standing
+    /// in for a component this route cannot have.
     var isCoreAIAsset: Bool {
+        #if canImport(CoreAI)
         if #available(macOS 27.0, iOS 27.0, *) {
             if let m = _preparedModel as? CoreAIPreparedModel {
                 return m.isSpecialized && mlxModelHandle == nil
             }
         }
+        #endif
         return false
     }
 
+    #if canImport(CoreAI)
     /// Cached inference engine — created once per LoadedModel, reused across requests.
     /// CoreAI 34f0db3: engine preserves KV cache across turns; no per-turn reset needed.
     /// Stored as `Any?` to break the `@available(macOS 27.0)` transitive leakage into

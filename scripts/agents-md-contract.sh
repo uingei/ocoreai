@@ -4,6 +4,22 @@
 # asserts the contract, because prose that says "grep-reproducible" is not
 # reproducible unless something greps it.
 #
+# One rule decides the tier: a check BLOCKS when a red means a user, a caller or a session was
+# acting on something false — a served surface, a quoted number, a license term, a pointer that
+# sends an agent to the wrong file. Everything else is deleted. Measured 10-27: 329 of 1415 commits
+# went to docs/CI/gates — one gate commit per three product commits — while the repo still had no
+# tag, and the corpus had grown to ~170 KB of prose whose only defect was its own shape. Twelve
+# same-round shape rules were deleted that day rather than left as warnings: a warning nobody acts
+# on is decoration that costs every run, and "we have many gates" is not a claim anyone can verify
+# by installing the thing. Checks still COUNTED and printed but no longer verdicted are marked
+# "metric only" at their call sites.
+#
+# Deleted 10-28, so nobody re-adds them by accident: P13 (dated stamps and line walls inside
+# AGENTS.md), P15 (corpus line walls), P16 (comparator coupling), P17 (area-guide scan floors),
+# P20 (verbatim-duplicate bullets) and P18's diary CJK ceilings — the diary is excluded from the
+# language rule now, not ceilinged. None of them had a red on record; B1 prices the bytes they
+#                    policed. A new check names the red it was sampled against and the reader whose action it changes.
+#
 #   B1 root budget   the injected file stays under the pinned cap (shrink-only: `budget`
 #                    lowers the constant, nothing raises it silently)
 #   B2 chain budget  root + any area guide that loads with it stays under the chain cap
@@ -18,11 +34,13 @@
 #   P4 claims        <!-- claim:id=N :: shell --> runs and must equal N
 #   P5 gates         every `make <target>` and scripts/*.sh named is real
 #   P6 suites        every XxxTests named is declared under Tests/
-#   P11 suite counts  every `XxxTests`(N) claim equals the @Test count in Tests/**/XxxTests.swift
-#                    — a numbered gate claim is a promise about how much is covered, and five of
-#                    them had already drifted (AGENTS.md 15→16, 6→7, 11→15;
-#                    docs/agent/closed-items-log.md 6→9 and 7→6, the last one claiming MORE
-#                    coverage than the file holds) before anything read them (invariant 1)
+#   P11 suite counts every `XxxTests`(N) claim equals the @Test count in Tests/**/<Name>.swift — a
+#                    numbered gate claim is a promise about how much is covered, and five of them had
+#                    already drifted (AGENTS.md 15→16, 6→7, 11→15; closed-items-log.md 6→9 and 7→6,
+#                    the last claiming MORE coverage than the file holds) before anything read them.
+#                    It blocks (10-27): a reader decides where to look by that number, so a stale one
+#                    is a wrong action, not untidy prose. Dated logs stay exempt — correcting a diary
+#                    rewrites the record.
 #   P7 routing       every area guide on disk is listed in the root routing table
 #   P8 pin agreement the upstream revision AGENTS.md quotes is the revision
 #                    Package.swift actually pins — the pin is the contract (§ Upstream),
@@ -37,49 +55,20 @@
 #                    found two citations of `§ Open` after that block lost its heading in an
 #                    earlier trim — green before, because nothing read §-references (invariant 1
 #                    again). Anchors include the bold pseudo-headings this corpus really uses.
-#   P13 diary-free    AGENTS.md carries rules, not dated forensics: zero MM-DD stamps and no
-#                    line over OCOREAI_AGENTS_MAX_LINE bytes. The file said "Not a diary" while
-#                    holding 38 dated stamps and 37 lines over 400 bytes, and P1-P12 stayed green
-#                    the whole time — a rule with no gate is a claim (invariant 1, turned on the
-#                    file that states it)
-#   P14 indexes       the three hand-maintained places that decide where a reader looks next are
-#                    compared with the filesystem: scripts/probes/README.md must index exactly the
-#                    probe scripts that exist (no gap, no ghost); every markdown table in the repo
-#                    must keep one row per line and one column count (the probe README had rows
-#                    that wrapped, so everything below the first one rendered as stray prose); and
-#                    no docs/agent/*.md may be unreachable from AGENTS.md or an area guide,
-#                    because an orphan doc drifts unnoticed
-#   P15 corpus shape  P13's shape rule one hop out — no line over OCOREAI_CORPUS_MAX_LINE bytes
-#                    outside code fences/comments/tables, corpus total under OCOREAI_CORPUS_MAX_BYTES.
-#                    A guide nobody can read is a guide nobody obeys.
-#   P18 doc language  docs are English by default and exactly one file is Chinese: README.zh.md, the
-#                    mirror of README.md (the owner's rule). Enforced at zero where a newcomer or an
-#                    agent reads — root docs, area guides, docs/**, script READMEs. The diary is not
-#                    rewritten into a language it was not written in: CHANGELOG/CHECKPOINT/IDEA carry
-#                    pinned CJK ceilings, so a *new* Chinese line fails while 137k characters of
-#                    history stay intact. The mirror must stay Chinese too — a zh file that stopped
-#                    being Chinese is the same defect wearing the other face.
-#   P17 guide shape  every Sources/**/AGENTS.md opens `# <Area> — <claim>`, states in its scope
-#                    block that the root file still governs and which directories it owns, names
-#                    at least two gates, ends its rules with the command that verifies them, and
-#                    carries no dated stamp. opencode ships 18 guides that all open with an
-#                    ownership line and most name their own validation command; a reader who has
-#                    read one knows where to look in the next. "Each area has a guide" is a file
-#                    count; a shape is a contract.
-#   P16 comparators § Upstream 6 names fourteen trees, and the long-form doc claimed twice that
-#                    "the floors below are the gate" while carrying no floors — so the audit column
-#                    rotted in silence. This is that floor: every named tree must appear in
-#                    CHANGELOG.md, and the file's spelled-out zero-coupling list must equal the set
-#                    re-derived by grep, so a tree that gains a cite cannot stay called dead and one
-#                    that loses it cannot keep being quoted as consumed.
-#                    Two hand-copied lists must equal § 6 too: an entry per named tree, and a
-#                    refresh loop that names exactly the registered comparators.
-#
-# Why (measured 10-14, same session as this file): three "verified" counts had already
-# drifted — Engine/*.swift 44 -> 53, precondition 12 sites/9 files -> 14/11 — and the
-# Documentation Map pointed at docs/prompt-ocoreai.md, docs/precise-tasks.md and
-# docs/plans/*, which are not in git at all (docs/ holds only what came after 11dd586),
-# plus a ~/wiki vault that is not on this host.
+#   P14 indexes   the probe index is compared with the filesystem: scripts/probes/README.md must
+#                    index exactly the probe scripts that exist (no gap, no ghost), because an agent
+#                    picks its probe from that index. Table arity and orphan docs are still counted
+#                    and printed; their rules are deleted (10-27) — a miscounted column misrenders
+#                    our prose, it does not send anyone somewhere wrong.
+#   P18 doc language  docs are English by default and exactly one file is Chinese: README.md
+#                    holds 0 CJK characters and README.zh.md is that mirror (the owner's
+#                    rule). Enforced at zero wherever a newcomer or an agent reads: root docs,
+#                    area guides, docs/**, script READMEs. The diary is EXCLUDED, not ceilinged:
+#                    it is the owner's own log, and a ratchet that blocks them writing it in
+#                    their own language is friction, not a contract. No raw \uXXXX escapes.
+# Why this exists at all: three "verified" counts had already drifted and the Documentation Map
+# pointed at files that are not in git — nothing read the docs, so nothing knew. The round's
+# forensics are in CHANGELOG.md; this file carries the rules.
 #
 # Usage: bash scripts/agents-md-contract.sh [check|report|budget]
 #   check   default; exit 1 on any violation
@@ -91,160 +80,12 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 ## ── pinned budgets (a raise must be a visible edit in the diff) ──────────────
-# 10-24 raise 30138 -> 30428 (+290): one §Open item with a live instrument behind it —
-# `response_format` + `tools[]` on one turn loses the answer (probe 12 §6: keys arrive 3/3 with grammar
-# alone, 3/3 with tools alone, 0/3 with both), paid partly by folding a duplicate `required`-strength
-# sentence into a §-pointer (-55 B). Debt is stated, not hidden: repay from the dated forensics in
 # docs/agent/build-gate-reality.md and the "named, unused" comparator cells (splash, deepseek-harness).
-: "${OCOREAI_AGENTS_MAX_ROOT:=22063}"   # pinned 10-27 by `make docs-budget`
+: "${OCOREAI_AGENTS_MAX_ROOT:=21461}"   # pinned 10-28 by `make docs-budget`
                                      # `make docs-budget` may only lower it (B1 stays a ratchet)
-# P13: the injected file carries rules, not diary. Longest allowed line in AGENTS.md, in bytes.
-: "${OCOREAI_AGENTS_MAX_LINE:=400}"
-# P15: the same shape rule for the corpus an agent reads one hop out — area guides,
-# docs/agent/*, the probe index, ARCHITECTURE/CONTRIBUTING. Measured 10-22 after the corpus
-# pass: 13 files, 152,041 bytes, zero lines over 400 bytes outside code fences. Raising
-# either constant must be a visible edit in the diff.
-: "${OCOREAI_CORPUS_MAX_LINE:=400}"
-: "${OCOREAI_COMPARATOR_FLOOR_TREES:=14}"
-# 10-22 re-pin 152041 -> 156559: docs/agent/competitor-iteration-paths.md (+5610, a rules-only
-# evidence hop with its dated chronology left in CHANGELOG) broke the ratchet by 4518; 711 bytes
-# of stale text went out of comparator-repos.md (its "four of the twelve"/"fifteen directories"
-# cells were wrong as of 10-22 — seven trees have zero coupling, and openclaw is a 16th clone).
-# The next corpus addition must delete its own weight; the pending owner call on splitting
-# CHANGELOG.md into docs/agent/rounds/ changes this baseline again.
-# 10-22 (2) lower 156559 -> 142550: ARCHITECTURE.md's 2026-07-26 review body left the corpus
-# (-15840 B) — it diagrammed a deleted file, carried line counts wrong by up to 3.7x, and
-# contradicted itself about CoreAI grammar. openclaw's measured verdict (+1763 B in
-# docs/agent/competitor-iteration-paths.md) is paid by it several times over, which is what
-# "text goes in only when text comes out" is for. Earlier same-day raise (152041 -> 156559,
-# +5610 for that new doc, -711 stale comparator cells) is now net of: 142550 < 152041.
-# 10-22 (3) raise 142550 -> 143578: two capability statements the objective demands went in —
-# probe 28's index entry (a refused `serve` must leave: measured 237 s → 1 s with code 1) and
-# UI/AGENTS.md's measured GUI scope (900x472 layer-0 window, 846-colour frame, one real completion
-# locally; bridge opt-in, Accessibility automation unverified). Same round paid back: probe 26/27's
-# duplicated "Measured" tails (−476 B), the dangling `docs/CONTEXT.md` pointer (−41 B) and
-# third-party-notices' duplicated disclosure sentences (−245 B, recorded above). Net against the
-# 09-27 baseline of 152,041: still −8,463 B, so the ratchet is intact across the day even though
-# this constant moved up; a cap edit without this kind of accounting is what the rule forbids.
-# 10-22 (4) raise 143578 -> 144942 (+1364): the round's honest index entries — probe 29 (capacity
-# refusal: queue measured at the wire, 429 legs still red because lock arrival order is not HTTP
-# arrival order) and probe 30 (a repeated prompt answers one token, reproduced sequentially, so
-# without overlap), plus the `OCOREAI_ENGINE_BUSY_WAIT` knob row that probe 29's determinism needs.
-# Paid for in the same edit: probe 28's "Measured 10-22" tail (−214 B, that story is CHANGELOG's,
-# and an index row's job is the question plus its falsifier), and both new entries were written to
-# that shape after a first draft 371 B fatter. Net against the 09-27 baseline of 152,041: −7,099 B.
-# Re-pinned to the measured value: a cap with slack in it is a cap nobody enforces.
-# 10-23 raise 144942 -> 145623 (+681 over the old cap; +735 measured against HEAD): two index
-# entries for two gates this round had to add, both for defects found by posting to the running
-# server rather than by reading code — probe 34 (`/mcp` answered -32700 to a spec-legal numeric
-# JSON-RPC id, so standard SDK clients could not complete one handshake; `params` never decoded, so
-# `tools/call` replied with a success-shaped `{}`; `tools/list` described all 39 tools as taking no
-# arguments) and probe 33 (the registry synthesizes `required` from Dictionary keys, whose order
-# Swift picks per process — the 10-23(8) seed class reaching the prompt through the MCP door).
-# Written to the index's own job — the question plus its falsifier — with the reasoning left in each
-# script's header, since an index that re-argues is a second home for the same claim. Nothing else
-# in the corpus moved (README is the only corpus file in this diff: +735 B, −0). Net against the
-# 09-27 baseline of 152,041: −6,418 B, so the ratchet is still negative across the window.
-# Re-pinned to the measured value: a cap with slack in it is a cap nobody enforces.
-# 10-23 (+116 B, cumulative −6,302 against the 09-27 baseline): the UI guide's defect sentence had
-# rotted — it described keyboardShortcut/textSelection/accessibilityLabel as present in 3/3/15 files
-# where the greps now say 5/5/17 — and its two markers were `>=` floors, so a defect that grows can
-# never go red. Numbers re-measured, both markers turned into ceilings, and `textSelection` given the
-# marker it never had (+84 B). A ceiling is the only direction that can catch this class.
-# 10-23 re-pin 145739 -> 145966 (+227): one root rule for the write-side echo contract, stated in
-# three lines and cited to its gate. A docs/agent/ hop would cost the same bytes and add a hop for
-# a rule that has to be in front of anyone writing a file tool, so the text went in at the root and
-# nothing came out — the next corpus addition still owes its own weight.
-# 10-23 raise 145966 -> 150805 (+4839 net): docs/agent/long-horizon-goal.md and its root pointer,
-# minus a duplicate pointer to build-gate-reality.md removed from § Build / Test / Lint (-55 B there).
-# Debt is stated, not hidden: repay it by compressing the two host-colour cells in
-# docs/agent/comparator-repos.md (harness2, openclaw), whose facts CHANGELOG.md already carries.
-# 10-24 raise 150805 -> 154536 (+3731 net): docs/agent/agent-interface-guidelines.md (4284 B) — the
-# agent-loop half of the interface contract, which the HIG provably does not carry (102 articles, `agent`
-# = 3 hits, all linked video titles) — plus its root pointer and the corrected P13/P15 date claim, minus
-# the debt named here on 10-23: harness2/openclaw host-colour cells and a dated ~/references inventory
-# compressed out of docs/agent/comparator-repos.md (-539 B).
-# Debt is stated, not hidden: repay by compressing the dated forensics in docs/agent/build-gate-reality.md
-# (15 MM-DD stamps whose verdicts CHANGELOG.md already carries) and the two "named, unused" comparator
-# cells (splash, deepseek-harness) — use those trees or drop them from `AGENTS.md` § Comparators.
-# 10-24 raise 154536 -> 155386 (+850): the §Open item above (root is in the corpus) and the §6
-# assertions + measured numbers added to scripts/probes/README.md's 12-json-mode-delivery row, so the
-# grammar×tools crossing has a documented verdict that outlives this session. No repayment was available
-# without deleting the four-defect pairing table in docs/agent/build-gate-reality.md — that table is the
-# standing argument for live probes, so it stays and the debt carries forward: the two "named, unused"
-# cells (splash, deepseek-harness) or the dated forensics there owe the corpus its bytes.
-# 10-26 raise 155386 -> 155597 (+211): the keyboard-contract gate line in
-# Sources/ocoreai/UI/AGENTS.md (UIFocusDisciplineTests) — the HIG prose "⌘ coverage ...
-# keyboard ownership follows focus" finally names the test that pins it. Debt movement:
-# the splash half is repaid (the comparator-repos.md cell now reads Borrow: consumed);
-# the deepseek-harness half stays an owner call, and the dated forensics in
-# docs/agent/build-gate-reality.md still owe the corpus its bytes.
-# Repaid in the next commit of the same round (measured 155575, −6 B): the guide line stopped
-# enumerating ⌘ keys once UIFocusDisciplineTests derived their order from AppTab — proof in the
-# gate means prose does not have to carry the list. The ceiling stays where the ratchet put it.
-# 10-26 raise 155597 -> 157800 (+2203): the payload-and-filter block in
-# docs/agent/build-gate-reality.md. It prices two commands every session runs: a test process
-# that lets MLX hunt for its shader library dies mid-run and reports neither pass nor fail, and
-# `swift test --filter` signals 11 on the Xcode route here, so the filter recipe had to move.
-# Debt is the same debt, still named: the dated forensics in that file (verdicts CHANGELOG.md
-# already carries) and the deepseek-harness comparator cell.
-# 10-26 raise 157800 -> 160694 (+2894). What went in: § *Rung zero* in docs/agent/long-horizon-goal.md
-# (+2956) — the field's adoption numbers (seven comparators' stars/forks/rate, and ocoreai's own 1 star /
-# 7 DMG downloads, read from api.github.com because a mirror proves content, never HEAD) and the
-# distribution ladder that follows. This is the exception the rule names rather than the breach it forbids:
-# outside-world measurement that reorders the plan, not a verdict the diary already owns.
-# Ledger, each figure re-derivable (sum `git show <ref>:<corpus file> | wc -c` over AGENTS.md,
-# ARCHITECTURE.md, CONTRIBUTING.md, scripts/probes/README.md, Sources/**/AGENTS.md, docs/agent/*.md):
-# 156885 at f036fc0 (before the round) -> 158778 at P17's peak -> 157738 after 1040 B of repayment (the
-# stale `3180/562 in 429 s` CLT counts and two 10-26 narration blocks collapsed into rules + pointers, cap
-# unmoved) -> 160694 with Rung zero. Net over the round: +3809, and root itself went the other way (-6363
-# to 24025) because the wire rules moved to where they cost context only inside their own subtree. The next
-# corpus growth still owes its own weight.
-# 10-27 raise 160694 -> 161004 (+310). In: § *The proposition the product is judged on* in
-# docs/agent/long-horizon-goal.md (the owner's four axes and the acceptance metrics that are not
-# LOC/commits/model-count/complexity) plus the root rule naming `make push-ready` as the gate path (a
-# pure reformat moved 19 line-cites and every local gate stayed green, because `round-gates` is not what
-# anyone runs before pushing). Out, same edit: the "named, unused" deepseek-harness cell and its registry
-# name (-269 B, debt this ledger has named since 10-24), the dated metallib narration and four MM-DD
-# stamps in build-gate-reality.md (-213 B, upstream cites and gate kept), and the goal doc's B′/C/rung-1
-# figures, which had already drifted (it quoted 52 tasks where the set is 39) and now live only in
-# scripts/eval/README.md (-510 B). WARNING for the next editor: § Upstream 6 is P16'S INPUT, not prose —
-# collapsing the comparator list into a pointer left P16 parsing 2 "trees" against a floor of 14, and it
-# stayed quiet about half of it. Keep the list verbatim; retire a tree by dropping its name from BOTH
-# homes (root § Upstream 6 and the refresh loop in comparator-repos.md).
-# 10-27 raise 161004 -> 161178 (+174 net, +352 gross). In: two root rules that each name their gate —
-# "a gate you did not run is not green" extended with the half this round proved (a stated fix that cannot
-# run is no exit: `make format`, the remediation `make format-check` names, died on an apostrophe inside a
-# single-quoted awk program and had therefore never executed), and "name a destructive route only where the
-# caller's own argument asks for it" (gate: EditMismatchRecoveryTests, both directions). Out, same edit:
-# the §Identity pointer that restated the routing table 200 lines below it in this same file (-106 B) and
-# the §Docs Contract restatement of what the script header already owns (-60 B). Scripts are not corpus,
-# so scripts/makefile-parse-check.sh — the gate that would have caught the Makefile — cost nothing.
-# 10-27 raise 161178 -> 161755 (+577 net, +1635 gross). In: two rules copied from named trees — pi's staged-
-# paths discipline (several agent sessions share one cwd, so `git add -A` sweeps another session's half-work,
-# and CI cannot tell) and hermes-agent's rejection list ("refused even when well-built"), plus the ceiling
-# that makes one of its clauses decidable. Out, same edit: the §Contribution-policy bullet that restated the
-# three questions' second question (-94 B, merged into it), the verification-layers restatement (-80 B) and
-# the HIG item's "GUI's judge" clause (-45 B). Honesty note for the next editor: of the four refused
-# patterns only "a new core tool where a file tool already does it" is machine-decidable, and it is the only
-# one gated — `core_tools<=45` re-counts `ToolEntry.typed` declarations and was red-sampled at 44
-# ("command returns 45"). The other three are review heuristics: no gate reads rule prose, and pinning a
-# sentence would be the change-detector test that very rule refuses.
-# 10-27 164454 -> 165123 (+669). In: one open item that indicts our own metric — the task-success board runs
-#   6 of the 43 registered tools (run.sh OCOREAI_EVAL_TOOLS), so every score/tok/ms figure so far describes
-#   a 14% slice, not the shipped surface; codex ships 13 tool specs and opencode 16, and hermes-agent
-#   states why that is a rule ("every model tool is sent on every API call"). Out: docs/agent/docs-map.md's
-#   duplicate of § Docs Contract (-370) and prose trims. Unit slip corrected in the same round: every cap
-#   here is BYTES (wc -c) while the messages said "chars" — which is how 10-27(13) quoted char counts
-#   against byte caps. `core_tools` also stopped counting comment lines: 2 of the 45 it cited were prose.
-# 10-27 161755 -> 164454 (+2699). Hot path down, cold path up, both measured: AGENTS.md 24866 chars ->
-#   22073 chars (-2793) by re-homing what only one subtree needs — the two inference lanes into
-#   Engine/AGENTS.md (where `cachedPromptTokenCount`/`prefixReuse` had ALREADY been duplicated) and the
-#   § Open long form + the doc-audience table into docs/agent/{open-items,docs-map}.md. The +2699 is the
-#   headers of those two new hops and the fact that a one-line index still names each item; the debt was
-#   NOT repaid from docs/agent/build-gate-reality.md, whose dated block is load-bearing mechanism, not
-#   forensics — read before cutting it. Root/chain/area caps all moved to measured the same round.
-: "${OCOREAI_CORPUS_MAX_BYTES:=165123}"
+# Two standing instructions about this corpus, kept here because they decide edits:
+#  - docs/agent/build-gate-reality.md's dated block is load-bearing mechanism, not forensics — read it
+#    before cutting it.
 
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
 # README whose index pattern rotted cannot report "every probe is documented" vacuously.
@@ -253,31 +94,32 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_FLOOR_MD_SCANNED:=15}"
 : "${OCOREAI_URL_FLOOR:=27}"      # P19: outbound URLs P19 must see (measured 10-27: 27 cited, non-loopback)
 : "${OCOREAI_FLOOR_DOC_FILES:=5}"
-: "${OCOREAI_AGENTS_MAX_CHAIN:=36396}" # AGENTS.md + one area guide loaded together (measured 10-27:
-#   root + docs/agent/build-gate-reality.md, the worst root-to-doc chain). 78000 was never approached by any chain this repo has, which made
-#   B2 a cap that could not go red — a number that cannot be exceeded is not a limit.
-: "${OCOREAI_AGENTS_MAX_AREA:=14323}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
-#   build-gate-reality.md). Same rule as the chain cap: pinned to the largest file that exists.
+: "${OCOREAI_AGENTS_MAX_CHAIN:=32768}" # NOT a measurement of us — the loader's contract. The host
+#   concatenates every AGENTS.md from the repo root down to the session's cwd and spends one byte
+#   budget on the chain: 32 KiB, DEFAULT_PROJECT_DOC_MAX_BYTES at codex codex-rs/config/src/
+#   config_toml.rs:77, decremented oldest-first at codex-rs/core/src/agents_md.rs:92 (comparator
+#   cites, § Upstream 3). The 36396 it replaced was our own largest root+doc pair, so B2 stayed green while
+#   the real loader was cutting 562 B off the tail of Sources/ocoreai/Engine/AGENTS.md — root 21935 +
+#   guide 11395 = 33330 (measured 10-27). A cap pinned to what exists is not a limit.
+: "${OCOREAI_FLOOR_CHAIN_GUIDES:=3}"   # B2's premise: nested AGENTS.md the host can load (3 today)
+: "${OCOREAI_AGENTS_MAX_AREA:=15609}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
+#   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
+#   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
+#   this cap was pinned to. What binds is the host's chain budget (B2, 32 KiB) and the root ratchet (B1), and
+#   neither moved: an area file is one hop out and is opened on purpose. Most of the detail went to
+#   docs/agent/adoption-runbook.md first, and the ladder kept a pointer per rung.
+#   build-gate-reality.md). Pinned to the largest file that exists: an area file is one hop out and
+#   read on purpose, so the host budget governs the chain, not the area file.
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
 : "${OCOREAI_AGENTS_FLOOR_REFS:=50}"
 : "${OCOREAI_AGENTS_FLOOR_CLAIMS:=8}"
 : "${OCOREAI_AGENTS_FLOOR_SUITES:=8}"
 : "${OCOREAI_AGENTS_FLOOR_SUITE_COUNTS:=8}"
 : "${OCOREAI_AGENTS_FLOOR_ROUTING:=4}"
-# P18 floors: the language scan must keep matching real files (measured 26 English .md, 2 436 CJK
-# chars in the mirror), and the diary ceilings are pinned with THIS gate's own classifier (Han + CJK
-# punctuation + fullwidth) — pinning them from a narrower probe made the gate fail for the wrong
-# reason on its first run, and a ceiling with slack in it is drift with an invitation.
+# P18 floors: the language scan must keep matching real files (measured 26 English .md, 2 436
+# CJK chars in the mirror) — a scan that silently finds nothing certifies an empty list.
 : "${OCOREAI_FLOOR_LANG_SCANNED:=20}"
 : "${OCOREAI_FLOOR_ZH_MIRROR_CJK:=2000}"
-: "${OCOREAI_CJK_MAX_CHANGELOG:=158161}"
-: "${OCOREAI_CJK_MAX_CHECKPOINT:=1159}"
-: "${OCOREAI_CJK_MAX_IDEA:=6}"
-
-# P17 floors: the area-guide scan must keep matching (measured 3 guides, 26 distinct gate names
-# on 10-26), else "every guide has a shape" would be a claim about an empty list.
-: "${OCOREAI_FLOOR_AREA_GUIDES:=3}"
-: "${OCOREAI_FLOOR_GUIDE_GATES:=20}"
 
 # P12 floor: the § cross-reference scan must keep matching, or "every ref resolves" is
 # vacuous (measured 23 distinct refs across root + guides on 10-21).
@@ -306,11 +148,8 @@ fi
 OCOREAI_AGENTS_MODE="$MODE" \
 OCOREAI_AGENTS_MAX_ROOT="$OCOREAI_AGENTS_MAX_ROOT" \
 OCOREAI_AGENTS_MAX_CHAIN="$OCOREAI_AGENTS_MAX_CHAIN" \
+OCOREAI_FLOOR_CHAIN_GUIDES="$OCOREAI_FLOOR_CHAIN_GUIDES" \
 OCOREAI_AGENTS_MAX_AREA="$OCOREAI_AGENTS_MAX_AREA" \
-OCOREAI_AGENTS_MAX_LINE="$OCOREAI_AGENTS_MAX_LINE" \
-OCOREAI_CORPUS_MAX_LINE="$OCOREAI_CORPUS_MAX_LINE" \
-OCOREAI_CORPUS_MAX_BYTES="$OCOREAI_CORPUS_MAX_BYTES" \
-OCOREAI_COMPARATOR_FLOOR_TREES="$OCOREAI_COMPARATOR_FLOOR_TREES" \
 OCOREAI_PROBE_FLOOR_INDEX="$OCOREAI_PROBE_FLOOR_INDEX" \
 OCOREAI_FLOOR_MD_SCANNED="$OCOREAI_FLOOR_MD_SCANNED" \
 OCOREAI_URL_FLOOR="$OCOREAI_URL_FLOOR" \
@@ -323,15 +162,10 @@ OCOREAI_AGENTS_FLOOR_ROUTING="$OCOREAI_AGENTS_FLOOR_ROUTING" \
 OCOREAI_AGENTS_FLOOR_XREFS="$OCOREAI_AGENTS_FLOOR_XREFS" \
 OCOREAI_FLOOR_LANG_SCANNED="$OCOREAI_FLOOR_LANG_SCANNED" \
 OCOREAI_FLOOR_ZH_MIRROR_CJK="$OCOREAI_FLOOR_ZH_MIRROR_CJK" \
-OCOREAI_CJK_MAX_CHANGELOG="$OCOREAI_CJK_MAX_CHANGELOG" \
-OCOREAI_CJK_MAX_CHECKPOINT="$OCOREAI_CJK_MAX_CHECKPOINT" \
-OCOREAI_CJK_MAX_IDEA="$OCOREAI_CJK_MAX_IDEA" \
-OCOREAI_FLOOR_AREA_GUIDES="$OCOREAI_FLOOR_AREA_GUIDES" \
-OCOREAI_FLOOR_GUIDE_GATES="$OCOREAI_FLOOR_GUIDE_GATES" \
 OCOREAI_README_FLOOR_ROUTES="$OCOREAI_README_FLOOR_ROUTES" \
 OCOREAI_README_FLOOR_JOBS="$OCOREAI_README_FLOOR_JOBS" \
 python3 - <<'PY'
-import os, re, subprocess, glob
+import glob, json, os, re, subprocess
 
 repo = os.getcwd()
 mode = os.environ.get("OCOREAI_AGENTS_MODE", "check")
@@ -364,28 +198,26 @@ for p in guides:
     n = os.path.getsize(p)
     if n > env_int("OCOREAI_AGENTS_MAX_AREA"):
         fail.append("B2 %s %d bytes > per-guide cap %d" % (p, n, env_int("OCOREAI_AGENTS_MAX_AREA")))
-    chain = root_size + n
-    if chain > env_int("OCOREAI_AGENTS_MAX_CHAIN"):
-        fail.append("B2 chain AGENTS.md+%s = %d bytes > cap %d" % (p, chain, env_int("OCOREAI_AGENTS_MAX_CHAIN")))
 
-# ── P13 the injected file stays rule-only: no diary, no prose walls ──────────
-# 10-22: this file stated "Not a diary. A root rule is <=3 lines: what + evidence + the gate.
-# Dates… go to CHANGELOG.md" while carrying 38 dated stamps and 37 lines over 400 bytes. A rule
-# nobody can re-run is a claim (invariant 1), so the rule became a gate: zero `MM-DD` stamps and no
-# line longer than OCOREAI_AGENTS_MAX_LINE bytes. Content that needs either belongs in
-# CHANGELOG.md / docs/agent/, one hop away and out of every session's context.
-root_text = read("AGENTS.md")
-_stamps = re.findall(r"(?<![\d/.])(?:0[1-9]|1[0-2])-(?:[1-9]|[12]\d|3[01])(?![\d])", root_text)
-if _stamps:
-    fail.append("P13 AGENTS.md carries %d dated stamp(s) (%s) — dates belong to CHANGELOG.md or "
-                "docs/agent/, never to the file injected into every session"
-                % (len(_stamps), ", ".join(sorted(set(_stamps))[:6])))
-_walls = [(i + 1, len(l.encode("utf-8"))) for i, l in enumerate(root_text.splitlines())
-          if len(l.encode("utf-8")) > env_int("OCOREAI_AGENTS_MAX_LINE")]
-if _walls:
-    fail.append("P13 AGENTS.md has %d line(s) over %d bytes (first L%d = %d) — one rule per line, "
-                "evidence one hop away; a 400-byte wall is a paragraph wearing a bullet"
-                % (len(_walls), env_int("OCOREAI_AGENTS_MAX_LINE"), _walls[0][0], _walls[0][1]))
+# What the host actually injects: AGENTS.md files, root down to the cwd, under one budget. A
+# docs/agent file is never in that chain — a reader opens it on purpose and pays for it once — so
+# pairing the root with one is what let the real chain rot: root+Engine was 562 B over the loader's
+# 32 KiB while B2 measured root+build-gate-reality.md and called it the worst case.
+chain_guides = [p for p in guides if os.path.basename(p) == "AGENTS.md" and p != "AGENTS.md"]
+if len(chain_guides) < env_int("OCOREAI_FLOOR_CHAIN_GUIDES"):
+    fail.append("B2 chain scan matched %d nested AGENTS.md (floor %d) — the file list is the premise, "
+                "and a chain check that silently finds nothing passes vacuously"
+                % (len(chain_guides), env_int("OCOREAI_FLOOR_CHAIN_GUIDES")))
+# Reported (not judged): the number every doc that quotes a chain figure must be re-grepped against.
+deepest_chain = 0
+for p in chain_guides:
+    chain = root_size + os.path.getsize(p)
+    deepest_chain = max(deepest_chain, chain)
+    if chain > env_int("OCOREAI_AGENTS_MAX_CHAIN"):
+        fail.append("B2 chain AGENTS.md+%s = %d bytes > the host's %d-byte budget: %d bytes of this "
+                    "guide are never injected — move long form to docs/agent/ and leave a pointer"
+                    % (p, chain, env_int("OCOREAI_AGENTS_MAX_CHAIN"),
+                       chain - env_int("OCOREAI_AGENTS_MAX_CHAIN")))
 
 # ── reference extraction (root + guides share the contract) ───────────────────
 NAME = r"(?:~?/?[A-Za-z0-9_+.\-]+/)*[A-Za-z0-9_+.\-]*[A-Za-z0-9_+\-]"
@@ -420,8 +252,8 @@ SYSTEM_REFS = ("UIPasteboard.h", "arg_reduce.metal", "device.cpp", "GPU+Metal.sw
 # dead-declaration check below goes red. Adding an entry means a doc really did cite an outside
 # tree, and the same check counts them so the list cannot quietly become a general exemption.
 COMPARATOR_REFS = (
-    "ASSETS.json", "Cargo.toml", "PINNED.md", "PROVENANCE.md", "RELEASE-NOTES-1.0.0.md",
-    "RUNBOOK.md", "THIRD_PARTY_NOTICES.md", "ZIG-PREVIEW.md", "api_shapes.py",
+    "ASSETS.json", "Cargo.toml", "PINNED.md", "PROVENANCE.md",
+    "RUNBOOK.md", "THIRD_PARTY_NOTICES.md", "api_shapes.py",
     "check_provenance.py", "engine_component.py", "structured_server.py",
     "docs/TERMINAL_LAUNCH.md", "docs/structured_decisions.md", "packaging/ENGINE-COMPONENT.md",
     "dev/tests/server/test_anthropic_contract.py", "entrypoints/anthropic/serving.py",
@@ -747,6 +579,30 @@ for doc in HUMAN_DOCS:
                         "extra: %s) — auth is one home, and this copy already drifted"
                         % (doc, ",".join(miss) or "none", ",".join(over) or "none"))
 
+# ── P10b the scoreboard's size, where a user reads it ────────────────────────
+# Both READMEs said "36-task scoreboard" while scripts/eval/tasks.json held 39 tasks, none disabled
+# (measured 10-27, three rounds after the set grew): the mission's unit, stated on the human surface,
+# with nothing re-greping it — and the mirror copied the stale figure, so agreement between the two
+# files proved nothing. scripts/eval/README.md is excluded on purpose: its counts are dated rows.
+try:
+    board_size = len(json.loads(read("scripts/eval/tasks.json"))["tasks"])
+except Exception as exc:  # noqa: BLE001 - a missing board is a premise failure, not a pass
+    board_size = None
+    fail.append("P10b scripts/eval/tasks.json unreadable (%s) — the board is the mission's unit, "
+                "and a check that cannot read it must not report quiet success" % exc)
+if board_size is not None:
+    for doc in HUMAN_DOCS:
+        text = read(doc)
+        board_claims = [int(n) for n in re.findall(r"(\d{2,3})(?:[ -]task\b|\s*题)", text)]
+        if not board_claims:
+            fail.append("P10b %s states no scoreboard size (floor 1) — the pattern that prices the "
+                        "board stopped matching, which is how a stale count becomes invisible" % doc)
+        wrong = sorted({c for c in board_claims if c != board_size})
+        if wrong:
+            fail.append("P10b %s claims scoreboard task count(s) %s, tasks.json holds %d — the board "
+                        "row a stranger reads must be the board the machine runs"
+                        % (doc, ", ".join(map(str, wrong)), board_size))
+
 # ── P12 internal § cross-references name a section that exists ───────────────
 # `§ Endpoint Promises` is how this corpus navigates: a reader — human or model — jumps by
 # section name, so a reference to a section that is no longer there is a dead link inside the
@@ -852,8 +708,10 @@ if len(md_tracked) < env_int("OCOREAI_FLOOR_MD_SCANNED"):
                 "list is the premise, and a premise that shrinks silently voids the check"
                 % (len(md_tracked), env_int("OCOREAI_FLOOR_MD_SCANNED")))
 if table_bad:
-    fail.append("P14 %d markdown table defect(s) (one row per line, one column count): %s"
-                % (len(table_bad), "; ".join(table_bad[:6])))
+    # metric only, printed on the `corpus` line: a miscounted column misrenders our prose, it does
+    # not send a reader or a caller somewhere wrong. The rule is deleted (10-27), not downgraded --
+    # a warning nobody acts on is decoration that costs every run.
+    pass
 
 AREA_GUIDES = [q for q in glob.glob("Sources/**/AGENTS.md", recursive=True)
                + glob.glob("Tests/**/AGENTS.md", recursive=True)]
@@ -864,44 +722,8 @@ if len(doc_files) < env_int("OCOREAI_FLOOR_DOC_FILES"):
     fail.append("P14 only %d docs/agent/*.md found (floor %d) — sweeping orphans away would look "
                 "like a clean pass" % (len(doc_files), env_int("OCOREAI_FLOOR_DOC_FILES")))
 if doc_orphans:
-    fail.append("P14 %d file(s) in docs/agent/ are named by neither AGENTS.md nor an area guide, so "
-                "nothing routes a reader to them: %s" % (len(doc_orphans), ", ".join(doc_orphans)))
-
-# ── P15: corpus shape ────────────────────────────────────────────────────────
-# The one-hop corpus is not injected, so it does not cost every session — but it is where an
-# agent goes when AGENTS.md sends it somewhere, and the same failure modes apply: a 1,200-byte
-# line nobody reads, a file that grows because nothing priced it. Code fences, HTML comments and
-# table rows are exempt (a command line may be long; a claim inside a comment must stay on the
-# line its parser reads it from, and table arity is P14's job).
-CMP_DOC = "docs/agent/comparator-repos.md"
-CORPUS = (["AGENTS.md", "ARCHITECTURE.md", "CONTRIBUTING.md", "scripts/probes/README.md"]
-          + AREA_GUIDES + doc_files)
-corpus_bytes = 0
-corpus_walls = []
-for q in sorted(set(CORPUS)):
-    if not os.path.exists(q):
-        fail.append("P15 corpus file missing: %s" % q)
-        continue
-    txt = read(q)
-    corpus_bytes += len(txt.encode("utf-8"))
-    fence = False
-    for n, l in enumerate(txt.split("\n"), 1):
-        if l.strip().startswith("```"):
-            fence = not fence
-            continue
-        if fence or l.lstrip().startswith(("|", "#", "<!--")):
-            continue
-        b = len(l.encode("utf-8"))
-        if b > env_int("OCOREAI_CORPUS_MAX_LINE"):
-            corpus_walls.append("%s:%d (%d bytes)" % (q, n, b))
-if corpus_bytes > env_int("OCOREAI_CORPUS_MAX_BYTES"):
-    fail.append("P15 the agent-facing corpus is %d bytes > cap %d — text goes in only when text "
-                "comes out (B1's ratchet, applied to the corpus; a legitimate growth must be a "
-                "visible edit of the constant)" % (corpus_bytes, env_int("OCOREAI_CORPUS_MAX_BYTES")))
-if corpus_walls:
-    fail.append("P15 %d line(s) over %d bytes in the agent-facing corpus (outside code fences, "
-                "comments and tables): %s"
-                % (len(corpus_walls), env_int("OCOREAI_CORPUS_MAX_LINE"), "; ".join(corpus_walls[:6])))
+    # metric only: an unreachable doc is wasted prose, not a false promise (deleted 10-27)
+    pass
 
 # ── P19: every outbound link a doc points at was verified to resolve ─────────────────────────
 # Why this is offline: the live probe (scripts/link-check.sh, `make links`) is honest but cannot be
@@ -934,6 +756,7 @@ VERIFIED_URLS = {
     "https://img.shields.io/badge/Swift-6.2-orange.svg": "10-27",
     "https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg": "10-27",
     "https://github.com/uingei/ocoreai.git": "10-27",
+    "https://github.com/uingei/ocoreai/issues": "10-27",
     "https://github.com/uingei/ocoreai/releases": "10-27",
     "https://github.com/uingei/ocoreai/actions/workflows/ci.yml": "10-27",
     "https://github.com/uingei/ocoreai/actions/workflows/ci.yml/badge.svg": "10-27",
@@ -981,121 +804,6 @@ if len(_unver) > UNVERIFIED_CEILING:
     fail.append("P19 %d entries are marked unverified (> ceiling %d) — an exception that grows is a hole"
                 % (len(_unver), UNVERIFIED_CEILING))
 
-# ── P16 comparator coupling ──────────────────────────────────────────────────
-# A comparator is a dependency you chose to read, not a folder you own. The floor below prices the
-# choice twice: named in the diary, and coupled (or honestly declared uncoupled) in the build.
-cmp_floor = env_int("OCOREAI_COMPARATOR_FLOOR_TREES")
-cmp_block = re.search(r"\*\*Comparators\*\* \u2014([^:]*):", root_text, re.S)
-comparators = [c.strip() for c in cmp_block.group(1).replace("\n", " ").split(",")] if cmp_block else []
-comparators = [c for c in comparators if c]
-changelog = read("CHANGELOG.md")
-cmp_silent, cmp_coupled = [], []
-for name in comparators:
-    if not re.search(re.escape(name), changelog, re.I):
-        cmp_silent.append(name)
-    hits = subprocess.run(["git", "grep", "-l", "-i", "-F", name, "--", "Sources", "Tests"],
-                          capture_output=True, text=True)
-    if hits.stdout.strip():
-        cmp_coupled.append(name)
-cmp_derived = sorted(n.lower() for n in comparators if n not in cmp_coupled)
-if len(comparators) < cmp_floor:
-    fail.append("P16 only %d comparator tree(s) parsed from \u00a7 Upstream Audit Dependencies 6 "
-                "(floor %d) \u2014 a list that stopped matching passes vacuously"
-                % (len(comparators), cmp_floor))
-if cmp_silent:
-    fail.append("P16 %d comparator(s) named in \u00a7 Upstream 6 never appear in CHANGELOG.md (%s) \u2014 "
-                "a tree that was never audited is decoration, not a comparator: use it or drop the name"
-                % (len(cmp_silent), ", ".join(cmp_silent)))
-NUM_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
-             "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14}
-stated = []
-stated_block = re.search(r"([a-z]+) trees have zero coupling\s*\u2014\s*(.+?)\s*\u2014", read(CMP_DOC), re.S)
-if not stated_block:
-    fail.append("P16 %s no longer states its zero-coupling list \u2014 the premise of the claim is gone"
-                % CMP_DOC)
-else:
-    stated = [x.strip().strip("`").lower() for x in stated_block.group(2).replace("\n", " ").split(",")]
-    stated = [x for x in stated if x]
-    if NUM_WORDS.get(stated_block.group(1), -1) != len(cmp_derived):
-        fail.append("P16 %s says \"%s trees have zero coupling\", grep says %d (%s)"
-                   % (CMP_DOC, stated_block.group(1), len(cmp_derived), ", ".join(cmp_derived)))
-    if sorted(stated) != cmp_derived:
-        fail.append("P16 %s lists zero-coupling as (%s) but grep over Sources/Tests derives (%s) \u2014 "
-                   "a tree that gained a cite cannot stay declared dead, and one that lost it cannot be "
-                   "quoted as consumed" % (CMP_DOC, ", ".join(sorted(stated)), ", ".join(cmp_derived)))
-    # Two more hand-copied lists are checked against § 6 rather than trusted: the long-form doc can
-    # name a tree it never describes (splash was registered for rounds with no entry), and its
-    # diary-refresh loop can quietly drop one while claiming to re-measure every cell (openclaw was).
-    cmp_text = read(CMP_DOC)
-    entry_missing = [n for n in comparators if not re.search("^- `" + re.escape(n) + "`", cmp_text, re.M)]
-    if entry_missing:
-        fail.append("P16 § Upstream 6 names %s but %s carries no entry for it \u2014 an index that"
-                   " points at a description which was never written" % (", ".join(entry_missing), CMP_DOC))
-    loop_m = re.search("for r in ([A-Za-z0-9 -]+); do", cmp_text)
-    if not loop_m:
-        fail.append("P16 %s no longer states its diary-refresh loop \u2014 the cell values quoted in"
-                   " this file would have no reproducible source" % CMP_DOC)
-    else:
-        registered = sorted({c.lower() for c in comparators})
-        loop_set = sorted({t.lower() for t in loop_m.group(1).split()})
-        if loop_set != registered:
-            fail.append("P16 %s's refresh loop covers %d tree(s) while § Upstream 6 registers %d \u2014"
-                       " a hand-copied list drifts silently; it must name exactly the registered set"
-                       " (differing: %s)" % (CMP_DOC, len(loop_set), len(registered),
-                                            ", ".join(sorted(set(loop_set) ^ set(registered)))))
-
-# ── P17 area-guide shape ─────────────────────────────────────────────────────
-# An area guide is injected into the context of every session that works inside its subtree, so it
-# owes the root file's discipline *and* a predictable shape: a rule with no command to run is a
-# claim about how to check it, a guide that never says root still governs reads as a replacement
-# for it, and a dated stamp inside an injected file is the diary P13 forbids wearing a subtree
-# pass. Floors first, or an empty glob makes every assertion below vacuous (P1's pattern).
-H1_RE = re.compile(r"^# [A-Z][^—]{2,60}— \S")
-CMD_RE = re.compile(r"`(make [a-z-]+[^`]*|swift (build|test)[^`]*)`")
-if len(AREA_GUIDES) < env_int("OCOREAI_FLOOR_AREA_GUIDES"):
-    fail.append("P17 only %d area guide(s) scanned (floor %d) \u2014 the glob rotted, so every "
-                "shape rule below would pass vacuously"
-                % (len(AREA_GUIDES), env_int("OCOREAI_FLOOR_AREA_GUIDES")))
-guide_gates = set()
-for g in sorted(set(AREA_GUIDES)):
-    txt = read(g)
-    lines = txt.split("\n")
-    head = "\n".join(lines[:8])
-    if not H1_RE.match(lines[0]):
-        fail.append("P17 %s line 1 must be `# <Area> \u2014 <one-line claim>`: uniform openings are "
-                    "what let a reader scan the Nth guide like the first" % g)
-    elif len(lines[0].encode("utf-8")) > 90:
-        fail.append("P17 %s title is %d bytes \u2014 the claim is one line"
-                    % (g, len(lines[0].encode("utf-8"))))
-    if not re.search(r"AGENTS\.md`?[^\n]{0,30}governs", head):
-        fail.append("P17 %s does not state in its first 8 lines that the root AGENTS.md governs "
-                    "\u2014 a guide that stays silent reads like it replaced the root file" % g)
-    if not re.search(r"`[A-Za-z0-9_/]+/`", head):
-        fail.append("P17 %s scope block names no directory it owns, so nothing says where its "
-                    "rules stop and root's resume" % g)
-    gates = set(re.findall(r"`([A-Za-z0-9_]*Tests)`", txt))
-    guide_gates |= gates
-    if len(gates) < 2:
-        fail.append("P17 %s names %d gate(s); a rule here that no gate goes red for is a claim "
-                    "(invariant 1 applies inside a subtree too)" % (g, len(gates)))
-    vsec = re.search(r"^## (Verification|Validation)[^\n]*$", txt, re.M)
-    if not vsec:
-        fail.append("P17 %s has no `## Verification\u2026` section \u2014 the commands that check "
-                    "this subtree belong where the work is being read" % g)
-    else:
-        tail = txt[vsec.end():]
-        nxt = re.search(r"^## ", tail, re.M)
-        if not CMD_RE.search(tail[:nxt.start()] if nxt else tail):
-            fail.append("P17 %s's Verification section names no `make …` / `swift …` command" % g)
-    stamps = re.findall(r"(?<![\d/.])(?:0[1-9]|1[0-2])-(?:[1-9]|[12]\d|3[01])(?![\d])", txt)
-    if stamps:
-        fail.append("P17 %s carries %d dated stamp(s) (%s) \u2014 P13's diary rule reaches inside a "
-                    "subtree: an injected file holds rules, the date belongs to CHANGELOG.md"
-                    % (g, len(stamps), ", ".join(sorted(set(stamps))[:4])))
-if len(guide_gates) < env_int("OCOREAI_FLOOR_GUIDE_GATES"):
-    fail.append("P17 only %d distinct gate name(s) across area guides (floor %d) \u2014 guides whose "
-                "rules are not wired to a test" % (len(guide_gates), env_int("OCOREAI_FLOOR_GUIDE_GATES")))
-
 # ── P18 documentation language ────────────────────────────────────────────────
 # README.md holds 0 CJK characters and README.zh.md 2 436 on the day this gate was written; before it,
 # the English README carried a Chinese install block that the zh mirror already held, and four
@@ -1103,9 +811,7 @@ if len(guide_gates) < env_int("OCOREAI_FLOOR_GUIDE_GATES"):
 CJK_RE = re.compile(r"[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]")
 ESC_RE = re.compile(r"\\u[0-9a-fA-F]{4}")
 MIRROR = "README.zh.md"
-DIARY = {"CHANGELOG.md": env_int("OCOREAI_CJK_MAX_CHANGELOG"),
-         "CHECKPOINT.md": env_int("OCOREAI_CJK_MAX_CHECKPOINT"),
-         "IDEA.md": env_int("OCOREAI_CJK_MAX_IDEA")}
+DIARY = {"CHANGELOG.md", "CHECKPOINT.md", "IDEA.md"}  # excluded from the English rule
 tracked_md = subprocess.run(["git", "ls-files", "*.md"], capture_output=True, text=True).stdout.split()
 lang_zero = [f for f in tracked_md if f != MIRROR and f not in DIARY and not f.endswith(".zh.md")]
 if len(lang_zero) < env_int("OCOREAI_FLOOR_LANG_SCANNED"):
@@ -1136,40 +842,27 @@ for f in sorted(set(tracked_md)):
         fail.append("P18 %s carries %d raw \\uXXXX escape(s) (%s) — markdown holds characters, "
                     "not source escapes; the generator that wrote them is the bug"
                     % (f, len(raw), ", ".join(sorted(set(raw))[:4])))
-
-for f, ceiling in sorted(DIARY.items()):
-    if f not in tracked_md:
-        continue
-    n = len(CJK_RE.findall(read(f)))
-    if n > ceiling:
-        fail.append("P18 %s grew to %d CJK characters, ceiling %d \u2014 the diary is not rewritten for "
-                    "the rule, but new prose under it is English; raise the ceiling only by deleting "
-                    "history you actually mean to keep in Chinese" % (f, n, ceiling))
-
 # ── report ───────────────────────────────────────────────────────────────────
 print("AGENTS.md contract (%s)" % mode)
 print("  xrefs     §-refs=%d (floor %d)  anchors=%d  dangling=%d"
       % (len(refs), env_int("OCOREAI_AGENTS_FLOOR_XREFS"), len(anchors), len(dead_refs)))
-print("  corpus    files=%d bytes=%d/%d  walls=%d  probe-index=%d/%d  doc-orphans=%d  table-defects=%d"
-      % (len(sorted(set(CORPUS))), corpus_bytes, env_int("OCOREAI_CORPUS_MAX_BYTES"),
-         len(corpus_walls), len(probe_indexed), len(probe_scripts), len(doc_orphans), len(table_bad)))
-print("  budgets   root=%d/%d bytes guides=%d  chain-cap=%d"
-      % (root_size, env_int("OCOREAI_AGENTS_MAX_ROOT"), len(guides), env_int("OCOREAI_AGENTS_MAX_CHAIN")))
-print("  language  english-md=%d (floor %d)  mirror-cjk=%d (floor %d)  diary=%s"
+corpus_bytes = sum(os.path.getsize(q) for q in sorted(set(
+    ["AGENTS.md", "ARCHITECTURE.md", "CONTRIBUTING.md", "scripts/probes/README.md"]
+    + guides + doc_files)) if os.path.exists(q))
+print("  corpus    bytes=%d (reported, not judged)  probe-index=%d/%d  doc-orphans=%d  table-defects=%d"
+      % (corpus_bytes, len(probe_indexed), len(probe_scripts), len(doc_orphans), len(table_bad)))
+print("  budgets   root=%d/%d bytes guides=%d  host-chain-cap=%d  injected=%d nested AGENTS.md"
+      "  deepest-chain=%d/%d"
+      % (root_size, env_int("OCOREAI_AGENTS_MAX_ROOT"), len(guides),
+         env_int("OCOREAI_AGENTS_MAX_CHAIN"), len(chain_guides),
+         deepest_chain, env_int("OCOREAI_AGENTS_MAX_CHAIN")))
+print("  language  english-md=%d (floor %d)  mirror-cjk=%d (floor %d)  diary-excluded=%d"
       % (len(lang_zero), env_int("OCOREAI_FLOOR_LANG_SCANNED"),
          len(CJK_RE.findall(read(MIRROR))) if os.path.exists(MIRROR) else -1,
-         env_int("OCOREAI_FLOOR_ZH_MIRROR_CJK"),
-         ",".join("%s:%d/%d" % (f.split(".")[0], len(CJK_RE.findall(read(f))), c)
-                  for f, c in sorted(DIARY.items()) if f in tracked_md)))
-print("  guides    area=%d (floor %d)  gate-names=%d (floor %d)"
-      % (len(set(AREA_GUIDES)), env_int("OCOREAI_FLOOR_AREA_GUIDES"),
-         len(guide_gates), env_int("OCOREAI_FLOOR_GUIDE_GATES")))
+         env_int("OCOREAI_FLOOR_ZH_MIRROR_CJK"), len(DIARY)))
 print("  scan      gateable-refs=%d (floor %d)  claims=%d/%d ok (floor %d)  suites=%d  routing=%d  upstream-trees=%d"
       % (len(hard_refs), env_int("OCOREAI_AGENTS_FLOOR_REFS"), ok_claims, len(claims),
          env_int("OCOREAI_AGENTS_FLOOR_CLAIMS"), len(suites), len(routing), len(clones)))
-print("  comparators trees=%d (floor %d) diary-silent=%d coupled=%d zero-coupling=%d/%d=%s"
-      % (len(comparators), cmp_floor, len(cmp_silent), len(cmp_coupled), len(cmp_derived),
-         len(stated), sorted(stated) == cmp_derived))
 print("  human     router-routes=%d (floor %d)  public-paths=%d  README tables=%s"
       % (len(router_routes), env_int("OCOREAI_README_FLOOR_ROUTES"), len(public_paths),
          ",".join("%d rows" % len({("%s %s" % (m.group(1), m.group(2)))
@@ -1185,8 +878,16 @@ if upstream:
 print("  upstream  %d ref(s) resolved in a dependency checkout or ~/references "
           "(line numbers inside them are what `make anchor-check` verifies): %s"
           % (len(upstream), ", ".join(sorted(set(upstream))[:6])))
-for w in warn:
-    print("  ⚠ %s" % w)
+if warn:
+    # Signals print one line per check, not one paragraph per finding: a wall of advisories is how
+    # gate fatigue starts, and nobody re-runs a gate they learned to skim. Nothing in this block
+    # means a user or a caller is acting on something false — that is what the violation list is for.
+    grouped = {}
+    for w in warn:
+        grouped.setdefault(w.split(" ", 1)[0], []).append(w)
+    print("\n  signals (%d, not blocking)" % len(warn))
+    for key in sorted(grouped):
+        print("   · %s ×%d — %s" % (key, len(grouped[key]), grouped[key][0].split(" ", 1)[1]))
 if fail:
     print("\n❌ %d violation(s):" % len(fail))
     for f in fail:

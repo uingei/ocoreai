@@ -79,7 +79,7 @@ enum V1EndpointCatalog {
         RouteSpec(method: "GET", path: "/v1/tools", note: "Tool registry with JSON schemas"),
         RouteSpec(
             method: "GET", path: "/v1/capabilities",
-            note: "Backend matrix + tokenizer backend + this index"),
+            note: "Backend matrix + tokenizer + instruction budget + this index"),
         RouteSpec(
             method: "GET", path: "/v1/stats", note: "Structured inference counters and gauges"),
         RouteSpec(
