@@ -35,8 +35,8 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 
 ## Adoption — the surface a stranger ranks
 - **A release is a cadence, not a green suite or one tag:** the eight trees a stranger installs each have
-  ≥44 releases with a newest within days; ours is 0 tags and 0 releases. The tag *is* the version, so the
-  number to type is **v0.1.14** (`scripts/version.sh`; a stale number in a doc is an instruction someone
+  ≥44 releases with a newest within days; ours is 0 tags, 0 listed releases. The tag *is* the version, so
+  the number to type is **v0.1.14** (`scripts/version.sh`; a stale number in a doc is an instruction someone
   follows); `Core/UpdateCheck.swift` only *notifies*, and build must not share a job with publish. Ladder and
   arithmetic: `docs/agent/long-horizon-goal.md` § Rung zero.
 - **Agents are a channel they cannot find:** `/v1/capabilities` serves `endpoints[]` and `skills/ocoreai/` is

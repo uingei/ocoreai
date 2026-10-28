@@ -4,6 +4,35 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(14) `/releases/latest` says we ship while the Releases page says we never have** (P1 adoption / symbols `phantom-release-row`, `listed-releases-wording`)
+
+- **What improved.** The adoption figure was re-grepped before being repeated, and it was wrong in a way no
+human sees: `api.github.com` `/releases/latest` still serves `v0.1.13` — published 10-11, asset
+`ocoreai-0.1.13.dmg` at 25 472 769 bytes — while `git tag -l`, `/tags`, `/releases` and the Releases page all
+report nothing and that asset URL answers 404. The endpoint an agent or a comparison script asks first
+therefore describes a shipping product, and the page a person asks describes none. § Adoption now says 0
+*listed* releases, and `docs/agent/open-items.md` carries the measurement with the owner's two ways out:
+delete the orphan object, or land `v0.1.14` so a newest sits within days. This is the sentence § Adoption
+exists to keep honest — a first screen for a repo that ships nothing should not be arguable.
+
+- **What same-session output proves it.** Four probes, one line each: API `latest` returns `tag_name`
+`v0.1.13`, `draft` false, asset size 25 472 769; a HEAD on the download URL ends 404; the Releases page HTML
+contains no `0.1.1x` at all; `/releases` unauthenticated returns an empty list. `scripts/version.sh` still
+answers 0.0.0, so no local build can reproduce the phantom. Root then grew 4 bytes and the figure gate
+demanded the comparator row follow it — 21 438 to 21 442, chain 32 067 to 32 071, headroom 701 to 697 — and
+refused the commit until they did.
+
+- **Which gate goes red if it regresses.** The B2 re-derivation of entry (10), on its first live use and
+against this round's own edits: leaving the row stale produced `…quotes ocoreai root/corpus/chain/pct/headroom as [21438, 46549, 32067, 98, 701]` against `the tree is [21442, 46553, 32071, 98, 697]`, and the open-items insertion that reached 15 648 bytes produced `15648 bytes > per-guide cap 15609`. Reader
+whose action changes: the owner, who now knows the release object stands as a public claim rather than as an
+absence.
+
+- **Honest limits.** Nothing was deleted: removing a published release object is a public, hard-to-undo act
+and belongs to the owner, so this entry only makes the state visible and stops the docs asserting a number a
+popular endpoint contradicts. The rot is GitHub-side — nothing in this tree names `v0.1.13`, `git describe`
+returns nothing, and `scripts/version.sh` answers 0.0.0 for an untagged tree.
+
+
 **10-28(13) The delivery leg could not spawn a Metal compiler, and the annotation said so in four lines** (P1 adoption / symbols `appstore-metal-component`, `metal-path-one-home`)
 
 - **What improved.** `build-appstore` has been red on main since the delivery route was pinned, and until last
