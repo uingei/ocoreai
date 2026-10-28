@@ -4,6 +4,41 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(20) The Metal PATH rung printed only on hosts whose compiler was broken** (P0 CI / symbols `print-metal-bin-inverted-predicate`, `R4b`)
+
+- **What improved.** `print-metal-bin` prints the directory a consumer prepends to PATH so SwiftPM can
+spawn `metal`, and its predicate demanded the status NOT be `ok`: it answered on a host whose toolchain
+was broken and stayed silent on one where the compiler worked. Measured here — the resolver handed it a
+runnable compiler and the line exited 1 with stdout empty. Both consumers read silence as "no
+compiler": `Makefile:104` drops the prefix its own comment calls the difference between unbuildable and
+a green build, and `print-delivery-env` emits no PATH export, so the delivery leg died at
+CompileMetalFile with `unable to spawn process 'metal'`. On this host the gap was invisible because
+`/usr/bin/metal` resolves anyway; on a runner it is fatal. Two dead rungs of the same ladder go with it
+— the component ask tested `<search-path>/usr/bin/metal` while the compiler sits at
+`<search-path>/Metal.xctoolchain/usr/bin/metal`, so the ask could never validate, and the mount is
+attached on demand, so the resolver now asks through any Xcode the box names and re-globs twice before
+it gives up. This is a path to a compiler, not a toolchain swap: the delivery route stays CLT.
+
+- **What same-session output proves it.** One command, two routes, before and after: under
+`DEVELOPER_DIR=/Library/Developer/CommandLineTools` it printed nothing and exited 1; it now prints
+`…MetalToolchain-v27.1.266.1.HjWWNl/Metal.xctoolchain/usr/bin` and exits 0, with the Xcode route
+unchanged. `print-delivery-env` emits its PATH export under both host contexts (counted 1 each). The
+runner said the same thing pre-fix in its own words: `metal=ABSENT` in the leg's notice, a resolvable
+directory from the same resolver one second later, `unable to spawn process 'metal'` at the build.
+
+- **Which gate goes red if it regresses.** New R4b in `scripts/toolchain-contract.sh`: where the
+resolver finds a compiler, `print-metal-bin` must print a directory holding a runnable `metal` and exit
+0; where none resolves, the half reports itself skipped rather than passing. Sampled red by putting the
+old predicate back — it printed `rc=1 stdout=[]` beside the directory the resolver saw. Reader whose
+action changes: whoever runs `make test-clt` or `make release` and was being told, by a silent printer,
+that the host has no shader compiler.
+
+- **Honest limits.** The delivery leg's runner verdict is still ahead of this entry — that leg is the
+only place a CLT-route `.metal` rebuild is judged for real. The late-mount explanation stays inference:
+a later look finding what an earlier one missed fits cryptexd attaching the asset, and fits nothing
+else measured. R4b judges the printer, not the resolver, so a resolver pointing at the wrong directory
+would still pass it.
+
 **10-28(19) The delivery leg names the Metal rung it lacks instead of dying inside llbuild** (P1 CI / symbols `appstore-metal-preflight`)
 
 - **What improved.** The leg installs the Metal Toolchain component, that step goes green, and the build
