@@ -536,11 +536,17 @@ jobs:
           # uploads.github.com — NOT the ArtifactService twirp API that killed
           # v0.1.12 attempts 1+2. Failure recovery is state-probed, never
           # exit-code-trusted (v0.1.9 run 38052349970 lesson).
+          # Provenance is upstream's answer, not a local invention: codex creates its release with
+          # --verify-tag (.github/workflows/rusty-v8-release.yml:480), which refuses a release whose
+          # tag does not exist. `--target main` named a moving branch where the tag names a commit,
+          # so the artefact's provenance was a branch a stranger could not resolve to what they
+          # downloaded; with --verify-tag the tag is the target and a missing tag is a red, not a
+          # tag invented at whatever main happens to be tip.
           gh release view "v${VER}" >/dev/null 2>&1 \
             || gh release create "v${VER}" \
                  --title "ocoreai v${VER} (macOS)" \
                  --notes "${NOTE}" \
-                 --target main
+                 --verify-tag
           if ! gh release view "v${VER}" --json assets -q '.assets[].name' | grep -q "ocoreai-${VER}.dmg"; then
             UPLOADED=""
             for i in 1 2 3; do

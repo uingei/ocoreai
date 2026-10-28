@@ -1,13 +1,37 @@
 # Changelog
 
-The engineering diary of **ocoreai** — one dated round per entry, newest first, each answering three
-questions: what improved, what same-session output proves it, and which gate goes red if it regresses
-(contract: `CONTRIBUTING.md`). It is deliberately not a Keep-a-Changelog release-notes file — there are no
-`Added`/`Changed`/`Fixed` sections here — so someone deciding what to install reads the newest release
-note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
-heading are when the work landed (measured from git).
+The engineering diary of **ocoreai** — one dated round per entry, newest first, each answering three questions: what
+improved, what same-session output proves it, and which gate goes red if it regresses (contract: `CONTRIBUTING.md`).
+It is deliberately not a Keep-a-Changelog release-notes file — there are no `Added`/`Changed`/`Fixed` sections here —
+so someone deciding what to install reads the newest release note and `README.md`; a `## <dates>` section below
+groups the rounds of an older period, and dates on a heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
+
+**10-29(27) The published release named a branch where it had to name a commit** (P1 release / symbols `release-verify-tag`)
+
+- **What improved.** The publish step created the release with `gh release create "v$VER" … --target
+main`, so the artefact's provenance was recorded as a branch — the Release page for a frozen DMG
+pointed at whatever `main` meant that day, and (gh's documented behaviour, not sampled here) a run
+without the tag would create one at whatever main was tip, attaching a build to a commit that never
+produced it. Upstream already answers this: codex creates its release with `--verify-tag`
+(`.github/workflows/rusty-v8-release.yml:480`), which refuses a release whose tag does not exist.
+So `--target main` is gone and `--verify-tag` is in: the tag is the target, and a missing tag is a
+red step rather than an invented tag. Nothing local was invented for this, which is the point of
+reading the trees before writing.
+
+- **What same-session output proves it.** The flag pair read in upstream's own step and the diff in
+ours: the release command no longer accepts a moving reference. What it does *not* prove is the
+publish itself — the job runs on a tag, and 0 tags exist, so the first v0.1.14 is its first sample.
+
+- **Which gate goes red if it regresses.** The release job is the gate and it is the only seat; it
+already refuses a release whose asset is absent (state-probed twice, then `::error::`) and read-back
+verifies the published asset's sha256 against the local build. Reader whose action changes: anyone
+mapping a downloaded DMG to the source that made it — the release now names a commit, and the
+read-back line already names the bytes.
+
+- **Honest limits.** `--verify-tag`'s refusal path is gh's documented semantics, not a red observed
+on this tree, and no claim is made here about the DMG building: that verdict belongs to a tag run.
 
 **10-29(26) The diary stopped claiming a convention it does not keep, and its own ordering was repaired** (P2 docs / symbols `changelog-diary-shape`)
 
