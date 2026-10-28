@@ -604,9 +604,30 @@ jobs:
             exit 1
           fi
           eval "$ROUTE"
-          # The route owns the PATH rung (one home); this only says whether it landed on a real
-          # compiler, so a repeat of the 10-28 red names itself instead of becoming a compiler error.
-          echo "   route: DEVELOPER_DIR=$DEVELOPER_DIR SDKROOT=$SDKROOT metal=$(command -v metal || echo ABSENT)"
+          # The route owns the PATH rung (one home); this asks whether it landed on a real compiler, and
+          # says so in the one place readable without a token. Cmlx compiles `.metal` sources, so no
+          # compiler means no build: finding that out in the first second beats finding it out at
+          # CompileMetalFile, and beats a bare `unable to spawn process 'metal'` outright — the three
+          # probes below distinguish the component never installing, installing where the resolver does
+          # not look, and installing without cryptexd mounting it. Measured 10-28: the download step went
+          # green and the build still died on that line, so which of the three it is has to be printed.
+          METAL_WHERE="$(command -v metal || true)"
+          echo "::notice::delivery route: DEVELOPER_DIR=${DEVELOPER_DIR:-unset} SDKROOT=${SDKROOT:-unset} metal=${METAL_WHERE:-ABSENT}"
+          if [ -z "$METAL_WHERE" ]; then
+            COMP="$(xcodebuild -showComponent MetalToolchain 2>&1 | tr '\n' ' ' || true)"
+            CRYPTEX="$(ls -d /private/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v*/Metal.xctoolchain 2>/dev/null | tr '\n' ' ' || true)"
+            RESOLVED="$(bash scripts/toolchain-contract.sh print-metal-bin 2>&1 | tail -1 || true)"
+            {
+              echo "::error::no metal on PATH — the delivery route exports a PATH rung only when its resolver finds one"
+              echo "::error::component: ${COMP:-xcodebuild -showComponent answered nothing}"
+              echo "::error::cryptex mount: ${CRYPTEX:-no com.apple.MobileAsset.MetalToolchain mount listed}"
+              echo "::error::resolver print-metal-bin: ${RESOLVED:-empty — add the rung this runner needs to cryptex_metal_bin}"
+            }
+            { echo "### delivery route has no Metal compiler"; echo '```'
+              echo "metal=ABSENT"; echo "component=${COMP:-none}"; echo "cryptex=${CRYPTEX:-none}"
+              echo "resolver=${RESOLVED:-empty}"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
           if ! { swift build -c release --traits appStore $OCOREAI_DELIVERY_FLAGS \
                  && bash scripts/release-artifact-check.sh delivery .build/release/ocoreai ; } \
                > appstore-delivery.log 2>&1; then

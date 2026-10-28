@@ -4,6 +4,32 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(19) The delivery leg names the Metal rung it lacks instead of dying inside llbuild** (P1 CI / symbols `appstore-metal-preflight`)
+
+- **What improved.** The leg installs the Metal Toolchain component, that step goes green, and the build
+still dies at `CompileMetalFile` with `unable to spawn process 'metal'`. The route is the CLT route on
+purpose — an SDK-27 route compiles the CoreAI blocks into the shipped binary — so the only compiler
+SwiftPM can spawn is the cryptex mount the resolver knows. The leg now asks four things in its first
+second, in public annotations: is `metal` on PATH, what does `xcodebuild -showComponent` report, is a
+cryptexd mount listed, what did `print-metal-bin` answer. Then it stops, instead of spending another
+147 s of an arm64 seat to reach the same sentence.
+
+- **What same-session output proves it.** Today's red, read through the public endpoints: on `3110883`
+the step list says Install=success and Build=failure, and the annotations say `unable to spawn process
+'metal'` with two CompileMetalFile lines and exit 65. Both branches of the new block were dry-run from
+the workflow's own extracted step against the real tools: with the resolver answer forced empty it
+printed the four lines, wrote the summary block and exited 1 without reaching the build; with `metal`
+reachable it printed one notice and fell through.
+
+- **Which gate goes red if it regresses.** No new gate — this leg was already red, and its red now
+carries the cause. Reader whose action changes: whoever reads this leg and used to see `exit 65` alone,
+and now learns without a token whether the component never installed or installed where nothing looks.
+
+- **Honest limits.** The leg stays red until a runner says which of the three it is: hosted images may
+serve the component into a mount the resolver's ladder does not name, and the fix belongs in
+`cryptex_metal_bin` once a push says where. Nothing here proves a runner can download the component —
+its green install step is the only evidence, and today it bought no compiler.
+
 **10-28(18) A push to main supersedes the push before it, because five runs in flight bought nothing** (P1 CI / symbols `concurrency-supersede-main`)
 
 - **What improved.** The `concurrency.group` expression here carried codex's `main`-only run-id suffix, so
