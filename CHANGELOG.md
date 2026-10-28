@@ -4,6 +4,32 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(16) One request in the live harness carried no deadline, and it ate the authority leg's verdict six times** (P1 CI / symbols `probe-37-sse-deadline`, `Class-L`)
+
+- **What improved.** Every request the live probes make goes through `probe_api`, whose argv sets `-m`,
+except the streaming request in `scripts/probes/37-scripted-engine-wire.sh:87`: a stream the server never
+closes had no bound at all, and that request sits in the one CI step that runs live probes on every push. It
+now carries the knob the helper already uses (`OCOREAI_PROBE_CURL_TIMEOUT`, default 180 s), so a stalled
+stream ends as a partial body and a named failure instead of as silence.
+
+- **What same-session output proves it.** Each of the six pushes that start the streak concludes
+`Build & Test (macos-26)` = `cancelled` at the job's own 60-minute limit, and the step timings point one
+place: build 657-931 s, xctest 100-132 s, headless-serve smoke 2545-2850 s — against under 20 s for that
+step on the last green run of the same leg. About 4.4 arm64-hours parked with no verdict on the leg
+`AGENTS.md` names the authority. Locally the same probe answers in 2 s with the deadline in place.
+
+- **Which gate goes red if it regresses.** New Class-L in `scripts/audit.swift_patterns.sh:627`: every
+`curl` call site under `scripts/probes` carries `-m`/`--max-time` or is the argv-built helper, whose argv
+the class re-measures so the exemption cannot outlive the flag; it floors itself at 30 sites and counts 38
+today. Sampled red by deleting the flag from the fixed line, which printed `1 request(s) with no deadline`
+naming `37-scripted-engine-wire.sh:87`, and Clean on restore. Reader whose action changes: whoever waits on
+this leg to tag a release and needs minutes, not hours, to learn the harness stalled.
+
+- **Honest limits.** A runner log needs a token, so "the stream stalled" remains inference — it is the only
+unbounded request in that step's path, and probes 37 and 38 are what CI reaches. Entry (17) removes the
+guesswork: the step now bounds itself, so a stall names itself instead of arriving as a 60-minute
+cancellation.
+
 **10-28(15) The skill's trackedness clause resolves cites against the harness root, not the caller's cwd** (P1 probes / symbols `probe-39-cite-resolution`, `PROBE_REPO_ROOT`)
 
 - **What improved.** §0 of the skill-contract probe asks git whether each path the published skill points a

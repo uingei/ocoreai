@@ -80,8 +80,12 @@ else
   probe_ok "scripted-model absent from /v1/models — resolvable while a script is loaded, never offered"
 fi
 
-# 4 — the SSE stream, frame by frame.
-STREAM="$(curl -sN -X POST "$PROBE_BASE/v1/chat/completions" -H 'Content-Type: application/json' \
+# 4 — the SSE stream, frame by frame. -m is not decoration: this is the one request here that does
+# not go through probe_api, so a stream the server never closes has no other bound. Measured 10-28:
+# a stalled stream parked the arm64 authority leg until the 60-min job timeout on six consecutive
+# pushes, so each of those runs reported `cancelled` instead of a verdict.
+STREAM="$(curl -sSN -m "${OCOREAI_PROBE_CURL_TIMEOUT:-180}" -X POST "$PROBE_BASE/v1/chat/completions" \
+  -H 'Content-Type: application/json' \
   -d '{"model":"scripted-model","stream":true,"messages":[{"role":"user","content":"hi"}]}')"
 FRAMES="$(printf '%s' "$STREAM" | grep -c '^data: ')"
 probe_require_int "SSE frame count" "$FRAMES"

@@ -623,6 +623,49 @@ fi
 
 echo ""
 echo "=========================================="
+
+# --- Class-L: a request in the live harness carries a deadline ---
+# Its own red, measured 10-28: the headless-serve smoke step parked the macos-26 authority leg for
+# 42-47 min on six consecutive pushes, and the leg's only verdict was `cancelled` at the 60-min job
+# timeout. Every request under scripts/probes goes through probe_api, whose argv sets `-m`, except
+# one streaming request that set none — and a stream the server never closes has no other bound.
+# The rule this class keeps: a call site either carries `-m`/`--max-time` on its own line or is the
+# argv-built helper, whose argv is re-measured here so the exemption cannot outlive the flag.
+# Reader whose action changes: whoever waits on the leg that gates a tag and needs to tell "the
+# harness stalled" from "the code regressed" in minutes instead of hours.
+echo ""
+echo "[Class-L: live-harness requests carry a deadline]"
+L_MIN_CALLS=30
+L_DIR="$ROOT/scripts/probes"
+if [ ! -d "$L_DIR" ]; then
+    echo "  X $L_DIR absent - the scan cannot see its own subject"
+    FAIL=1
+elif ! grep -qE 'args=\(-sS -m ' "$L_DIR/_lib.sh" 2>/dev/null; then
+    echo "  X probe_api no longer builds -m into its argv - the helper exemption below would excuse an unbounded request"
+    FAIL=1
+else
+    # A `curl` in a comment or inside a failure message is prose, not a request: a call site is a
+    # curl whose next token is a flag or an argv array. The count is floored so a scan that stopped
+    # matching reports itself rather than reporting Clean.
+    L_CALLS=$(grep -rnE '(^|[^A-Za-z0-9_.])curl (-|")' "$L_DIR" --include='*.sh' \
+        | grep -vE ':[0-9]+: *#' || true)
+    L_TOTAL=$(printf '%s\n' "$L_CALLS" | grep -c . || true)
+    echo "  scan: $L_TOTAL curl call site(s) under scripts/probes, floor $L_MIN_CALLS"
+    if [ "$L_TOTAL" -lt "$L_MIN_CALLS" ]; then
+        echo "    scan premise unmet: the harness moved or the pattern stopped matching - a thin scan proves nothing"
+        FAIL=1
+    fi
+    L_BAD=$(printf '%s\n' "$L_CALLS" | grep -vE -- '-m |--max-time' | grep -vF 'curl "${args[@]}"' || true)
+    L_COUNT=$(printf '%s\n' "$L_BAD" | grep -c . || true)
+    if [ "$L_COUNT" -gt 0 ]; then
+        printf '%s\n' "$L_BAD" | head -10 | sed 's/^/     /'
+        echo "  X $L_COUNT request(s) with no deadline - one stalled stream eats the leg's verdict"
+        FAIL=1
+    else
+        echo "  Clean ($L_TOTAL site(s) bounded, helper argv measured)"
+    fi
+fi
+
 if [ "$FAIL" -eq 0 ]; then
     echo "✅ All audits passed"
     exit 0
