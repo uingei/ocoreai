@@ -48,8 +48,8 @@ HB_FLAG="${TMPDIR:-/tmp}/ocoreai-probe-hb-$NO.flag"
     hb_waited=$(( hb_waited + 1 ))
     [ -s "$HB_FLAG" ] && break
     if [ $(( hb_waited % HB_EVERY )) -eq 0 ] && [ -s "$LOG" ]; then
-      last="$(tail -1 "$LOG" | tr -d '\r\n' | cut -c1-140)"
-      echo "::notice::probe $NO alive +${hb_waited}s in: $last"
+      last="$(tail -2 "$LOG" | tr '\r\n' ' ' | cut -c1-150)"
+      echo "::notice::probe $NO alive +${hb_waited}s after: $last"
     fi
   done
 ) &

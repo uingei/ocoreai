@@ -459,11 +459,18 @@ probe_require_clean_dependency_checkout() {
 # with the remedy — when the engine cannot come up.
 probe_boot() {
   local bin
+  probe_note "boot: resolving the binary under test"
   if ! bin="$(probe_resolve_binary)"; then
     probe_fail "no ocoreai binary found — build first (swift build, or the CLT route in Makefile)"
     probe_summary "${PROBE_NAME:-probe}"
   fi
-  probe_require_clean_dependency_checkout "$(probe_scratch_for_binary "$bin")"
+  # Phase notes, because on 10-28 a probe stalled for minutes inside these three calls and the
+  # probe log's last line was still the one before boot — the stall had no name. A note per call
+  # costs two lines per boot and turns "the step timed out" into "it was inside X".
+  local boot_scratch
+  boot_scratch="$(probe_scratch_for_binary "$bin")"
+  probe_require_clean_dependency_checkout "$boot_scratch"
+  probe_note "boot premise checked (scratch=${boot_scratch:-none}) — reaping stale instances"
   probe_reap_stale_instances
   probe_note "binary $bin"
 
@@ -527,6 +534,14 @@ probe_boot() {
       fi
       local code
       code="$(curl -sS -m 3 -o /dev/null -w '%{http_code}' "$PROBE_BASE/health" 2>/dev/null || echo 000)"
+      # Once at the 20 s mark, print what the server said instead of silence: on 10-29 a CI boot
+      # waited out its whole budget with nothing in either log, so the waiter and the served both
+      # stayed mute and the step's timeout was the only sentence anyone got.
+      if [ "$waited" -ge 20 ] && [ -z "${ready_shown:-}" ]; then
+        ready_shown=1
+        probe_note "still waiting at ${waited}s (last code $code) — server log so far:"
+        tail -5 "$PROBE_LOG" 2>/dev/null | sed 's/^/        /'
+      fi
       if [ "$code" = "200" ]; then
         probe_ok "/health 200 after ${waited}s"
         return 0

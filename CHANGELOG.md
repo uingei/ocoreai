@@ -9,6 +9,34 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(33) The split leg answered on its first run: serve is green, probe 37 stalls in `probe_boot`** (P1 CI / symbols `probe_boot-phase-notes`, `ci-step-heartbeat`)
+
+- **What improved.** The split paid for itself on one run. The commit that had carried a single 607 s
+"timed out" annotation now reports: headless serve ✅, `Wire probe 37` ❌ at 193 s (killed on its own 180 s
+bound), probes 38/39 skipped. The heartbeat pinned the boundary — the probe log's last line sat frozen at
+"NOTE script …/ocoreai-script-XXXXXX.niZW2NiDUe.json — 2 segments, 1 tool call" from +30 s to +150 s, and
+the statement after that note is `probe_boot`, so the wait was inside its first three calls, before any of
+them printed. Two more notes and one tail now sit exactly there: `probe_boot` prints which phase it is in
+(with the resolved scratch path, the value that decides which premise branch runs), and the readiness loop
+prints the server log's tail once at 20 s — because in this run both the waiter and the served process
+stayed silent for the whole window, and a silent waiter is the failure mode this repo already named twice.
+
+- **What same-session output proves it.** Run 40751610289 annotations, read with no token: five heartbeats
+carrying the identical last line (+30/+60/+90/+120/+150 s), "timed out after 3 minutes", and beside them
+"swift-testing verdict: ✔ 3210 tests in 567 suites passed after 111.063 s" — so the suite and the serve
+contract were green on that runner while the probe never reached its first bridge note. Locally after the
+change: the notes print in order (`resolving` → `boot premise checked (scratch=…/.build)` → `binary …` →
+`bridge …`), probe 37 passes 20/20 in ~2 s with a 41 ms turn.
+
+- **Which gate goes red if it regresses.** The 180 s step bound is that gate, and it went red — usefully this
+time, naming the probe instead of the step. Nothing new was added as a gate: notes and heartbeats print
+measured lines and judge nothing, and the tag stays blocked by this leg exactly as § Open now says.
+
+- **Honest limits.** A phase note names the call entered, not the await inside it, and the 20 s server-log
+tail only helps if the server wrote anything at all. A local pass rules out the probe's own logic and the
+checkpoint theory (killed in 10-29(29)); it does not prove the runner innocent of anything specific — it
+narrows the search to what only a runner has.
+
 **10-29(32) The first-screen row we call unpaid carried two numbers that had already moved** (P2 docs / symbols `first-screen-row`)
 
 - **What improved.** The ladder's cheapest-to-pay sentence said watchers **0** and that "the leader ships one"

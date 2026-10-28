@@ -147,8 +147,8 @@ verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name bel
 - **The board scores 6 of the 40 advertised tools; full-surface is `OCOREAI_EVAL_TOOLS=all`** (scripts/eval/)
   — every row prices its `tools[]` bytes; judging the two surfaces waits on the owner.
 - **The tool surface is still ungated against the loaded model** (UI/, Engine/) — owner call; `reasoning_effort`'s gate (`ReasoningEffortHonestyTests`(9) + probe 38) is the pattern to extend.
-- **The macos-26 leg went red on a step timeout, not tests** (CI/) — 3 210 tests pass in 102 s, but the
-  smoke step ate its own 600 s bound and named nothing; split per probe, `scripts/ci-status.sh`.
+- **Probe 37 stalls in `probe_boot` on the runner; serve-smoke and 3 210 tests pass there** (CI/) — locally
+  2 s. Boot phase-notes name the call next push; a tag waits on this leg (`scripts/ci-status.sh`).
 - **A corpus costs injection; the tail is disclosed, not gated** — injected bytes cost a 2B checkpoint
   double-digit pp; the fall-off is named to the model and on `/v1/capabilities` (`make docs-check` prints
   `deepest-chain=`). Owner: gate by capacity — cites: `docs/agent/open-items.md`.
