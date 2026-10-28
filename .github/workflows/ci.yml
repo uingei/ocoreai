@@ -300,24 +300,42 @@ jobs:
           [ "$RC" -eq 0 ] || { echo "❌ SIGTERM exit code $RC (expected 0)"; exit 1; }
           echo "✅ headless serve: bound → SIGTERM → exit 0, drain complete"
 
-          # Same binary, nothing resident: probe 37 replays a script through the real handlers and
-          # decides wire-contract claims (SSE framing, tool-call assembly, `usage`, the
-          # `engineBackend` honesty field) in seconds, with no Metal load and no download. It runs
-          # inside this step instead of opening a new leg because a gate that nobody watches go red
-          # is decoration — CI is the only seat that runs on every push, and the scripted engine is
-          # what finally makes the live tier affordable enough to sit here.
-          OCOREAI_BIN="$BIN" bash scripts/probes/run.sh 37
-          # Probe 38's §1 is the same affordance pointed at a capability claim: an unmeasured
-          # checkpoint must never be refused for `reasoning_effort`, and `/v1/models` must publish
-          # `not_observed` instead of silence. §2 needs a checkpoint and prints its own skip note
-          # on a runner that has none, so nothing here pretends the measured half ran.
-          OCOREAI_BIN="$BIN" bash scripts/probes/run.sh 38
-          # Probe 39 executes skills/ocoreai/SKILL.md — the artefact another harness reads to drive /v1 —
-          # marker by marker against this same binary. §1/§1b need no weights (contract + key boundary);
-          # §2 runs the measured lane only when the runner has a checkpoint, and prints its reason when it
-          # does not, so the published skill cannot drift from the served wire without a red on every push.
-          OCOREAI_BIN="$BIN" bash scripts/probes/run.sh 39
+          # Same binary, nothing resident. Three contract tiers, none of which needs weights:
+          #   37 — the scripted engine through the real handlers: SSE framing, tool-call assembly,
+          #        `usage`, the `engineBackend` honesty field.
+          #   38 — §1: an unmeasured checkpoint is never refused for `reasoning_effort`, and
+          #        `/v1/models` publishes `not_observed` instead of silence. §2 needs a checkpoint and
+          #        prints its own skip note on a host that has none.
+          #   39 — executes skills/ocoreai/SKILL.md, the artefact another harness reads to drive /v1,
+          #        marker by marker, so the published skill cannot drift from the served wire.
+          # They sit in this step instead of opening a leg because a gate nobody watches goes red is
+          # decoration, and CI is the only seat that runs on every push.
+          #
+          # Bounded, and loud about the bound. The readiness wait runs per boot attempt and a probe may
+          # boot three times, so at the 240 s default three probes can cost ~36 minutes: measured 10-28,
+          # that is what this step spent (2545-2831 s, on eight pushes) before the job's own 60-minute
+          # limit cancelled the authority leg — and a cancelled leg prints its reason nowhere. 75 s per
+          # boot is about 25x what these probes take on a host where the server binds. A failure now
+          # publishes the probe's own words as annotations and in the step summary, because a red that
+          # needs a token to read is a rumour, and the reader whose action changes is whoever waits on
+          # this leg to tag: one minute, and they know whether the wire broke or the runner could not
+          # boot a server.
+          export OCOREAI_READY_TIMEOUT=75
+          SMOKE_RC=0
+          for PROBE_NO in 37 38 39; do
+            if OCOREAI_BIN="$BIN" bash scripts/probes/run.sh "$PROBE_NO" > "probe-$PROBE_NO.log" 2>&1; then
+              grep -E "passed,|✘" "probe-$PROBE_NO.log" | tail -2
+            else
+              SMOKE_RC=1
+              echo "::error::probe $PROBE_NO failed (readiness window 75 s per boot attempt) — log tail:"
+              tail -20 "probe-$PROBE_NO.log" | sed 's/^/::error::  /'
+              { echo "### probe $PROBE_NO failed"; echo '```'
+                grep -E "FAIL|NOTE  bridge|server exited|refusing to start|never answered|Fatal error" \
+                  "probe-$PROBE_NO.log" | tail -20; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
           kill -TERM $SPID 2>/dev/null || true
+          [ "$SMOKE_RC" -eq 0 ] || exit 1
 
       # ── Release build via xcodebuild ──
       - name: Build (xcodebuild, Release)

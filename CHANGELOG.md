@@ -4,6 +4,31 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(21) The live probes' readiness window was the authority leg's 47-minute hole** (P1 CI / symbols `probe-readiness-window`)
+
+- **What improved.** The smoke step ran three live probes under the harness default: 240 s of
+readiness per boot attempt, three boot attempts per probe. A runner that cannot bring a server up
+therefore paid up to ~36 minutes of silence per push before anything said so. The step now asks for
+75 s per boot, runs the three tiers one at a time so the log says which one stopped, and on a failure
+publishes the probe's own log tail as `::error::` annotations plus a step-summary block.
+
+- **What same-session output proves it.** The step's own timings: five runs today measured it at
+2545-2850 s, with the legs ahead of it finishing in 657-940 s (build) and 100-132 s (xctest), against
+under 20 s for the same step on the last green run of that leg. Every one of those runs ended
+`cancelled` at the job's 60-minute limit, which is the verdict a step with no bound and no output
+buys. 3 probes x 3 attempts x 240 s is the same order of magnitude as the measurement.
+
+- **Which gate goes red if it regresses.** No new gate — the window is the bound and its red is
+today's cancelled legs. What was missing was legibility, and that is now the same trick entry (19)
+uses on the other leg: the probe's words reach `/check-runs/{id}/annotations`, which needs no token.
+Reader whose action changes: whoever waits on this leg to tag — a minute to "probe 38 could not boot
+a server" beats an hour to a wordless cancellation.
+
+- **Honest limits.** This makes the hole loud and short, not green. If a runner really cannot boot a
+probe's server, the next push says so inside a minute and the step fails for a stated reason instead
+of being cancelled for none — and whether the probes boot on a runner is still unmeasured, since
+locally they pass in 2 s, 11 s and 25 s.
+
 **10-28(20) The delivery route never asked cryptexd to mount the Metal toolchain, so it shipped no compiler** (P0 CI / symbols `cryptex-ask-first-ladder`, `metal-toolchain-mount`)
 
 - **What improved.** `cryptex_metal_bin` had two dead rungs and no way to make the mount appear. The
