@@ -161,8 +161,10 @@ else
   while IFS= read -r cited; do
     [ -n "$cited" ] || continue
     # Cites arrive repo-relative (`skills/ocoreai/references/wire.md`) or skill-relative
-    # (`references/wire.md`); resolve both, then ask git whether the path it names is shipped.
-    for candidate in "$cited" "$SKILL_DIR/$cited"; do
+    # (`references/wire.md`). Both resolve against the root the harness found, never against the
+    # caller's cwd: `run.sh` cds into scripts/probes, so a repo-relative cite matched nothing from
+    # there and §0's floor went red for a path bug rather than for a file a clone never got.
+    for candidate in "$PROBE_REPO_ROOT/$cited" "$SKILL_DIR/$cited"; do
       [ -f "$candidate" ] || continue
       rel="${candidate#"$PROBE_REPO_ROOT"/}"
       CITED=$((CITED + 1))

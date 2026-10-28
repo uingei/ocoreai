@@ -4,6 +4,28 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(15) The skill's trackedness clause resolves cites against the harness root, not the caller's cwd** (P1 probes / symbols `probe-39-cite-resolution`, `PROBE_REPO_ROOT`)
+
+- **What improved.** §0 of the skill-contract probe asks git whether each path the published skill points a
+harness at is actually shipped, and it resolved repo-relative cites against the *process* cwd.
+`scripts/probes/run.sh` cds into `scripts/probes`, so from the one seat that runs on every push none of those
+cites resolved, §0 scanned an empty set, and its own floor went red: a path bug read as a missing-file alarm.
+`scripts/probes/39-skill-contract-exec.sh:167` now resolves against the root the harness found and against
+the skill directory, which is what the two cite forms mean.
+
+- **What same-session output proves it.** One command, two invocations, before the change: through
+`run.sh 39` it printed `only 0 cite(s) scanned in the skill (floor 3)` in 3 of 3 runs, while the same probe
+invoked from the repo root passed — which is exactly how it survived landing. After: through the same
+`run.sh 39` it prints `7 cited file(s) all tracked by git`, 31 passed, 0 failed.
+
+- **Which gate goes red if it regresses.** §0's own floor (3) is the gate, and it is the reason the bug is
+visible at all: it refused to let a trackedness verdict pass over an empty set. Reader whose action changes:
+whoever runs `make probes` or reads the CI smoke step, who would otherwise chase a cite that was never
+missing from the clone.
+
+- **Honest limits.** The clause still sees only backticked paths, and probe 39 has never reached a runner —
+the smoke step that calls it hangs upstream of it, entry (16). The 0-to-7 pair is measured on this host.
+
 **10-28(14) `/releases/latest` says we ship while the Releases page says we never have** (P1 adoption / symbols `phantom-release-row`, `listed-releases-wording`)
 
 - **What improved.** The adoption figure was re-grepped before being repeated, and it was wrong in a way no
