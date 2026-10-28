@@ -560,10 +560,28 @@ jobs:
       # `swift build` alone could not see it, because on that host the member exists. The route comes
       # from scripts/toolchain-contract.sh (one home) and the verdict comes from the artefact.
       # No metallib is needed at build time (MLX resolves it at runtime — see scripts/build-app.sh).
+      # A *compiler* is needed at build time, though, and that was the leg's first runner red:
+      # `error: unable to spawn process 'metal'` while llbuild ran CompileMetalFile on
+      # .build/checkouts/mlx-swift/Source/Cmlx/mlx-generated/metal/steel/attn/kernels/steel_attention.metal.
+      # The delivery route is the CLT route on purpose (an SDK-27 route would compile the CoreAI blocks),
+      # and the CLT carries no Metal compiler — hosted images ship the component separately, which is
+      # also why the xcode-27 cell above installs it and why `make test-clt` prepends the same dir.
+      - name: Install MetalToolchain (the CLT route has no metal compiler)
+        run: |
+          set -euo pipefail
+          xcodebuild -downloadComponent MetalToolchain
+
       - name: Build + judge the delivery shape (release, --traits appStore)
         run: |
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
+          # Spawnable `metal`, from the resolver that already owns the answer (print-metal-bin):
+          # the component lands in a cryptex mount, so it is not on PATH by name. Same one-line
+          # contract `make test-clt` uses (Makefile's METAL_PATH_EXPORT), read BEFORE the route is
+          # evaluated — the route deliberately points DEVELOPER_DIR at the CLT.
+          METAL_BIN="$(bash scripts/toolchain-contract.sh print-metal-bin 2>/dev/null || true)"
+          [ -n "$METAL_BIN" ] && export PATH="$METAL_BIN:$PATH"
+          echo "   metal: ${METAL_BIN:-none — CompileMetalFile will fail as it did on 10-28}"
           # Failures must be VISIBLE without a token — the same contract build-ios below honours. The
           # resolver's words, the compiler's error lines and the checker's verdict go to
           # $GITHUB_STEP_SUMMARY and ::error:: annotations, which the public check-runs/{id}/annotations

@@ -4,6 +4,37 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(13) The delivery leg could not spawn a Metal compiler, and the annotation said so in four lines** (P1 adoption / symbols `appstore-metal-component`, `metal-path-one-home`)
+
+- **What improved.** `build-appstore` has been red on main since the delivery route was pinned, and until last
+round nobody could say why. The annotations now say it:
+`error: unable to spawn process 'metal' (No such file or directory)` while llbuild ran CompileMetalFile on
+`steel_attention.metal` inside the pinned mlx checkout. The cause is structural, not a flake: the delivery
+route is the CLT route *on purpose* (an SDK-27 route would compile the CoreAI blocks into the shipping
+binary), and the CLT carries no Metal compiler — hosted macOS images ship that component separately. The leg
+installs it, exactly as the xcode-27 cell already does, and prepends the directory the resolver names, which
+is the same one-line contract `make test-clt` honours through `METAL_PATH_EXPORT`. One word of the leg's own
+comment was wrong and is fixed beside it: no metallib is needed at build time, but a *compiler* is.
+
+- **What same-session output proves it.** The red arrived as four annotations with no token — `Build failed`,
+the CompileMetalFile line with its command line, and the spawn error — which is the second time this round
+that a step summary bought a diagnosis instead of a rumour. The workflow still parses to six jobs, and the
+resolver was already proven on this host: `print-metal-bin` answers with the cryptex dir whose `metal`
+compiles a kernel.
+
+- **Which gate goes red if it regresses.** The leg itself: it goes red again with the same three annotations
+if the component or the PATH rung disappears, and it prints
+`metal: none — CompileMetalFile will fail as it did on 10-28` when the resolver has no answer, so a silent
+regression into the old shape still names itself. Reader whose action changes: the owner, who reads this leg
+as the verdict on whether the shipping shape builds.
+
+- **Honest limits.** Unproven until the runner runs it: `xcodebuild -downloadComponent MetalToolchain` is
+executed by the xcode-27 cell today and is documented for Xcode 16+, but this leg asks an Xcode-26 image for
+it — if that image cannot serve the component, the leg stays red and the route needs a different seat, which
+is an owner call. The release leg is untouched: it materializes the metallib through xcodebuild, whose own
+toolchain resolution found `metal` on the 09-27 run, so it never had this failure to fix.
+
+
 **10-28(12) The runner red was a real bug: a toolchain printer wrote its complaint onto the value channel** (P1 correctness / symbols `printer-value-channel`, `R4-printer-contract`)
 
 - **What improved.** Entry (11)'s annotation named `test-clt`, and the cause was two characters wide.
