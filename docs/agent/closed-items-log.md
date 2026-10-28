@@ -3,6 +3,16 @@
 > Material `AGENTS.md` § *Open* used to carry prose for although it was resolved, retracted or
 > judged a phantom gap. An open item is one that can still change a decision; a verdict is
 > history, and history kept in the injected layer costs every session.
+- **The delivery shape's CI verdict — ran, and passed (10-28).** The gap was that no runner had
+  ever built the `--traits appStore` shape: `build-appstore` pinned `print-delivery-env` and judged
+  the artefact, not the runner's SDK, and the CLT route has no `metal` on PATH. Three rounds closed
+  it (CHANGELOG 10-28(20), (22), (23)): the resolver asks cryptexd instead of globbing, the leg
+  reports the resolver's facts instead of probing with a toolchain that cannot answer, and the
+  delivery route now asks its own Metal question under `DEVELOPER_DIR=$CLT_ROOT`. The runner's own
+  line is the verdict: step "Build + judge the delivery shape (release, --traits appStore)"
+  `success`, with the route's notice `metal=/private/var/run/com.apple.security.cryptexd/mnt/…`
+  beside it. What stays open is not this: only the owner can type the tag (§ Adoption).
+
 - **HTTP token-count surface (`/v1/count-tokens` + `/v1/messages/count_tokens`) — shipped and closed.**
   The gap: only `{model,prompt}` decoded, so OpenAI's `input` and Anthropic's `messages`/`system` got 400,
   `/v1/messages/count_tokens` was a plain 404 (every Anthropic SDK pre-flight budget call died), and the
