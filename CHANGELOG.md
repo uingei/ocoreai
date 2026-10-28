@@ -4,6 +4,27 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(17) The step that runs live probes bounds itself, so a stall names itself in minutes** (P1 CI / symbols `smoke-step-deadline`)
+
+- **What improved.** `Headless serve smoke (macos-26)` carried no bound of its own, so anything inside
+it that waits forever waits until the job's 60-minute limit and the leg reports `cancelled`. Entry (16)
+removes the one request that could hang; this caps the step, because "a later probe forgot a deadline"
+and "the checkpoint load was slow" must not both resolve as an hour of silence. The bound is 10 minutes,
+about 5x what the step measurably does, and a step that overruns names itself in the job's step list.
+
+- **What same-session output proves it.** The same six pushes as entry (16): this step 2545-2850 s
+against under 20 s on the last green run, with build and xctest ahead of it finishing in 657-931 s and
+100-132 s. Locally the three probes the step runs answer in 2 s, 11 s and 25 s. The edited workflow
+still parses to the same six jobs, so the change is a bound and not a syntax event.
+
+- **Which gate goes red if it regresses.** No new gate: the bound is the gate, and it was sampled
+against today's six `cancelled` legs rather than written first. Reader whose action changes: whoever is
+waiting on this leg to tag — 10 minutes to "the harness stalled in step 7" beats 60 minutes to nothing.
+
+- **Honest limits.** A step timeout still reads `cancelled`, not `failed`; what it buys is the step name
+and the shorter wait, not a different verdict word. The bound is a wall clock, so a runner slow enough
+to need 10 minutes legitimately would now fail where it used to hang — nothing measured is near that.
+
 **10-28(16) One request in the live harness carried no deadline, and it ate the authority leg's verdict six times** (P1 CI / symbols `probe-37-sse-deadline`, `Class-L`)
 
 - **What improved.** Every request the live probes make goes through `probe_api`, whose argv sets `-m`,

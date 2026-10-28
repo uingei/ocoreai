@@ -257,8 +257,15 @@ jobs:
       # HeadlessServer existed) and SIGTERM must exit 0 after draining.
       # Models are lazy — no weights downloaded; full inference E2E is
       # smoke-tested against the release DMG by the maintainer, not here.
+      # Bounded on purpose. Measured 10-28: this step ran 2545-2850 s on six consecutive pushes
+      # (under 20 s on the last green run of the same leg), and the leg's only verdict was
+      # `cancelled` at the job's own 60-minute limit — a step that overruns decides the job's
+      # verdict by timing out. 10 min is about 5x the measured cost of what runs here (three
+      # live probes plus boot and drain), and a step that times out names itself in the job's
+      # step list, which is the diagnosis a job-level timeout never gives.
       - name: Headless serve smoke (macos-26)
         if: ${{ matrix.os == 'macos-26' }}
+        timeout-minutes: 10
         run: |
           set -euo pipefail
           BIN=$(find ~/Library/Developer/Xcode/DerivedData -name ocoreai -type f -path '*Debug*' 2>/dev/null | head -1)
