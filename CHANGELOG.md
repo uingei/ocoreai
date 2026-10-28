@@ -9,6 +9,94 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(40) The authority leg swallowed a red on every run, and the step that caused it had never delivered anything** (P2 CI / symbols `ci-status.sh`)
+
+- **What improved.** Two steps are gone and the class they belong to is now askable. `Collect artifacts
+(Release)` assigned `DD=~/…/ocoreai-*/Build/Products`, and an assignment does not glob: `find "$DD"`
+received a literal asterisk, `PRODUCT_DIR` came back empty, and the next line's `[ -f
+"$PRODUCT_DIR/ocoreai" ] && cp` is a false test under `set -e` — exit 1 before the step printed a word,
+with `continue-on-error: true` marking it green. Nothing was repaired: the artefact has no consumer
+(`ocoreai-binary-` is named nowhere outside the two steps themselves), so the pair is deleted and the
+Release *build* stays, as compile coverage of the workspace scheme. `scripts/ci-status.sh` gained
+`OCOREAI_CI_REDS=1`, which reads the annotations of every green leg and counts the reds a `continue-on-
+error` swallowed there.
+
+- **What same-session output proves it.** `/actions/runs/{id}/artifacts` answers `total_count: 0` for both
+green main runs (40777938090 = 2c71721, 40763127762 = 6e904aa), so the uploader has never once uploaded.
+And `OCOREAI_CI_REDS=1 bash scripts/ci-status.sh 2c71721` prints `Build & Test (macos-26): 1 swallowed
+red(s) behind a GREEN leg — Process completed with exit code 1`, the same line for `xcode-27`, then
+`swallowed reds on green legs: 2` — the number this round exists to take to 0.
+
+- **Which gate goes red if it regresses.** None added: a counter with no threshold is a measurement, and
+the flag deliberately prints one. What makes it usable is that the number above is a *before* number — the
+next main push printing anything but `0` names the leg whose green verdict is swallowing a red, and `make
+push-ready` already runs the script, so the flag is one env var off the path being walked.
+
+- **Honest limits.** Annotations exist only after a job finishes, and unauthenticated api.github.com is 60
+req/h, so the flag stays a deliberate read and never a hook; it cannot see a swallowed red that printed no
+annotation, and it does not judge whether a `continue-on-error` is earned — the release leg's upload pair
+stays advisory for the recorded ArtifactService timeouts, and the screenshot upload with it.
+**10-29(39) Three docs hedged a premise a runner had already settled, and a version verdict could only catch plumbing** (P2 docs/CI / symbols `package.yml`, `long-horizon-goal.md`)
+
+- **What improved.** The artefact lane's second runner pass came back green end to end, so the sentences
+reading "awaits its first green pass" became the measured list: metallib, DMG, probe 41, window proof. The
+window proof lost its `continue-on-error` because the premise it hedged is measured, not assumed. Probe 41
+joined the `release` leg *before* Publish with the version expectation pinned to the tag — read from
+`version.sh` the verdict compares a build against the script that built it, which catches plumbing and not
+the lie that matters (an artefact naming a version nobody tagged); on a tagless tree the step now prints
+`no tag — plumbing check only` instead of a number that judges nothing. Both probe steps carry their own
+`timeout-minutes`, so a stall names the probe rather than the job.
+
+- - **What same-session output proves it.** Annotations of 2c71721: `probe 41 verdict: artifact-dmg-
+serves: 12 passed, 0 failed, 8 measured, 0 known-open`, `window proof GREEN on this runner — candidate for
+a blocking step`, and from the appStore leg `payload after Building for debugging...` — that truncated
+tail is my own second bug, backticks inside a double-quoted YAML string ran a debug `swift build` and
+printed its first line where a metallib rung was meant to appear. Caught before this push: an orphan `-
+name:` step with no `run` and no `uses`, which parses cleanly and shows only to someone who reads the step
+list; both files are now parsed and walked. The tag-pinned half was tested both ways against a 19-day-old
+artefact: expecting 0.0.0 it prints `11 passed, 1 failed` with `FAIL the artefact reports 0.1.9, not
+0.0.0`, expecting 0.1.9 it prints `12 passed, 0 failed` — the assertion bites one way and passes the
+other, so it is not a constant.
+
+- **Which gate goes red if it regresses.** Probe 41 is a blocking step in both lanes from here, so a DMG
+that will not mount, serve, finish a scripted turn or stop cleanly reds before anything publishes; the
+tag-pinned version verdict is the one assertion that can see an artefact naming a version nobody tagged.
+No gate yet catches a doc calling a lane green that a runner never took green — that remains a reader's
+job.
+
+- **Honest limits.** The release leg's probe-41 step has never run: it is tag-gated, so its first pass is
+the first tag, where a red costs a re-run and publishes nothing. The metallib step measured 777 s and 973
+s on near-identical inputs, so package.yml now restores an SPM cache — whether it bites is the next push's
+number, not this one's. Nothing is notarised, the artefact is ad-hoc signed, and the publish read-back
+loop has never executed either.
+**10-29(38) The orderly-stop noise has one owner, not two — the two-owner theory was tried and refuted** (P3 CI/Engine / symbols `41-artifact-dmg-serves.sh`)
+
+- **What improved.** Probe 41 prints how many `error` lines a clean SIGTERM leaves behind, so the number
+is in the harness rather than in a session's memory, and the comment beside it now records the theory that
+died. The lines are Hummingbird's — `Server shutdown error: Already closed` and `Waiting on child channel:
+CancellationError()`, both at label `HummingbirdCore` — and the reading was that two owners of the stop
+raced: our `stop()` cancels the task holding the listener while ServiceLifecycle's own SIGTERM handler
+quiesces the same channel. The one-line test of that reading is `runService(gracefulShutdownSignals: [])`,
+which leaves the signals unclaimed. Built and run twice: `/health` 200 in 4 s and 2 s, exit 0 both times,
+and 2 error lines every time. The mechanism is narrower than the theory — cancelling the task trips
+upstream's `withGracefulShutdownHandler`, which then finds a channel already gone — and the lever is not
+ours in the pinned Hummingbird: `Application` builds its `Server` inside `run()` and keeps no handle, so a
+graceful stop means re-hosting the server, which is a new core surface for a log line.
+
+- **What same-session output proves it.** The experiment and its numbers are above (exit 0, error-lines=2
+twice with signals unclaimed; 0/1/2 across the runs that came before it), and the count is now printed by
+probe 41 §3 on every artefact verdict — the same build of the same tree read two ways.
+
+- **Which gate goes red if it regresses.** None was added: a counter with no threshold is a measurement,
+and the repo deletes checks whose red changes nobody's action. What does bite stays bitten — probe 41
+still reds on a stop that never comes, a non-zero exit, or a missing completion line. If anyone re-hosts
+the server, the printed count moving to 0 is the visible proof it worked.
+
+- **Honest limits.** In-flight requests are still cut by the cancel rather than drained, and nothing here
+measures that — it would need a slow turn in flight at SIGTERM time, which needs a resident model, which
+is the nightly lane and an owner call, not a log line. The experiment was reverted: unclaimed signals buy
+no observable difference and drop a safety net.
+
 **10-29(37) Three docs that own the adoption ladder were still describing a repo this one stopped being** (P2 docs / symbols `open-items.md`, `adoption-runbook.md`)
 
 - **What improved.** Swept the prose that carries the ladder, not the numbers on it. `open-items.md`

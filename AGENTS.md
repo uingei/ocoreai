@@ -35,13 +35,12 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 
 ## Adoption — the surface a stranger ranks
 - **A release is a cadence, not a green suite or one tag:** the eight installable trees publish 34 → 1 254
-  releases, newest ≤8 d old (`scripts/audit-facts.sh`); ours is 0 tags, 0 listed releases. The tag *is* the version, so
-  the number to type is **v0.1.14** (`scripts/version.sh`; a stale number in a doc is an instruction someone
-  follows); `Core/UpdateCheck.swift` only *notifies*, and build must not share a job with publish. Ladder and
-  arithmetic: `docs/agent/long-horizon-goal.md` § Rung zero.
+  releases, newest ≤8 d old (`scripts/audit-facts.sh`); ours: 0 tags, 0 releases. The tag *is* the version, so
+  the number to type is **v0.1.14**, one past withdrawn 0.1.13 (`scripts/version.sh` reads a tag, so it prints
+  0.0.0 until one exists); a stale number in a doc is an instruction someone follows; `Core/UpdateCheck.swift` only *notifies*, and build/publish must split. Ladder: `long-horizon-goal.md` § Rung zero.
 - **Agents are a channel they cannot find:** `/v1/capabilities` serves `endpoints[]` and `skills/ocoreai/` is
-  published (probe 39 runs its markers); missing here: a published OpenAPI spec and a client — 3 of the 8
-  installable trees have one (10-29). Owner call: a public contract is a promise.
+  published (probe 39 runs its markers); missing: a published OpenAPI spec and a client — 3 of the 8 installable
+  trees have one (10-29). Owner call: a public contract is a promise.
 - **Intake is a surface:** a duplicate-work check before any outbound issue or PR, answer latency, and a
   verifiable first-screen privacy contract (mechanics + cites: `docs/agent/adoption-runbook.md`).
 - **#1 is bounded by distribution, not arithmetic:** 3 469 stars/day for 76 d (`deepseek-harness`),
@@ -147,8 +146,8 @@ verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name bel
 - **The board scores 6 of the 40 advertised tools; full-surface is `OCOREAI_EVAL_TOOLS=all`** (scripts/eval/)
   — every row prices its `tools[]` bytes; judging the two surfaces waits on the owner.
 - **The tool surface is still ungated against the loaded model** (UI/, Engine/) — owner call; `reasoning_effort`'s gate (`ReasoningEffortHonestyTests`(9) + probe 38) is the pattern to extend.
-- **The artefact lane awaits its first green pass** (CI/) — `package.yml` + probe 41 judge the DMG under
-  `contents: read`; metallib and DMG are green on a runner, the probe step is not yet.
+- **Only the publish half has never run** (CI/) — `package.yml` is green on a runner (metallib, DMG, probe 41,
+  window proof); `release`'s publish + read-back stay tag-gated: a tag is a hand.
 - **A corpus costs injection; the tail is disclosed, not gated** — injected bytes cost a 2B checkpoint
   double-digit pp; the fall-off is named to the model and on `/v1/capabilities` (`make docs-check` prints
   `deepest-chain=`). Owner: gate by capacity — cites: `docs/agent/open-items.md`.

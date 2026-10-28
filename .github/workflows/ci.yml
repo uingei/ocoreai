@@ -354,31 +354,8 @@ jobs:
         env:
           OCOREAI_BUILD: ci
 
-      - name: Collect artifacts (Release)
-        if: ${{ matrix.build_release == true && always() }}
-        run: |
-          set -euo pipefail
-          DD=~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products
-          PRODUCT_DIR=$(find "$DD" -path '*/Release*' -type d 2>/dev/null | head -1)
-          if [ -z "$PRODUCT_DIR" ]; then
-            echo "🔍 Scanning DerivedData for release products..."
-            PRODUCT_DIR=$(find "$DD" -name 'ocoreai' -type f 2>/dev/null | head -1 | xargs dirname)
-          fi
-          echo "PRODUCT_DIR=$PRODUCT_DIR"
-          mkdir -p .artifacts/release
-          [ -f "$PRODUCT_DIR/ocoreai" ] && cp "$PRODUCT_DIR/ocoreai" .artifacts/release/
-          [ -d "$PRODUCT_DIR/mlx-swift_Cmlx.bundle" ] && cp -R "$PRODUCT_DIR/mlx-swift_Cmlx.bundle" .artifacts/release/
-          ls -la .artifacts/release/
-        continue-on-error: true
-
-      - name: Upload build artifacts
-        if: ${{ matrix.build_release == true && always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: ocoreai-binary-${{ matrix.os }}
-          path: .artifacts/release/
-          retention-days: 7
-          if-no-files-found: warn
+      # No bare-binary artefact here on purpose: the deliverable is the DMG (`package.yml` rehearses it and
+      # `release` publishes it), so the Release build above is coverage that the scheme compiles, not a product.
 
       - name: Upload test diagnostics
         if: failure()
@@ -448,6 +425,34 @@ jobs:
         with:
           name: ocoreai-window-${{ github.ref_name }}
           path: /tmp/ocoreai-window.png
+
+      - name: Judge the artefact before publishing it (probe 41)
+        timeout-minutes: 15
+        # The release leg's own subject, judged before it is published: mount the DMG, read what is inside
+        # (executable bit, /Applications drag target, the shader payload inside the bundle, a signature that
+        # verifies), serve from the mounted volume, stop cleanly. The version verdict is pinned to THE TAG —
+        # the one expectation that catches the lie that matters, an artefact whose About box names a version
+        # nobody tagged, which no check inside a job that derives both sides can see. The instrument is not
+        # new here: package.yml ran it green on a clean runner 10-29 (`12 passed, 0 failed, 8 measured, 0 known-open`),
+        # and it sits before Publish, so a red costs a re-run and publishes nothing.
+        env:
+          OCOREAI_READY_TIMEOUT: "120"
+          OCOREAI_PROBE_CURL_TIMEOUT: "30"
+        run: |
+          set -uo pipefail
+          VER="${GITHUB_REF_NAME#v}"
+          DMG="$PWD/dist/ocoreai-$VER.dmg"
+          [ -f "$DMG" ] || DMG="$PWD/$(ls -t dist/ocoreai-*.dmg | head -1)"
+          RC=0
+          OCOREAI_ARTIFACT_DMG="$DMG" OCOREAI_ARTIFACT_VERSION="$VER" \
+            bash scripts/probes/run.sh 41 > probe41.log 2>&1 || RC=$?
+          VERDICT="$(grep -E 'passed, [0-9]+ failed' probe41.log | tail -1 | tr -d '\r')"
+          if [ "$RC" -ne 0 ]; then
+            tail -25 probe41.log | sed 's/^/::error::  /'
+            echo "::error::the artefact failed its own gate — ${VERDICT:-no summary line printed}; nothing published"
+            exit "$RC"
+          fi
+          echo "::notice::artefact gate: ${VERDICT:-printed no summary} (version pinned to tag v$VER)"
 
       - name: Upload DMG to job artifact
         # NON-BLOCKING by evidence (2026-10-11): v0.1.12 attempts 1+2 BOTH
@@ -656,8 +661,12 @@ jobs:
       - name: Did the SwiftPM route materialize the shader payload?
         run: |
           set -uo pipefail
+          # No backticks in the message: inside double quotes they are command substitution, and the first
+          # runner pass of this step therefore ran a debug `swift build` and printed its first line — the
+          # annotation then truncated at that newline, so the answer was invisible (both gotchas are this
+          # repo's own documented ones, and both were re-made here anyway).
           RESOLVED="$(bash scripts/resolve-metallib.sh .build 2>&1 | tr '\r\n' '  ' | cut -c1-200)"
-          echo "::notice::payload after `swift build --traits appStore`: ${RESOLVED:-the ladder printed nothing}"
+          echo "::notice::payload after the appStore build: ${RESOLVED:-the ladder printed nothing}"
 
   ## ── iOS compile-validation (independent job — no matrix sharing) ──
   # ocoreai declares .iOS(.v17) first-class; the #if os(iOS) branches had no CI

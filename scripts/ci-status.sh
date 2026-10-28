@@ -11,6 +11,9 @@
 #   0  every leg that must run on a main push concluded success
 #   1  a leg failed, or a leg that must run was skipped (skipped != verified)
 #   2  COULD NOT ASK: no network, rate-limited, or no check-runs returned. Never reported as green.
+#
+# OCOREAI_CI_REDS=1 additionally reads the annotations of every GREEN leg and prints the reds that
+# `continue-on-error` swallowed there — one API call per leg, so it stays opt-in.
 set -uo pipefail
 
 # $1 is a commit (short or full) OR a remote URL, never one value used as both: a SHA handed to
@@ -40,7 +43,7 @@ case "$code" in
 esac
 
 python3 - "$sha" "$repo" <<'PY'
-import json, re, sys, urllib.request
+import json, os, re, sys, urllib.request
 sha, repo = sys.argv[1], sys.argv[2]
 try:
     runs = json.load(open("/tmp/ocoreai-ci-status.json")).get("check_runs", [])
@@ -74,6 +77,28 @@ for r in sorted(runs, key=lambda r: r.get("name", "")):
         unknown += 1
     else:
         bad.append("%s=%s" % (name, concl))
+# A green leg can swallow a red: a step with `continue-on-error` concludes success while its own
+# annotation says failure, which is how a step that had never produced an artefact sat failing on
+# every run of the authority leg. Opt-in because the price is one call per green leg.
+if os.environ.get("OCOREAI_CI_REDS", "").lower() in ("1", "true", "yes"):
+    swallowed = 0
+    for r in runs:
+        if r.get("conclusion") != "success":
+            continue
+        try:
+            with urllib.request.urlopen(r["url"] + "/annotations", timeout=20) as resp:
+                ann = json.load(resp)
+        except Exception as exc:
+            print("  %s: annotations unreadable (%s)" % (r.get("name"), type(exc).__name__))
+            continue
+        ann = ann.get("annotations", []) if isinstance(ann, dict) else ann
+        reds = [a for a in ann if a.get("annotation_level") == "failure"]
+        if reds:
+            swallowed += len(reds)
+            print("  %s: %d swallowed red(s) behind a GREEN leg — %s"
+                  % (r.get("name"), len(reds), (reds[0].get("message") or "")[:110].replace("\n", " ")))
+    print("  swallowed reds on green legs: %d (0 is the only honest number)" % swallowed)
+
 if unknown:
     print("ci-status: %d leg(s) still running — verdict pending, not green" % unknown)
     raise SystemExit(2)

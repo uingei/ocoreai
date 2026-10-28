@@ -163,12 +163,15 @@ else
     probe_fail "no 'shut down complete' line — it stopped, but not through the drain its own docs promise"
   fi
 
-  # Printed, not judged: what the log says about itself during an orderly stop. Measured 10-29 on a
-  # Debug binary and again here — Hummingbird logs `Server shutdown error: Already closed` at label
-  # `HummingbirdCore` because stop() cancels the task that owns the listener, and upstream's graceful
-  # handler then finds nothing left to close. The process still exits 0 and drains, so this is not a
-  # verdict; it is the number that moves if anyone ever routes the stop through upstream's own
-  # quiesce instead of the cancel (red sample: `grep -c error` on that log = 1).
+  # Printed, not judged: what the log says about itself during an orderly stop. Measured 10-29 —
+  # Hummingbird logs `Server shutdown error: Already closed` and `Waiting on child channel:
+  # CancellationError()` at label `HummingbirdCore` where stop() cancels the task that owns the listener
+  # and upstream's graceful handler then finds the channel already gone. Exit is still 0 and the drain
+  # still completes, so this is not a verdict; it is the number that moves if the stop is ever routed
+  # through upstream's quiesce. Tried and refuted the same day: `runService(gracefulShutdownSignals: [])`
+  # — the theory was two owners of the stop — and both lines printed anyway, twice each. The lever is not
+  # ours to pull in the pinned Hummingbird: `Application` builds its `Server` inside `run()` and keeps no
+  # handle to it, so a graceful stop would mean re-hosting the server (a new core surface, refused).
   ERR_LINES="$(grep -ci error "$PROBE_LOG" | tr -d ' ')"   # grep counts 0 as a non-match: empty, not zero
   [ -n "$ERR_LINES" ] || ERR_LINES=0
   FIRST_ERR="$(grep -i error "$PROBE_LOG" | head -1 | cut -c1-100 || true)"

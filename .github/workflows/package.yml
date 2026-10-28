@@ -73,6 +73,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The same step `build-and-test` and `build-appstore` run, with this lane's key and theirs as a
+      # restore source. Without it this leg resolves every dependency from zero inside the metallib step —
+      # measured on two runs of near-identical inputs at 777 s and 969 s for that one step, which is the
+      # shape of work a dependency cache exists to remove. Nothing is asserted here; it is minutes.
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/org.swift.swiftpm/repositories
+            .build/checkouts
+          key: spm-deps-macos-26-package-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            spm-deps-macos-26-
+
       - name: Install MetalToolchain (the CLT route has no metal compiler)
         # Same premise build-appstore had to buy on 10-28: the component is not preinstalled, and
         # Cmlx's .metal sources need a real compiler. The release leg above still carries its own
@@ -90,6 +104,7 @@ jobs:
           ls -l dist/
 
       - name: Judge the artefact — probe 41 (mount, serve, stop)
+        timeout-minutes: 15
         # The version verdict is pinned here: scripts/version.sh prints the number the next tag must
         # carry, so this step says out loud, on a runner, what the artefact a stranger downloads
         # reports about itself.
@@ -102,17 +117,24 @@ jobs:
           # pass of this step died in 1 s on a relative path it could no longer see.
           DMG="$PWD/$(ls -t dist/ocoreai-*.dmg | head -1)"
           [ -f "$DMG" ] || { echo "::error::build-dmg.sh produced no dist/ocoreai-*.dmg — nothing to judge"; exit 1; }
+          # The version verdict is worth exactly what its expectation is worth. Taken from the same script
+          # the build consulted, it can only catch plumbing; taken from a tag, it catches the lie that
+          # matters — an artefact whose About box names a version nobody ever tagged. On an untagged tree the
+          # honest expectation is version.sh's own last rung (0.0.0), and the step says which of the two ran.
+          TAG_VER="$(git describe --tags --abbrev=0 2>/dev/null | tr -d 'v' || true)"
+          if [ -n "$TAG_VER" ]; then EXPECTED="$TAG_VER"; SRC="tag v$TAG_VER"; else EXPECTED="0.0.0"; SRC="no tag — plumbing check only"; fi
           { echo "### package dry-run artefact"; echo '```'
             echo "dmg=$DMG bytes=$(wc -c < "$DMG" | tr -d ' ')"
-            echo "version=$(bash scripts/version.sh)"
+            echo "version=$EXPECTED (expected from: $SRC)"
             shasum -a 256 "$DMG" | awk '{print "sha256="$1}'
             echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           # A verdict publishes its own words — the contract scripts/probes/ci-step.sh keeps, and why a
           # red whose log sits behind a token is a rumour. This lane cannot call ci-step.sh (it points at
           # a smoke binary, and here the subject is an artefact), so the words are republished by hand.
           RC=0
+          echo "::notice::artefact version verdict — expected $EXPECTED ($SRC)"
           OCOREAI_ARTIFACT_DMG="$DMG" \
-          OCOREAI_ARTIFACT_VERSION="$(bash scripts/version.sh)" \
+          OCOREAI_ARTIFACT_VERSION="$EXPECTED" \
             bash scripts/probes/run.sh 41 > probe41.log 2>&1 || RC=$?
           VERDICT="$(grep -E 'passed, [0-9]+ failed' probe41.log | tail -1 | tr -d '\r')"
           if [ "$RC" -ne 0 ]; then
@@ -134,23 +156,18 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Window proof (advisory here — the release leg asserts it)
-        # The release leg's GUI step has never run on a runner either, and nobody knows whether a
-        # GitHub macOS runner has a window session. Until that is MEASURED rather than assumed this
-        # prints its verdict here instead of adding a red nobody can act on — and it stops being
-        # advisory as soon as a runner has produced a layer-0 window. `if: always()` so a red from probe 41
-        # does not also cost the answer to this separate question.
-        continue-on-error: true
-        if: always()
+      - name: Window proof — the built app must SHOW a window
+        # Blocks as of 10-29 because the premise it used to hedge is measured, not assumed: this lane's first
+        # green pass printed `window proof GREEN on this runner`, so a GitHub macOS runner does have a window
+        # session and a bundle that builds, signs and serves but renders nothing is a red worth having. The
+        # script's own reds are the sampled ones — no layer-0 window of believable size, or a captured frame
+        # under the distinct-colour floor (a surface that has size but renders nothing).
+
         run: |
-          set -uo pipefail
+          set -euo pipefail
           OCOREAI_ENABLE_HTTP=1 open build/ocoreai.app
           sleep 20
-          if SHOT=1 PNG=/tmp/ocoreai-window.png bash scripts/verify-gui-window.sh; then
-            echo "::notice::window proof GREEN on this runner — candidate for a blocking step"
-          else
-            echo "::warning::window proof not established on this runner (exit $?) — the release leg still asserts it"
-          fi
+          SHOT=1 PNG=/tmp/ocoreai-window.png bash scripts/verify-gui-window.sh
           pkill -x ocoreai || true
 
       - name: Upload the window screenshot
