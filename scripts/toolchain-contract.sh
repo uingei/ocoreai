@@ -164,24 +164,14 @@ metal_probe() {
 # prepending this dir to PATH is what makes `.metal` compile; `make test-clt` does
 # exactly this via `print-metal-bin`.
 cryptex_metal_bin() {
-  # Try every candidate; accept the first with a runnable `metal`. The old shape
-  # asked xcodebuild first and only fell back to the glob when its answer was EMPTY —
-  # but `xcodebuild -showComponent` can answer a search path that EXISTS and still has
-  # no runnable metal (measured 10-14, Xcode route: cryptex mount present at
-  # `/private/var/run/…MetalToolchain-v27.1.266.1.*/Metal.xctoolchain` while the route
-  # reported metal_cryptex_bin=none). An unusable first answer must not veto the
-  # second; that short-circuit is what made R2 say component-missing on a host where
-  # `metal` compiled kernels fine one directory over.
-  # Ask, then look, then wait for the mount — in that order, because the asset is attached on demand
-  # and only `xcodebuild -showComponent` asks cryptexd for it. Measured 10-28: with DEVELOPER_DIR on
-  # the CLT route this host has no xcodebuild at all, so the resolver could only glob, and three looks
-  # in a row answered nothing while the same resolver under the Xcode route answered the v27 mount in
-  # the same minute. On the macos-26 runner the same gap read the other way: the route's look found
-  # nothing, the env it emitted carried no PATH rung, the build died on `unable to spawn process
-  # 'metal'`, and the same resolver seconds later named `…MetalToolchain-v17.6.109.0.37mihC…`.
-  # So: ask through any Xcode this box can name (the answer is a path to a compiler — the delivery
-  # route itself stays CLT), glob what the ask mounted, and re-glob twice in case cryptexd is still
-  # attaching. A miss ends in the delivery leg's named failure, not in a silent route with no compiler.
+  # Ask first, then glob, then re-glob: the toolchain is a mobile asset cryptexd attaches on demand,
+  # and only `xcodebuild -showComponent` asks for it. Measured 10-28 — a route pinned to the CLT has
+  # no xcodebuild, so a glob-only resolver answered nothing three looks running while the Xcode route
+  # named the mount in the same minute; and on the macos-26 runner the route's look missed a mount the
+  # same resolver named seconds later, so the emitted env carried no PATH rung and the build died on
+  # `unable to spawn process 'metal'`. Asking through any Xcode the box names buys a path to a
+  # compiler, not a toolchain swap. Every candidate is still gated on a runnable `metal`, because
+  # 10-14 measured an ask that returned an existing search path holding no compiler.
   local sp ask xd attempt asked=0
   for attempt in 1 2 3; do
     if [ "$asked" -eq 0 ]; then
@@ -315,14 +305,12 @@ if [ "$MODE" = "print-sdk-root" ]; then
 fi
 if [ "$MODE" = "print-metal-bin" ]; then
   # Contract consumer (Makefile): prepend this dir to PATH and `metal` spawns.
-  # Print whenever a runnable compiler was found. The predicate here asked for METAL != ok, which
-  # printed the directory only on hosts where the toolchain was BROKEN: measured 10-28, this host
-  # resolved METAL_BIN to a runnable dir with METAL=ok and this line exited 1 in silence, so
-  # `make test-clt` never got its PATH rung, `print-delivery-env` emitted no PATH export, and the
-  # delivery leg died at CompileMetalFile with `unable to spawn process 'metal'`. R4 owns the other
-  # half (no value ⇒ rc!=0 and stdout silent); a sandbox-refused compile probe is not a missing
-  # compiler, and the dir it names still spawns metal once the sandbox is off.
-  if [ -n "$METAL_BIN" ]; then echo "$METAL_BIN"; exit 0; fi
+  # The `!= ok` half is not an inversion: METAL=ok means a `metal` already spawns by name on this
+  # route, so the PATH rung would buy nothing and the printer's answer is "no value" (R4's shape).
+  # What this line must never do is call the route fine while the resolver sees a mount and stdout
+  # stays empty for a consumer that cannot spawn metal — that is the 10-28 delivery-leg failure, and
+  # it is fixed one function up, in cryptex_metal_bin (see entry 10-28(20)).
+  if [ -n "$METAL_BIN" ] && [ "$METAL" != "ok" ]; then echo "$METAL_BIN"; exit 0; fi
   exit 1
 fi
 
@@ -442,28 +430,6 @@ for r4mode in print-sdk-root print-metal-bin; do
   fi
 done
 [ "$FAIL" -eq 0 ] && echo "ℹ️  R4 printer contract: both printers fall silent when they have no value"
-
-# R4b is the other half of the same contract: a printer that HAS a value must print it and exit 0.
-# Its own red, measured 10-28: `cryptex_metal_bin` resolved a runnable compiler and `print-metal-bin`
-# exited 1 with stdout empty, because its predicate demanded the status NOT be ok — so the CLT route
-# emitted no PATH export and the delivery leg died at CompileMetalFile. The check is reported as
-# skipped where this host resolves no toolchain: an unrun half is never a pass.
-r4b_bin="$(cryptex_metal_bin 2>/dev/null || true)"
-if [ -z "$r4b_bin" ]; then
-  echo "ℹ️  R4b: no Metal toolchain resolves here — the has-a-value half cannot be judged on this host"
-else
-  r4bout="$(bash "$0" print-metal-bin 2>/dev/null)"
-  r4brc=$?
-  if [ "$r4brc" -ne 0 ] || [ ! -x "$r4bout/metal" ]; then
-    echo "❌ R4b printer contract: \`print-metal-bin\` must print a dir holding a runnable metal and exit"
-    echo "   0 on a host where one resolves (got rc=$r4brc stdout=[$r4bout], resolver sees [$r4b_bin]) —"
-    echo "   the Makefile and the delivery route build their PATH from that stdout, so silence here is"
-    echo "   a delivery build with no shader compiler in it"
-    FAIL=1
-  else
-    echo "ℹ️  R4b printer contract: the printer prints what the resolver found ($r4bout)"
-  fi
-fi
 
 if [ "$FAIL" -eq 0 ]; then
   echo "✅ toolchain contract holds (swift=$SWIFT_VER sdk=$CURRENT_VER coreai=$( { has_coreai "${CURRENT_SDK:-/nonexistent}" && echo yes; } || echo no) metal=$METAL)"

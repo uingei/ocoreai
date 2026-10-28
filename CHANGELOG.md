@@ -4,40 +4,38 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
-**10-28(20) The Metal PATH rung printed only on hosts whose compiler was broken** (P0 CI / symbols `print-metal-bin-inverted-predicate`, `R4b`)
+**10-28(20) The delivery route never asked cryptexd to mount the Metal toolchain, so it shipped no compiler** (P0 CI / symbols `cryptex-ask-first-ladder`, `metal-toolchain-mount`)
 
-- **What improved.** `print-metal-bin` prints the directory a consumer prepends to PATH so SwiftPM can
-spawn `metal`, and its predicate demanded the status NOT be `ok`: it answered on a host whose toolchain
-was broken and stayed silent on one where the compiler worked. Measured here — the resolver handed it a
-runnable compiler and the line exited 1 with stdout empty. Both consumers read silence as "no
-compiler": `Makefile:104` drops the prefix its own comment calls the difference between unbuildable and
-a green build, and `print-delivery-env` emits no PATH export, so the delivery leg died at
-CompileMetalFile with `unable to spawn process 'metal'`. On this host the gap was invisible because
-`/usr/bin/metal` resolves anyway; on a runner it is fatal. Two dead rungs of the same ladder go with it
-— the component ask tested `<search-path>/usr/bin/metal` while the compiler sits at
-`<search-path>/Metal.xctoolchain/usr/bin/metal`, so the ask could never validate, and the mount is
-attached on demand, so the resolver now asks through any Xcode the box names and re-globs twice before
-it gives up. This is a path to a compiler, not a toolchain swap: the delivery route stays CLT.
+- **What improved.** `cryptex_metal_bin` had two dead rungs and no way to make the mount appear. The
+component ask read `xcodebuild -showComponent`'s search path and tested `<root>/usr/bin/metal`, while
+the compiler sits at `<root>/Metal.xctoolchain/usr/bin/metal` — measured here, the ask named the root
+and the test failed against a binary one directory deeper, so that rung could never validate. What was
+left is a passive glob of a mobile asset cryptexd attaches on demand, so a route that had just
+downloaded the component still resolved nothing: the env it emitted carried no PATH rung and the build
+died at `CompileMetalFile` with `unable to spawn process 'metal'`. The resolver now asks through any
+Xcode the box can name (a path to a compiler, not a toolchain swap — the delivery route stays CLT),
+globs what the ask mounted, and re-globs twice before it gives up.
 
-- **What same-session output proves it.** One command, two routes, before and after: under
-`DEVELOPER_DIR=/Library/Developer/CommandLineTools` it printed nothing and exited 1; it now prints
-`…MetalToolchain-v27.1.266.1.HjWWNl/Metal.xctoolchain/usr/bin` and exits 0, with the Xcode route
-unchanged. `print-delivery-env` emits its PATH export under both host contexts (counted 1 each). The
-runner said the same thing pre-fix in its own words: `metal=ABSENT` in the leg's notice, a resolvable
-directory from the same resolver one second later, `unable to spawn process 'metal'` at the build.
+- **What same-session output proves it.** The leg's own preflight, one second apart on a runner:
+`metal=ABSENT` in the route notice, then a resolvable directory from the same resolver, then
+`unable to spawn process 'metal'` and exit 65. Locally the ask now answers
+`<root>/Metal.xctoolchain/usr/bin` where it answered nothing, `print-delivery-env` emits its PATH
+export under both host contexts (counted 1 each), and a route whose `metal` already spawns by name
+still prints no value and exits 1 — the deliberate half of the contract, and the thing this entry
+first got wrong.
 
-- **Which gate goes red if it regresses.** New R4b in `scripts/toolchain-contract.sh`: where the
-resolver finds a compiler, `print-metal-bin` must print a directory holding a runnable `metal` and exit
-0; where none resolves, the half reports itself skipped rather than passing. Sampled red by putting the
-old predicate back — it printed `rc=1 stdout=[]` beside the directory the resolver saw. Reader whose
-action changes: whoever runs `make test-clt` or `make release` and was being told, by a silent printer,
-that the host has no shader compiler.
+- **Which gate goes red if it regresses.** None new, and that is the honest answer: the red is the
+preflight entry (19) added, which fired today and names the missing rung on every future push instead
+of leaving `exit 65` to be read as a compiler mystery. Reader whose action changes: whoever reads this
+leg and could not previously tell "no component" from "component not mounted" from "route forgot the
+PATH rung".
 
-- **Honest limits.** The delivery leg's runner verdict is still ahead of this entry — that leg is the
-only place a CLT-route `.metal` rebuild is judged for real. The late-mount explanation stays inference:
-a later look finding what an earlier one missed fits cryptexd attaching the asset, and fits nothing
-else measured. R4b judges the printer, not the resolver, so a resolver pointing at the wrong directory
-would still pass it.
+- **Honest limits.** The runner verdict for this fix lies ahead of the entry: that leg is the only
+place a CLT-route `.metal` rebuild is judged. And this entry replaces a wrong one — its first version
+called `print-metal-bin`'s `[ "$METAL" != "ok" ]` guard an inversion, printed unconditionally, and
+added an `R4b` printer gate whose red had never been sampled. `METAL=ok` means a `metal` already
+spawns by name, so the guard skips a PATH rung the route does not need; both edits were reverted in
+this session before any CI verdict on them, and the guard now carries its reason in a comment.
 
 **10-28(19) The delivery leg names the Metal rung it lacks instead of dying inside llbuild** (P1 CI / symbols `appstore-metal-preflight`)
 
