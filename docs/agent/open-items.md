@@ -118,31 +118,21 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   land `v0.1.14` so the page lists a newest within days. Measured 10-28, and why § Adoption of `AGENTS.md`
   now reads "0 *listed* releases".
 
-- **The delivery shape's CI verdict has never run on a runner** (CI/, Engine/) —
-  `LoadedModel.isCoreAIAsset` was declared inside `#if canImport(CoreAI)` and used ungated at
-  `EnginePool.swift:1468`, so an SDK that carries the framework compiled it green while the
-  CoreAI-free delivery build died. The declaration moved outside the gate (the CoreAI body stays
-  gated; `false` is the measured answer where the framework is absent) and the route now has one home:
-  `scripts/toolchain-contract.sh print-delivery-env`, consumed by `make release` and by
-  `scripts/build-app.sh` — through it by `build-dmg.sh`, which had been unbuildable on any host whose
-  newest SDK carries CoreAI. `build-appstore` pins that route and judges the binary with
-  `release-artifact-check.sh delivery`. Instrument: the next push's *App Store trait compile* leg; if
-  the runner has no CoreAI-free SDK it fails with the resolver's remedy and the verdict moves to the
-  leg that does. Same sweep found a second drift: probe 37 §8 extracted the tool count from
-  `AGENTS.md` with a phrase-locked regex that matched nothing once the sentence was rewritten — it now
-  matches the shape, and the live server confirms 40. Two holes stay open beside this one:
-  *clean machine → first completion* is unmeasured with the download included (the 22.1 s figure had
-  cached weights), and nothing is notarised, so the cask rung cannot be floored yet.
-
 - **The release job holds the publish credential while it runs repository code** (CI/) —
-  `.github/workflows/ci.yml:437` builds the app (xcodebuild, repository code) inside the job that carries
-  `contents: write` (`:443`), so a compromised dependency in the build has the artefact-upload right in the
-  same step. The pattern to copy is opencode's split
-  (`../references/opencode/.github/workflows/release-dry-run.yml:4-9`): build jobs run repo code with no
-  secrets and no `id-token`; sign/publish run in a `release` environment, check out only the release
-  directory, and treat artefacts as data. Owner call, because it changes who/what may publish, and it wants
-  a dry-run route so the release path is exercised on a PR. Instrument owed: a red when a job that uploads
-  also executes repository code.
+  `.github/workflows/ci.yml:403` carries `contents: write` (`:410`) and builds inside that job (`:414`
+  metallib, `:424` `build-dmg.sh`, and the GUI proof under them), so a compromised dependency in the build holds the
+  artefact-upload right in the same step. The dry-run half of the ask is paid: `.github/workflows/package.yml`
+  builds and judges the same DMG under `permissions: contents: read` (metallib 777 s, DMG 1187 s on a clean
+  runner, 10-29), so the credential no longer has to *prove* the build — it still runs it. The rest is the
+  split itself: opencode's shape (`../references/opencode/.github/workflows/release-dry-run.yml:4-9`) runs
+  build jobs with no secrets and no `id-token` and publishes from a `release` environment over artefacts.
+  Deliberately not touched before a first release lands — that job is the one path a rehearsal cannot run,
+  and it is not the moment to redesign it. Owner call, since it decides who/what may publish.
+- **The one latency figure we quote is not the metric we want** (packaging/) — *clean machine → first
+  completion* is unmeasured with the model download included: the 22.1 s figure ran with weights already on
+  disk, and nothing is notarised, so neither the metric nor the cask rung above it can be floored yet
+  (ladder rung 2, `docs/agent/long-horizon-goal.md`).
+
 - **A measured gallery is the one adoption surface we can win outright** (README/, Handlers/) — the leaders
   advertise model support as adjectives while `/v1/models` already publishes per-checkpoint measured verdicts
   (`vlm`, `contextLength`, `toolCallDelivery`, `reasoningEffort`, `videoInput`) and `scripts/eval/` scores 39

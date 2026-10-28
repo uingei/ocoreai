@@ -9,6 +9,37 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(37) Three docs that own the adoption ladder were still describing a repo this one stopped being** (P2 docs / symbols `open-items.md`, `adoption-runbook.md`)
+
+- **What improved.** Swept the prose that carries the ladder, not the numbers on it. `open-items.md`
+carried a closed item as open — "The delivery shape's CI verdict has never run on a runner", closed 10-28
+and already recorded in `closed-items-log.md` with the step name that proves it — so the duplicate is gone
+(1 429 bytes), with the one live caveat it was carrying restored as its own item: the only first-token
+figure we quote (22.1 s) ran with weights already on disk, and nothing is notarised, so neither the metric
+nor the cask rung above it can be floored. Its release-credential item cited `ci.yml:437`/`:443`, lines
+that moved when the metallib step became a script call, and asked for "a dry-run route so the release path
+is exercised" — that half is now paid by `package.yml`, so the item says what remains: the split itself,
+deliberately not touched before a first release lands. `adoption-runbook.md` said "we have one workflow
+file" (there are two), "the DMG leg is tag-gated and has never run" (its build half rehearses on `main`
+under `contents: read`), and "CI runs it from the headless-serve smoke step" (one probe per step since
+10-29(29)).
+
+- **What same-session output proves it.** The leaderboard row was the worst of them: it compared *total*
+commits of eight trees against our *90-day* count — "ours 242 commits, 3 authors in 90 d" beside "openclaw
+11 359 commits". Re-measured on the shared basis: `git rev-list --count HEAD` = 1 453, `git shortlog -sn
+HEAD` = 4 authors, 0 tags, and the row now reads that. `make docs-check` is green, and the comparator
+footprint tuple it re-derives moved twice today (21 454 → 21 440 root) and said so twice.
+
+- **Which gate goes red if it regresses.** B2: a per-guide byte cap (all three files sit at 15 60x of 15
+609, so a sentence added is a sentence chosen) and the re-measured footprint tuple. The stale-cell family
+has no gate, and the file used to excuse that in prose — "nothing re-derives them, so a stale cell is
+yours to notice" — which is now shortened to what it still covers (the star and fork columns), because the
+cells it was excusing were wrong.
+
+- **Honest limits.** Star, fork and stars/day figures are still dated snapshots with a command beside them
+and no re-derivation. Of the three unpaid first-screen rows, two (Discussions, homepage) need settings a
+token-less host cannot reach; `VISION.md` is the one that is only a decision.
+
 **10-29(36) The rehearsal earned its keep in one second: the launch path's judge could not see its own subject** (P2 CI / symbols `41-artifact-dmg-serves.sh`, `package.yml`)
 
 - **What improved.** `.github/workflows/package.yml` ran on a clean runner and reported: metallib

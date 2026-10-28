@@ -2,8 +2,8 @@
 
 > Long form behind § *Adoption* in `AGENTS.md` and the rungs of `docs/agent/long-horizon-goal.md`.
 > The ladder owns *order and falsifiability*; this file owns *mechanics* — what each mechanism is, which
-> tree ships it, and `file:line` in a local clone. Every number here is a dated snapshot (10-28) with the
-> command that re-measures it; nothing re-derives them, so a stale cell is yours to notice.
+> tree ships it, and `file:line` in a local clone. Every number is a dated snapshot with the command that
+> re-measures it; a stale cell is yours to notice.
 > Cites are written `../references/<tree>/<path>:<line>` because that is the form `make anchor-check`
 > resolves and verifies, and because a bare `README.md:20` would silently resolve against our own README.
 
@@ -41,7 +41,7 @@ Two numbers decide how the ladder reads. Effort, one 14-day window (`git log --s
 --oneline | wc -l`; tags from `git tag | wc -l`; author emails from `--format='%ae' | sort -u`):
 openclaw 11 359 commits / 543 tags / 320 emails, hermes-agent 5 714 / 234, TensorFold 2 724 / 50,
 Strata 2 381 / 67, deepseek-harness 1 570 / 33, opencode 1 126 / 1 156, codex 587 / 1 501, ollama 62 / 719 —
-**ours 242 commits, 3 authors in 90 d, 0 tags.** Rate, from the column above, is the finding that had to
+**ours 1 453 commits, 4 authors, 0 tags.** Rate is the finding that had to
 delete a sentence: this file claimed the field's best sustained rate is ~150/day and openclaw's total is
 "~7 years of growth". Measured 10-28 the category's own record is **263 687 stars in 76 days**
 (deepseek-harness, 3 469/day), with openclaw at 1 163/day and Strata — created 2026-09-24, the closest
@@ -76,8 +76,8 @@ column ranks machines, not resolutions.
 - **Channels and release shape:** canary vs stable (`hermes-agent` `canary-release.yml`,
   `stable-release-publication.yml`), a rehearsed release (`opencode` `release-dry-run.yml`,
   `nightly-beta.yml`), and goose's version-bump-PR → release-branch → close-on-tag trilogy
-  (`create-version-bump-pr.yaml`, `close-release-pr-on-tag.yaml`). We have one workflow file; the DMG leg
-  is tag-gated and has never run.
+  (`create-version-bump-pr.yaml`, `close-release-pr-on-tag.yaml`). Ours is two files now: the DMG's build
+  half rehearses on `main` under `contents: read` (`package.yml`); only publish is tag-gated and unrun.
 
 ## The intake machine (what 320 author emails in 14 days costs)
 
@@ -122,7 +122,7 @@ What that costs, and what landed 10-28 (the audit's own first pass over-claimed 
 halfcontractskill- **The instrument runs the artefact**: `scripts/probes/39-skill-contract-exec.sh` boots its own server and
   executes every marker — 14 `exec:` on the scripted lane (nothing resident) and 5 `exec-model:` against a
   ready checkpoint — flooring its own marker counts at 12/4 so a scan that stops matching is red, not
-  vacuously green. CI runs it from the headless-serve smoke step.
+  vacuously green. CI runs it as its own step since 10-29 (7 s on the runner).
 notproven## The first screen — twenty lines decide
 
 - **Badge the artefact, not the language**: opencode `README.md:12-14` (Discord members, npm version,
@@ -178,7 +178,7 @@ notproven## The first screen — twenty lines decide
   1 115 watchers, Discussions on, homepage set — and `has_issues: false`. It carries 263 k stars with the
   issue tracker **switched off**, intake handled by policy code in `.github/issue-management/` instead of a
   queue. Our row is the cheapest delta on this page and is still unpaid: watchers **1**, Discussions **off**,
-  no homepage, root `VISION.md` absent (openclaw ships one at root; a stranger reads it to judge direction).
+  no homepage, root `VISION.md` absent (openclaw ships one; a stranger reads it to judge direction).
 
 ## Not in this runbook
 
