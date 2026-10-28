@@ -14,7 +14,7 @@
 > Re-measure: walk the tree for `AGENTS.md`, sum each file's ancestors up to the root, divide by 32 768 — the
 > semantics codex `agents_md.rs:68-92` and our `Sources/ocoreai/WorkspaceContext.swift:221-229` both
 > implement. Four trees read a ruleset their own loader truncates and three never say so; ours is 684 B from
-> that line and says nothing either.
+> that line and names what it drops.
 
 Each entry is one clone under `~/references/`: what it holds, the axis worth borrowing, how far the audit got.
 
