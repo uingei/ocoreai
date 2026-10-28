@@ -4,6 +4,43 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(8) The published skill shipped three dangling pointers, and the only gate that can see it asks git** (P0 adoption / symbols `ignored-skill-references`, `skill-trackedness-gate`)
+
+- **What improved.** `.gitignore` mirrored reference trees with two **unanchored** rules — `reference/` and
+`references/` — written for a tree that is not in this repo at all any more. Unanchored, `references/` matched
+`skills/ocoreai/references/`, so the three files `skills/ocoreai/SKILL.md` cites by name (`wire.md` 10 582 B,
+`agent-loop.md` 4 280 B, `honesty-and-limits.md` 3 218 B) were never tracked: the published skill told a
+stranger's harness to read three documents that no clone contains. It is the same failure recorded inside
+`.gitignore` for `docs/`, replayed in a new subtree one commit after the skill was pushed. The pattern is the
+cause, so the pattern is fixed — both rules anchored to the repository root, the three files tracked — and the
+blind spot gets a gate: probe 39 grew a **§0** (the gate layer is frozen, so no 41st probe) requiring every
+path the skill cites to be tracked by git and nothing under `skills/` to be ignored, floor 3 cites so the scan
+cannot pass by finding nothing.
+
+- **What same-session output proves it.** The clone's view of the commit that shipped it:
+`git ls-tree -r --name-only 61bb4b0 -- skills` lists **two** files while `SKILL_ORDER`
+(`scripts/probes/_skill_task_harness.py`) names **four** — so probe 40's
+`artefact=29 240 bytes across 4 files` was true of this disk and unreachable from a clone, where the harness
+stops at `is absent`. After the fix both probes re-run whole: probe 40 **6 passed, 0 failed, 3 measured**
+(artefact unchanged at 29 240 B, the secret token returned by a fresh agent on
+`mlx-community/Qwen3.6-35B-A3B-4bit`) , probe 39 **31 passed, 0 failed, 6 measured** with §0 counted. The
+class was swept, not just this instance: `git ls-files --others --ignored --exclude-standard` swallows exactly
+these three project files and nothing else outside build output.
+
+- **Which gate goes red if it regresses.** Red before green, on purpose: §0 printed
+`git ignores file(s) inside the published skill: skills/ocoreai/references/agent-loop.md … wire.md`, and after
+`git add` the same clause prints
+`PASS 7 cited file(s) all tracked by git, and nothing under skills/ is ignored`. The two regressions it
+catches are the two ways this recurs — an ignore rule reaching into `skills/`, and a cite added to the skill
+whose file was never added to git — plus its own floor (3 cites). The readers whose action changes: the
+harness that clones and follows a pointer, and whoever adds the fourth reference file.
+
+- **Honest limits.** §0 gates trackedness, not correctness — the bytes a cite points at are judged by probe 39
+§1/§2 and probe 40 — and it scans the 7 **backticked** cites only, so a pointer written without backticks is
+invisible to it. It runs in the escalation tier (`make probes`), which means no runner executes it yet: giving
+`make probes` a CI seat is the owner's call, and this round rewrote nothing that was already pushed.
+
+
 **10-28(7) The injector now says what it cut — one resolver feeds the prompt, `/v1/capabilities` and the published skill** (P0 honesty / symbols `instruction-budget-disclosure`, `silent-truncation-fix`)
 
 - **What improved.** The gap 10-28(6) measured is closed by one resolver instead of two stories.

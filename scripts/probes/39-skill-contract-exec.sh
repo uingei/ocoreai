@@ -15,6 +15,9 @@
 # `@model` is replaced by the first `state:"ready"` id from `/v1/models`.
 #
 # ### Tiers, because only one of them can run anywhere
+#   §0 clone     — no server: every path the skill cites is tracked by git, and nothing under skills/ is
+#                  ignored. This is how §0 caught an unanchored `references/` rule shipping a skill whose three
+#                  reference files only existed on the author's disk.
 #   §1 contract  — scripted lane (nothing resident, no Metal): executes every `exec:` marker, and FLOORS
 #                  its own hit count: a renamed skill or a rotted pattern must fail loudly, not pass by
 #                  finding nothing (invariant 1 — the failure this probe exists to prevent is its own).
@@ -139,6 +142,52 @@ if [ "${N2:-0}" -lt 4 ]; then
     " is how a contract tier comes to look like a capability claim"
 else
   probe_ok "skill carries $N2 checkpoint marker(s) (floor 4) for the measured lane"
+fi
+
+# ── §0 the clone a stranger actually gets ─────────────────────────────────────────────────────
+probe_section "§0 every file the skill cites is in git, not merely on this disk"
+# Why this clause exists: `.gitignore` carried an unanchored `references/` rule (for a mirrored tree
+# that is not even in this repo any more), and it silently swallowed `skills/ocoreai/references/` —
+# three files SKILL.md points a harness at, present on the author's disk, absent from every clone.
+# Every on-disk doc check passed, because on disk the pointer resolves; only git knows the file was
+# never shipped. So this clause asks git, and floors its own hit count for the same reason §1 does.
+if ! command -v git >/dev/null 2>&1; then
+  probe_note "§0 skipped — no git binary, so trackedness cannot be measured here"
+else
+  SWALLOWED="$(git -C "$PROBE_REPO_ROOT" ls-files --others --ignored --exclude-standard -- skills \
+    | LC_ALL=C sort)"
+  CITED=0
+  UNTRACKED=""
+  while IFS= read -r cited; do
+    [ -n "$cited" ] || continue
+    # Cites arrive repo-relative (`skills/ocoreai/references/wire.md`) or skill-relative
+    # (`references/wire.md`); resolve both, then ask git whether the path it names is shipped.
+    for candidate in "$cited" "$SKILL_DIR/$cited"; do
+      [ -f "$candidate" ] || continue
+      rel="${candidate#"$PROBE_REPO_ROOT"/}"
+      CITED=$((CITED + 1))
+      if ! git -C "$PROBE_REPO_ROOT" ls-files --error-unmatch "$rel" >/dev/null 2>&1; then
+        UNTRACKED="$UNTRACKED        cited but untracked: $rel\n"
+      fi
+      break
+    done
+  done < <(grep -ohE '`(skills|docs|scripts|Sources|Tests)/[A-Za-z0-9._/-]+`|`references/[A-Za-z0-9._-]+\.md`' \
+      "$SKILL" "$PROBE_REPO_ROOT/skills/README.md" 2>/dev/null | tr -d '`' | LC_ALL=C sort -u)
+
+  if [ "$CITED" -lt 3 ]; then
+    probe_fail "only $CITED cite(s) scanned in the skill (floor 3) — the scan lost its own premise, so" \
+      " a passing trackedness check below would be a pass over an empty set"
+  elif [ -n "$SWALLOWED" ]; then
+    probe_fail "git ignores file(s) inside the published skill: $(echo "$SWALLOWED" | tr '\n' ' ')" \
+      " — a .gitignore pattern is swallowing part of the artefact another harness clones"
+  elif [ -n "$UNTRACKED" ]; then
+    printf "%b" "$UNTRACKED"
+    probe_fail "the skill cites file(s) that exist here but are not tracked by git" \
+      " — a fresh clone ships a skill with dangling pointers; `git add` the path or drop the cite"
+  else
+    probe_ok "$CITED cited file(s) all tracked by git, and nothing under skills/ is ignored" \
+      " — the skill a stranger clones is the skill on this disk"
+  fi
 fi
 
 # ── §1 contract lane ──────────────────────────────────────────────────────────────────────────

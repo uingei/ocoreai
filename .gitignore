@@ -28,11 +28,12 @@ __pycache__/
 .hermes-tmp.*/
 .hermes/
 
-## Research references (not tracked)
-reference/
-
-## Reference repos (synced from local mirrors)
-references/
+## Research references and mirrored reference repos, anchored to the root on purpose: unanchored,
+## these two rules swallowed skills/ocoreai/references/ — the three files SKILL.md cites by name, so
+## the published skill shipped dangling pointers that every on-disk check saw as resolved. Probe 39
+## §0 asks git for that reason.
+/reference/
+/references/
 # `docs/` was added here for a mirrored reference tree, and it silently swallowed the
 # project's own evidence layer: AGENTS.md routes its long-form proof into docs/agent/*.md,
 # `make docs-check` budgets those guides, and `make anchor-check` verifies cites inside

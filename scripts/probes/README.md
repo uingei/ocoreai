@@ -235,7 +235,10 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     `skills/ocoreai/SKILL.md` is what another harness reads to drive `/v1`, so its sentences are a contract
     and a contract that rots is a wrong action taken somewhere else. The skill carries its own assertions as
     markers in the paragraph they belong to (`<!-- exec: METHOD PATH [body] STATUS | substring | … -->`), and
-    this probe boots a server and runs every one: §1 the contract lane (scripted, no weights, no Metal),
+    this probe boots a server and runs every one: §0 the clone itself (no server) — every backticked path the
+    skill cites must be tracked by git and nothing under `skills/` may be ignored, floor 3 cites, added 10-28
+    when an unanchored `references/` rule in `.gitignore` shipped a skill whose three reference files existed
+    only on the author's disk; §1 the contract lane (scripted, no weights, no Metal),
     §1b the key boundary the skill tells callers to expect (401 naming the fix / bearer accepted / `/health`
     still public), §2 the measured lane against a real checkpoint — `@model` resolved from `/v1/models`, and
     the tier's premise (one real generation must complete) established **before** any assertion, so a host
@@ -244,7 +247,9 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     Fails when: a documented field leaves a served body, a status changes, a marker line is re-formatted out
     of recognition, a marker becomes unparseable (balanced-brace scan, loud exit), the marker set shrinks
     under its floor, the key boundary stops matching what §2 of the skill says, or the measured lane's
-    sentence stops being true of a real checkpoint. Red-sampled 10-28 while it was being written: a
+    sentence stops being true of a real checkpoint, a path the skill cites is not tracked by git, or an ignore
+    rule swallows a file under `skills/` (§0; red-sampled 10-28 against the three reference files `.gitignore`
+    was hiding, green after `git add`). Red-sampled 10-28 while it was being written: a
     dotted-path assertion (`engineSummary.loadedModels`) and a body written before the status each turned it
     red against the real served bytes — the skill was wrong twice before it was shipped, which is the point.
 
@@ -260,7 +265,9 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     Fails when: the artefact shrinks under the floor, the task hands the agent what it is supposed to find, the verifier accepts a
     wrong token or rejects a right one, the seeded note is not retrievable, the served tool list lacks `exec_command`, or a fresh
     agent holding only the skill never writes the token. Green 10-28 on a real checkpoint: 29 240 injected bytes across 4 files, and
-    the secret token came back in the deliverable — the wedge claim measured rather than asserted.
+    the secret token came back in the deliverable — the wedge claim measured rather than asserted. Those 4
+    files are now gated as tracked by probe 39 §0: on 10-28 the figure was real and the clone did not have it
+    (`git ls-tree -r 61bb4b0 -- skills` listed 2 of the 4).
 
 - `_lib.sh` — shared harness
 Fails when: —
