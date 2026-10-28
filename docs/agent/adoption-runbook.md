@@ -48,7 +48,7 @@ delete a sentence: this file claimed the field's best sustained rate is ~150/day
 product shape to ours — at 1 016/day on 3 708 forks. So #1 is not bounded by arithmetic, elapsed time, or
 engineering throughput; it is bounded by whether something outside the repo defaults to it. Two of the
 three fast movers are institution-shipped (DeepSeek AI ships `dsh` under its own homepage; openclaw is the
-501(c)(3) that employs its team and signs its releases), which is exactly the mechanism a 1-star repo does
+501(c)(3) that employs its team and signs its releases), the mechanism a 1-star repo does
 not have — and the honest response is the wedge rank in `docs/agent/long-horizon-goal.md` § Rung zero:
 be *consumed* (rungs 1 and 6) rather than be admired. A star count stays a pruned estimate: the morning pass
 found opencode 419 stars *below* its own two-day-old snapshot, and today every tree read higher than that
@@ -159,7 +159,7 @@ notproven## The first screen — twenty lines decide
   extend it (`../references/vllm/docs/features/reasoning_outputs.md:441`).
 - Our equivalent needs no new machinery and is invariant-2 native: `/v1/models` already publishes
   per-checkpoint *measured* verdicts (`vlm`, `contextLength`, `toolCallDelivery`, `reasoningEffort`,
-  `videoInput`) and `scripts/eval/` holds a 39-task scoreboard. A generated README table plus `models.json`,
+  `videoInput`) and `scripts/eval/` holds a 39-task scoreboard. A generated README table plus `models.json` (absent),
   refreshed by a probe with its command beside it, puts a measured gallery where strangers look — the
   leaders' galleries are adjectives, so here honesty is also the louder surface.
 
@@ -178,7 +178,7 @@ notproven## The first screen — twenty lines decide
   1 115 watchers, Discussions on, homepage set — and `has_issues: false`. It carries 263 k stars with the
   issue tracker **switched off**, intake handled by policy code in `.github/issue-management/` instead of a
   queue. Our row is the cheapest delta on this page and is still unpaid: watchers **0**, Discussions **off**,
-  no homepage, no root `VISION.md` (the leader ships one, and a stranger reads it to judge direction).
+  no homepage, root `VISION.md` absent (the leader ships one, and a stranger reads it to judge direction).
 
 ## Not in this runbook
 

@@ -112,6 +112,7 @@ cd "$(dirname "$0")/.."
 #   read on purpose, so the host budget governs the chain, not the area file.
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
 : "${OCOREAI_AGENTS_FLOOR_REFS:=50}"
+: "${OCOREAI_AGENTS_FLOOR_TREES:=16}"
 : "${OCOREAI_AGENTS_FLOOR_CLAIMS:=8}"
 : "${OCOREAI_AGENTS_FLOOR_SUITES:=8}"
 : "${OCOREAI_AGENTS_FLOOR_SUITE_COUNTS:=8}"
@@ -155,6 +156,7 @@ OCOREAI_FLOOR_MD_SCANNED="$OCOREAI_FLOOR_MD_SCANNED" \
 OCOREAI_URL_FLOOR="$OCOREAI_URL_FLOOR" \
 OCOREAI_FLOOR_DOC_FILES="$OCOREAI_FLOOR_DOC_FILES" \
 OCOREAI_AGENTS_FLOOR_REFS="$OCOREAI_AGENTS_FLOOR_REFS" \
+OCOREAI_AGENTS_FLOOR_TREES="$OCOREAI_AGENTS_FLOOR_TREES" \
 OCOREAI_AGENTS_FLOOR_CLAIMS="$OCOREAI_AGENTS_FLOOR_CLAIMS" \
 OCOREAI_AGENTS_FLOOR_SUITES="$OCOREAI_AGENTS_FLOOR_SUITES" \
 OCOREAI_AGENTS_FLOOR_SUITE_COUNTS="$OCOREAI_AGENTS_FLOOR_SUITE_COUNTS" \
@@ -244,22 +246,16 @@ for t in sorted(tracked | on_disk):
 # the doc really did cite an outside tree.
 SYSTEM_REFS = ("UIPasteboard.h", "arg_reduce.metal", "device.cpp", "GPU+Metal.swift",
                "CoreAIRuntime.swiftinterface", "coreai.json", ".swiftinterface")
-# Cites into comparator trees. § Upstream Audit Dependencies 6 is the policy they implement:
-# comparators are "not pins; nothing linked or redistributed, and a borrowed verdict stays an
-# inference" — so these files exist on a host that cloned them and on no runner, and resolving
-# them was never an option. Declaring them is the honest form of that fact, and it rots in both
-# directions on purpose: delete an entry and its cite goes red, keep one nothing cites and the
-# dead-declaration check below goes red. Adding an entry means a doc really did cite an outside
-# tree, and the same check counts them so the list cannot quietly become a general exemption.
+# Residual cites into comparator trees: the ones a block does NOT attribute (no tree name ahead of the
+# cite), so the doc has to name them here. The corpus-tree set itself is derived from
+# docs/agent/comparator-repos.md above, which is why this list is short and shrinks — 19 entr(ies)
+# left it on 10-28 once paragraph attribution landed. It rots in both directions on purpose: delete an
+# entry whose block still names no tree and its cite goes red; keep one nothing cites, or one whose
+# block has learned to name its tree, and the two checks below go red. § Upstream 6 is the policy:
+# comparators are not pins, nothing here is redistributed, and a borrowed verdict stays an inference.
 COMPARATOR_REFS = (
-    "ASSETS.json", "Cargo.toml", "PINNED.md", "PROVENANCE.md",
-    "RUNBOOK.md", "THIRD_PARTY_NOTICES.md", "api_shapes.py",
-    "check_provenance.py", "engine_component.py", "structured_server.py",
-    "docs/TERMINAL_LAUNCH.md", "docs/structured_decisions.md", "packaging/ENGINE-COMPONENT.md",
-    "dev/tests/server/test_anthropic_contract.py", "entrypoints/anthropic/serving.py",
-    "entrypoints/openai/parser/harmony_utils.py", "entrypoints/openai/responses/harmony.py",
-    "entrypoints/serve/utils/tool_calls_utils.py", "srt/entrypoints/anthropic/protocol.py",
-    "srt/entrypoints/openai/protocol.py", "serving_chat.py")
+    "PROVENANCE.md",
+    "serving_chat.py")
 # Two home candidate sources, because $HOME is not a stable fact here: the documented
 # CLT/sandbox recipe exports HOME=/private/tmp/codexhome, and a resolver that asks $HOME
 # where the reference trees live then reports every upstream cite as unresolved. A gate
@@ -276,7 +272,13 @@ def _homes():
 
 
 HOMES = _homes()
-clones = sorted({p for h in HOMES for p in glob.glob(os.path.join(h, "references/*"))})
+# Which comparator trees exist on this box is exactly what decides a P2 red here, and a premise that
+# decides a verdict has to be reproducible on demand, not inherited from what the host happens to
+# hold (invariant 1). `OCOREAI_AGENTS_NO_HOST_REFS=1` judges the docs with a runner's premise: no
+# ~/references, dependency checkouts and this repo's own files only.
+NO_HOST_REFS = os.environ.get("OCOREAI_AGENTS_NO_HOST_REFS") == "1"
+clones = [] if NO_HOST_REFS else sorted(
+    {p for h in HOMES for p in glob.glob(os.path.join(h, "references/*"))})
 # The dependency checkouts this repo actually compiles: on CI there is no ~/references, but
 # a leg that resolved the pin can still resolve an upstream basename against real code.
 for _base in (".build-clt/checkouts", ".build/checkouts"):
@@ -292,16 +294,69 @@ for c in clones:
 docs = {"AGENTS.md": root_text, "README.md": read("README.md"), "README.zh.md": read("README.zh.md")}
 docs.update({p: read(p) for p in guides})
 
+# ── which trees are outside this repo, derived not hand-written ─────────────────────────
+# § Upstream Audit Dependencies 6 says the comparator set IS docs/agent/comparator-repos.md, and each
+# entry there opens with a "`<tree>` \u2014" bullet: that file is the declaration home, so this reads it
+# instead of keeping a second list here (one home per decision). A cite into one of those trees can
+# never resolve on a runner, so the honest question is not "does the file exist" but "does the doc say
+# which tree it came from" \u2014 the same evidence a human uses, one wrap away from the cite.
+COMPARATOR_DOC = "docs/agent/comparator-repos.md"
+TREE_BULLET = re.compile(r"^- ((?:`[A-Za-z0-9][A-Za-z0-9_.-]*`(?: \(pin \d\))?[ ,/and]*)+)\u2014", re.M)
+comparator_trees = sorted({t for line in TREE_BULLET.findall(read(COMPARATOR_DOC))
+                           for t in re.findall(r"`([A-Za-z][A-Za-z0-9_.-]*)`", line)})
+TREE_AT = {t: re.compile(r"(?<![A-Za-z0-9_./-])" + re.escape(t) + r"(?![A-Za-z0-9_-])")
+           for t in comparator_trees}
+OUTSIDE_FORM = re.compile(r"^(?:\.\./|~/)?references/([A-Za-z0-9_.-]+)/")
+
+def para_ids(text):
+    """The block a human reads when resolving a cite: a prose block, or one bullet of a list \u2014 a
+    bullet list with no blank lines between items is NOT one paragraph, or every cite in the corpus
+    doc would attribute to every tree in it."""
+    ids, pid = [], 0
+    for ln in text.split("\n"):
+        if not ln.strip() or ln.startswith("- "):
+            pid += 1
+        ids.append(pid)
+    return ids
+
+def paragraphs(text):
+    ids = para_ids(text)
+    out = {}
+    for i, ln in enumerate(text.split("\n")):
+        out.setdefault(ids[i], []).append(ln)
+    return {k: "\n".join(v) for k, v in out.items()}
+
+def tree_before(para, cite):
+    """The tree in force at this cite: the closest tree name ahead of it in the same block, which is how
+    a reader resolves it ("**opencode** — intake closed by bots (`triage-close-issues.yml`…)"). A cite
+    with no tree name ahead of it in the block is unattributed, and that is the red: a runner has no
+    ~/references, so such a cite is a dead pointer there and a puzzle here."""
+    best, pos = None, -1
+    start = 0
+    while True:
+        at = para.find(cite, start)
+        if at < 0:
+            return best
+        for t, rx in TREE_AT.items():
+            hits = [m.start() for m in rx.finditer(para[:at])]
+            if hits and max(hits) > pos:
+                best, pos = t, max(hits)
+        start = at + len(cite)
+
 refs, anchors, claims, suites, make_targets, routing = set(), set(), set(), set(), set(), set()
 suite_counts = set()
+cite_where = {}   # path -> {(doc, paragraph id)} for every cite that is not declared absent
 for src, text in docs.items():
-    for raw in text.splitlines():
+    paras = paragraphs(text)
+    ids = para_ids(text)
+    for raw, pid in zip(text.splitlines(), ids):
         line = re.sub(r"https?://\S+", " ", raw)  # URLs are cites, not repo paths
         exempt = any(m in line for m in ABSENT)
         for m in FILE_RE.finditer(line):
             refs.add((src, m.group(1)))
             if not exempt:
                 refs.add(("!", src, m.group(1)))
+                cite_where.setdefault(m.group(1), set()).add((src, pid))
         for m in ANCHOR_RE.finditer(line):
             anchors.add((src, m.group(1), int(m.group(2))))
         for m in CLAIM_RE.finditer(line):
@@ -312,6 +367,11 @@ for src, text in docs.items():
         routing.update((src, r) for r in ROUTING_RE.findall(line))
 
 hard_refs = sorted({r for t in refs if t and t[0] == "!" for r in t[1:]})
+doc_paras = {src: paragraphs(text) for src, text in docs.items()}
+if len(comparator_trees) < env_int("OCOREAI_AGENTS_FLOOR_TREES"):
+    fail.append("P1 only %d comparator trees derived from %s (floor %d) — the entry regex "
+                "stopped matching, so every outside cite below would be judged blind"
+                % (len(comparator_trees), COMPARATOR_DOC, env_int("OCOREAI_AGENTS_FLOOR_TREES")))
 
 # ── P1 floors: prove the scan is still scanning ──────────────────────────────
 if len(hard_refs) < env_int("OCOREAI_AGENTS_FLOOR_REFS"):
@@ -330,7 +390,8 @@ if len(routing) < env_int("OCOREAI_AGENTS_FLOOR_ROUTING"):
     fail.append("P1 only %d routing-table rows (< floor %d)" % (len(routing), env_int("OCOREAI_AGENTS_FLOOR_ROUTING")))
 
 # ── P2 refs resolve ──────────────────────────────────────────────────────────
-unresolved, upstream, declared_outside = [], [], []
+unresolved, ambiguous, upstream = [], [], []
+declared_outside, declared_context, attributed = [], [], {}
 for r in hard_refs:
     if r.startswith("~/") or r.startswith("/"):
         targets = [os.path.expanduser(r)]
@@ -338,6 +399,14 @@ for r in hard_refs:
             targets += [os.path.join(h, r[2:]) for h in HOMES]
         if not any(os.path.exists(t2) for t2 in targets):
             warn.append("P2 host-local path not on this host: %s (must be declared host-local, not project truth)" % r)
+        continue
+    # A path that carries its tree (`../references/vllm/docs/x.md`) declares itself, and it is matched
+    # BEFORE resolves-here so a comparator file cannot borrow the credit of a same-named local one:
+    # `AGENTS.md` exists in both trees and only one of them is ours.
+    form = OUTSIDE_FORM.match(r)
+    if form and form.group(1) in TREE_AT:
+        declared_outside.append(r)
+        attributed[r] = form.group(1)
         continue
     if (r in tracked or r in on_disk or os.path.exists(r)
             or any(r.endswith(x) for x in SYSTEM_REFS)):
@@ -350,18 +419,52 @@ for r in hard_refs:
         shown = ",".join(trees[:3]) + (",+%d more" % (len(trees) - 3) if len(trees) > 3 else "")
         upstream.append("%s (%s)" % (r, shown))
         continue
+    # Per occurrence, not per path: a cite appearing in two different trees' bullets is honest as long
+    # as EACH bullet says which tree it means, and dishonest the moment one of them stays silent.
+    named, silent = set(), []
+    for src, pid in sorted(cite_where.get(r, ())):
+        hit = tree_before(doc_paras[src].get(pid, ""), r)
+        if hit:
+            named.add(hit)
+        else:
+            silent.append("%s:%d" % (src, pid))
+    if r in COMPARATOR_REFS and silent:
+        declared_outside.append(r)
+        continue
+    if named and not silent:
+        declared_context.append(r)
+        attributed[r] = ",".join(sorted(named))
+        continue
+    if named:
+        ambiguous.append("%s (%s)" % (r, " ".join(silent)))
+        unresolved.append(r)
+        continue
     if r in COMPARATOR_REFS or base in COMPARATOR_REFS:
         declared_outside.append(r)
         continue
     unresolved.append(r)
 if unresolved:
-    fail.append("P2 %d unresolved reference(s) — no such file here, no basename match in git, "
-                "not in a local upstream clone, not declared absent: %s"
+    fail.append("P2 %d unresolved reference(s) — no such file here, no basename match in git, not "
+                "in a local upstream clone, and the paragraph that cites it names no comparator tree "
+                "(a runner has no ~/references, so an unattributed cite is a dead pointer there): %s"
                 % (len(unresolved), ", ".join(unresolved)))
+if ambiguous:
+    fail.append("P2 %d cite(s) in a block that names no tree ahead of them (%s) — name the tree, or "
+                "write the path as `references/<tree>/…`; a reader cannot resolve these either"
+                % (len(ambiguous), ", ".join(ambiguous)))
 # A declaration that no doc uses is an exemption with no owner, and a list nobody trims is how
 # allowlists become a way of not looking. Both directions are cheap to check, so both are checked.
 dead_declarations = [d for d in COMPARATOR_REFS
                      if not any(h == d or os.path.basename(h) == d for h in hard_refs)]
+# The paragraph rule replaces a hand-written name, so an entry that only ever matched cites which
+# already name their tree has no job left — and an allowlist entry with no job is how a gate turns
+# into a habit of not looking.
+redundant = [d for d in COMPARATOR_REFS
+             if any(h == d or os.path.basename(h) == d for h in attributed)
+             and all(h in attributed for h in hard_refs if h == d or os.path.basename(h) == d)]
+if redundant:
+    fail.append("P2 %d allowlist entr(ies) the docs no longer need because the cite names its tree (%s)"
+                " — delete them" % (len(redundant), ", ".join(redundant)))
 if dead_declarations:
     fail.append("P2 %d declared outside-tree cite(s) no longer cited by any doc (%s) — delete "
                 "them; an unused declaration is an exemption, not a fact"
@@ -873,8 +976,10 @@ print("  suites    numbered-claims=%d/%d ok (floor %d)  files-with-@Test=%d"
          len([1 for s, _, _ in suite_counts if s not in DIARIES]),
          env_int("OCOREAI_AGENTS_FLOOR_SUITE_COUNTS"), len(test_fn_counts)))
 if upstream:
-    print("  outside   %d/%d comparator-tree cite(s) declared (host trees, never on a runner)"
-      % (len(declared_outside), len(COMPARATOR_REFS)))
+    print("  outside   %d cite(s) into comparator trees (path=%d paragraph=%d) over %d trees declared"
+          " in %s; residual allowlist %d entr(ies) (host trees, never on a runner)"
+      % (len(declared_outside) + len(declared_context), len(declared_outside), len(declared_context),
+         len(comparator_trees), COMPARATOR_DOC, len(COMPARATOR_REFS)))
 print("  upstream  %d ref(s) resolved in a dependency checkout or ~/references "
           "(line numbers inside them are what `make anchor-check` verifies): %s"
           % (len(upstream), ", ".join(sorted(set(upstream))[:6])))

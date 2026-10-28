@@ -137,7 +137,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **A measured gallery is the one adoption surface we can win outright** (README/, Handlers/) — the leaders
   advertise model support as adjectives while `/v1/models` already publishes per-checkpoint measured verdicts
   (`vlm`, `contextLength`, `toolCallDelivery`, `reasoningEffort`, `videoInput`) and `scripts/eval/` scores 39
-  tasks; owed is the artefact — a generated README table plus `models.json`, refreshed by a probe with its
+  tasks; owed is the artefact — a generated README table plus `models.json` (absent), refreshed by a probe with its
   command beside it (precedent: pi publishes its catalog from CI behind a compatibility gate,
   `../references/pi/.github/workflows/publish-model-catalog.yml:1-14`). Owner call: publishing a catalog is
   promising it stays true, and the refresh probe going red on a stale row is the instrument.

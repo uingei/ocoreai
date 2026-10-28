@@ -67,140 +67,75 @@ jobs:
           pre-commit --version
           pre-commit run --all-files || { echo "::error::failed step: pre-commit hooks (see .pre-commit-config.yaml)"; exit 1; }
 
-  ## ── Static audit — fast, no build ───────────────────────────────
-  audit:
-    name: Static Audit
-    runs-on: macos-26
-    # 25, not 15: at 65836b7 this job hit "exceeded the maximum execution time of 15m0s" with no
-    # step failure, having reached the anchor step inside budget at 5442d03 — it sits at the
-    # ceiling, and arm64 capacity warnings make the margin negative. The two known cost centres are
-    # the pinned swift-format build (~4 min measured on host) and `swift package resolve`, which
-    # must stay (upstream cites resolve only at the pin). If 25 min still trips, cache the SPM
-    # mirror (~/.cache/org.swift.swiftpm), not `.build`; per-step attribution needs a token this
-    # repo does not have, so this is headroom, not a fix.
-    timeout-minutes: 25
-    # No `needs: [governance]`: this leg's own comment says an authority that a style tool can
-    # cancel is not an authority, and the text gates now live in that job — a quoted typo in the
-    # changelog must not suppress the pattern, format, lockfile and toolchain checks.
-    # (Observed at b2a2fa0: a pre-commit finding on CHANGELOG.md left this leg `skipped`.)
+  ## ── Text gates — reads text, so it does not sit on an arm64 runner ────────
+  # AGENTS.md § Working here prices a lock by the seat it costs ("text gates go to ubuntu; arm64
+  # minutes are the expensive seat"). These gates were the `audit` leg on macos-26: a 25-minute
+  # ceiling measured at 715 s a push, most of it building the pinned swift-format and running
+  # `swift package resolve`, neither of which a git/grep/python gate needs. Same scripts, same
+  # verdicts, cheap seat.
+  # The premise is pinned, not inherited: `OCOREAI_AGENTS_NO_HOST_REFS=1` judges the docs as a host
+  # with no comparator trees, because on 10-28 that premise was what decided a P2 red — 25 cites had
+  # drifted into dead pointers on a fresh clone while every check on a tree-rich host stayed green. A
+  # gate whose premises come from the box it runs on is exactly what invariant 1 is about.
+  # What did NOT come to CI, deliberately: the pinned swift-format build (no ubuntu image ships a
+  # Swift toolchain, so moving it would invent an untested path) and the toolchain/Metal probe. Both
+  # bite in `make push-ready` now, the cheapest rung that bites, on the host whose toolchain produced
+  # the bytes; and R1 ("the shipping SDK carries no CoreAI") is judged where it is observable — the
+  # artefact, by `release-artifact-check.sh delivery` in `build-appstore` — not by an environment ask.
+  text-gates:
+    name: "Text gates (ubuntu)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      OCOREAI_AGENTS_NO_HOST_REFS: "1"
     steps:
       - uses: actions/checkout@v4
 
-      # swift-format is the only style gate — aligned with upstream
-      # (mlx-swift-lm / coreai-models ship no swiftlint; .swift-format is the
-      # shared config surface). Version-locked: a new swift-format release can
-      # change formatting rules and reformat files no PR touched.
-      # A pin you cannot install is not a pin. `brew install` serves whatever the
-      # current release is (604.0.0 since 09-16), so this step failed on *every*
-      # push for ~90 runs — and since three legs `needs:` this job, the leg
-      # AGENTS.md calls the authority was reported `skipped`, not red. Build the
-      # tag instead, so the version lock is reproducible and the failure is honest.
-      - name: Setup swift-format (pinned)
-        run: |
-          set -Eeuo pipefail
-          # A bare exit 1 is unreadable from outside (annotations are the only text this repo can
-          # read), so the step names itself before anything can fail inside it.
-          trap 'echo "::error::failed step: setup pinned swift-format"' ERR
-          TAG=603.0.0
-          git clone --depth 1 --branch "$TAG" \
-            https://github.com/swiftlang/swift-format.git /tmp/sf-pin
-          ( cd /tmp/sf-pin && swift build -c release --quiet )
-          SF=/tmp/sf-pin/.build/release/swift-format
-          V="$("$SF" --version 2>&1 | head -1)"
-          case "$V" in
-            *"$TAG"*) echo "✅ swift-format pinned: $V" ;;
-            *) echo "❌ built $V, wanted $TAG — bump deliberately and reformat in one commit"; exit 1 ;;
-          esac
-          echo "/tmp/sf-pin/.build/release" >> "$GITHUB_PATH"
-
-      # Pattern-based static audit (whitelist-protected)
-      - name: Run static audit
-        run: |
-          bash scripts/audit.swift_patterns.sh || { echo "::error::failed step: static audit (code patterns)"; exit 1; }
-
-      # AGENTS.md contract — the injected context layer is code: budget it (shrink-only), resolve
-      # every path/`file:line` it names, re-run every `<!-- claim:… -->` number, and check that its
-      # routing table matches the guides on disk. Its first run here caught three counts that had
-      # drifted and four map rows pointing at files the repo never had — invisible to every other
-      # job because nothing greps the docs.
-      # Upstream cites inside the docs (`ChatSession.swift:1154`) are evidence, and they resolve
-      # only against real code at the pinned revision. CI has no ~/references, so resolve the
-      # dependency graph first: a cite that resolves nowhere must stay a failure, never become an
-      # exemption granted for convenience.
-      - name: Resolve dependencies (so upstream cites resolve at the pin)
-        run: |
-          set -euo pipefail
-          swift package resolve || { echo "::error::failed step: swift package resolve (dependency graph)"; exit 1; }
-
+      # The injected context layer is code: budget it (shrink-only), resolve every path it names,
+      # re-run every `<!-- claim:... -->` number, and check the routing table against the guides on
+      # disk. Its first run here caught three drifted counts and four map rows pointing at files the
+      # repo never had, because nothing else in the fleet greps the docs.
       - name: AGENTS.md contract
         run: |
-          bash scripts/agents-md-contract.sh check || { echo "::error::failed step: AGENTS.md contract (docs gate)"; exit 1; }
+          bash scripts/agents-md-contract.sh check \
+            || { echo "::error::failed step: AGENTS.md contract (docs gate)"; exit 1; }
 
-      # Line-cite anchors — docs-check can only ask whether `file:line` is inside the file;
-      # this asks whether the line is the code the doc claims. 15 cites were wrong on 10-17
-      # with docs-check green (round 14 inserted lines above ThinkingBudget and the numbers
-      # moved). Local anchors are enforced on every leg (floor 6); upstream anchors verify
-      # wherever a dependency tree exists and are reported as skipped otherwise, so a
-      # runner with no ~/references neither false-fails nor passes silently.
+      # Zero try!/as!/fatalError/assert, print() only on a CLI surface, and the Class-I licence
+      # patterns that travel with the binary (AGENTS.md § Build / Test / Lint).
+      - name: Code-pattern audit
+        run: |
+          bash scripts/audit.swift_patterns.sh \
+            || { echo "::error::failed step: static audit (code patterns)"; exit 1; }
+
+      # docs-check asks whether `file:line` is inside the file; this asks whether the line is the
+      # code the doc claims. 15 cites were wrong on 10-17 with docs-check green. Local cites are
+      # enforced (floor 6); upstream ones report as skipped where no dependency tree exists, so a
+      # host with neither ~/references nor checkouts neither false-fails nor passes silently.
       - name: Line-cite anchors
         run: |
-          bash scripts/anchor-check.sh || { echo "::error::failed step: line-cite anchors"; exit 1; }
+          bash scripts/anchor-check.sh \
+            || { echo "::error::failed step: line-cite anchors"; exit 1; }
 
-      # Toolchain contract — assert this runner's SDK/toolchain is the shape the build
-      # claims. A runner-image bump can repoint MacOSX.sdk to a newer SDK that ships
-      # CoreAI.framework, which flips `canImport(CoreAI)` true and compiles the
-      # macOS-27-only blocks into what we call the delivery build. Same family as the
-      # swift-format version lock above: the environment is part of what we test, so
-      # pin it and fail loudly rather than infer it from a symlink. (Observed on a dev
-      # host 10-14: CLT 26.5 → 27.0 mid-session + Metal Toolchain component gone, and
-      # `swift build` became undiagnosable.)
-      - name: Toolchain contract
-        # --probe-metal: judge R2 by compiling a kernel, not by `metal --version`
-        # (whose answer tracks whether cryptexd has the asset mounted right now).
-        # A red here used to leave one annotation ("exit code 1") and a log that needs a
-        # token this repo does not have — undiagnosable. So the step carries its own
-        # diagnosis: name the step, then publish the fact that decides R1 (does a
-        # CoreAI-free SDK exist on this runner at all?). That answer is the owner's input
-        # for pinning SDKROOT versus declaring the macOS-27 route.
-        run: |
-          bash scripts/toolchain-contract.sh check --probe-metal || {
-            echo "::error::failed step: toolchain contract (R1 shipping SDK carries no CoreAI; R2 a kernel compiles)"
-            for s in /Applications/Xcode*.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX*.sdk; do
-              [ -e "$s" ] || continue
-              if [ -d "$s/System/Library/Frameworks/CoreAI.framework" ]; then coreai=yes; else coreai=no; fi
-              echo "::error::sdk $(basename "$s") CoreAI=$coreai"
-            done
-            exit 1
-          }
-
-      # Lockfile drift gate — xcodebuild (all test/release legs) reads the
-      # WORKSPACE Package.resolved; swift build reads the ROOT one. Two
-      # containers drifted 10/34 pins apart unnoticed (2026-10 audit): the
-      # graph CI tested and the graph that compiles into the DMG were
-      # different for weeks. Fail loudly; sync is a one-liner.
+      # xcodebuild reads the WORKSPACE copy, swift build reads the ROOT one; they drifted for three
+      # pin bumps and only this check ever said so.
       - name: Resolved lockfiles in sync
         run: |
-          bash scripts/resolved-sync.sh check || { echo "::error::failed step: resolved lockfile sync"; exit 1; }
+          bash scripts/resolved-sync.sh check \
+            || { echo "::error::failed step: resolved lockfile sync"; exit 1; }
 
-      # Format gate — mlx-swift-lm pattern (pre-commit run --all, swift-format
-      # format hook). Run swift-format in-place then require zero diff: any
-      # file that would be reformatted fails the pipeline.
-      - name: Swift-format gate
+      # A dead type name in the architecture docs teaches an architecture that does not exist:
+      # ARCHITECTURE.md diagrammed BackendProtocol.swift for weeks after 2123143 deleted it.
+      - name: Docs name only types that exist
         run: |
-          set -euo pipefail
-          swift-format format --in-place --recursive --parallel --configuration .swift-format Sources/ Tests/
-          if ! git diff --exit-code -- Sources/ Tests/ > /tmp/format-diff.txt 2>&1; then
-            echo "❌ swift-format reformatted files (see diff) — run locally:"
-            echo "   swift-format format --in-place --recursive --configuration .swift-format Sources/ Tests/ && git add -A"
-            git --no-pager diff --stat -- Sources/ Tests/ || true
-            # Name the drifted files where they can be read without a token: this leg is the
-            # one a pin bump is expected to trip, and a red "format" step with no file list
-            # cannot be acted on from the annotations API.
-            git diff --name-only -- Sources/ Tests/ | sed 's/^/::error::needs swift-format: /'
-            head -40 /tmp/format-diff.txt || true
-            exit 1
-          fi
-          echo "✅ swift-format gate: zero files reformatted"
+          bash scripts/docs-type-existence.sh \
+            || { echo "::error::failed step: doc type existence"; exit 1; }
+
+      # A remediation target that cannot parse is a gate with no exit (`make format` once died on an
+      # apostrophe inside an awk program, so the stated fix for a red had never run).
+      - name: Every Makefile recipe parses
+        run: |
+          bash scripts/makefile-parse-check.sh \
+            || { echo "::error::failed step: makefile parse"; exit 1; }
 
       # No secret scanner in CI, and that is a measurement, not a preference. It was imported from
       # `references/zeroclaw` — a project not in references and never in this repo's history — and
@@ -211,13 +146,6 @@ jobs:
       # maintained signatures is free where it also lands before history: GitHub secret scanning +
       # push protection for this public repo, which the owner enables under Settings → Code security.
 
-      - name: Test coverage report (advisory)
-        run: |
-          set -euo pipefail
-          python3 scripts/coverage_report.py 2>&1 || {
-            echo "ℹ️ Coverage data not available (xcodebuild runner uses build-for-testing, not swift test --enable-code-coverage)"
-            echo "ℹ️ Coverage gate skipped — advisory only"
-          }
 
   ## ── Build + test via xcodebuild (mlx-swift-lm pattern) ──
   # xcodebuild handles Metal shader compilation natively (resolves metallib).
@@ -636,10 +564,32 @@ jobs:
         run: |
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
-          eval "$(bash scripts/toolchain-contract.sh print-delivery-env)"
+          # Failures must be VISIBLE without a token — the same contract build-ios below honours. The
+          # resolver's words, the compiler's error lines and the checker's verdict go to
+          # $GITHUB_STEP_SUMMARY and ::error:: annotations, which the public check-runs/{id}/annotations
+          # endpoint serves. This leg's first runner verdict on the pinned route (10-28) was readable
+          # only as "Process completed with exit code 1": a red that nobody without a token can read is
+          # not a gate, it is a rumour.
+          if ! ROUTE="$(bash scripts/toolchain-contract.sh print-delivery-env 2>&1)"; then
+            printf '%s\n' "$ROUTE" | tail -20 | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "::error::the delivery route refused on this runner — step summary has the words"
+            exit 1
+          fi
+          eval "$ROUTE"
           echo "   route: DEVELOPER_DIR=$DEVELOPER_DIR SDKROOT=$SDKROOT"
-          swift build -c release --traits appStore $OCOREAI_DELIVERY_FLAGS
-          bash scripts/release-artifact-check.sh delivery .build/release/ocoreai
+          if ! { swift build -c release --traits appStore $OCOREAI_DELIVERY_FLAGS \
+                 && bash scripts/release-artifact-check.sh delivery .build/release/ocoreai ; } \
+               > appstore-delivery.log 2>&1; then
+            grep -E "error:|no CoreAI-free|has no member|❌" appstore-delivery.log | sort -u | head -30 \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            grep -E "error:" appstore-delivery.log | sort -u | head -8 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            echo "--- last lines ---"
+            tail -25 appstore-delivery.log
+            exit 65
+          fi
+          tail -4 appstore-delivery.log
 
   ## ── iOS compile-validation (independent job — no matrix sharing) ──
   # ocoreai declares .iOS(.v17) first-class; the #if os(iOS) branches had no CI

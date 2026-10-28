@@ -4,6 +4,50 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(9) The text gates stop paying for an arm64 seat, and the docs gate stops trusting what the host happens to hold** (P1 process / symbols `text-gates-ubuntu`, `cite-attribution-by-tree`)
+
+- **What improved.** The `Static Audit` leg is gone. Six gates that read text — docs contract, code patterns,
+line-cite anchors, lockfile sync, type existence, Makefile parse — sat on `macos-26` under a 25-minute ceiling
+at **715 s a push**, most of it building the pinned swift-format and running `swift package resolve`; §
+Working here prices a lock by the seat it costs and says text gates go to ubuntu, so they now run as
+`text-gates` there. Two gates genuinely need macOS — the pinned formatter and
+`toolchain-contract.sh check --probe-metal` — and they were not moved to a seat that cannot host them (no
+ubuntu image ships a Swift toolchain): they bite in `make push-ready`, where the docs contract also runs with
+`OCOREAI_AGENTS_NO_HOST_REFS=1`. That knob is the round's other half and the root cause of the red: P2
+resolved cites against `~/references/*`, so on a tree-rich host 47 comparator cites read fine while a fresh
+clone got 47 dead pointers. The gate no longer infers its premise from the box — the tree set is derived from
+the `- \` <tree>\` —` bullets of `docs/agent/comparator-repos.md` (floor 16), and a cite into one is judged by
+whether the block that cites it **names its tree ahead of the cite**, the same evidence a reader uses.
+
+- **What same-session output proves it.** Under the runner's premise: **77 comparator cites attributed** (12
+by path form, 65 by paragraph), and the hand-written `COMPARATOR_REFS` allowlist fell from 21 entries to 2
+(`PROVENANCE.md`, `serving_chat.py`) because the gate itself named the 19 it no longer needed. Three real doc
+defects surfaced, not instrumentation: a `VISION.md` cite in two docs whose block never said whose file it is,
+and `models.json` cited in the runbook and in open-items as if it existed when it is the artefact we *owe*
+(now marked absent). Workflow YAML parses with six jobs; `makefile-parse-check` 31 recipes; the relocated
+scripts use no BSD-only tool in their check paths (the one `sed -i ''` left in the tree is the `docs-budget`
+re-pin path CI never calls); `make audit`, `anchor-check`, `docs-check` and `spell` are green with the premise
+pinned, and green without it.
+
+- **Which gate goes red if it regresses.** Sampled three times while writing it. Deleting a still-needed
+allowlist entry → `P2 1 unresolved reference(s) … names no comparator tree`. Silencing every tree name in a
+cite's block → `P2 3 unresolved reference(s)` *and* the derived count dropping 20→19, which is the derivation
+proving it reads the corpus doc. And the redundancy red fired at 19 allowlist entries on the first run after
+paragraph attribution landed — that red is what removed them, rather than leaving an exemption with no job
+behind. Reader whose action changes: anyone adding an outside cite (name the tree in the block or the gate
+says so), and anyone pricing a lock by its seat.
+
+- **Honest limits.** Style and the Metal/SDK route are no longer judged by a runner: a push that skips
+`make push-ready` can land `swift-format` drift or a route that cannot build the delivery shape, and only the
+artefact judge (`release-artifact-check.sh delivery`, in `build-appstore`) will say so — recorded in
+`docs/agent/build-gate-reality.md`, not hidden. Paragraph attribution can name the wrong tree when a block is
+itself misleading (the gate cannot read the tree it is judging); it still beats a name list, and the 2
+surviving declarations keep the unattributable residue honest. `text-gates` has not run on an ubuntu runner
+yet — the next push is its first verdict — and `build-appstore` is **red** on current main with a log no
+token-holder-less reader can open, which is why that step now tees its resolver words and `error:` lines into
+`$GITHUB_STEP_SUMMARY` plus `::error::` annotations.
+
+
 **10-28(8) The published skill shipped three dangling pointers, and the only gate that can see it asks git** (P0 adoption / symbols `ignored-skill-references`, `skill-trackedness-gate`)
 
 - **What improved.** `.gitignore` mirrored reference trees with two **unanchored** rules — `reference/` and

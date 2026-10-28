@@ -129,15 +129,15 @@ toolchain-check:
 	[ "$$PASS" -eq 1 ] || { echo "❌ no route on this host gives a CoreAI-free SDK AND a working shader compiler"; exit 1; }; \
 	echo "✅ contract holds on at least one route — the build/test targets pin it explicitly"
 
-## swift-format resolution — CI installs it on PATH via brew; an Xcode/CLT-only
-## host ships it only under `xcrun`, so `make format`/`format-check` died with
-## "swift-format: No such file or directory". The style gate reached CI unseen
-## because it could not be run locally. Resolve once; the args stay identical.
+## swift-format resolution — no CI seat since 10-28 (building the pinned formatter cost ~4 arm64
+## minutes a push to lock style), so this target is where the style gate lives: round-gates and
+## push-ready. A host without it on PATH ships it only under `xcrun`, and "swift-format: No such file
+## or directory" once made the gate unreachable locally — which is how drift reached CI unseen.
 SF_CACHE = $(HOME)/.cache/ocoreai-swift-format-$(SF_PIN)
 SF_LOCAL = $(SF_CACHE)/repo/.build/release/swift-format
 SWIFT_FORMAT ?= $(shell if [ -x "$(SF_LOCAL)" ]; then echo "$(SF_LOCAL)"; elif command -v swift-format >/dev/null 2>&1; then echo swift-format; else echo "xcrun swift-format"; fi)
-## The resolved binary's VERSION is part of the gate: CI installs brew swift-format and hard-fails
-## unless it reports 603.0.0, but an Xcode/CLT-only host falls back to `xcrun swift-format`, whose
+## The resolved binary's VERSION is part of the gate: 603.0.0 is still the ruleset asserted here, but
+## an Xcode/CLT-only host falls back to `xcrun swift-format`, whose
 ## version string is "main" — a different ruleset that reformats committed files CI accepts. Name
 ## the version on every run, so a local reformat is read as drift or violation deliberately.
 SF_PIN := 603.0.0
@@ -416,8 +416,9 @@ sf-pin:
 docs-check:
 	bash scripts/agents-md-contract.sh check
 
-## Pinned codespell, version asserted before use, vocabulary in .codespellrc. CI runs it too — on
-## ubuntu, because it reads text and the arm64 audit leg already costs 715 s a push.
+## Pinned codespell, version asserted before use, vocabulary in .codespellrc. CI runs the same pinned
+## hook in the ubuntu `governance` leg (pre-commit), so this is the local rung, not a second job: no
+## text gate of this repo spends an arm64 minute any more.
 spell:
 	bash scripts/spell-check.sh
 
@@ -450,6 +451,15 @@ push-ready:
 	@# round-gates (which does check them) is not the target anyone runs before pushing. A gate that
 	@# exists off the path taken is not a gate: verify the cites here, where the tree is verified.
 	@bash scripts/anchor-check.sh || { echo "::error::line-cite drift — repoint the cite or fix the code"; exit 1; }
+	@# The text gates lost their arm64 seat on 10-28 (715 s a push to re-read text), so this is where
+	@# they bite before a push: the docs contract judged with the RUNNER's premise — no ~/references —
+	@# because a docs claim that only passes on a tree-rich host is the very defect that gate exists to
+	@# catch; then the pattern audit, the style lock and the route contract. None compiles the product.
+	@OCOREAI_AGENTS_NO_HOST_REFS=1 bash scripts/agents-md-contract.sh check \
+	  || { echo "::error::docs contract — budget, cite, claim or routing drift"; exit 1; }
+	@bash scripts/audit.swift_patterns.sh || { echo "::error::code-pattern audit"; exit 1; }
+	@$(MAKE) --no-print-directory format-check || { echo "::error::swift-format"; exit 1; }
+	@$(MAKE) --no-print-directory toolchain-check || { echo "::error::no route produces the delivery shape"; exit 1; }
 	@# CI truth, reported not enforced: the authority leg sat `skipped` for ~90 pushes because
 	@# nothing local could ask what CI concluded. Exit 2 from this script means "could not ask"
 	@# (offline, rate-limited, still running) and must never be read as green.

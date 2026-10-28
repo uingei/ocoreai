@@ -11,7 +11,7 @@ macOS 27-only blocks compiled into the shipping shape — and `swift build` stop
 because `metal` is not installed. Full incident (times, negative controls, remedies): `CHANGELOG.md`,
 grep `toolchain-contract`. Two rules came out of it and both still hold: a route is *asserted*, never
 inferred from the environment (`scripts/toolchain-contract.sh`; R1 "the shipping SDK carries no CoreAI"
-is a hard gate that also runs in CI's `audit` job), and `make test-clt` passes
+is a hard gate (`make toolchain-check`, in `make push-ready` since 10-28; the shape it guards is judged on the artefact by `release-artifact-check.sh delivery` in `build-appstore`)), and `make test-clt` passes
 `SDKROOT=<newest CoreAI-free SDK>` explicitly instead of trusting the symlink. Sandbox gotcha that cost
 a session: `HOME` must be the canonical `/private/tmp/…` — `/tmp/…` leaves two same-named `.pcm` files
 in the clang module cache and swift-frontend SIGSEGVs on `_DarwinFoundation1`.

@@ -90,7 +90,7 @@ the top four each sit on a machine that manufactures one (two model vendors, one
 phenomenon with institutional amplification), and two of the three fastest movers are institution-shipped. So
 distribution comes first, the objective stays the wedge rank and not the headline, the two rungs that move a
 stranger's install decision this quarter are 1 (a tag per merge) and 6 (be consumed), and the cheapest parts
-are still unpaid here — Discussions off, no homepage, no `VISION.md`, 0 watchers. Every rung below is
+are still unpaid here — Discussions off, no homepage, `VISION.md` absent, 0 watchers. Every rung below is
 falsifiable:
 
 0. **Ship.** Done, and now askable: `scripts/ci-status.sh` reports what CI concluded, never "green" for a
