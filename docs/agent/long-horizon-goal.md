@@ -79,8 +79,8 @@ conservative, it is invisible.
 
 "S = 1.0 with no adoption" is measured, not felt: 20 trees with stars, forks, age and stars/day in
 `docs/agent/adoption-runbook.md` § The leaderboard (`api.github.com` — HEAD's only authority; a mirror proves
-content, never HEAD), and **ocoreai 1 star / 0 forks / 0 open issues / 0 watchers / 7 DMG downloads across 3
-releases**, 136 days old. The gap is not the finding, the *shape* is — and the arithmetic that used to
+content, never HEAD), and **ocoreai 1 star / 0 forks / 0 open issues / 0 tags / 0 releases (10-29;
+withdrawn assets left with them)**, 137 days old. The gap is not the finding, the *shape* is — and the arithmetic that used to
 justify this section is **deleted, not softened (10-28(6))**: it read "the field's best sustained growth is
 ~408/day, so no honest engineering schedule reaches #1", yet `deepseek-ai/deepseek-harness` reached 263 687
 stars 76 days after creation, and `Niko1221/Strata` 34 577 in 34 days (rates per tree: the leaderboard).
