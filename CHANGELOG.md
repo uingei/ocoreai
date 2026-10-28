@@ -4,6 +4,35 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(23) The delivery route asked the Metal question under the wrong toolchain** (P0 CI / symbols `delivery-metal-route`)
+
+- **What improved.** Entry (20) landed and the runner still read `metal=ABSENT`, so the question was
+asked in the wrong place: `print-delivery-env` resolves its SDK under `DEVELOPER_DIR=$CLT_ROOT` and
+its Metal under whatever the host happens to use. Asked under the host's Xcode the answer is "already
+fine" — the component had just been installed there, so `metal` spawns on *that* route — the printer
+then correctly reports no value, no PATH rung is exported, and the CLT build the leg runs next dies at
+CompileMetalFile. The Metal question is now asked under the route that ships, which is the line above
+it. `METAL=ok` there means a `metal` answers `--version` on the shipping route, so no rung is needed;
+anything else prints the cryptex dir.
+
+- **What same-session output proves it.** The runner's own pair, twice: the route's notice
+`metal=ABSENT` under `DEVELOPER_DIR=/Library/Developer/CommandLineTools` beside the preflight's
+`resolver print-metal-bin: …MetalToolchain-v17.6.109.0.EDCZCv/Metal.xctoolchain/usr/bin`, with the
+build reaching exit 65 on `CompileMetalFile`. Locally the emission changed the way the contract says it
+should: this host's CLT route answers `metal=ok`, so it now gets no PATH line (its `metal` resolves by
+name even from a trimmed PATH), where before it got one it did not need.
+
+- **Which gate goes red if it regresses.** None new. The gate is the leg itself: it builds the
+delivery shape on the route that ships, and entry (19)'s preflight prints the route's answer next to the
+resolver's, which is precisely the pair that made this visible. Reader whose action changes: whoever has
+been reading that leg's `exit 65` as "the runner has no Metal compiler" — it has one, the route was not
+asking for it.
+
+- **Honest limits.** The verdict on this line is the next runner run, not this entry; entry (20)'s
+ask-first resolver is still what makes the mount appear at all, and both are needed. And nothing here
+proves the CLT route on a hosted image can *compile* a kernel — it proves the compiler becomes
+reachable, which is the claim being made.
+
 **10-28(22) The delivery leg asks the resolver what it found, not a toolchain that cannot answer** (P2 CI / symbols `appstore-resolver-report`)
 
 - **What improved.** Two small lies on one leg. Its failure path ran `xcodebuild -showComponent`

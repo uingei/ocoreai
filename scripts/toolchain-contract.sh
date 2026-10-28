@@ -328,7 +328,15 @@ if [ "$MODE" = "print-delivery-env" ]; then
          "built here; install the SDK the contract names (see 'make toolchain-check')" >&2
     exit 1
   fi
-  DELIVERY_METAL_BIN=$(bash "$0" print-metal-bin 2>/dev/null) || DELIVERY_METAL_BIN=""
+  # Ask the Metal question under the route that will consume the answer, exactly as the SDK question
+  # above is asked. Measured 10-28 on the macos-26 runner: asked under the host's Xcode it answered
+  # "already fine" (the component had just been installed there, so `metal` spawns on that route), so
+  # the printer returned no value by contract, no PATH rung was exported, and the CLT build the leg
+  # then ran died at CompileMetalFile with `unable to spawn process 'metal'` — while the leg's own
+  # preflight, asking as CLT, named the mount seconds later and read `metal=ABSENT` for the route.
+  # Asked here, METAL=ok means metal spawns by name on the route that ships and no rung is needed;
+  # anything else prints the cryptex dir, which is the rung.
+  DELIVERY_METAL_BIN=$(DEVELOPER_DIR="$CLT_ROOT" bash "$0" print-metal-bin 2>/dev/null) || DELIVERY_METAL_BIN=""
   CLT_FRAMEWORKS=$CLT_ROOT/Library/Developer/Frameworks
   CLT_USR_LIB=$CLT_ROOT/Library/Developer/usr/lib
   echo "export DEVELOPER_DIR=$CLT_ROOT"
