@@ -1,0 +1,142 @@
+name: Package dry-run
+
+# The launch path, run without a launch.
+#
+# ### Why this lane exists (measured, 10-29)
+# `git ls-remote --tags origin` is empty and `/releases` is `[]`: the tree has never shipped, and the
+# job that would ship it has never run end to end — it is gated on `refs/tags/v*`, so the only way to
+# exercise it is the thing it exists to do. It has died there before, on steps that have nothing to
+# do with the code: no Metal shader payload on a clean runner (09-27, "default.metallib not found")
+# and the artefact-upload API (v0.1.12, twice). That is the third kill criterion in
+# `docs/agent/long-horizon-goal.md` in its plainest form — a launch nobody can rehearse.
+#
+# So the *build* half of the release leg runs here, on every packaging change and every night, with no
+# publish step and no write token (`permissions: contents: read`: it cannot create a release even if a
+# step tried). `docs/agent/competitor-iteration-paths.md` § The release cadence rule names this split
+# as the precondition for self-serve publishing; the tag day then runs a publish step whose build
+# already went green on the same script the day before.
+#
+# ### Why not every push
+# This leg is ~25 arm64 minutes (an xcodebuild Release build is most of it), and the repo's own rule
+# prices arm64 minutes as the expensive seat. Packaging inputs trigger it immediately; everything else
+# is covered by the nightly, which is how the tree that owns this shape does it — mlx-swift-lm
+# .github/workflows/integration_tests.yml:3-4: "Heavy integration tests … Kept out of the PR path so
+# they never block merges", off-hour cron at :17 because GitHub queues :00 schedules behind everyone's.
+# The worst-case staleness of the packaging verdict is therefore one day for a code change and zero for
+# a change to the packaging chain itself.
+#
+# ### What it does NOT do
+# It never publishes, never uploads to a release, and never touches a tag. It is a rehearsal.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/package.yml'
+      - 'scripts/build-app.sh'
+      - 'scripts/build-dmg.sh'
+      - 'scripts/ci-materialize-metallib.sh'
+      - 'scripts/resolve-metallib.sh'
+      - 'scripts/release-artifact-check.sh'
+      - 'scripts/toolchain-contract.sh'
+      - 'scripts/verify-gui-window.sh'
+      - 'scripts/version.sh'
+      - 'scripts/probes/41-artifact-dmg-serves.sh'
+      - 'Resources/**'
+      - 'ocoreai.xcworkspace/**'
+      - '**/*.metal'
+      - 'Package.swift'
+      - 'Package.resolved'
+  schedule:
+    - cron: '37 9 * * *'
+
+permissions:
+  contents: read
+
+# Ref-independent group, cancel-in-progress false: mlx-swift-lm integration_tests.yml:22-27. A nightly
+# that is mid-build must not be thrown away by a push that lands while it runs, and two packaging runs
+# on the same lane would race nothing but the queue anyway.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  package-dryrun:
+    name: "DMG from a clean runner (no publish)"
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MetalToolchain (the CLT route has no metal compiler)
+        # Same premise build-appstore had to buy on 10-28: the component is not preinstalled, and
+        # Cmlx's .metal sources need a real compiler. The release leg above still carries its own
+        # copy of this chain; package.yml runs it first, so a regression here is found on main.
+        run: xcodebuild -downloadComponent MetalToolchain
+
+      - name: Materialize mlx metallib
+        # One script, both lanes — see scripts/ci-materialize-metallib.sh.
+        run: bash scripts/ci-materialize-metallib.sh
+
+      - name: Build the DMG (the same script the release leg runs)
+        run: |
+          set -euo pipefail
+          bash scripts/build-dmg.sh
+          ls -l dist/
+
+      - name: Judge the artefact — probe 41 (mount, serve, stop)
+        # The version verdict is pinned here: scripts/version.sh prints the number the next tag must
+        # carry, so this step says out loud, on a runner, what the artefact a stranger downloads
+        # reports about itself.
+        env:
+          OCOREAI_READY_TIMEOUT: "90"
+          OCOREAI_PROBE_CURL_TIMEOUT: "30"
+        run: |
+          set -euo pipefail
+          DMG="$(ls -t dist/ocoreai-*.dmg | head -1)"
+          echo "artefact: $DMG ($(wc -c < "$DMG" | tr -d ' ') bytes)"
+          { echo "### package dry-run artefact"; echo '```'
+            echo "dmg=$DMG bytes=$(wc -c < "$DMG" | tr -d ' ')"
+            echo "version=$(bash scripts/version.sh)"
+            shasum -a 256 "$DMG" | awk '{print "sha256="$1}'
+            echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          OCOREAI_ARTIFACT_DMG="$DMG" \
+          OCOREAI_ARTIFACT_VERSION="$(bash scripts/version.sh)" \
+            bash scripts/probes/run.sh 41
+
+      - name: Upload the DMG (rehearsal copy, non-blocking)
+        # Non-blocking by the evidence that made the release leg's copy advisory: the ArtifactService
+        # timeouts that killed v0.1.12 attempts 1+2 were an upload of this same kind of file.
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        if: always()
+        with:
+          name: ocoreai-dmg-dryrun
+          path: dist/*.dmg
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Window proof (advisory here — the release leg asserts it)
+        # The release leg's GUI step has never run on a runner either, and nobody knows whether a
+        # GitHub macOS runner has a window session. Until that is MEASURED rather than assumed this
+        # prints its verdict here instead of adding a red nobody can act on — and it stops being
+        # advisory as soon as a runner has produced a layer-0 window.
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          OCOREAI_ENABLE_HTTP=1 open build/ocoreai.app
+          sleep 20
+          if SHOT=1 PNG=/tmp/ocoreai-window.png bash scripts/verify-gui-window.sh; then
+            echo "::notice::window proof GREEN on this runner — candidate for a blocking step"
+          else
+            echo "::warning::window proof not established on this runner (exit $?) — the release leg still asserts it"
+          fi
+          pkill -x ocoreai || true
+
+      - name: Upload the window screenshot
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        if: always()
+        with:
+          name: ocoreai-window-dryrun
+          path: /tmp/ocoreai-window.png

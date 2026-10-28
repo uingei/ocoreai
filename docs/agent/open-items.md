@@ -62,14 +62,14 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   (`ReasoningEffortHonestyTests`(9) + probe 38, both tiers red-sampled); probe 12 §6 is *not* an open
   instance — it was fixed earlier and its README now requires keys 3/3 with the tools still declared.
 
-- **Three of 40 probes run without a model.** The scripted lane (see `docs/agent/closed-items-log.md`) now
-  carries three seats: probe 37 (wire contract), probe 38 §1 (a capability refusal) and probe 39 §1/§1b (the
-  published skill executed marker by marker, plus the key boundary), all appended to the headless-serve
-  smoke step so they run on every push. Still open: the other 37 probes need a resident
-  engine because their claim is about the engine (prefix reuse, sampling delivery, KV residency), and each
-  one moves to the cheap tier only when its claim turns out to be a frame claim; and neither scripted CI
-  step has run on a runner yet, so until their first pass they are candidate gates, not green ones. Owner
-  call: which tier the scripted lane may run in.
+- **Four of 41 probes answer without weights; no checkpoint tier has a CI seat.** The scripted lane holds
+  three — 37 (wire contract), 38 §1 (a refusal), 39 §1/§1b (the skill executed marker by marker) — one
+  step each in `Build & Test (macos-26)`, first runner pass green 10-29 (4 / 3 / 7 s; each step's tier
+  counts are printed as annotations, because a runner holds no weights and 38 §2 / 39 §2 / 40 §2 took
+  their skip branch). Open: 36 probes' claims are about the engine (prefix reuse, sampling delivery, KV
+  residency) and move cheap only when one turns out to be a frame claim. Owner call: which tier the
+  scripted lane may run in, and whether a nightly takes the checkpoint tiers (`package.yml`, added 10-29,
+  is this repo's first non-push seat).
 
 - **The chain ceiling, now that the drop speaks** (Skills/, docs/). `make docs-check` prints
   `budgets … deepest-chain=N/CAP`, and B2 both prices each root→guide chain against the host's 32,768 and

@@ -30,7 +30,7 @@ claim coverage → 1.0. The product surface grows only where a gate already meas
 | B′ | tasks that can produce a cell | set size, pass/fail split, noise band: `scripts/eval/README.md` (not restated here — a figure in two homes drifts) | `_repeat_stats.py` on the base root |
 | C | cost of one verdict | minutes; the floor is inference throughput, so ≤3 min/proposal is throughput-bound, not orchestration | `stat -f %m` on the run dirs → deltas |
 | G | goal-post write surface | **0** (allow = 1 prefix, protected = 15 judgement paths) | `scripts/eval/autoloop-allow.txt` / `autoloop-protected.txt`, gated by `scripts/eval/_autoab_selftest.py` + `_autoab_mutate.py` |
-| S | claim coverage | incomplete: doc claims reproduce, 40 live probes; gaps = MTP acceptance (0 sites) + silent instruction truncation | `make docs-check` + rung 3 |
+| S | claim coverage | incomplete: doc claims reproduce, 41 live probes; gap = MTP acceptance (0 sites); truncation disclosed, ungated | `make docs-check` + rung 3 |
 
 
 **Why B is the constraint**: stable-pass tasks give *no* upward evidence yet *can* trip the regression veto,
@@ -50,9 +50,9 @@ conservative, it is invisible.
    tree here judges its loop against a fake or mock provider, so the floor moves by taking the model out
    of contract claims before it moves by making inference faster (`docs/agent/open-items.md`).
    **Landed 10-27(20):** `Engine/ScriptedInference.swift` + probe 37 decide that class at k=1 in ~4 s with
-   nothing resident (`engineBackend: scripted`; the scoreboard refuses a replayed run), and CI runs it from the
-   headless-serve smoke step — so the class is ~4 s, with its runner pass unverified.
-3. **Coverage** — S gaps 3 → 0, and 10-28 found a fourth (project instructions truncated with no disclosure — rung 5's *Budget* half, `docs/agent/open-items.md`): publish MTP acceptance where MTP runs (or keep MTP off the capability face, which is honest today), disclose truncated structured output rather than 200 + invalid JSON, and the UI's focus/number rules are pinned (`UIFocusDisciplineTests`). *Failure signal*: a capability row that
+   nothing resident (`engineBackend: scripted`; the scoreboard refuses a replayed run), and CI runs it as a
+   step of its own: green on the runner since 10-29 (4 s there, 2 s here), so the class is decided off-box at k=1.
+3. **Coverage** — S gaps 3 → 0 (a fourth, silent instruction truncation, is disclosed since 10-29 and still ungated — rung 5's *Budget* half): publish MTP acceptance where MTP runs (or keep MTP off the capability face, which is honest today), disclose truncated structured output rather than 200 + invalid JSON, and the UI's focus/number rules are pinned (`UIFocusDisciplineTests`). *Failure signal*: a capability row that
    cannot name its measurement site survives a review cycle → the review, not the code, is broken.
 4. **Anti-self-deception** — the mutation set only grows; each cycle re-proves the judges catch a real
    defect, not just a fabricated board. *Failure signal*: a mutation escapes. Measured floor for the board this
@@ -68,11 +68,9 @@ conservative, it is invisible.
    proved the doc reached all 39 turns — per-turn instructions cost a small checkpoint roughly what handing it
    every tool costs, and the traces say why: the doc gets *edited* as if it were the task's file, and the tool
    call arrives as narration. The next slice is
-   *selection* on both axes, not *registration* (curve, replicates, distillate: `docs/agent/open-items.md`). *Budget* (10-28): the text also has a cap the surface hides — the deepest chain sits at **98 % of the loader's 32 768 B** (`make docs-check`),
-   `Sources/ocoreai/WorkspaceContext.swift:229` drops the tail without one word to the model, and four
-   comparator trees already read rulesets their own loader cut (`docs/agent/comparator-repos.md` header); the
-   one tree that states its budget inside the prompt pins that wording as a fixture, and we have neither the
-   disclosure nor a test of it. *Failure signal*: a capability row that cannot name its measurement site
+   *selection* on both axes, not *registration* (curve, replicates, distillate: `docs/agent/open-items.md`). *Budget* (10-28, paid 10-29): the cap was hidden — the deepest chain sits at **98 % of the loader's
+   32 768 B** (`make docs-check` prints `deepest-chain=`) and the injector cut the tail without a word; the cut
+   is now named to the model and served on `/v1/capabilities` as `instructionBudget` (probe 03 judges it). *Failure signal*: a capability row that cannot name its measurement site
    survives a review cycle.
 
 ## Rung zero — adoption (the third kill criterion has fired)
@@ -101,10 +99,12 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    prepared on this host and never pushed. Two things ride on it: the trust signals a first
    screen can show are outputs of cadence (§ The first screen), and before self-serve publishing, build and
    publish must split — ours runs repository code inside the job holding `contents: write`
-   (`competitor-iteration-paths.md` § The release cadence rule). What the runner proved: the delivery shape is
-   green and the DMG completes a real turn from a fresh directory. What it did not: the macos-26 leg's last run
-   went red on a smoke step that ate its own 600 s bound while 3 210 tests passed,
-   so rung 1 waits on that leg green and on a hand to type the tag, not on code.
+   (`competitor-iteration-paths.md` § The release cadence rule) — paid 10-29: `package.yml` builds the DMG
+   and probe 41 judges it under `permissions: contents: read`, so a rehearsal cannot publish. What the
+   runner proved: the delivery shape, a DMG that finishes a real turn from a fresh directory, and — first green
+   main run, 10-29 — every leg, the three scripted steps at 4/3/7 s (a runner holds no weights,
+   so no checkpoint tier ran there). Nothing in code separates HEAD from a release: `release` is tag-gated, and
+   a tag is a hand, not a task.
 2. **Sixty seconds to first token.** Honest today: `swift build -c release` (minutes) or an ad-hoc-signed
    DMG plus the Gatekeeper right-click. Rung = notarised artefact + Homebrew cask; the metric to floor is
    *clean machine → first completion*, one command, timed. First measured point: 22.1 s from a built DMG to

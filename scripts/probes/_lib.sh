@@ -436,7 +436,13 @@ probe_require_clean_dependency_checkout() {
   # The scratch path that produced the binary under test — this is the tree the
   # measurement describes, so dirt or a pin mismatch here invalidates the run.
   c="$scratch/checkouts/mlx-swift-lm"
-  if [ ! -d "$c" ]; then
+  if [ -z "$scratch" ]; then
+    # Reached from a binary that lives outside every scratch dir — a .dmg volume, an installed
+    # .app. The sentence has to say that instead of printing an empty path: probe 41 judges
+    # exactly such a binary, so this is the normal route for an artefact verdict.
+    probe_note "the binary under test sits outside every scratch dir — its pin is judged by the" \
+      "lane that built it (probe 41 §0 names the builder's tree by hand)"
+  elif [ ! -d "$c" ]; then
     probe_note "no mlx-swift-lm checkout under $scratch — pin not verifiable for this binary"
   elif [ ! -d "$c/.git" ]; then
     probe_note "$c has no .git — pin not verifiable for this binary"

@@ -63,7 +63,21 @@ ELAPSED=$(( $(date +%s) - START ))
 echo "probe $NO: exit $RC after ${ELAPSED}s (binary $BIN · readiness budget ${OCOREAI_READY_TIMEOUT}s · one request ${OCOREAI_PROBE_CURL_TIMEOUT}s)"
 
 if [ "$RC" -eq 0 ]; then
-  grep -E "passed,|✘" "$LOG" | tail -3
+  # A green step is only half a verdict: which tiers ran is the honest half. The counts live in
+  # the probe log, which needs a token to read, so the summary line is republished as an annotation —
+  # "probe 39 success" cannot be mistaken for "the skill ran against a real checkpoint" once the
+  # annotation reads `31 passed, 0 failed, 8 measured, 1 known-open`. Measured 10-29: the runner's
+  # first green run of 37/38/39 took 4/3/7 s against the local 2/10/25 s, and the only way to
+  # realise the checkpoint tiers did not run there was to reason about a difference in seconds.
+  SUMMARY="$(grep -E 'passed, [0-9]+ failed' "$LOG" | tail -1 | tr -d '\r')"
+  if [ -n "$SUMMARY" ]; then
+    echo "  $SUMMARY"
+    echo "::notice::probe $NO verdict: $SUMMARY"
+  else
+    echo "  probe exited 0 but printed no summary line — tier counts unknown for this run"
+    echo "::warning::probe $NO exited 0 with no summary line — the tier counts are unreadable, not zero"
+  fi
+  grep -E "✘" "$LOG" | tail -3
   exit 0
 fi
 

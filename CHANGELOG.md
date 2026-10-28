@@ -9,6 +9,54 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(35) Every leg that must pass on a main pass passed, so the launch path is now rehearsed, not hoped for** (P1 CI / symbols `package.yml`, `41-artifact-dmg-serves.sh`, `ci-materialize-metallib.sh`)
+
+- **What improved.** `6e904aa` is the first main run where `scripts/ci-status.sh` exits 0 on every leg,
+which turns rung 1's blocker from code into a hand. Then the same discipline was pointed at the one path
+that has never run: the release job is gated on `refs/tags/v*`, so the only way to exercise it is the
+thing it exists to do, and it has died there twice on non-code steps (no metallib on a clean runner 09-27,
+the artefact-upload API at v0.1.12 twice). `.github/workflows/package.yml` now runs the release leg's
+build half — materialise the shader payload, `build-dmg.sh`, judge the artefact — with `permissions:
+contents: read`, so a rehearsal cannot publish even by accident; that is also the build/publish split
+`competitor-iteration-paths.md` names as the precondition for self-serve publishing, paid structurally
+instead of by promise. `scripts/probes/41-artifact-dmg-serves.sh` is the judge: mount the volume
+read-only, check what is inside (executable bit, `/Applications` drag target,
+`Contents/MacOS/mlx.metallib` at ≥ 4 KiB, `codesign --verify --deep --strict`, the version it reports),
+boot the binary *from the mounted volume*, answer `/v1/models`, and drain on SIGTERM to exit 0. The seat
+is a nightly plus packaging-path pushes, which is mlx-swift-lm's shape with its cite
+(`integration_tests.yml:3-4` keeps heavy integration tests off the PR path, `:22-27` refuses to cancel a
+run mid-build), because this leg is ~25 arm64 minutes and the repo prices arm64 minutes as the expensive
+seat. The release leg's own metallib step became a call to `scripts/ci-materialize-metallib.sh`, which
+resolves the payload through `resolve-metallib.sh` — the inline glob it replaced re-implemented one rung
+of that ladder and floored nothing.
+
+- **What same-session output proves it.** The green run is 40763127762 / job 123080256072, and its
+per-step durations are public: locate 2 s, headless serve 3 s, probe 37 4 s, probe 38 3 s, probe 39 7 s,
+inside a 31.5-minute leg whose xcodebuild and xctest steps took 787 s and 120 s. Probe 41 ran here against
+a locally built DMG: 11 assertions green, `/health` 200 in 3 s with no checkpoint resident, SIGTERM exit 0
+with the completion line. The runner's 4/3/7 s against this host's 2/10/25 s is the sound of the
+checkpoint tiers not running there — no weights are resident on a runner — so `ci-step.sh` now republishes
+each probe's passed/failed/measured/known-open line as an annotation, the half of a green that a step
+title cannot carry.
+
+- **Which gate goes red if it regresses.** Probe 41 itself: it reds on an unmountable volume, a missing or
+undersized payload, a signature that fails, an artefact that reports the wrong version, a bundle that
+cannot serve, a daemon that ignores a clean stop. Red sampled the same day by pinning a wrong version —
+`11 passed, 1 failed`, exit 1 — and the version verdict is pinned in the lane
+(`$OCOREAI_ARTIFACT_VERSION=$(scripts/version.sh)`), so a DMG whose About box lies about the number the
+tag carries is a red, not a shipped surprise. The lane is path-filtered on the packaging chain, so a
+commit that changes how the artefact is made runs it on the spot.
+
+- **Honest limits.** `package.yml` has no runner verdict yet — this push is its first, and the item is in
+AGENTS.md § Open until it lands. The window proof runs there as advisory because no GitHub macOS runner
+has ever produced a layer-0 window here, and an unverifiable premise is not allowed to mint a red; it
+becomes blocking when a runner prints the window. `Sources/**` is outside the path filter by design, so a
+code change waits for the nightly (≤24 h) rather than buying 25 arm64 minutes per push. The publish half
+is still tag-only and has never run; `git ls-remote --tags origin` is still empty, and
+`scripts/version.sh` says the number to type is 0.1.14.
+
+
+
 **10-29(34) The runner stall was a walk that could not reach the root: `${p%/*}` turns `/Users` into ``** (P0 CI / symbols `probe_scratch_for_binary`, `Class-M`)
 
 - **What improved.** Three runs of evidence, then the cause in one line of bash. Run 1 gave a single

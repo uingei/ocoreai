@@ -18,6 +18,9 @@ bash scripts/probes/run.sh 02        # just one
 **Needs a real Metal device — except 37**, which loads no model by design, and except **38 §1** /
 **39 §1–§1b** / **40 §1**, which are contract tiers written to run without weights; 39 §2 and 40 §2 run the
 measured lane when a checkpoint and a working engine are present and print their own reason when they are not.
+**41** needs Metal but no weights — it boots the binary inside a `.dmg` — and it is the one probe whose
+input is an artefact rather than a tree: with no `dist/ocoreai-*.dmg` and no `$OCOREAI_ARTIFACT_DMG` it
+fails with the remedy, because a green that never had a subject proves nothing.
 Inside the agent sandbox MLX logs
 `[metal::load_device] No Metal device available`, the engine never reaches ready, and every
 probe fails at boot. That is the harness, not a regression — run them unsandboxed, the same
@@ -33,7 +36,10 @@ executes `skills/ocoreai/SKILL.md` marker by marker against the served wire) —
 `scripts/probes/ci-step.sh`. They were ONE step until 10-29, when that step spent its whole 600 s bound
 and the only annotation was "timed out after 10 minutes": a shared bound names the step and never the
 probe, and the log that says more sits behind a token. Split, the runner's own per-step duration is the
-diagnosis (measured on this host: 37 = 2 s, 38 = 10 s, 39 = 25 s), each bound is its own verdict, and a
+diagnosis (this host: 37 = 2 s, 38 = 10 s, 39 = 25 s; the runner's first green run 10-29: 4 / 3 / 7 s —
+the gap is the checkpoint tiers, which do not run there because no weights are resident, and
+`ci-step.sh` now republishes each probe's passed/failed/measured/known-open line as an annotation so a
+runner green cannot be read as more than the tiers that ran), each bound is its own verdict, and a
 failure publishes the probe's words as annotations. The pin/cleanliness premise is read by walking up
 from the binary to its build dir, and `SourcePackages` counts as `.build` — otherwise an Xcode-built
 product (the runner's) would excuse the pin instead of checking it.
@@ -277,6 +283,24 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     the secret token came back in the deliverable — the wedge claim measured rather than asserted. Those 4
     files are now gated as tracked by probe 39 §0: on 10-28 the figure was real and the clone did not have it
     (`git ls-tree -r 61bb4b0 -- skills` listed 2 of the 4).
+
+- `41-artifact-dmg-serves.sh` — does the `.dmg` a stranger downloads actually serve?
+    Every other probe here boots a binary from `.build`, so they judge the working tree; nobody judged the medium
+    a person installs. `build-app.sh` assembles the bundle (binary + shader payload + Info.plist + icon),
+    `build-dmg.sh` wraps and ad-hoc signs it, and the release leg that ships it has died on two of those steps
+    (no metallib on a clean runner 09-27, the artefact-upload API at v0.1.12 twice) while never producing a
+    release. §0 the builder's tree (a mounted volume names no scratch, so the tree that produced the artefact is
+    named by hand and judged against the pin); §1 what is inside the volume (executable bit, the `/Applications`
+    drag target, `Contents/MacOS/mlx.metallib` at ≥ 4 KiB — the 09-27 failure judged where it ships — a bundle
+    that survives `codesign --verify --deep --strict`, and the version string it reports when
+    `$OCOREAI_ARTIFACT_VERSION` pins it); §2 it serves (the binary boots *from the read-only volume*, `/health`
+    answers with nothing resident, `GET /v1/models` answers, and the log carries no metallib failure); §3 it
+    stops (SIGTERM drains to exit 0 with the completion line the smoke step asserts). Fails when: the volume will
+    not mount, the payload is missing or undersized, the signature does not verify, the artefact reports a version
+    other than the one it was built to be, the mounted binary cannot serve, or it ignores a clean stop. Green
+    10-29 against a locally built DMG: 11 assertions, `/health` in 3 s with no checkpoint resident. Red sampled
+    the same day by pinning a wrong version: `11 passed, 1 failed`, exit 1. Its seat is
+    `.github/workflows/package.yml`, which builds the DMG on a clean runner and holds no write token.
 
 - `_lib.sh` — shared harness
 Fails when: —
