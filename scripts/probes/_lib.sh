@@ -258,22 +258,32 @@ PY
 # mtime, so a verifiable tree beats an unverifiable one, and among verifiable trees the
 # freshest build wins.
 probe_scratch_for_binary() {
-  # Walk up from the binary until the SwiftPM scratch dir itself, because the product
-  # depth is a toolchain property: SwiftPM 6.1 put it at <scratch>/<config>/ocoreai, 6.4
-  # at <scratch>/out/Products/<config>/ocoreai. Deriving it by a fixed number of hops
-  # (the old `dirname/../`) silently pointed at `.build-clt/out/Products`, so the pin and
-  # cleanliness premise of every measurement printed "not verifiable" instead of holding.
-  local p
+  # Walk up from the binary until the scratch dir itself, because the product depth is a
+  # toolchain property: SwiftPM 6.1 put it at <scratch>/<config>/ocoreai, 6.4 at
+  # <scratch>/out/Products/<config>/ocoreai. Deriving it by a fixed number of hops (the old
+  # `dirname/../`) silently pointed at `.build-clt/out/Products`, so the pin and cleanliness
+  # premise of every measurement printed "not verifiable" instead of holding.
+  #
+  # `SourcePackages` is Xcode's `.build` — it is what a runner's smoke binary sits under
+  # (DerivedData/<proj>/SourcePackages/checkouts), so naming it lets the xcodebuild route
+  # CHECK its pin instead of excusing it.
+  #
+  # The walk has to terminate at the root: `${p%/*}` turns "/Users" into "", so a loop whose
+  # only exit test is `[ "$p" != "/" ]` spins forever once no component matched. Measured
+  # 10-29: that spin is what killed `Wire probe 37` on the runner (180 s step bound, no harness
+  # note ever printed) while the same call resolved in microseconds locally — a local binary
+  # always lives under `.build`, so the miss only happens where the product came from Xcode.
+  local p child
   p="$(cd "$(dirname "$1")" && pwd)" || return 1
-  while [ "$p" != "/" ]; do
-    case "${p##*/}" in
-      .build|.build-*) printf '%s\n' "$p"; return 0 ;;
+  while [ -n "$p" ] && [ "$p" != "/" ]; do
+    child="${p##*/}"
+    case "$child" in
+      .build|.build-*|SourcePackages) printf '%s\n' "$p"; return 0 ;;
     esac
     p="${p%/*}"
   done
   printf '\n'
 }
-
 probe_dependency_score() {
   local bin="$1" scratch c pin head dirty
   scratch="$(probe_scratch_for_binary "$bin")"

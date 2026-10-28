@@ -9,6 +9,41 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(34) The runner stall was a walk that could not reach the root: `${p%/*}` turns `/Users` into ``** (P0 CI / symbols `probe_scratch_for_binary`, `Class-M`)
+
+- **What improved.** Three runs of evidence, then the cause in one line of bash. Run 1 gave a single
+annotation ("timed out after 10 minutes", 607 s). Splitting the step (10-29(29)) made run 2 answer: headless
+serve green, `Wire probe 37` killed at 193 s, 38/39 skipped. The heartbeat (10-29(33)) froze the probe log
+before the harness's first note, which left the four calls ahead of that note, three of them pure path math.
+`probe_scratch_for_binary` walks up from the binary until a component is `.build`/`.build-*`, and
+`${"/Users"%/*}` is `""`, not `/` — so once nothing matches, `[ "$p" != "/" ]` is true forever and the walk
+spins, silently, inside a command substitution. CI's smoke binary is an Xcode product under DerivedData,
+where no component is ever `.build`; every local path has one, which is exactly why a harness bug aged its
+whole life and never once showed on the machine that wrote it. The walk now stops at an empty component or
+the root. While there: it also accepts `SourcePackages`, Xcode's `.build`, so a runner-built binary gets its
+pin and cleanliness premise CHECKED where it used to print "not verifiable" — the excuse was the second
+silent hole in the same three lines.
+
+- **What same-session output proves it.** Reproduced here before touching anything: the old function on a
+`.build`-free path was still running at 6 s and had to be killed; after the fix the same three paths return
+empty in 0 s, `.build` still resolves to `.build`, `SourcePackages` resolves to `SourcePackages`, and probe
+37 passes 20/20 in ~2 s with a 41 ms turn. The gate was sampled against its own red: with the bug
+re-installed Class-M prints "had not returned after 10s … it costs the leg its verdict" and exits 1; with
+the fix it reports Clean in 1 s. `make audit` exit 0, `make docs-check` green, anchors green.
+
+- **Which gate goes red if it regresses.** `audit.swift_patterns.sh` Class-M, on the ubuntu text-gate seat
+(no arm64 minutes for a bug in string slicing). It is bounded at 10 s by construction — a gate that
+inherited the bug would hang instead of failing, which is the failure mode this class exists to catch — and
+it asserts the positive cases too, so "fixing" the spin by always returning empty goes red as loudly as the
+spin does. The reader whose action changes is whoever waits on this leg to tag: the verdict now arrives in
+seconds, named, instead of at a step timeout.
+
+- **Honest limits.** Local proof covers the walk, not the runner: the push after this one is the actual
+proof, and it carries the phase notes and the 20 s server-log tail if anything else decides to wait. And the
+runner now checks the smoke binary against `Package.swift`'s pin where it excused it before, so if xcodebuild
+ever resolves a different mlx-swift-lm revision, probe 37 will say so there — that red would be the premise
+working, not a new flake.
+
 **10-29(33) The split leg answered on its first run: serve is green, probe 37 stalls in `probe_boot`** (P1 CI / symbols `probe_boot-phase-notes`, `ci-step-heartbeat`)
 
 - **What improved.** The split paid for itself on one run. The commit that had carried a single 607 s

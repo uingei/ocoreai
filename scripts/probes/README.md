@@ -34,7 +34,9 @@ executes `skills/ocoreai/SKILL.md` marker by marker against the served wire) —
 and the only annotation was "timed out after 10 minutes": a shared bound names the step and never the
 probe, and the log that says more sits behind a token. Split, the runner's own per-step duration is the
 diagnosis (measured on this host: 37 = 2 s, 38 = 10 s, 39 = 25 s), each bound is its own verdict, and a
-failure publishes the probe's words as annotations.
+failure publishes the probe's words as annotations. The pin/cleanliness premise is read by walking up
+from the binary to its build dir, and `SourcePackages` counts as `.build` — otherwise an Xcode-built
+product (the runner's) would excuse the pin instead of checking it.
 
 ## What is here
 

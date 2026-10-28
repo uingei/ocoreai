@@ -3,6 +3,15 @@
 > Material `AGENTS.md` § *Open* used to carry prose for although it was resolved, retracted or
 > judged a phantom gap. An open item is one that can still change a decision; a verdict is
 > history, and history kept in the injected layer costs every session.
+- **The runner's probe stall — the harness walked a path forever (10-29).** `Wire probe 37` died on its 180 s
+  step bound while the same box ran 3 210 tests and the headless serve contract green, and the probe log's
+  last line predated the harness's first note. Cause: `probe_scratch_for_binary` walks up from the binary
+  looking for the build dir, and `${p%/*}` turns `/Users` into `""`, so a product path with no `.build`
+  component — every Xcode product, which is what CI builds — left `[ "$p" != "/" ]` true forever. Invisible
+  since the harness existed, because a local binary always lives under `.build`. Fixed by terminating the
+  walk at the root and naming `SourcePackages` as Xcode's `.build`, which also turns the runner's
+  "pin not verifiable" excuse into a checked premise. Gate: `audit.swift_patterns.sh` Class-M, sampled red
+  (the bug re-installed returns nothing in 10 s and says so). Numbers and reproduce: `CHANGELOG.md` 10-29(34).
 - **The delivery shape's CI verdict — ran, and passed (10-28).** The gap was that no runner had
   ever built the `--traits appStore` shape: `build-appstore` pinned `print-delivery-env` and judged
   the artefact, not the runner's SDK, and the CLT route has no `metal` on PATH. Three rounds closed

@@ -666,6 +666,65 @@ else
     fi
 fi
 
+# --- Class-M: the harness's build-dir walk terminates ---
+# Its own red, measured 10-29: `Wire probe 37` was killed on its 180 s step bound on the runner with the
+# probe log frozen before the harness's first note, while 3 210 tests and the serve contract passed on the
+# same box. `probe_scratch_for_binary` walks up from the binary looking for the build dir, and `${p%/*}`
+# turns "/Users" into "" — so a path with no `.build` component (which is every Xcode product, and CI's
+# smoke binary is one) left `[ "$p" != "/" ]` true forever. Reproduced here in 6 s, and invisible locally
+# for the whole time the harness existed, because a local binary always lives under `.build`.
+# Reader whose action changes: whoever waits on this leg to tag, and any probe author about to read a
+# harness stall as "Metal unavailable" in the probe log that never got a line.
+echo ""
+echo "[Class-M: the harness's build-dir walk terminates]"
+M_TMP="$(mktemp)"
+M_RC="$M_TMP.rc"
+cat > "$M_TMP" <<'M_SEL'
+set -uo pipefail
+cd "${1:?}" || exit 2
+# shellcheck source=/dev/null
+source scripts/probes/_lib.sh >/dev/null 2>&1
+# No build dir anywhere in these three: the empty answer is the contract, and returning is the point.
+for m_path in /tmp/class-m-a/Build/Products/Debug/ocoreai /Users/runner/x/ocoreai /ocoreai; do
+  m_out="$(probe_scratch_for_binary "$m_path" 2>/dev/null)"
+  if [ -n "${m_out//[[:space:]]/}" ]; then
+    echo "  X $m_path resolved scratch=[$m_out] - no build dir is in this path, so empty is the answer"
+    exit 1
+  fi
+done
+mkdir -p /tmp/class-m-hit/.build/out/Products/Debug /tmp/class-m-src/SourcePackages/Products/Debug
+: > /tmp/class-m-hit/.build/out/Products/Debug/ocoreai
+: > /tmp/class-m-src/SourcePackages/Products/Debug/ocoreai
+m_out="$(probe_scratch_for_binary /tmp/class-m-hit/.build/out/Products/Debug/ocoreai 2>/dev/null)"
+if [ "$m_out" != "/tmp/class-m-hit/.build" ]; then
+  echo "  X a .build product resolved scratch=[$m_out] - this premise prices every live measurement"
+  exit 1
+fi
+m_out="$(probe_scratch_for_binary /tmp/class-m-src/SourcePackages/Products/Debug/ocoreai 2>/dev/null)"
+if [ "$m_out" != "/tmp/class-m-src/SourcePackages" ]; then
+  echo "  X an Xcode product resolved scratch=[$m_out] - the runner's pin would go unchecked again"
+  exit 1
+fi
+M_SEL
+( bash "$M_TMP" "$ROOT" >"$M_TMP.out" 2>&1; echo $? >"$M_RC" ) &
+M_PID=$!
+M_WAITED=0
+while [ "$M_WAITED" -lt 10 ]; do
+    [ -f "$M_RC" ] && break
+    sleep 1
+    M_WAITED=$(( M_WAITED + 1 ))
+done
+if [ ! -f "$M_RC" ]; then
+    kill -KILL "$M_PID" 2>/dev/null || true
+    echo "  X probe_scratch_for_binary had not returned after ${M_WAITED}s on a path with no build dir - that is the 10-29 runner spin, and it costs the leg its verdict"
+    FAIL=1
+elif [ "$(cat "$M_RC" 2>/dev/null)" != "0" ]; then
+    cat "$M_TMP.out"
+    FAIL=1
+else
+    echo "  Clean (3 no-build-dir paths return empty in ${M_WAITED}s; .build and SourcePackages products still resolve)"
+fi
+
 if [ "$FAIL" -eq 0 ]; then
     echo "✅ All audits passed"
     exit 0
