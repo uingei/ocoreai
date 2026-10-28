@@ -4,6 +4,31 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(22) The delivery leg asks the resolver what it found, not a toolchain that cannot answer** (P2 CI / symbols `appstore-resolver-report`)
+
+- **What improved.** Two small lies on one leg. Its failure path ran `xcodebuild -showComponent`
+under the CLT `DEVELOPER_DIR` that the route pins itself, so its "component" annotation could only
+ever be the same error string; it now reports the contract's own facts (`metal=`,
+`metal_component_status=`, `metal_cryptex_bin=`) from the single resolver that owns the question. And
+the step comment asserted the PATH export was "verified 10-28 on a host where `metal` is not
+reachable by name" — true only on an Xcode route — and that hosted images do not ship the component,
+which was inference. The comment now names the two causes that were measured and points at entry (20).
+
+- **What same-session output proves it.** Today's two red legs each published, verbatim, `component:
+xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer directory
+'/Library/Developer/CommandLineTools' …` — a fact about the route, never about the asset — beside the
+one line that actually mattered, `metal=ABSENT`. The step script was extracted from the workflow and
+re-parsed before and after, and the six jobs and their bounds are unchanged.
+
+- **Which gate goes red if it regresses.** No new gate: the annotations are the artefact, and the
+reader is the same one entry (19) serves — whoever has this leg red on a runner and no token to read
+the log with. A second hand-copied probe of the component is exactly the second home this repo
+refuses, so it is gone rather than corrected.
+
+- **Honest limits.** Nothing here moves the leg's verdict: that waits on the ask-first resolver
+landing in a runner build. If the next run still prints `metal=ABSENT`, these annotations are what
+will say whether the asset mounted at all.
+
 **10-28(21) The live probes' readiness window was the authority leg's 47-minute hole** (P1 CI / symbols `probe-readiness-window`)
 
 - **What improved.** The smoke step ran three live probes under the harness default: 240 s of

@@ -312,14 +312,13 @@ jobs:
           # decoration, and CI is the only seat that runs on every push.
           #
           # Bounded, and loud about the bound. The readiness wait runs per boot attempt and a probe may
-          # boot three times, so at the 240 s default three probes can cost ~36 minutes: measured 10-28,
-          # that is what this step spent (2545-2831 s, on eight pushes) before the job's own 60-minute
-          # limit cancelled the authority leg — and a cancelled leg prints its reason nowhere. 75 s per
-          # boot is about 25x what these probes take on a host where the server binds. A failure now
-          # publishes the probe's own words as annotations and in the step summary, because a red that
-          # needs a token to read is a rumour, and the reader whose action changes is whoever waits on
-          # this leg to tag: one minute, and they know whether the wire broke or the runner could not
-          # boot a server.
+          # boot three times, so at the 240 s default three probes can cost ~36 minutes: five runs on
+          # 10-28 measured this step at 2545-2850 s until the job's own 60-minute limit cancelled the
+          # authority leg, and a cancelled leg prints its reason nowhere. 75 s per boot is
+          # about 25x what these probes take on a host where the server binds. A failure now publishes the
+          # probe's own words as annotations and in the step summary, because a red that needs a token to
+          # read is a rumour, and the reader whose action changes is whoever is waiting on this leg to
+          # tag: they learn in one minute whether the wire broke or the runner could not boot a server.
           export OCOREAI_READY_TIMEOUT=75
           SMOKE_RC=0
           for PROBE_NO in 37 38 39; do
@@ -593,14 +592,15 @@ jobs:
       # `swift build` alone could not see it, because on that host the member exists. The route comes
       # from scripts/toolchain-contract.sh (one home) and the verdict comes from the artefact.
       # No metallib is needed at build time (MLX resolves it at runtime — see scripts/build-app.sh).
-      # A *compiler* is needed at build time, though, and that was the leg's first runner red:
-      # `error: unable to spawn process 'metal'` while llbuild ran CompileMetalFile on
-      # .build/checkouts/mlx-swift/Source/Cmlx/mlx-generated/metal/steel/attn/kernels/steel_attention.metal.
-      # The delivery route is the CLT route on purpose (an SDK-27 route would compile the CoreAI blocks),
-      # and the CLT carries no Metal compiler. scripts/toolchain-contract.sh already puts the component's
-      # cryptex dir on PATH (print-delivery-env exports it, verified 10-28 on a host where `metal` is not
-      # reachable by name) — so the missing rung on a runner is the component itself, which hosted macOS
-      # images do not ship. Same reason the xcode-27 cell above installs it.
+      # A *compiler* is, and the leg's first runner reds were exactly that: `unable to spawn process
+      # 'metal'` while llbuild ran CompileMetalFile on Cmlx's steel_attention.metal. Two causes, both
+      # measured 10-28 and both fixed. (a) The component is not preinstalled on the image, so the step
+      # below downloads it — the xcode-27 cell above installs it for the same reason. (b) The route
+      # emitted no PATH rung anyway, because its resolver only ever *globbed* for a mount cryptexd
+      # attaches on demand and had just been asked to create: the leg's own notice read `metal=ABSENT`
+      # while the same resolver named a mount one second later. Asking is what mounts it, and the
+      # resolver now asks — entry 10-28(20). The route stays CLT on purpose: an SDK-27 route would
+      # compile the CoreAI blocks into the artefact that ships.
       - name: Install MetalToolchain (the CLT route has no metal compiler)
         run: |
           set -euo pipefail
@@ -632,17 +632,17 @@ jobs:
           METAL_WHERE="$(command -v metal || true)"
           echo "::notice::delivery route: DEVELOPER_DIR=${DEVELOPER_DIR:-unset} SDKROOT=${SDKROOT:-unset} metal=${METAL_WHERE:-ABSENT}"
           if [ -z "$METAL_WHERE" ]; then
-            COMP="$(xcodebuild -showComponent MetalToolchain 2>&1 | tr '\n' ' ' || true)"
+            COMP="$(bash scripts/toolchain-contract.sh report 2>&1 | grep -E '^(metal|metal_component_status|metal_cryptex_bin)=' | tr '\n' ' ' || true)"
             CRYPTEX="$(ls -d /private/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v*/Metal.xctoolchain 2>/dev/null | tr '\n' ' ' || true)"
             RESOLVED="$(bash scripts/toolchain-contract.sh print-metal-bin 2>&1 | tail -1 || true)"
             {
               echo "::error::no metal on PATH — the delivery route exports a PATH rung only when its resolver finds one"
-              echo "::error::component: ${COMP:-xcodebuild -showComponent answered nothing}"
+              echo "::error::resolver verdict: ${COMP:-the contract printed no metal facts}"
               echo "::error::cryptex mount: ${CRYPTEX:-no com.apple.MobileAsset.MetalToolchain mount listed}"
               echo "::error::resolver print-metal-bin: ${RESOLVED:-empty — add the rung this runner needs to cryptex_metal_bin}"
             }
             { echo "### delivery route has no Metal compiler"; echo '```'
-              echo "metal=ABSENT"; echo "component=${COMP:-none}"; echo "cryptex=${CRYPTEX:-none}"
+              echo "metal=ABSENT"; echo "contract=${COMP:-none}"; echo "cryptex=${CRYPTEX:-none}"
               echo "resolver=${RESOLVED:-empty}"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
