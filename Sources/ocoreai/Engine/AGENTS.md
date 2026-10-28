@@ -38,13 +38,13 @@ The pool may not *answer* a conversation that diverged from its resident cache
 (`SessionPool.swift:1526`, called at `SessionPool.swift:683`) decides whether the cache can be
 rewound onto the conversation that arrived and hands the boundary to the caller as
 `AcquireResult.rewind`; the fork itself is `EngineInference.swift:3215`, the only such site,
-because the transcript cannot cross into the pool actor — upstream `Chat.Message`
+because the transcript cannot cross into the pool actor — upstream `mlx-swift-lm` `Chat.Message`
 (`Libraries/MLXLMCommon/Chat.swift:14`) is not `Sendable` and carries `UserInput.Image`
 (`Libraries/MLXLMCommon/UserInput.swift:131`). The pool judges, the caller forks.
 
 Three conditions, and two of the ways they fail are silent (measured, not inferred):
 - **The reserve must be requested.** A rotating cache past its window reports `maxTrimCount == 0`
-  (upstream `KVCache.swift:1015`), so `RewindToCommonPrefixRule` downgrades the trim to
+  (upstream `mlx-swift-lm` `KVCache.swift:1015`), so `RewindToCommonPrefixRule` downgrades the trim to
   `.rebuild`: the answer stays correct and `cached_tokens` stays 0.
   `kvCacheRewindReserveTokens` (`MLXBridge.swift:910`) is therefore passed at all three exits of
   `makeKVCacheConfiguration`, including the unquantized one that used to return nil.

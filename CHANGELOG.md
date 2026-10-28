@@ -4,6 +4,44 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(10) The byte figures a doc quotes now reproduce or go red — the comparator row stopped being a snapshot someone had to notice** (P1 honesty / symbols `docs-figure-rederivation`, `chain-figures-gate`)
+
+- **What improved.** The context-economy header of `docs/agent/comparator-repos.md` is the one place our
+context numbers are written down for a human, and it had drifted twice in a day: the `ocoreai` row still read
+`46 519 / 32 037 / 731 B` after the Engine guide grew 30 B, while its own prose tail said `723 B` — one file
+contradicting itself, in the tree a stranger reads to rank us. § Upstream's first invariant names the failure
+("a doc whose numbers nobody re-greps drifts"); the header itself said a stale cell is yours to notice. B2's
+budget leg now re-derives that row inside `scripts/agents-md-contract.sh`: root bytes, the `AGENTS.md` corpus
+(root plus every chainable guide), the deepest chain, its share of the loader's 32 768 B, and the headroom
+left, each compared against the anchored figures. The two copies elsewhere left the tree — `open-items.md` and
+`long-horizon-goal.md` each restated the same pair, which is a second and third home for one measurement — and
+now point at `budgets … deepest-chain=N/CAP`.
+
+- **What same-session output proves it.** The row reads `21 438 / 46 549 / 32 067 (98 %, 701 B of headroom)`
+against `git ls-files '*AGENTS.md' | xargs wc -c` = 46 549 and root + `Sources/ocoreai/Engine/AGENTS.md` = 32
+067, and `make docs-check` prints `docs-figures=2 site(s) re-derived`. The drift this gate exists to catch
+fired inside its own round: the two Engine-guide `mlx-swift-lm` edits of this round grew the guide 30 B and
+moved `deepest-chain` from 32 037 to 32 067, so every quoted figure had to be re-measured before the gate went
+green. Byte caps held on the way — open-items 14 786 → 14 975 B, long-horizon-goal 15 599 → 15 594 B — and the
+second is legal only because it *shrank*: that file sat 10 B under the 15 609 area cap, so its edit had to be
+written shorter than the sentence it replaced.
+
+- **Which gate goes red if it regresses.** Sampled three times, three different reds. Setting the row's chain
+back to 32 037 gives `…quotes ocoreai root/corpus/chain/pct/headroom as [21438, 46549, 32037, 98, 701]`
+against `the tree is [21438, 46549, 32067, 98, 701]`. Setting the tail to 723 gives
+`says ours is 723 B from the cap while the budgets line leaves 701 B`, which is today's actual defect.
+Rewording the tail until no anchor matches gives `re-derived 1 figure site(s) … (floor 2)`, so the scan floors
+its own hit count instead of passing on a header it no longer reads. Reader whose action changes: whoever
+writes the next root rule (that headroom is all it gets) and the stranger comparing us with 19 other trees.
+
+- **Honest limits.** Two anchors in one file: the other rows are comparator trees no runner has, and they stay
+dated snapshots the header's own one-liner re-derives by hand. Percentages round to whole points, so a
+few-bytes move still reads 98 %, and the gate judges the byte figures, not the prose around them. `corpus`
+here is the `AGENTS.md` set the loader can chain — narrower than the `corpus bytes=` line the same report
+prints for every doc — one word with two measures, kept because that header must compare like with like across
+trees.
+
+
 **10-28(9) The text gates stop paying for an arm64 seat, and the docs gate stops trusting what the host happens to hold** (P1 process / symbols `text-gates-ubuntu`, `cite-attribution-by-tree`)
 
 - **What improved.** The `Static Audit` leg is gone. Six gates that read text — docs contract, code patterns,
@@ -42,10 +80,16 @@ says so), and anyone pricing a lock by its seat.
 artefact judge (`release-artifact-check.sh delivery`, in `build-appstore`) will say so — recorded in
 `docs/agent/build-gate-reality.md`, not hidden. Paragraph attribution can name the wrong tree when a block is
 itself misleading (the gate cannot read the tree it is judging); it still beats a name list, and the 2
-surviving declarations keep the unattributable residue honest. `text-gates` has not run on an ubuntu runner
-yet — the next push is its first verdict — and `build-appstore` is **red** on current main with a log no
-token-holder-less reader can open, which is why that step now tees its resolver words and `error:` lines into
-`$GITHUB_STEP_SUMMARY` plus `::error::` annotations.
+surviving declarations keep the unattributable residue honest. The knob's own first premise was still too
+weak, and the runner said so: `text-gates` executed for the first time and came back **red** —
+`P2 6 unresolved + 2 ambiguous` (`ChatSession.swift`, `KVCache.swift`, `KVCacheConfiguration.swift`,
+`Libraries/MLXLMCommon/Chat.swift`, `UserInput.swift`, `Sources/HuggingFace/Hub/HubClient.swift`) — because
+the knob dropped `~/references` but still counted `.build*/checkouts`, so a leg that never runs
+`swift package resolve` was judged against a tree that had. The premise is the runner's now: checkouts drop
+too, and dependency trees come from the `url:` lines of `Package.swift` (9 of them) instead of a hand list,
+with four doc blocks saying `mlx-swift-lm` where they cited its files silently. The visibility patch paid off
+— that red was readable with no token. `build-appstore` stays **red** on main, and its self-reporting fix
+waits on the same push.
 
 
 **10-28(8) The published skill shipped three dangling pointers, and the only gate that can see it asks git** (P0 adoption / symbols `ignored-skill-references`, `skill-trackedness-gate`)

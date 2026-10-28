@@ -102,6 +102,9 @@ cd "$(dirname "$0")/.."
 #   the real loader was cutting 562 B off the tail of Sources/ocoreai/Engine/AGENTS.md — root 21935 +
 #   guide 11395 = 33330 (measured 10-27). A cap pinned to what exists is not a limit.
 : "${OCOREAI_FLOOR_CHAIN_GUIDES:=3}"   # B2's premise: nested AGENTS.md the host can load (3 today)
+: "${OCOREAI_AGENTS_FLOOR_FIGURES:=2}" # B2's premise: figure sites the docs header must still offer
+#   (the ocoreai row + its prose tail). A re-derivation whose anchors vanished passes vacuously, so the
+#   scan floors its own hit count instead of trusting the header it reads.
 : "${OCOREAI_AGENTS_MAX_AREA:=15609}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
@@ -150,6 +153,7 @@ OCOREAI_AGENTS_MODE="$MODE" \
 OCOREAI_AGENTS_MAX_ROOT="$OCOREAI_AGENTS_MAX_ROOT" \
 OCOREAI_AGENTS_MAX_CHAIN="$OCOREAI_AGENTS_MAX_CHAIN" \
 OCOREAI_FLOOR_CHAIN_GUIDES="$OCOREAI_FLOOR_CHAIN_GUIDES" \
+OCOREAI_AGENTS_FLOOR_FIGURES="$OCOREAI_AGENTS_FLOOR_FIGURES" \
 OCOREAI_AGENTS_MAX_AREA="$OCOREAI_AGENTS_MAX_AREA" \
 OCOREAI_PROBE_FLOOR_INDEX="$OCOREAI_PROBE_FLOOR_INDEX" \
 OCOREAI_FLOOR_MD_SCANNED="$OCOREAI_FLOOR_MD_SCANNED" \
@@ -221,6 +225,39 @@ for p in chain_guides:
                     % (p, chain, env_int("OCOREAI_AGENTS_MAX_CHAIN"),
                        chain - env_int("OCOREAI_AGENTS_MAX_CHAIN")))
 
+# The one place a chain figure is written down for a human is the context-economy header of
+# docs/agent/comparator-repos.md. Twice on 10-28 a doc restated the number and drifted off the tree, and
+# the header disagreed with itself (a 32 037 row beside a 723 B tail), so the row is re-derived here
+# rather than trusted: the reader who acts on a stale figure is the one writing the next root rule.
+FIG_DOC = "docs/agent/comparator-repos.md"
+FIG_ROW = re.compile(r"ocoreai ([\d ]+) / ([\d ]+) / ([\d ]+) \((\d+) %, ([\d ]+) B of headroom\)")
+FIG_TAIL = re.compile(r"ours is ([\d ]+) B from")
+
+
+def _fig(s):
+    return int(s.replace(" ", ""))
+
+
+chain_cap = env_int("OCOREAI_AGENTS_MAX_CHAIN")
+agents_corpus = root_size + sum(os.path.getsize(p) for p in chain_guides)
+fig_want = [root_size, agents_corpus, deepest_chain,
+            int(round(deepest_chain * 100.0 / chain_cap)), chain_cap - deepest_chain]
+fig_rows = [tuple(_fig(x) for x in m) for m in FIG_ROW.findall(read(FIG_DOC))]
+fig_tails = [_fig(x) for x in FIG_TAIL.findall(read(FIG_DOC))]
+if len(fig_rows) + len(fig_tails) < env_int("OCOREAI_AGENTS_FLOOR_FIGURES"):
+    fail.append("B2 re-derived %d figure site(s) in %s (floor %d) — the anchors are this check's premise,"
+                " and a header that stopped matching them makes it pass vacuously"
+                % (len(fig_rows) + len(fig_tails), FIG_DOC, env_int("OCOREAI_AGENTS_FLOOR_FIGURES")))
+for got in fig_rows:
+    if list(got) != fig_want:
+        fail.append("B2 %s quotes ocoreai root/corpus/chain/pct/headroom as %s, the tree is %s —"
+                    " re-measure the row (`make docs-check` prints the live pair)"
+                    % (FIG_DOC, list(got), fig_want))
+for got in fig_tails:
+    if got != chain_cap - deepest_chain:
+        fail.append("B2 %s says ours is %d B from the cap while the budgets line leaves %d B — prose"
+                    " and measurement must quote one number" % (FIG_DOC, got, chain_cap - deepest_chain))
+
 # ── reference extraction (root + guides share the contract) ───────────────────
 NAME = r"(?:~?/?[A-Za-z0-9_+.\-]+/)*[A-Za-z0-9_+.\-]*[A-Za-z0-9_+\-]"
 FILE_RE = re.compile(r"(?<![\w/])(" + NAME + r"\.(?:swift|md|sh|yml|yaml|toml|json|h|hpp|metal|py|plist|txt|entitlements|xcprivacy|resolved))(?![\w.])")
@@ -281,8 +318,9 @@ clones = [] if NO_HOST_REFS else sorted(
     {p for h in HOMES for p in glob.glob(os.path.join(h, "references/*"))})
 # The dependency checkouts this repo actually compiles: on CI there is no ~/references, but
 # a leg that resolved the pin can still resolve an upstream basename against real code.
-for _base in (".build-clt/checkouts", ".build/checkouts"):
-    clones += sorted(glob.glob(os.path.join(repo, _base, "*")))
+if not NO_HOST_REFS:
+    for _base in (".build-clt/checkouts", ".build/checkouts"):
+        clones += sorted(glob.glob(os.path.join(repo, _base, "*")))
 clones = sorted(set(clones))
 clone_index = {}
 for c in clones:
@@ -304,8 +342,14 @@ COMPARATOR_DOC = "docs/agent/comparator-repos.md"
 TREE_BULLET = re.compile(r"^- ((?:`[A-Za-z0-9][A-Za-z0-9_.-]*`(?: \(pin \d\))?[ ,/and]*)+)\u2014", re.M)
 comparator_trees = sorted({t for line in TREE_BULLET.findall(read(COMPARATOR_DOC))
                            for t in re.findall(r"`([A-Za-z][A-Za-z0-9_.-]*)`", line)})
+# A dependency is a tree too, and Package.swift is its declaration home: `Sources/HuggingFace/Hub/
+# HubClient.swift` lives in swift-huggingface, which no runner has either. Deriving both sets from
+# files in this repo keeps the second list at zero.
+dep_trees = sorted({m for m in re.findall(r'url: "https?://[^"]+/([A-Za-z0-9_.-]+?)(?:\.git)?"',
+                                          read("Package.swift"))})
+attribution_trees = sorted(set(comparator_trees) | set(dep_trees))
 TREE_AT = {t: re.compile(r"(?<![A-Za-z0-9_./-])" + re.escape(t) + r"(?![A-Za-z0-9_-])")
-           for t in comparator_trees}
+           for t in attribution_trees}
 OUTSIDE_FORM = re.compile(r"^(?:\.\./|~/)?references/([A-Za-z0-9_.-]+)/")
 
 def para_ids(text):
@@ -955,10 +999,11 @@ corpus_bytes = sum(os.path.getsize(q) for q in sorted(set(
 print("  corpus    bytes=%d (reported, not judged)  probe-index=%d/%d  doc-orphans=%d  table-defects=%d"
       % (corpus_bytes, len(probe_indexed), len(probe_scripts), len(doc_orphans), len(table_bad)))
 print("  budgets   root=%d/%d bytes guides=%d  host-chain-cap=%d  injected=%d nested AGENTS.md"
-      "  deepest-chain=%d/%d"
+      "  deepest-chain=%d/%d  docs-figures=%d site(s) re-derived"
       % (root_size, env_int("OCOREAI_AGENTS_MAX_ROOT"), len(guides),
          env_int("OCOREAI_AGENTS_MAX_CHAIN"), len(chain_guides),
-         deepest_chain, env_int("OCOREAI_AGENTS_MAX_CHAIN")))
+         deepest_chain, env_int("OCOREAI_AGENTS_MAX_CHAIN"),
+         len(fig_rows) + len(fig_tails)))
 print("  language  english-md=%d (floor %d)  mirror-cjk=%d (floor %d)  diary-excluded=%d"
       % (len(lang_zero), env_int("OCOREAI_FLOOR_LANG_SCANNED"),
          len(CJK_RE.findall(read(MIRROR))) if os.path.exists(MIRROR) else -1,
@@ -976,10 +1021,10 @@ print("  suites    numbered-claims=%d/%d ok (floor %d)  files-with-@Test=%d"
          len([1 for s, _, _ in suite_counts if s not in DIARIES]),
          env_int("OCOREAI_AGENTS_FLOOR_SUITE_COUNTS"), len(test_fn_counts)))
 if upstream:
-    print("  outside   %d cite(s) into comparator trees (path=%d paragraph=%d) over %d trees declared"
-          " in %s; residual allowlist %d entr(ies) (host trees, never on a runner)"
+    print("  outside   %d cite(s) into trees no runner has (path=%d paragraph=%d) over %d comparator"
+          " + %d dependency trees, declared in %s / Package.swift; residual allowlist %d entr(ies)"
       % (len(declared_outside) + len(declared_context), len(declared_outside), len(declared_context),
-         len(comparator_trees), COMPARATOR_DOC, len(COMPARATOR_REFS)))
+         len(comparator_trees), len(dep_trees), COMPARATOR_DOC, len(COMPARATOR_REFS)))
 print("  upstream  %d ref(s) resolved in a dependency checkout or ~/references "
           "(line numbers inside them are what `make anchor-check` verifies): %s"
           % (len(upstream), ", ".join(sorted(set(upstream))[:6])))

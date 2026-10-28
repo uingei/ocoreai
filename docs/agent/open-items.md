@@ -8,7 +8,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **`/v1/models/:model/…` needs `%2F`** (Handlers/) — accepting a slash costs a second routing truth, so the
   wire shape stays pinned in `Handlers/AGENTS.md` § Endpoint Promises and the owner call stays open here.
 - **A stall stops MTP hard, the std lane only by consent** (Tools/, Engine/) — the ladder and
-  `LoopStallTerminationTests`(6) landed; upstream's `restart:` loop (ChatSession.swift:1154) still has no
+  `LoopStallTerminationTests`(6) landed; upstream `mlx-swift-lm`'s `restart:` loop (ChatSession.swift:1154) still has no
   cap, and a std-lane hard stop throws out of `toolDispatch` (:1632) reaching the wire as an error, not a
   finished turn — the terminal word for four faces is the owner call.
 - **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — three `@available(macOS 27.0, *)` or
@@ -72,10 +72,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   call: which tier the scripted lane may run in.
 
 - **The chain ceiling, now that the drop speaks** (Skills/, docs/). `make docs-check` prints
-  `budgets … deepest-chain=N/CAP` and B2 prices each root→guide chain against the host's 32,768 — re-read
-  that field, not this file: measured 10-28 the deepest is root + `Engine/AGENTS.md` at 32 037 B, **731 B of
-  headroom** before a root rule stops being injected at all, and four comparator trees already read rulesets
-  their own loader cut (`docs/agent/comparator-repos.md` header). The next rule written into
+  `budgets … deepest-chain=N/CAP`, and B2 both prices each root→guide chain against the host's 32,768 and
+  re-derives the `ocoreai` row of `docs/agent/comparator-repos.md` from the tree: that header is the one
+  home of a chain figure, so a stale number goes red there instead of drifting (it drifted twice on 10-28,
+  and this file used to restate it). The deepest chain is root + `Engine/AGENTS.md`, and the headroom that
+  field reports is what stands between a new root rule and never being injected at all; four comparator
+  trees already read rulesets their own loader cut. The next rule written into
   `Sources/ocoreai/Engine/AGENTS.md` truncates its own tail unless something else leaves; settled by a trim,
   not a raise, with § *Known defect* (a macOS 27 face no host here can execute) and the lane map (it
   duplicates § *Architecture*'s route to the wire) as the candidates. The silence under the ceiling closed

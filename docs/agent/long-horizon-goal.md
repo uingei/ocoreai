@@ -68,7 +68,7 @@ conservative, it is invisible.
    proved the doc reached all 39 turns — per-turn instructions cost a small checkpoint roughly what handing it
    every tool costs, and the traces say why: the doc gets *edited* as if it were the task's file, and the tool
    call arrives as narration. The next slice is
-   *selection* on both axes, not *registration* (curve, replicates, distillate: `docs/agent/open-items.md`). *Budget* (10-28): the text also has a cap the surface hides — the deepest chain here is **32 037 B of the 32 768** the loader injects (731 B left),
+   *selection* on both axes, not *registration* (curve, replicates, distillate: `docs/agent/open-items.md`). *Budget* (10-28): the text also has a cap the surface hides — the deepest chain sits at **98 % of the loader's 32 768 B** (`make docs-check`),
    `Sources/ocoreai/WorkspaceContext.swift:229` drops the tail without one word to the model, and four
    comparator trees already read rulesets their own loader cut (`docs/agent/comparator-repos.md` header); the
    one tree that states its budget inside the prompt pins that wording as a fixture, and we have neither the
