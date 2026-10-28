@@ -166,3 +166,17 @@ A premise can also be *earned back*: `applyWritesResolvedEndpointToProcessEnv` s
 it writes the real `HF_ENDPOINT`, which `SettingsStoreTests` reads expecting the canonical value. The
 process-global lease makes those two mutually exclusive and restores the key afterwards, so the test now
 runs and `Tests/` contains no `.disabled(` at all.
+
+## A test step that exits 0 without delivering a verdict (10-28)
+Both `Build & Test` legs printed `xctest summary (exit 0): Executed 0 tests, with 0 failures` and went green,
+which reads as an empty suite. It is not one: that line is XCTest's own summary, and `Tests/` holds no
+`XCTestCase` file, so it prints whatever the suite did; swift-testing's `Test run with N tests` line — the
+verdict — left the annotation only because a `::notice::` value ends at its first newline and the value
+carried two lines. Measured on a minimal package: `xcrun xctest` runs them.
+
+The misread is not the lesson; that nothing could go red is. An empty bundle exits 0 too.
+`scripts/test-verdict.sh` now asks each framework separately, one line each, and exits 1 on no swift-testing
+summary or 0 tests (sampled red: a log holding only the XCTest line); its seats are the CI test step and `make
+test-ci`. Readiness budgets went wall-clock the same day: a poll costs its own 3 s deadline plus the sleep, so
+an advertised 75 s spent 285 s and three probes overran the step bound that names them (a 10 s budget: 38 s
+wall before, 13 s after).

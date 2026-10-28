@@ -258,6 +258,13 @@ test-coverage:
 # in realizeAllClasses() before the first test (Error 139) — TEST BUILD SUCCEEDED
 # is not test execution. Full test EXECUTION = CI until the host runs macOS 27
 # (or an SDK-26 Xcode side-by-side). For the macOS-26-native partial gate: test-clt.
+#
+# The exit code alone is not a verdict: a bundle that loads, finds nothing to run and then
+# leaves prints "Executed 0 tests" and exits 0, which is how both CI legs read green while
+# nothing anywhere could say the suite never reported. scripts/test-verdict.sh is the one
+# home for "did the harness deliver a verdict", shared with the CI seat so neither can go
+# green on an empty run; the status travels through a file, as in test-clt above, because a
+# pipe otherwise decides the recipe's exit code.
 test-ci:
 	@echo "🧪 Running the CI-identical full gate (xcodebuild → xctest)..."
 	@export OCOREAI_BUILD=ci; \
@@ -282,7 +289,14 @@ test-ci:
 	    -skipPackagePluginValidation -skipMacroValidation ONLY_ACTIVE_ARCH=YES || exit 1; \
 	fi; \
 	echo "Running test bundle: $$XCB"; \
-	xcrun xctest "$$XCB"
+	RC_FILE="$$(mktemp -t ocoreai-rc.XXXXXX)"; \
+	LOG="$$(mktemp -t ocoreai-testci.XXXXXX)"; \
+	{ xcrun xctest "$$XCB" 2>&1; echo "XCT_RC=$$?" > "$$RC_FILE"; } | tee "$$LOG"; \
+	XCT="$$(sed -n 's/^XCT_RC=//p' "$$RC_FILE")"; \
+	bash scripts/test-verdict.sh "$$LOG"; VERDICT=$$?; \
+	rm -f "$$RC_FILE" "$$LOG"; \
+	if [ "$${XCT:-1}" -ne 0 ]; then exit "$${XCT:-1}"; fi; \
+	exit "$$VERDICT"
 
 ## ── Code Quality ───────────────────────────────────────────────────
 # ── Live probes ──────────────────────────────────────────────────────

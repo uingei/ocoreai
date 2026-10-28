@@ -2,7 +2,41 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-09-05 → 2026-10-28
+## [Unreleased] — 2026-09-05 → 2026-10-29
+
+**10-29(24) A test step that exits 0 without delivering a verdict can no longer read green** (P0 CI / symbols `test-verdict.sh`, `xctest-verdict-floor`)
+
+- **What improved.** Both `Build & Test` legs carried the annotation `xctest summary (exit 0):
+Executed 0 tests, with 0 failures`, which any reader must take as "the suite is not running" — and
+the step comment above it claimed a frozen 757 tests, so the two readings could not be reconciled
+from the repo. Neither was the truth, and the real defect was one layer down. `Tests/` holds 0
+`XCTestCase` files, so XCTest's "Executed 0 tests" is what this bundle prints on every green run
+whatever the suite did; swift-testing's `Test run with N tests` line — the verdict — never reached
+that annotation because a `::notice::` value ends at its first newline and the value it was handed
+carried two lines. Measured on a minimal two-test package built the same way: `xcrun xctest` does
+execute swift-testing tests, and prints them after XCTest's summary, so the harness was right and
+only its reporting was unreadable. What was missing is a floor: an empty bundle exits 0 too, and
+nothing anywhere could go red. `scripts/test-verdict.sh` asks the two frameworks separately, one
+annotation each so neither can be swallowed, and exits 1 when swift-testing reports no summary or 0
+tests; the frozen count left the step comment because a number nobody re-derives is decoration.
+
+- **What same-session output proves it.** Four samples, both directions: a real two-test run exits 0
+with both lines named; a log cut down to the XCTest line (today's shape) exits 1; a
+`Test run with 0 tests` line exits 1; an empty log exits 1. The command's behaviour itself: the
+minimal package printed `✔ Test run with 2 tests in 1 suite passed after 0.001 seconds` under the
+same `xcrun xctest` the legs run, through a pipe with stdin closed, which is the CI shape.
+
+- **Which gate goes red if it regresses.** The new script is the gate, and its red was sampled
+against the exact log shape that hid this: `xcrun xctest` exits 0, the bundle reports nothing, the
+step now prints `xctest exited 0 without delivering a verdict` and fails. Its seats are the CI test
+step and `make test-ci`, so neither seat can go green on an empty run again. Reader whose action
+changes: whoever decides whether a leg is green enough to tag — the sentence they read now carries a
+number, and no number is a failure instead of a silence.
+
+- **Honest limits.** It floors "a verdict was delivered, with at least one test", not "the whole
+suite ran": suites excluded by destination or `#if` lower N without going red, on purpose, because
+the floor that would catch that needs a count derived from the build and not from a comment. The
+first N this repo reads from a runner is the next push, not this entry.
 
 **10-28(23) The delivery route asked the Metal question under the wrong toolchain** (P0 CI / symbols `delivery-metal-route`)
 
