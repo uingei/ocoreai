@@ -12,9 +12,10 @@ round nobody could say why. The annotations now say it:
 `steel_attention.metal` inside the pinned mlx checkout. The cause is structural, not a flake: the delivery
 route is the CLT route *on purpose* (an SDK-27 route would compile the CoreAI blocks into the shipping
 binary), and the CLT carries no Metal compiler — hosted macOS images ship that component separately. The leg
-installs it, exactly as the xcode-27 cell already does, and prepends the directory the resolver names, which
-is the same one-line contract `make test-clt` honours through `METAL_PATH_EXPORT`. One word of the leg's own
-comment was wrong and is fixed beside it: no metallib is needed at build time, but a *compiler* is.
+installs it, exactly as the xcode-27 cell already does, The leg also says out loud, in its own log, whether
+that PATH rung landed on a real compiler, so a repeat of this red names itself instead of surfacing as a
+compiler error. One word of the leg's own comment was wrong and is fixed beside it: no metallib is needed at
+build time, but a *compiler* is.
 
 - **What same-session output proves it.** The red arrived as four annotations with no token — `Build failed`,
 the CompileMetalFile line with its command line, and the spawn error — which is the second time this round
@@ -26,17 +27,19 @@ before you choose" holds, because `UpdateCheck.check()` is reached only from a u
 stale claim surfaced beside it and is gone: `UpdateCheck.swift:5` asserted "v0.1.6 is on GitHub Releases" for
 a line that was withdrawn and a repo holding 0 releases.
 
-- **Which gate goes red if it regresses.** The leg itself: it goes red again with the same three annotations
-if the component or the PATH rung disappears, and it prints
-`metal: none — CompileMetalFile will fail as it did on 10-28` when the resolver has no answer, so a silent
-regression into the old shape still names itself. Reader whose action changes: the owner, who reads this leg
-as the verdict on whether the shipping shape builds.
+- **Which gate goes red if it regresses.** The leg itself: it goes red with the same three annotations if the
+component goes missing again, and its route line prints `metal=ABSENT` when nothing resolves, so the old shape
+names itself instead of arriving as a compiler error. Reader whose action changes: the owner, who reads this
+leg as the verdict on whether the shipping shape builds.
 
 - **Honest limits.** Unproven until the runner runs it: `xcodebuild -downloadComponent MetalToolchain` is
 executed by the xcode-27 cell today and is documented for Xcode 16+, but this leg asks an Xcode-26 image for
 it — if that image cannot serve the component, the leg stays red and the route needs a different seat, which
 is an owner call. The release leg is untouched: it materializes the metallib through xcodebuild, whose own
-toolchain resolution found `metal` on the 09-27 run, so it never had this failure to fix.
+toolchain resolution found `metal` on the 09-27 run, so it never had this failure to fix. The fix as first
+written was wrong in the way this file exists to record: it prepended `print-metal-bin` by hand, and measuring
+on a host where `metal` is not reachable by name showed `print-delivery-env` already exports that cryptex dir
+— so the duplicate rung came back out, and the route keeps sole ownership of it.
 
 
 **10-28(12) The runner red was a real bug: a toolchain printer wrote its complaint onto the value channel** (P1 correctness / symbols `printer-value-channel`, `R4-printer-contract`)

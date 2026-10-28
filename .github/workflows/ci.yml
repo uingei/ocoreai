@@ -564,8 +564,10 @@ jobs:
       # `error: unable to spawn process 'metal'` while llbuild ran CompileMetalFile on
       # .build/checkouts/mlx-swift/Source/Cmlx/mlx-generated/metal/steel/attn/kernels/steel_attention.metal.
       # The delivery route is the CLT route on purpose (an SDK-27 route would compile the CoreAI blocks),
-      # and the CLT carries no Metal compiler — hosted images ship the component separately, which is
-      # also why the xcode-27 cell above installs it and why `make test-clt` prepends the same dir.
+      # and the CLT carries no Metal compiler. scripts/toolchain-contract.sh already puts the component's
+      # cryptex dir on PATH (print-delivery-env exports it, verified 10-28 on a host where `metal` is not
+      # reachable by name) — so the missing rung on a runner is the component itself, which hosted macOS
+      # images do not ship. Same reason the xcode-27 cell above installs it.
       - name: Install MetalToolchain (the CLT route has no metal compiler)
         run: |
           set -euo pipefail
@@ -575,13 +577,6 @@ jobs:
         run: |
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
-          # Spawnable `metal`, from the resolver that already owns the answer (print-metal-bin):
-          # the component lands in a cryptex mount, so it is not on PATH by name. Same one-line
-          # contract `make test-clt` uses (Makefile's METAL_PATH_EXPORT), read BEFORE the route is
-          # evaluated — the route deliberately points DEVELOPER_DIR at the CLT.
-          METAL_BIN="$(bash scripts/toolchain-contract.sh print-metal-bin 2>/dev/null || true)"
-          [ -n "$METAL_BIN" ] && export PATH="$METAL_BIN:$PATH"
-          echo "   metal: ${METAL_BIN:-none — CompileMetalFile will fail as it did on 10-28}"
           # Failures must be VISIBLE without a token — the same contract build-ios below honours. The
           # resolver's words, the compiler's error lines and the checker's verdict go to
           # $GITHUB_STEP_SUMMARY and ::error:: annotations, which the public check-runs/{id}/annotations
@@ -594,7 +589,9 @@ jobs:
             exit 1
           fi
           eval "$ROUTE"
-          echo "   route: DEVELOPER_DIR=$DEVELOPER_DIR SDKROOT=$SDKROOT"
+          # The route owns the PATH rung (one home); this only says whether it landed on a real
+          # compiler, so a repeat of the 10-28 red names itself instead of becoming a compiler error.
+          echo "   route: DEVELOPER_DIR=$DEVELOPER_DIR SDKROOT=$SDKROOT metal=$(command -v metal || echo ABSENT)"
           if ! { swift build -c release --traits appStore $OCOREAI_DELIVERY_FLAGS \
                  && bash scripts/release-artifact-check.sh delivery .build/release/ocoreai ; } \
                > appstore-delivery.log 2>&1; then
