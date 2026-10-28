@@ -290,12 +290,15 @@ jobs:
           SPID=$!
           trap 'kill -TERM $SPID 2>/dev/null || true' EXIT
           OK=""
-          for i in $(seq 1 30); do
+          # A wall-clock window: the poll costs its own curl deadline on top of the sleep, so
+          # 30 iterations is up to 150 s, and the message below claimed 60 s for it.
+          SERVE_START=$(date +%s)
+          while [ $(( $(date +%s) - SERVE_START )) -lt 60 ]; do
             sleep 2
             if curl -sf -m 3 http://127.0.0.1:8080/health >/tmp/serve_health.json; then OK=1; break; fi
             kill -0 $SPID 2>/dev/null || { echo "❌ serve process died early"; cat /tmp/serve_smoke.log; exit 1; }
           done
-          [ -n "$OK" ] || { echo "❌ /health not bound within 60s"; cat /tmp/serve_smoke.log; exit 1; }
+          [ -n "$OK" ] || { echo "❌ /health not bound within 60s (waited $(( $(date +%s) - SERVE_START ))s)"; cat /tmp/serve_smoke.log; exit 1; }
           echo "✅ headless /health:"; head -c 200 /tmp/serve_health.json; echo
           kill -TERM $SPID
           for i in $(seq 1 20); do kill -0 $SPID 2>/dev/null || break; sleep 1; done
@@ -318,22 +321,32 @@ jobs:
           # They sit in this step instead of opening a leg because a gate nobody watches goes red is
           # decoration, and CI is the only seat that runs on every push.
           #
-          # Bounded, and loud about the bound. The readiness wait runs per boot attempt and a probe may
-          # boot three times, so at the 240 s default three probes can cost ~36 minutes: five runs on
-          # 10-28 measured this step at 2545-2850 s until the job's own 60-minute limit cancelled the
-          # authority leg, and a cancelled leg prints its reason nowhere. 75 s per boot is
-          # about 25x what these probes take on a host where the server binds. A failure now publishes the
-          # probe's own words as annotations and in the step summary, because a red that needs a token to
-          # read is a rumour, and the reader whose action changes is whoever is waiting on this leg to
-          # tag: they learn in one minute whether the wire broke or the runner could not boot a server.
-          export OCOREAI_READY_TIMEOUT=75
+          # Bounded, and loud about the bound. The readiness budget now costs what it says: probe_boot
+          # counted loop iterations, each one the poll's 3 s curl deadline plus a 1 s sleep, so a
+          # "75 s" window spent ~285 s wall (measured locally — a 10 s budget against a server that
+          # accepts and never answered cost 38 s) and three probes overran the 600 s bound that names
+          # them. Five runs on 10-28 measured this step at 2545-2850 s at the 240 s default until the
+          # job's own 60-minute limit cancelled the authority leg, and a cancelled leg prints its
+          # reason nowhere. 40 s per boot is ~25x what these probes take where the server binds, and
+          # OCOREAI_PROBE_CURL_TIMEOUT=60 bounds one hung request — the 180 s default exists for local
+          # model loads and these probes download nothing. Each probe publishes its own elapsed time,
+          # so the next overrun names the probe instead of the step, and a failure publishes the
+          # probe's words, because a red that needs a token to read is a rumour and the reader whose
+          # action changes is whoever waits on this leg to tag: they learn in one minute whether the
+          # wire broke or the runner could not boot a server.
+          export OCOREAI_READY_TIMEOUT=40 OCOREAI_PROBE_CURL_TIMEOUT=60
           SMOKE_RC=0
           for PROBE_NO in 37 38 39; do
-            if OCOREAI_BIN="$BIN" bash scripts/probes/run.sh "$PROBE_NO" > "probe-$PROBE_NO.log" 2>&1; then
+            PROBE_START=$(date +%s)
+            PROBE_RC=0
+            OCOREAI_BIN="$BIN" bash scripts/probes/run.sh "$PROBE_NO" > "probe-$PROBE_NO.log" 2>&1 || PROBE_RC=$?
+            PROBE_ELAPSED=$(( $(date +%s) - PROBE_START ))
+            echo "::notice::probe $PROBE_NO exit $PROBE_RC after ${PROBE_ELAPSED}s"
+            if [ "$PROBE_RC" -eq 0 ]; then
               grep -E "passed,|✘" "probe-$PROBE_NO.log" | tail -2
             else
               SMOKE_RC=1
-              echo "::error::probe $PROBE_NO failed (readiness window 75 s per boot attempt) — log tail:"
+              echo "::error::probe $PROBE_NO failed after ${PROBE_ELAPSED}s (40 s readiness budget per boot attempt) — log tail:"
               tail -20 "probe-$PROBE_NO.log" | sed 's/^/::error::  /'
               { echo "### probe $PROBE_NO failed"; echo '```'
                 grep -E "FAIL|NOTE  bridge|server exited|refusing to start|never answered|Fatal error" \

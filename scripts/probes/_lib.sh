@@ -495,8 +495,16 @@ probe_boot() {
       "$bin" serve < /dev/null > "$PROBE_LOG" 2>&1 &
     PROBE_PID=$!
 
-    local waited=0 timeout="${OCOREAI_READY_TIMEOUT:-240}"
-    while [ "$waited" -lt "$timeout" ]; do
+    # The budget is wall-clock seconds, not loop iterations. One iteration costs the poll's
+    # own curl deadline plus the sleep, so counting iterations advertised the budget and spent
+    # about 4x it: measured 10-28 against a server that accepts and never answers, a 10 s
+    # budget took 38 s, and three probes at the CI window then overran the step bound that
+    # exists precisely to name such a probe.
+    local timeout="${OCOREAI_READY_TIMEOUT:-240}" waited=0 ready_started
+    ready_started="$(date +%s)"
+    while :; do
+      waited=$(( $(date +%s) - ready_started ))
+      [ "$waited" -lt "$timeout" ] || break
       if ! kill -0 "$PROBE_PID" 2>/dev/null; then
         probe_fail "server exited during boot (waited ${waited}s) — last lines:"
         tail -20 "$PROBE_LOG" | sed 's/^/        /'
@@ -524,7 +532,6 @@ probe_boot() {
         return 0
       fi
       sleep 1
-      waited=$(( waited + 1 ))
     done
 
     if [ "$port_collision" = "1" ]; then
@@ -542,7 +549,7 @@ probe_boot() {
     break
   done
 
-probe_fail "/health never answered 200 within ${timeout}s — Metal unavailable or model load stuck. Last lines:"
+probe_fail "/health never answered 200 in ${waited}s wall (budget ${timeout}s) — Metal unavailable or model load stuck. Last lines:"
   tail -20 "$PROBE_LOG" | sed 's/^/        /'
   echo "        If this host reports \"No Metal device available\", run this probe outside the agent sandbox"
   echo "        (make test-clt is the same route) — inside it MLX cannot load a device."

@@ -4,6 +4,35 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(25) A readiness budget now costs the seconds it advertises** (P1 probes-CI / symbols `probe_boot-wall-clock`, `OCOREAI_PROBE_CURL_TIMEOUT`)
+
+- **What improved.** `probe_boot` counted loop iterations against a timeout expressed in seconds,
+while one iteration costs the poll's own 3 s `curl -m 3` deadline plus the 1 s sleep. On a server
+that accepts a connection and never answers, every iteration pays that, so a budget of N seconds
+spent up to 4N. That is what the authority leg's smoke step was sitting on: 75 s per boot meant
+~285 s, three probes overran the 10-minute step bound, and the leg's verdict became a timeout
+rather than an answer about the wire. The budget is wall-clock now, the failure prints both numbers
+(`in 13s wall (budget 10s)`), and the same lie in the step's own serve wait — a loop claiming 60 s
+that could spend 150 — went with it. The step sets `OCOREAI_READY_TIMEOUT=40` and
+`OCOREAI_PROBE_CURL_TIMEOUT=60`, since the 180 s default exists for a local model's first token and
+these three probes download nothing, and each probe publishes its own elapsed time.
+
+- **What same-session output proves it.** A fake server that binds and never answers, budget 10 s:
+38 s wall before the fix, 13 s after — the remainder is one poll, whose ceiling the message now
+states. The three-probe loop at that budget, replayed under `set -euo pipefail`: 40 s wall total,
+`probe 37 exit 1 after 13s`, `38 after 14s`, `39 after 13s`, and the loop still reached its own
+verdict instead of dying with the first failure.
+
+- **Which gate goes red if it regresses.** The step bound that this fix exists to fit inside: the
+red was sampled on HEAD, where the runner printed `The action 'Headless serve smoke (macos-26)' has
+timed out after 10 minutes` at 607 s. Reader whose action changes: whoever waits on this leg to tag,
+who now gets a named probe and an elapsed number instead of a cancelled leg.
+
+- **Honest limits.** Nothing floors the ratio itself — a future edit back to iteration counting
+would show up as a step timeout, in minutes, not as a red assertion. A hung server is still bounded
+by budget × boot attempts (port collision retries three), and 40 s is a judgement about a host with
+no weights resident, not a measured floor.
+
 **10-29(24) A test step that exits 0 without delivering a verdict can no longer read green** (P0 CI / symbols `test-verdict.sh`, `xctest-verdict-floor`)
 
 - **What improved.** Both `Build & Test` legs carried the annotation `xctest summary (exit 0):

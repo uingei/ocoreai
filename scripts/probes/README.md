@@ -26,8 +26,12 @@ route `make test-clt` uses (see `docs/agent/build-gate-reality.md`).
 Each probe boots its own `ocoreai serve` on an OS-assigned free port, so runs are
 repeatable and never ride on a GUI instance that happens to be open. Runtime is dominated by
 model load — except probe 37, which runs the wire against a replayed script with nothing resident
-(`bash scripts/probes/run.sh 37` decides a contract claim in seconds, in the sandbox tier, and CI
-runs it on every push from the headless-serve smoke step — the only live probe that gets to say that).
+(`bash scripts/probes/run.sh 37` decides a contract claim in seconds, in the sandbox tier). Three
+probes have a CI seat and run on every push from the `Build & Test (macos-26)` leg's headless-serve
+smoke step — `37` (scripted-engine wire), `38` (§1 `reasoning_effort` honesty, which needs no
+checkpoint) and `39` (it executes `skills/ocoreai/SKILL.md` marker by marker against the served wire).
+Each one publishes its own elapsed time as an annotation, because the step that runs them is bounded
+and a bound that overruns has to say which probe ate it.
 
 ## What is here
 
@@ -301,7 +305,8 @@ Every file here keeps the contract `_lib.sh` documents:
 |---|---|
 | `OCOREAI_BIN` | binary to probe (default: newest of `.build-clt/debug`, `.build/debug`, `.build/release`) |
 | `OCOREAI_PROBE_PORT` | port to bind (default: free port) |
-| `OCOREAI_READY_TIMEOUT` | seconds to wait for `/health` (default 240) |
+| `OCOREAI_READY_TIMEOUT` | **wall-clock** seconds to wait for `/health` (default 240). It is a time budget, not a poll count: one poll costs up to 4 s (its own 3 s curl deadline plus the 1 s sleep), and counting iterations instead spent ~4x the advertised window — measured 10-28, a "10 s" budget against a server that accepts and never answered took 38 s, and three probes at the CI window then overran the step bound that exists to name them. A failure prints both numbers (`in 13s wall (budget 10s)`) |
+| `OCOREAI_PROBE_CURL_TIMEOUT` | deadline on `probe_api`'s requests and the SSE leg of `37` (default 180 s — sized for a local model's first token; CI's smoke step sets 60 because those probes download nothing). Class-L of `make audit` floors that every request site under `scripts/probes/` carries a `-m` |
 | `OCOREAI_API_KEYS` | passed to the server; probes then send `Authorization: Bearer <first key>` like real clients |
 | `OCOREAI_PROBE_MODEL_LIMIT` | how many ready models `03` cross-checks (default 2) |
 | `OCOREAI_PROBE_PAD_UNITS` | length of the filler prompt in `01`/`02` (default 40 sentences) |
