@@ -12,10 +12,14 @@
 # executing tests while still exiting 0.
 #
 # ### Contract
-#   0  swift-testing reported a run whose test count is >= 1
-#   1  it reported no summary, or 0 tests  -> no verdict was produced; do not read this as green
+#   0  swift-testing reported a run with >= 1 test that did not report failure
+#   1  it reported no summary, 0 tests, or a failing run  -> do not read this as green
 # The XCTest half is reported, never judged: xctest's own exit code covers its failures, and its
 # count is 0 by policy here.
+# (The exit code means what the sentence above says: measured 10-29 against a bundle whose run
+# failed, printing the ✘ line and exiting 0 claimed a verdict worth acting on while disclaiming
+# the only judgement anyone reads it for. CI's step also honours xctest's exit code; this one
+# simply stops calling a reported failure a pass.)
 #
 # Usage: test-verdict.sh <log-file>
 set -uo pipefail
@@ -49,6 +53,10 @@ if [ -z "$st_line" ]; then
 fi
 if [ "${st_count:-0}" -eq 0 ]; then
   emit error "swift-testing reported 0 tests — the bundle contains no compiled test code, so this step cannot judge anything"
+  exit 1
+fi
+if printf '%s' "$st_line" | grep -q "failed after"; then
+  emit error "swift-testing reported a failing run — ${st_line}"
   exit 1
 fi
 exit 0

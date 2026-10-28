@@ -1,12 +1,41 @@
 # Changelog
 
-The engineering diary of **ocoreai** — one dated round per entry, newest first, each answering three questions: what
-improved, what same-session output proves it, and which gate goes red if it regresses (contract: `CONTRIBUTING.md`).
-It is deliberately not a Keep-a-Changelog release-notes file — there are no `Added`/`Changed`/`Fixed` sections here —
-so someone deciding what to install reads the newest release note and `README.md`; a `## <dates>` section below
-groups the rounds of an older period, and dates on a heading are when the work landed (measured from git).
+The engineering diary of **ocoreai** — one dated round per entry, newest first, each answering three
+questions: what improved, what same-session output proves it, and which gate goes red if it regresses
+(contract: `CONTRIBUTING.md`). It is deliberately not a Keep-a-Changelog release-notes file — there are no
+`Added`/`Changed`/`Fixed` sections here — so someone deciding what to install reads the newest release
+note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
+heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
+
+**10-29(28) A verdict script that exited 0 on a failing run was claiming more than it judged** (P1 CI / symbols `test-verdict-failing-run`)
+
+- **What improved.** Entry (24)'s floor was sampled against synthetic logs and never against a run
+that genuinely failed. Building one took four lines: a `@Test` asserting `42 == 43` in the same
+minimal package, and `xcrun xctest` answered exit 1 with `✘ Test run with 3 tests in 2 suites failed
+after 0.001 seconds with 1 issue.` — while `scripts/test-verdict.sh` printed that line as a
+`::notice::` and exited 0. Its contract sentence ("did the harness deliver a verdict") was true and
+its exit code was a lie a reader would act on, so the code now matches the sentence: exit 1 for no
+summary, 0 tests, or a reported failure. The same pass put two multipliers back on their
+measurements — the step bound was described as ~5x the work when the replayed step costs 43 s
+(~14x), and the boot window as ~25x when `serve` answers `/health` in 2 s (20x) — and gave the
+duplicated 2545-2850 s fact one home instead of two.
+
+- **What same-session output proves it.** Five samples, one direction each: a passing run exits 0; a
+real failing bundle exits 1; an XCTest-only log (10-28's misread shape) exits 1; a
+`Test run with 0 tests` log exits 1; an empty log exits 1. The replay behind the 43 s: serve bound
+in 2 s, probes 37/38/39 at 2/10/28 s, SIGTERM drain clean, whole step 43 s against a 600 s bound.
+
+- **Which gate goes red if it regresses.** The script's own exit code, whose red was sampled twice
+today — the failing-run log that used to pass it, and the empty log that starts the whole complaint.
+Its seats are the CI test step and `make test-ci`. Reader whose action changes: anyone reading a
+green test step as "the suite passed", which is now the same claim the exit code makes.
+
+- **Honest limits.** It judges what swift-testing reported, not what XCTest did: XCTest failures
+travel on `xctest`'s exit code (and `Tests/` holds 0 `XCTestCase` files, so there is no second
+lane to cover). The 43 s replay is this host's SwiftPM Debug binary, not a runner's DerivedData
+product — the next push's step duration is the number that matters.
 
 **10-29(27) The published release named a branch where it had to name a commit** (P1 release / symbols `release-verify-tag`)
 

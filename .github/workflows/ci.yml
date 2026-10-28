@@ -275,9 +275,10 @@ jobs:
       # Bounded on purpose. Measured 10-28: this step ran 2545-2850 s on six consecutive pushes
       # (under 20 s on the last green run of the same leg), and the leg's only verdict was
       # `cancelled` at the job's own 60-minute limit — a step that overruns decides the job's
-      # verdict by timing out. 10 min is about 5x the measured cost of what runs here (three
-      # live probes plus boot and drain), and a step that times out names itself in the job's
-      # step list, which is the diagnosis a job-level timeout never gives.
+      # verdict by timing out. Replayed locally on 10-29 with the budgets set below it, this step
+      # costs 43 s (serve answers /health in 2 s; probes 37/38/39 = 2/10/28 s), so the bound is
+      # ~14x the work — and a step that times out names itself in the job's step list, which is
+      # the diagnosis a job-level timeout never gives.
       - name: Headless serve smoke (macos-26)
         if: ${{ matrix.os == 'macos-26' }}
         timeout-minutes: 10
@@ -325,9 +326,8 @@ jobs:
           # counted loop iterations, each one the poll's 3 s curl deadline plus a 1 s sleep, so a
           # "75 s" window spent ~285 s wall (measured locally — a 10 s budget against a server that
           # accepts and never answered cost 38 s) and three probes overran the 600 s bound that names
-          # them. Five runs on 10-28 measured this step at 2545-2850 s at the 240 s default until the
-          # job's own 60-minute limit cancelled the authority leg, and a cancelled leg prints its
-          # reason nowhere. 40 s per boot is ~25x what these probes take where the server binds, and
+          # them (the step's own comment above carries what that cost on the runner). 40 s per boot is
+          # 20x the 2 s this host's serve needs to answer /health, and
           # OCOREAI_PROBE_CURL_TIMEOUT=60 bounds one hung request — the 180 s default exists for local
           # model loads and these probes download nothing. Each probe publishes its own elapsed time,
           # so the next overrun names the probe instead of the step, and a failure publishes the
