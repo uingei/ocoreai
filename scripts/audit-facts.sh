@@ -30,6 +30,46 @@ grep -n "func runInferenceBody" Sources/ocoreai/Engine/EngineInference.swift; wc
 echo "--- env count contract ---"
 echo "env.example keys: $(grep -cE '^[A-Z_]+=' .env.example 2>/dev/null) | OCOREAI_ prefix only (undercount if multi-prefix): $(grep -rhoE 'OCOREAI_[A-Z_]+' Sources/ | sort -u | wc -l | tr -d ' ')"
 grep -n "environment variables\|contract" Tests/ocoreaiTests/EnvKeysDocumentationTests.swift 2>/dev/null | head -3
+echo "--- comparator cadence (the numbers § Adoption and Goal Rung 1 quote) ---"
+# One request per tree: at per_page=1 the total is the last Link page. Unauthenticated is
+# 60 req/h, so this costs 8 of them - run it when a number is quoted, not on a timer.
+# A tree that could not be asked prints the reason and never a number, and a partial scan says
+# it is partial: a floor read off a shrunk set is the vacuous-pass shape all over again.
+python3 - <<'CADPY'
+import json, re, urllib.error, urllib.request
+TREES = ["openai/codex", "anomalyco/opencode", "earendil-works/pi",
+         "openclaw/openclaw", "ollama/ollama", "aaif-goose/goose",
+         "NousResearch/hermes-agent", "deepseek-ai/deepseek-harness"]
+
+def ask(repo):
+    url = "https://api.github.com/repos/%s/releases?per_page=1" % repo
+    hdr = {"Accept": "application/vnd.github+json",
+           "User-Agent": "ocoreai-audit-facts"}
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=20) as r:
+            body, link = json.load(r), r.headers.get("Link", "")
+    except urllib.error.HTTPError as exc:
+        return "cannot-ask-HTTP%s" % exc.code, "-"
+    except Exception as exc:
+        return "cannot-ask-%s" % type(exc).__name__, "-"
+    if isinstance(body, dict):
+        return "cannot-ask-%s" % str(body.get("message", "?"))[:22], "-"
+    newest = body[0]["published_at"][:10] if body else "none"
+    last = re.search("[?&]page=(\d+)>; rel=.last.", link)
+    return (last.group(1) if last else str(len(body))), newest
+
+rows = [(t,) + ask(t) for t in TREES]
+for t, total, newest in rows:
+    print("  %-32s releases=%-7s newest=%s" % (t, total, newest))
+nums = [r for r in rows if r[1].isdigit()]
+if len(nums) == len(rows):
+    lo = min(nums, key=lambda r: int(r[1])); hi = max(nums, key=lambda r: int(r[1]))
+    print("  range=%s -> %s releases (floor %s, ceiling %s)"
+          % (lo[1], hi[1], lo[0].split("/")[-1], hi[0].split("/")[-1]))
+else:
+    print("  PARTIAL - %d/%d trees answered, so the range above is not a floor"
+          % (len(nums), len(rows)))
+CADPY
 echo "--- CI state ---"
 if [ -n "${1:-}" ]; then
   curl -s --max-time 15 "https://api.github.com/repos/uingei/ocoreai/commits/$1/check-runs" \

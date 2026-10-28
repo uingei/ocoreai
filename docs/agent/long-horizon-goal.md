@@ -84,27 +84,27 @@ withdrawn assets left with them)**, 137 days old. The gap is not the finding, th
 justify this section is **deleted, not softened (10-28(6))**: it read "the field's best sustained growth is
 ~408/day, so no honest engineering schedule reaches #1", yet `deepseek-ai/deepseek-harness` reached 263 687
 stars 76 days after creation, and `Niko1221/Strata` 34 577 in 34 days (rates per tree: the leaderboard).
-Neither elapsed time, star arithmetic nor engineering throughput bounds #1 — the category's own record is an
-eleven-week distribution event — and what bounds it is whether something outside this repo defaults to it:
-the top four each sit on a machine that manufactures one (two model vendors, one large ecosystem, one
-phenomenon with institutional amplification), and two of the three fastest movers are institution-shipped. So
-distribution comes first, the objective stays the wedge rank and not the headline, the two rungs that move a
-stranger's install decision this quarter are 1 (a tag per merge) and 6 (be consumed), and the cheapest parts
-are still unpaid here — Discussions off, no homepage, `VISION.md` absent, 0 watchers. Every rung below is
-falsifiable:
+Neither elapsed time, star arithmetic nor throughput bounds #1 — the record is an eleven-week
+distribution event — and what does is whether something outside this repo defaults to it: each of the top
+four sits on a machine that manufactures one (two model vendors, one ecosystem, one institution-amplified
+phenomenon), and two of the three fastest movers are institution-shipped. So distribution comes first, the
+objective stays the wedge rank not the headline, the rungs that move a stranger's install decision this
+quarter are 1 (a tag per merge) and 6 (be consumed), and the cheapest parts are still unpaid — Discussions
+off, no homepage, `VISION.md` absent, 0 watchers. Every rung below is falsifiable:
 
-0. **Ship.** Done, and now askable: `scripts/ci-status.sh` reports what CI concluded, never "green" for a
-   question it could not ask.
-1. **Cadence, not one tag.** Every tree a stranger installs here publishes ≥100 releases with a newest of
-   today; this repo has **0 tags and 0 listed releases**, measured 10-28: `git ls-remote --tags origin`
-   empty, `api.github.com` (`/tags` and `/releases` both `[]`). The publisher needs no owner credential (the
-   `release` job uses the runner's own `${{ github.token }}`), but `v0.1.10` is the wrong number to type: the
-   tag *is* the version (`scripts/version.sh`) and the withdrawn line reached 0.1.13, so the next number is
-   **`v0.1.14`**, prepared on this host and never pushed. Two things ride on it: the trust signals a first
+0. **Ship.** Done, and askable: `scripts/ci-status.sh` never calls a question it could not ask green.
+1. **Cadence, not one tag.** The eight installable trees publish 34 → 1 254 releases each, newest ≤8 d old
+   (`bash scripts/audit-facts.sh` re-measures); this repo has **0 tags and 0 listed releases**
+   (`git ls-remote --tags origin` empty, `/tags` and `/releases` both `[]`). The publisher needs no owner
+   credential (the `release` job uses the runner's own `${{ github.token }}`), and the tag *is* the version
+   (`scripts/version.sh`): the withdrawn line reached 0.1.13, so the number to type is **`v0.1.14`**,
+   prepared on this host and never pushed. Two things ride on it: the trust signals a first
    screen can show are outputs of cadence (§ The first screen), and before self-serve publishing, build and
-   publish must split — ours runs repository code inside the job holding    `contents: write` (`competitor-iteration-paths.md` § The release cadence rule). The suite is green
-   (`scripts/ci-status.sh` exits 0 on every leg a main push runs) and the DMG completes a real turn from a
-   fresh directory, so rung 1 waits on a person and a policy, not on code.
+   publish must split — ours runs repository code inside the job holding `contents: write`
+   (`competitor-iteration-paths.md` § The release cadence rule). What the runner proved: the delivery shape is
+   green and the DMG completes a real turn from a fresh directory. What it did not: the macos-26 leg's last run
+   went red on a smoke step that ate its own 600 s bound while 3 210 tests passed,
+   so rung 1 waits on that leg green and on a hand to type the tag, not on code.
 2. **Sixty seconds to first token.** Honest today: `swift build -c release` (minutes) or an ad-hoc-signed
    DMG plus the Gatekeeper right-click. Rung = notarised artefact + Homebrew cask; the metric to floor is
    *clean machine → first completion*, one command, timed. First measured point: 22.1 s from a built DMG to

@@ -27,11 +27,14 @@ Each probe boots its own `ocoreai serve` on an OS-assigned free port, so runs ar
 repeatable and never ride on a GUI instance that happens to be open. Runtime is dominated by
 model load — except probe 37, which runs the wire against a replayed script with nothing resident
 (`bash scripts/probes/run.sh 37` decides a contract claim in seconds, in the sandbox tier). Three
-probes have a CI seat and run on every push from the `Build & Test (macos-26)` leg's headless-serve
-smoke step — `37` (scripted-engine wire), `38` (§1 `reasoning_effort` honesty, which needs no
-checkpoint) and `39` (it executes `skills/ocoreai/SKILL.md` marker by marker against the served wire).
-Each one publishes its own elapsed time as an annotation, because the step that runs them is bounded
-and a bound that overruns has to say which probe ate it.
+probes have a CI seat and run on every push from the `Build & Test (macos-26)` leg — `37`
+(scripted-engine wire), `38` (§1 `reasoning_effort` honesty, which needs no checkpoint) and `39` (it
+executes `skills/ocoreai/SKILL.md` marker by marker against the served wire) — as one step each, run by
+`scripts/probes/ci-step.sh`. They were ONE step until 10-29, when that step spent its whole 600 s bound
+and the only annotation was "timed out after 10 minutes": a shared bound names the step and never the
+probe, and the log that says more sits behind a token. Split, the runner's own per-step duration is the
+diagnosis (measured on this host: 37 = 2 s, 38 = 10 s, 39 = 25 s), each bound is its own verdict, and a
+failure publishes the probe's words as annotations.
 
 ## What is here
 

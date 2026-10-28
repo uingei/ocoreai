@@ -217,7 +217,7 @@ jobs:
 
       # build-for-testing only compiles the test bundle. Tests must be
       # EXECUTED in a dedicated step — `TEST BUILD SUCCEEDED` does NOT mean
-      # tests ran. This is the real test gate (757 Swift Testing tests).
+      # tests ran. This is the real test gate; its size is what the run prints, not a comment.
       # The count is reported by the run (scripts/test-verdict.sh), not frozen in this comment:
       # the frozen one above was unreadable for a fortnight because the annotation that carried
       # it ends at its first newline, so nothing here proved the suite executed.
@@ -272,89 +272,70 @@ jobs:
       # HeadlessServer existed) and SIGTERM must exit 0 after draining.
       # Models are lazy — no weights downloaded; full inference E2E is
       # smoke-tested against the release DMG by the maintainer, not here.
-      # Bounded on purpose. Measured 10-28: this step ran 2545-2850 s on six consecutive pushes
-      # (under 20 s on the last green run of the same leg), and the leg's only verdict was
-      # `cancelled` at the job's own 60-minute limit — a step that overruns decides the job's
-      # verdict by timing out. Replayed locally on 10-29 with the budgets set below it, this step
-      # costs 43 s (serve answers /health in 2 s; probes 37/38/39 = 2/10/28 s), so the bound is
-      # ~14x the work — and a step that times out names itself in the job's step list, which is
-      # the diagnosis a job-level timeout never gives.
-      - name: Headless serve smoke (macos-26)
+      #
+      # Split into one step per probe on 10-29. The 10-28 push spent this step's entire
+      # 600 s bound and the only annotation was "timed out after 10 minutes", so the leg went
+      # red without naming what stalled (the earlier shape ran 2545-2850 s across six pushes
+      # and let the job's own 60-minute limit decide the verdict). Per-step durations are the
+      # instrument: GitHub reports them, no token is needed to read them, and each bound is
+      # now its own verdict. What the stall was NOT is measured: an empty $OCOREAI_MODELS_DIR
+      # costs probe 37 nothing — 20 assertions pass, a turn round-trips in 39 ms (10-29).
+      - name: Locate the Debug smoke binary (macos-26)
         if: ${{ matrix.os == 'macos-26' }}
-        timeout-minutes: 10
+        timeout-minutes: 3
         run: |
           set -euo pipefail
           BIN=$(find ~/Library/Developer/Xcode/DerivedData -name ocoreai -type f -path '*Debug*' 2>/dev/null | head -1)
-          [ -n "$BIN" ] || { echo "❌ Debug binary not found in DerivedData"; exit 1; }
+          [ -n "$BIN" ] || { echo "::error::no Debug ocoreai binary in DerivedData"; exit 1; }
+          printf '%s\n' "$BIN" > /tmp/ocoreai-smoke-bin
           echo "smoke binary: $BIN"
-          "$BIN" serve >/tmp/serve_smoke.log 2>&1 &
+
+      - name: Headless serve smoke (macos-26)
+        if: ${{ matrix.os == 'macos-26' }}
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          BIN=$(cat /tmp/ocoreai-smoke-bin)
+          "$BIN" serve >serve_smoke.log 2>&1 &
           SPID=$!
           trap 'kill -TERM $SPID 2>/dev/null || true' EXIT
           OK=""
-          # A wall-clock window: the poll costs its own curl deadline on top of the sleep, so
-          # 30 iterations is up to 150 s, and the message below claimed 60 s for it.
+          # A wall-clock window, because the poll costs its own curl deadline on top of the sleep.
+          # 60 s is 30x the 2 s this binary needs to answer /health on the measured host.
           SERVE_START=$(date +%s)
           while [ $(( $(date +%s) - SERVE_START )) -lt 60 ]; do
             sleep 2
-            if curl -sf -m 3 http://127.0.0.1:8080/health >/tmp/serve_health.json; then OK=1; break; fi
-            kill -0 $SPID 2>/dev/null || { echo "❌ serve process died early"; cat /tmp/serve_smoke.log; exit 1; }
+            if curl -sf -m 3 http://127.0.0.1:8080/health >serve_health.json; then OK=1; break; fi
+            kill -0 $SPID 2>/dev/null || { echo "::error::serve process died early"; tail -20 serve_smoke.log | sed 's/^/::error::  /'; exit 1; }
           done
-          [ -n "$OK" ] || { echo "❌ /health not bound within 60s (waited $(( $(date +%s) - SERVE_START ))s)"; cat /tmp/serve_smoke.log; exit 1; }
-          echo "✅ headless /health:"; head -c 200 /tmp/serve_health.json; echo
+          [ -n "$OK" ] || { echo "::error::/health not bound within 60s — the headless bridge never listened"; tail -20 serve_smoke.log | sed 's/^/::error::  /'; exit 1; }
+          echo "✅ headless /health after $(( $(date +%s) - SERVE_START ))s:"; head -c 200 serve_health.json; echo
           kill -TERM $SPID
           for i in $(seq 1 20); do kill -0 $SPID 2>/dev/null || break; sleep 1; done
-          if kill -0 $SPID 2>/dev/null; then echo "❌ SIGTERM ignored (still alive after 20s)"; kill -9 $SPID; exit 1; fi
+          if kill -0 $SPID 2>/dev/null; then echo "::error::SIGTERM ignored (still alive after 20s)"; kill -9 $SPID; exit 1; fi
           wait $SPID || RC=$?
           RC=${RC:-0}
-          grep -q "headless serve starting" /tmp/serve_smoke.log || { echo "❌ no 'headless serve starting' marker in log"; exit 1; }
-          grep -q "shut down complete" /tmp/serve_smoke.log || { echo "❌ no 'shut down complete' in log"; exit 1; }
-          [ "$RC" -eq 0 ] || { echo "❌ SIGTERM exit code $RC (expected 0)"; exit 1; }
+          grep -q "headless serve starting" serve_smoke.log || { echo "::error::no 'headless serve starting' marker in the log"; exit 1; }
+          grep -q "shut down complete" serve_smoke.log || { echo "::error::no 'shut down complete' in the log"; exit 1; }
+          [ "$RC" -eq 0 ] || { echo "::error::SIGTERM exit code $RC (expected 0)"; exit 1; }
           echo "✅ headless serve: bound → SIGTERM → exit 0, drain complete"
 
-          # Same binary, nothing resident. Three contract tiers, none of which needs weights:
-          #   37 — the scripted engine through the real handlers: SSE framing, tool-call assembly,
-          #        `usage`, the `engineBackend` honesty field.
-          #   38 — §1: an unmeasured checkpoint is never refused for `reasoning_effort`, and
-          #        `/v1/models` publishes `not_observed` instead of silence. §2 needs a checkpoint and
-          #        prints its own skip note on a host that has none.
-          #   39 — executes skills/ocoreai/SKILL.md, the artefact another harness reads to drive /v1,
-          #        marker by marker, so the published skill cannot drift from the served wire.
-          # They sit in this step instead of opening a leg because a gate nobody watches goes red is
-          # decoration, and CI is the only seat that runs on every push.
-          #
-          # Bounded, and loud about the bound. The readiness budget now costs what it says: probe_boot
-          # counted loop iterations, each one the poll's 3 s curl deadline plus a 1 s sleep, so a
-          # "75 s" window spent ~285 s wall (measured locally — a 10 s budget against a server that
-          # accepts and never answered cost 38 s) and three probes overran the 600 s bound that names
-          # them (the step's own comment above carries what that cost on the runner). 40 s per boot is
-          # 20x the 2 s this host's serve needs to answer /health, and
-          # OCOREAI_PROBE_CURL_TIMEOUT=60 bounds one hung request — the 180 s default exists for local
-          # model loads and these probes download nothing. Each probe publishes its own elapsed time,
-          # so the next overrun names the probe instead of the step, and a failure publishes the
-          # probe's words, because a red that needs a token to read is a rumour and the reader whose
-          # action changes is whoever waits on this leg to tag: they learn in one minute whether the
-          # wire broke or the runner could not boot a server.
-          export OCOREAI_READY_TIMEOUT=40 OCOREAI_PROBE_CURL_TIMEOUT=60
-          SMOKE_RC=0
-          for PROBE_NO in 37 38 39; do
-            PROBE_START=$(date +%s)
-            PROBE_RC=0
-            OCOREAI_BIN="$BIN" bash scripts/probes/run.sh "$PROBE_NO" > "probe-$PROBE_NO.log" 2>&1 || PROBE_RC=$?
-            PROBE_ELAPSED=$(( $(date +%s) - PROBE_START ))
-            echo "::notice::probe $PROBE_NO exit $PROBE_RC after ${PROBE_ELAPSED}s"
-            if [ "$PROBE_RC" -eq 0 ]; then
-              grep -E "passed,|✘" "probe-$PROBE_NO.log" | tail -2
-            else
-              SMOKE_RC=1
-              echo "::error::probe $PROBE_NO failed after ${PROBE_ELAPSED}s (40 s readiness budget per boot attempt) — log tail:"
-              tail -20 "probe-$PROBE_NO.log" | sed 's/^/::error::  /'
-              { echo "### probe $PROBE_NO failed"; echo '```'
-                grep -E "FAIL|NOTE  bridge|server exited|refusing to start|never answered|Fatal error" \
-                  "probe-$PROBE_NO.log" | tail -20; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-            fi
-          done
-          kill -TERM $SPID 2>/dev/null || true
-          [ "$SMOKE_RC" -eq 0 ] || exit 1
+      # Three contract tiers, none of which needs weights, each with its own bound so a stall
+      # names the probe. scripts/probes/ci-step.sh carries the budgets and the annotation shape.
+      - name: Wire probe 37 — scripted engine (macos-26)
+        if: ${{ matrix.os == 'macos-26' }}
+        timeout-minutes: 3
+        run: bash scripts/probes/ci-step.sh 37
+
+      - name: Wire probe 38 — reasoning_effort honesty (macos-26)
+        if: ${{ matrix.os == 'macos-26' }}
+        timeout-minutes: 3
+        run: bash scripts/probes/ci-step.sh 38
+
+      - name: Wire probe 39 — published skill contract (macos-26)
+        if: ${{ matrix.os == 'macos-26' }}
+        timeout-minutes: 3
+        run: bash scripts/probes/ci-step.sh 39
 
       # ── Release build via xcodebuild ──
       - name: Build (xcodebuild, Release)
@@ -404,8 +385,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-diagnostics-${{ matrix.os }}
+          # The crash reports plus the live-wire logs: a red leg that can only be read with a
+          # token is a red leg nobody fixes, so the probe output travels with the verdict.
           path: |
             ~/Library/Logs/DiagnosticReports/*
+            probe-*.log
+            serve_smoke.log
+            xctest.log
           if-no-files-found: warn
           retention-days: 7
 

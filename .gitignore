@@ -62,3 +62,8 @@ tmp/
 
 # agent sandbox scratch (clang module caches) — never a source of truth
 .codex-tmp/
+
+# live-probe run logs: written next to the tree by scripts/probes/, uploaded by CI on failure
+probe-*.log
+serve_smoke.log
+serve_health.json

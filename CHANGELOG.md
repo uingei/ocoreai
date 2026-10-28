@@ -9,6 +9,36 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(29) A red leg that could name neither its cause nor its own numbers** (P1 CI-docs / symbols `ci-step.sh`, `comparator-cadence`)
+
+- **What improved.** Three claims that were worth less than the gate behind them. (1) The 10-28 push went red
+on `Build & Test (macos-26)` and the entire diagnosis was one annotation — "The action 'Headless serve smoke
+(macos-26)' has timed out after 10 minutes" — because serve plus three probes spent ONE shared 600 s bound.
+It is four steps now, each bounded, `scripts/probes/ci-step.sh` running one probe per step (40 s readiness,
+20 s per request — these probes download nothing), and the probe/serve logs ride the failure artefact.
+(2) Root § Adoption said the eight installable trees "each have ≥44 releases"; `deepseek-harness` has 34, so
+the floor was false. The line reads 34 → 1 254 and names the instrument: `scripts/audit-facts.sh` prints the
+per-tree range and calls a partial scan partial instead of a floor. (3) `long-horizon-goal.md` Rung 1 claimed
+"≥100 releases with a newest of today" (false) and "The suite is green" (false, by (1)); both now state what
+the runner measured, and the decoy `v0.1.10` is deleted so `v0.1.14` is the only number to misread.
+
+- **What same-session output proves it.** The cadence instrument run end to end: codex 1 254 (10-28), opencode
+885 (10-28), pi 275 (10-21), openclaw 274 (10-27), ollama 270 (10-27), goose 157 (10-23), hermes-agent 44
+(10-23), deepseek-harness 34 (10-28). The split replayed here: 37 = 2 s (20 assertions), 38 = 10 s (13),
+39 = 25 s (31), every step bound at 180 s = 7× the slowest. And the obvious cause is dead on measurement:
+probe 37 against an empty `$OCOREAI_MODELS_DIR` answers 20/20 with a 39 ms round-trip, so "the runner had no
+weights" is inference, not the finding — which is why the fix prints where time went instead of guessing.
+
+- **Which gate goes red if it regresses.** `make docs-check` re-derives the injected corpus and the two figure
+sites in `comparator-repos.md`: root grew 200 B this round, so its row had to move from
+[21 249, 46 360, 31 878, 97, 890] to [21 449, 46 560, 32 078, 98, 690] and sat red until prose matched tree.
+A stall now fails a step that carries the probe's number instead of letting a step timeout decide the leg;
+`scripts/ci-status.sh` still answers 2, never green, for a leg that has not concluded.
+
+- **Honest limits.** Splitting buys the name of the cause, not the cause. The leg is red as this lands, so a
+tag waits on it and Rung 1 says that out loud. The diary footer "Last updated: 2026-08-23. Current HEAD:
+72bbfbe" is deleted rather than refreshed — nothing re-derives a footer, which is how it lied for two months.
+
 **10-29(28) A verdict script that exited 0 on a failing run was claiming more than it judged** (P1 CI / symbols `test-verdict-failing-run`)
 
 - **What improved.** Entry (24)'s floor was sampled against synthetic logs and never against a run
@@ -3765,8 +3795,6 @@ the definition of done here; CI on macos-26 stays the authority for what the sui
 - Resolved deprecations and renamed symbols
 
 ---
-
-*Last updated: 2026-08-23. Current HEAD: 72bbfbe.*
 
 ## 2026-10-06 — /v1/embeddings 上线（本地 embedding 对外可用）
 - **OpenAI 兼容 `POST /v1/embeddings`**：LFM2.5-Embedding-350M（1024d）对任意标准客户端可用（RAG 工具 / 向量库）。

@@ -34,8 +34,8 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 - If upstream already has the answer, consume it or cite `file:line` — do not author a local variant.
 
 ## Adoption — the surface a stranger ranks
-- **A release is a cadence, not a green suite or one tag:** the eight trees a stranger installs each have
-  ≥44 releases with a newest within days; ours is 0 tags, 0 listed releases. The tag *is* the version, so
+- **A release is a cadence, not a green suite or one tag:** the eight installable trees publish 34 → 1 254
+  releases, newest ≤8 d old (`scripts/audit-facts.sh`); ours is 0 tags, 0 listed releases. The tag *is* the version, so
   the number to type is **v0.1.14** (`scripts/version.sh`; a stale number in a doc is an instruction someone
   follows); `Core/UpdateCheck.swift` only *notifies*, and build must not share a job with publish. Ladder and
   arithmetic: `docs/agent/long-horizon-goal.md` § Rung zero.
@@ -147,10 +147,11 @@ verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name bel
 - **The board scores 6 of the 40 advertised tools; full-surface is `OCOREAI_EVAL_TOOLS=all`** (scripts/eval/)
   — every row prices its `tools[]` bytes; judging the two surfaces waits on the owner.
 - **The tool surface is still ungated against the loaded model** (UI/, Engine/) — owner call; `reasoning_effort`'s gate (`ReasoningEffortHonestyTests`(9) + probe 38) is the pattern to extend.
+- **The macos-26 leg went red on a step timeout, not tests** (CI/) — 3 210 tests pass in 102 s, but the
+  combined smoke step ate its own 600 s bound and named nothing; split per probe, `scripts/ci-status.sh`.
 - **A corpus costs injection; the tail is disclosed, not gated** — injected bytes cost a 2B checkpoint
-  double-digit pp, and what falls off is now named to the model and on `/v1/capabilities` (`make
-  docs-check` prints `deepest-chain=`). Owner: gate injection by capacity — curve and cites:
-  `docs/agent/open-items.md`.
+  double-digit pp; the fall-off is named to the model and on `/v1/capabilities` (`make docs-check` prints
+  `deepest-chain=`). Owner: gate it by capacity — cites: `docs/agent/open-items.md`.
 
 ## Upstream Audit Dependencies
 Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`, one diary, one home.
