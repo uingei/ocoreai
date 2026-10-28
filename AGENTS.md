@@ -40,8 +40,8 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
   follows); `Core/UpdateCheck.swift` only *notifies*, and build must not share a job with publish. Ladder and
   arithmetic: `docs/agent/long-horizon-goal.md` § Rung zero.
 - **Agents are a channel they cannot find:** `/v1/capabilities` serves `endpoints[]` and `skills/ocoreai/` is
-  published (probe 39 executes its markers); missing is an OpenAPI spec plus a generated client, which every
-  harness tree here has. Owner call: a public contract is a promise.
+  published (probe 39 runs its markers); missing here: a published OpenAPI spec and a client — 3 of the 8
+  installable trees have one (10-29). Owner call: a public contract is a promise.
 - **Intake is a surface:** a duplicate-work check before any outbound issue or PR, answer latency, and a
   verifiable first-screen privacy contract (mechanics + cites: `docs/agent/adoption-runbook.md`).
 - **#1 is bounded by distribution, not arithmetic:** 3 469 stars/day for 76 d (`deepseek-harness`),
@@ -148,10 +148,10 @@ verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name bel
   — every row prices its `tools[]` bytes; judging the two surfaces waits on the owner.
 - **The tool surface is still ungated against the loaded model** (UI/, Engine/) — owner call; `reasoning_effort`'s gate (`ReasoningEffortHonestyTests`(9) + probe 38) is the pattern to extend.
 - **The macos-26 leg went red on a step timeout, not tests** (CI/) — 3 210 tests pass in 102 s, but the
-  combined smoke step ate its own 600 s bound and named nothing; split per probe, `scripts/ci-status.sh`.
+  smoke step ate its own 600 s bound and named nothing; split per probe, `scripts/ci-status.sh`.
 - **A corpus costs injection; the tail is disclosed, not gated** — injected bytes cost a 2B checkpoint
   double-digit pp; the fall-off is named to the model and on `/v1/capabilities` (`make docs-check` prints
-  `deepest-chain=`). Owner: gate it by capacity — cites: `docs/agent/open-items.md`.
+  `deepest-chain=`). Owner: gate by capacity — cites: `docs/agent/open-items.md`.
 
 ## Upstream Audit Dependencies
 Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`, one diary, one home.

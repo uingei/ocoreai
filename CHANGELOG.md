@@ -9,6 +9,33 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(30) An adoption argument rested on "every tree here has one" — three of eight do** (P2 docs / symbols `openapi-adoption-claim`)
+
+- **What improved.** Root § Adoption justified writing an OpenAPI spec with a claim about the field: an
+OpenAPI spec plus a generated client is "missing … which every harness tree here has". Read the trees
+instead of recalling them: among the eight installable comparators only `codex`
+(`codex-rs/codex-backend-openapi-models`), `ollama` (`docs/openapi.yaml`) and `opencode` carry anything
+OpenAPI-shaped in-tree, and the three fastest movers (`hermes-agent`, `openclaw`, `deepseek-harness`)
+carry none. The sentence now carries the count and the date, because a universal is exactly the shape that
+rots quietly, and the reader's decision changes: a published spec is differentiation here, not table
+stakes, which is the one thing that sentence was being used for.
+
+- **What same-session output proves it.** `git -C ~/references/<tree> ls-files | grep -icE 'openapi|swagger'`
+on this box, 10-29: codex 24, opencode 22, ollama 1, goose 2 (a recipe fixture), vllm 2 (a swagger-ui bundle,
+not a spec), and 0 for sglang, omlx, mlx-serve, hermes-agent, openclaw, pi, deepseek-harness, harness2,
+TensorFold, Strata. The root edit is byte-neutral (21 449/21 461 before and after), so B2's corpus row did not
+have to move and `make docs-check` stayed green without a re-measure.
+
+- **Which gate goes red if it regresses.** None, and that is stated rather than papered over: it is a prose
+count with no gate behind it, which per invariant 1 makes it a claim, not a fact. What keeps it honest is the
+one-line command above — a reader who disagrees can re-derive it in seconds, which is the whole point of
+printing the command next to the number.
+
+- **Honest limits.** A clone is a mirror, not HEAD, and `git ls-files` sees the tree, not the process: a
+FastAPI-shaped server can serve `/openapi.json` at runtime with nothing in-tree, so this counts published
+specs in a repo and says nothing about a running one. It also says nothing about SDKs — the "generated client"
+half of the original sentence was never measured either and is now dropped rather than guessed at.
+
 **10-29(29) A red leg that could name neither its cause nor its own numbers** (P1 CI-docs / symbols `ci-step.sh`, `comparator-cadence`)
 
 - **What improved.** Three claims that were worth less than the gate behind them. (1) The 10-28 push went red
