@@ -6,6 +6,7 @@
 [![macOS 14+ | iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/uingei/ocoreai/actions/workflows/ci.yml/badge.svg)](https://github.com/uingei/ocoreai/actions/workflows/ci.yml)
+[![Package dry-run](https://github.com/uingei/ocoreai/actions/workflows/package.yml/badge.svg)](https://github.com/uingei/ocoreai/actions/workflows/package.yml)
 
 ---
 
@@ -65,7 +66,7 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 - **感知与 TTS 默认关闭** — Settings 逐通道开启；摄像头/屏幕/扬声器另需系统权限。
 - **TTS/STT 需麦克风权限**；屏幕捕获仅 macOS。
 - **i18n**：en + zh-Hans 已交付；ja/ko/fr/es 已定义未翻译。
-- **CI**：六条腿 —— `governance`（ubuntu-latest）、`text-gates`（ubuntu-latest：文档契约、代码模式审计、行锚点、resolved 同步、类型存在性、Makefile 解析 —— 读文本不占 arm64 座位）、`build-and-test`（矩阵 `macos-26` + `xcode-27`）、`release`（macos-26 DMG）、`build-appstore`（macos-26）、`build-ios`（macos-26）。**macOS-26 是交付门。** 本文只陈述「有哪些腿」，不陈述「腿绿不绿」：钉死某个 SHA 的「最后一次全绿」下次 push 就过期，且克隆里无从复核 —— 本文件上方曾说 `xcode-27` 红、下方又说它绿，两句互相矛盾。实时状态看顶部徽章与该 SHA 对应的 run；逐条裁决在 `CHANGELOG.md`。
+- **CI**：六条腿 —— `governance`（ubuntu-latest）、`text-gates`（ubuntu-latest：文档契约、代码模式审计、行锚点、resolved 同步、类型存在性、Makefile 解析 —— 读文本不占 arm64 座位）、`build-and-test`（矩阵 `macos-26` + `xcode-27`）、`release`（macos-26 DMG）、`build-appstore`（macos-26）、`build-ios`（macos-26）。第二条工作流 `package.yml` 每晚在干净的 macos-26 runner 上预演同一个 DMG，权限只有 `contents: read` —— 同一条 `scripts/build-dmg.sh` 路线（`swift build -c release --traits appStore`），并由 `scripts/probes/41-artifact-dmg-serves.sh` 把卷挂载、起里面那个二进制、再干净停下 —— 它不持有任何能发布的凭据。**macOS-26 是交付门。** 本文只陈述「有哪些腿」，不陈述「腿绿不绿」：钉死某个 SHA 的「最后一次全绿」下次 push 就过期，且克隆里无从复核 —— 本文件上方曾说 `xcode-27` 红、下方又说它绿，两句互相矛盾。实时状态看顶部徽章与该 SHA 对应的 run；逐条裁决在 `CHANGELOG.md`。
 - **代码审计 ✅ ≠ 行为验证** — 只说明"源码已实现"，有测试的才算验证过。
 
 **方向** —— 开放模型的 Agent，原生本地，为创作、工作与代码而生；面向编码与知识工作的完整 agentic 系统。**编码是最深切片**：Coding/Computer Agent，让 LLM 在端侧可靠完成多步工程任务（**Execute** → **Verify** → **Recover**）。创作（Apple 原生感知/多模态）与知识工作（检索/阅读/写作）是一等产品面，不是附属。推理归上游（MLX / CoreAI），ocoreai 是其上的可靠执行层 —— 跟齐上游，不与之竞争。

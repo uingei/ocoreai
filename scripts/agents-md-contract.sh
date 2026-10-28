@@ -906,6 +906,11 @@ VERIFIED_URLS = {
     "https://github.com/uingei/ocoreai/releases": "10-27",
     "https://github.com/uingei/ocoreai/actions/workflows/ci.yml": "10-27",
     "https://github.com/uingei/ocoreai/actions/workflows/ci.yml/badge.svg": "10-27",
+    # Fetched 10-29. Two earlier attempts from this host returned no answer at 75 s and one answered
+    # in 68 s, so a stall here is github.com throttling, not a dead path — the same reading
+    # scripts/link-check.sh records for its own serial setting.
+    "https://github.com/uingei/ocoreai/actions/workflows/package.yml": "10-29",
+    "https://github.com/uingei/ocoreai/actions/workflows/package.yml/badge.svg": "10-29",
     "https://github.com/uingei/ocoreai/security/advisories/new": "10-27",
     "https://github.com/apple/coreai-models": "10-27",
     "https://github.com/ml-explore/mlx-swift-lm": "10-27",

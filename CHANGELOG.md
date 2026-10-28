@@ -9,7 +9,53 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
-**10-29(40) The authority leg swallowed a red on every run, and the step that caused it had never delivered anything** (P2 CI / symbols `ci-status.sh`)
+**10-29(42) The deferred numbers arrived, and the first screen now points at the lane that produced them**
+
+- **What improved.** 10-29(39) left two sentences in the air — whether the SPM cache bites, and whether a
+window proof taken off `continue-on-error` survives — and the lane that ran d27a682 answered both:
+metallib 633 s (the band before it was 777 s and 973 s on near-identical inputs), DMG 736 s (against 940 s
+and 1 187 s), the artefact gate 2 s, and the window proof 26 s as a blocking step, green. The lane's wall
+clock went from over half an hour to 23.7 minutes. Both READMEs now name that lane and its credential-free
+permissions, and the badge row carries its live status, because a rehearsal nobody can see buys no trust.
+
+- **What same-session output proves it.** Job steps of run 40787061588: metallib 633 s, DMG 736 s, probe
+41 2 s, window proof 26 s, all `success`, with annotations `probe 41 verdict: artifact-dmg-serves: 12
+passed, 0 failed, 8 measured, 0 known-open` and `artefact version verdict — expected 0.0.0 (no tag —
+plumbing check only)` — the honesty line printed on a runner for the first time. P19 fetched both new URLs
+(badge 0.73 s, page 0.63 s) before they entered the verified table.
+
+- **Which gate goes red if it regresses.** None added. The window proof is the change that bites: it used
+to be advisory, and a bundle that builds, signs, serves and renders nothing now reds the lane before
+anything uploads. The metallib and DMG numbers are printed minutes with no threshold on purpose — a step
+that gets slower is not a lie.
+
+- **Honest limits.** One sample each, and the cache question is not fully answerable from here:
+`actions/cache` does not publish hit-or-miss without a token, so 633 s is one observation below the old
+band, not a measured saving. The lane still ships nothing — `contents: read` is the point — and the
+artefact it judged reports 0.0.0 because no tag exists to tell it otherwise.
+**10-29(41) The nightly DMG rehearsal existed and neither first screen mentioned it**
+
+- **What improved.** Both READMEs enumerate the six `ci.yml` legs and stop, so a visitor could not see
+that the artefact a stranger downloads is built and judged nightly on a clean runner by a job with no
+publish credential. The CI bullet now names `package.yml`, its `permissions: contents: read`, the shared
+`build-dmg.sh` route and the probe that mounts and serves the DMG, and the badge row carries the lane's
+live status next to the CI one — a badge re-measures itself, which is why it replaces a status sentence
+rather than joining one.
+
+- **What same-session output proves it.** `/contents/.github/workflows?ref=main` lists `ci.yml` (40 848 B)
+and `package.yml` (9 287 B), so the lane's badge path resolves; `scripts/build-app.sh:20` is the `swift
+build -c release --traits appStore` line that `scripts/build-dmg.sh` calls with no arguments in both
+lanes, which is what makes the rehearsal's artefact the same class the release job publishes.
+
+- **Which gate goes red if it regresses.** None. The README tables keep their en/zh row-parity check
+(`make docs-check` prints `README tables=N rows, N rows`) and neither sentence claims a colour, so nothing
+pins the claim — the badges are the live answer.
+
+- Existence, not health: the sentence says a rehearsal runs and can publish nothing, not that tonight's
+ran. Both new links were then fetched for real — the badge in 0.73 s, the workflow page in 0.63 s — after
+two earlier attempts from this host stalled past 75 s without an answer, which is github.com throttling
+and the reason the docs contract refuses to treat a stall as a verdict ("most URLs unanswered is also
+red", `scripts/link-check.sh`).
 
 - **What improved.** Two steps are gone and the class they belong to is now askable. `Collect artifacts
 (Release)` assigned `DD=~/…/ocoreai-*/Build/Products`, and an assignment does not glob: `find "$DD"`
