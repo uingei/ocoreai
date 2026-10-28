@@ -1,8 +1,39 @@
 # Changelog
 
-All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
+The engineering diary of **ocoreai** — one dated round per entry, newest first, each answering three
+questions: what improved, what same-session output proves it, and which gate goes red if it regresses
+(contract: `CONTRIBUTING.md`). It is deliberately not a Keep-a-Changelog release-notes file — there are no
+`Added`/`Changed`/`Fixed` sections here — so someone deciding what to install reads the newest release
+note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
+heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
+
+**10-29(26) The diary stopped claiming a convention it does not keep, and its own ordering was repaired** (P2 docs / symbols `changelog-diary-shape`)
+
+- **What improved.** Three things a stranger reads first were false. The header said "This project
+adheres to [Keep a Changelog] conventions" — the file has 0 `Added`/`Changed`/`Fixed` sections and is
+a dated round diary, so the badge described a shape it never had; the URL it pointed at is removed
+from the docs contract's `VERIFIED_URLS` too, because P19 counts an entry no doc cites as a record of
+nothing (it went red for exactly that when the badge went). Two sections titled `## Unreleased` sat
+*below* `## [v0.1.0] — 2026-07-05 → 2026-08-09` and describe work that shipped: `git log -S` puts the
+embeddings surface in `e5e29ea` and its capability close in `fb02649`, both 10-06, so they are now
+headed with those measured dates. And `**10-22(12)**` was the last entry in the file, below sections
+from July and August, breaking the newest-first rule the file states — moved above `10-22(11)`.
+
+- **What same-session output proves it.** Re-derived from the file after the edit: 135 dated entries
+before and after (nothing lost), the 10-22 cluster reads 12,11,10,…,2 in file order, zero entries
+younger than their predecessor anywhere in the file, zero `## Unreleased` headings left, and no
+`keepachangelog.com` citation. `make docs-check` is green with `links outbound=28 verified=28`.
+
+- **Which gate goes red if it regresses.** P19 of `make docs-check`, which went red on this edit and
+stayed red until the dead ledger entry was deleted — that is the sampled pair. It catches the ledger
+half; the ordering half has no gate, so the header now states the order in words instead of
+borrowing someone else's badge, and the dates on those two headings are commits, not guesses.
+
+- **Honest limits.** The 10-22(12) move relocates text without touching its content, so any claim
+inside it is still as of that round, and the file's oldest sections keep whatever shape they had:
+this repair covers what the top of the file promises and what a scan can check.
 
 **10-29(25) A readiness budget now costs the seconds it advertises** (P1 probes-CI / symbols `probe_boot-wall-clock`, `OCOREAI_PROBE_CURL_TIMEOUT`)
 
@@ -2254,6 +2285,16 @@ the definition of done here; CI on macos-26 stays the authority for what the sui
 - **入库仪器**：`scripts/collapse-discriminators.sh`（arm A/B/C + `ARMS=`/`BOOTS=` 单臂开关）。它自己先伤了自己两次，都被「跑一遍」抓到并修在原地：① `trap … EXIT` 写在 source 之前会被 `_lib.sh:158` 的 `trap probes_cleanup EXIT INT TERM` 整条替换，还原静默失效；改用 `probe_atexit` 注册。② 还原核验拿「移空之后」的备份目录计数 ⇒ 44 对 0，好结果报成失败；改为在移出时记下基线、结束时**无条件**核验（`probes_cleanup` 会在每次 boot 之间抽干 hook，只在最后一个 handler 才报的保险不是保险）。
 - **用户数据两次靠人肉救回**：`~/Library/Application Support/ocoreai/cache/kvcache` 一度被 park 且无人还原。现状已核对齐：44 `*.safetensors` + 44 `.manifest.json`，695,860 KB，备份目录已清。
 
+**10-22(12) 编译器路线当场判死，进程级绑定收到 84 轮支持，而它自己的旧断言是最后一块脏地方**(P0 正确性 / P0 诚实口径 / P3 回归防护)
+
+- **新变量、新死法（编译融合）**：`Gemma4Text.swift:32/:38` 把 RMSNorm/GeLU 用 `compile()` 融合，而 mlx 每进程只读一次 `MLX_DISABLE_COMPILE`（`mlx/compile.cpp:220` 函数内 `static`）——形态刚好匹配「进程内固定、跨 boot 翻」。A/B 两臂 6+6 boots × 4 轮同 prompt 贪心（48 轮，`ps eww` 证实变量真进了进程）：baseline 3/6 boots 塌、nocompile 4/6 boots 塌，**没有分离**。⇒ 编译路线不是载体。顺带把嫌疑面收窄：mlx 的 Metal 后端**没有任何** `getenv` 旋钮（全部 env 只有 CUDA/PTX/compile/rank 那几个），所以那个进程级开关不可能靠环境变量逼出来。
+- **env 与 config 是被构造排除的，不是被测排除的**：同一 A/B 臂内 env 和 config 恒定，模式仍跨 boot 翻 ⇒ 决定者既不是 env 也不是 config。这一条比「拍一张 config 快照说它一样」强，因为它不依赖快照覆盖了什么。
+- **进程内一致性涨到 84 轮，然后自我证伪掉自己的下一个假设**：15 boots × 同 prompt 贪心全部 boot 内一致（无一混合）。这与本文件 16:08 那条记录冲突（同一进程、串行、零重叠：150 token 然后 1）。两者的差别看起来是轮数，于是把轮数立成下一条轴并立刻量：3 boots × 12 轮、每轮换新 `session_id` ⇒ `ok×12 / ok×12 / C×12`，**一轮转换都没有**。⇒ 「进程内累积状态」也不是机制；剩下唯一的反例就是 16:08 那一双，进程级模型要么解释它，要么复现失败。
+- **本轮第三处自我更正落在文档自己身上**：`scripts/probes/30-repeated-prompt-delivery.sh` 的头注释还写着「the turn never forwarded its prompt to the model」，而 3035d5e 已经用数字撤回了这句话（713 token 的 prefill 在 warm 进程只值 ~180 ms，130–257 ms 与「真跑了 prefill」一致）。**一个事实五个家，撤回就要追五处**——这是 P3 跨文件一致性缺口的现场证据，不是文风问题。已在原地改为测量口径。
+- **修一处真实损害**：上一条实验 park 掉的 KV 缓存目录一直没人还原（`…/cache/kvcache/kvcache.parked`，88 文件 680 MB，活目录空）⇒ 已搬回原位并删掉 parked（44 `*.safetensors` + 44 `.manifest.json`，~695 MB）。实验结论已定而不还原，等于把用户的磁盘缓存一直关着。
+- **下一条轴（已定，未跑）**：量(slot 2) 的 `logit(EOS) − logit("2")` 边际——边际≈1e-2 ⇒ 数值在近平局处翻转；边际≥5 ⇒ 喂进去的输入本身就不同。本机做不到：`Engine/EngineLogprobs.swift:26` 整文件在 `#if canImport(CoreAI)` 内，SDK 26 编不出，且 `Handlers/CompletionsHandler.swift:197` 是 `includeLogits: false` ⇒ 要在 MLX 路上补一个 instrument，尚未补。
+- **门**：速率本身仍不设硬门（同一输入会翻脸的判定不能当门）；leg 4「塌掉的一轮必须留痕」继续硬着。
+
 **10-22(11) 一晚上死掉两个机制解释：温度门控、以及「干净启动安全」；据前者写完的 min_tokens 判红后整块删除**(P0 正确性 / P0 诚实口径 / P3 判定诚实)
 
 - **死法一（上一条）**：「贪心永不塌」。它来自一次扫描（0.0→0/12、0.3→5/12、0.7→7/12、1.0→6/12），据此判塌陷在采样阶段（那个位置 EOS 与正确的 `1` 竞争）。当晚同一 binary、同一模型、同一配置，greedy **6/6 塌**。
@@ -3674,25 +3715,15 @@ the definition of done here; CI on macos-26 stays the authority for what the sui
 
 *Last updated: 2026-08-23. Current HEAD: 72bbfbe.*
 
-## Unreleased — /v1/embeddings 上线（本地 embedding 对外可用）
+## 2026-10-06 — /v1/embeddings 上线（本地 embedding 对外可用）
 - **OpenAI 兼容 `POST /v1/embeddings`**：LFM2.5-Embedding-350M（1024d）对任意标准客户端可用（RAG 工具 / 向量库）。
 - **单一事实源**：与 GUI 语义搜索共用 EmbeddingService actor —— 同一个熔断器、同一个 HF endpoint，不产生第二个无节流打手；断网 → 诚实 503，绝不伪造向量。
 - **truthful wire**：响应 model 字段报告实际跑的 embedder，不回显客户端请求名；`usage` 为真实 embed tokenizer 计数。
 - **honest reject**：token-id 数组输入直接 400（异源 tokenizer 的预切 id 只会产生垃圾向量）。
 - 6 条线契约单测（多态 input 解码、空输入、身份真实、float32 round-trip）。CLT 2010/2010 绿。
 
-## Unreleased — embedding 能力面闭环（可发现 + 可路由 + 不误用）
+## 2026-10-06 — embedding 能力面闭环（可发现 + 可路由 + 不误用）
 - **`GET /v1/models` 列 embedder**：`capabilities:["embed"]` + 诚实 `state`（hub 缓存软链解析 = ready，否则 download_required）——标准客户端能力探测可见。
 - **chat 路由 capability gate**：embed id 打 `/v1/chat/completions` → 即时 400 + 可行动指引（修复 90s 挂起：embed 模型无生成头，CPU 加载后无法产出 token）。
 - 活体：embed→chat=400/1.7ms；embed→embeddings=200/14ms(warm)；chat 回归 200/0.9s；`/v1/models` 双条目正确。CLT 2010/2010 绿（一次 frontmost 干扰按规程复跑裁决）。
 - **Embedding cache-first load（本轮）**：完全物化的 hub 快照（refs→snapshot→blob 软链全解析）重写为 `ModelConfiguration(directory:)` 直接磁盘加载，零 revision 网络往返 — 冷启动 60.7s→0.58s（GFW 断网日实测，日志 `served from local cache (no network)`）。未缓存机器原样走 hub 下载路径。CLT 2010/2010 绿。
-
-**10-22(12) 编译器路线当场判死，进程级绑定收到 84 轮支持，而它自己的旧断言是最后一块脏地方**(P0 正确性 / P0 诚实口径 / P3 回归防护)
-
-- **新变量、新死法（编译融合）**：`Gemma4Text.swift:32/:38` 把 RMSNorm/GeLU 用 `compile()` 融合，而 mlx 每进程只读一次 `MLX_DISABLE_COMPILE`（`mlx/compile.cpp:220` 函数内 `static`）——形态刚好匹配「进程内固定、跨 boot 翻」。A/B 两臂 6+6 boots × 4 轮同 prompt 贪心（48 轮，`ps eww` 证实变量真进了进程）：baseline 3/6 boots 塌、nocompile 4/6 boots 塌，**没有分离**。⇒ 编译路线不是载体。顺带把嫌疑面收窄：mlx 的 Metal 后端**没有任何** `getenv` 旋钮（全部 env 只有 CUDA/PTX/compile/rank 那几个），所以那个进程级开关不可能靠环境变量逼出来。
-- **env 与 config 是被构造排除的，不是被测排除的**：同一 A/B 臂内 env 和 config 恒定，模式仍跨 boot 翻 ⇒ 决定者既不是 env 也不是 config。这一条比「拍一张 config 快照说它一样」强，因为它不依赖快照覆盖了什么。
-- **进程内一致性涨到 84 轮，然后自我证伪掉自己的下一个假设**：15 boots × 同 prompt 贪心全部 boot 内一致（无一混合）。这与本文件 16:08 那条记录冲突（同一进程、串行、零重叠：150 token 然后 1）。两者的差别看起来是轮数，于是把轮数立成下一条轴并立刻量：3 boots × 12 轮、每轮换新 `session_id` ⇒ `ok×12 / ok×12 / C×12`，**一轮转换都没有**。⇒ 「进程内累积状态」也不是机制；剩下唯一的反例就是 16:08 那一双，进程级模型要么解释它，要么复现失败。
-- **本轮第三处自我更正落在文档自己身上**：`scripts/probes/30-repeated-prompt-delivery.sh` 的头注释还写着「the turn never forwarded its prompt to the model」，而 3035d5e 已经用数字撤回了这句话（713 token 的 prefill 在 warm 进程只值 ~180 ms，130–257 ms 与「真跑了 prefill」一致）。**一个事实五个家，撤回就要追五处**——这是 P3 跨文件一致性缺口的现场证据，不是文风问题。已在原地改为测量口径。
-- **修一处真实损害**：上一条实验 park 掉的 KV 缓存目录一直没人还原（`…/cache/kvcache/kvcache.parked`，88 文件 680 MB，活目录空）⇒ 已搬回原位并删掉 parked（44 `*.safetensors` + 44 `.manifest.json`，~695 MB）。实验结论已定而不还原，等于把用户的磁盘缓存一直关着。
-- **下一条轴（已定，未跑）**：量(slot 2) 的 `logit(EOS) − logit("2")` 边际——边际≈1e-2 ⇒ 数值在近平局处翻转；边际≥5 ⇒ 喂进去的输入本身就不同。本机做不到：`Engine/EngineLogprobs.swift:26` 整文件在 `#if canImport(CoreAI)` 内，SDK 26 编不出，且 `Handlers/CompletionsHandler.swift:197` 是 `includeLogits: false` ⇒ 要在 MLX 路上补一个 instrument，尚未补。
-- **门**：速率本身仍不设硬门（同一输入会翻脸的判定不能当门）；leg 4「塌掉的一轮必须留痕」继续硬着。

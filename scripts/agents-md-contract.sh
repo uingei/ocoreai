@@ -895,7 +895,6 @@ VERIFIED_URLS = {
     "https://developer.apple.com/tutorials/data/design/human-interface-guidelines.json": "10-27",
     "https://www.apple.com": "10-27",
     "https://www.swift.org": "10-27",
-    "https://keepachangelog.com/": "10-27",
     "https://mlx.studio/": "10-27",
     "https://modelscope.cn": "10-27",
     "https://modelscope.cn/": "10-27",
