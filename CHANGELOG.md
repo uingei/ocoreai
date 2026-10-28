@@ -9,6 +9,36 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(31) A red leg now names its step without a token, and a stalled probe names its phase** (P1 CI / symbols `ci-status-step-detail`, `ci-step-heartbeat`)
+
+- **What improved.** Finding the 10-28 cause took manual API digging: the annotations said only "timed out
+after 10 minutes", and the step list that named the 607 s step is a public endpoint nobody here had read.
+`scripts/ci-status.sh` now reads it: for every failed/cancelled/timed-out leg it fetches
+`/actions/jobs/{id}` (job id parsed out of the check-run's own `details_url`) and prints each step that did
+not pass with its duration, so the next red answers "which step, how long" in one command. Two things it
+depends on got fixed on the way: `$1` was used as both commit and remote URL, so the documented-looking
+`ci-status.sh 9c4d434` derived `owner/repo="9c4d434"` and answered a 404 as "verdict UNKNOWN" — the wrong
+remedy for a wrong argument — and a commit argument now resolves locally while a URL argument keeps working.
+`scripts/probes/ci-step.sh` also heartbeats: every 30 s it publishes the probe's last log line as a
+`::notice::`, because a killed step leaves nothing behind and annotations are the one channel readable with
+no credential.
+
+- **What same-session output proves it.** Against the run that actually failed, the new read prints
+`Headless serve smoke (macos-26) failure 607s` beside the verdict it already gave; the short-sha argument
+that used to 404 now resolves and reports the same leg. The heartbeat sampled at 3 s over probe 38 emitted
+three notices — `bridge http://127.0.0.1:56437 · log …`, then the model line — and the step still finished
+in 10 s with exit 0, so the instrument costs a 1 s poll and nothing else.
+
+- **Which gate goes red if it regresses.** None of this judges anything: it is an instrument, not a gate
+(count is never the deliverable). What it changes is the next red's cost — the reader who waits on this leg
+to tag learns the step and the phase from `bash scripts/ci-status.sh`, and a probe that stalls leaves its
+last assertion visible instead of a 10-minute silence.
+
+- **Honest limits.** The step list is public only while the repo is, and job details are one extra request
+per failed leg against a 60 req/h unauthenticated budget — printed as a reason, never as a guess, when that
+runs out. The heartbeat names the last line written, which is the phase it *reached*, not proof of what it
+was waiting on.
+
 **10-29(30) An adoption argument rested on "every tree here has one" — three of eight do** (P2 docs / symbols `openapi-adoption-claim`)
 
 - **What improved.** Root § Adoption justified writing an OpenAPI spec with a claim about the field: an

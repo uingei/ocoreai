@@ -33,8 +33,32 @@ export OCOREAI_PROBE_CURL_TIMEOUT="${OCOREAI_PROBE_CURL_TIMEOUT:-20}"
 
 LOG="probe-$NO.log"
 START=$(date +%s)
+
+# A heartbeat that says WHERE, not just that. On a step timeout GitHub kills the process, so the
+# only record of the phase it was in has to have left before the kill — and a workflow command is
+# readable through /check-runs/{id}/annotations with no token, which the step's stdout is not.
+# One line per interval, flattened: ::notice:: ends at its first newline.
+HB_EVERY="${OCOREAI_CI_HEARTBEAT:-30}"
+HB_FLAG="${TMPDIR:-/tmp}/ocoreai-probe-hb-$NO.flag"
+: > "$HB_FLAG"
+(
+  hb_waited=0
+  while [ "$hb_waited" -lt 3600 ]; do
+    sleep 1
+    hb_waited=$(( hb_waited + 1 ))
+    [ -s "$HB_FLAG" ] && break
+    if [ $(( hb_waited % HB_EVERY )) -eq 0 ] && [ -s "$LOG" ]; then
+      last="$(tail -1 "$LOG" | tr -d '\r\n' | cut -c1-140)"
+      echo "::notice::probe $NO alive +${hb_waited}s in: $last"
+    fi
+  done
+) &
+HB_PID=$!
+
 RC=0
 bash scripts/probes/run.sh "$NO" > "$LOG" 2>&1 || RC=$?
+printf done > "$HB_FLAG"
+wait "$HB_PID" 2>/dev/null || true
 ELAPSED=$(( $(date +%s) - START ))
 echo "probe $NO: exit $RC after ${ELAPSED}s (binary $BIN · readiness budget ${OCOREAI_READY_TIMEOUT}s · one request ${OCOREAI_PROBE_CURL_TIMEOUT}s)"
 

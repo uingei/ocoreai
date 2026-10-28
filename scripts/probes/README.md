@@ -310,6 +310,7 @@ Every file here keeps the contract `_lib.sh` documents:
 | `OCOREAI_PROBE_PORT` | port to bind (default: free port) |
 | `OCOREAI_READY_TIMEOUT` | **wall-clock** seconds to wait for `/health` (default 240). It is a time budget, not a poll count: one poll costs up to 4 s (its own 3 s curl deadline plus the 1 s sleep), and counting iterations instead spent ~4x the advertised window — measured 10-28, a "10 s" budget against a server that accepts and never answered took 38 s, and three probes at the CI window then overran the step bound that exists to name them. A failure prints both numbers (`in 13s wall (budget 10s)`) |
 | `OCOREAI_PROBE_CURL_TIMEOUT` | deadline on `probe_api`'s requests and the SSE leg of `37` (default 180 s — sized for a local model's first token; CI's smoke step sets 60 because those probes download nothing). Class-L of `make audit` floors that every request site under `scripts/probes/` carries a `-m` |
+| `OCOREAI_CI_HEARTBEAT` | CI seat only (`ci-step.sh`): seconds between `::notice::` lines carrying the probe's last log line (default 30). A step killed on its timeout leaves nothing else behind, and annotations are the one CI channel readable without a token |
 | `OCOREAI_API_KEYS` | passed to the server; probes then send `Authorization: Bearer <first key>` like real clients |
 | `OCOREAI_PROBE_MODEL_LIMIT` | how many ready models `03` cross-checks (default 2) |
 | `OCOREAI_PROBE_PAD_UNITS` | length of the filler prompt in `01`/`02` (default 40 sentences) |

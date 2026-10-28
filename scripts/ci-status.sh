@@ -13,9 +13,20 @@
 #   2  COULD NOT ASK: no network, rate-limited, or no check-runs returned. Never reported as green.
 set -uo pipefail
 
-sha="${1:-$(git rev-parse origin/main 2>/dev/null)}"
-url="${1:-}"
-if [ -z "$url" ]; then url="$(git remote get-url origin 2>/dev/null)"; fi
+# $1 is a commit (short or full) OR a remote URL, never one value used as both: a SHA handed to
+# the URL branch silently produced owner/repo="9c4d434" and a 404 that read as "verdict UNKNOWN",
+# which is the wrong remedy for a wrong argument.
+arg="${1:-}"
+url="$(git remote get-url origin 2>/dev/null)"
+if [ -n "$arg" ] && ! printf '%s' "$arg" | grep -qE '^[0-9a-fA-F]{7,40}$'; then
+  url="$arg"
+  arg=""
+fi
+if [ -n "$arg" ]; then
+  sha="$(git rev-parse --verify --quiet "${arg}^{commit}" || printf '%s' "$arg")"
+else
+  sha="$(git rev-parse --verify --quiet origin/main)"
+fi
 repo="$(printf '%s' "$url" | sed -E 's#^.*(github\.com[:/])##; s#\.git$##')"
 [ -n "$repo" ] && [ -n "$sha" ] || { echo "❌ cannot derive owner/repo and SHA (origin remote?)"; exit 2; }
 
@@ -29,7 +40,7 @@ case "$code" in
 esac
 
 python3 - "$sha" "$repo" <<'PY'
-import json, sys
+import json, re, sys, urllib.request
 sha, repo = sys.argv[1], sys.argv[2]
 try:
     runs = json.load(open("/tmp/ocoreai-ci-status.json")).get("check_runs", [])
@@ -40,6 +51,16 @@ if not runs:
           % (repo, sha[:7])); raise SystemExit(2)
 
 # Skippable by design: the DMG leg exists only for a tag push.
+def step_seconds(st):
+    import datetime
+    fmt = "%Y-%m-%dT%H:%M:%SZ"
+    try:
+        return int((datetime.datetime.strptime(st["completed_at"], fmt)
+                    - datetime.datetime.strptime(st["started_at"], fmt)).total_seconds())
+    except Exception:
+        return "?"
+
+
 SKIPPABLE = ("Release DMG",)
 bad, unknown = [], 0
 for r in sorted(runs, key=lambda r: r.get("name", "")):
@@ -58,6 +79,30 @@ if unknown:
     raise SystemExit(2)
 if bad:
     print("ci-status: AUTHORITY NOT GREEN — %s" % ", ".join(bad))
+    # A red leg whose cause needs a token is a red leg nobody fixes. The check-run's details_url
+    # carries the job id, and /actions/jobs/{id} is readable unauthenticated: it answers which
+    # STEP decided the verdict and how long it took, which is how the 10-28 smoke stall was found
+    # ("timed out after 10 minutes" named nothing; the step list named the 607 s step).
+    for r in runs:
+        if r.get("conclusion") not in ("failure", "cancelled", "timed_out"):
+            continue
+        m = re.search(r"/actions/runs/(\d+)/job/(\d+)", r.get("details_url") or "")
+        if not m:
+            continue
+        try:
+            with urllib.request.urlopen(
+                    "https://api.github.com/repos/%s/actions/jobs/%s" % (repo, m.group(2)),
+                    timeout=20) as resp:
+                job = json.load(resp)
+        except Exception as exc:
+            print("  (%s: step detail unavailable — %s)" % (r.get("name"), type(exc).__name__))
+            continue
+        print("  steps of %s that did not pass:" % r.get("name"))
+        for st in job.get("steps", []):
+            if st.get("conclusion") in ("success", None):
+                continue
+            print("    %-44s %-10s %ss" % ((st.get("name") or "?")[:44], st.get("conclusion"),
+                                           step_seconds(st)))
     raise SystemExit(1)
 print("ci-status: every leg that must run on a main push is green")
 raise SystemExit(0)
