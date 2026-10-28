@@ -4,6 +4,38 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(11) The next runner red is readable without a token, and the parse leg now names the toolchain it judged** (P1 process / symbols `text-gates-self-report`, `host-labelled-parse`)
+
+- **What improved.** `text-gates` cleared the docs contract on a runner for the first time and fell one step
+later, at `Every Makefile recipe parses`, with nothing in the annotations but `failed step: makefile parse` —
+the same wall that made `build-appstore` unreadable last round. The leg states its premise and its detail now:
+the report line carries `make=` and `bash=` versions, a `::error::` names every failing target on one line,
+and `$GITHUB_STEP_SUMMARY` receives the `bash -n` text itself. Nothing claims the red is fixed — the cause is
+unknown, and § Working here says quote the failure before writing its guard.
+
+- **What same-session output proves it.** The local green line reads
+`31 target recipe(s) parse (make=3.81 bash=3.2.57(1)-release, floor 20)`. Against a copy of the Makefile given
+a canary target whose recipe never closes its quote, the run exits 1 with
+`::error::makefile parse: 1 target(s) fail bash -n …: canary` and a step summary carrying
+`bash: line 1: unexpected EOF while looking for matching "'`. Three premises were eliminated before
+anything was written: the macOS host green, a fresh shallow clone on that host green, and a host with
+xcode-select, xcrun, xcodebuild, swift, swift-format, metal, mtl, sw_vers, gh, brew, python3 and codespell
+stubbed to exit 127 also green. What is left is the runner's own toolchain — the next verdict prints its make
+and bash versions instead of leaving that to inference.
+
+- **Which gate goes red if it regresses.** The parse leg itself, sampled with the canary target: exit 1, the
+target named in the annotation and its bash error in the step summary. With `GITHUB_STEP_SUMMARY` unset the
+annotation still names the targets, so a red cannot fall back to being only a step name. Reader whose action
+changes: whoever has to fix a red on a leg they cannot reproduce locally, and the owner deciding whether this
+leg earns its ubuntu minutes.
+
+- **Honest limits.** The red is still red — this entry buys a diagnosis, not a green. If the next verdict
+names a target whose recipe parses only under the macOS make, the leg's premise has to shrink (judge what our
+recipes say rather than what one make version prints) or the leg moves back to the macOS seat it was moved off
+last round; either way that is an owner call about what a text gate may depend on. The runner's versions are
+not stated here because they have not been measured yet.
+
+
 **10-28(10) The byte figures a doc quotes now reproduce or go red — the comparator row stopped being a snapshot someone had to notice** (P1 honesty / symbols `docs-figure-rederivation`, `chain-figures-gate`)
 
 - **What improved.** The context-economy header of `docs/agent/comparator-repos.md` is the one place our
