@@ -27,6 +27,11 @@ name: Package dry-run
 #
 # ### What it does NOT do
 # It never publishes, never uploads to a release, and never touches a tag. It is a rehearsal.
+#
+# ### A red here is not advisory
+# `scripts/ci-status.sh` counts this job, so a failure here stops a tag — deliberately. A rehearsal that
+# cannot stop the launch it rehearses is decoration: the claim being tested is "the .dmg we would publish
+# serves", and if that is false on the night, publishing it the next morning is the exact failure mode.
 
 on:
   push:
@@ -92,17 +97,30 @@ jobs:
           OCOREAI_READY_TIMEOUT: "90"
           OCOREAI_PROBE_CURL_TIMEOUT: "30"
         run: |
-          set -euo pipefail
-          DMG="$(ls -t dist/ocoreai-*.dmg | head -1)"
-          echo "artefact: $DMG ($(wc -c < "$DMG" | tr -d ' ') bytes)"
+          set -uo pipefail
+          # Absolute, because run.sh cds into scripts/probes before launching a probe: the first runner
+          # pass of this step died in 1 s on a relative path it could no longer see.
+          DMG="$PWD/$(ls -t dist/ocoreai-*.dmg | head -1)"
+          [ -f "$DMG" ] || { echo "::error::build-dmg.sh produced no dist/ocoreai-*.dmg — nothing to judge"; exit 1; }
           { echo "### package dry-run artefact"; echo '```'
             echo "dmg=$DMG bytes=$(wc -c < "$DMG" | tr -d ' ')"
             echo "version=$(bash scripts/version.sh)"
             shasum -a 256 "$DMG" | awk '{print "sha256="$1}'
             echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          # A verdict publishes its own words — the contract scripts/probes/ci-step.sh keeps, and why a
+          # red whose log sits behind a token is a rumour. This lane cannot call ci-step.sh (it points at
+          # a smoke binary, and here the subject is an artefact), so the words are republished by hand.
+          RC=0
           OCOREAI_ARTIFACT_DMG="$DMG" \
           OCOREAI_ARTIFACT_VERSION="$(bash scripts/version.sh)" \
-            bash scripts/probes/run.sh 41
+            bash scripts/probes/run.sh 41 > probe41.log 2>&1 || RC=$?
+          VERDICT="$(grep -E 'passed, [0-9]+ failed' probe41.log | tail -1 | tr -d '\r')"
+          if [ "$RC" -ne 0 ]; then
+            tail -25 probe41.log | sed 's/^/::error::  /'
+            echo "::error::probe 41 exited $RC against the artefact — ${VERDICT:-no summary line printed}"
+            exit "$RC"
+          fi
+          echo "::notice::probe 41 verdict: ${VERDICT:-exited 0 and printed no summary line}"
 
       - name: Upload the DMG (rehearsal copy, non-blocking)
         # Non-blocking by the evidence that made the release leg's copy advisory: the ArtifactService
@@ -120,8 +138,10 @@ jobs:
         # The release leg's GUI step has never run on a runner either, and nobody knows whether a
         # GitHub macOS runner has a window session. Until that is MEASURED rather than assumed this
         # prints its verdict here instead of adding a red nobody can act on — and it stops being
-        # advisory as soon as a runner has produced a layer-0 window.
+        # advisory as soon as a runner has produced a layer-0 window. `if: always()` so a red from probe 41
+        # does not also cost the answer to this separate question.
         continue-on-error: true
+        if: always()
         run: |
           set -uo pipefail
           OCOREAI_ENABLE_HTTP=1 open build/ocoreai.app

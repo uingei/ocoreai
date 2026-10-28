@@ -99,8 +99,8 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    prepared on this host and never pushed. Two things ride on it: the trust signals a first
    screen can show are outputs of cadence (§ The first screen), and before self-serve publishing, build and
    publish must split — ours runs repository code inside the job holding `contents: write`
-   (`competitor-iteration-paths.md` § The release cadence rule) — paid 10-29: `package.yml` builds the DMG
-   and probe 41 judges it under `permissions: contents: read`, so a rehearsal cannot publish. What the
+   (`competitor-iteration-paths.md` § The release cadence rule) — halved 10-29: `package.yml` builds the DMG
+   and probe 41 judges it under `permissions: contents: read`, so a rehearsal can't publish. What the
    runner proved: the delivery shape, a DMG that finishes a real turn from a fresh directory, and — first green
    main run, 10-29 — every leg, the three scripted steps at 4/3/7 s (a runner holds no weights,
    so no checkpoint tier ran there). Nothing in code separates HEAD from a release: `release` is tag-gated, and

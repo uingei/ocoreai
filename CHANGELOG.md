@@ -9,6 +9,44 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(36) The rehearsal earned its keep in one second: the launch path's judge could not see its own subject** (P2 CI / symbols `41-artifact-dmg-serves.sh`, `package.yml`)
+
+- **What improved.** `.github/workflows/package.yml` ran on a clean runner and reported: metallib
+materialized in 777 s, `build-dmg.sh` built and uploaded the DMG in 1187 s, and the step that judges the
+artefact died after 1 s. The cause was the lane's own argv: it handed probe 41 `dist/ocoreai-<ver>.dmg`,
+and `run.sh` cds into `scripts/probes` before launching a probe, so the subject was no longer where the
+name pointed and the probe reported "no artefact" — correctly, and in the time it takes to read a verdict.
+Two fixes, because that trap belongs to nobody: the lane passes an absolute path, and the probe now
+resolves a caller-relative artefact against the repo root (naming what it did) before it fails, so the
+next caller cannot fall in it either. The step republishes probe 41's words as `::error::` annotations and
+its passed/failed/measured/known-open line as a notice — the contract `ci-step.sh` keeps, since a red
+whose log sits behind a token is a rumour — and the window proof runs `if: always()`, so one red no longer
+costs the answer to a different question.
+
+- **What same-session output proves it.** The runner's own step durations (777 / 1187 / 1 s) are public
+through `/actions/runs/{id}/jobs`, and the reproduction here is the CI command line verbatim with the
+relative path: after the fix it prints the resolution note and passes 12 assertions, `/health` 200 with no
+checkpoint resident and SIGTERM exit 0. Probe 41 also now prints what an orderly stop says about itself:
+across runs here that count was 0 and 1, the line being Hummingbird's `Server shutdown error: Already
+closed` (or `Waiting on child channel: CancellationError()`) at label `HummingbirdCore` — upstream's
+graceful handler finding a channel that our `stop()` already closed by cancelling the task that owns the
+listener. Printed, not judged: the drain completes and the exit is 0, so the number is there to move if
+anyone ever routes the stop through upstream's quiesce.
+
+- **Which gate goes red if it regresses.** Probe 41 still judges the artefact itself, and the lane now
+fails loudly in both directions: an artefact name that resolves to nothing is a red naming the remedy, and
+a red prints its own words. `build-appstore` gained a zero-cost observation instead of a verdict — after
+its `swift build --traits appStore` it prints what `resolve-metallib.sh` makes of the tree — because the
+ladder says SwiftPM compiles `.metal` itself once the Metal Toolchain component is installed (mlx-swift-lm
+`pull_request.yml:216-237`), and if a runner agrees then the 777-second xcodebuild is waste somebody can
+delete from the release leg. Evidence first, deletion second.
+
+- **Honest limits.** The lane's first GREEN pass is still pending — it is the next push, and AGENTS.md §
+Open keeps the item until it lands. The window question is still unanswered, because that step was skipped
+behind the red and only now runs unconditionally; the metallib step's 777 s is probably avoidable and no
+runner has said so yet; and the release job still runs build and publish together inside `contents:
+write`, which is the half of the split this lane cannot pay.
+
 **10-29(35) Every leg that must pass on a main pass passed, so the launch path is now rehearsed, not hoped for** (P1 CI / symbols `package.yml`, `41-artifact-dmg-serves.sh`, `ci-materialize-metallib.sh`)
 
 - **What improved.** `6e904aa` is the first main run where `scripts/ci-status.sh` exits 0 on every leg,
@@ -17,18 +55,18 @@ that has never run: the release job is gated on `refs/tags/v*`, so the only way 
 thing it exists to do, and it has died there twice on non-code steps (no metallib on a clean runner 09-27,
 the artefact-upload API at v0.1.12 twice). `.github/workflows/package.yml` now runs the release leg's
 build half — materialise the shader payload, `build-dmg.sh`, judge the artefact — with `permissions:
-contents: read`, so a rehearsal cannot publish even by accident; that is also the build/publish split
-`competitor-iteration-paths.md` names as the precondition for self-serve publishing, paid structurally
-instead of by promise. `scripts/probes/41-artifact-dmg-serves.sh` is the judge: mount the volume
-read-only, check what is inside (executable bit, `/Applications` drag target,
-`Contents/MacOS/mlx.metallib` at ≥ 4 KiB, `codesign --verify --deep --strict`, the version it reports),
-boot the binary *from the mounted volume*, answer `/v1/models`, and drain on SIGTERM to exit 0. The seat
-is a nightly plus packaging-path pushes, which is mlx-swift-lm's shape with its cite
-(`integration_tests.yml:3-4` keeps heavy integration tests off the PR path, `:22-27` refuses to cancel a
-run mid-build), because this leg is ~25 arm64 minutes and the repo prices arm64 minutes as the expensive
-seat. The release leg's own metallib step became a call to `scripts/ci-materialize-metallib.sh`, which
-resolves the payload through `resolve-metallib.sh` — the inline glob it replaced re-implemented one rung
-of that ladder and floored nothing.
+contents: read`, so a rehearsal cannot publish even by accident. That is half of the build/publish split
+`competitor-iteration-paths.md` names as the precondition for self-serve publishing: the job holding
+`contents: write` no longer has to *prove* the build, though until a release lands it still runs both.
+`scripts/probes/41-artifact-dmg-serves.sh` is the judge: mount the volume read-only, check what is inside
+(executable bit, `/Applications` drag target, `Contents/MacOS/mlx.metallib` at ≥ 4 KiB, `codesign --verify
+--deep --strict`, the version it reports), boot the binary *from the mounted volume*, answer `/v1/models`,
+and drain on SIGTERM to exit 0. The seat is a nightly plus packaging-path pushes, which is mlx-swift-lm's
+shape with its cite (`integration_tests.yml:3-4` keeps heavy integration tests off the PR path, `:22-27`
+refuses to cancel a run mid-build), because this leg is ~25 arm64 minutes and the repo prices arm64
+minutes as the expensive seat. The release leg's own metallib step became a call to
+`scripts/ci-materialize-metallib.sh`, which resolves the payload through `resolve-metallib.sh` — the
+inline glob it replaced re-implemented one rung of that ladder and floored nothing.
 
 - **What same-session output proves it.** The green run is 40763127762 / job 123080256072, and its
 per-step durations are public: locate 2 s, headless serve 3 s, probe 37 4 s, probe 38 3 s, probe 39 7 s,

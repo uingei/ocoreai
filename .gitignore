@@ -65,5 +65,6 @@ tmp/
 
 # live-probe run logs: written next to the tree by scripts/probes/, uploaded by CI on failure
 probe-*.log
+probe41.log
 serve_smoke.log
 serve_health.json

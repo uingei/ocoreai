@@ -40,6 +40,13 @@ PROBE_NAME="artifact-dmg-serves"
 DMG="${OCOREAI_ARTIFACT_DMG:-}"
 if [ -z "$DMG" ]; then
   DMG="$(ls -t "$PROBE_REPO_ROOT"/dist/ocoreai-*.dmg 2>/dev/null | head -1 || true)"
+elif [ ! -f "$DMG" ] && [ -f "$PROBE_REPO_ROOT/$DMG" ]; then
+  # A caller may name the artefact relative to the tree it built, and run.sh cds into this directory
+  # before launching a probe — measured 10-29 when this probe's first runner pass died in 1 s on
+  # `dist/ocoreai-<ver>.dmg` for exactly that reason. Resolving the caller's own path against the repo
+  # root is the harness's job; inventing a path the caller never named is not.
+  probe_note "OCOREAI_ARTIFACT_DMG=$DMG is relative and run.sh cds here — resolved against the repo root"
+  DMG="$PROBE_REPO_ROOT/$DMG"
 fi
 if [ -z "$DMG" ] || [ ! -f "$DMG" ]; then
   echo "FAIL  no artefact to judge (OCOREAI_ARTIFACT_DMG unset, no dist/ocoreai-*.dmg)"
@@ -155,6 +162,17 @@ else
   else
     probe_fail "no 'shut down complete' line — it stopped, but not through the drain its own docs promise"
   fi
+
+  # Printed, not judged: what the log says about itself during an orderly stop. Measured 10-29 on a
+  # Debug binary and again here — Hummingbird logs `Server shutdown error: Already closed` at label
+  # `HummingbirdCore` because stop() cancels the task that owns the listener, and upstream's graceful
+  # handler then finds nothing left to close. The process still exits 0 and drains, so this is not a
+  # verdict; it is the number that moves if anyone ever routes the stop through upstream's own
+  # quiesce instead of the cancel (red sample: `grep -c error` on that log = 1).
+  ERR_LINES="$(grep -ci error "$PROBE_LOG" | tr -d ' ')"   # grep counts 0 as a non-match: empty, not zero
+  [ -n "$ERR_LINES" ] || ERR_LINES=0
+  FIRST_ERR="$(grep -i error "$PROBE_LOG" | head -1 | cut -c1-100 || true)"
+  probe_note "an orderly stop logged $ERR_LINES error line(s)${FIRST_ERR:+ — $FIRST_ERR}"
 fi
 PROBE_PID=""
 

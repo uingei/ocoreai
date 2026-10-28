@@ -646,6 +646,19 @@ jobs:
           fi
           tail -4 appstore-delivery.log
 
+      # A measurement, not a verdict: does this route compile .metal itself? resolve-metallib.sh's rung 1
+      # says SwiftPM does once the Metal Toolchain component is installed (the remedy mlx-swift-lm runs in
+      # pull_request.yml:216-237), and if a runner agrees, the ~15-minute xcodebuild that produces the
+      # payload for the release leg is waste somebody can delete — with evidence instead of a guess. The
+      # ladder is asked, not re-implemented here, because the ladder prints WHICH RUNG WON and a glob
+      # would read a pip wheel as a SwiftPM hit. Nothing is asserted: a notice is readable with no token,
+      # and the question this answers is about cost, not correctness.
+      - name: Did the SwiftPM route materialize the shader payload?
+        run: |
+          set -uo pipefail
+          RESOLVED="$(bash scripts/resolve-metallib.sh .build 2>&1 | tr '\r\n' '  ' | cut -c1-200)"
+          echo "::notice::payload after `swift build --traits appStore`: ${RESOLVED:-the ladder printed nothing}"
+
   ## ── iOS compile-validation (independent job — no matrix sharing) ──
   # ocoreai declares .iOS(.v17) first-class; the #if os(iOS) branches had no CI
   # compile gate. Build-only on the macos-26 runner (Mac runners ship the iOS
