@@ -72,7 +72,11 @@ done
 
 DEV_DIR="${DEVELOPER_DIR:-$(xcode-select -p 2>/dev/null || true)}"
 if [ -z "$DEV_DIR" ] || [ ! -d "$DEV_DIR" ]; then
-  echo "❌ no usable DEVELOPER_DIR (set it or run xcode-select -s)"
+  # Value on stdout, complaint on stderr: `$(shell … 2>/dev/null)` in the Makefile captures stdout
+  # into a path variable, so a complaint here became `SDKROOT=❌ … (set it or run xcode-select -s)` —
+  # a shell syntax error on every host without an Apple toolchain. The sibling guard below already
+  # writes to stderr; this is the same contract.
+  echo "❌ no usable DEVELOPER_DIR (set it or run xcode-select -s)" >&2
   exit 1
 fi
 
@@ -388,6 +392,24 @@ else
   fi
   [ "$REQUIRE_METAL" -eq 1 ] && FAIL=1
 fi
+
+# R4, by execution: a printer's stdout is a VALUE channel, not a place to complain. Makefile:94/103
+# and scripts/eval/autoab.sh capture print-sdk-root / print-metal-bin with `$(shell … 2>/dev/null)`,
+# so a diagnostic written to stdout arrives as a path — and Makefile:95 then composes
+# `SDKROOT=❌ … (set it or run xcode-select -s)`, a shell syntax error on every host without an Apple
+# toolchain (measured 10-28: that is what the ubuntu text-gates leg died on). Host-independent by
+# construction: an unusable DEVELOPER_DIR is forced here, so a macOS host judges the same contract.
+for r4mode in print-sdk-root print-metal-bin; do
+  r4out=$(DEVELOPER_DIR=/nonexistent bash "$0" "$r4mode" 2>/dev/null)
+  r4rc=$?
+  if [ "$r4rc" -eq 0 ] || [ -n "$r4out" ]; then
+    echo "❌ R4 printer contract: \`$r4mode\` with no usable DEVELOPER_DIR must exit non-zero and"
+    echo "   write NOTHING to stdout (got rc=$r4rc stdout=[$r4out]) — the Makefile feeds stdout into"
+    echo "   SDKROOT/PATH, so one word here is a broken recipe on a runner"
+    FAIL=1
+  fi
+done
+[ "$FAIL" -eq 0 ] && echo "ℹ️  R4 printer contract: both printers fall silent when they have no value"
 
 if [ "$FAIL" -eq 0 ]; then
   echo "✅ toolchain contract holds (swift=$SWIFT_VER sdk=$CURRENT_VER coreai=$( { has_coreai "${CURRENT_SDK:-/nonexistent}" && echo yes; } || echo no) metal=$METAL)"

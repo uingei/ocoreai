@@ -4,6 +4,37 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-28
 
+**10-28(12) The runner red was a real bug: a toolchain printer wrote its complaint onto the value channel** (P1 correctness / symbols `printer-value-channel`, `R4-printer-contract`)
+
+- **What improved.** Entry (11)'s annotation named `test-clt`, and the cause was two characters wide.
+`scripts/toolchain-contract.sh:75` wrote its failure line to **stdout**, `Makefile:94` captures that stdout
+with `$(shell … 2>/dev/null)` into `CLT_SDK`, and `Makefile:95` then composed
+`SDKROOT=❌ no usable DEVELOPER_DIR (set it or run xcode-select -s)` — a shell syntax error on every host
+without an Apple toolchain, which is why only the ubuntu leg saw it. The complaint goes to stderr now, the way
+the sibling guard at `:287` already does, so a printer with no value says nothing at all. R4 joins the same
+contract leg rather than opening a new one: it forces `DEVELOPER_DIR=/nonexistent` and demands `rc != 0` with
+empty stdout from both printers, so the contract is judged on any host, not only on a runner that happens to
+lack the toolchain.
+
+- **What same-session output proves it.** Reproduced before touching anything: `make -n test-clt` with
+`CLT_SDK` set to that leaked line, piped to `bash -n`, fails on the composed `SDKROOT=` line with
+`syntax error near unexpected token '('` — the same failure the runner reported. After the fix the same
+simulation with the toolchain vars empty parses, the full leg stays green at 31 recipes, and in a
+toolchain-less environment both printers exit 1 with empty stdout.
+
+- **Which gate goes red if it regresses.** R4, sampled by deleting `>&2` again in a copy of the script: two
+`❌ R4 printer contract` lines that quote the leaked stdout verbatim and exit 1. Consumer coverage comes from
+the exit code, which is how `make toolchain-check` (`Makefile:123`), `test-clt` (`:152`) and `audit-facts.sh`
+all decide, so one gate reaches every route that consumes a printer. Reader whose action changes: whoever adds
+an `echo` to a print mode, who now meets a red on their own machine instead of a step name on a runner.
+
+- **Honest limits.** The runner leg is expected to clear and is not yet proven — the next verdict is the first
+to run it with the fixed printer, and `build-appstore` stays red on main for a cause this leg never touched.
+R4 forces one face only (no `DEVELOPER_DIR`) ; a complaint leaking on another failure face, such as the `:287`
+no-CoreAI-free-SDK path, is caught when a host actually reaches it, and the two-mode loop does not audit every
+diagnostic in the script.
+
+
 **10-28(11) The next runner red is readable without a token, and the parse leg now names the toolchain it judged** (P1 process / symbols `text-gates-self-report`, `host-labelled-parse`)
 
 - **What improved.** `text-gates` cleared the docs contract on a runner for the first time and fell one step
