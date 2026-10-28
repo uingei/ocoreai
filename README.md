@@ -42,8 +42,12 @@ swift run ocoreai serve    # headless: engine + HTTP bridge, no window
 
 ```bash
 curl -s http://127.0.0.1:8080/health
-# { "status": "ok", "timestamp": 1714800000, "engineSummary": { "loadedModels": 0, "activeSessions": 0, ... } }
+# {"engineSummary":{"activeSessions":0,"gpuCacheGB":0,"loadedModels":0,"modelIds":[],"specializedModels":0},
+#  "status":"ok","timestamp":1793206720}
 ```
+Those are the bytes `swift run ocoreai serve` returned to that `curl` on 10-29 with no model loaded
+(only the timestamp moves), not an illustration: a surface a reader copies is a promise, so
+`engineSummary` counts what the engine holds rather than what it could load.
 
 Direct SwiftPM build, no `.xcodeproj` (the test gate runs through the SPM `ocoreai.xcworkspace` → `xcodebuild` → `xctest`).
 **Headless HTTP entry: `ocoreai serve`** (`swift run ocoreai serve`, or the built binary directly) — boots the engine + bridge on `127.0.0.1:8080` with no GUI/WindowServer session. Shutdown: `SIGTERM` or closing stdin drains the engine (≤30s) then exits clean; `SIGINT` keeps default terminal behavior. Bare `ocoreai` launches the GUI as before. Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
