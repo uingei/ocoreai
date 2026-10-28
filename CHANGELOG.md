@@ -20,7 +20,11 @@ comment was wrong and is fixed beside it: no metallib is needed at build time, b
 the CompileMetalFile line with its command line, and the spawn error — which is the second time this round
 that a step summary bought a diagnosis instead of a rumour. The workflow still parses to six jobs, and the
 resolver was already proven on this host: `print-metal-bin` answers with the cryptex dir whose `metal`
-compiles a kernel.
+compiles a kernel. The release note a tag would publish was read against the code as well: "nothing is fetched
+before you choose" holds, because `UpdateCheck.check()` is reached only from a user-pressed
+`Check for Updates…` (`Sources/ocoreai/UI/Views/SettingsView.swift:506`) and nothing calls it at launch. One
+stale claim surfaced beside it and is gone: `UpdateCheck.swift:5` asserted "v0.1.6 is on GitHub Releases" for
+a line that was withdrawn and a repo holding 0 releases.
 
 - **Which gate goes red if it regresses.** The leg itself: it goes red again with the same three annotations
 if the component or the PATH rung disappears, and it prints

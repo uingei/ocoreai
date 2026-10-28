@@ -2,11 +2,10 @@
 // Licensed under MIT.
 /// Release update check — the last honest surface a shipping app needs.
 ///
-/// First principles: an app that ships (v0.1.6 is on GitHub Releases) owes
-/// its users a way to KNOW a newer build exists. Auto-install is out of
-/// scope (that's Sparkle + Developer ID signing territory); the honest
-/// minimum is: check, compare, offer the release page. No nagging, no
-/// silent downloads — the user decides.
+/// First principles: an app that ships owes its users a way to KNOW a newer
+/// build exists. Auto-install is out of scope (that's Sparkle + Developer ID
+/// signing territory); the honest minimum is: check, compare, offer the release
+/// page. No nagging, no silent downloads — the user decides.
 ///
 /// Compares `AppInfo.shortVersion` (the running artifact's truth) against
 /// the `tag_name` of `/releases/latest`. Version comparison is
