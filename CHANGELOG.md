@@ -9,6 +9,31 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(32) The first-screen row we call unpaid carried two numbers that had already moved** (P2 docs / symbols `first-screen-row`)
+
+- **What improved.** The ladder's cheapest-to-pay sentence said watchers **0** and that "the leader ships one"
+root `VISION.md`. Both had drifted. The repo now has 1 watcher (the owner — GitHub counts it, so the row was
+stating an audience of zero for a repo with a subscriber), and the tree that actually ships a root `VISION.md`
+is `openclaw`, the category's #1 — `deepseek-harness`, the tree that sentence was about, ships
+`AGENTS/SAFETY/BENCHMARK/BRAND_GUIDELINES/README` with zh mirrors and no vision doc. The row now reads
+watchers **1** and names openclaw, because that sentence's only job is to tell a reader what to copy and from
+whom, and a wrong from-whom spends the reader's hour in the wrong tree.
+
+- **What same-session output proves it.** `api.github.com/repos/uingei/ocoreai`: stars 1, forks 0, open issues
+0, `subscribers_count` 1, `has_discussions` false, `homepage` empty, created 2026-06-14 (137 d by date
+arithmetic). `git -C ~/references/<tree> ls-files | grep -i '^VISION'` across the 20 comparator trees:
+exactly one hit, openclaw. `VISION.md` here: absent, as the row says. Both edits stayed inside their caps
+(goal 15 604 → 15 603, runbook 15 600 → 15 602) and `make docs-check` passed without touching the corpus row.
+
+- **Which gate goes red if it regresses.** None, and it is named as such rather than papered over: these are
+prose counts, so the two commands above are the check a reader can run. What is gated is the container — the
+per-guide byte cap and B2's figure sites — which is why an edit at this altitude is never free.
+
+- **Honest limits.** `subscribers_count` is GitHub's own watch counter and includes the owner, so 1 is a floor
+on the audience, not a measurement of it. The VISION search sees root-level tracked files in clones on this
+box, and a tree can state intent in a doc that isn't named `VISION.md` — openclaw is the only one that names
+it that way, which is a weaker claim than "only openclaw declares its direction".
+
 **10-29(31) A red leg now names its step without a token, and a stalled probe names its phase** (P1 CI / symbols `ci-status-step-detail`, `ci-step-heartbeat`)
 
 - **What improved.** Finding the 10-28 cause took manual API digging: the annotations said only "timed out

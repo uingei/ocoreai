@@ -90,7 +90,7 @@ four sits on a machine that manufactures one (two model vendors, one ecosystem, 
 phenomenon), and two of the three fastest movers are institution-shipped. So distribution comes first, the
 objective stays the wedge rank not the headline, the rungs that move a stranger's install decision this
 quarter are 1 (a tag per merge) and 6 (be consumed), and the cheapest parts are still unpaid — Discussions
-off, no homepage, `VISION.md` absent, 0 watchers. Every rung below is falsifiable:
+off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable:
 
 0. **Ship.** Done, and askable: `scripts/ci-status.sh` never calls a question it could not ask green.
 1. **Cadence, not one tag.** The eight installable trees publish 34 → 1 254 releases each, newest ≤8 d old

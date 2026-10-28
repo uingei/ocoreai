@@ -177,8 +177,8 @@ notproven## The first screen — twenty lines decide
 - **The 20th tree, and what a tracker costs** (`deepseek-ai/deepseek-harness`, same day): 263 687 stars,
   1 115 watchers, Discussions on, homepage set — and `has_issues: false`. It carries 263 k stars with the
   issue tracker **switched off**, intake handled by policy code in `.github/issue-management/` instead of a
-  queue. Our row is the cheapest delta on this page and is still unpaid: watchers **0**, Discussions **off**,
-  no homepage, root `VISION.md` absent (the leader ships one, and a stranger reads it to judge direction).
+  queue. Our row is the cheapest delta on this page and is still unpaid: watchers **1**, Discussions **off**,
+  no homepage, root `VISION.md` absent (openclaw ships one at root; a stranger reads it to judge direction).
 
 ## Not in this runbook
 
