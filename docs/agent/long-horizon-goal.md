@@ -96,8 +96,8 @@ falsifiable:
 0. **Ship.** Done, and now askable: `scripts/ci-status.sh` reports what CI concluded, never "green" for a
    question it could not ask.
 1. **Cadence, not one tag.** Every tree a stranger installs here publishes ≥100 releases with a newest of
-   today; this repo has **0 tags and 0 releases**, measured 10-28 by `git ls-remote --tags origin` (empty)
-   and `api.github.com` (`/tags` and `/releases` both `[]`). The publisher needs no owner credential (the
+   today; this repo has **0 tags and 0 listed releases**, measured 10-28: `git ls-remote --tags origin`
+   empty, `api.github.com` (`/tags` and `/releases` both `[]`). The publisher needs no owner credential (the
    `release` job uses the runner's own `${{ github.token }}`), but `v0.1.10` is the wrong number to type: the
    tag *is* the version (`scripts/version.sh`) and the withdrawn line reached 0.1.13, so the next number is
    **`v0.1.14`**, prepared on this host and never pushed. Two things ride on it: the trust signals a first
