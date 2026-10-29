@@ -51,14 +51,6 @@ final class ScreenshotService {
         self.screenCount = NSScreen.screens.count
     }
 
-    // MARK: - Discovery
-
-    nonisolated func discoverScreens() {
-        Task { @MainActor in
-            Self.shared.screenCount = NSScreen.screens.count
-        }
-    }
-
     // MARK: - One-shot capture
 
     /// Why the last capture failed, in one line, taken from the ScreenCaptureKit error
@@ -326,14 +318,6 @@ final class ScreenshotService {
         }
 
         // — SCStreamDelegate —
-
-        func streamDidBecomeActive(_ stream: SCStream) {
-            screenshotLogger.info("[ScreenshotService] SCStream became active")
-        }
-
-        func streamDidBecomeInactive(_ stream: SCStream) {
-            screenshotLogger.info("[ScreenshotService] SCStream became inactive")
-        }
 
         func stream(_ stream: SCStream, didStopWithError error: Error) {
             screenshotLogger.error(

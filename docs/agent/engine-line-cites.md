@@ -7,11 +7,11 @@ sweep `docs/agent/*.md`, so one hop out loses nothing.
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:172 Task.sleep(until: deadline -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1409 Float.leastNormalMagnitude -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3044 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3766 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4404 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3867 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4419 components: genComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3890 components: mtpGenComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3753 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4391 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3854 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4406 components: genComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3877 components: mtpGenComponents -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:919 case "affine" -->
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1526 static func rewindHistoryEnd -->
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:683 Self.rewindHistoryEnd( -->

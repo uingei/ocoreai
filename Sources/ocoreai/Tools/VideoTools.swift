@@ -101,15 +101,6 @@ enum GenerateVideo {
         }
     }
 
-    static func formatLabel(_ f: VideoFormat) -> String {
-        switch f {
-        case .mp4: return "MP4"
-        case .gif: return "GIF"
-        case .apng: return "APNG"
-        case .webp: return "WebP"
-        }
-    }
-
     /// 成功报告 — 两行形态(对齐 transcribe_audio OK 报告): 摘要 + 输出路径。
     static func report(outcome: VideoGenOutcome) -> String {
         guard case .ok(let outputURL, let frameCount) = outcome else {

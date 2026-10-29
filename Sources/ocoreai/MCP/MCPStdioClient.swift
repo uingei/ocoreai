@@ -234,20 +234,6 @@ actor MCPStdioClient {
     /// 方法，判据与读数就还是同一个家（测试与 bridge 日志都从这里读）。
     func budget() -> MCPRPCBudgets { budgets }
 
-    /// 返回当前状态摘要。
-    func statusSummary() -> [String: String] {
-        [
-            "name": endpoint.name,
-            "status": status.rawValue,
-            "command": endpoint.stdioCommand,
-            "lastError": lastError ?? "(none)",
-            // 公布生效预算：超时是会改变调用方行为的量，只写在代码里就等于没写
-            // （AGENTS.md：写进值里的效果要有读这个值的门）。
-            "startupTimeout": MCPTimeouts.describe(budgets.startupSeconds),
-            "toolTimeout": MCPTimeouts.describe(budgets.toolSeconds),
-        ]
-    }
-
     // MARK: - 内部方法
 
     /// 启动子进程。

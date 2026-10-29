@@ -628,11 +628,6 @@ actor CoreAIModelLoader {
     func teardown() {}
 }
 
-actor KVCacheManager {
-
-    init(config _: Logging.Logger?) {}
-}
-
 enum EngineFactory {
     static func createEngine(config _: Data, modelURL _: URL, options _: EngineOptions) async throws
         -> StubEngine

@@ -466,15 +466,6 @@ extension AudioIO {
             return nil
         }
     }
-
-    /// Cancel ongoing recognition immediately
-    func cancelTranscription() {
-        audioEngine.stop()
-        audioEngine.inputNode.removeTap(onBus: 0)
-        isRecognizing = false
-        partialText = ""
-        AudioFeedback.playRecordingEnd()
-    }
 }
 
 // MARK: - AVSpeechSynthesizerDelegate

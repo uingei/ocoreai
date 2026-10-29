@@ -9,6 +9,43 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-30(56) Comments were still voting, and the sharper scan ate a `#expect`**
+
+- **What improved.** Entry 54 took prose out of the index by skipping `*.md`, which was the
+  half-measure: a comment in *code* votes the same way, and this scan's own header named `photoOutput` and
+  `streamDidBecomeActive`, retiring both from its own result — the index skips its own source now. The
+  sharpening then over-corrected in the direction that deletes working code: one shared comment rule read
+  every `#expect(await pool.isModelLoading(id))` line as a comment and called three live methods dead, so
+  comment syntax is per-language (`#` is code in Swift). Declarations split by author next — a file
+  carrying Apple's copyright header is absorbed upstream source whose dead members are upstream's shape,
+  read at each bump for the consumer that shows up or does not — and the verdict number is ours: 15 → 3,
+  with 16 vendored and 1 framework witness printed beside it instead of hidden. Thirteen declarations and
+  two whole files went out: `VectorMemoryConfig.swift` (a second home for the embedding-model id whose
+  live home is `MLXBridge.canonicalModelId`), `MetricCard.swift`, `MTPResult`, the `Choice` alias,
+  `statusSummary` (the live home is `MCPBridge.listEndpoints`), `KVCacheManager`, `cancelTranscription`,
+  `discoverScreens`, two log-only `SCStreamDelegate` echoes, `formatLabel` and a `downloadProgress`
+  wrapper the UI reads past.
+
+- **What same-session output proves it.** The suites that prove the `#` rule wrong are the ones calling
+  the code it called dead — `EnginePoolLoadingGateTests` asserts on `isModelLoading` and
+  `MCPStdioLifecycleTests` on `testLastError` — and `swift build --build-tests` exits 0 with the deletions
+  in. `OCOREAI_DEAD_VERBOSE=1` prints `ours: 3`, and the 3 are named rather than rounded away:
+  `ModelVersion` is 111 lines of SHA-256 verification nothing calls, while the integrity check this repo
+  does wire compares file *sizes* to the remote manifest (`Models/ModelScopeDownloader.swift:1106`);
+  `recordEvent` and `recordUtteranceLength` are the only writers of state whose reader is the `[speaker]`
+  string the perception channel injects into the model, so they leave in a round that prices that text,
+  not one that only counts lines.
+
+- **Which gate goes red if it regresses.** Two reds, both re-sampled at the new number: one appended
+  `func yetAnotherGratuitousProbe()` printed 4 and P4 answered
+  `unreferenced_decls_ours <= 3: command returns 4`; renaming `photoOutput` made the script exit 1 with
+  `stale exemption(s) — the name is not dead any more`, the rule that stops an exemption outliving the
+  name it excuses. `photoOutput` is exempt because its only witness is an AVFoundation selector that
+  neither this index nor the compiler can see, and the exemption line carries the framework in its reason
+  so a reader checks the claim instead of trusting the number.
+
+
+
 **10-29(55) The MTP drafter was shared by every model, because it lived in the pool**
 
 - **What improved.** A claim I shipped earlier today is wrong in the interesting direction:

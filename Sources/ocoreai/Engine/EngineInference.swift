@@ -3477,19 +3477,6 @@ extension EnginePool {
                         (role: $0.role.rawValue, content: $0.content)
                     }
 
-                    struct MTPResult: Sendable {
-                        let accumulatedText: String
-                        let tokenCount: Int?
-                        let stopReason: StopReason?
-                        let stoppedBySequence: Bool
-                        let generationTokPerSec: Double?
-                        let promptTokPerSec: Double?
-                        let proposedDraftTokens: Int?
-                        let acceptedDraftTokens: Int?
-                        let passthroughReason: String?
-                        let collectedToolCalls: [MLXLMCommon.ToolCall]
-                    }
-
                     // SAFETY: an unload on another task can release the container across the
                     // await boundary since the gate above — hoist to a local, bail gracefully.
                     guard let drafterContainer = loaded.mtpDrafterContainer else {

@@ -557,8 +557,4 @@ final class ModelManager {
         isDownloading && downloadingModelId == modelId
     }
 
-    /// Get download progress for a model (bridge to OcoreaiDownloadProgress).
-    func downloadProgress(for modelId: String) -> OcoreaiDownloadProgressState? {
-        OcoreaiDownloadProgress.shared.progress(for: modelId)
-    }
 }

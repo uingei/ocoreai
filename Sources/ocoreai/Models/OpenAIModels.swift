@@ -1511,9 +1511,6 @@ func decodeStopUnion<K: CodingKey>(
     return try c.decode([String].self, forKey: key)
 }
 
-/// Backward compatibility alias.
-typealias Choice = CompletionChoice
-
 // MARK: - SSE Streaming
 
 #if canImport(CoreAI)
