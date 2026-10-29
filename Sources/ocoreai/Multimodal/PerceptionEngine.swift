@@ -265,10 +265,6 @@ final class PerceptionEngine: Sendable {
             SystemContextSensor.shared.start()
         }
 
-        if channels.speaker {
-            SpeakerFeedbackSensor.shared.start()
-        }
-
         perceptionLogger.info(
             "[PerceptionEngine] started (\(self.activeChannels.count) channels, \(self.powerProfile.rawValue))"
         )
@@ -290,7 +286,6 @@ final class PerceptionEngine: Sendable {
             await FileSystemSensor.shared.stop()
             await InternetSensor.shared.stop()
             await SystemContextSensor.shared.stop()
-            await SpeakerFeedbackSensor.shared.stop()
         }
 
         buffer.clear()
@@ -461,10 +456,6 @@ final class PerceptionEngine: Sendable {
     private nonisolated func sampleSpeaker(every interval: TimeInterval) async {
         while !Task.isCancelled {
             let text = await SpeakerFeedbackSensor.shared.contextText()
-            guard !text.isEmpty else {
-                try? await Task.sleep(for: .seconds(interval))
-                continue
-            }
             let frame = PerceptionFrame(
                 channel: .speaker,
                 textContext: text,
@@ -478,7 +469,7 @@ final class PerceptionEngine: Sendable {
     }
 
     /// Continuous ambient-audio perception producer (the `.audio` channel's
-    /// one missing loop). Mirrors `sampleSpeaker` exactly: bounded VAD + STT
+    /// one missing loop). Mirrors `sampleSpeaker`'s shape: bounded VAD + STT
     /// per tick, transcript delivered as `textContext` — the live
     /// `contextText()` injection path — rather than raw audio bytes.
     ///

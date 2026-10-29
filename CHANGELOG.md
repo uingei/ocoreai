@@ -9,6 +9,37 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-30(57) The speaker channel reported a queue depth it could not measure**
+
+- **What improved.** The `.speaker` channel injected `[speaker] tts=active, queue=0` into the model's
+  context, and that 0 was a literal: `readFeedback()` built `queueDepth: 0` next to its own comment saying
+  the AVSpeechSynthesizer queue is opaque, and the `rate=` clause could never fire because the only writer
+  of its source had no caller. One measured fact was wearing two invented ones. The channel is a live read
+  of `AudioIO.isSpeaking` now, in two functions, and the fiction around it left: the cached
+  `SpeakerFeedbackData`, the `SpeakerEvent` log nothing fed, `_speechTimings` and `_lastSpokenLengths`,
+  the sensor's own 30 s poll that duplicated the sampling loop's timer, and `start()`/`stop()` whose only
+  work was that timer — 208 lines to 29, and `PerceptionEngine` loses two calls plus a guard against an
+  empty string the function cannot return. Entry 56 named these two methods and left them for a round that
+  priced the text; this is that round.
+
+- **What same-session output proves it.** The published string is the observable, so it is pinned:
+  `pureSpeakerContextText` is asserted to equal `[speaker] tts=active` and `[speaker] tts=idle` in
+  `SpeakerChannelTextTests`, and the second test asserts the line carries neither `queue=` nor `rate=` —
+  sampled red by putting `, queue=0` back, which failed twice with
+  `Expectation failed: !text.contains("queue=")`, and green once it was out. `swift build --build-tests`
+  exit 0. The behaviour verdict is inference, not measurement: the model loses two tokens of false
+  information and keeps every true one, and the board cannot price that at ±17 pp single-run noise
+  (`scripts/eval/README.md`), so no scoreboard number is quoted for it here.
+
+- **Which gate goes red if it regresses.** `SpeakerChannelTextTests` — it is the cheapest thing that
+  goes red when someone adds a field to the injected line without measuring it, which is the exact shape
+  this round deleted. `unreferenced_decls_ours` fell 3 → 1 beside it, and the 1 is named rather than
+  rounded away: `ModelVersion` is 111 lines of SHA-256 verification nothing calls, while the integrity
+  check this repo does wire compares file *sizes* to the remote manifest
+  (`Models/ModelScopeDownloader.swift:1106`) — wire the digest or delete the type, owner call.
+
+
+
 **10-30(56) Comments were still voting, and the sharper scan ate a `#expect`**
 
 - **What improved.** Entry 54 took prose out of the index by skipping `*.md`, which was the

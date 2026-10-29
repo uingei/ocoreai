@@ -259,7 +259,7 @@ against upstream first). Which doc each audience reads, and when: `docs/agent/do
   the value and pass typed values inward; quote the failure (a probe line, a red test, a scoreboard row)
   before writing its guard. For a speculative race or security edge: name mode, likelihood and cost and
   get the owner's buy-in.
-<!-- claim:unreferenced_decls_ours<=3 :: bash scripts/unreferenced-decls.sh -->
+<!-- claim:unreferenced_decls_ours<=1 :: bash scripts/unreferenced-decls.sh -->
 - Default is one-pass in this thread, no sub-agent unless the owner asks (the owner reviews every
   commit).
 
