@@ -174,7 +174,63 @@ elif m=="messages":
   fi
 }
 
+coreai_fork_ledger() {
+  # coreai fork 台账:唯一的吸收记录是源码头里的 `Absorbed: #N <sha>`,而上面的轴只看 HEAD
+  # 窗口,看不到"我们 fork 的那几个引擎各自吸收到哪"。这一段把那个数变成一条命令能问出来的
+  # 东西:逐文件读 header 的台账起点,再数上游对该文件的未裁决 commit。只报数,不参与裁决
+  # (exit 语义仍由上面的轴决定)。
+  local d
+  d="$(local_dir coreai-models)" || { echo "  coreai fork 台账   SKIP ($REFS/coreai-models 不存在)"; return 0; }
+  python3 - "$d" <<'LEDGER_PY'
+import os, re, subprocess, sys
+up = sys.argv[1]
+ours = os.path.join("Sources", "ocoreai", "Engine")
+PATH_RE = re.compile(r"((?:swift/Sources/)?[A-Za-z0-9_/+.{}-]*[A-Za-z0-9_+]\.swift)")
+SHA_RE = re.compile(r"(?:HEAD|absorbed|Absorbed: #\d+)\s+([0-9a-f]{7,40})")
+def git(*a):
+    try:
+        return subprocess.run(("git",) + a, cwd=up, capture_output=True, text=True, timeout=60).stdout.strip()
+    except Exception:
+        return ""
+def resolve(name):
+    if name.startswith("swift/") and os.path.exists(os.path.join(up, name)):
+        return name
+    hits = [h for h in git("ls-files", "*%s" % name).split("\n") if h.strip()]
+    return hits[0] if hits else ""
+rows, glue = [], 0
+for f in sorted(os.listdir(ours)):
+    if not (f.startswith("CoreAI") and f.endswith(".swift")):
+        continue
+    head = "".join(open(os.path.join(ours, f), errors="ignore").readlines()[:45])
+    if "coreai-models" not in head:
+        continue
+    # 1:1 fork 优先:同名上游文件就是它的来处(四个引擎与 VLM 都是这种);否则才读 header 里
+    # 指名的路径,因为 header 会提到兄弟文件(我们的 VLM 头部就点了 Pipelined)。
+    cand = [f] + [p for p in PATH_RE.findall(head) if "{" not in p]
+    src = next((r for p in cand if (r := resolve(p))), "")
+    shas = SHA_RE.findall(head)
+    base = shas[-1] if shas else ""
+    if not src and not base:
+        glue += 1
+        continue
+    if not src:
+        rows.append("  %-31s 基线 %s | 上游文件未指名 — 逐条裁决时补路径" % (f, base[:9]))
+        continue
+    if not base:
+        ever = git("rev-list", "--count", "HEAD", "--", src)
+        rows.append("  %-31s 无基线 | 上游 %s(该文件历史 %s 个 commit)— 窗口不可测" % (f, src.split("/")[-1], ever))
+        continue
+    n = git("rev-list", "--count", "%s..HEAD" % base, "--", src)
+    new = git("log", "-1", "--format=%h %s", "%s..HEAD" % base, "--", src)
+    rows.append("  %-31s 基线 %s | 上游 %s 未裁决 %s 个 | %s"
+                % (f, base[:9], src.split("/")[-1], n if n != "0" else "0", (new or "无")[:78]))
+print("\n".join(rows) if rows else "  (无 fork 台账条目)")
+print("  另有 %d 个 CoreAI* 是 ocoreai 自己的胶合层(头里既不指名上游文件也无基线)" % glue)
+LEDGER_PY
+}
+
 echo "═══ ocoreai upstream drift — baseline $(baseline_note) ═══"
+coreai_fork_ledger || true
 echo
 
 for pair in $REPOS; do
@@ -236,6 +292,7 @@ for pair in $REPOS; do
     fi
   fi
 done
+
 
 mlx_axis
 

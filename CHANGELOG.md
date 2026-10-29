@@ -9,6 +9,33 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(45) `Engine/CoreAI*` is a fork with a ledger, and no command could ask it anything**
+
+- **What improved.** Twelve files under `Engine/` carry Apple's BSD-3 header plus a provenance line and a
+baseline sha (`Absorbed: #N <sha>`, `@ coreai-models HEAD <sha>`), and nothing read them: `make drift`
+compared each axis's HEAD against one baseline, so "how far behind is our copy of this engine, file by
+file" was unaskable. The drift script now answers it before its axis loop — resolve each fork's upstream
+counterpart (same-named file first, then the path the header names), read the recorded baseline, count the
+upstream commits touching that file since. Report-only, so `make drift` keeps one exit-code owner. root §
+Upstream now names `make drift`, which the injected file never had.
+
+- **What same-session output proves it.** The block's first run: Pipelined `baseline 54e6163 … 8 un-
+adjudicated`, Sequential `27a66f9 … 10`, StaticShape `5660fc6 … 7`, VisionConfig `5716935 … 6`, and three
+files with no baseline at all — `CoreAISequentialVLMEngine.swift` (1 238 lines, 17 commits of upstream
+history, window unmeasurable), `CoreAIEngine.swift`, `CoreAILoggerStub.swift`. Two open commits sit on
+advertised surfaces: upstream `82c3488` (KV-state handling for static-shape + sliding-ring caches) and
+`f03e8ce` (JSON whitespace under schema-constrained generation). The same pass removed a falsehood made an
+hour earlier: an § Open line that still called `metallib` lane-proven after the step had been deleted.
+
+- **Which gate goes red if it regresses.** None, on purpose — a per-file count with no threshold keeps the
+exit semantics single-homed (0/10 as the script's own head documents). What changed is that a stale
+baseline now shows up on the same screen as the axis verdict, instead of living in a header nobody re-
+reads; `make drift` already exits 10 while any window is open, and it does.
+
+- **Honest limits.** Three files stay unmeasurable until someone adjudicates a baseline, and the biggest
+is a 1 238-line VLM engine. The resolver matches by file name, so an upstream rename would print "path
+unnamed" instead of a number. And nothing was adjudicated here: 8/10/7/6 are still open, which means
+Apple's KV-state fix is not in our copy.
 **10-29(44) The rehearsal paid for itself the night it deleted the thing it was rehearsing**
 
 - **What improved.** `package.yml` came back green with no xcodebuild producer, so the release leg stopped
