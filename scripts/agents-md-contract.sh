@@ -566,7 +566,8 @@ if bad_claims:
 # `<!-- claim:tags_published>=1 :: git tag | grep -c '^v' -->` green through every local mode and red
 # on two consecutive `Text gates (ubuntu)` runs (`command returns 0`): a depth-1 checkout may hold no
 # tags, and `fetch-tags: true` did not change the verdict. Worktree reads (`git grep`, `git ls-files`)
-# travel with the checkout; the ref store does not. So a claim reads refs off the remote, or not at all.
+# travel with the checkout; the ref store does not. A claim that asks the remote reds as
+# `returns 0` when the ask itself fails (no network) — read the command before the number.
 REF_STORE_RE = re.compile(r"\bgit\s+(tag|describe|rev-list|merge-base|branch|remote)\b")
 bad_premise = ["%s: `%s` reads the local ref store" % (cid, cmd)
                for _src, cid, _op, _exp, cmd in claims if REF_STORE_RE.search(cmd)]
