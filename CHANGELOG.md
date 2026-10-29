@@ -8,6 +8,25 @@ note and `README.md`; a `## <dates>` section below groups the rounds of an older
 heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
+**10-29(54) The gate shipped an hour ago could be quieted by writing a sentence**
+
+- **What improved.** Entry 53's count indexed every tracked file, `*.md` included, so naming a dead
+declaration in prose made the scan stop seeing it — measured, not suspected: entry 53 itself names
+`photoOutput` and `streamDidBecomeActive`, and its count fell 24 → 22 with no line of code deleted. The
+index now skips `*.md`, because a reference is a caller and not a sentence; the honest count is 27,
+`AGENTS.md` carries `unreferenced_decls<=27` at the same digit width, and root stays at 21 437 B.
+
+- **What same-session output proves it.** The fall between two runs of one script, with the tree otherwise
+unchanged, is what surfaced it. After the fix the same 27 names print under `OCOREAI_DEAD_VERBOSE=1`, the
+two that prose had just un-masked among them; `swift build` exit 0 and `make docs-check` green in both
+host modes.
+
+- **Which gate goes red if it regresses.** Re-sampled at the new number: one appended
+`func anotherGratuitousProbe()` printed 28, and P4 answered
+`unreferenced_decls <= 27: command returns 28`. The lesson is § Testing Quality's own sentence, re-proved
+against me this time: a scan that reads prose to decide what counts as code infers its own premises, and
+the day someone documents a dead thing is the day that gate stops seeing it.
+
 
 **10-29(53) 787 lines nothing named, and the count that stops them growing back**
 

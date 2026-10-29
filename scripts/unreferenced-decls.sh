@@ -9,7 +9,7 @@
 #
 # ### What counts, and what it cannot see
 # A top-level or member `func|struct|enum|protocol|actor|typealias` in `Sources/**.swift` whose name
-# occurs exactly ONCE in the tracked tree — at its own declaration. Text-only, from `git ls-files`:
+# occurs exactly ONCE among the tracked NON-`\.md` files — at its own declaration. Text-only, from
 # the same answer on any host, with or without a resolved `.build`, with or without `~/references`
 # (10-29 learned that a claim reading host state is a claim that goes red on a runner for a reason
 # nobody can see). So it cannot see a witness to an *external* protocol — the requirement lives in
@@ -29,8 +29,13 @@ TRACKED = [p for p in subprocess.run(["git", "ls-files"], capture_output=True, t
 WORD = re.compile(r"[A-Za-z_]\w*")
 MAX_BYTES = 4_000_000  # a vendored blob is not a reference site, and reading it is not the gate's job
 
+# A reference is a CALLER, not a sentence: prose is excluded from the index, because naming a dead
+# name in `CHANGELOG.md` would otherwise retire it from this count (sampled 10-29 — entry 53 named
+# `photoOutput` and `streamDidBecomeActive`, and the count fell 24 → 22 with no code deleted).
 counts = collections.Counter()
 for p in TRACKED:
+    if p.endswith(".md"):
+        continue
     try:
         if os.path.getsize(p) > MAX_BYTES:
             continue
