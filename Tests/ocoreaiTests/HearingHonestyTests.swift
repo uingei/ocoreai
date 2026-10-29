@@ -514,7 +514,7 @@ func everyProbeOutcomeHasAVerdict() {
 
 @Test("the probe flag is internal transport, not a documented CLI mode")
 func probeFlagStaysInternal() {
-    let help = CLIMode.versionOrHelpReport(for: ["ocoreai", "--help"]) ?? ""
+    let help = CLIMode.informationalReport(for: ["ocoreai", "--help"]) ?? ""
     #expect(!help.contains(HearingSelfProbe.flag), "an internal probe flag leaked into --help")
     // And the child parses its own protocol: flag then fixture path.
     #expect(

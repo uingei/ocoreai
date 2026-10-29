@@ -66,6 +66,7 @@ gracefully. `Sources/ocoreai/Core/CLIMode.swift:35-49` is the authority for the 
 <!-- exec: GET /v1/capabilities 200 | engineBackend | tokenizerBackend | endpoints | capabilities | instructionBudget -->
 <!-- exec: GET /v1/tools 200 | "object" | "function" | parameters -->
 <!-- exec: GET /skills 200 | "terminal" | "file" -->
+<!-- exec: GET /openapi.json 200 | openapi | paths | components | ErrorEnvelope -->
 <!-- exec: GET /v1/stats 200 | totalRequests | avgTTFBSeconds -->
 <!-- exec: POST /v1/multimodal/status {} 200 | cameraStatus | hearing -->
 <!-- exec: GET /v1/this-route-does-not-exist 404 | does not exist | Enumerate -->
@@ -80,6 +81,11 @@ gracefully. `Sources/ocoreai/Core/CLIMode.swift:35-49` is the authority for the 
   `whole` | `truncated` | `dropped`. Non-zero `truncatedDocs` / `droppedDocs` means the project rules in
   your prompt are incomplete — say so rather than acting on a tail you were never given. Paths are
   served as `<root>/…` because this endpoint is public.
+- **`GET /openapi.json`** is the same surface as an OpenAPI 3.1 document: every method+path the router
+  answers, its `security`, and the `ErrorEnvelope` every refusal carries. It is rendered from the index
+  `endpoints[]` publishes, so it cannot describe a route that is not wired, and `servers[0].url` is `/` —
+  the origin that served it, since nothing else can say where a clone's server will bind. Generate a
+  client from this; decide what to call from the shorter `endpoints[]` notes.
 - **`GET /v1/models`** is the only list of ids this server offers: local paths, not registry names, so
   resolve them at startup rather than at authoring time. `data` is empty on a machine with no cached
   checkpoint — structure is always true, rows only when something is downloaded.

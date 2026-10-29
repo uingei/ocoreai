@@ -35,12 +35,14 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 
 ## Adoption — the surface a stranger ranks
 - **A release is a cadence, not a green suite or one tag:** the eight installable trees publish 34 → 1 254
-  releases, newest ≤8 d old (`scripts/audit-facts.sh`); ours: 0 tags, 0 releases. The tag *is* the version, so
-  the number to type is **v0.1.14**, one past withdrawn 0.1.13 (`scripts/version.sh` reads a tag, so it prints
-  0.0.0 until one exists); a stale number in a doc is an instruction; `Core/UpdateCheck.swift` only *notifies*, and build/publish must split. Ladder: `long-horizon-goal.md` § Rung zero.
-- **Agents are a channel they cannot find:** `/v1/capabilities` serves `endpoints[]` and `skills/ocoreai/` is
-  published (probe 39 runs its markers); missing: a published OpenAPI spec and a client — 3 of the 8 installable
-  trees have one (10-29). Owner call: a public contract is a promise.
+  releases, newest ≤8 d old (`scripts/audit-facts.sh`); ours is 1 (`v0.1.14`, 10-29) — cadence is the open
+  item now. The tag *is* the version: `scripts/version.sh` prints it and the next is one past, so no version
+  number is re-typed here. `Core/UpdateCheck.swift` only *notifies*; build/publish must split.
+  Ladder: `long-horizon-goal.md` § Rung zero.
+<!-- claim:tags_published>=1 :: git tag | grep -c '^v' -->
+- **Agents are a channel they cannot find:** `/v1/capabilities` serves `endpoints[]`, `skills/ocoreai/` is
+  published (probe 39 runs its markers), and `GET /openapi.json` renders the contract off that index; a
+  generated client is still missing. Owner call: a public contract is a promise.
 - **Intake is a surface:** a duplicate-work check before any outbound issue or PR, answer latency, and a
   verifiable first-screen privacy contract (mechanics + cites: `docs/agent/adoption-runbook.md`).
 - **#1 is bounded by distribution, not arithmetic:** 3 469 stars/day for 76 d (`deepseek-harness`),

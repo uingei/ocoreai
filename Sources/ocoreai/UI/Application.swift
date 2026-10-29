@@ -34,8 +34,13 @@ struct OcoreaiApp {
         if HearingSelfProbe.isRequested(arguments: CommandLine.arguments) {
             HearingSelfProbe.run(arguments: CommandLine.arguments)
         }
-        if let report = CLIMode.versionOrHelpReport(for: CommandLine.arguments) {
-            print(report)
+        if let report = CLIMode.informationalReport(for: CommandLine.arguments) {
+            // The report owns its trailing newline. `print` would append a second one to the
+            // OpenAPI document, whose canonical text already ends in `\n` — and stdout is how
+            // `make openapi` writes the committed artefact, so a stray byte there is a stale
+            // contract in git rather than a cosmetic one.
+            FileHandle.standardOutput.write(
+                Data((report.hasSuffix("\n") ? report : report + "\n").utf8))
             exit(0)
         }
         if HeadlessMode.isServeInvocation(CommandLine.arguments) {

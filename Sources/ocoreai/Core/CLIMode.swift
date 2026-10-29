@@ -27,6 +27,10 @@ enum CLIMode {
     static let versionTokens: Set<String> = ["--version", "-v"]
     /// Tokens that print usage and exit 0.
     static let helpTokens: Set<String> = ["--help", "-h", "help"]
+    /// Tokens that print the OpenAPI 3.1 contract and exit 0. This is how `make openapi`
+    /// regenerates the committed artefact: the file a stranger reads must be produced by the
+    /// binary that serves the routes, not typed beside them.
+    static let openAPITokens: Set<String> = ["--openapi", "--print-openapi"]
 
     /// The exact usage text — every line describes real behavior:
     /// `serve` is the only subcommand; port/host/API keys are env-configured
@@ -49,14 +53,16 @@ enum CLIMode {
           OCOREAI_MODELS_DIR               Override model weights directory.
 
         FLAGS:
-          -v, --version                    Print version and exit.
+          -v, --version                  Print version and exit.
           -h, --help, help               Print this message and exit.
+          --openapi                      Print the OpenAPI 3.1 contract (JSON) and exit.
         """
     }
 
     /// Informational report to print-and-exit, or nil (fall through to
-    /// GUI/serve routing unchanged).
-    static func versionOrHelpReport(
+    /// GUI/serve routing unchanged). The OpenAPI branch exists so the artefact has an exit
+    /// that boots nothing — one print site is also the ceiling this surface agrees to.
+    static func informationalReport(
         for args: [String],
         shortVersion: String = AppInfo.shortVersion
     ) -> String? {
@@ -64,6 +70,7 @@ enum CLIMode {
         let token = args[1]
         if versionTokens.contains(token) { return "ocoreai \(shortVersion)" }
         if helpTokens.contains(token) { return usageText(version: shortVersion) }
+        if openAPITokens.contains(token) { return OpenAPIDocument.render() }
         return nil
     }
 }

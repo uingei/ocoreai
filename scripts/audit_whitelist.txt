@@ -37,3 +37,10 @@ NetworkSensor.swift :: URL\(string: "https:// :: 1
 # second writer from appearing, so the exemption names the owner's own line, not its file:
 # another `Memory.cacheLimit =` anywhere in MLXBridge.swift now goes red.
 MLXBridge.swift :: MLX\.Memory\.cacheLimit = 256 :: 1
+
+# OpenAPIDocument: "3.1.0" is the OpenAPI *spec* version this document is written against, a protocol
+# choice like a wire version — not a release number. Class-G exists because About, /metrics and MCP each
+# froze the app version while v0.1.6 was on the wire; the app version appears nowhere in this file
+# (`info.version` reads `AppInfo.shortVersion`), and probe 42 §4 asserts the served document's version
+# equals the same binary's own `--version`, so a frozen app version would go red where it would matter.
+OpenAPIDocument.swift :: specVersion = "3\.1\.0" :: 1

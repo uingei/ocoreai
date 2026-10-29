@@ -170,6 +170,7 @@ enum AuthRoutePolicy {
         "/v1/capabilities",
         "/v1/stats",
         "/metrics",
+        "/openapi.json",
     ]
 
     /// HTTP methods that require admin-level API keys.

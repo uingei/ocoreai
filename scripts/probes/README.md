@@ -302,6 +302,30 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     the same day by pinning a wrong version: `11 passed, 1 failed`, exit 1. Its seat is
     `.github/workflows/package.yml`, which builds the DMG on a clean runner and holds no write token.
 
+- `42-openapi-contract.sh` — is the published OpenAPI document the server, or a description of it?
+    `GET /openapi.json` renders from `V1EndpointCatalog` and the committed `openapi.json` is `make
+    openapi` over that same render, so both artefacts are generated — but a compile-time test cannot
+    see a socket. No weights: a script drives the engine, so this is a k=1 wire verdict in the tier
+    probe 37 established. §1 it is served (200, `application/json` and not a quoted JSON string,
+    parses, `openapi` present, and a floor of 30 operations — an empty `paths` would satisfy every
+    subset claim below). §2 the route set is the index: spec method+path pairs must equal
+    `/v1/capabilities` `endpoints[]` after `:id` → `{id}`, in **both** directions, with either side
+    empty counted as a rotted scan. §3 the documented envelope is the served envelope: every key the
+    spec marks required on `error` must be on a real 404, at the code and `error_code` it names. §4
+    the document describes the process serving it — `info.version` equals that same binary's
+    `--version`, and its route set equals that binary's `--openapi` stdout, which is the live half of
+    "the committed artefact and the running server are one artefact". §5 it binds nothing:
+    `servers[0].url` is `/` and no `127.0.0.1` / `localhost` / `:8080` appears, because the bind
+    truth is the four `OCOREAI_PORT` reads and a fifth copy in a spec would describe a deployment
+    that may not exist. No CI seat on purpose: `OpenAPIContractTests.committedArtefactIsTheRenderedDocument`
+    already turns a stale `openapi.json` red inside `make test-ci`, and a second job over the same
+    claim costs runner minutes it does not buy. Green 10-29 against a scripted serve: **15 passed, 0 failed,
+    4 measured** in 3 s. Two reds were sampled on the way and both are why §2 is written the way it is — a
+    ~14 KB `endpoints[]` payload will not fit in `argv` ("File name too long"), and `json.load` of that
+    payload from an env var raised inside the heredoc, which made the comparison print *nothing*. An
+    uninformative red is the bug this probe exists to avoid, so §2 carries the body by environment, captures
+    stderr into the verdict, and fails outright when the comparison yields no verdict at all.
+
 - `_lib.sh` — shared harness
 Fails when: —
 

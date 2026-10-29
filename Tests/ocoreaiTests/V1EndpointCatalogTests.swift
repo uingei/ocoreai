@@ -150,9 +150,15 @@ struct V1EndpointCatalogTests {
         // unauthenticated surface, and dropping one breaks clients that were told to expect
         // it open. Either way this must be a deliberate edit, in the same change as the
         // README rows that publish it.
+        // 10-29: `/openapi.json` joined this set. Deliberate, and the argument is measurable,
+        // not taste — everything the contract discloses (the route set, and each route's auth
+        // scope) is already public on `/v1/capabilities`, which has been in this set from the
+        // start. An open document therefore reveals no path an unauthenticated caller could not
+        // already enumerate; closing it would hide the shape from the agents we want to install
+        // us without narrowing what a stranger can see.
         let documented: Set<String> = [
             "/health", "/ready", "/metrics", "/v1/models", "/v1/tools", "/v1/capabilities",
-            "/v1/stats",
+            "/v1/stats", "/openapi.json",
         ]
         #expect(
             AuthRoutePolicy.publicPaths == documented,

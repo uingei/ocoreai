@@ -990,6 +990,26 @@ func buildRouter(
         return try Response.json(skillsList)
     }
 
+    // MARK: OpenAPI contract
+
+    // Rendered per request, never read from a file: the committed openapi.json is the same
+    // bytes re-derived by `make openapi`, and a served copy that could go stale would be the
+    // second home this repo keeps deleting. Open by design — everything it discloses (route
+    // set, auth scope) is already public on /v1/capabilities.
+    routes.get("/openapi.json") { _, _ in
+        let text = OpenAPIDocument.render()
+        var headers: HTTPFields = [:]
+        headers[.contentType] = "application/json"
+        return Response(
+            status: .ok,
+            headers: headers,
+            body: .init { writer in
+                try await writer.write(ByteBuffer(string: text))
+                try await writer.finish(nil)
+            },
+        )
+    }
+
     // MARK: Metrics
 
     let metricsMiddleware = MetricsTrackingMiddleware<OCoreAIContext>(metrics: metrics)

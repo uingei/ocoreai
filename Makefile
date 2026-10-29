@@ -25,7 +25,7 @@ else
   endif
 endif
 
-.PHONY: all build release release-mac27 app dmg test test-verbose test-coverage test-ci probes format format-check audit docs-check anchor-check round-gates clean metallib help ci-local push-ready ci-status spell links install-hooks
+.PHONY: all build release release-mac27 app dmg test test-verbose test-coverage test-ci probes format format-check audit docs-check anchor-check round-gates clean metallib help ci-local push-ready ci-status spell links install-hooks openapi
 
 all: build
 
@@ -429,6 +429,14 @@ sf-pin:
 # the docs.
 docs-check:
 	bash scripts/agents-md-contract.sh check
+# The OpenAPI contract is a generated artefact, so it needs a command that produces it and a
+# test that notices it was not. `OpenAPIContractTests` fails the suite when the committed
+# openapi.json differs from what the binary renders; this target is the other half — the route
+# itself serves the same render, so nothing here trusts the file.
+openapi: build
+	@.build/debug/ocoreai --openapi > openapi.json
+	@echo "wrote openapi.json ($$(wc -c < openapi.json | tr -d ' ') bytes from the built binary)"
+
 
 ## Pinned codespell, version asserted before use, vocabulary in .codespellrc. CI runs the same pinned
 ## hook in the ubuntu `governance` leg (pre-commit), so this is the local rung, not a second job: no
@@ -533,6 +541,7 @@ help:
 	@echo "  make docs-budget    Lower the AGENTS.md size cap (shrink-only)"
 	@echo "  make format-check   Check format compliance (exit 1 if dirty)"
 	@echo "  make audit          Run static audit (failure pattern check)"
+	@echo "  make openapi        Regenerate openapi.json from the built binary (a test asserts it matches)"
 	@echo ""
 	@echo "Dev:"
 	@echo "  make clean          Remove build artifacts"

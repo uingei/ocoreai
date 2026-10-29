@@ -3,6 +3,17 @@
 > Material `AGENTS.md` § *Open* used to carry prose for although it was resolved, retracted or
 > judged a phantom gap. An open item is one that can still change a decision; a verdict is
 > history, and history kept in the injected layer costs every session.
+- **A stale release row that said we ship — resolved by shipping (10-29).** Measured 10-28:
+  `api.github.com` `/releases/latest` served `v0.1.13` (published 10-11, asset `ocoreai-0.1.13.dmg`
+  25 472 769 B) while `git tag -l`, `/tags`, `/releases` and the Releases page reported none and that asset
+  URL answered 404 — the endpoint a bot asks first said we ship, the page a human asks said we never had. The
+  owner took the second exit: tag `v0.1.14` ran the `release` job end to end and the API now answers one
+  release, `v0.1.14`, 0 d old, one asset `ocoreai-0.1.14.dmg` at 25 965 037 B, and `/releases/latest` agrees
+  with the page for the first time. What is *not* closed is cadence: one release beside the field's 44 →
+  ≥1 254 is a data point, so the rung stays open and `AGENTS.md` § Adoption now states 1 with a
+  `tags_published>=1` claim under it, re-run by `make docs-check`. Reproduce: `curl -s
+  api.github.com/repos/uingei/ocoreai/releases` and `git tag | wc -l`. Numbers: `CHANGELOG.md` 10-29(50).
+
 - **The runner's probe stall — the harness walked a path forever (10-29).** `Wire probe 37` died on its 180 s
   step bound while the same box ran 3 210 tests and the headless serve contract green, and the probe log's
   last line predated the harness's first note. Cause: `probe_scratch_for_binary` walks up from the binary

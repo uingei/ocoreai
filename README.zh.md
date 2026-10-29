@@ -113,8 +113,9 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 | `GET`  | `/health` | 存活检查 |
 | `GET`  | `/ready` | 就绪探针（`ready`/`busy`） |
 | `GET`  | `/metrics` | Prometheus 指标（文本格式） |
+| `GET`  | `/openapi.json` | OpenAPI 3.1 契约，由端点索引生成（见仓库根 `openapi.json`） |
 
-> 免认证 public 路由：`/health`、`/ready`、`/v1/models`、`/v1/tools`、`/v1/capabilities`、`/v1/stats`、`/metrics`（与 `AuthMiddleware.publicPaths` 一致）。所有 `PATCH`/`DELETE` 需 admin key（`OCOREAI_ADMIN_KEYS`）。
+> 免认证 public 路由：`/health`、`/ready`、`/v1/models`、`/v1/tools`、`/v1/capabilities`、`/v1/stats`、`/metrics`、`/openapi.json`（与 `AuthRoutePolicy.publicPaths` 一致）。所有 `PATCH`/`DELETE` 需 admin key（`OCOREAI_ADMIN_KEYS`）。
 > 模型 id 里的 `/` 写成 `%2F`。
 
 
@@ -125,6 +126,10 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 ### 让另一个 Agent 来驱动
 
 `skills/ocoreai/` 是一份对外发布的 skill，教外部 harness——Claude Code、Codex，或任何读 Markdown 文件的 agent——驱动本服务：端点索引、agent 循环契约，以及把 `not_observed` 与 `supported` 分开的诚实词表都在里面。它是被执行验证的，不是被采信的：`bash scripts/probes/run.sh 39` 自起一个服务、跑完每一条文档化的调用，命中的 marker 少于自己的下界就判红。安装：`cp -R skills/ocoreai ~/.codex/skills/`（其他宿主见 `skills/README.md`）。不想读文档的客户端可以直接从 `GET /v1/capabilities` → `endpoints[]` 枚举同一套接口，那份索引由构建门钉在路由上。
+
+连文档都不读的客户端可以直接拿契约：仓库根的 `openapi.json`，或者向运行中的服务 `GET /openapi.json`。两者是同一份生成结果——`make openapi`
+用刚构建出的二进制重新生成该文件（`ocoreai --openapi`），而只要 git 里的文件与渲染结果除了版本号还有任何差异，`OpenAPIContractTests`
+就把整个测试套件判红。这里没有一份需要有人记得去更新的手写 API 描述。
 
 ---
 

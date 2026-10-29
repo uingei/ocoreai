@@ -169,6 +169,12 @@ enum V1EndpointCatalog {
         RouteSpec(
             method: "GET", path: "/sessions/search", note: "FTS5 search over session history"),
         RouteSpec(method: "GET", path: "/skills", note: "Installed skills"),
+        RouteSpec(
+            method: "GET", path: "/openapi.json",
+            note:
+                "OpenAPI 3.1 contract for this surface, rendered from this catalog (the committed "
+                + "openapi.json is `make openapi` over these same bytes)"
+        ),
     ]
 
     /// Wire lines with `auth` resolved against the middleware that enforces it.

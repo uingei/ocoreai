@@ -1,0 +1,1637 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ocoreai",
+    "version": "dev",
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "description": "Local-first HTTP surface for open models on Apple silicon. This document is generated from V1EndpointCatalog — the same index GET /v1/capabilities publishes as `endpoints[]`, pinned to the router's registrations by its own test. Request and response bodies are documented at the type level on purpose: the field-level contracts that matter to a caller live where they are enforced, as JSON Schemas on GET /v1/tools (tools[] for a turn) and in the capability rows on GET /v1/capabilities (what this process actually did, not what its SDK permits).",
+    "x-generated-from": "Sources/ocoreai/Router/V1EndpointCatalog.swift",
+    "x-regenerate": "make openapi"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "The origin this document was served from. Read as a file instead of over HTTP there is no origin: bind the host and port the process actually uses (OCOREAI_HOST / OCOREAI_PORT, or the values the GUI shows)."
+    }
+  ],
+  "security": [],
+  "tags": [
+    {
+      "name": "v1",
+      "description": "OpenAI-compatible chat, completions, embeddings, multimodal, model inventory"
+    },
+    {
+      "name": "discovery",
+      "description": "Self-description: models, capabilities, tools, stats, this document"
+    },
+    {
+      "name": "operations",
+      "description": "Liveness, readiness, metrics, sessions, skills, MCP"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "parameters": [],
+      "get": {
+        "operationId": "get_health",
+        "summary": "Process liveness + engine pool summary",
+        "tags": [
+          "operations"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/ready": {
+      "parameters": [],
+      "get": {
+        "operationId": "get_ready",
+        "summary": "Readiness: ready when no session is generating",
+        "tags": [
+          "operations"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/models": {
+      "parameters": [],
+      "get": {
+        "operationId": "get_v1_models",
+        "summary": "Model inventory (vlm, contextLength, defaultModel)",
+        "tags": [
+          "discovery"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/tools": {
+      "parameters": [],
+      "get": {
+        "operationId": "get_v1_tools",
+        "summary": "Tool registry with JSON schemas",
+        "tags": [
+          "discovery"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/capabilities": {
+      "parameters": [],
+      "get": {
+        "operationId": "get_v1_capabilities",
+        "summary": "Backend matrix + tokenizer + instruction budget + this index",
+        "tags": [
+          "discovery"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/stats": {
+      "parameters": [],
+      "get": {
+        "operationId": "get_v1_stats",
+        "summary": "Structured inference counters and gauges",
+        "tags": [
+          "discovery"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/perception": {
+      "parameters": [],
+      "get": {
+        "operationId": "get_v1_perception",
+        "summary": "Persistent-perception gauge snapshot",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "parameters": [],
+      "get": {
+        "operationId": "get_metrics",
+        "summary": "Prometheus text exposition",
+        "tags": [
+          "operations"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "text/plain; version=0.0.4": {
+                "schema": {
+                  "type": "string",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/messages": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1_messages",
+        "summary": "Anthropic Messages API (stream + non-stream; text/image/tool_result blocks carried, any other block type refused by name)",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/messages/count_tokens": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1_messages_count_tokens",
+        "summary": "Anthropic token pre-flight for a message list",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/steer": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1_steer",
+        "summary": "Mid-turn steer: tool boundary of the live turn, else head of the next",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/chat/completions": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1_chat_completions",
+        "summary": "Chat completion (stream + non-stream, tools, structured output; audio_url is heard to text or refused, never dropped)",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/completions": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1_completions",
+        "summary": "Legacy text completion",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1",
+        "summary": "Auto-route: prompt -> completions, messages -> chat",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/count-tokens": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1_count_tokens",
+        "summary": "Token count for prompt | input | messages",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/embeddings": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1_embeddings",
+        "summary": "Text embeddings",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/models/train": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1_models_train",
+        "summary": "Start a fine-tune run for a model",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/models/evaluate": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1_models_evaluate",
+        "summary": "Evaluate a model against a suite",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/models/{model}/sampling": {
+      "parameters": [
+        {
+          "name": "model",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Model id exactly as GET /v1/models publishes it. One path segment: ids shaped `org/name` must be percent-encoded (%2F) here — measured, verbatim 404s, encoded 200s."
+        }
+      ],
+      "get": {
+        "operationId": "get_v1_models_by_model_sampling",
+        "summary": "Runtime sampling configuration (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404)",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patch_v1_models_by_model_sampling",
+        "summary": "Hot-swap sampling parameters (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404)",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_v1_models_by_model_sampling",
+        "summary": "Reset one model's sampling defaults (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404)",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/models/sampling": {
+      "parameters": [],
+      "delete": {
+        "operationId": "delete_v1_models_sampling",
+        "summary": "Reset all sampling defaults",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/models/{model}/kv-cache": {
+      "parameters": [
+        {
+          "name": "model",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Model id exactly as GET /v1/models publishes it. One path segment: ids shaped `org/name` must be percent-encoded (%2F) here — measured, verbatim 404s, encoded 200s."
+        }
+      ],
+      "get": {
+        "operationId": "get_v1_models_by_model_kv_cache",
+        "summary": "Planned KV cache topology, capacity disposition, and the measured dispositions — prefix reuse, tool-declaration prose, and which reuse rule turned a warm session away (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404)",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/models/download": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1_models_download",
+        "summary": "Fetch a model into the local cache — `model` is a relative `org/name` (absolute paths and `..` are refused 400 naming the field; `provider` hf|mscope, `revision`/`useLatest` optional)",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/audio/transcriptions": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1_audio_transcriptions",
+        "summary": "Speech to text, on-device (multipart `file`, or JSON `audio` base64 / `url` file://; `model` and `prompt` accepted and not used by the engine; `verbose_json` and timestamps refused — refusals name the axis: permission, locale, or engine)",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/multimodal/capture": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1_multimodal_capture",
+        "summary": "Camera / microphone / screen capture (`success: true` only when bytes came back; the mic is two-phase — first call starts, second returns the sample)",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/multimodal/speak": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1_multimodal_speak",
+        "summary": "Text-to-speech (needs speakerEnabled and at least one installed voice)",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/v1/multimodal/status": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1_multimodal_status",
+        "summary": "Multimodal toggles + measured permissions, device/voice counts, screen delivery evidence (ready needs a captured frame), per-channel ready|blocked|unknown|unsupported verdicts and reasons",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/mcp": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_mcp",
+        "summary": "MCP JSON-RPC (single message per request)",
+        "tags": [
+          "operations"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/sessions": {
+      "parameters": [],
+      "get": {
+        "operationId": "get_sessions",
+        "summary": "List stored sessions",
+        "tags": [
+          "operations"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/sessions/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Path parameter as registered by the router."
+        }
+      ],
+      "delete": {
+        "operationId": "delete_sessions_by_id",
+        "summary": "Delete one session",
+        "tags": [
+          "operations"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/sessions/{id}/memory": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Path parameter as registered by the router."
+        }
+      ],
+      "get": {
+        "operationId": "get_sessions_by_id_memory",
+        "summary": "Hot window (recent messages) of a session",
+        "tags": [
+          "operations"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/sessions/search": {
+      "parameters": [],
+      "get": {
+        "operationId": "get_sessions_search",
+        "summary": "FTS5 search over session history",
+        "tags": [
+          "operations"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/skills": {
+      "parameters": [],
+      "get": {
+        "operationId": "get_skills",
+        "summary": "Installed skills",
+        "tags": [
+          "operations"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "parameters": [],
+      "get": {
+        "operationId": "get_openapi.json",
+        "summary": "OpenAPI 3.1 contract for this surface, rendered from this catalog (the committed openapi.json is `make openapi` over these same bytes)",
+        "tags": [
+          "discovery"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Authorization: Bearer <key> — the primary route."
+      },
+      "apiKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "api-key",
+        "description": "OpenAI-compatible fallback, checked second."
+      },
+      "apiKeyQuery": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "api_key",
+        "description": "Debug convenience, checked last."
+      }
+    },
+    "responses": {
+      "AppError": {
+        "description": "Envelope emitted by AppError.response and RouteNotFoundError: always `message`, `type`, `code`, plus the typed keys the failure earns (`error_code`, `remediation`, `param`, `value`, `details`, `retry_after_seconds`, `post_tokens`/`cap`, `used_gb`/`budget_gb`).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "message",
+              "type",
+              "code"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "app_error",
+                  "invalid_request_error",
+                  "rate_limit_error"
+                ]
+              },
+              "code": {
+                "type": "integer"
+              },
+              "error_code": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

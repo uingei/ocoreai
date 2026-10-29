@@ -13,4 +13,5 @@ Long form for § Documentation Map in `AGENTS.md`.
 | `ARCHITECTURE.md` | Human | the shape of the layers, for a reader who will not read the code first |
 | `CONTRIBUTING.md` | Human + Agent | the three questions, floor/ceiling semantics, the docs contract's operator rules |
 | `scripts/probes/README.md` | Human + Agent | one row per live probe: what it asserts, what it measured, which shape goes red |
+| `openapi.json` | Machine (a generated client, an agent harness) | never by hand — `make openapi` writes it from the built binary, and `OpenAPIContractTests` fails the suite when git and the render differ |
 

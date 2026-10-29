@@ -113,7 +113,7 @@ reads when it becomes true. The shape worth adding is a release-tag axis (it pub
 | sglang | ≥63 | 9 d | 0 | docs-site route |
 | hermes-agent | 44 | 4 d | 0 | canary + stable + desktop-bundled workflows, no assets |
 | coreai-models | 2 | 15 d | 0 | the reference-tree shape: consumed as a dependency, never installed |
-| **ocoreai** | **0** | — | — | no tag has ever existed here |
+| **ocoreai** | **1** | 0 d | 1 | the DMG a stranger drags (`ocoreai-0.1.14.dmg`, 25 965 037 B), published 10-29 by the `release` job — one data point, not a cadence |
 
 The rule this implies, ranked by how much it changes spending:
 

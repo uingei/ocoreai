@@ -41,7 +41,7 @@ Two numbers decide how the ladder reads. Effort, one 14-day window (`git log --s
 --oneline | wc -l`; tags from `git tag | wc -l`; author emails from `--format='%ae' | sort -u`):
 openclaw 11 359 commits / 543 tags / 320 emails, hermes-agent 5 714 / 234, TensorFold 2 724 / 50,
 Strata 2 381 / 67, deepseek-harness 1 570 / 33, opencode 1 126 / 1 156, codex 587 / 1 501, ollama 62 / 719 —
-**ours 1 453 commits, 4 authors, 0 tags.** Rate is the finding that had to
+**ours 1 453 commits, 4 authors, 0 tags then; `v0.1.14` landed 10-29.** Rate is the finding that had to
 delete a sentence: this file claimed the field's best sustained rate is ~150/day and openclaw's total is
 "~7 years of growth". Measured 10-28 the category's own record is **263 687 stars in 76 days**
 (deepseek-harness, 3 469/day), with openclaw at 1 163/day and Strata — created 2026-09-24, the closest
@@ -116,14 +116,14 @@ Codex, local models) are plugins you can swap" (`../references/openclaw/README.m
 here needs a model behind it; ocoreai is the only tree that is model *and* harness on one die, offline, with
 no key. So the wedge is not to out-loop codex — it is to be the local-model plugin those loops install.
 
-What that costs, and what landed 10-28 (the audit's own first pass over-claimed the gap: it had not read
-`GET /v1/capabilities`, invariant 2 cuts both ways):
+What that costs, and what landed 10-28/29 (the audit's first pass over-claimed the gap: it had not
+read `GET /v1/capabilities`, invariant 2 cuts both ways):
 
-halfcontractskill- **The instrument runs the artefact**: `scripts/probes/39-skill-contract-exec.sh` boots its own server and
+- **The instrument runs the artefact**: `scripts/probes/39-skill-contract-exec.sh` boots its own server and
   executes every marker — 14 `exec:` on the scripted lane (nothing resident) and 5 `exec-model:` against a
   ready checkpoint — flooring its own marker counts at 12/4 so a scan that stops matching is red, not
   vacuously green. CI runs it as its own step since 10-29 (7 s on the runner).
-notproven## The first screen — twenty lines decide
+## The first screen — twenty lines decide
 
 - **Badge the artefact, not the language**: opencode `README.md:12-14` (Discord members, npm version,
   release-workflow status), omlx `README.md:12-14` (license, Python range, **platform: Apple Silicon** — the

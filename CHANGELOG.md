@@ -9,6 +9,49 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(51) The HTTP surface got a contract it cannot lie with, and six files noticed we had already shipped**
+
+- **What improved.** The surface now publishes a machine-readable contract instead of a description of
+itself: `GET /openapi.json` renders OpenAPI 3.1 from `V1EndpointCatalog` — the index
+`V1EndpointCatalogTests` already pins to the router — and `openapi.json` at the repo root is those same
+bytes, written by the new `ocoreai --openapi` token through `make openapi`. ollama and opencode are the
+only two of the twenty comparator trees that publish a spec at all (measured 10-29), and both keep it by
+hand or by a separate generator; ours is derived, so the copy nobody remembers does not exist.
+`AuthRoutePolicy.publicPaths` gained the route — every path and auth scope a contract discloses is already
+public on `/v1/capabilities`, so it hides nothing new — `error.type` is an enum of the three values the
+emit site actually writes (`app_error`, `invalid_request_error`, `rate_limit_error`) rather than the one
+constant the first draft claimed, and `servers` is `/` because the bind truth lives in four `OCOREAI_PORT`
+reads and a fifth copy would describe a deployment that may not exist. The same round fixed the bug class
+this artefact exists to prevent, in our own docs: `v0.1.14` shipped 10-29 while six files still said 0
+tags / 0 releases and named `v0.1.14` as the number to type next. Corrected in `AGENTS.md`, in
+`long-horizon-goal.md` (3 sites), in `adoption-runbook.md` and in `competitor-iteration-paths.md`; the
+stale-release-row item moved to `closed-items-log.md`; the re-typed version number left `AGENTS.md` for
+good, and two stray tokens (`halfcontractskill-` and `notproven`) that had been rendering in the runbook
+since 10-28 left with it.
+
+- **What same-session output proves it.** `make openapi` → 41 176 B, 33 paths, 35 operations, straight off
+the built binary, and `json.load` parses it. `make test FILTER='V1EndpointCatalog|OpenAPIContract'` → 14
+tests / 2 suites green; `FILTER=CLIModeTests` → 6/6. The artefact gate's own red was sampled before it was
+believed: with `print` still owning the newline, the committed file and the render differed by one
+trailing byte, and the gate said so with the remedy — run `make openapi` and commit the file in the same
+change. `make docs-check` reports 33/33 claims in both host modes, including the new `tags_published>=1`;
+`anchor-check` 75/75; codespell clean. Release state re-read from `api.github.com`: 1 release, `v0.1.14`,
+0 d, one asset at 25 965 037 B; `git tag | wc -l` = 1.
+
+- **Which gate goes red if it regresses.** `OpenAPIContractTests` (5): the committed file against the
+render with `info.version` the only tolerance; spec method+path against the catalog in both directions
+with a floor of 30 operations; every `{param}` declared and `model` still stating the `%2F` rule probe 03
+measured; `required[]` and the `error.type` enum re-read from the literals at the two emit sites instead
+of typed into the test; and no host or port literal anywhere. `CLIModeTests.openAPITokens` pins the token
+and that a report owns exactly one newline. `V1EndpointCatalogTests` keeps route and auth set equality —
+now 35 routes, 8 public paths — and pins both READMEs' public-route lines in the same change. Live half:
+`scripts/probes/42-openapi-contract.sh`, no weights — §2 spec against the served index, §3 a real 404
+carrying the documented keys, §4 `info.version` against the same binary's `--version` and its route set
+against that binary's stdout. Deliberately no CI seat: a stale artefact already goes red inside
+`make test-ci`, and a second job over one claim buys runner minutes, not verdicts. Docs:
+`tags_published>=1` re-runs `git tag` on every `make docs-check`, so the next release moves the sentence
+or stops the build.
+
 **10-29(50) v0.1.14 published — the launch leg ran its own job for the first time, and the board landed on a real model**
 
 - **What improved.** The release job had never executed the job it exists to run (v0.1.12 died twice at

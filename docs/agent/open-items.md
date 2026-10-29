@@ -118,13 +118,6 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   is not a measurement and not an audit — it is the owner pushing a tag, the only act here that makes a
   surviving gate someone else's problem to run.
 
-- **A stale release row that says we ship** (docs/, adoption/) — `api.github.com` `/releases/latest` still
-  serves `v0.1.13` (published 10-11, asset `ocoreai-0.1.13.dmg` 25 472 769 B) while `git tag -l`, `/tags`,
-  `/releases` and the Releases page report none and that asset URL answers **404**. The endpoint a bot asks
-  first says we ship; the page a human asks says we never have. Owner call: delete the orphan object, or
-  land `v0.1.14` so the page lists a newest within days. Measured 10-28, and why § Adoption of `AGENTS.md`
-  now reads "0 *listed* releases".
-
 - **The release job holds the publish credential while it runs repository code** (CI/) —
   `.github/workflows/ci.yml:403` carries `contents: write` (`:410`) and builds inside that job (`:414`
   metallib, `:424` `build-dmg.sh`, and the GUI proof under them), so a compromised dependency in the build holds the
