@@ -9,6 +9,30 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(50) v0.1.14 published — the launch leg ran its own job for the first time, and the board landed on a real model**
+
+- **What improved.** The release job had never executed the job it exists to run (v0.1.12 died twice at
+`upload-artifact`; everything after was rehearsal). Tag `v0.1.14` @`ffc58e0` ran Release DMG end to end:
+MetalToolchain → appStore-trait DMG (25 965 037 B) → window proof → probe 41 with the version pinned to
+THE TAG → publish → read-back. Same round adds the scoreboard's real-model arm: same `tasks.json+b709e8aab69d`
+and tool hash `d9b1028a196a`, 6-tool face, k=2, `mlx-community/Qwen3.6-35B-A3B-4bit` (the only other
+checkpoint resident in `~/.ocoreai/models`; config `modelId` swapped for the run, restored after).
+
+- **What same-session output proves it.** Release live: `github.com/uingei/ocoreai/releases/tag/v0.1.14`,
+asset digest `sha256:229604e0…e1f454`, all ten job steps green. Board: **34/39 (87.2%), SD 0.00, FLAKY 0**
+against the gemma-e2b 6-tool arm's 22.67/39 (58.1%) — different checkpoints, so color not paired verdict;
+the shape is the fact: **every Execute/Verify face passes 34/34 stable**, all 5 stable-fails are faces this
+file already names (3 structured `json-*`, 2 honesty `no-fabrication*`). Efficiency: ms_per_success 11 944,
+tokens_per_success 2 944, usage parsed 39/39.
+
+- **Which gate goes red if it regresses.** the tag path itself: probe 41 sits before Publish (a red
+publishes nothing), the read-back step judges the published digest, and `ci-status.sh` counts the leg. The
+board row is re-runnable: `_repeat_stats.py` + the `# conditions` line name model, binary and tool hash.
+
+- **Honest limits.** 87.2% is k=2 — single-run floor ±4.1 tasks; the gemma comparison is unpaired across
+models, not an A/B; the two AGENTS.md sentences that still say "0 tags, 0 releases" and "publish has never
+run" are stale against this entry and await the owner (protected path).
+
 **10-29(49) `push-ready` ran its gates behind the one wall every push walks past**
 
 - **What improved.** `worktree-hygiene.sh` opened the recipe, and its first failure is almost always "N

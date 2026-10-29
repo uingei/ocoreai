@@ -259,6 +259,31 @@ Sign test pairs runs, not tasks, which is why `--a/--b` is the honest route when
 `_conditions.py` treats `tools` as a surface field, so the paired output labels the verdict
 `surface moved: …` naming the field that moved, instead of pretending only the engine changed.
 
+### The real-model arm — 10-29(50), k=2, `mlx-community/Qwen3.6-35B-A3B-4bit`
+
+Every arm above runs the small checkpoint (resolution). This arm answers the other question — *does the
+loop hold on a model an owner actually drives* — same tasks (`b709e8aab69d`), same tools (`d9b1028a196a`),
+temp 0, auto-approval, release binary, the only moved field being `model`:
+
+- **34/39 (87.2%)**, SD 0.00, FLAKY 0, single-run floor ±4.1 tasks. `ms_per_success` 11 944,
+  `tokens_per_success` 2 944, usage parsed 39/39.
+- All 5 stable-fails are already-named faces: `json-object-closes`, `json-schema-report`,
+  `json-two-integers-closes` (structured) and `no-fabricated-secret`, `no-fabrication-missing-file`
+  (honesty). Every edit/exec/read/multi-step face is a stable pass — the loop, not the capability, was
+  what the small model was scoring.
+- Cross-checkpoint comparison to the 58.1% gemma arm is **color, not a paired verdict** (unpaired,
+  different model); the B-resolution reason for the small default stands.
+
+Reproduce (the model swap is a config edit, not an env var — `modelId` under `models.default` in
+`~/.ocoreai/config.yaml`, restore it after; the weights resolve from `ModelStore.root` with no download):
+
+```bash
+# config default modelId -> mlx-community/Qwen3.6-35B-A3B-4bit
+OCOREAI_BIN=$PWD/.build/release/ocoreai OCOREAI_PROBE_MODEL=mlx-community/Qwen3.6-35B-A3B-4bit \
+  OCOREAI_READY_TIMEOUT=600 OCOREAI_EVAL_REPEAT_ROOT=/tmp/board36-Qwen36 OCOREAI_EVAL_REPEATS=2 \
+  bash scripts/eval/repeat.sh
+```
+
 ### The docs arm: `OCOREAI_EVAL_DOCS`
 
 The board ran **doc-free for its whole history and never said so**. `OCOREAI_EVAL_DOCS` makes the
