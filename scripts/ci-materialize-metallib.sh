@@ -3,17 +3,21 @@
 # scripts/build-app.sh looks first.
 #
 # ### Why this is one script and not a step in a workflow
-# SwiftPM does not compile `.metal`: the sources live in the Xcode target mlx-swift_Cmlx, so
-# `swift build -c release` links 382/382 and emits no default.metallib. The 2026-09-27 release leg
-# died exactly there ("default.metallib not found" from build-app.sh) after local builds passed on a
-# stale DerivedData product a clean runner does not have. Three decisions are involved — produce it
+# The premise that made this script: on 2026-09-27 a clean runner had no `metal` compiler, so
+# `swift build -c release` linked 382/382 and emitted no default.metallib, and the release leg died on
+# build-app.sh's "default.metallib not found" after local builds passed on a stale DerivedData product.
+# What that log actually showed was a missing compiler, not a SwiftPM limit: measured 10-29 on a macos-26
+# runner holding the MetalToolchain component, `swift build -c release --traits appStore` put a 2 389 928 B
+# default.metallib at the SwiftPM product path (`rung: swiftpm-product`) with no xcodebuild in the job.
+# `package.yml` has therefore stopped calling this script; the release leg keeps calling it until that
+# lane is green without it, and then this file is deleted rather than kept as a second producer.
+# Three decisions are involved — produce it
 # (xcodebuild), find it (scripts/resolve-metallib.sh, the one ladder: it floors the size and names
 # the rung that won), stage it (build-app.sh's first candidate path) — and a workflow step that
 # re-implements the middle one is how a release leg drifts from every gate on the same host.
 #
-# Both packaging lanes call this, so the command that runs on tag day is the command that ran green
-# on main the day before: `.github/workflows/package.yml` (no publish, every packaging change +
-# nightly) and the tag-gated `release` job in ci.yml.
+# One packaging lane calls this today: the tag-gated `release` job in ci.yml. `.github/workflows/package.yml`
+# (no publish, every packaging change + nightly) used to, and stopped on 10-29 to rehearse deleting it.
 #
 # Usage: ci-materialize-metallib.sh [scratch-dir]     (default: .build)
 # stdout: the staged path, nothing else. stderr: progress. exit 1 names the remedy.

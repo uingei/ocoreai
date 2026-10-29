@@ -93,10 +93,14 @@ jobs:
         # copy of this chain; package.yml runs it first, so a regression here is found on main.
         run: xcodebuild -downloadComponent MetalToolchain
 
-      - name: Materialize mlx metallib
-        # One script, both lanes — see scripts/ci-materialize-metallib.sh.
-        run: bash scripts/ci-materialize-metallib.sh
-
+        # No metallib step in this lane, and that is a measurement rather than an oversight: on 10-29 the
+        # appStore leg printed `rung: swiftpm-product · 2 389 928 bytes` at the SwiftPM product path with no
+        # xcodebuild anywhere in the job and nothing metallib in the cache paths, so SwiftPM does compile
+        # `.metal` once a metal compiler exists — which build-app.sh arranges itself by evaluating
+        # `toolchain-contract.sh print-delivery-env` when SDKROOT is unset. What catches a regression is not
+        # a hope: build-app.sh exits 1 when no candidate carries the payload, and probe 41 §1 reds on a
+        # bundle whose shipped library is missing or too small. The release leg still runs the script, and
+        # stops when this lane has gone green without it — the minutes are the reason to rehearse here.
       - name: Build the DMG (the same script the release leg runs)
         run: |
           set -euo pipefail

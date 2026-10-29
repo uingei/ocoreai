@@ -9,6 +9,35 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(43) "SwiftPM does not compile `.metal`" was a missing compiler, and the nightly lane stopped paying for it**
+
+- **What improved.** The xcodebuild producer exists because a clean runner on 09-27 had no `metal`
+compiler, and the step name generalised that into a claim about SwiftPM. The observation step 10-29(39)
+added to answer exactly this came back with the answer: on the appStore leg, `swift build -c release
+--traits appStore` printed `rung: swiftpm-product · 2 389 928 bytes` at the SwiftPM product path. That job
+is checkout → cache → MetalToolchain → build → observation, so no xcodebuild ran, and the cache covers
+`.build/checkouts` and `~/.cache/org.swift.swiftpm/repositories` — nothing restored that file.
+`package.yml` now builds the DMG without the producer, which is 633 s of its 23.7 minutes; `release` still
+runs it, because tag day is the wrong first day to learn the answer, and the script's header now states
+the premise as measured instead of as a property of SwiftPM.
+
+- **What same-session output proves it.** The annotations quoted above plus `delivery route: … metal=/priv
+ate/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-…/Metal.xctoolchain/usr/b
+in/metal`, which is why the compiler was there; `scripts/build-app.sh:15-17`, which evaluates `toolchain-
+contract.sh print-delivery-env` itself when SDKROOT is unset, so no workflow step had to; and the script's
+own error line, which has always told the reader to "run 'swift build' once (any config) so SPM
+materializes the Cmlx bundle" — the build has been the producer all along.
+
+- **Which gate goes red if it regresses.** Two, both already existing: `build-app.sh` exits 1 when no
+candidate path carries the payload (its remedy now names the CI cause beside the local one), and probe 41
+§1 reds when the shipped `Contents/MacOS/mlx.metallib` is missing or under the size floor — the 09-27
+failure judged on the artefact that would ship it. No new check was written for this.
+
+- **Honest limits.** The lane's verdict on its own deletion arrives with the run this push starts, not
+before it: the numbers above prove SwiftPM built the payload in the appStore leg, not yet that `build-
+dmg.sh` on that lane packages a serving app without the producer — probe 41 decides that, and a red there
+is an answer rather than a mystery. Until it lands, `release` still pays 630–970 s, and this script is
+deleted in a later commit with the lane's green behind it, not kept as a second producer.
 **10-29(42) The deferred numbers arrived, and the first screen now points at the lane that produced them**
 
 - **What improved.** 10-29(39) left two sentences in the air — whether the SPM cache bites, and whether a

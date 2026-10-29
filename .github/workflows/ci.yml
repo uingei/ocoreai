@@ -388,14 +388,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Materialize mlx metallib (xcodebuild — SwiftPM does NOT compile .metal)
-        # One script, both lanes: scripts/ci-materialize-metallib.sh produces the payload with the
-        # proven xcodebuild route, resolves it through scripts/resolve-metallib.sh (the one ladder —
-        # it floors the size at 4 KiB and names the rung that won, which the inline glob this replaced
-        # did not), and stages it at build-app.sh's first candidate path. The 09-27 release-leg
-        # failure it exists to prevent and the full rationale live in that script; the point of the
-        # pointer is that `.github/workflows/package.yml` runs the identical command on main, so the
-        # step tag day depends on is a step that went green the day before.
+      - name: Materialize mlx metallib (xcodebuild — redundancy pending a lane verdict)
+        # One script: scripts/ci-materialize-metallib.sh produces the payload with the proven xcodebuild
+        # route, resolves it through scripts/resolve-metallib.sh (the one ladder — it floors the size at
+        # 4 KiB and names the rung that won, which the inline glob this replaced did not), and stages it at
+        # build-app.sh's first candidate path. Its premise — no `metal` compiler on a clean runner, the
+        # 09-27 death — is now solved upstream: the appStore leg measured a 2 389 928 B SwiftPM-built
+        # default.metallib on the same image on 10-29, and `package.yml` has stopped running this step to
+        # rehearse its own deletion. It stays here until that lane prints green without it, because tag day
+        # is the wrong first day to learn the answer, and the step then costs the release nothing to lose.
         run: bash scripts/ci-materialize-metallib.sh
 
       - name: Build DMG (appStore trait — App Store 审核面)

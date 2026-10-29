@@ -60,7 +60,7 @@ for cand in \
     if [ -f "$cand" ]; then METALLIB_SRC="$cand"; break; fi
 done
 if [ -z "$METALLIB_SRC" ]; then
-    echo "❌ mlx-swift_Cmlx default.metallib not found — run 'swift build' once (any config) so SPM materializes the Cmlx bundle."
+    echo "❌ mlx-swift_Cmlx default.metallib not found — run 'swift build' once (any config) so SPM materializes the Cmlx bundle. On CI this means the delivery route resolved no metal compiler (scripts/toolchain-contract.sh; the runner installs the MetalToolchain component)."
     exit 1
 fi
 echo "   metallib: $METALLIB_SRC"
