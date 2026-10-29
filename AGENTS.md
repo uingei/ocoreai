@@ -35,11 +35,10 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 
 ## Adoption — the surface a stranger ranks
 - **A release is a cadence, not a green suite or one tag:** the eight installable trees publish 34 → 1 254
-  releases, newest ≤8 d old (`scripts/audit-facts.sh`); ours is 1 (`v0.1.14`, 10-29) — cadence is the open
-  item now. The tag *is* the version: `scripts/version.sh` prints it and the next is one past, so no version
-  number is re-typed here. `Core/UpdateCheck.swift` only *notifies*; build/publish must split.
-  Ladder: `long-horizon-goal.md` § Rung zero.
-<!-- claim:tags_published>=1 :: git tag | grep -c '^v' -->
+  releases, newest ≤8 d old (`scripts/audit-facts.sh`); ours is 1 (`v0.1.14`) — cadence is the open item. The
+  tag *is* the version (`scripts/version.sh` prints it), so no doc re-types one. `Core/UpdateCheck.swift` only
+  *notifies*; build/publish must split. Ladder: `long-horizon-goal.md` § Rung zero.
+<!-- claim:tags_published>=1 :: git ls-remote --refs --tags origin | grep -c 'refs/tags/v' -->
 - **Agents are a channel they cannot find:** `/v1/capabilities` serves `endpoints[]`, `skills/ocoreai/` is
   published (probe 39 runs its markers), and `GET /openapi.json` renders the contract off that index; a
   generated client is still missing. Owner call: a public contract is a promise.

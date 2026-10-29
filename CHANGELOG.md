@@ -9,30 +9,35 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
-**10-29(52) The claim I shipped at 9065cb3 went red on the runner in 1 s, and the runner was right**
+**10-29(52) The claim I shipped was red on the runner twice, and the second red was my fix**
 
-- **What improved.** 9065cb3 added `tags_published>=1` to `AGENTS.md` so that "ours: 0 tags, 0 releases"
-can never quietly come back. It passed every gate on this host and failed the runner, because
-`actions/checkout@v4` at the default depth fetches no tags: on a clean checkout `git tag | grep -c '^v'`
-answers 0, and P4 called the claim non-reproducing. Fixed at the premise rather than at the number —
-`text-gates` now checks out with `fetch-tags: true`, with the coupling written where it bites — because a
-claim that reads a git ref is only as honest as the checkout under it. Both sides measured before pushing:
-a `--depth 1 --no-tags` clone of this repo returns 0, the same clone fetched with `--tags` returns 1
-(`v0.1.14` is annotated).
+- **What improved.** 9065cb3 added `tags_published>=1` to `AGENTS.md` so that “ours: 0 tags, 0 releases”
+can never quietly come back. It passed every gate on this host and failed the runner in 1 s:
+`Text gates (ubuntu)` ran its command, `git tag | grep -c '^v'`, and got 0, so P4 called the claim
+non-reproducing and the leg died with the four steps behind it. The first fix was wrong and the runner
+said so on the next push — `fetch-tags: true` on the job left the annotation byte-identical — so the claim
+still read state the checkout had not supplied. What ships now removes the dependency instead of feeding
+it: the command asks the remote (`git ls-remote --refs --tags origin | grep -c 'refs/tags/v'`), which
+needs no fetched tags, no depth and no action input; `fetch-tags: true` is reverted, because it
+demonstrably changed nothing here and its comment claimed it did. Why the runner differs is *not* settled,
+so no mechanism is asserted: a local `--no-local --depth 1 --no-tags` clone fetched with
+`--depth=1 --tags origin refs/heads/main` does return `v0.1.14`.
 
-- **What same-session output proves it.** The runner's own words, quoted not reconstructed:
-`P4 1 claim(s) do not reproduce: tags_published >= 1: command returns 0`, then `Text gates (ubuntu)`
-failure with the five downstream steps skipped — audit, anchors, lockfiles, type names, recipe parse — so
-one unverifiable claim cost the whole text leg. What stayed green while that was true, on this machine:
-`make docs-check` in both host modes, `make push-ready`, `make audit`, and the filtered test run. That gap
-is the finding, and it is narrow: `NO_HOST_REFS=1` emulates one missing premise (`~/references`), not
-every premise a runner lacks.
+- **What same-session output proves it.** The runner’s own words, quoted not reconstructed:
+`P4 1 claim(s) do not reproduce: tags_published >= 1: command returns 0  [git tag | grep -c '^v']`,
+identical on two consecutive pushes, the second run 40849971793 / job 123366726311 failing at the step
+`AGENTS.md contract`. Inside a `--no-local --depth 1 --no-tags` clone of this repo — the runner’s
+observable state, where `git tag` answers 0 and `git describe --tags` is fatal — the new command prints 1,
+and it prints 1 here too. `make docs-check` is green in both host modes afterwards, root down to 21 440 B
+while the claim grew 36 B.
 
-- **Which gate goes red if it regresses.** The same P4 claim, now on a checkout that carries its premise,
-so the next push is the proof and no new gate was invented to make it true: the fleet that already exists
-caught this in 1 s on ubuntu for no arm64 minutes, which is the argument for text gates living there. The
-rule this round leaves behind is in the workflow comment, not in prose: if a claim reads a git ref, the
-job that runs it must fetch that ref — and a local green says only about the host it ran on.
+- **Which gate goes red if it regresses.** The class, not the instance: P4 in
+`scripts/agents-md-contract.sh` now refuses a claim whose command reads the local ref store, namely
+`git tag|describe|rev-list|merge-base|branch|remote`, sampled against this exact red — re-adding
+`git tag | grep -c '^v'` reddens the gate on this host, where the same edit was twice green — and that
+claim was the only one in the tree to match, so nothing was reclassified to make the check pass.
+`tags_published>=1` itself stays, because deleting a claim to silence a red is the wrong exit, and the
+next push is its third verdict.
 
 **10-29(51) The HTTP surface got a contract it cannot lie with, and six files noticed we had already shipped**
 

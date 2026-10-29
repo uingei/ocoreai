@@ -9,11 +9,11 @@
 > Context economy, ours 10-29/field 10-28, over each tree's own `AGENTS.md` set — root bytes / corpus bytes / **deepest
 > root→cwd chain against the 32 768 B the loader injects**: mlx-serve 26 486 / 269 381 / 69 273 (211 % of the
 > cap), deepseek-harness 19 113 / 96 369 / 55 362 (169 %), opencode 15 102 / 86 866 / 37 627 (115 %),
-> openclaw 19 374 / 113 906 / 34 186 (104 %), **ocoreai 21 456 / 46 956 / 32 474 (99 %, 294 B of headroom)**,
+> openclaw 19 374 / 113 906 / 34 186 (104 %), **ocoreai 21 440 / 46 940 / 32 458 (99 %, 310 B of headroom)**,
 > vllm 6 358 / 48 844 / 31 675, hermes-agent 11 952 / 159 599 / 30 192, pi 8 845, codex 0 / 3 441, ollama 358.
 > Re-measure: walk the tree for `AGENTS.md`, sum each file's ancestors up to the root, divide by 32 768 — the
 > semantics codex `agents_md.rs:68-92` and our `Sources/ocoreai/WorkspaceContext.swift:221-229` both
-> implement. Four trees read a ruleset their own loader truncates and three never say so; ours is 294 B from
+> implement. Four trees read a ruleset their own loader truncates and three never say so; ours is 310 B from
 > that line and names what it drops.
 
 Each entry is one clone under `~/references/`: what it holds, the axis worth borrowing, how far the audit got.

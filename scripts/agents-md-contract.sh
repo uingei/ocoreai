@@ -559,8 +559,20 @@ for src, cid, op, expect, cmd in sorted(claims):
         ok_claims += 1
     else:
         bad_claims.append("%s %s %d: command returns %d  [%s]" % (cid, op, expect, got, cmd))
+
 if bad_claims:
     fail.append("P4 %d claim(s) do not reproduce: %s" % (len(bad_claims), "; ".join(bad_claims)))
+# A claim's command runs on a runner too, and a clean checkout is not this host. 10-29 shipped
+# `<!-- claim:tags_published>=1 :: git tag | grep -c '^v' -->` green through every local mode and red
+# on two consecutive `Text gates (ubuntu)` runs (`command returns 0`): a depth-1 checkout may hold no
+# tags, and `fetch-tags: true` did not change the verdict. Worktree reads (`git grep`, `git ls-files`)
+# travel with the checkout; the ref store does not. So a claim reads refs off the remote, or not at all.
+REF_STORE_RE = re.compile(r"\bgit\s+(tag|describe|rev-list|merge-base|branch|remote)\b")
+bad_premise = ["%s: `%s` reads the local ref store" % (cid, cmd)
+               for _src, cid, _op, _exp, cmd in claims if REF_STORE_RE.search(cmd)]
+if bad_premise:
+    fail.append("P4 %d claim(s) read a local git ref, which a shallow checkout need not have: %s"
+                % (len(bad_premise), "; ".join(bad_premise)))
 
 # ── P5/P6 gates and suites exist ─────────────────────────────────────────────
 mk = read("Makefile")
