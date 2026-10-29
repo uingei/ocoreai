@@ -97,7 +97,14 @@ jobs:
     env:
       OCOREAI_AGENTS_NO_HOST_REFS: "1"
     steps:
+      # Tags are a premise this job's gate reads, so the job has to supply it. Measured 10-29 on
+      # 9065cb3: a `<!-- claim:tags_published>=1 :: git tag | grep -c '^v' -->` in AGENTS.md passed
+      # every local mode (this host has tags) and went red on the runner in 1 s, because checkout@v4
+      # at the default depth fetches no tags. A claim that reads a git ref is only as honest as the
+      # checkout under it — so the premise is fetched here, and the next such claim inherits it.
       - uses: actions/checkout@v4
+        with:
+          fetch-tags: true
 
       # The injected context layer is code: budget it (shrink-only), resolve every path it names,
       # re-run every `<!-- claim:... -->` number, and check the routing table against the guides on

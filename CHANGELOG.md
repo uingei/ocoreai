@@ -9,6 +9,31 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(52) The claim I shipped at 9065cb3 went red on the runner in 1 s, and the runner was right**
+
+- **What improved.** 9065cb3 added `tags_published>=1` to `AGENTS.md` so that "ours: 0 tags, 0 releases"
+can never quietly come back. It passed every gate on this host and failed the runner, because
+`actions/checkout@v4` at the default depth fetches no tags: on a clean checkout `git tag | grep -c '^v'`
+answers 0, and P4 called the claim non-reproducing. Fixed at the premise rather than at the number —
+`text-gates` now checks out with `fetch-tags: true`, with the coupling written where it bites — because a
+claim that reads a git ref is only as honest as the checkout under it. Both sides measured before pushing:
+a `--depth 1 --no-tags` clone of this repo returns 0, the same clone fetched with `--tags` returns 1
+(`v0.1.14` is annotated).
+
+- **What same-session output proves it.** The runner's own words, quoted not reconstructed:
+`P4 1 claim(s) do not reproduce: tags_published >= 1: command returns 0`, then `Text gates (ubuntu)`
+failure with the five downstream steps skipped — audit, anchors, lockfiles, type names, recipe parse — so
+one unverifiable claim cost the whole text leg. What stayed green while that was true, on this machine:
+`make docs-check` in both host modes, `make push-ready`, `make audit`, and the filtered test run. That gap
+is the finding, and it is narrow: `NO_HOST_REFS=1` emulates one missing premise (`~/references`), not
+every premise a runner lacks.
+
+- **Which gate goes red if it regresses.** The same P4 claim, now on a checkout that carries its premise,
+so the next push is the proof and no new gate was invented to make it true: the fleet that already exists
+caught this in 1 s on ubuntu for no arm64 minutes, which is the argument for text gates living there. The
+rule this round leaves behind is in the workflow comment, not in prose: if a claim reads a git ref, the
+job that runs it must fetch that ref — and a local green says only about the host it ran on.
+
 **10-29(51) The HTTP surface got a contract it cannot lie with, and six files noticed we had already shipped**
 
 - **What improved.** The surface now publishes a machine-readable contract instead of a description of
