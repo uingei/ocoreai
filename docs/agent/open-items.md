@@ -158,3 +158,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   lane is not a duplicate of delivered upstream capability, but the footprint ladder's first rung says
   consume before author: the trigger to re-open this is upstream delivering transcript tool calls, and the
   check is the pin diff on that library at the next bump.
+
+- **The MTP drafter seam is written by nothing** (Engine/) — `MTPDrafterContext` occurs once repo-wide,
+  at a setter nobody calls (`Engine/LoadedModel.swift:240`), and the loader its comment promises lives
+  only in that comment; so `hasMTPDrafter` is constant-false at `Engine/EnginePool.swift:1217`. A dead
+  seam in the deepest slice is a capability question: 10-29(53) named it, did not delete it.
+
+- **`memory_events` outlived its API** (SQLite/) — 10-29(53) deleted the last of it, leaving a table,
+  FTS index and 3 triggers (`SQLite/SQLiteStore.swift:670`) nothing writes. Old databases keep the rows
+  a migration call: drop at the next schema bump, or name the consumer.
