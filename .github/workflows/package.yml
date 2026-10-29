@@ -40,7 +40,6 @@ on:
       - '.github/workflows/package.yml'
       - 'scripts/build-app.sh'
       - 'scripts/build-dmg.sh'
-      - 'scripts/ci-materialize-metallib.sh'
       - 'scripts/resolve-metallib.sh'
       - 'scripts/release-artifact-check.sh'
       - 'scripts/toolchain-contract.sh'

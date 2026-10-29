@@ -9,6 +9,33 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(44) The rehearsal paid for itself the night it deleted the thing it was rehearsing**
+
+- **What improved.** `package.yml` came back green with no xcodebuild producer, so the release leg stopped
+running it and the script is gone from the tree. The lane's shape is what caught the trap in my own
+reasoning: the release job never installed MetalToolchain — the producer was the only thing standing
+between it and a missing `metal` — so deleting the step alone would have left tag day with no shader
+payload at all. It is now a component download that costs 6 s on a runner, which leaves the release leg
+and its rehearsal differing by exactly one thing: the credential one job holds and the other cannot use.
+The arithmetic is honest because the producer also pre-built shaders the DMG step reused: the step cost
+633 s, the DMG step went 736 s → 1 111 s, and the lane's real saving is 258 s, not 633.
+
+- **What same-session output proves it.** Run 40793195436 (9cca4ec): checkout 3 s, cache 6 s,
+MetalToolchain 6 s, DMG 1 111 s, probe 41 3 s, window proof 29 s, wall 00:18:31 → 00:38:02 = 19.5 min
+against 23.7 min with the producer; annotations `probe 41 verdict: … 12 passed, 0 failed, 8 measured, 0
+known-open` and the version line, judged on a DMG whose payload SwiftPM compiled itself. The packaging
+path trigger no longer names the deleted script.
+
+- **Which gate goes red if it regresses.** The two that already existed and ran tonight against exactly
+this artefact: probe 41 §1 reds when the shipped bundle's `Contents/MacOS/mlx.metallib` is absent or under
+the size floor, and `build-app.sh` exits 1 when no candidate path carries a payload — its remedy now names
+the delivery route as the CI cause. If the component download stops providing a compiler, the red lands on
+`Build DMG` with that line attached.
+
+- **Honest limits.** One lane sample per shape, and the release leg's new sequence has still never
+executed: it is tag-gated, so its first pass is `v0.1.14`, where a red publishes nothing and costs a re-
+run. The release leg deliberately carries no SPM cache — the lane's restored in 6 s, but an unproven cache
+step on tag day buys minutes with a fresh failure mode, and minutes are not worth a first-day risk.
 **10-29(43) "SwiftPM does not compile `.metal`" was a missing compiler, and the nightly lane stopped paying for it**
 
 - **What improved.** The xcodebuild producer exists because a clean runner on 09-27 had no `metal`

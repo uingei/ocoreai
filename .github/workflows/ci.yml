@@ -388,16 +388,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Materialize mlx metallib (xcodebuild — redundancy pending a lane verdict)
-        # One script: scripts/ci-materialize-metallib.sh produces the payload with the proven xcodebuild
-        # route, resolves it through scripts/resolve-metallib.sh (the one ladder — it floors the size at
-        # 4 KiB and names the rung that won, which the inline glob this replaced did not), and stages it at
-        # build-app.sh's first candidate path. Its premise — no `metal` compiler on a clean runner, the
-        # 09-27 death — is now solved upstream: the appStore leg measured a 2 389 928 B SwiftPM-built
-        # default.metallib on the same image on 10-29, and `package.yml` has stopped running this step to
-        # rehearse its own deletion. It stays here until that lane prints green without it, because tag day
-        # is the wrong first day to learn the answer, and the step then costs the release nothing to lose.
-        run: bash scripts/ci-materialize-metallib.sh
+      # The producer this step used to run (an xcodebuild pass whose only job was the shader payload) is
+      # gone: measured on 10-29, `swift build -c release --traits appStore` compiles the `.metal` sources
+      # itself and stages `default.metallib` where build-app.sh looks, provided a metal compiler exists —
+      # which is what this step buys, for seconds instead of the 633 s the producer cost. `package.yml` ran
+      # this exact shape green the same night (DMG 1 111 s, probe 41 12 assertions), so the release leg and
+      # its rehearsal now differ by one thing: the credential this job holds and that lane does not.
+      - name: Install MetalToolchain (SwiftPM needs a metal compiler, the CLT route has none)
+        run: xcodebuild -downloadComponent MetalToolchain
 
       - name: Build DMG (appStore trait — App Store 审核面)
         run: |
