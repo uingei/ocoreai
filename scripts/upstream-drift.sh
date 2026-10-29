@@ -13,6 +13,9 @@
 #   - 判定用 SHA 前缀包含（基线 7 位 / head 前缀可互认；compare API 端点用完整 SHA——短 base 会 404）
 #   - 新 commit 列表 = adopt 前的裁决窗口；轴词粗筛只是提示，
 #     权威裁决 = consumer-transparent grep 双根全扫（同义词全扫 + 既有机制先查，先例 e8d41c8）
+#   - 截断一律 `sed -n '1,Np'`，禁 `| head -N`：窗口 >64 KiB 时 head 提前关闭管道，
+#     写入端吃 SIGPIPE，pipefail 让脚本以 141 中止——退出码契约当场失效，读者只看到半张报告
+#     （10-29 实测：codex 窗口 >300 条 subject，`>/dev/null` 连三次 exit 141 而非 10）。
 #   - mlx-swift-lm = SPM pin（新 commit → bump 协议）；coreai-models = reference（逐条吸收裁决）；
 #     codex = 语义轴（对照核心域真值，非逐 commit 复制）
 #   - 本机无 references/ clone → gh api 是正确通道，不依赖 git fetch
@@ -92,7 +95,7 @@ for p in d.get("pins", []):
     src="ls-remote"
   else
     newest="$(git -C "$spm" tag --sort=-v:refname 2>/dev/null \
-      | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)"
+      | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '1p' || true)"
     fh="$(git -C "$spm" rev-parse --git-path FETCH_HEAD 2>/dev/null || true)"
     if [ -n "$fh" ] && [ -f "$fh" ]; then
       src="local tags, last fetch $(date -u -r "$fh" +%Y-%m-%dT%H:%MZ)"
@@ -281,14 +284,14 @@ for pair in $REPOS; do
     fi
     if [ "$DRIFT" -eq 10 ]; then
       if [ "$src" = clone ]; then
-        window="$(local_msgs "$name" "$base_full" "$head" | head -50)"
+        window="$(local_msgs "$name" "$base_full" "$head" | sed -n '1,50p')"
       else
-        window="$(api "repos/$repo/compare/$base_full...$head?per_page=50" messages 2>/dev/null | sed 's/\(.\{110\}\).*/\1.../' | head -50)"
+        window="$(api "repos/$repo/compare/$base_full...$head?per_page=50" messages 2>/dev/null | sed 's/\(.\{110\}\).*/\1.../' | sed -n '1,50p')"
       fi
       n_commits="$(printf '%s\n' "$window" | grep -c . || true)"
       hits="$(printf '%s\n' "$window" | grep -icE 'approv|update.?plan|plan tool|hook|mcp|reasoning|tool.?call|sampling|kv|chunk|grammar' || true)"
       echo "         轴词粗筛(提示,非权威): $hits / $n_commits 条"
-      printf '%s\n' "$window" | head -14 | sed 's/^/           /'
+      printf '%s\n' "$window" | sed -n '1,14s/^/           /p'
     fi
   fi
 done

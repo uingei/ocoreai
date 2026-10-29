@@ -9,6 +9,36 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+- **What improved.** the entry below asserted an exit code it had not run: `set -euo pipefail` plus a
+truncating `head` means a window bigger than a pipe buffer kills the writer with SIGPIPE and the script
+aborts mid-report. All four truncations in the script now drain the pipe instead — three use a `sed -n`
+line range, one a `sed -n` first-line print — and the idiom is banned in that file rather than avoided by
+habit, so the 0/10/1 contract its own head and the Makefile both document is the contract the code keeps.
+The fork ledger added an hour earlier is report-only and unchanged.
+
+- **What same-session output proves it.** both versions of the script, same tree, same command, side by
+side: HEAD~ gives exit 141 three consecutive times and a report that stops at line 47 of 78 — the codex
+axis header (+366 commits) printed, then nothing: no window list, no mlx-swift tag axis, no verdict line.
+The fixed script prints all 78 lines and returns 10 through `>/dev/null`, through a pipe to tail, and
+through `make drift`. The window that killed it is the one that matters most: 366 unread codex commits.
+
+- **Which gate goes red if it regresses.** `DependencyPinStatementTests/driftTruncationDoesNotDieOfSigpipe`
+— bans `| head` on non-comment lines (floors the scan at >=250 code lines read), requires the three
+draining truncations to still exist so a rewrite to `awk … exit`/`sed Nq` cannot pass by looking clean,
+and re-runs the mechanism on an 800 KiB producer so the lock stays explainable: if a future `head` stops
+closing the pipe early, that half goes red first and says the ban is no longer priced by a red. Sampled
+both ways this session — green on the fix, 2 issues against `git show HEAD:scripts/upstream-drift.sh`.
+Reader: whoever runs the bump protocol or the adopt ladder; before this fix their screen showed a
+plausible half-report and code 141, which reads as "environment, retry later" and silently stalls
+adjudication.
+
+- **Honest limits.** exit 0 was not re-exercised — no window is closed on this tree, and the tail block
+returning 0 is untouched by the diff. The premise half measures this host's `/usr/bin/head`; a reader that
+slurps the whole pipe would break it rather than hide it. The same idiom appears in `scripts/probes/` and
+`scripts/audit.swift_patterns.sh` against values already held in shell variables, none measured near a
+pipe buffer, so no guard was written for a failure nobody observed. And the correction stands: 10-29(45)'s
+last sentence ("it does") was written before the code was run — invariant 2, applied to my own diary line.
+
 **10-29(45) `Engine/CoreAI*` is a fork with a ledger, and no command could ask it anything**
 
 - **What improved.** Twelve files under `Engine/` carry Apple's BSD-3 header plus a provenance line and a
@@ -30,7 +60,7 @@ hour earlier: an § Open line that still called `metallib` lane-proven after the
 - **Which gate goes red if it regresses.** None, on purpose — a per-file count with no threshold keeps the
 exit semantics single-homed (0/10 as the script's own head documents). What changed is that a stale
 baseline now shows up on the same screen as the axis verdict, instead of living in a header nobody re-
-reads; `make drift` already exits 10 while any window is open, and it does.
+reads; `make drift` already exits 10 while any window is open — asserted, and false: it exited 141, see 10-29(46).
 
 - **Honest limits.** Three files stay unmeasurable until someone adjudicates a baseline, and the biggest
 is a 1 238-line VLM engine. The resolver matches by file name, so an upstream rename would print "path

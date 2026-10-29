@@ -468,4 +468,85 @@ struct DependencyPinStatementTests {
             "the axis reads its pin from somewhere other than Package.resolved — a hand-copied version is a second truth"
         )
     }
+
+    /// `make drift` promises 0 / 10 / 1 and the Makefile says so out loud. Measured 10-29 it
+    /// returned **141**: every window truncation was `producer | head -N`, and once a window is
+    /// bigger than a pipe buffer (codex, +366 commit subjects) `head` closes the read end, the
+    /// writer takes SIGPIPE and `set -o pipefail` aborts the script mid-report — 47 of 78 lines
+    /// printed, so the reader lost the largest window, the whole tag axis *and* the verdict line.
+    ///
+    /// Two halves on purpose: the idiom is banned in the script, and the mechanism is re-run here
+    /// so the lock stays explainable. If a future `head` stops closing the pipe early, the second
+    /// half goes red first and tells us the ban is no longer priced by a red.
+    @Test("the drift instrument's exit code survives a window larger than a pipe buffer")
+    static func driftTruncationDoesNotDieOfSigpipe() throws {
+        let lines = try repoFile("scripts/upstream-drift.sh")
+            .split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let code = lines.filter { !$0.drop(while: { $0 == " " || $0 == "\t" }).hasPrefix("#") }
+        #expect(
+            code.count >= 250,
+            "only \(code.count) non-comment lines read — a scan that reads nothing reports a clean script"
+        )
+        let pipeHead = code.filter { $0.contains("| head") || $0.contains("|head") }
+        #expect(
+            pipeHead.isEmpty,
+            "scripts/upstream-drift.sh truncates with `| head -N` on \(pipeHead.count) line(s): past a pipe buffer the writer gets SIGPIPE and pipefail exits 141, so the exit code a caller acts on never arrives — truncate with `sed -n '1,Np'`, which drains the pipe"
+        )
+
+        // The fixed form must still be there, not merely "no head": a rewrite to `awk … exit`
+        // or `sed 'Nq'` closes the pipe too and reads as a pass above.
+        #expect(
+            lines.contains { $0.contains("sed -n '1,50p'") }
+                && lines.contains { $0.contains("sed -n '1,14s/") }
+                && lines.contains { $0.contains("sed -n '1p'") },
+            "no draining truncation left in scripts/upstream-drift.sh — the fix was reverted, not just reworded"
+        )
+
+        // Mechanism, re-measured rather than asserted by comment: one 800 KiB producer, two readers.
+        let producer =
+            "seq 1 4000 | sed 's/$/ x_pad_pad_pad_pad_pad_pad_pad_pad_pad_pad_pad_pad_pad_x/'"
+        let early = try runBash(
+            """
+            set -euo pipefail
+            w=$( { \(producer); } | head -50 )
+            echo "lines=$(printf '%s\n' "$w" | grep -c .)"
+            echo SURVIVED
+            """)
+        #expect(
+            early.status != 0 && !early.out.contains("SURVIVED"),
+            "the pipe-death premise no longer reproduces: `head -50` on an 800 KiB producer exited \(early.status) and printed the tail (\(early.out.prefix(60))) — the `| head` ban above is no longer priced by a measured red, so delete it or re-derive it"
+        )
+
+        let drained = try runBash(
+            """
+            set -euo pipefail
+            w=$( { \(producer); } | sed -n '1,50p' )
+            echo "lines=$(printf '%s\n' "$w" | grep -c .)"
+            echo SURVIVED
+            """)
+        #expect(
+            drained.status == 0 && drained.out.contains("lines=50")
+                && drained.out.contains("SURVIVED"),
+            "the draining truncation is not intact: exit \(drained.status), output \(drained.out.prefix(60)) — a window of >64 KiB would still abort the drift report"
+        )
+    }
+
+    /// One bash run, exit code and stdout both returned — the pair is the contract here, since the
+    /// 10-29 failure was a wrong *exit code* on an otherwise plausible-looking report.
+    private static func runBash(_ script: String) throws -> (status: Int32, out: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = ["-c", script]
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError = Pipe()
+        try process.run()
+        // Drain before waiting: a 800 KiB producer deadlocks against a pipe nobody reads.
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return (
+            process.terminationStatus,
+            String(data: data, encoding: .utf8) ?? ""
+        )
+    }
 }
