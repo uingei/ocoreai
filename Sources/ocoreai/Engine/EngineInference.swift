@@ -3160,7 +3160,7 @@ extension EnginePool {
             let routesAroundChatSession = Self.bypassesPooledChatSession(
                 grammarSchemaPresent: grammarLaneRequested,
                 constrainedLaneIsSound: constrainedLaneIsSound,
-                mtpDrafterPresent: mtpDrafterContainer != nil,
+                mtpDrafterPresent: loaded.mtpDrafterContainer != nil,
                 carriesMedia: turnCarriesMedia,
                 messageCount: mlxMessages.count
             )
@@ -3449,7 +3449,7 @@ extension EnginePool {
                 // → collect results → append tool/response messages → re-generate.
                 // Mirrors ChatSession.swift L748 restart loop.
                 // VLM requests fall through to ChatSession (MTP cannot carry images/videos/audios).
-                else if self.mtpDrafterContainer != nil, !mlxMessages.isEmpty,
+                else if loaded.mtpDrafterContainer != nil, !mlxMessages.isEmpty,
                     mlxMessages.allSatisfy({
                         $0.images.isEmpty && $0.audios.isEmpty && $0.videos.isEmpty
                     })
@@ -3490,10 +3490,9 @@ extension EnginePool {
                         let collectedToolCalls: [MLXLMCommon.ToolCall]
                     }
 
-                    // SAFETY: mtpDrafterContainer is an actor; its contents could be
-                    // released between the if-let guard (L1009) and this point via an
-                    // await boundary. Hoist to a local optional and bail gracefully.
-                    guard let drafterContainer = self.mtpDrafterContainer else {
+                    // SAFETY: an unload on another task can release the container across the
+                    // await boundary since the gate above — hoist to a local, bail gracefully.
+                    guard let drafterContainer = loaded.mtpDrafterContainer else {
                         log.warning(
                             "MTP drafter released during inference — falling back to ChatSession")
                         // RAII: release pool slot before early return (pool miss case).

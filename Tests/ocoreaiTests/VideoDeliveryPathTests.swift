@@ -179,7 +179,7 @@ struct VideoDeliveryPathTests {
         )
         for marker in [
             "if let schema = options.grammarSchema,",
-            "else if self.mtpDrafterContainer != nil,",
+            "else if loaded.mtpDrafterContainer != nil,",
         ] {
             guard let range = inference.range(of: marker) else {
                 Issue.record("routing guard \(marker) moved — re-read which paths can carry media")

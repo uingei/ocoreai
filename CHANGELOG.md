@@ -8,6 +8,36 @@ note and `README.md`; a `## <dates>` section below groups the rounds of an older
 heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
+
+**10-29(55) The MTP drafter was shared by every model, because it lived in the pool**
+
+- **What improved.** A claim I shipped earlier today is wrong in the interesting direction:
+  `MLXModelLoader.loadMTPDrafter` is not "only in a comment" — that grep asked a type-qualified name and
+  read back a lie; the call is live at `Engine/EnginePool.swift:1235`. What it returned went into an
+  unkeyed pool field that nothing ever cleared, so with `specDecoding.mode: mtp` on (opt-in: `enabled`
+  defaults false, `mode` "traditional") a second admitted model overwrote the first one's drafter, a
+  family the whitelist refuses still routed around `ChatSession` on another family's drafter — the
+  token-table mismatch the whitelist exists to prevent — and every drafter outlived unload. It lives on
+  the model that earned it now: `private(set)` on `LoadedModel`, read by the routing gate per model,
+  released by `cleanup()` along with the weights. Two more never-called methods and the sentence that
+  described the old arrangement went out with it (dead decls 27 → 24, scan unchanged).
+
+- **What same-session output proves it.** `swift build --build-tests` exit 0, which is what says all
+  three read sites resolve through the model being served;
+  `OCOREAI_DEAD_VERBOSE=1 bash scripts/unreferenced-decls.sh` prints 24 and no longer names
+  `setMTPDrafter`, because production code calls it now, nor the two deleted methods; and the new shape is
+  three lines a reader can re-read — `Engine/LoadedModel.swift:112`, `Engine/EngineInference.swift:3452`,
+  `Engine/EnginePool.swift:1235` — which is exactly what the grep that produced today's wrong claim could
+  not hand me.
+
+- **Which gate goes red if it regresses.** `AGENTS.md` carries `unreferenced_decls<=24`, re-sampled red
+  the honest way: one appended `func anotherGratuitousProbe()` printed 25 and P4 answered
+  `unreferenced_decls <= 24: command returns 25`. Un-keying it again wants a pool-global field back before
+  it compiles, and there is none. What I am *not* claiming: pricing the mixing end to end wants a live
+  server carrying one admitted and one refused checkpoint, no weight-free test can do that, so the open
+  item stays open instead of wearing a badge.
+
+
 **10-29(54) The gate shipped an hour ago could be quieted by writing a sentence**
 
 - **What improved.** Entry 53's count indexed every tracked file, `*.md` included, so naming a dead

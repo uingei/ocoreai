@@ -159,10 +159,10 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   consume before author: the trigger to re-open this is upstream delivering transcript tool calls, and the
   check is the pin diff on that library at the next bump.
 
-- **The MTP drafter seam is written by nothing** (Engine/) — `MTPDrafterContext` occurs once repo-wide,
-  at a setter nobody calls (`Engine/LoadedModel.swift:240`), and the loader its comment promises lives
-  only in that comment; so `hasMTPDrafter` is constant-false at `Engine/EnginePool.swift:1217`. A dead
-  seam in the deepest slice is a capability question: 10-29(53) named it, did not delete it.
+- **No weight-free witness for MTP drafter mixing** (Engine/) — the drafter belongs to one model now
+  (`Engine/LoadedModel.swift:112`, read at `Engine/EngineInference.swift:3452`); until 10-29(55) it sat
+  unkeyed in the pool, so a refused family could route on another family's drafter. Keying is
+  compile-enforced; the wire proof wants two checkpoints live — owner call.
 
 - **`memory_events` outlived its API** (SQLite/) — 10-29(53) deleted the last of it, leaving a table,
   FTS index and 3 triggers (`SQLite/SQLiteStore.swift:670`) nothing writes. Old databases keep the rows

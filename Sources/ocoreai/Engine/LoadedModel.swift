@@ -105,8 +105,11 @@ final class LoadedModel: @unchecked Sendable {
     var specDecodingConfig: SpecDecodingConfig = .default
     /// Draft model for speculative decoding — loaded by EnginePool, reused across sessions.
     private var draftModelHandle: (any MLXModelHandle)?
-    /// MTP assistant drafter container — loaded by EnginePool, reused across MTP inference calls.
-    private var _mtpDrafterContainer: MLXLMCommon.MTPDrafterContainer?
+    /// The MTP drafter built from THIS model's own checkpoint, set once by EnginePool at
+    /// load. `private(set)` is the point: the routing gate reads it off the model it is
+    /// serving, so another model's drafter is unreachable, and `cleanup()` releases it
+    /// together with the weights it was drafted from.
+    private(set) var mtpDrafterContainer: MLXLMCommon.MTPDrafterContainer?
 
     /// MTP KV cache keyed by conversation — each conversation gets its own cache
     /// so switching dialogs does not leak stale GPU activations.
@@ -232,14 +235,9 @@ final class LoadedModel: @unchecked Sendable {
         logger.info("Speculative decoding enabled — draft model loaded")
     }
 
-    /// Check if MTP drafter is loaded.
-    var hasMTPDrafter: Bool {
-        _mtpDrafterContainer != nil
-    }
-    /// EnginePool loads the drafter via MLXModelLoader.loadMTPDrafter and stores it here.
-    func setMTPDrafter(_ drafter: MLXLMCommon.MTPDrafterContext) {
-        _mtpDrafterContainer = MLXLMCommon.MTPDrafterContainer(context: drafter)
-        logger.info("MTP drafer container set on loaded model")
+    /// Store the drafter loaded from this model's checkpoint — see `mtpDrafterContainer`.
+    func setMTPDrafter(_ container: MLXLMCommon.MTPDrafterContainer) {
+        mtpDrafterContainer = container
     }
 
     // MARK: - MTP KV Cache Management
@@ -266,11 +264,6 @@ final class LoadedModel: @unchecked Sendable {
         }
         _mtpKVCacheLastAccess[conversationId] = Self.mtpKVCacheNow()
         return cache
-    }
-
-    func setMTPKVCache(_ cache: [MLXLMCommon.KVCache], conversationId: String) {
-        _mtpKVCacheMap[conversationId] = cache
-        _mtpKVCacheLastAccess[conversationId] = Self.mtpKVCacheNow()
     }
 
     func clearMTPKVCache() {
@@ -662,11 +655,6 @@ final class LoadedModel: @unchecked Sendable {
         return engine
     }
 
-    /// Reset engine cache — used on model switch or hard error recovery.
-    /// CoreAI 34f0db3: per-turn reset removed; TokenHistory.resolve handles prefix reuse.
-    func resetCacheIfNeeded() {
-        cachedEngine = nil
-    }
     #endif
 
     // MARK: - Cleanup
@@ -696,7 +684,7 @@ final class LoadedModel: @unchecked Sendable {
         // Clear MLX model handles + drafter to release GPU weights
         mlxModelHandle = nil
         draftModelHandle = nil
-        _mtpDrafterContainer = nil
+        mtpDrafterContainer = nil
         // Clear MTP KV cache to release cached GPU tensors
         clearMTPKVCache()
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)

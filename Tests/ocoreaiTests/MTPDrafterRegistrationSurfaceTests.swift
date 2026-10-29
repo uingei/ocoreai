@@ -7,7 +7,7 @@
 ///
 /// These are the ONLY MTP-drafter families the ocoreai EnginePool id-whitelist
 /// (`config.specDecoding.mode == "mtp"`) accepts. The guard at
-/// `EnginePool.swift:643` branches on model-id substrings but relies on the
+/// `EnginePool.loadModel` branches on model-id substrings but relies on the
 /// registry's creator entries (`MTPDrafterTypeRegistry.shared`) to actually
 /// resolve a `model_type` → drafter. A missing registration means the
 /// guard passes but the load throws `ModelFactoryError.unsupportedModelType`.
@@ -113,7 +113,8 @@ struct MTPDrafterRegistrationSurfaceTests {
 @Suite("MTP self-spec admission gate (pureMTPDrafterSelection)")
 struct MTPAdmissionGateTests {
     // Exact-value pinning of the pure admission + drafter-model-id decision that
-    // `EnginePool.loadModel`'s self-spec guard calls (`if mode == "mtp" && !hasMTPDrafter`).
+    // `EnginePool.loadModel`'s self-spec guard calls
+    // (`if mode == "mtp" && model.mtpDrafterContainer == nil`).
     // This is the single source of the generation whitelist, so a regression of the
     // Qwen3.8 self-spec path (the bug this round fixed) is caught here, not just documented.
     //

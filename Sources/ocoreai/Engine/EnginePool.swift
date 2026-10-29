@@ -294,8 +294,6 @@ actor EnginePool {
     let sessionPool: MLXSessionPool?
     /// Shared draft model for speculative decoding — loaded once, reused across all models.
     private var draftModelHandle: (any MLXModelHandle)?
-    /// MTP assistant drafter container — loaded once, reused across MTP inference calls.
-    internal var mtpDrafterContainer: MLXLMCommon.MTPDrafterContainer?
 
     // MARK: - Runtime Parameter Store (hot-swappable)
 
@@ -1214,7 +1212,10 @@ actor EnginePool {
             //     drafter (Qwen35TextMTPRegistration / Qwen35VLMMTPRegistration) serves them —
             //     upstream resolves by model_type, not by generation, so 3.8 rides the 3.5 drafter.
             // Unknown families skip loading to prevent token-table mismatch.
-            if config.specDecoding.mode == "mtp" && !model.hasMTPDrafter {
+            // The container lives on the model that earned it, so this guard is per-model:
+            // a second admitted model cannot overwrite the first drafter, and a model
+            // that was refused here can never reach the MTP lane with foreign weights.
+            if config.specDecoding.mode == "mtp" && model.mtpDrafterContainer == nil {
                 // Admission + drafter selection is extracted to a pure, exact-value-tested
                 // seam (pureMTPDrafterSelection) so the generation whitelist can't silently
                 // regress. Only families with a known compatible drafter may self-spec;
@@ -1231,8 +1232,8 @@ actor EnginePool {
                     )
                 } else if let drafterModelId = selection.drafterModelId {
                     do {
-                        self.mtpDrafterContainer = try await mlxModelLoader.loadMTPDrafter(
-                            modelId: drafterModelId)
+                        model.setMTPDrafter(
+                            try await mlxModelLoader.loadMTPDrafter(modelId: drafterModelId))
                         logger.info("MTP Drafter loaded for \(modelId): \(drafterModelId)")
                     } catch {
                         logger.warning("MTP Drafter load failed: \(error)")
