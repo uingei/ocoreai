@@ -255,11 +255,6 @@ final class StatsStorage {
         )
     }
 
-    /// Total duration for a specific category
-    func totalDuration(for category: SignpostCategory) -> TimeInterval {
-        return stats(for: category)?.totalSeconds ?? 0.0
-    }
-
     /// Count of spans for a specific category
     func count(for category: SignpostCategory) -> Int {
         return stats(for: category)?.count ?? 0
@@ -385,18 +380,6 @@ struct InstrumentsProfiler {
             "model": name
         ]
         return ProfileSpan(category: .modelLoad, log: Self.log, metadata: metadata)
-    }
-
-    /// Begin profiling tokenizer loading
-    static func beginTokenizerLoad(id: String) -> ProfileSpan {
-        let metadata: [String: String] = ["tokenizer": id]
-        return ProfileSpan(category: .tokenizerLoad, log: Self.log, metadata: metadata)
-    }
-
-    /// Begin profiling tokenization
-    static func beginTokenization(inputLength: Int) -> ProfileSpan {
-        let metadata: [String: String] = ["inputLength": "\(inputLength)"]
-        return ProfileSpan(category: .tokenization, log: Self.log, metadata: metadata)
     }
 
     /// Begin profiling a logits inference step (engine layer: model forward pass)
@@ -538,63 +521,6 @@ struct InstrumentsProfiler {
 
     private init() {}
 
-    /// Log tokenizer completion event - marks end of all tokenizer work
-    static func logTokenizerComplete(tokenCount: Int) {
-        os_signpost(
-            .event,
-            log: Self.log,
-            name: Self.tokenizationName,
-            "Tokenizer complete: %{public}d prompt tokens ready",
-            tokenCount
-        )
-    }
-
-    // MARK: - Inference Bracket (visual marker in Instruments)
-
-    static func beginInference(promptTokens: Int, maxTokens: Int) -> OSSignpostID {
-        let inferenceSignpost = OSSignpostID(log: Self.log)
-        os_signpost(
-            .begin,
-            log: Self.log,
-            name: Self.inferenceName,
-            signpostID: inferenceSignpost,
-            "Starting inference: %{public}d prompt tokens, max %{public}d generation tokens",
-            promptTokens,
-            maxTokens
-        )
-        return inferenceSignpost
-    }
-
-    static func endInference(generatedTokens: Int, signpostID: OSSignpostID) {
-        os_signpost(
-            .end,
-            log: Self.log,
-            name: Self.inferenceName,
-            signpostID: signpostID,
-            "Generated %{public}d tokens",
-            generatedTokens
-        )
-    }
-
-    // MARK: - Decoding Bracket (visual marker in Instruments)
-
-    static func beginDecoding(strategy: String) -> OSSignpostID {
-        let decodingSignpost = OSSignpostID(log: Self.log)
-        os_signpost(
-            .begin,
-            log: Self.log,
-            name: Self.decodingName,
-            signpostID: decodingSignpost,
-            "Using %{public}s decoding",
-            strategy
-        )
-        return decodingSignpost
-    }
-
-    static func endDecoding(signpostID: OSSignpostID) {
-        os_signpost(.end, log: Self.log, name: Self.decodingName, signpostID: signpostID)
-    }
-
     // MARK: - Event Logging
 
     static func logTokenGeneration(tokenIndex: Int, token: String) {
@@ -606,24 +532,6 @@ struct InstrumentsProfiler {
             tokenIndex,
             token
         )
-    }
-
-    static func logMemoryUsage(phase: String) {
-        var memoryInfo = MachTaskBasicInfo()
-        var count = mach_msg_type_number_t(MemoryLayout<MachTaskBasicInfo>.size) / 4
-
-        let result = withUnsafeMutablePointer(to: &memoryInfo) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
-                task_info(mach_task_self_, task_flavor_t(machTaskBasicInfo), $0, &count)
-            }
-        }
-
-        if result == KERN_SUCCESS {
-            let memoryMB = Double(memoryInfo.residentSize) / (1024 * 1024)
-            os_signpost(
-                .event, log: Self.log, name: Self.memoryUsageName,
-                "%{public}s: %.1f MB", phase, memoryMB)
-        }
     }
 
     // MARK: - Custom Intervals (for Core AI pipelined engine async spans)
@@ -680,15 +588,5 @@ struct InstrumentsProfiler {
 // MARK: - Mach Task Info Structure
 
 // swiftformat:disable all
-@available(macOS 27.0, iOS 27.0, *)
-private struct MachTaskBasicInfo {
-    var virtualSize: mach_vm_size_t = 0
-    var residentSize: mach_vm_size_t = 0
-    var residentSizeMax: mach_vm_size_t = 0
-    var userTime: time_value_t = time_value_t()
-    var systemTime: time_value_t = time_value_t()
-    var policy: policy_t = 0
-    var suspendCount: integer_t = 0
-}
 
 private let machTaskBasicInfo: Int32 = 20

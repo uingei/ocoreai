@@ -91,20 +91,6 @@ func declaredToolSpecs(fromJSON json: String?) -> [[String: any Sendable]] {
     }
 }
 
-/// The names carried by a spec list, in list order (`function.name` slots).
-///
-/// Zero forced casts: the `function`/`name` slots are read with `as?` guards,
-/// so a malformed spec contributes no name rather than trapping.
-func toolSpecNames(_ specs: [[String: any Sendable]]) -> [String] {
-    specs.compactMap { spec in
-        guard
-            let functionDict = spec["function"] as? [String: any Sendable],
-            let name = functionDict["name"] as? String
-        else { return nil }
-        return name
-    }
-}
-
 /// The injection surface for one inference request — THE single choke (10-06
 /// live-evidence flip, see `InferenceOptions.declaredToolNames`).
 ///

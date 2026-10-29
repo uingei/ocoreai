@@ -73,12 +73,6 @@ struct MessageModel: Codable {
         return try? JSONDecoder().decode([ToolCallRecord].self, from: data)
     }
 
-    /// Serialize tool calls to JSON blob for SQLite.
-    func serializeToolCalls() -> String? {
-        guard let calls = toolCalls else { return nil }
-        let data = try? JSONEncoder().encode(calls)
-        return data.flatMap { String(data: $0, encoding: .utf8) }
-    }
 }
 
 // MARK: - Tool Call Record
@@ -99,26 +93,6 @@ struct ToolCallRecord: Codable {
     }
 }
 
-// MARK: - Session Summary
-
-struct SessionSummary: Codable {
-    let sessionId: Int64
-    let summary: String
-    let compressedMessageCount: Int
-    let compressedAt: Date
-    let originalTokenEstimate: Int
-    let compressedTokenEstimate: Int
-
-    enum CodingKeys: String, CodingKey {
-        case sessionId = "session_id"
-        case summary
-        case compressedMessageCount = "compressed_message_count"
-        case compressedAt = "compressed_at"
-        case originalTokenEstimate = "original_token_estimate"
-        case compressedTokenEstimate = "compressed_token_estimate"
-    }
-}
-
 // MARK: - FTS Search Result
 
 struct FTSSearchResult: Codable {
@@ -134,13 +108,4 @@ struct ExpiryTask: Codable {
     let sessionIds: [Int64]
     let totalMessages: Int
     let scheduledAt: Date
-}
-
-// MARK: - Compression Trigger
-
-struct CompressionEvent: Codable {
-    let sessionId: Int64
-    let tokenCount: Int
-    let threshold: Int
-    let triggeredAt: Date
 }

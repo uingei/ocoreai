@@ -1351,22 +1351,9 @@ actor EnginePool {
         loadingModels.contains(modelId)
     }
 
-    /// Return the set of model IDs currently being loaded.
-    func getLoadingModelIds() -> Set<String> {
-        loadingModels
-    }
-
     /// Return the first loaded model ID (useful for fallback/summarization).
     func firstLoadedModelId() -> String? {
         loadedModels.keys.first
-    }
-
-    func loadedModelCount() -> Int {
-        loadedModels.count
-    }
-
-    func gpuCacheUsageGB() async -> Double {
-        0.0
     }
 
     /// The MLX lane for `modelId`, **loading the model on demand** (``ensureModelLoaded(modelId:)``).

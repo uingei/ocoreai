@@ -132,10 +132,6 @@ extension OcoreaiTheme {
         CardStyleModifier(theme: self)
     }
 
-    /// Grouped-container style: bg + rounded rect + subtle border
-    func groupStyle() -> some ViewModifier {
-        GroupStyleModifier(theme: self)
-    }
 }
 
 private struct CardStyleModifier: ViewModifier {
@@ -149,21 +145,6 @@ private struct CardStyleModifier: ViewModifier {
             .overlay(
                 RoundedRectangle(cornerRadius: theme.cornerRadius, style: .continuous)
                     .stroke(theme.cardBorder.opacity(0.5), lineWidth: 0.5),
-            )
-    }
-}
-
-private struct GroupStyleModifier: ViewModifier {
-    let theme: OcoreaiTheme
-
-    func body(content: Content) -> some View {
-        content
-            .padding(10)
-            .background(theme.groupBg)
-            .clipShape(RoundedRectangle(cornerRadius: theme.cornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: theme.cornerRadius, style: .continuous)
-                    .stroke(theme.groupBorder, lineWidth: 0.5),
             )
     }
 }

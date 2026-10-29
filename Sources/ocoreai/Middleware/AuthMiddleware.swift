@@ -58,29 +58,6 @@ struct AuthConfig: Equatable {
         self.promptInjectionEnabled = promptInjectionEnabled
     }
 
-    /// Parse configuration from raw bytes (e.g. file contents).
-    ///
-    /// - Throws: ``AuthConfigError/invalidJSON`` on parse failure.
-    ///   Callers are responsible for handling the error at the application level.
-    ///   **No silent fallback** — configuration must be explicit in production.
-    static func parseJSON(_ data: Data) throws -> AuthConfig {
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        let rawKeys = json?["api_keys"] as? [String]
-        guard let keys = rawKeys, !keys.isEmpty else {
-            throw AuthConfigError.invalidJSON("Missing or empty api_keys array")
-        }
-        let injection = (json?["promptInjectionEnabled"] as? Bool) ?? true
-
-        // cap instead of precondition (auth config must not release-crash)
-        let cappedKeys = Array(keys.prefix(1000))
-        return AuthConfig(apiKeys: cappedKeys, promptInjectionEnabled: injection)
-    }
-
-    /// Errors that can occur when parsing ``AuthConfig`` from JSON.
-    enum AuthConfigError: Error, LocalizedError {
-        case invalidJSON(String)
-    }
-
     /// Precompiled prompt injection detection regexes.
     ///
     /// Raw strings `#"..."#` — single backslashes, no Swift escape processing

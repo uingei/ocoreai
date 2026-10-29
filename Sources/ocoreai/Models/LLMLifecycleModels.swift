@@ -186,16 +186,6 @@ struct TrainProgressChunk: Encodable {
     var timestamp: Int64
 }
 
-struct TrainSummary: Encodable {
-    var success: Bool
-    var iterationsCompleted: Int
-    var finalTrainLoss: Float?
-    var finalValidLoss: Float?
-    var adapterPath: String?
-    var durationSeconds: Double
-    var error: String?
-}
-
 struct EvalSummary: Encodable {
     var loss: Float
     var perplexity: Float

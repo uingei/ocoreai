@@ -158,16 +158,6 @@ actor MemoryTracker {
         checkAllocationLevel()
     }
 
-    /// Record the actual memory usage from a source (e.g. MLX report).
-    /// - Parameter bytes: Current memory usage.
-    ///
-    /// WARNING: This overwrites `reservedBytes` — use sparingly, only when
-    /// you want to replace accounting with an authoritative measurement.
-    func reportUsage(_ bytes: UInt64) {
-        reservedBytes = bytes
-        checkAllocationLevel()
-    }
-
     /// Report GPU active memory from MLX `Memory.activeMemory`.
     /// - Parameter bytes: MLX GPU actively used bytes.
     ///

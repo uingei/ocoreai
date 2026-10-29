@@ -83,32 +83,6 @@ final class StructuredLogger: Sendable {
         writeLine(line)
     }
 
-    // MARK: - Convenience
-
-    func _trace(_ message: String, fields: [String: String] = [:]) {
-        log(level: .trace, message, fields: fields)
-    }
-
-    func _debug(_ message: String, fields: [String: String] = [:]) {
-        log(level: .debug, message, fields: fields)
-    }
-
-    func _info(_ message: String, fields: [String: String] = [:]) {
-        log(level: .info, message, fields: fields)
-    }
-
-    func _warning(_ message: String, fields: [String: String] = [:]) {
-        log(level: .warn, message, fields: fields)
-    }
-
-    func _error(_ message: String, fields: [String: String] = [:]) {
-        log(level: .error, message, fields: fields)
-    }
-
-    func _critical(_ message: String, fields: [String: String] = [:]) {
-        log(level: .fatal, message, fields: fields)
-    }
-
     // MARK: - OpenTelemetry
 
     /// Build a log entry compatible with OpenTelemetry LogData model.

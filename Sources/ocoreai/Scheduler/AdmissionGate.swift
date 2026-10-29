@@ -140,18 +140,6 @@ actor AdmissionGate {
         logger = log
     }
 
-    // MARK: - Budget Update
-
-    /// Link or re-link to a MemoryTracker.
-    func setMemoryTracker(_ tracker: MemoryTracker?) {
-        memoryTracker = tracker
-    }
-
-    /// Link or re-link to a HardwareRouter.
-    func setHardwareRouter(_ router: HardwareRouter?) {
-        hardwareRouter = router
-    }
-
     // MARK: - Admission
 
     /// Estimate memory cost for a request (KV cache for input + output tokens).

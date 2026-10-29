@@ -159,8 +159,6 @@ func anthropicMessagesHandler(
             throw AppError.memoryExhausted(usedGB: used, budgetGB: budget)
         case .queueFull:
             throw AppError.poolExhausted(0)
-        default:
-            throw AppError.engineUnavailable
         }
     }
 

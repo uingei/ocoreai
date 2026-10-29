@@ -186,35 +186,6 @@ protocol DecodingStrategy: Sendable {
     ) async throws -> ResultSequence
 }
 
-// MARK: - Decoding Strategy Factory
-
-/// Factory for creating decoding strategies
-@available(macOS 27.0, iOS 27.0, *)
-struct DecodingStrategyFactory {
-    /// Creates a decoding strategy of the specified type
-    /// - Parameters:
-    ///   - type: The type of decoding strategy to create
-    ///   - parameters: Optional parameters for configuring the strategy
-    /// - Returns: A configured decoding strategy instance
-    static func create(
-        type: DecodingType, parameters: DecodingParameters = DecodingParameters()
-    )
-        -> any DecodingStrategy
-    {
-        switch type {
-        case .vanilla:
-            return VanillaDecodingStrategy()
-        }
-    }
-}
-
-/// Enumeration of available decoding strategy types
-@available(macOS 27.0, iOS 27.0, *)
-enum DecodingType {
-    /// Standard vanilla decoding strategy (text-only)
-    case vanilla
-}
-
 /// Parameters for configuring decoding strategies
 @available(macOS 27.0, iOS 27.0, *)
 struct DecodingParameters: Sendable {

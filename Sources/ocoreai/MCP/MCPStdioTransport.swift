@@ -178,18 +178,6 @@ actor MCPStdioTransport {
         return batch
     }
 
-    // MARK: - 状态
-
-    /// 传输是否就绪
-    func isReady() -> Bool {
-        ready
-    }
-
-    /// 标记就绪
-    func setReady() {
-        ready = true
-    }
-
     /// 管道是否已结束（EOF/close）——客户端死进程路径参考。
     func isEnded() -> Bool {
         transportClosed
@@ -205,10 +193,4 @@ actor MCPStdioTransport {
         stdoutPipe = nil
         ready = false
     }
-}
-
-/// Stdio 传输层错误类型。
-enum MCPTransportError: Error {
-    case pipeClosed
-    case timeout
 }

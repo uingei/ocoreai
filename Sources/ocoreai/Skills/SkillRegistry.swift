@@ -69,15 +69,6 @@ actor SkillRegistry {
         resolveIfNeeded()
     }
 
-    /// Reload disk skills without affecting built-ins (增量扫描).
-    func reloadSkills(skillsDir: URL) async {
-        _ = loadDiskSkills(in: skillsDir, incremental: true)
-        resolveIfNeeded()
-        if let callback = hotReloadCallback {
-            await callback()
-        }
-    }
-
     /// Register a hot-reload callback invoked on registry changes.
     func setHotReloadCallback(_ callback: @escaping @Sendable () async -> Void) {
         hotReloadCallback = callback

@@ -143,13 +143,3 @@ struct DownloadSSEEvent: Codable {
             errorMessage: message, etaSeconds: nil, plan: nil)
     }
 }
-
-// MARK: - Status Response
-
-struct DownloadStatusResponse: Codable {
-    let downloadId: String
-    let status: String  // "downloading" | "completed" | "error" | "not_found"
-    let percentage: Int?
-    let cacheDir: String?
-    let errorMessage: String?
-}

@@ -158,38 +158,6 @@ final actor ModelScopeSearchClient {
         return try parseModelList(data)
     }
 
-    // MARK: - Model Detail
-
-    /// Get detailed info for a specific model.
-    /// - Parameter modelId: Full model path e.g. "Qwen/Qwen2.5-7B-Instruct"
-    func modelDetail(modelId: String) async throws -> [String: Any] {
-        let url = baseURL.appending(path: "api/v1/models/\(modelId)")
-        var request = URLRequest(url: url)
-        if let headerValue = credential.headerValue {
-            request.setValue(headerValue, forHTTPHeaderField: "Authorization")
-        }
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-            httpResponse.statusCode == 200
-        else {
-            throw MSError.refused(
-                statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                advice: (response as? HTTPURLResponse).flatMap {
-                    HubRejection.classify(
-                        statusCode: $0.statusCode, credential: credential, source: .modelScope)?
-                        .advice
-                })
-        }
-
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw MSError.invalidJSON
-        }
-
-        // Python SDK wraps in Code/Data - return Data field
-        return json["Data"] as? [String: Any] ?? json
-    }
-
     // MARK: - Parsing
 
     /// Parse the top-level list response into models.

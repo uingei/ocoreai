@@ -249,11 +249,6 @@ actor SystemPromptBuilder {
         return id
     }
 
-    /// Remove the change listener previously registered with the given ID.
-    func removeListener(_ id: String) {
-        changeListenerIDs.removeValue(forKey: id)
-    }
-
     /// Notify all registered change listeners.
     private func notifyChangeListeners() {
         for listener in changeListenerIDs.values {
@@ -266,11 +261,6 @@ actor SystemPromptBuilder {
         currentPrompt = nil
         lastHash = nil
         skillPromptCache.removeAll()
-    }
-
-    /// Refresh a single skill's cached prompt content after hot-reload.
-    func refreshSkillCache(_ skill: Skill) {
-        skillPromptCache[skill.name] = skill.promptContent
     }
 
     /// List loaded skill names via registry.

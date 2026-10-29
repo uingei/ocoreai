@@ -75,46 +75,6 @@ actor FTS5Search {
         }
     }
 
-    /// Search recent messages within a session using time range.
-    /// - Parameters:
-    ///   - sessionId: Session ID to search in
-    ///   - after: Only messages after this date
-    ///   - before: Only messages before this date
-    ///   - limit: Maximum results
-    /// - Returns: Message contents for the time range
-    func searchByTime(
-        sessionId: Int64,
-        after: Date,
-        before: Date,
-        limit: Int = 100,
-    ) async throws -> [MessageModel] {
-        let sql = """
-            SELECT id, session_id, role, content, created_at, token_count, tool_calls
-            FROM messages
-            WHERE session_id = ?
-              AND created_at >= ?
-              AND created_at <= ?
-            ORDER BY created_at ASC
-            LIMIT ?
-            """
-
-        let params: [AnyHashable] = [
-            sessionId,
-            Int64(after.timeIntervalSince1970 * 1_000_000),
-            Int64(before.timeIntervalSince1970 * 1_000_000),
-            limit,
-        ]
-
-        do {
-            let rows = try await store.query(sql, parameters: params)
-            return rows.compactMap { MessageModel(from: $0) }
-        } catch let sqliteErr as SQLiteError {
-            throw sqliteErr
-        } catch {
-            throw SQLiteError.queryFailed(detail: error.localizedDescription)
-        }
-    }
-
     /// Full-text search with session ID and FTS5 query.
     func searchByContent(
         sessionId: Int64,
@@ -169,29 +129,6 @@ actor FTS5Search {
         }
     }
 
-    /// Rebuild FTS5 index from messages table (for data integrity).
-    func rebuildIndex() async throws {
-        do {
-            // FTS5 internal command to rebuild
-            try await store.execute(sql: "INSERT INTO messages_fts(messages_fts) VALUES('rebuild')")
-        } catch let sqliteErr as SQLiteError {
-            throw sqliteErr
-        } catch {
-            throw SQLiteError.schemaMigrationFailed(detail: error.localizedDescription)
-        }
-    }
-
-    /// Delete FTS entries older than retention period.
-    func purgeOldEntries(olderThan days: Int) async throws {
-        let cutoff = Date().addingTimeInterval(-Double(days) * 86400)
-        let timestamp = Int64(cutoff.timeIntervalSince1970 * 1_000_000)
-
-        _ = try await store.execute(
-            sql: """
-                    DELETE FROM messages
-                    WHERE created_at < ?
-                """, parameters: [timestamp])
-    }
 }
 
 // MARK: - MessageModel Extension

@@ -233,11 +233,6 @@ struct SamplingConfiguration: Codable, Equatable {
         return Int32(bestIdx)
     }
 
-    private static func softmaxF16(_ logits: [Float16]) -> [Float] {
-        var f32 = logits.map { Float($0) }
-        return softmax(&f32)
-    }
-
     /// Numerically stable softmax: subtract max, exp, normalize.
     private static func softmax(_ logits: inout [Float]) -> [Float] {
         let max = logits.max() ?? 0

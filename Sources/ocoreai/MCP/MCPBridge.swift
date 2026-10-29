@@ -997,13 +997,6 @@ actor MCPBridge {
         log.info("Endpoint \(name) disconnected")
     }
 
-    /// 移除 endpoint。
-    func removeEndpoint(name: String) async {
-        await disconnectEndpoint(name: name)
-        endpointHandles.removeValue(forKey: name)
-        log.info("Endpoint \(name) removed")
-    }
-
     // MARK: - 状态查询
 
     /// Bridge 状态。

@@ -146,52 +146,11 @@ actor HuggingFaceSearchClient {
         }
     }
 
-    /// Trending MLX models (curated subset sorted by trending score).
-    func trendingMLX(limit: Int = 30) async throws -> [HFHubModel] {
-        try await search(
-            query: "",
-            filters: HFSearchFilters(mlxOnly: true, generationOnly: true),
-            limit: limit,
-            sort: "trending",
-        )
-    }
-
-    /// Get detailed info for a single model (including safetensors index for size estimation).
-    func modelInfo(repoId: String) async throws -> [String: Any] {
-        guard let repo = Repo.ID(rawValue: repoId) else {
-            throw HFSearchError.badQuery
-        }
-        do {
-            let model = try await hubClient.getModel(repo, full: true)
-            return try Model.toDictionary(model)
-        } catch {
-            throw HFSearchError.fromSDKError(error)
-        }
-    }
 }
 
 // MARK: - Dictionary conversion helper
 
 extension Model {
-    /// Convert Model to AnyHashable dictionary for backward compat with existing callers.
-    static func toDictionary(_ m: Model) throws -> [String: Any] {
-        var dict: [String: Any] = [:]
-        dict["id"] = m.id.description
-        if let author = m.author { dict["author"] = author }
-        if let sha = m.sha { dict["sha"] = sha }
-        if let lastModified = m.lastModified {
-            dict["lastModified"] = ISO8601DateFormatter().string(from: lastModified)
-        }
-        if let downloads = m.downloads { dict["downloads"] = downloads }
-        if let likes = m.likes { dict["likes"] = likes }
-        if let tags = m.tags { dict["tags"] = tags }
-        if let pipelineTag = m.pipelineTag { dict["pipeline_tag"] = pipelineTag }
-        if let cardData = m.cardData { dict["cardData"] = cardData as Any }
-        if let config = m.config { dict["config"] = config as Any }
-        if let trendingScore = m.trendingScore { dict["trendingScore"] = trendingScore }
-        if let usedStorage = m.usedStorage { dict["usedStorage"] = usedStorage }
-        return dict
-    }
 }
 
 // MARK: - Errors

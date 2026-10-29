@@ -2,12 +2,12 @@
 
 > Injected into every session, so it carries **rules and pointers only**: a root rule is ≤3 lines
 > (what + the one-line evidence + the gate). Dated incidents, measurements and round verdicts live in
-> `CHANGELOG.md` (grep the symbol) or `docs/agent/`; nothing enforces that split but the byte cap. If this file
+> `CHANGELOG.md` or `docs/agent/`; nothing enforces that split but the byte cap. If this file
 > and the code disagree, the code is the fact: fix whichever is wrong.
 >
 > **Why there is a budget:** the host injects this file plus every `AGENTS.md` below it to the cwd as ONE
 > concatenation truncated at 32 KiB — past the cap a rule is not deferred, it is never read. B2 prices
-> root+guide against the loader's number (rationale: the head of `scripts/agents-md-contract.sh`).
+> root+guide against it (rationale: the head of `scripts/agents-md-contract.sh`).
 
 ## Identity
 - An agent for open models, natively local on Apple silicon: it sees, hears, speaks and codes, in one binary.
@@ -257,8 +257,9 @@ against upstream first). Which doc each audience reads, and when: `docs/agent/do
   the deliverable, and no gate is installable** — see § Adoption.
 - **No defensive clutter; no guard for a failure nobody observed.** Validate once at the boundary that owns
   the value and pass typed values inward; quote the failure (a probe line, a red test, a scoreboard row)
-  before writing its guard. For a speculative race or security edge: name the mode, likelihood and cost and
-  get the owner's buy-in — no scope for theoretical robustness.
+  before writing its guard. For a speculative race or security edge: name mode, likelihood and cost and
+  get the owner's buy-in.
+<!-- claim:unreferenced_decls<=24 :: bash scripts/unreferenced-decls.sh -->
 - Default is one-pass in this thread, no sub-agent unless the owner asks (the owner reviews every
   commit).
 

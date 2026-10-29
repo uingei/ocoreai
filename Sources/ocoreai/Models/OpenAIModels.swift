@@ -1511,8 +1511,7 @@ func decodeStopUnion<K: CodingKey>(
     return try c.decode([String].self, forKey: key)
 }
 
-/// Backward compatibility aliases.
-typealias ChatCompletionResponse = ChatCompletion
+/// Backward compatibility alias.
 typealias Choice = CompletionChoice
 
 // MARK: - SSE Streaming

@@ -689,11 +689,6 @@ final class PerceptionEngine: Sendable {
     }
 
     @MainActor
-    public func setBudget(_ budget: PerceptionBudget) {
-        self.budget = budget
-    }
-
-    @MainActor
     public func setChannels(_ flags: ChannelFlags) {
         self.channels = flags
         if isRunning {

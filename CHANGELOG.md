@@ -9,6 +9,42 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(53) 787 lines nothing named, and the count that stops them growing back**
+
+- **What improved.** *No line is gratuitous* was a taste sentence; it is a measured one now.
+`scripts/unreferenced-decls.sh` counts the declarations in `Sources/` whose name occurs exactly once in
+the tracked tree — at its own declaration — and `AGENTS.md` carries `unreferenced_decls<=24`, a
+shrink-only ratchet re-run by `make docs-check` here and by `Text gates (ubuntu)`. Its first pass found
+76, and 63 declarations went out across 28 files (787 lines): six `StructuredLogger` level wrappers nobody
+called, a `DecodingStrategyFactory` whose only case was the one strategy that exists, the `parseJSON` /
+`AuthConfigError` pair behind it, the profiler's tokenizer/inference/decoding brackets, an orphaned FTS
+rebuild-and-purge pair, a 76-line rule-based event extractor and the memory-event API it served, and dead
+setters in `EnginePool`, `AdmissionGate`, `LoadedModel` and `MCPStdioTransport`. Two deletions are
+correctness, not golf: `ChatHandler` and `AnthropicMessagesHandler` each mapped `SchedulerError` through a
+`default:` the compiler itself called dead (*default will never be executed*), so a fourth refusal reason
+added to that enum would have reported `engineUnavailable` on the wire; now it fails to compile, which is
+what § Error Handling already promises.
+
+- **What same-session output proves it.** `swift build --build-tests` exit 0 before and after is the proof
+— the test target compiles too, so nothing in the tree, tests included, named a deleted declaration.
+`make anchor-check`: 75 anchors, 0 drift, so no cite moved off the code it claims. The instrument's blind
+spot is written in its own header: it is text-only over `git ls-files` (host-independent, per entry 52),
+so a witness to an *external* protocol looks dead and is not — `photoOutput`, `streamDidBecomeActive`,
+and the `@available(macOS 27)` CoreAI and Video paths are among the 24 left, and `OCOREAI_DEAD_VERBOSE=1`
+names every one. Two finds were named, not deleted, because they are owner-visible: `MTPDrafterContext`
+occurs once repo-wide and `MLXModelLoader.loadMTPDrafter` exists only inside a comment, so `LoadedModel`
+'s drafter container is written solely by a setter nothing calls and `hasMTPDrafter` is constant-false
+where `EnginePool.swift:1217` reads it; and `memory_events` (table + FTS index + 3 triggers,
+`SQLiteStore.swift:670`) now has no API in the tree at all.
+
+- **Which gate goes red if it regresses.** `unreferenced_decls<=24`, sampled red before it was believed
+green: one appended `func gratuitousProbeForTheGate()` moved the count to 25 and `make docs-check`
+answered `P4 1 claim(s) do not reproduce: unreferenced_decls <= 24: command returns 25`. That is the tax
+and the point — a legitimate new delegate witness moves the number too, and the honest answer is to delete
+another dead name in the same commit rather than raise the cap. Root paid for the claim out of its own
+header (21 440 → 21 437 B, chain 32 455/32 768) and `comparator-repos.md` 's two figure sites were
+re-derived in the same commit; 0.9 s on ubuntu, no arm64 minutes.
+
 **10-29(52) The claim I shipped was red on the runner twice, and the second red was my fix**
 
 - **What improved.** 9065cb3 added `tags_published>=1` to `AGENTS.md` so that “ours: 0 tags, 0 releases”

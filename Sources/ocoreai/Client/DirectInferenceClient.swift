@@ -88,15 +88,6 @@ struct InferenceRequest {
     }
 }
 
-// MARK: - Inference Result
-
-struct StreamingInferenceResult {
-    var accumulatedText: String
-    var stopReason: String?
-    var inputTokens: Int
-    var outputTokens: Int
-}
-
 // MARK: - Per-model context-window parity (compact, then 400 wall)
 
 /// Enforce the per-model `maxContextWindow` cap on the Fast Path with FULL
