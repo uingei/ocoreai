@@ -9,6 +9,32 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(48) CI said what the host could not: five cites were dead on a runner, and the gate that catches them was already there**
+
+- **What improved.** the adjudication doc reached main green locally and red on `Text gates (ubuntu)` in
+the same minute: the CI job sets `OCOREAI_AGENTS_NO_HOST_REFS=1`, which strips the host's `~/references`,
+and five upstream paths in it (`InferenceEngine.swift`, `LanguageConfig.swift`, `Logger.swift`,
+`NDArray+Helpers.swift`, `Bundle/LanguageConfig.swift`) resolved only through that mirror. They now name
+the tree in the table header that carries them, and two more defects the same mode exposed went with them:
+an unescaped `|` inside two table cells (a row stops rendering there) and a `metadata.json` cite that
+reads as a repo path when it is a file inside a downloaded bundle.
+
+- **What same-session output proves it.** the failed step from the run's jobs payload is `AGENTS.md
+contract`; `OCOREAI_AGENTS_NO_HOST_REFS=1 bash scripts/agents-md-contract.sh check` reproduced it verbatim
+on this host (5 unresolved → 1 → 0) and now reports table-defects=0 in both modes. The verdict came from
+the artefact, not from a guess: the step name is what pinned the cause.
+
+- **Which gate goes red if it regresses.** `make push-ready` already runs the contract with
+`OCOREAI_AGENTS_NO_HOST_REFS=1` — the remedy existed and I pushed past it, so no new gate is warranted and
+none was added; the gap was the path not taken. What is new since this round is the diary-shape check in
+the same script (P20), which a future session cannot walk past as easily.
+
+- **Honest limits.** the four legs still running for 77a122f (both Build & Test halves, the appStore trait
+compile, the iOS compile) had not reported when this entry was written, so this round's CI verdict is the
+text-gate fix plus those pending legs, not a green suite. And the host-vs-runner split is not solved by
+this fix: a cite into `~/references` still passes plain `make docs-check` here, which is why the runner-
+premise mode is the one that belongs on the push path.
+
 **10-29(47) The CoreAI fork got read: 36 upstream commits, one verdict each, and the ledger now says 0**
 
 - **What improved.** make drift printed 8/10/7/6 un-adjudicated for the four CoreAI engines and could not

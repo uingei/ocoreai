@@ -16,7 +16,7 @@ named. Absorbed and n/a are decisions; open is debt with a face.
 
 ## The windows as measured
 
-| our file | upstream counterpart | window | read through |
+| our file | upstream counterpart, all under coreai-models `swift/Sources/` | window | read through |
 |---|---|---|---|
 | `CoreAIPipelinedEngine.swift` (1 905 L) | `InferenceEngines/CoreAIPipelinedEngine.swift` (2 039 L) | 8 | `7fd2063` |
 | `CoreAISequentialEngine.swift` (710 L) | `CoreAISequentialEngine.swift` (1 167 L) | 10 | `7fd2063` |
@@ -37,7 +37,7 @@ next upstream commit is the only thing that can raise a number here.
 
 ## One row per commit
 
-| sha | PR | what upstream did | verdict | evidence in our tree |
+| upstream sha | PR | what coreai-models did | verdict | evidence in our tree |
 |---|---|---|---|---|
 | `27a66f9` | #227 | `InputLayout` name resolution for shared descriptor analysis | absorbed | `Engine/InputLayout.swift` + `CoreAIPipelinedEngine.swift`, `CoreAISequentialEngine.swift:130`; recorded as `Absorbed: #227` |
 | `62ff88b` | #237 | cap pipelined prefix reuse to `processedTokenCount` (pipelined decode yields the last token unprocessed) | absorbed | `CoreAIPipelinedEngine.swift:186-189` caps, re-slices `resolvedNewTokens`, truncates history |
@@ -59,7 +59,7 @@ next upstream commit is the only thing that can raise a number here.
 | `7359dbc` | #249 | VLM consolidation B1+B2: shared KV cache, `GenerationTokenBox`, `runChunkedPrefill` | **open** (shape debt) | 0 hits for `GenerationTokenBox`/`runChunkedPrefill`; ours kept the inline equivalents, which is why our copy is 1 238 L while upstream's consolidated file is 1 107 L |
 | `8cf3075` | #370 | Gemma 4 image input: static-shape runtime (+152 L), `LanguageConfig` (+103 L), `ImagePreprocessor` (access level) | **open** (narrow) | the `ImagePreprocessor` half is `private`→`public` only (upstream L194; ours is `private func renderToContext` at `CoreAIImagePreprocessor.swift:188`, internal callers at :91, :136, :170 — nothing to take); the runtime half sits in the ~500 L of static-shape code our slice never took |
 | `8623ac6` | #302 | Gemma 4 E2B/E4B iOS runner upgrades | **open** (big) | upstream rewrote ~500 L of `CoreAIStaticShapeEngine.swift` and 89 L of `LanguageConfig.swift`; our copy is 646 L total. The largest un-absorbed change on a mirrored file — re-sync or record a permanent divergence, one or the other |
-| `2704a69` | #264 | recover exported turn-end stop tokens by scanning `tokenizer.json` (`|end|` pattern, Gemma/Phi) | **open** | 0 hits for `end_of_turn` in `Sources/ocoreai`. A bundle whose metadata omits the turn-end token would run past it on our CoreAI lane; whether any bundle we advertise does is unmeasured here (macOS 27) |
+| `2704a69` | #264 | recover exported turn-end stop tokens by scanning `tokenizer.json` (`\|end\|` pattern, Gemma/Phi) | **open** | 0 hits for `end_of_turn` in `Sources/ocoreai`. A bundle whose metadata omits the turn-end token would run past it on our CoreAI lane; whether any bundle we advertise does is unmeasured here (macOS 27) |
 | `f03e8ce` | #368 | limit whitespace between JSON tokens under schema-constrained generation (`maxWhitespaceCount`, default 32) | **open** — top candidate | Apple's limit is enforced on the next-token mask, not in the grammar (upstream `GuidedGeneration/ConstrainedGenerationSession.swift:24-27`: 32 covers 15 nesting levels), so it ports without touching the vendored xgrammar; ours compiles with `anyWhitespace: true` (`GuidedGeneration/XGrammarWrapper.swift:69`), i.e. unbounded indentation inside every tool-call argument |
 | `5b0f350` | #383 | ChunkedEmbedding fix for Gemma-3n-E4B | n/a | python export side (`_constants.py`, `export/pipeline.py`, `models/macos/gemma3n.py`) — this repo has no export surface (§ Upstream 2) |
 | `957fa7b` | #365 | new eager APIs for Qwen 3.5+ on macOS | n/a | python reference implementations (`models/macos/qwen3_5.py`, `primitives/macos/cache.py`), same rule |
@@ -67,7 +67,7 @@ next upstream commit is the only thing that can raise a number here.
 | `23308de` | #378 | speculative decoding: protocol, `SpeculativeDecoder`, prompt-lookup drafter | n/a to this lane | theirs is a CoreAI-engine subsystem (`SpeculativeDecoding/`); ocoreai's speculative decoding is MLX-only by its own marker — `Engine/LoadedModel.swift:220` "Speculative Decoding (MLX only)". On a macOS 27 host it is the CoreAI-lane speedup we do not have |
 | `31484f7` | #363 | select the sequential engine for attention-mask graphs; `--batch-prototype` | n/a | our factory picks by model structure (`CoreAIEngine.swift:665-718`: dynamic → pipelined, static → static-shape) and there is no attention-mask graph path to select for (0 hits for `BatchedDecodeStep`); the rest is their CLI |
 | `cc3c234` | #357 | resolve diffusion assets through a bundle's declared asset manifest so compiled bundles load | **open** | ours hardcodes the three component names (`Video/WanPipeline.swift:115,118,121`) and reads the bundle's manifest only for the `diffusion` block (:94) — the pre-fix shape, whose own comment said declared `assets` names are not consulted. No Wan bundle on this host, so whether a bundle we advertises declares other names is unmeasured; the check is one `metadata.json` read, the fix is upstream's two `resolveDeclaredPipelineAsset` helpers |
-| `3e172fb` | #248 | guided generation was refused after engine load on static-shape engines: ask `supportsLogits || is ConstrainedGenerationCapable`, not the constrained flag alone | absorbed | `EngineInference.swift:326` names the commit and the rule, :336 routes on `engine.supportsLogits`, and the CPU-feed loop for a logits-only engine lives at :946-953 |
+| `3e172fb` | #248 | guided generation was refused after engine load on static-shape engines: ask \`supportsLogits\` *or* \`ConstrainedGenerationCapable\`, not the constrained flag alone | absorbed | `EngineInference.swift:326` names the commit and the rule, :336 routes on `engine.supportsLogits`, and the CPU-feed loop for a logits-only engine lives at :946-953 |
 | `0d6c0bf` | #240 | layered prefill chunk size | absorbed | `CoreAIEngine.swift:166` ("Layered prefill chunking (coreai-models #240, 0d6c0bf)"), applied by `:175` |
 | `ed946c8` | #274 | default the 4096 prefill chunk only at >=64 GB | absorbed | `CoreAIEngine.swift:191` — "Chunking defaults (coreai-models #274, ed946c8 — layered resolution)" |
 | `b63133b` | #262 | route VLM construction through `EngineFactory` (C1+C2) | n/a | their factory gained 97 L; ocoreai constructs VLM engines in its own factory (`CoreAIEngine.swift:718` `createVLMEngine`), and the VLM file's edit was the removal of inline construction our copy never had |
