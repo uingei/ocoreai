@@ -118,8 +118,28 @@ final class ModelManager {
 
     // MARK: - Search state
 
-    var searchQuery: String = ""
-    var selectedSource: HubSource = .huggingFace
+    /// A query and its results are one fact. The search field writes `searchQuery` straight
+    /// through, so the rule lives with the state and not in a helper the view never called: a box
+    /// the user emptied must not keep rendering the search it just cleared.
+    var searchQuery: String = "" {
+        didSet {
+            guard searchQuery.isEmpty else { return }
+            hfResults = []
+            msResults = []
+            currentError = nil
+        }
+    }
+    /// Leaving a hub drops the list of the hub left behind; arriving somewhere does not invent one.
+    var selectedSource: HubSource = .huggingFace {
+        didSet {
+            guard oldValue != selectedSource else { return }
+            if selectedSource == .huggingFace {
+                msResults = []
+            } else {
+                hfResults = []
+            }
+        }
+    }
     var isSearching: Bool = false
 
     var hfResults: [HFHubModel] = []
@@ -529,26 +549,6 @@ final class ModelManager {
             if target.path == readyLocal.path || target.path.hasPrefix(readyLocal.path + "/") {
                 try fm.removeItem(at: target)
             }
-        }
-    }
-
-    // MARK: - Search Helpers
-
-    /// Clear search results and reset state for a fresh start.
-    func clearSearch() {
-        searchQuery = ""
-        hfResults = []
-        msResults = []
-        currentError = nil
-    }
-
-    /// Switch hub source and clear stale results from the other source.
-    func switchSource(to source: HubSource) {
-        selectedSource = source
-        if source == .huggingFace {
-            msResults = []
-        } else {
-            hfResults = []
         }
     }
 

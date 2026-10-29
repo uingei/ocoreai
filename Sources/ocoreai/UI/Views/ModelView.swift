@@ -88,10 +88,7 @@ struct ModelView: View {
             modelManager.selectedSource == .huggingFace
                 ? StringKey.modelSearchHFHub.l
                 : StringKey.modelSearchModelScope.l,
-            text: Binding<String>(
-                get: { modelManager.searchQuery },
-                set: { modelManager.searchQuery = $0 },
-            ),
+            text: $modelManager.searchQuery,
         )
         .disableAutocorrection(true)
         .onSubmit {

@@ -9,6 +9,29 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-30(58) A cleared search box kept rendering the search it cleared**
+
+- **What improved.** `ModelManager` carried `clearSearch()` and `switchSource(to:)` and neither had a
+  caller: the model browser's search field wrote `searchQuery` through a hand-rolled `Binding` whose
+  setter was a single assignment, and the hub Picker bound `selectedSource` directly. So the two rules
+  those helpers existed to carry never ran on the route a person takes. Empty the field and the results
+  view still lists the previous hub's rows (its gate is `hasQuery || hasResults`), under a stale
+  `currentError` left by the failed search before it. The rules now live with the state they govern, in
+  `searchQuery` and `selectedSource` observers, so every writer obeys them — this field, a later clear
+  button, a programmatic reset — and the `Binding` wrapper left with the two helpers.
+
+- **What same-session output proves it.** Sampled red: with only the production file stashed and the
+  tests unchanged, `ModelManagerTests` fails 6 assertions — the emptied query keeps both result lists
+  and the error, and the hub switch keeps the list of the hub it left. With the change in place the
+  suite is 5/5, including the boundary that keeps the list when the query is merely changed (emptiness
+  is the trigger, not a write). Grep before: `clearSearch` occurred once in `Sources` — its own
+  declaration.
+
+- **Which gate goes red if it regresses.** `ModelManagerTests`(5): three of them drive a state
+  transition and read what an observer must have repaired (`count == 1` kept while typing, both lists
+  empty once the box is emptied, only the left-behind hub's list dropped on a switch) instead of calling
+  the helper and reading back what it just set.
+
 **10-30(57) The speaker channel reported a queue depth it could not measure**
 
 - **What improved.** The `.speaker` channel injected `[speaker] tts=active, queue=0` into the model's
