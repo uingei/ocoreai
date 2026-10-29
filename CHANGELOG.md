@@ -9,6 +9,43 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(47) The CoreAI fork got read: 36 upstream commits, one verdict each, and the ledger now says 0**
+
+- **What improved.** make drift printed 8/10/7/6 un-adjudicated for the four CoreAI engines and could not
+measure three other files at all, because the only provenance token it could read was `Absorbed:`. The
+script learned one token — `Adjudicated: <sha>`, which moves a window's start and claims nothing about
+code — and all 12 `Engine/CoreAI*.swift` files now carry it. Every verdict (36 commits: 7 absorbed, 21
+n/a, 8 open) has a row in `docs/agent/coreai-fork-adjudication.md` naming the line in our tree that
+decides it. The coreai-models axis is adopted to `0aff938` after its window was read, not before.
+
+- **What same-session output proves it.** ledger before: 未裁决 8/10/7/6 plus three 窗口不可测 lines; after: 12
+rows and 未读 0 个 on every file. Adopting exposed a second flaw on the same screen — the axis read
+`origin/HEAD` (already `0aff938`) while the fork ledger read the checkout's `HEAD` (`7fd2063`), so a stale
+mirror tip silently under-reports; both now take one ref and print it. Absorbed rows are cites: #237's
+prefix cap at `CoreAIPipelinedEngine.swift:186-189`, #248's logits rule at `EngineInference.swift:326`,
+#240/#274's chunking defaults at `CoreAIEngine.swift:166,175,191`. Open rows rank cheapest-first: #368's
+JSON whitespace bound (ours compiles `anyWhitespace: true`), #357's metadata asset names (ours hardcodes
+three filenames in `Video/WanPipeline.swift`), #302's ~500-line static-shape rewrite.
+
+- **Which gate goes red if it regresses.** `make drift` recomputes every count, so a divergence nobody
+wrote down reappears as the same number on the next run — the ledger is the lock, and the rule that a
+window closes in the header plus a row now sits in `Engine/AGENTS.md`. The report only finishes because of
+10-29(46). The header edits moved 13 line-cites; all were re-grepped and `make anchor-check` reports
+75/75. The second gate here came of a self-inflicted red: the previous entry lost its heading to one of my
+splices, reached main, and every gate stayed green. `agents-md-contract.sh` now requires each entry's
+first bullet to have a heading above it (48 paired here, floor 40), and the same scan immediately found an
+older wound of the same kind — 10-29(40) had reached main without a heading as well; its number came from
+its neighbours and its title from its own first bullet, so nothing was invented.
+
+- **Honest limits.** nothing was ported — every absorbed row cites code already in the tree, every open
+row names an action rather than taking it. "n/a" means the surface is absent from our fork today, and the
+batching family (#335/#367/#377, ~860 upstream lines) is the n/a nobody should read as "not worth it".
+`Adjudicated:` closes a read window, not a decision: the 8 open items live in the doc, not in root § Open
+(12 bytes free), so the pointer sits in `Engine/AGENTS.md`. The whitespace bound and the Wan asset names
+both wait on a measurement, not on an opinion.
+
+**10-29(46) `make drift` exited 141 instead of 10, and the report died on the biggest window**
+
 - **What improved.** the entry below asserted an exit code it had not run: `set -euo pipefail` plus a
 truncating `head` means a window bigger than a pipe buffer kills the writer with SIGPIPE and the script
 aborts mid-report. All four truncations in the script now drain the pipe instead — three use a `sed -n`
@@ -169,6 +206,8 @@ ran. Both new links were then fetched for real — the badge in 0.73 s, the work
 two earlier attempts from this host stalled past 75 s without an answer, which is github.com throttling
 and the reason the docs contract refuses to treat a stall as a verdict ("most URLs unanswered is also
 red", `scripts/link-check.sh`).
+
+**10-29(40) The release leg got its probe, two dead steps died, and swallowed reds became countable**
 
 - **What improved.** Two steps are gone and the class they belong to is now askable. `Collect artifacts
 (Release)` assigned `DD=~/…/ocoreai-*/Build/Products`, and an assignment does not glob: `find "$DD"`

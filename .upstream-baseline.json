@@ -1,9 +1,9 @@
 {
   "note": "versioned upstream drift baseline \u2014 values are SHAs (full or short, compare tolerant). scripts/upstream-drift.sh",
-  "checked_at_utc": "2026-10-25T00:02:08Z",
+  "checked_at_utc": "2026-10-29T03:13:57Z",
   "baselines": {
     "mlx-swift-lm": "991266a",
-    "coreai-models": "09e7125",
+    "coreai-models": "0aff938",
     "codex": "bd5a836"
   },
   "sources": {

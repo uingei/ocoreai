@@ -99,6 +99,12 @@ index instead of `continue`ing. Its only caller is `@available(macOS 27.0, *)`
 `_runConstrainedDecoding`, so no host here can execute it. Land the fix on macOS 27 with a run, or
 leave it as the open item it is; a blind edit is a claim, not a fix.
 
+## The CoreAI fork's windows close in the header, not in chat
+`Engine/CoreAI*.swift` is a **fork**, and `make drift` counts the upstream commits each copy has not
+read. Close a window with `Adjudicated: <sha>` in the file header plus one row per commit in
+`docs/agent/coreai-fork-adjudication.md`; the count is recomputed, so a divergence nobody wrote down
+comes back as the same number.
+
 ## Line cites are gated, not trusted
 Every `file:line` this area leans on is asserted by 20 markers in `docs/agent/engine-line-cites.md`,
 parked one hop out because the host truncates root+guide at 32 KiB and a marker is a byte of rule the

@@ -2,7 +2,12 @@
 // Adapted for ocoreai — aligned with coreai-models HEAD a5ece33
 //
 // Shared inference types: InferenceRuntimeError, fillNDArray, readNDArray,
-// lastTokenLogits.
+// lastTokenLogits — mirrored from swift/Sources/CoreAIShared/Runtime/NDArray+Helpers.swift and
+// swift/Sources/CoreAILanguageModels/InferenceEngines/KVCacheShared.swift (named here because the
+// drift ledger reads only the head of the file).
+// Adjudicated: 7fd2063 — the 4 commits since a5ece33 are additive helpers for subsystems ocoreai
+// does not run (SAM3 / Wan bfloat16 / Parakeet); none touched the four symbols mirrored here:
+// docs/agent/coreai-fork-adjudication.md
 //
 // All gated behind #if canImport(CoreAI).
 // (No @available needed: InferenceRuntimeError is a pure Foundation error enum;

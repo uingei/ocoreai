@@ -4,6 +4,8 @@
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 // Provenance: coreai-models (BSD-3-clause, Apple) — verbatim, absorbed.
 //   swift/Sources/CoreAIShared/Image/ImagePreprocessor.swift (L37-290) @ HEAD 5716935
+//   Adjudicated: 7fd2063 — the only upstream change since is `renderToContext` private→public
+//   (#370), which this slice has no caller for: docs/agent/coreai-fork-adjudication.md
 // Pure Foundation/CoreImage/CoreGraphics/vDSP value types — no CoreAI dependency,
 // always compiled (unit-testable on any Apple OS at the module floor).
 // `import simd` trimmed (unused in ocoreai build); `ImageStrategy` lives in

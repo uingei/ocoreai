@@ -105,6 +105,7 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_AGENTS_FLOOR_FIGURES:=2}" # B2's premise: figure sites the docs header must still offer
 #   (the ocoreai row + its prose tail). A re-derivation whose anchors vanished passes vacuously, so the
 #   scan floors its own hit count instead of trusting the header it reads.
+: "${OCOREAI_FLOOR_DIARY_PAIRED:=40}"   # CHANGELOG entries whose heading was found above their first bullet
 : "${OCOREAI_AGENTS_MAX_AREA:=15609}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
@@ -151,6 +152,7 @@ fi
 
 OCOREAI_AGENTS_MODE="$MODE" \
 OCOREAI_AGENTS_MAX_ROOT="$OCOREAI_AGENTS_MAX_ROOT" \
+OCOREAI_FLOOR_DIARY_PAIRED="$OCOREAI_FLOOR_DIARY_PAIRED" \
 OCOREAI_AGENTS_MAX_CHAIN="$OCOREAI_AGENTS_MAX_CHAIN" \
 OCOREAI_FLOOR_CHAIN_GUIDES="$OCOREAI_FLOOR_CHAIN_GUIDES" \
 OCOREAI_AGENTS_FLOOR_FIGURES="$OCOREAI_AGENTS_FLOOR_FIGURES" \
@@ -993,6 +995,32 @@ for f in sorted(set(tracked_md)):
         fail.append("P18 %s carries %d raw \\uXXXX escape(s) (%s) — markdown holds characters, "
                     "not source escapes; the generator that wrote them is the bug"
                     % (f, len(raw), ", ".join(sorted(set(raw))[:4])))
+# ── P20: every diary entry keeps its heading ────────────────────────────────
+# A diary entry whose heading is gone is four labelled bullets with no number and no title, so the
+# pointers other text makes to it ("see 10-29(46)") stop resolving. Sampled 10-29 the bad way: one of
+# my own splices ate the heading of 10-29(46), it reached main, and every gate stayed green. Decidable
+# offline, no prose judgement: the first `- **What improved.**` of an entry must have a heading line
+# above it that post-dates the previous entry's first bullet.
+DIARY_HEAD_RE = re.compile(r"^\*\*\S")  # any bold-led line: `**10-29(46) …**` or a `**B. …**` part-head
+last_head = last_impr = 0
+diary_orphans, diary_paired = [], 0
+for _i, _ln in enumerate(read("CHANGELOG.md").split("\n"), 1):
+    if DIARY_HEAD_RE.match(_ln):
+        last_head = _i
+    elif _ln.startswith("- **What improved."):
+        if last_head > last_impr:
+            diary_paired += 1
+        else:
+            diary_orphans.append(_i)
+        last_impr = _i
+if diary_orphans:
+    fail.append("CHANGELOG.md has %d bullet block(s) with no entry heading above them (line(s) %s) — "
+                "an entry without its heading cannot be cited by number, and `make docs-check` did not "
+                "see this until 10-29" % (len(diary_orphans), diary_orphans[:4]))
+if diary_paired < env_int("OCOREAI_FLOOR_DIARY_PAIRED"):
+    fail.append("P20 paired only %d diary entries (floor %d) — a scan that matches nothing reports a "
+                "clean diary" % (diary_paired, env_int("OCOREAI_FLOOR_DIARY_PAIRED")))
+
 # ── report ───────────────────────────────────────────────────────────────────
 print("AGENTS.md contract (%s)" % mode)
 print("  xrefs     §-refs=%d (floor %d)  anchors=%d  dangling=%d"
@@ -1002,6 +1030,9 @@ corpus_bytes = sum(os.path.getsize(q) for q in sorted(set(
     + guides + doc_files)) if os.path.exists(q))
 print("  corpus    bytes=%d (reported, not judged)  probe-index=%d/%d  doc-orphans=%d  table-defects=%d"
       % (corpus_bytes, len(probe_indexed), len(probe_scripts), len(doc_orphans), len(table_bad)))
+print("  diary     entries=%d paired=%d (floor %d)  headingless=%d"
+      % (len([1 for _l in read("CHANGELOG.md").split("\n") if DIARY_HEAD_RE.match(_l)]),
+         diary_paired, env_int("OCOREAI_FLOOR_DIARY_PAIRED"), len(diary_orphans)))
 print("  budgets   root=%d/%d bytes guides=%d  host-chain-cap=%d  injected=%d nested AGENTS.md"
       "  deepest-chain=%d/%d  docs-figures=%d site(s) re-derived"
       % (root_size, env_int("OCOREAI_AGENTS_MAX_ROOT"), len(guides),

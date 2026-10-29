@@ -184,12 +184,19 @@ coreai_fork_ledger() {
   # (exit 语义仍由上面的轴决定)。
   local d
   d="$(local_dir coreai-models)" || { echo "  coreai fork 台账   SKIP ($REFS/coreai-models 不存在)"; return 0; }
-  python3 - "$d" <<'LEDGER_PY'
+  # 窗口终点必须和上面轴用同一个 ref：轴读 origin/HEAD，台账读 checkout 的 HEAD，两者一旦
+  # 分叉（clone 未 checkout 到最新），台账会少报——10-29 实测轴已见 0aff938 而台账仍停在 7fd2063。
+  local upref
+  upref="$(local_head coreai-models 2>/dev/null || echo HEAD)"
+  python3 - "$d" "$upref" <<'LEDGER_PY'
 import os, re, subprocess, sys
-up = sys.argv[1]
+up, ref = sys.argv[1], sys.argv[2]
 ours = os.path.join("Sources", "ocoreai", "Engine")
 PATH_RE = re.compile(r"((?:swift/Sources/)?[A-Za-z0-9_/+.{}-]*[A-Za-z0-9_+]\.swift)")
 SHA_RE = re.compile(r"(?:HEAD|absorbed|Absorbed: #\d+)\s+([0-9a-f]{7,40})")
+# `Adjudicated: <sha>` = 这条窗口读到这儿了(逐条裁决记在 docs/agent/coreai-fork-adjudication.md)。
+# 它只移动窗口的起点,不假装代码进来了:open 的裁决仍在那份文档里,不在这里消失。
+ADJ_RE = re.compile(r"Adjudicated:\s+([0-9a-f]{7,40})")
 def git(*a):
     try:
         return subprocess.run(("git",) + a, cwd=up, capture_output=True, text=True, timeout=60).stdout.strip()
@@ -213,21 +220,26 @@ for f in sorted(os.listdir(ours)):
     src = next((r for p in cand if (r := resolve(p))), "")
     shas = SHA_RE.findall(head)
     base = shas[-1] if shas else ""
+    adj = ADJ_RE.findall(head)
+    read_to = adj[-1] if adj else ""
+    window = read_to or base
     if not src and not base:
         glue += 1
         continue
     if not src:
         rows.append("  %-31s 基线 %s | 上游文件未指名 — 逐条裁决时补路径" % (f, base[:9]))
         continue
-    if not base:
-        ever = git("rev-list", "--count", "HEAD", "--", src)
+    if not window:
+        ever = git("rev-list", "--count", ref, "--", src)
         rows.append("  %-31s 无基线 | 上游 %s(该文件历史 %s 个 commit)— 窗口不可测" % (f, src.split("/")[-1], ever))
         continue
-    n = git("rev-list", "--count", "%s..HEAD" % base, "--", src)
-    new = git("log", "-1", "--format=%h %s", "%s..HEAD" % base, "--", src)
-    rows.append("  %-31s 基线 %s | 上游 %s 未裁决 %s 个 | %s"
-                % (f, base[:9], src.split("/")[-1], n if n != "0" else "0", (new or "无")[:78]))
+    n = git("rev-list", "--count", "%s..%s" % (window, ref), "--", src)
+    new = git("log", "-1", "--format=%h %s", "%s..%s" % (window, ref), "--", src)
+    start = ("已读至 %s" % read_to[:9]) if read_to else ("基线 %s" % base[:9])
+    rows.append("  %-31s %s | 上游 %s 未读 %s 个 | %s"
+                % (f, start, src.split("/")[-1], n if n != "0" else "0", (new or "无")[:78]))
 print("\n".join(rows) if rows else "  (无 fork 台账条目)")
+print("  窗口终点 = %s（与轴同一 ref；镜像不是 GitHub 权威）" % git("rev-parse", "--short", ref))
 print("  另有 %d 个 CoreAI* 是 ocoreai 自己的胶合层(头里既不指名上游文件也无基线)" % glue)
 LEDGER_PY
 }

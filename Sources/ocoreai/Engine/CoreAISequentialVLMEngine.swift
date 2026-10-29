@@ -5,6 +5,10 @@
 
 // Derived from coreai-models InferenceEngines (sequential variant).
 // Pipelined variant has landed as CoreAIPipelinedEngine.swift in this directory.
+//   Absorbed: #251 89ba0d4 (shared SequentialIterator — ocoreai 3497ae8); #249 B1+B2 not taken,
+//   so this file kept inline KV/token-box handling while upstream consolidated (1 238 L vs 1 107 L
+//   upstream today).
+//   Adjudicated: 7fd2063 (the 4-commit window since #251 read 10-29; verdicts: docs/agent/coreai-fork-adjudication.md)
 
 #if canImport(CoreAI)
 import CoreAI

@@ -3,6 +3,8 @@
 //   Absorbed: #176 5660fc6 (repetition penalty, tokenHistory overload).
 //   Absorbed: #204 156cdb6 (prefillFunction / independent prefill graph).
 //   Absorbed: #227 27a66f9 (InputLayout name resolution — in_new_token_ids/pos_ids).
+//   Adjudicated: 7fd2063 (the whole 10-commit window read 10-29; verdicts in
+//   docs/agent/coreai-fork-adjudication.md — our fork has no batching/idempotency/ring path).
 //   Pending (gated): #202 4a3f8e4 (Muse Glimmer sliding-window ring cache, useCompactPositionIds) —
 //     Muse Glimmer not in ocoreai model surface (0 hits); activates when that model is added.
 //

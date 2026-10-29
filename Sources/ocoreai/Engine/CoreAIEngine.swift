@@ -17,6 +17,8 @@
 ///     ocoreai keeps its simplified protocol variant + CoreAISequentialEngine inline;
 ///     CoreAISequentialEngine.swift (the engine): 0 commits, anchor 5ba2309 current.
 ///     Constrained-generation protocol (#146) → tracked as pending on CoreAIPipelinedEngine.
+///   Adjudicated: 7fd2063 (all 6 commits since 21dc8ad read 10-29 — #240/#248/#274 absorbed, the
+///   rest n/a or open: docs/agent/coreai-fork-adjudication.md)
 /// EngineOptions, KVCacheStrategy, InferenceOptions, InferenceOutput redefined here
 /// to avoid importing reference repo (macOS 27 requirement). Types match reference API
 /// for compatibility.
