@@ -460,7 +460,6 @@ round-gates: docs-check anchor-check audit spell
 # authority, and an unpushed commit has been verified by nobody but this box. Two days of uncommitted
 # work escaped every gate that exists, so this one checks the tree instead of the text.
 push-ready:
-	bash scripts/worktree-hygiene.sh
 	@# A pure reformat moved 19 line-cites in three files and every local gate stayed green, because
 	@# round-gates (which does check them) is not the target anyone runs before pushing. A gate that
 	@# exists off the path taken is not a gate: verify the cites here, where the tree is verified.
@@ -478,6 +477,11 @@ push-ready:
 	@# nothing local could ask what CI concluded. Exit 2 from this script means "could not ask"
 	@# (offline, rate-limited, still running) and must never be read as green.
 	@bash scripts/ci-status.sh || true
+	@# Hygiene goes LAST, measured 10-29: its "N commits ahead of origin" FAIL is the one failure
+	@# whose remedy is the push itself, so it aborted the recipe before the text gates and CI found a red
+	@# docs contract that this target nominally covers (the runner-premise mode passes on a tree-rich host
+	@# only because ~/references is here). A gate that sits behind the wall nobody climbs is not a gate.
+	bash scripts/worktree-hygiene.sh
 
 ## ── CI truth for the commit origin/main points at (exit 2 = could not ask, not green) ──
 ci-status:

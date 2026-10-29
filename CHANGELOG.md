@@ -9,6 +9,27 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-29(49) `push-ready` ran its gates behind the one wall every push walks past**
+
+- **What improved.** `worktree-hygiene.sh` opened the recipe, and its first failure is almost always "N
+commits ahead of origin" — whose remedy is the push itself. So the runner-premise docs contract two lines
+below it never executed on the way to that push, which is how tonight's red cite set reached CI. Hygiene
+now runs last: the cheap text gates judge the tree first, and hygiene still decides the exit code, with
+the uncommitted-Makefile case proving it bites.
+
+- **What same-session output proves it.** reordered run of `make push-ready`: the docs contract, pattern
+audit, style lock and route contract all executed, ci-status reported `Text gates (ubuntu) success` for
+81c314b — the leg that failed for 77a122f — and hygiene closed the run naming the one dirty path.
+`makefile-parse-check` parses 31 recipes (floor 20).
+
+- **Which gate goes red if it regresses.** this target itself: move hygiene back to the front and the pre-
+push docs gate stops running on exactly the path that needs it, with no local signal — the signal is a red
+`Text gates` leg minutes later, which is what 10-29(48) paid for.
+
+- **Honest limits.** four legs for 81c314b (both Build & Test halves, the appStore trait compile, the iOS
+compile) had not reported when this was written, so the round's suite verdict is still pending; and
+reordering cannot make a skipped run honest — it only removes the wall.
+
 **10-29(48) CI said what the host could not: five cites were dead on a runner, and the gate that catches them was already there**
 
 - **What improved.** the adjudication doc reached main green locally and red on `Text gates (ubuntu)` in
