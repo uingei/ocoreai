@@ -9,6 +9,53 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-30(59) Integrity checked the size of a model, and the hub had already published its digest**
+
+- **What improved.** After a download, `verifyDownloadedFiles` compared local bytes to the
+  manifest's `Size`, ±1 byte — a check that cannot see right-size wrong bytes, which is not a
+  hypothetical here because `MODELSCOPE_ENDPOINT` makes *which server answers* an operator choice
+  (the reachability that makes probe 20 treat a manifest as untrusted input). The hub had already
+  answered the question: `Data.Files[].Sha256` is a digest per blob, the multi-GB LFS shards
+  included, and `listRepoFiles` threw it away while the tree carried 111 lines of streaming
+  SHA-256 with zero callers. `FileInfo` now carries `sha256` and what arrived in this call is
+  re-hashed against it — `downloadedNow` is already in hand at the call site, so no second
+  manifest read. Three decisions, each taken from evidence rather than invented: a cache hit is
+  trusted as found, the trade ollama makes (`server/images.go:1295`, `skipVerify[digest] =
+  cacheHit`), measured here at 1 416 MB/s so a 5.3 GB shard costs 3.6 s once per download and 0 s
+  per load; an entry with no declared digest keeps the size compare, so integrity degrades instead
+  of vanishing on a mirror that strips the field; the compare is exact and the refusal names both
+  hex values (ollama's `want %s, got %s`, `server/images.go:1884`) instead of blaming size for
+  bytes it never hashed — which retires the string that called an absent file a size mismatch. The
+  cost of exactness is floored rather than assumed: probe 43 §1 demands *lowercase* hex from a real
+  hub, so a hub that flipped case goes red there instead of false-refusing honest bytes. Entry 57
+  left `ModelVersion` as "wire the digest or delete the type, owner call": the mechanism got the
+  caller, both Codable types are gone, and what remains is `Models/IntegrityDigest.swift` (31 lines)
+  beside the lane that owns it, with `unreferenced_decls_ours` measured **0** (the named 1 was this
+  type). `docs/agent/open-items.md` also shed a row that contradicted the adjudication doc it came
+  from — three fork files called unmeasurable that the same pass had baselined — and a probe count
+  that drifted the day 42 landed.
+
+- **What same-session output proves it.** `scripts/probes/43-hub-declared-digest.sh`, green **13
+  passed / 0 failed / 7 measured** against a live serve: the real hub leg prints
+  `Qwen/Qwen2.5-7B-Instruct: 15 blobs, 15 with a digest, 4 over 1 GB`; an honest stub completes and
+  its bytes on disk hash to the declared digest; a lying stub — its own bytes under the honest
+  digest, declaring the size it really serves — answers an `error` event naming SHA-256 with both
+  hex values, its file is gone, and the honest repo's file is still there. Sampled red with the
+  digest branch short-circuited: **4 failed**, the lying hub `completed` and the corrupt file
+  stayed where the next load would read it. `make test FILTER=ntegrity` is green on 10 tests / 21
+  assertions in the two new suites, sampled red the same way (5 assertions on the one
+  right-size-wrong-bytes test, and only that test), with the digest vectors pinned from FIPS 180-4
+  (`abc`, empty) and the multi-chunk case judged against CryptoKit rather than this repo's output.
+
+- **What this did not do.** Only the ModelScope lane is digest-verified — the lane where this repo
+  owns the transport. On the HF lane the transport is upstream's: `Engine/MLXBridge.swift:745`
+  hands the fetch to `HubClient`, which exposes an LFS file's digest as `File.etag`
+  (`.build/checkouts/swift-huggingface/Sources/HuggingFace/Hub/File.swift:43`) and never compares
+  it; verifying there means re-hashing what upstream decided was already cached, so the price lands
+  on a cold load rather than a download — owner call, and `docs/agent/open-items.md` sits 225 bytes
+  under its B2 cap, so it is recorded here rather than added there. The size fallback keeps an
+  inherited ±1 tolerance quoted nowhere: the digest path is what makes it near-dead.
+
 **10-30(58) A cleared search box kept rendering the search it cleared**
 
 - **What improved.** `ModelManager` carried `clearSearch()` and `switchSource(to:)` and neither had a

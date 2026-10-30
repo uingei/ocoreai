@@ -340,6 +340,8 @@ actor ModelScopeDownloader: Downloader {
         let path: String
         let size: Int64?
         let type: String  // "file" or "dir"
+        /// The hub's SHA-256 for these bytes (`Data.Files[].Sha256`); nil when it declares none.
+        let sha256: String?
     }
 
     /// Adapter detection helper — checks file tree for LoRA/adapter indicators.
@@ -373,6 +375,8 @@ actor ModelScopeDownloader: Downloader {
     /// `HubApi.get_model_files()`.
     ///
     /// Response: Data.Files[].Path / .Size / .Type
+    /// plus .Sha256 — a digest per blob, the LFS shards included; probe 43 §1 asks a real hub
+    /// whether that still holds.
     private func listRepoFiles(repoId: String, revision: String) async throws -> [FileInfo] {
         guard let components = URLComponents(url: self.baseAPI, resolvingAgainstBaseURL: false)
         else {
@@ -428,7 +432,8 @@ actor ModelScopeDownloader: Downloader {
                     size = Int64(s)
                 }
                 let type = dict["Type"] as? String ?? "file"
-                return FileInfo(path: path, size: size, type: type)
+                return FileInfo(
+                    path: path, size: size, type: type, sha256: dict["Sha256"] as? String)
             }
         } else {
             // Data.Files is null/missing — typically means the repo is gated/private
@@ -1103,37 +1108,71 @@ actor ModelScopeDownloader: Downloader {
             )
         }
 
-        /// Post-download integrity check: verify local files match remote manifest sizes.
+        /// Post-download integrity check: the bytes must be what the hub declared them to be.
         /// Corrupted/incomplete files are removed so the next download attempt is clean.
-        let corrupted = verifyDownloadedFiles(files, cacheDir: cacheDir)
+        let corrupted = verifyDownloadedFiles(
+            files, cacheDir: cacheDir, downloadedNow: newlyDownloaded)
         if !corrupted.isEmpty {
             // Remove only the corrupted files — next download attempt re-downloads them.
-            for path in corrupted {
-                guard let target = try? cacheFileURL(for: path, under: cacheDir) else { continue }
+            for failure in corrupted {
+                guard let target = try? cacheFileURL(for: failure.path, under: cacheDir) else {
+                    continue
+                }
                 try? FileManager.default.removeItem(at: target)
             }
             throw DownloaderError.corruptedDownload(
-                files: corrupted,
-                reason: "Local file size does not match remote manifest",
+                files: corrupted.map(\.path),
+                reason: Self.integrityReason(corrupted),
             )
         }
     }
 
-    /// Verify that locally downloaded files match their remote manifest sizes.
-    /// Returns the list of corrupted file paths (empty if all OK).
-    private func verifyDownloadedFiles(
+    /// One file that failed integrity, with the cause the wire reports for it.
+    struct IntegrityFailure {
+        let path: String
+        let cause: String
+    }
+
+    /// Verify what the hub just sent against what it declared about those bytes, strongest
+    /// available check first: an entry carrying `Sha256` gets its bytes re-hashed, because a size
+    /// compare cannot see right-size wrong bytes and `MODELSCOPE_ENDPOINT` makes which server
+    /// answers an operator choice; an entry with no declared digest keeps the size compare, which
+    /// still catches truncation.
+    ///
+    /// Only bytes that arrived in *this* call are hashed — a cache hit is trusted as found, the
+    /// trade ollama takes (`server/images.go:1295`), since re-reading 20 GB per load is a tax the
+    /// user never asked for. Internal so `@testable` tests pin both checks and that boundary.
+    func verifyDownloadedFiles(
         _ files: [FileInfo],
         cacheDir: URL,
-    ) -> [String] {
-        var corrupted: [String] = []
+        downloadedNow: Set<String>,
+    ) -> [IntegrityFailure] {
+        var failures: [IntegrityFailure] = []
 
         for fileInfo in files {
             guard let localPath = try? cacheFileURL(for: fileInfo.path, under: cacheDir) else {
                 continue
             }
-            guard FileManager.default.fileExists(atPath: localPath.path(percentEncoded: false))
-            else {
-                corrupted.append(fileInfo.path)
+            let local = localPath.path(percentEncoded: false)
+            guard FileManager.default.fileExists(atPath: local) else {
+                failures.append(
+                    IntegrityFailure(
+                        path: fileInfo.path,
+                        cause: "is not in the cache after the download"))
+                continue
+            }
+
+            if downloadedNow.contains(fileInfo.path), let declared = fileInfo.sha256,
+                let observed = IntegrityDigest.sha256(of: localPath)
+            {
+                if declared != observed {
+                    failures.append(
+                        IntegrityFailure(
+                            path: fileInfo.path,
+                            cause:
+                                "SHA-256 mismatch — hub declared \(declared), bytes hash to \(observed)"
+                        ))
+                }
                 continue
             }
 
@@ -1141,21 +1180,38 @@ actor ModelScopeDownloader: Downloader {
             guard let expectedSize = fileInfo.size, expectedSize > 0 else { continue }
 
             do {
-                let attrs = try FileManager.default.attributesOfItem(
-                    atPath: localPath.path(percentEncoded: false))
+                let attrs = try FileManager.default.attributesOfItem(atPath: local)
                 let localSize = attrs[.size] as? Int64 ?? 0
 
                 // Tolerance: allow up to 1 byte difference (edge case for streaming)
                 if abs(localSize - expectedSize) > 1 {
-                    corrupted.append(fileInfo.path)
+                    failures.append(
+                        IntegrityFailure(
+                            path: fileInfo.path,
+                            cause:
+                                "local size \(localSize) does not match the \(expectedSize) the hub declared"
+                        ))
                 }
             } catch {
                 // If we can't stat the file, treat it as corrupted
-                corrupted.append(fileInfo.path)
+                failures.append(
+                    IntegrityFailure(
+                        path: fileInfo.path, cause: "cannot be stat-ed after the download"))
             }
         }
 
-        return corrupted
+        return failures
+    }
+
+    /// The wire's reason for an integrity refusal: the causes seen, in first-seen order, so a
+    /// mirror serving wrong bytes is never reported as a size mismatch.
+    static func integrityReason(_ failures: [IntegrityFailure]) -> String {
+        var causes: [String] = []
+        for failure in failures where !causes.contains(failure.cause) {
+            causes.append(failure.cause)
+        }
+        let shown = causes.prefix(2).joined(separator: "; ")
+        return causes.count > 2 ? "\(shown) (+\(causes.count - 2) further causes)" : shown
     }
 
     // MARK: - Helpers

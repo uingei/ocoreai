@@ -326,6 +326,18 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     uninformative red is the bug this probe exists to avoid, so §2 carries the body by environment, captures
     stderr into the verdict, and fails outright when the comparison yields no verdict at all.
 
+- `43-hub-declared-digest.sh` — does a hub that lies about the bytes get refused?
+    The post-download integrity check compared **sizes**, which cannot see right-size wrong bytes,
+    and `MODELSCOPE_ENDPOINT` makes *which server answers* an operator choice — the same
+    reachability that makes probe 20 treat a manifest as untrusted input. The hub already declares
+    `Data.Files[].Sha256`, so this splits the two facts that need different instruments: §1 asks a
+    real hub whether it still publishes a lowercase 64-hex digest for every blob (the compare is
+    exact, so a hub that flipped case would false-refuse honest bytes), and §§2-4 run the client
+    against a stub in ModelScope's own shapes that lies at exactly the size a size compare accepts.
+    Green 10-30: **13 passed, 0 failed, 7 measured**; with the digest branch short-circuited,
+    **4 failed** — the lying hub `completed`, nothing named a cause, and the corrupt file stayed
+    on disk for the next load to read.
+
 - `_lib.sh` — shared harness
 Fails when: —
 

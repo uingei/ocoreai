@@ -14,11 +14,10 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — three `@available(macOS 27.0, *)` or
   SDK-gated sites (detail: `docs/agent/build-gate-reality.md`) ⇒ no blind fix and no claim of one; their
   suites now skip on this OS through `PlatformPremise.hasMacOS27` instead of reporting a red.
-- **The coreai fork's ledger is askable, with 4 open windows and 3 blind files** (Engine/) — measured 10-29 by
-  `make drift`'s fork block: Pipelined 8, Sequential 10, StaticShape 7 and VisionConfig 6 upstream commits
-  un-adjudicated since each file's own recorded baseline, while `CoreAISequentialVLMEngine.swift` (1 238 lines),
-  `CoreAIEngine.swift` and `CoreAILoggerStub.swift` record no baseline, so their window is not measurable.
-  Un-adjudicated is not un-fixed: upstream `82c3488` (KV-state handling, static-shape + sliding-ring caches)
+- **The coreai fork's ledger is askable, with 4 open windows** (Engine/) — measured 10-29 by `make drift`'s
+  fork block: Pipelined 8, Sequential 10, StaticShape 7 and VisionConfig 6 upstream commits un-adjudicated
+  since each file's own recorded baseline (that pass baselined the files which had none, so every window
+  reads a number now). Un-adjudicated is not un-fixed: upstream `82c3488` (KV-state handling, static-shape + sliding-ring caches)
   and `f03e8ce` (JSON whitespace under schema-constrained generation) sit inside surfaces we advertise. Whose
   move: an adjudication round (`bash scripts/upstream-drift.sh adopt coreai-models`), not an owner call.
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
@@ -69,7 +68,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   (`ReasoningEffortHonestyTests`(9) + probe 38, both tiers red-sampled); probe 12 §6 is *not* an open
   instance — it was fixed earlier and its README now requires keys 3/3 with the tools still declared.
 
-- **Four of 41 probes answer without weights; no checkpoint tier has a CI seat.** The scripted lane holds
+- **Weight-free probes exist; only three hold a CI seat, and no checkpoint tier does.** The scripted lane holds
   three — 37 (wire contract), 38 §1 (a refusal), 39 §1/§1b (the skill executed marker by marker) — one
   step each in `Build & Test (macos-26)`, first runner pass green 10-29 (4 / 3 / 7 s; each step's tier
   counts are printed as annotations, because a runner holds no weights and 38 §2 / 39 §2 / 40 §2 took
@@ -89,9 +88,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   not a raise, with § *Known defect* (a macOS 27 face no host here can execute) and the lane map (it
   duplicates § *Architecture*'s route to the wire) as the candidates. The silence under the ceiling closed
   10-28: one resolver (`WorkspaceContext.swift:204` `assemble`) measures each doc's fate and both consumers
-  read it — the injected text now carries `Workspace instruction budget N bytes: truncated <path> from A to B
-  bytes` / `dropped <path> (A bytes)` (`noticeLine`, `:272`), and `/v1/capabilities` publishes
-  `instructionBudget` beside `tokenizerBackend`, labelled `<root>/…` because that endpoint is public. The
+  read it — the injected text carries the truncation/drop notice (`noticeLine`) and `/v1/capabilities`
+  publishes `instructionBudget` beside `tokenizerBackend`, labelled `<root>/…` because it is public. The
   borrow is not invented: deepseek-harness states the drop inside the injected text and pins the wording as a
   fixture
   <!-- anchor:deepseek-harness snapshots/session/agent-instructions-budget/snapshot.yml:2 scenario: agent-instructions-budget -->

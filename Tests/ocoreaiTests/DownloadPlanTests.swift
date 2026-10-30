@@ -174,9 +174,11 @@ struct DownloadPlanTests {
     @Test("matched totals credit only the files already local")
     func matchedTotalsCreditCache() {
         let entries = [
-            ModelScopeDownloader.FileInfo(path: "a.safetensors", size: 100, type: "file"),
-            ModelScopeDownloader.FileInfo(path: "b.safetensors", size: 200, type: "file"),
-            ModelScopeDownloader.FileInfo(path: "config.json", size: 50, type: "file"),
+            ModelScopeDownloader.FileInfo(
+                path: "a.safetensors", size: 100, type: "file", sha256: nil),
+            ModelScopeDownloader.FileInfo(
+                path: "b.safetensors", size: 200, type: "file", sha256: nil),
+            ModelScopeDownloader.FileInfo(path: "config.json", size: 50, type: "file", sha256: nil),
         ]
         let totals = ModelScopeDownloader.matchedTotals(
             entries, existingFilenames: ["a.safetensors", "config.json"])
@@ -187,9 +189,11 @@ struct DownloadPlanTests {
     @Test("one sizeless entry makes the remote total unknown, never a guess")
     func sizelessEntryLeavesRemoteUnknown() {
         let entries = [
-            ModelScopeDownloader.FileInfo(path: "a.safetensors", size: 100, type: "file"),
-            ModelScopeDownloader.FileInfo(path: "b.safetensors", size: nil, type: "file"),
-            ModelScopeDownloader.FileInfo(path: "config.json", size: 50, type: "file"),
+            ModelScopeDownloader.FileInfo(
+                path: "a.safetensors", size: 100, type: "file", sha256: nil),
+            ModelScopeDownloader.FileInfo(
+                path: "b.safetensors", size: nil, type: "file", sha256: nil),
+            ModelScopeDownloader.FileInfo(path: "config.json", size: 50, type: "file", sha256: nil),
         ]
         let totals = ModelScopeDownloader.matchedTotals(
             entries, existingFilenames: ["a.safetensors", "config.json"])
