@@ -343,40 +343,140 @@ struct DependencyPinStatementTests {
         )
     }
 
-    /// lm's own floor for mlx-swift, read out of the resolved checkout (the tree that gets
-    /// compiled), never hand-copied into a comment.
-    private static func lmManifestURL() -> URL? {
-        guard let root = try? repoRoot() else { return nil }
-        // The tree that actually gets compiled first: a SwiftPM checkout is what this build
-        // links, while ~/references is a mirror whose HEAD may sit elsewhere.
+    /// Every lm checkout this host has, in the order a local run would prefer them.
+    ///
+    /// `.build/out/checkouts` is in the list because it exists on real hosts as an orphan of an
+    /// older SwiftPM layout — a resolved tree of a *previous* pin that nothing refreshes. It is
+    /// listed so it can be judged, never trusted: only `trustedLmCheckout` decides.
+    static func lmCheckoutCandidates() -> [URL] {
+        guard let root = try? repoRoot() else { return [] }
+        var found: [URL] = []
+        func add(_ url: URL) {
+            if FileManager.default.fileExists(atPath: url.path),
+                !found.contains(where: { $0.path == url.path })
+            {
+                found.append(url)
+            }
+        }
         for relative in [
             ".build-clt/checkouts/mlx-swift-lm/Package.swift",
             ".build/checkouts/mlx-swift-lm/Package.swift",
+            ".build/out/checkouts/mlx-swift-lm/Package.swift",
         ] {
-            let url = root.appendingPathComponent(relative)
-            if FileManager.default.fileExists(atPath: url.path) { return url }
+            add(root.appendingPathComponent(relative))
         }
-        let refsBases = [
+        if let scratch = ProcessInfo.processInfo.environment["SWIFTPM_BUILD_DIR"] {
+            add(
+                URL(fileURLWithPath: scratch)
+                    .appendingPathComponent("checkouts/mlx-swift-lm/Package.swift"))
+        }
+        // Xcode — the route `make test-ci` and CI take — resolves into DerivedData, not `.build`.
+        // On a runner that is the only tree at the pinned revision, so a gate blind to it can
+        // only ever answer "cannot verify".
+        let derived = URL(
+            fileURLWithPath: "\(NSHomeDirectory())"
+                + "/Library/Developer/Xcode/DerivedData")
+        if let entries = try? FileManager.default.contentsOfDirectory(
+            at: derived, includingPropertiesForKeys: [.contentModificationDateKey]
+        ) {
+            func modified(_ url: URL) -> Date {
+                (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
+                    .contentModificationDate ?? .distantPast
+            }
+            for dir in entries.filter({ $0.lastPathComponent.hasPrefix("ocoreai-") }).sorted(by: {
+                modified($0) > modified($1)
+            }) {
+                add(
+                    dir.appendingPathComponent(
+                        "SourcePackages/checkouts/mlx-swift-lm/Package.swift")
+                )
+            }
+        }
+        for base in [
             ProcessInfo.processInfo.environment["OCOREAI_REFS"],
             ProcessInfo.processInfo.environment["HOME"],
             NSHomeDirectory(),
-        ].compactMap { $0 }
-        for base in refsBases {
-            let path = "\(base)/references/mlx-swift-lm/Package.swift"
-            if FileManager.default.fileExists(atPath: path) { return URL(fileURLWithPath: path) }
+        ].compactMap({ $0 }) {
+            add(URL(fileURLWithPath: "\(base)/references/mlx-swift-lm/Package.swift"))
+        }
+        return found
+    }
+
+    /// The revision the repository *declares* — the authority a checkout is judged against, so
+    /// the gate never infers its own premise from whichever tree happens to be on disk.
+    static func declaredLmRevision() -> String? {
+        guard let text = try? repoFile("Package.resolved"),
+            let data = text.data(using: .utf8),
+            let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let pins = root["pins"] as? [[String: Any]]
+        else { return nil }
+        for pin in pins where (pin["identity"] as? String) == "mlx-swift-lm" {
+            return (pin["state"] as? [String: Any])?["revision"] as? String
         }
         return nil
     }
 
+    /// A checkout's HEAD as a full SHA, following a loose symbolic ref; nil when undecidable.
+    static func checkoutRevision(_ manifest: URL) -> String? {
+        let git = manifest.deletingLastPathComponent().appendingPathComponent(".git")
+        guard
+            let head = try? String(
+                contentsOf: git.appendingPathComponent("HEAD"), encoding: .utf8
+            )
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !head.isEmpty
+        else { return nil }
+        guard head.hasPrefix("ref: ") else { return head }
+        let ref = head.dropFirst(5)
+        guard
+            let sha = try? String(
+                contentsOf: git.appendingPathComponent(String(ref)), encoding: .utf8
+            )
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !sha.isEmpty
+        else { return nil }
+        return sha
+    }
+
+    /// The one checkout that is the declared revision — or nil, which the caller must treat as
+    /// "cannot verify", never as "no problem".
+    ///
+    /// A CI cache restores `.build/checkouts` with a prefix restore-key, so the day a pin moves
+    /// the runner holds a resolved tree of the *previous* pin. Measured 10-30 on the 0.33.0 bump:
+    /// this gate read that stale tree, saw a floor of 0.32.3, and reported a contradiction that
+    /// did not exist in the code it had just linked.
+    static func trustedLmCheckout(
+        _ candidates: [URL], declared: String?, revisionOf: (URL) -> String?
+    ) -> URL? {
+        guard let declared, !declared.isEmpty else { return candidates.first }
+        return candidates.first { url in
+            guard let revision = revisionOf(url) else { return false }
+            return revision.hasPrefix(declared) || declared.hasPrefix(revision)
+        }
+    }
+
     @Test(
         "this pin satisfies lm's transitive floor, and the manifest names that floor as it now reads",
-        .enabled(if: lmManifestURL() != nil)
+        .enabled(if: !lmCheckoutCandidates().isEmpty)
     )
     static func pinSatisfiesLmsTransitiveFloor() throws {
-        guard let lmManifest = lmManifestURL(),
+        let candidates = lmCheckoutCandidates()
+        let declared = declaredLmRevision()
+        let found =
+            candidates
+            .map { "\($0.deletingLastPathComponent().path)@\(checkoutRevision($0) ?? "unknown")" }
+            .joined(separator: ", ")
+        guard
+            let lmManifest = trustedLmCheckout(
+                candidates, declared: declared, revisionOf: checkoutRevision(_:)),
             let lmText = try? String(contentsOf: lmManifest, encoding: .utf8)
         else {
-            Issue.record("no mlx-swift-lm checkout to read lm's constraint from")
+            let stated: String = declared ?? "unparsed"
+            let why =
+                "no mlx-swift-lm checkout at the revision Package.resolved declares ("
+                + stated + ") — found [" + found + "] — reading a tree of another revision "
+                + "would state a floor the linked code never compiled"
+            Issue.record(Comment(rawValue: why))
             return
         }
         let manifest = try repoFile("Package.swift")
@@ -442,6 +542,56 @@ struct DependencyPinStatementTests {
                 || manifest.contains(".upToNextMinor(from: \"\(floor)\")"),
             "lm's floor is \(floor) but Package.swift never states it — the sentence that explains the pin still describes an older contract"
         )
+    }
+
+    @Test("a checkout that is not the declared revision is never read for the floor")
+    static func staleCheckoutIsRefused() throws {
+        let base = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("lmpin-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: base) }
+
+        func checkout(named name: String, head: String, symbolicRef: String?) -> URL {
+            let dir = base.appendingPathComponent(name)
+            let git = dir.appendingPathComponent(".git")
+            let headDir = symbolicRef == nil ? git : git.appendingPathComponent("refs/heads")
+            try? FileManager.default.createDirectory(
+                at: headDir, withIntermediateDirectories: true)
+            try? head.write(
+                to: git.appendingPathComponent("HEAD"), atomically: true, encoding: .utf8)
+            if let symbolicRef {
+                try? symbolicRef.write(
+                    to: git.appendingPathComponent("refs/heads/main"), atomically: true,
+                    encoding: .utf8)
+            }
+            let manifest = dir.appendingPathComponent("Package.swift")
+            try? "// placeholder".write(to: manifest, atomically: true, encoding: .utf8)
+            return manifest
+        }
+
+        let declared = "f5b0677f6b52b81d068871611cfcb82d1e7a0005"
+        let stale = checkout(
+            named: "stale", head: "991266ad300f47a3b9f21e62ff5bdb679215e758", symbolicRef: nil)
+        let matching = checkout(named: "matching", head: declared, symbolicRef: nil)
+        let mirror = checkout(
+            named: "mirror", head: "ref: refs/heads/main", symbolicRef: declared)
+
+        // The declared tree wins even when a resolved tree of the previous pin is listed first —
+        // that is exactly the CI shape (a cache restore keyed by prefix).
+        #expect(
+            trustedLmCheckout(
+                [stale, matching], declared: declared, revisionOf: checkoutRevision(_:))?
+                .deletingLastPathComponent().lastPathComponent == "matching")
+        // Stale-only is "cannot verify", never "no problem".
+        #expect(
+            trustedLmCheckout([stale], declared: declared, revisionOf: checkoutRevision(_:)) == nil)
+        // A mirror on a branch is judged by where that branch points, not by existing.
+        #expect(
+            trustedLmCheckout([mirror], declared: declared, revisionOf: checkoutRevision(_:))?
+                .deletingLastPathComponent().lastPathComponent == "mirror")
+        // Premise floor: if the fixtures are not readable, every expectation above is empty.
+        #expect(
+            checkoutRevision(stale) == "991266ad300f47a3b9f21e62ff5bdb679215e758",
+            "the fixture checkout is unreadable — this test proves nothing")
     }
 
     @Test("the drift instrument watches every pinned upstream, and judges mlx-swift by tags")

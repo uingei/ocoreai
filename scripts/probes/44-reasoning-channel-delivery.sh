@@ -209,7 +209,7 @@ print("LEAK" if probe and probe in c else "clean")')"
   esac
 else
   probe_fail "§3 has nothing to compare (reasoning or content empty) — §1's premise did not hold,
-   so disjointness cannot be claimed"
+   so §3 cannot claim the two channels are disjoint"
 fi
 
 probe_summary "$PROBE_NAME"

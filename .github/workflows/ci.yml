@@ -184,13 +184,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # SPM dependency cache — repos only, not build output (avoid stale artifacts)
+      # SPM dependency cache — bare repositories only. `.build/checkouts` used to be cached here
+      # and is NOT: a resolved tree is build output, and the prefix restore-key below hands it to a
+      # run whose pins already moved. Measured 10-30 on the mlx-swift 0.33.0 bump — the leg linked
+      # 0.33.0 while the restored `.build/checkouts` held the previous lm revision, and the
+      # pin-statement gate read that stale tree and reported a contradiction that did not exist
+      # (DependencyPinStatementTests now refuses any checkout that is not the declared revision).
       - name: Cache SPM dependencies
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/org.swift.swiftpm/repositories
-            .build/checkouts
           key: spm-deps-${{ matrix.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             spm-deps-${{ matrix.os }}-
@@ -576,7 +580,6 @@ jobs:
         with:
           path: |
             ~/.cache/org.swift.swiftpm/repositories
-            .build/checkouts
           key: spm-deps-macos-26-appstore-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             spm-deps-macos-26-
@@ -692,7 +695,6 @@ jobs:
         with:
           path: |
             ~/.cache/org.swift.swiftpm/repositories
-            .build/checkouts
           key: spm-deps-macos-26-ios-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             spm-deps-macos-26-

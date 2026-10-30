@@ -9,6 +9,44 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-30
 
+**10-30(66) CI read back the truth about entry 64's pins: a gate that trusted a stale tree, and the cache that hands it one**
+
+- **What improved.** `make push-ready` runs `scripts/ci-status.sh`, and right after entry 64's push it
+  answered AUTHORITY NOT GREEN on two legs. Both were real, and no local gate could see either.
+  `Build & Test (macos-26)` failed `DependencyPinStatementTests`: its floor read `0.32.3` while that run
+  linked `0.33.0`. The gate chose lm's checkout by *path preference* (`.build-clt/checkouts`, then
+  `.build/checkouts`), but CI caches `.build/checkouts` and restores it with a prefix `restore-keys`, so
+  the day a pin moves the runner holds a resolved tree of the **previous** pin — the gate then compared
+  the manifest against code that was never compiled. This is invariant 1's own words: a gate that infers
+  its premises from the environment rots the day the toolchain moves. The fix binds the premise to the
+  authority: a checkout is trusted only when its HEAD is the revision `Package.resolved` declares; the
+  ladder now also includes the tree `xcodebuild` actually links (`DerivedData/…/SourcePackages/checkouts`
+  — on a runner the only one at the pin) and the orphan `.build/out/checkouts`; a stale-only ladder is
+  "cannot verify", never "no problem". The CI half that feeds such a tree is fixed too: `.build/checkouts`
+  is out of all three cache path lists (a resolved tree *is* build output), while bare repositories stay
+  cached because SPM validates those by revision. `Governance Check` was red on my own wording — probe 44
+  wrote "disjointness", which the pinned codespell flags — reworded, and `scripts/spell-check.sh` (0.8 s)
+  is now run before the push instead of discovered after it.
+
+- **What same-session output proves it.** `bash scripts/spell-check.sh` → clean over 762 tracked files.
+  `DependencyPinStatementTests` 9/9, including the new case that builds three synthetic checkouts (stale,
+  matching, symbolic-ref-on-a-branch) and asserts the matching one wins *even when the stale tree is
+  listed first* — the CI shape — that a stale-only ladder yields nil, and that the fixtures were readable
+  at all. The full local suite is 3394 tests / 597 suites with one failure: `Rate limit: burst=2 → 3rd
+  request 429`, which passes 3/3 when the suite runs alone — a load-dependent flake in a process-global
+  bucket, in the exact shape `AGENTS.md` § Testing Quality warns about (`.serialized` orders a suite's own
+  tests, not suites against each other). Not touched here: it is unrelated to this slice, and it is
+  reported rather than papered over. For the record, entry 64's delivery evidence is *not* in question:
+  the live resolution (`.build/workspace-state.json`) and `.build-clt/checkouts` both carry the declared
+  revisions, so the probe and suite runs behind it linked the pinned upstream; what went stale was a
+  cache-restored sibling and two Xcode workspaces (one at `991266ad3`, one at `26f3a48f`, an ancestor of
+  the pin — an older resolution, not a new audit window).
+
+- **Gate.** `DependencyPinStatementTests`(9). Its new case is the red that goes red if someone reorders
+  the ladder to trust path preference again, and the CI-cache deletion is the red for the runner shape
+  that produced this: if a future leg starts caching resolved trees again, the gate is the thing that has
+  to keep refusing them.
+
 **10-30(65) The codex window read end to end: one face it named, one face it merely exposed**
 
 - **What improved.** `make drift` sat red on a 426-commit codex window (`bd5a836..f752c97f7`) — an unread
