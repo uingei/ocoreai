@@ -30,6 +30,114 @@ struct MTPDrafterModelWrapper: @unchecked Sendable {
     let model: any MLXLMCommon.MTPDrafterModel
 }
 
+// MARK: - Reasoning budget policy
+
+/// How a finite generation limit is split between thinking and the answer.
+///
+/// A reasoning model that is never stopped runs out of *generation* tokens
+/// instead: measured 10-30 on gemma-4-e2b-it-4bit at `max_tokens: 256`, a
+/// no-tools turn spent 255 tokens inside the thought channel and the caller
+/// received the thought as the answer with `finish_reason=length` (probe 44 §1).
+/// Upstream's `ThinkingBudgetProcessor` is the only thing that both bounds and
+/// counts a thought (`Libraries/MLXLMCommon/ThinkingBudget.swift:486`), and it
+/// requires a budget transition — which only Qwen declares. `.immediate` is
+/// upstream's app-side opt-in and fires only once the ceiling is reached: it
+/// closes the span with the model's own delimiter and adds nothing
+/// (`ThinkingBudget.swift:83`).
+///
+/// Orthogonal to this repo's own `ThinkingBudget` actor, which *proposes* a budget
+/// adaptively from session history; this type is the hard ceiling generation cannot pass.
+///
+/// The split is a fraction of what the caller asked for, never a constant, and
+/// an unlimited request gets no processor — a cap nobody asked for is the engine
+/// claiming control it was not given. Whether budget + transition + reserve
+/// actually fit the limit stays upstream's arithmetic: this type asks the
+/// validator `applyingThinkingBudget` installs, and never re-derives it.
+enum ThinkingBudgetPolicy {
+    private static let log = Logger(label: "ocoreai.reasoning.budget")
+
+    /// The split for one turn: the three numbers a caller could ask about.
+    struct Split: Equatable {
+        /// Tokens thinking may spend before the span is force-closed.
+        let maximumTokenCount: Int
+        /// Tokens the answer is guaranteed beside the budget and transition.
+        let minimumAnswerTokenCount: Int
+        /// True when the protocol declares no transition of its own, so this
+        /// server opts the model into `.immediate`.
+        let forcesImmediateTransition: Bool
+    }
+
+    /// `nil` for the three faces where a processor would bound nothing and still
+    /// cost per-token work on the hot path: no thought protocol, no token limit,
+    /// or the caller explicitly turned thinking off.
+    static func split(
+        reasoning: MLXLMCommon.ReasoningConfig,
+        maxTokens: Int?,
+        thinkingEnabled: Bool?
+    ) -> Split? {
+        guard let maxTokens, thinkingEnabled != false else { return nil }
+        return Split(
+            maximumTokenCount: maxTokens / 2,
+            minimumAnswerTokenCount: maxTokens / 4,
+            forcesImmediateTransition: reasoning.budgetTransition == nil
+        )
+    }
+
+    /// Components for one turn. A limit too small to fit the budget is logged with
+    /// upstream's error and left unbounded: a turn that cannot be capped is not a
+    /// turn that gets refused.
+    ///
+    /// `answerOnly` is the premise the ceiling needs, not a preference: the split
+    /// holds part of the limit back for the answer, which is sound only when
+    /// nothing else competes for it. A turn that declared tools pays for its
+    /// tool-call payload out of the same limit, and capping thinking there was
+    /// measured 10-30 to turn a 200 into a 500 (Qwen3.6-35B-A3B-4bit,
+    /// `max_tokens: 64`, one declared tool): the thought closed at 32 tokens, the
+    /// payload never completed, and each rejected-tool-call retry re-ran under the
+    /// same cap, so it could not converge. Pass false for those turns.
+    static func components(
+        reasoning: MLXLMCommon.ReasoningConfig?,
+        tokenizer: any MLXLMCommon.Tokenizer,
+        parameters: MLXLMCommon.GenerateParameters,
+        thinkingEnabled: Bool?,
+        answerOnly: Bool
+    ) -> MLXLMCommon.GenerationComponents {
+        guard answerOnly,
+            let reasoning,
+            let split = split(
+                reasoning: reasoning,
+                maxTokens: parameters.maxTokens,
+                thinkingEnabled: thinkingEnabled
+            )
+        else {
+            return MLXLMCommon.GenerationComponents()
+        }
+        do {
+            let components = try MLXLMCommon.GenerationComponents().applyingThinkingBudget(
+                MLXLMCommon.ThinkingBudgetConfiguration(
+                    maximumTokenCount: split.maximumTokenCount,
+                    minimumAnswerTokenCount: split.minimumAnswerTokenCount,
+                    transitionOverride: split.forcesImmediateTransition ? .immediate : nil
+                ),
+                reasoning: reasoning,
+                tokenizer: tokenizer,
+                // Upstream can stand down mid-generation (a token outside the constraint,
+                // an unresolvable UTF-8 boundary) and keep generating unbounded. That is a
+                // ceiling silently replaced by a no-op, so it is named where it happens.
+                diagnosticHandler: { diagnostic in
+                    log.warning("Reasoning budget stood down mid-generation: \(diagnostic)")
+                }
+            )
+            try components.parameterValidator?(parameters)
+            return components
+        } catch {
+            log.warning(
+                "Reasoning budget not applied — thinking stays unbounded this turn: \(error)")
+            return MLXLMCommon.GenerationComponents()
+        }
+    }
+}
+
 /// Bounded rejected-tool-call recovery policy on the standard ChatSession path.
 ///
 /// Upstream contract (mlx-swift-lm landed it in 604fae7, `ChatSession.swift:1422`):

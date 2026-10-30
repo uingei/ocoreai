@@ -3082,21 +3082,20 @@ extension EnginePool {
             // Snapshot reasoningConfig once here (replaces the second actor hop at L1807
             // which repeated the same .configuration.reasoningConfig lookup).
             let reasoningConfig = await handleRef.modelContainer.configuration.reasoningConfig
-
+            // Mirror upstream thinkingEnabled(for:) reasoning-level resolution (single
+            // source of truth: ReasoningResolution.thinkingEnabled, shared with the MTP
+            // path so the two cannot diverge):
+            //   level set → on/off per level (disabling levels → enableReasoning ?? false)
+            //   level nil → explicit `reasoning` bool, else nil (template default)
+            // Upstream L1329-1349 (FM path) does the same for chat session.
+            let thinkingEnabled = ReasoningResolution.thinkingEnabled(
+                reasoningLevel: options.reasoningLevel,
+                enableReasoning: options.enableReasoning
+            )
             var baseReasoningContext: [String: any Sendable]?
             if thinkingFlagApplies,
                 let rc = reasoningConfig
             {
-                // Mirror upstream thinkingEnabled(for:) reasoning-level resolution
-                // (single source of truth: ReasoningResolution.thinkingEnabled,
-                // shared with the MTP path so the two cannot diverge):
-                //   level set → on/off per level (disabling levels → enableReasoning ?? false)
-                //   level nil → explicit `reasoning` bool, else nil (template default)
-                // Upstream L1329-1349 (FM path) does the same for chat session.
-                let thinkingEnabled = ReasoningResolution.thinkingEnabled(
-                    reasoningLevel: options.reasoningLevel,
-                    enableReasoning: options.enableReasoning
-                )
                 do {
                     baseReasoningContext = try rc.promptStrategy.additionalContext(
                         forThinkingEnabled: thinkingEnabled
@@ -3563,13 +3562,7 @@ extension EnginePool {
                     if let rc = mtpReasoningConfig,
                         case .templateFlag(let key, let defaultOn) = rc.promptStrategy
                     {
-                        // Resolve reasoning level → Bool? (same as FM path) — shared
-                        // ReasoningResolution helper so FM and MTP stay in lockstep.
-                        let resolved = ReasoningResolution.thinkingEnabled(
-                            reasoningLevel: options.reasoningLevel,
-                            enableReasoning: options.enableReasoning
-                        )
-                        let enabled = resolved ?? defaultOn
+                        let enabled = thinkingEnabled ?? defaultOn
                         mtpThinkingEnabled = enabled
                         mtpToolAwareContext = ReasoningEffortWire.context(
                             [key: enabled], rawValue: options.reasoningEffort)
@@ -3839,35 +3832,18 @@ extension EnginePool {
                                 // pointers to GPU memory, so the array is cheap to pass and the
                                 // objects are updated in-place by upstream during generation.
                                 let mtpKVCache = loaded.mtpKVCache(conversationId: convKey)
-                                // P2 (ThinkingBudget MTP axis): consume the budget processor the
-                                // same way the std path does (L3622-3640) — apply only when a
-                                // reasoning config is present; on failure fall back to `.init()`
-                                // so the adaptive scaffolding still runs (identical to L3645 semantics).
-                                let mtpGenComponents: MLXLMCommon.GenerationComponents = {
-                                    guard let rc = mtpReasoningConfig else {
-                                        return MLXLMCommon.GenerationComponents()
-                                    }
-                                    do {
-                                        let budgetTokens = (iterGenParams.maxTokens ?? 2048) / 2
-                                        let budgetConfig =
-                                            try MLXLMCommon.ThinkingBudgetConfiguration(
-                                                maximumTokenCount: budgetTokens,
-                                                minimumAnswerTokenCount: 256,
-                                                transitionOverride: nil
-                                            )
-                                        return try MLXLMCommon.GenerationComponents()
-                                            .applyingThinkingBudget(
-                                                budgetConfig,
-                                                reasoning: rc,
-                                                tokenizer: context.tokenizer,
-                                                diagnosticHandler: nil
-                                            )
-                                    } catch {
-                                        log.warning(
-                                            "MTP ThinkingBudget hard-budget not applied: \(error)")
-                                        return MLXLMCommon.GenerationComponents()
-                                    }
-                                }()
+                                // The same split as the std reasoning lane, sized to this iteration's
+                                // remaining budget (the reserve floor above already shrank it), and
+                                // only on a turn that declared no tools: this loop dispatches tool
+                                // calls too, and the ceiling there starves the payload —
+                                // `ThinkingBudgetPolicy.components` carries the measurement.
+                                let mtpGenComponents = ThinkingBudgetPolicy.components(
+                                    reasoning: mtpReasoningConfig,
+                                    tokenizer: context.tokenizer,
+                                    parameters: iterGenParams,
+                                    thinkingEnabled: thinkingEnabled,
+                                    answerOnly: mayRunReasoning
+                                )
                                 let mtpGenStream = try MLXLMCommon.generate(
                                     input: mtpInput,
                                     cache: mtpKVCache,
@@ -4345,37 +4321,22 @@ extension EnginePool {
                             var localCachedPromptTokenCount: Int?
 
                             // Std reasoning: generateTokensTask() returns (AsyncStream, Task)
-                            // P1 (ThinkingBudget hard-budget): Build GenerationComponents with
-                            // upstream ThinkingBudgetProcessor when budgetTransition is present
-                            // (QwenReasoningProtocol supplies one). Budget limits reasoning tokens
-                            // to half of maxTokens, reserving the other half for the answer.
-                            // The existing ocoreai ThinkingBudget actor (adaptive scaffolding) and
-                            // ThinkingBudgetProcessor (hard token ceiling) are orthogonal.
-                            let genComponents: MLXLMCommon.GenerationComponents
-                            do {
-                                let budgetTokens = (genParams.maxTokens ?? 2048) / 2
-                                let budgetConfig = try MLXLMCommon.ThinkingBudgetConfiguration(
-                                    maximumTokenCount: budgetTokens,
-                                    minimumAnswerTokenCount: 256,
-                                    transitionOverride: nil  // use rc's own budgetTransition
-                                )
-                                genComponents = try MLXLMCommon.GenerationComponents()
-                                    .applyingThinkingBudget(
-                                        budgetConfig,
-                                        reasoning: rc,
-                                        tokenizer: context.tokenizer,
-                                        diagnosticHandler: nil)
-                            } catch {
-                                // If budget setup fails (e.g. protocol lacks transition),
-                                // fall back to no hard budget — adaptive scaffolding still active
-                                log.warning("ThinkingBudget hard-budget not applied: \(error)")
-                                genComponents = MLXLMCommon.GenerationComponents()
-                            }
+                            // This lane runs only on a turn that declared no tools and no
+                            // grammar (`mayRunReasoning`), so its whole limit belongs to the
+                            // thinking + answer pair — which is what makes a hard ceiling on
+                            // thinking sound here (`answerOnly`).
+                            let thinkingComponents = ThinkingBudgetPolicy.components(
+                                reasoning: rc,
+                                tokenizer: context.tokenizer,
+                                parameters: genParams,
+                                thinkingEnabled: thinkingEnabled,
+                                answerOnly: true
+                            )
                             let (stdTokenStream, stdTokenTask) = try MLXLMCommon.generateTokensTask(
                                 input: stdInput,
                                 parameters: genParams,
                                 context: context,
-                                components: genComponents,
+                                components: thinkingComponents,
                                 wiredMemoryTicket: wiredMemoryTicket
                             )
 

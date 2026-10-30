@@ -24,9 +24,10 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The seam landed upstream at
   `991266ad3` (`observe(to:using:)` + `GenerationTransformer`);
   what is left is owning what upstream's `ChatSession` loop owns. Owner call.
-- **Thinking reaches the wire uncounted on the ChatSession lane** (Engine/) — probe 44 §2 delivered 550
-  chars of `reasoning_content`, no `reasoning_tokens`; upstream counts it through
-  `ThinkingBudgetProcessor`, which also *bounds* thinking. Owner call.
+- **Thinking is uncounted on the tools lane** (Engine/) — probe 44 §2: 550 chars, no
+  `reasoning_tokens`. Upstream counts only via the processor that also bounds the thought, and a
+  bound there starves the tool call (§2b: 200→500 at 64 tokens). A count-only processor waits
+  upstream. Owner call.
 - **Rewind is landed; the reserve is a guessed constant** (Engine/) — 1024 rows measured on one checkpoint,
   not tuned to model or memory pressure, so an edit further back than the reserve still pays its full prefix.
   `SessionRewindOnDivergenceTests`(7) + probe 27 hold the wiring and the number.

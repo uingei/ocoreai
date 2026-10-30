@@ -15,19 +15,23 @@
 # ### What is measured
 #   1. A turn that asks for thinking delivers a non-empty `reasoning_content`, keeps `content`
 #      free of every channel/think delimiter this host's checkpoints use, and reports
-#      `usage.completion_tokens_details.reasoning_tokens` > 0. That count is upstream's
+#      `usage.completion_tokens_details.reasoning_tokens` without eating the quarter of
+#      `max_tokens` that `ThinkingBudgetPolicy` guarantees the answer (a thought that never ends
+#      is a missing answer, and the count is what proves the cap held on this lane). That count is upstream's
 #      per-token number, not a character estimate, so it is the field that proves the split
 #      happened at the token level rather than in a post-hoc string sweep.
 #   2. The face that delivered thinking NOWHERE before: the same ask with `tools[]` declared.
 #      Tools (or a grammar) route a turn away from this server's token-level reasoning path,
 #      so the turn runs on `ChatSession`, where #563's split is the only thing that can
-#      produce reasoning at all. If reasoning vanishes here, the arm went missing.
+#      produce reasoning at all. If reasoning vanishes here, the arm went missing. The token
+#      count is NOT asserted on this lane: the only upstream counter also bounds the thought,
+#      and a bounded thought starves the tool-call payload — §2b asks the same turn at a small
+#      `max_tokens`, because that is where a cap here turned a 200 into a 500.
 #   3. `content` never carries thinking AND an answer at once. An interior slice of the thinking
-#      must not appear inside an answer. The one documented exception is named rather than
-#      ignored: `contentWireFallback` publishes the thought as the answer when the answer
-#      channel stayed empty (the FM/SDK path classifies a whole generation into reasoning, so a
-#      content-only consumer would read nothing) — that face is reported as a measurement, with
-#      the finish_reason that says why the answer was empty.
+#      must not appear inside an answer — and the thought may not BE the answer. With a hard
+#      budget installed, an answer-less turn (`content` empty, or `content` exactly the delivered
+#      thinking, the `contentWireFallback` face) means the answer reserve never reached
+#      generation; that face used to be reported as an honest measurement and is a red now.
 #
 # Deliberately not asserted: that the ANSWER is arithmetically right. That is a checkpoint
 # fact (the same rule probe 12 uses for an open grammar), and this probe owns the routing.
@@ -51,21 +55,27 @@ fresh_session() {
 }
 
 ASK='What is 17 times 23? Work it out, then give the number.'
+# The limit every turn here asks for, in one home: §1 compares the delivered reasoning_tokens
+# against half of this same number, so the request and the ceiling cannot drift apart.
+ASK_MAX_TOKENS=256
+# The smallest limit a documented tool-call turn asks for. Measured 10-30 on
+# Qwen3.6-35B-A3B-4bit: 64 answers 200 at HEAD and 500s with a thinking cap installed.
+ASK_TINY_MAX_TOKENS=64
 # Every delimiter the checkpoints on this host can emit. A leaked span always carries at
 # least one of them, and the list is what makes "content is clean" a check rather than a wish.
 DELIMS='(<\|channel>|<channel\|>|<\|thinking>|<thinking\|>|<\|think>|<think\|>|<\?\?>|<|im_start|>|<\|end\|>|<thinking>|</thinking>)'
 
 # ask_turn LABEL TOOLS_JSON — one non-streaming turn; sets R_STATUS/R_REASON/R_CONTENT/R_FINISH/R_RT.
 ask_turn() {
-  local lab="$1" tools="$2" s b
+  local lab="$1" tools="$2" limit="${3:-$ASK_MAX_TOKENS}" s b
   s="$(fresh_session)"
-  b="$(MODEL="$PROBE_MODEL" SESSION="$s" ASK="$ASK" TOOLS="$tools" python3 -c '
+  b="$(MODEL="$PROBE_MODEL" SESSION="$s" ASK="$ASK" TOOLS="$tools" MAXTOK="$limit" python3 -c '
 import json, os
 body = {
     "model": os.environ["MODEL"],
     "session_id": os.environ["SESSION"],
     "temperature": 0.0,
-    "max_tokens": 256,
+    "max_tokens": int(os.environ["MAXTOK"]),
     "reasoning": True,
     "messages": [{"role": "user", "content": os.environ["ASK"]}, ],
 }
@@ -80,8 +90,8 @@ print(json.dumps(body))')"
   R_FINISH="$(probe_json "$PROBE_BODY" 'choices.0.finish_reason')"
   R_RT="$(probe_json "$PROBE_BODY" 'usage.completion_tokens_details.reasoning_tokens')"
   printf -- '-- %s\n' "$lab"
-  printf '   status=%s finish=%s reasoning_tokens=%s reasoning_chars=%s content_chars=%s\n' \
-    "$R_STATUS" "${R_FINISH:-?}" "${R_RT:-absent}" "${#R_REASON}" "${#R_CONTENT}"
+  printf '   max_tokens=%s status=%s finish=%s reasoning_tokens=%s reasoning_chars=%s content_chars=%s\n' \
+    "$limit" "$R_STATUS" "${R_FINISH:-?}" "${R_RT:-absent}" "${#R_REASON}" "${#R_CONTENT}"
   LAST_BODY="$PROBE_BODY"
 }
 
@@ -125,12 +135,9 @@ else
   fi
   case "$R_CONTENT" in
     "")
-      if [ "$R_FINISH" = "length" ]; then
-        probe_note "content empty with finish_reason=length — thinking consumed the budget, an honest
-           face; the wire reported it as truncation rather than an answer"
-      else
-        probe_fail "content empty and finish_reason=$R_FINISH — a thinking-only turn that did not say so"
-      fi
+      probe_fail "content empty (finish_reason=${R_FINISH:-?}) on a turn that asked for thinking —
+       the split guarantees a quarter of max_tokens=$ASK_MAX_TOKENS to the answer, so an answer-less
+       turn says the cap never reached generation (ThinkingBudgetPolicy)"
       ;;
     *) probe_ok "content non-empty (${#R_CONTENT} chars)" ;;
   esac
@@ -140,11 +147,17 @@ else
   else
     probe_ok "content carries none of the channel/think delimiters"
   fi
-  if [ -n "$R_RT" ] && [ "$R_RT" -gt 0 ] 2>/dev/null; then
-    probe_ok "usage.completion_tokens_details.reasoning_tokens = $R_RT (upstream's per-token count)"
+  # The bound is the policy's own promise, not the ceiling: thinking may spend the budget's half
+  # plus the protocol tokens upstream does not charge to it, but it may never eat the quarter
+  # guaranteed to the answer. Measured 10-30: 129 delivered against a ceiling of 128, because
+  # the marker that closes the span is not charged (ThinkingBudget.swift:100).
+  RESERVE=$(( ASK_MAX_TOKENS / 4 ))
+  SPEND_LIMIT=$(( ASK_MAX_TOKENS - RESERVE ))
+  if [ -n "$R_RT" ] && [ "$R_RT" -gt 0 ] && [ "$R_RT" -le "$SPEND_LIMIT" ] 2>/dev/null; then
+    probe_ok "reasoning_tokens = $R_RT — upstream's count, inside the $SPEND_LIMIT the answer reserve guarantees"
   else
-    probe_fail "reasoning_tokens is ${R_RT:-absent} while reasoning_content carried ${#R_REASON} chars —
-     the answer channel and the usage field disagree about whether this turn thought"
+    probe_fail "reasoning_tokens is ${R_RT:-absent}, expected 1..$SPEND_LIMIT for max_tokens=$ASK_MAX_TOKENS —
+     either the split never reached this lane, or thinking ate into the quarter reserved for the answer"
   fi
   S1_REASON="$R_REASON"; S1_CONTENT="$R_CONTENT"; S1_FINISH="$R_FINISH"
 fi
@@ -160,9 +173,10 @@ else
   elif [ -n "$R_REASON" ]; then
     probe_ok "reasoning_content delivered with tools declared (${#R_REASON} chars)"
     [ -z "$R_RT" ] && probe_note "with-tools turn streams ${#R_REASON} chars of thinking but reports no
-       reasoning_tokens: upstream counts them through ThinkingBudgetProcessor
-       (Libraries/MLXLMCommon/ThinkingBudget.swift:486), which the ChatSession lane does not install —
-       installing it would also bound thinking, so the count waits on that decision, not on this wire"
+       reasoning_tokens: upstream counts thinking only through the processor that also *bounds* it
+       (Libraries/MLXLMCommon/ThinkingBudget.swift:486), and bounding it here starves the
+       tool-call payload (§2b). The count waits on a counting-only processor upstream, not on a
+       decision this server can make alone"
   else
     probe_fail "tools declared -> reasoning_content EMPTY — the turn ran on ChatSession and its
      Generation.reasoning was dropped: this is exactly the face that had no arm before the split"
@@ -181,6 +195,27 @@ else
   esac
 fi
 
+# ── 2b — the same turn at a limit small enough to expose a wrong cap ─────────
+probe_section "2b — a tools turn at max_tokens=$ASK_TINY_MAX_TOKENS still gets its turn (never 500)"
+if [ "$TOOL_N" -lt 1 ]; then
+  probe_fail "§2b cannot run: no declared tools, so the payload-starvation face is untested"
+else
+  ask_turn "tools declared at max_tokens=$ASK_TINY_MAX_TOKENS" "$TOOL_SPECS" "$ASK_TINY_MAX_TOKENS"
+  case "$R_STATUS" in
+    200)
+      probe_ok "200 at the tiny limit — thinking stayed unbounded where a ceiling would starve the
+       tool call (finish=$R_FINISH, ${#R_CONTENT} chars of content delivered or a tool call asked)"
+      ;;
+    500)
+      probe_fail "500 at max_tokens=$ASK_TINY_MAX_TOKENS — the rejected-tool-call retry could not
+       converge, the shape a hard thinking cap on this lane produces: the thought closes early, the
+       payload never completes, and every retry re-runs under the same ceiling. ThinkingBudgetPolicy's
+       answerOnly premise is what keeps this face at 200"
+      ;;
+    *) probe_fail "$R_STATUS at the tiny limit — expected 200" ;;
+  esac
+fi
+
 # ── 3 — the channels are disjoint ────────────────────────────────────────────
 probe_section "3 — content never carries thinking AND an answer at once"
 if [ -n "${S1_REASON:-}" ] && [ -n "${S1_CONTENT:-}" ]; then
@@ -196,10 +231,10 @@ probe = r[len(r)//4: len(r)//4 + 60] if len(r) >= 240 else r.strip()
 print("LEAK" if probe and probe in c else "clean")')"
   case "$FACE" in
     fallback)
-      probe_note "content is exactly the delivered thinking — the thinking-only face of
-       contentWireFallback: the answer channel stayed empty (finish_reason=${S1_FINISH:-?}), and the
-       thought was published there so a consumer reading only \`content\` still receives something.
-       reasoning_content carried the same text, so nothing about the split was lost"
+      probe_fail "content is exactly the delivered thinking (finish_reason=${S1_FINISH:-?}) — the
+       caller got the thought AS the answer. contentWireFallback publishes it when the answer
+       channel stayed empty, and with a hard thinking budget that emptiness is the defect:
+       half the limit should have gone to thinking and a quarter guaranteed to the answer"
       ;;
     LEAK)
       probe_fail "a 60-char interior slice of the delivered thinking also appears inside an answer —

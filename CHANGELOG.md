@@ -9,7 +9,61 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-30
 
+**10-30(67) A thought that never ends is a missing answer: one thinking budget, at the one place a budget is sound**
+
+- **What improved.** A caller who asked a reasoning model for 256 tokens and got its *thinking* back
+  as the answer. Measured on gemma-4-e2b-it-4bit at `max_tokens: 256`, `reasoning: true`: the turn
+  spent 255 of 256 tokens inside the thought channel, answered nothing, and `contentWireFallback`
+  published the 618-char thought as `content` with `finish_reason=length` — a response claiming an
+  answer while carrying only reasoning. The fix was already upstream and was being silently declined:
+  `ThinkingBudgetProcessor` is the only thing that bounds *and* counts a thought
+  (`Libraries/MLXLMCommon/ThinkingBudget.swift:486`), it requires a budget transition, only Qwen
+  declares one (`QwenReasoningProtocol.swift:28`), and both install sites therefore logged
+  "hard-budget not applied" for every non-Qwen checkpoint and generated unbounded. Now one type owns
+  the decision — `ThinkingBudgetPolicy` (`Sources/ocoreai/Engine/EngineInferenceSupport.swift`) gives
+  thinking half a finite `maxTokens` and guarantees a quarter to the answer; opts a protocol with no
+  declared transition into upstream's own `.immediate` (close the span with the model's delimiter, add
+  nothing — `ThinkingBudget.swift:83`); asks the validator `applyingThinkingBudget` installs whether
+  the limit can actually fit budget + transition + reserve, so that arithmetic stays upstream's
+  (`ThinkingBudget.swift:505-521`) and an uncappable turn still generates; logs upstream's stand-down
+  diagnostic instead of swallowing it; and no longer invents a `maxTokens ?? 2048` that silently capped
+  requests which asked for no cap at all. Two retired duplications while in there: the MTP branch
+  re-resolved `thinkingEnabled` with its own copy of the same helper call, and both lanes hand-built
+  the configuration (~67 lines now one call each, with the MTP lane sized from its *per-iteration*
+  limit rather than the turn's original). **The budget is installed only on the two lanes whose whole
+  limit belongs to thinking plus the answer** (`mayRunReasoning`), and that boundary is a measurement,
+  not a preference: capping thinking on a tools-bearing turn took a documented request from 200 to 500
+  on Qwen3.6-35B-A3B-4bit at `max_tokens: 64` — the thought closed at 32 tokens, the tool-call payload
+  never completed, and every rejected-tool-call retry re-ran under the same ceiling, so it could not
+  converge. `answerOnly` carries that premise into the type that sizes the numbers.
+
+- **What same-session output proves it.** Probe 44, same checkpoint, same ask, before → after: §1
+  `finish=length reasoning_chars=618 content_chars=618 reasoning_tokens=255` →
+  `finish=stop reasoning_chars=325 content_chars=20 reasoning_tokens=129` — the answer arrived, in 20
+  characters instead of somebody else's monologue, with the thought counted and inside the reserve.
+  §2 (tools declared) still delivers 550 chars of thinking and stays uncounted, by the premise above.
+  The 500 face: `max_tokens: 64` with one declared tool returned 500 with the cap on that lane
+  (`rejected tool call (incomplete_output)`, retry exhausted) and 200 both at HEAD and after
+  `answerOnly` — paired, on this host, in this session. Probe 39 (`skill-contract-exec`) is what
+  caught it: 31 passed/1 failed mid-round → 32 passed/0 failed. New `ThinkingBudgetPolicyTests`(7)
+  pins the split at exact values (256 → 128/64, and never more than the limit at any size), the four
+  faces that get no processor, that a declared transition is respected rather than overridden, and
+  that an impossible limit degrades — its log quotes upstream's own words:
+  `insufficientGenerationTokenLimit(required: 10, actual: 8)`.
+
+- **Which gate goes red if it regresses.** Probe 44 §1 fails if `reasoning_tokens` vanishes or climbs
+  past the 192 left by the answer's quarter, and §3's thought-as-answer face flipped from `probe_note`
+  (the old "honest face") to `probe_fail`, so a cap that stops biting fails twice rather than
+  reporting its own defect as a measurement. §2b is new and owns the boundary this round learned the
+  hard way: a tools turn at `max_tokens: 64` must get 200 — 500 there means someone capped thinking on
+  a lane that owes a tool-call payload. `ThinkingBudgetPolicyTests`(7) covers the decision table. The
+  residue is in `docs/agent/open-items.md`: thinking on the tools lane is delivered but uncounted,
+  because upstream's only counter is the thing that bounds it, so a count-only processor is an
+  upstream ask; and `.immediate` is validated here on the checkpoint probe 44 names, not on every
+  family that declares no transition of its own.
+
 **10-30(66) CI read back the truth about entry 64's pins: a gate that trusted a stale tree, and the cache that hands it one**
+
 
 - **What improved.** `make push-ready` runs `scripts/ci-status.sh`, and right after entry 64's push it
   answered AUTHORITY NOT GREEN on two legs. Both were real, and no local gate could see either.
