@@ -40,42 +40,39 @@ let package = Package(
         // in CHANGELOG.md; AGENTS.md keeps only the current pin and the transferable rules.
         // (docs/agent/upstream-audit-log.md was written once and deleted the same session:
         //  CHANGELOG.md already carries the round-by-round verdicts — one diary, one home.)
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "991266ad3"),
-        // mlx-swift: pinned exact 0.32.3 (resolved revision 19601207e). This sentence is
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "f5b0677f6"),
+        // mlx-swift: pinned exact 0.33.0 (resolved revision 7ede4fd6d). This sentence is
         // gated against the pin below and against Package.resolved by
         // DependencyPinStatementTests — this sentence named 0.32.2 as the pin long after
         // 0.32.3 landed (bumped in 0401256), and no check read this file: a statement about
         // the contract that contradicted it (AGENTS.md invariant 1).
         //
-        // Why this tag and not 0.32.2: upstream's own 0.32.2 release notes open with "Use
+        // Why an exact tag and not a range: upstream's own 0.32.2 release notes open with "Use
         // release 0.32.3", because an app linking 0.32.2 crashes at launch on macOS/iOS
         // < 26.4 (mlx-swift #491/#493) — which would flatly contradict this package's
-        // declared platforms (macOS 14 / iOS 17). The floor argument stands as written
-        // when it was about 0.32.2, but the floor has since moved under this sentence:
-        // mlx-swift-lm #646 (c043fb3) raised its constraint to .upToNextMinor(from: 0.32.2)
-        // and at the lm revision pinned above it reads 0.32.3, so 0.32.2 no longer resolves
-        // here at all — lm's floor and this pin are now the same number.
-        // anchor:mlx-swift-lm Package.swift:67 .upToNextMinor(from: "0.32.3")
+        // declared platforms (macOS 14 / iOS 17). A range can resolve under a floor like that;
+        // an exact tag cannot. It has to move when lm's floor moves, and lm's floor has moved
+        // again: at the lm revision pinned above it reads 0.33.0, so this pin and lm's floor
+        // are the same number — the state pinSatisfiesLmsTransitiveFloor checks.
+        // anchor:mlx-swift-lm Package.swift:67 .upToNextMinor(from: "0.33.0")
         // DependencyPinStatementTests reads lm's floor out of the resolved checkout and goes
         // red when this sentence, the pin, or lm's constraint stop agreeing with each other.
-        // The content that made that floor worth having is
-        // in both: #450 (air64 Metal-thread-qualifier fix for steel/attn/mma.h) unblocks
-        // IPHONEOS_DEPLOYMENT_TARGET=27, and cd36d17 makes mlx-c custom-io return bytes
-        // read/written.
+        // What 0.33.0 carries that 0.32.3 does not: #496 (a float16 attention mask, the dtype
+        // the SDPA path asks for), #499 (evalLock taken before the dispatch_once it guards —
+        // the inversion, not a heuristic) and #501 (a sibling-replace leak in the optimizer).
         //
-        // Consumer-impact audit. Direct MLX surface = 11 sites / 5 APIs: 9 call+construct
+        // Consumer-impact audit. Direct MLX surface = 10 sites / 5 APIs: 8 call+construct
         // sites across 5 APIs plus 2 MLXArray-typed properties. It is not the two calls an
-        // earlier verdict here counted — asArray is called 5× (prompt-tail decode, std and
-        // MTP paths, the embedding path and the degeneration probe), and MLXArray itself is
-        // constructed there.
+        // earlier verdict here counted — asArray is called 4× (the phase-1 prompt-tail decode,
+        // the primed-inside helper, the embedding path and the degeneration probe), and
+        // MLXArray itself is constructed there.
         // Every cite below is anchored, so make anchor-check (which scans this file too)
         // goes red when an edit moves one, instead of a cite drifting 214 lines as this
         // one did; DependencyPinStatementTests re-greps Sources and fails when this audit
         // stops being the set the code actually reaches.
-// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3621 asArray(Int32.self) -->
-// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3668 Stream.gpu.synchronize -->
-// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3882 asArray(Int32.self) -->
-// anchor:. Sources/ocoreai/Engine/EngineInference.swift:5118 asArray(Int.self) -->
+// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3630 asArray(Int32.self) -->
+// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3677 Stream.gpu.synchronize -->
+// anchor:. Sources/ocoreai/Engine/EngineInference.swift:5119 asArray(Int.self) -->
         // anchor:. Sources/ocoreai/Engine/EngineInferenceSupport.swift:153 MLXArray
 // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1344 MLXArray( -->
 // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1350 MLXArray.zeros -->
@@ -93,7 +90,7 @@ let package = Package(
         // Dependencies keeps the current pins.
         .package(
             url: "https://github.com/ml-explore/mlx-swift.git",
-            exact: "0.32.3"),
+            exact: "0.33.0"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)

@@ -7,7 +7,7 @@
 //! `Available tools:\n## Tool: <name>\nDescription: …` to the system message
 //! (`Handlers/MessageBuilder.swift` Phase 5), *and* upstream fed the same `ChatSession.tools`
 //! into `tokenizer.applyChatTemplate(messages:tools:)` (mlx-swift-lm
-//! `Libraries/MLXVLM/Models/Gemma4.swift:2192`), whose template renders every entry as
+//! `Libraries/MLXVLM/Models/Gemma4.swift:2235`), whose template renders every entry as
 //! `<|tool>declaration<tool|>` inside the system turn. vllm and sglang have one seam — the
 //! schema goes into the template and nowhere else (`entrypoints/openai/chat_utils.py`,
 //! `srt/entrypoints/openai/protocol.py`) — so the second copy is ours.

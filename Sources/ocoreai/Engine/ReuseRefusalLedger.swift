@@ -55,8 +55,8 @@ enum ReuseRefusalReason: String, Codable, Equatable, Sendable, CaseIterable {
     /// conversation that arrived under the same key).
     case historyDiverged
     /// A media turn on either side: a vision encoder attends an image beside a cached prefix
-    /// differently than cold (upstream `ChatSession.swift:701-707`), so the pixels are not
-    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:703 image-bearing turn continues warm
+    /// differently than cold (upstream `ChatSession.swift:711-707`), so the pixels are not
+    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:713 image-bearing turn continues warm
     /// reconcilable from the manifest.
     case mediaTurn
     /// The ledger claims the cache already covers this turn's *entire* feed, and the feed's

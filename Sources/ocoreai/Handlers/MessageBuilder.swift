@@ -66,7 +66,7 @@ nonisolated let instructionMessageRoles: Set<String> = ["system", "developer"]
 /// The drop was structural: the engine delivers instructions through exactly one channel —
 /// the first `system` message it finds (`EngineInference.swift:1791`) — and filters every
 /// `system` role out of the feed it renders, because mlx-swift-lm's `Chat.Message.Role`
-/// (Chat.swift:120-124) has no `developer` case either. `buildMessages` then inserted this
+/// (Chat.swift:124-124) has no `developer` case either. `buildMessages` then inserted this
 /// server's own prompt at index 0 and left the client's message in the list, so the client's
 /// text sat at index 1: counted, never delivered, and mis-attributed as a user turn for
 /// `developer`.

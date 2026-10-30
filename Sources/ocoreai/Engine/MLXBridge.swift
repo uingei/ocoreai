@@ -934,7 +934,7 @@ nonisolated func extractKVQuantizationParams(
 /// verify-and-downgrade turns the rewind into a rebuild and `cached_tokens` stays 0. The
 /// reserve is what extends that limit (`CacheConfiguration.swift:299` hands
 /// `kvCache.rewind.maxTokens` straight to `RotatingKVCache.rewindCapacity`; the exact
-/// wording is at `KVCache.swift:1036`).
+/// wording is at `KVCache.swift:1018`).
 ///
 /// 1024 tokens is the distance an edit may sit from the current turn and still rewind
 /// exactly; past it the engine rebuilds, which is the pre-#700 behaviour, not a failure.
@@ -1103,7 +1103,7 @@ private func parseSchemeBits(_ scheme: String) -> Int? {
 ///
 /// The processor at the pin applies each penalty when it is merely non-zero
 /// (mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:345/:355/:365) and *subtracts* it
-/// from the selected logits (Evaluate.swift:614), so a NEGATIVE presence/frequency penalty
+/// from the selected logits (Evaluate.swift:618), so a NEGATIVE presence/frequency penalty
 /// means "encourage what is already there" — a legal OpenAI value in [-2, 2] that some
 /// clients (and one whole family of anti-repetition tuning guides) use on purpose.
 ///

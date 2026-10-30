@@ -30,7 +30,7 @@ finds (`Sources/ocoreai/Engine/EngineInference.swift:1823`), which becomes
 `ChatSession(instructions:)` (`:3117`, `:3175`). Every `system` role is then filtered out of the
 message feed it renders (`:1805`), and the role switch under that filter admits `assistant`,
 `tool`, and everything else as `.user` (`:1808-1812`) — mlx-swift-lm's `Chat.Message.Role` has no
-`developer` case (`Chat.swift:120-124`), so `developer` never matched either: it arrived as
+`developer` case (`Chat.swift:124-124`), so `developer` never matched either: it arrived as
 something the *user* said.
 
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1823 switch messages.first(where: -->

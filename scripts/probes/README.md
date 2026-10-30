@@ -338,6 +338,24 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     **4 failed** — the lying hub `completed`, nothing named a cause, and the corrupt file stayed
     on disk for the next load to read.
 
+- `44-reasoning-channel-delivery.sh` — does thinking reach `reasoning_content`, or the answer?
+    A reasoning model emits thinking and its answer in one decoded stream, and since lm #563 upstream
+    splits them into `Generation.reasoning` on both lanes this server switches over
+    (`ChatSession.swift:1414`, `Evaluate.swift:2574`). §1 asks for thinking and gets a non-empty
+    `reasoning_content`, a delimiter-free `content`, and `reasoning_tokens` > 0 — the token count is
+    the proof the split happened at the token level and not in a string sweep. §2 is the face that
+    mattered: the same ask with `tools[]` declared runs on `ChatSession`, where the std lane had no
+    arm for reasoning at all. §3 keeps the two channels honest — an interior slice of the thinking
+    must not reappear inside an answer, with the one documented exception (an empty answer channel
+    publishes the thought, `contentWireFallback`) named as a measurement rather than ignored.
+    Green 10-30: **9 passed, 0 failed, 6 measured** on Gemma 4 E2B, thinking requested explicitly.
+    Its first run sampled the red it was written for, twice over: `reasoning_content` came back
+    **empty** with tools declared — the caller's `reasoning:true` was dropped because
+    `mayRunReasoning` gated the *thinking flag* as well as the lane, which is not upstream's split
+    (respond() injects the thinking key for tool-bearing turns; the MTP lane already followed it) —
+    and a thinking-only turn published the thought as `content`. Fixing the gate moved §2 from
+    0 chars to 550.
+
 - `_lib.sh` — shared harness
 Fails when: —
 

@@ -12,8 +12,8 @@ import CoreGraphics
 ///
 /// Positioning in ocoreai (empirically bounded, NOT self-declared):
 /// - The MLX tool-result channel is text-only — `ChatSession.toolDispatch`
-///   returns `String` (`MLXLMCommon/ChatSession.swift:377`) and a
-// anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:377 public var toolDispatch
+///   returns `String` (`MLXLMCommon/ChatSession.swift:387`) and a
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:387 public var toolDispatch
 ///   `Chat.Message.tool` carries no image part. So a tool result CANNOT feed a
 ///   real image into the VLM's next pass. Inlining base64 would be 1.3M+ tokens
 ///   of dead noise (no consumer) — deliberately NOT done here.

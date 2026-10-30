@@ -139,7 +139,7 @@ verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name bel
 - **Stall: MTP stops hard, the std lane by consent** (Tools/, Engine/) — `LoopStallTerminationTests`(6);
   owner call: the terminal word for four faces.
 - **CoreAI / macOS 27 items unverifiable here** (Engine/) — `PlatformPremise.hasMacOS27`.
-- **A no-tool turn cannot be interrupted** (Engine/) — upstream seam at `991266ad3`; owner call.
+- **A no-tool turn cannot be interrupted** (Engine/) — upstream seam landed at `991266ad3`; owner call.
 - **Rewind landed; the reserve is untuned** (Engine/) — `SessionRewindOnDivergenceTests`(7) + probe 27.
 - **`tools[]` gaps; two prefix questions await an owner** — `UI/AGENTS.md`, `ReuseRefusalLedger`.
 - **Multimodal: video publishes per-checkpoint; capture cannot stream headlessly** —
@@ -155,7 +155,7 @@ verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name bel
 
 ## Upstream Audit Dependencies
 Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`, one diary, one home.
-1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract, currently `991266ad3`;
+1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract, currently `f5b0677f6`;
    `Package.swift` keeps the pin and a pointer, never a per-commit diary. Bump protocol: audit the
    consumption surface → bump `.revision` → `make audit` (both lockfiles) → `swift build` +
    `make test-ci` green → `CHANGELOG.md`. Upstream sources live under

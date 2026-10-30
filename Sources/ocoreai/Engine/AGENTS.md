@@ -37,14 +37,14 @@ The pool may not *answer* a conversation that diverged from its resident cache
 (`canReusePooledSession`) — but that is not a reason to discard the cache. `rewindHistoryEnd`
 (`SessionPool.swift:1526`, called at `SessionPool.swift:683`) decides whether the cache can be
 rewound onto the conversation that arrived and hands the boundary to the caller as
-`AcquireResult.rewind`; the fork itself is `EngineInference.swift:3215`, the only such site,
+`AcquireResult.rewind`; the fork itself is `EngineInference.swift:3224`, the only such site,
 because the transcript cannot cross into the pool actor — upstream `mlx-swift-lm` `Chat.Message`
 (`Libraries/MLXLMCommon/Chat.swift:14`) is not `Sendable` and carries `UserInput.Image`
 (`Libraries/MLXLMCommon/UserInput.swift:131`). The pool judges, the caller forks.
 
 Three conditions, and two of the ways they fail are silent (measured, not inferred):
 - **The reserve must be requested.** A rotating cache past its window reports `maxTrimCount == 0`
-  (upstream `mlx-swift-lm` `KVCache.swift:1015`), so `RewindToCommonPrefixRule` downgrades the trim to
+  (upstream `mlx-swift-lm` `KVCache.swift:997`), so `RewindToCommonPrefixRule` downgrades the trim to
   `.rebuild`: the answer stays correct and `cached_tokens` stays 0.
   `kvCacheRewindReserveTokens` (`MLXBridge.swift:910`) is therefore passed at all three exits of
   `makeKVCacheConfiguration`, including the unquantized one that used to return nil.
@@ -90,7 +90,7 @@ The server-wide row (`/v1/capabilities` → `video_input`) is the *same* measure
 `VideoDeliveryAggregate.evidenceLine`, so no publisher re-words it (a router that assembles its own
 evidence sentence is a second truth). Both are measured-only: `not_observed` is a fact about this
 process, never a claim about the checkpoint. Gate: `CapabilityMeasurementHonestyTests`.
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3367 items: videoInputCount, promptTokens -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3376 items: videoInputCount, promptTokens -->
 
 ## Known defect, deliberately unfixed — do not "fix" it blind
 `_applyBitmask` (`EngineInference.swift:1409`) multiplies by `-Float.leastNormalMagnitude`
@@ -138,10 +138,14 @@ so framing and accounting claims decide at k=1 in seconds instead of a Metal loa
 ## The two lanes, and where each line lives
 
 - MLX lane: `_runInferenceWithMessages()` → `ChatSession` (session pool, guided generation,
-  `toolDispatch`); `ReasoningEventEmitter` on both backends, `KVCacheRuntime`
+  `toolDispatch`); `KVCacheRuntime`
   `.turboQuant`/`.affine`, `ThinkingBudget` on the std and MTP lanes.
 - MTP lane: `generate(mtpDrafter:)` bypasses `ChatSession`; tool calls are collected, dispatched and
   published per iteration via `ToolResultPublisher`, aligned with upstream
   `MTPSpeculativeTokenIterator`.
+- Reasoning is split upstream on both `Generation` lanes since lm #563, so the engine routes
+  `Generation.reasoning` to `reasoning_content` and holds **no local emitter on either Generation
+  lane** — one survives only where a lane reads raw tokens (FM snapshots, think-then-call phase 1).
+  Cites: `docs/agent/engine-line-cites.md`.
 - Sampling: `argmax` when temperature is 0, `multinomialSample` above it, with filters mirroring
   upstream `CompositeSampler` — `Models/InferenceStubs.swift`.

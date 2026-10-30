@@ -9,6 +9,65 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-30
 
+**10-30(64) Both pins moved: upstream's reasoning split replaced ours, and the tool-bearing turn started thinking**
+
+- **What improved.** Entry 63 left the bump one decision short — does upstream split reasoning on the two
+  lanes we switch over, making our own emitter redundant? It does, on both: `ChatSession` hands
+  `reasoningConfig` to `TextToolTokenLoopHandler` (`ChatSession.swift:1414`) and
+  `generate(mtpDrafter:)` does the same (`Evaluate.swift:2574`), primed from the *prepared* prompt via
+  `promptPrimesReasoning`. So the pins moved — lm `991266ad3` → `f5b0677f6`, mlx-swift `0.32.3` →
+  `0.33.0` — and the adoption came with it rather than a `default:` arm. That made our MTP-lane emitter a
+  second home for a decision upstream now owns *inside the same stream*: kept, it would scan answer text
+  that can no longer contain a delimiter and hold back any prefix that looks like one. It is deleted, with
+  the `MTPIterationResult.renderedTail` plumbing that existed only to prime it, and phase-2 thinking tokens
+  now come from upstream's per-token `completionInfo.reasoningTokenCount` instead of attributing a whole
+  iteration to thinking because a span happened to be open at its end. Both `Generation` switches gained
+  the `.reasoning` arm that routes to `reasoning_content`; on the ChatSession lane the thought is scanned
+  for the caller's stop sequences without entering `localStdAccumulated`, which becomes the pooled
+  assistant message, so thinking cannot become content there. `ThinkTagParser` was left alone: it is
+  vendored `coreai-models` for the CoreAI lanes and its `promptEndsInsideReasoning(openMarker:closeMarker:)`
+  is a different API from lm's `ReasoningConfig` one. The probe then found a second defect that had nothing
+  to do with the split: `mayRunReasoning` gated the *thinking flag* as well as the lane, so every
+  tool-bearing turn silently ignored the caller's `reasoning:true`. Tools were never the reason — upstream's
+  `respond()` injects the thinking key for tool-bearing turns and our MTP lane already follows it — while a
+  grammar genuinely is the pair that cannot compose with thinking (the constrained loop truncates it), so
+  the suppression now hangs on `options.grammarSchema` alone. The dead-face question entry 63 raised is
+  therefore closed on the delivery side: an open-ended reasoning turn on the ChatSession lane used to
+  receive its thinking in neither channel.
+
+- **What same-session output proves it.** `scripts/probes/44-reasoning-channel-delivery.sh` (new, live
+  server, Gemma 4 E2B, `reasoning:true`): **9 passed, 0 failed, 6 measured**. Its first run — before the
+  gate fix — is the red: §2 returned `reasoning_content` **empty** with two tools declared, and §3 caught a
+  thinking-only turn publishing the thought as `content`. After the fix §2 delivered **550 chars** with a
+  delimiter-free answer channel, §1 delivered 618 chars of thinking plus `reasoning_tokens=255` (upstream's
+  per-token count, which is what proves the split ran at token level and not in a string sweep), and §3's
+  empty-answer face is reported as the documented `contentWireFallback` decision its tests already pin
+  (`ReasoningContentWireTests`) instead of as a leak. Compile-side: `swift build` green at both new pins;
+  the two exhaustive-switch errors entry 63 recorded are the whole blast radius and both now have arms.
+  Contract-side the bump owed and paid: 34 anchored cites plus 31 bare prose cites re-anchored by
+  *content continuity between the two pins* (old line's text located in the new tree, never hand-guessed),
+  4 cites that were already wrong at the old pin corrected (`MLXLanguageModel.swift:929` → `:667` the
+  `.vision` gate; `Gemma4.swift:2192` → `:2235` the `applyChatTemplate(messages:tools:)` call whose
+  tools-in-template claim this repo relies on; `KVCache.swift:1015` → `:997` the `maxTrimCount` override;
+  `MLXLanguageModel.swift:1377/1519/1721` → `:1393/:1535/:1740`), six "pinned 604fae7" wordings changed to
+  "landed in 604fae7" so a historical hash stops reading as the current pin, both `Package.resolved`
+  copies updated, `THIRD-PARTY-LICENSES` re-collected (0.33.0 / rev f5b0677f6b52), and the manifest's own
+  consumer audit re-measured (11 sites → 10, `asArray` 5× → 4×, because the deleted emitter took its
+  prompt-tail decode with it). `ModelStore.modelDownloadPatterns`'s "same set as upstream" claim was
+  re-verified at both pins rather than assumed (`["*.safetensors","*.json","*.jinja"]`).
+
+- **Which gate goes red if it regresses.** Probe 44 §2 reddens if reasoning stops reaching a
+  tool-bearing turn on the ChatSession lane, and §1 if it stops reaching the plain one or if the answer
+  channel picks up a delimiter. `DependencyPinStatementTests` reddens if the manifest's prose, its two
+  pins, lm's floor, or the consumer-audit counts stop agreeing (it re-greps `Sources/` for the MLX surface
+  and reads lm's floor out of the resolved checkout — the CLT checkout was re-resolved so the gate reads
+  the tree that compiles). `make anchor-check` covers 78 anchors including the two new upstream cites for
+  the split itself, so a bump that moves `ChatSession.swift:1414` or `Evaluate.swift:2574` goes red instead
+  of leaving a stale promise in the Engine guide. `ThirdPartyNoticesTests`(16) reddens if the notices stop
+  matching the pins. The uncounted face is recorded, not hidden: `docs/agent/open-items.md` carries it
+  (counting needs `ThinkingBudgetProcessor`, which also *bounds* thinking — owner call), and probe 44 §2
+  prints the gap whenever the field is absent.
+
 **10-30(63) The mlx pin window was measured end to end, and the pin did not move**
 
 - **What improved.** The `mlx-swift-lm` window (+10 commits since `991266ad3`) had been carried as an

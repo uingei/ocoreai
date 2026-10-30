@@ -6,9 +6,9 @@ which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
 - **`/v1/models/:model/…` needs `%2F`** (Handlers/) — accepting a slash costs a second routing truth, so the
-  wire shape stays pinned in `Handlers/AGENTS.md` § Endpoint Promises and the owner call stays open here.
+  wire shape stays pinned in `Handlers/AGENTS.md`; the owner call is open here.
 - **A stall stops MTP hard, the std lane only by consent** (Tools/, Engine/) — the ladder and
-  `LoopStallTerminationTests`(6) landed; upstream `mlx-swift-lm`'s `restart:` loop (ChatSession.swift:1154) still has no
+  `LoopStallTerminationTests`(6) landed; upstream `mlx-swift-lm`'s `restart:` loop (ChatSession.swift:1164) still has no
   cap, and a std-lane hard stop throws out of `toolDispatch` (:1632) reaching the wire as an error, not a
   finished turn — the terminal word for four faces is the owner call.
 - **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — three `@available(macOS 27.0, *)` or
@@ -16,26 +16,28 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   suites now skip on this OS through `PlatformPremise.hasMacOS27` instead of reporting a red.
 - **The coreai fork's debt is 8 named verdicts, not a drift window** (Engine/) — 77a122f read all 36 commits
   behind the four engine windows: 7 absorbed, 21 n/a, **8 open**, one row each with its action in
-  `docs/agent/coreai-fork-adjudication.md` (#368 measured 10-30 by probe 12 §5b: the lane that ships
-  damps whitespace through upstream `WhitespaceTokenBias`, so its exposure is CoreAI-only and
-  unverifiable here). `make drift` reads 0 un-adjudicated per file today; the axis moved once since,
+  `docs/agent/coreai-fork-adjudication.md` (#368 measured 10-30 by probe 12 §5b: the shipping lane damps whitespace via
+  upstream `WhitespaceTokenBias`, so its exposure is CoreAI-only, unverifiable here). `make drift` reads 0 un-adjudicated per file today; the axis moved once since,
   `db7823e` (#389), 2 Python files and 0 Swift — export-side, the axis § Upstream 2 has no surface for.
   <!-- claim:fork_verdicts_open=8 :: grep -c '^| .*open\*\*' docs/agent/coreai-fork-adjudication.md -->
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
-  and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The injection seam landed
-  upstream at pin `991266ad3` (`observe(to:using:)` + `GenerationTransformer`), so what is left is
-  owning what upstream's `ChatSession` loop owns. Owner call.
+  and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The seam landed upstream at
+  `991266ad3` (`observe(to:using:)` + `GenerationTransformer`);
+  what is left is owning what upstream's `ChatSession` loop owns. Owner call.
+- **Thinking reaches the wire uncounted on the ChatSession lane** (Engine/) — probe 44 §2 delivered 550
+  chars of `reasoning_content`, no `reasoning_tokens`; upstream counts it through
+  `ThinkingBudgetProcessor`, which also *bounds* thinking. Owner call.
 - **Rewind is landed; the reserve is a guessed constant** (Engine/) — 1024 rows measured on one checkpoint,
   not tuned to model or memory pressure, so an edit further back than the reserve still pays its full prefix.
   `SessionRewindOnDivergenceTests`(7) + probe 27 hold the wiring and the number.
 - **Video publishing is per-checkpoint** (Multimodal/) — one processor reads `input.videos`, the other does
-  not, so it is never inferred from architecture; a turn that received frames but never answered is not
-  counted, and relaxing that is untested (`VideoDeliveryLedger`).
+  not, so it is never inferred from architecture; a turn that got frames but never answered is not
+  counted; relaxing that is untested (`VideoDeliveryLedger`).
 - **Screen capture cannot start a stream headlessly** (Multimodal/) — authorized, display attached, still
   "cannot start stream", while the camera on the same box delivers: an SCStream-in-no-GUI-session limit,
   not TCC. `screenStatus` is `ready` only after a delivered frame.
 - **`tools[]` enforcement has gaps** — scope and open halves: `Sources/ocoreai/UI/AGENTS.md`; the
-  `required`-strength bound sits in `Handlers/AGENTS.md` § Endpoint Promises.
+  `required`-strength bound sits in `Handlers/AGENTS.md`.
 - **Two owner questions have data now and no answer** — refresh-vs-refuse when instructions change, and
   cross-conversation prefix sharing. `ReuseRefusalLedger` publishes both; the ledger is opportunity, not a
   capability claim.

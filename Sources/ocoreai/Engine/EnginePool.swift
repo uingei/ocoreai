@@ -1012,7 +1012,7 @@ actor EnginePool {
             // above (ocoreai is a generic runtime that cannot know a priori
             // whether each loaded model supports it; cf. the L604-623 rationale
             // and the SDK L313 example declaring .toolCalling for every model
-            // that exposes tools). Upstream MLXLanguageModel.swift:929's
+            // that exposes tools). Upstream MLXLanguageModel.swift:667's
             // `.vision` gate only throws when a request carries images AND the
             // capability is absent — a no-op for plain-text requests. The
             // authoritative model-specific guard is EngineInference:1485

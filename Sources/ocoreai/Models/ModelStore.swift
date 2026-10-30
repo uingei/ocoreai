@@ -104,7 +104,7 @@ enum ModelStore {
     ///
     /// One home: the HF lane, the ModelScope lane and the dry-run plan all ask for the same
     /// globs, so a plan can never report a smaller hole than the download it describes digs.
-    /// Same set as upstream `modelDownloadPatterns` (pin `991266ad3`,
+    /// Same set as upstream `modelDownloadPatterns` (pin `f5b0677f6`,
     /// `Libraries/MLXLMCommon/ModelFactory.swift:8`), redefined here because upstream declares
     /// it `package`-scoped and it is not visible across the package boundary.
     static let modelDownloadPatterns = ["*.safetensors", "*.json", "*.jinja"]

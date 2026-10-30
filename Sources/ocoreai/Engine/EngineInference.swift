@@ -1791,8 +1791,8 @@ extension EnginePool {
         // These are deliberately NOT deleted when the request ends. Upstream ChatSession
         // keeps the message it was given, with the resolved media URL inside it, and
         // re-feeds that whole transcript to `processor.prepare` on every later turn of the
-        // conversation (ChatSession.swift:1166 — `templateMessages = leadingMessages +
-        // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1166 templateMessages = leadingMessages
+        // conversation (ChatSession.swift:1176 — `templateMessages = leadingMessages +
+        // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1176 templateMessages = leadingMessages
         // currentConversation.messages`; gated by `make anchor-check`). Bytes deleted here therefore cost the
         // conversation its own history: measured 10-16, a clip posted as a data URL was
         // answered correctly on turn 1 ("Red", +79 prompt tokens) and every turn after it
@@ -2252,7 +2252,7 @@ extension EnginePool {
                         fastForwardTokens: diagnosticSink.fastForwardTokenIDs.count,
                         incomplete: diagnosticSink.incompleteOutput,
                         finalBuffer: diagnosticSink.finalBuffer)
-                    // 上游 canonical 对齐 (MLXFoundationModels/MLXLanguageModel.swift:1370/1704):
+                    // 上游 canonical 对齐 (MLXFoundationModels/MLXLanguageModel.swift:1386/1704):
                     // incompleteOutput(预算耗尽语法未终止) → 保留已流式产出的部分文本,
                     // 转 `.success` 终态照常收尾, 不 500(活体: Qwen3.5-4B sampled=2792
                     // finalBuf=nil → 旧行为硬 500 全丢)。prematureEOS/其它错误照抛。
@@ -3063,20 +3063,28 @@ extension EnginePool {
                 }
             }
 
-            // Upstream Executor.respond() gates reasoning behind mayRunReasoningPath:
-            //   mayRunReasoningPath = enabledToolDefinitions.isEmpty && request.schema == nil
-            // When tools or grammar schema are present, the constrained/tool path handles
-            // thinking internally — injecting reasoningContext there would double-inject
-            // thinking kwargs into an already tool-aware template.
+            // Two questions, two answers. `mayRunReasoning` asks which lane the turn runs on
+            // (upstream Executor.respond()'s mayRunReasoningPath). `thinkingFlagApplies` asks
+            // whether the caller's thinking preference may reach the template at all, and
+            // tools were never the reason it could not: since lm #563 the decoder that parses
+            // tool calls on the ChatSession lane splits reasoning too, and upstream's own
+            // respond() injects the thinking key for tool-bearing turns — the MTP lane already
+            // follows it (`mtpToolAwareContext`). Gating both on tools
+            // silently ignored `reasoning:true` on every tool-bearing turn: probe 44 §2 measured
+            // `reasoning_content` empty there. A grammar IS the pair that cannot compose with
+            // thinking — the constrained loop truncates thinking tokens (the `.alwaysOn` guard
+            // below) — so a schema still suppresses the flag.
+            // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1414 reasoning: modelConfiguration.reasoningConfig.map
             let mayRunReasoning =
                 (registeredToolSpecs ?? []).isEmpty && options.grammarSchema == nil
+            let thinkingFlagApplies = options.grammarSchema == nil
 
             // Snapshot reasoningConfig once here (replaces the second actor hop at L1807
             // which repeated the same .configuration.reasoningConfig lookup).
             let reasoningConfig = await handleRef.modelContainer.configuration.reasoningConfig
 
             var baseReasoningContext: [String: any Sendable]?
-            if mayRunReasoning,
+            if thinkingFlagApplies,
                 let rc = reasoningConfig
             {
                 // Mirror upstream thinkingEnabled(for:) reasoning-level resolution
@@ -3103,11 +3111,12 @@ extension EnginePool {
                     }
                     baseReasoningContext = nil
                 }
-            } else if !mayRunReasoning,
+            } else if !thinkingFlagApplies,
                 reasoningConfig != nil
             {
                 log.info(
-                    "Reasoning suppressed — tools or grammar schema present (mayRunReasoningPath)")
+                    "Thinking flag suppressed — a grammar schema is present; the constrained loop truncates thinking tokens"
+                )
                 baseReasoningContext = nil
             } else {
                 baseReasoningContext = nil
@@ -3205,8 +3214,8 @@ extension EnginePool {
                 // via poolRefForRelease and nil out chatSession to prevent double release.
                 if let rewind = acquired.rewind, rewind.historyEnd < mlxMessages.count {
                     // The pool refused this conversation but left a resumable cache behind:
-                    // `fork(history:)` (ChatSession.swift:1723) gives back a session that
-                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1723 func fork(history
+                    // `fork(history:)` (ChatSession.swift:1741) gives back a session that
+                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1741 func fork(history
                     // holds *this* transcript and keeps only the KV rows its prompt starts
                     // with, so an edited resend stops costing a full re-prefill. The pool
                     // could not do this itself — `[Chat.Message]` is not `Sendable`, so the
@@ -3215,8 +3224,8 @@ extension EnginePool {
                     let forked = await rewind.source.session.fork(
                         history: Array(mlxMessages[0 ..< rewind.historyEnd]))
                     // A fork inherits the parent's configuration, and sampling lives on the
-                    // session rather than the call (`ChatSession.swift:361`), so a fork that
-                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:361 public var generateParameters
+                    // session rather than the call (`ChatSession.swift:371`), so a fork that
+                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:371 public var generateParameters
                     // keeps last turn's knobs answers this turn under them — the same drift
                     // `staleSamplingFields` names on the pool-hit path.
                     let overriddenFields = MLXSessionPool.staleSamplingFields(
@@ -3288,7 +3297,7 @@ extension EnginePool {
                 /// reasoningConfig.promptStrategy.additionalContext().
                 /// Upstream reasoningConfig already has the prompt strategy baked in via
                 /// LLMModelFactory._load. The ReasoningEventEmitter below parses
-                /// model-rendered thinking tags (ReasoningConfig.swift:106-124).
+                /// model-rendered thinking tags (ReasoningConfig.swift:160-124).
                 ///
                 /// components: custom logitProcessorFactory for grammar-constrained
                 /// decoding (unused here — guided path uses GuidedGenerationLoop).
@@ -3524,7 +3533,7 @@ extension EnginePool {
                     var localPromptTokPerSec: Double?
                     var localPromptTokenCount: Int?
                     // Upstream GenerateCompletionInfo.cachedPromptTokenCount (mlx-swift-lm
-                    // pinned 604fae7): prompt tokens served by a reused KV-cache prefix
+                    // landed in 604fae7): prompt tokens served by a reused KV-cache prefix
                     // instead of being prefilled. nil until a .info arrives (0 = no reuse).
                     var localCachedPromptTokenCount: Int?
                     var localProposedDraftTokens: Int?
@@ -3769,11 +3778,7 @@ extension EnginePool {
 
                         // Per-iteration streaming inside a fresh perform { } — this is the
                         // short-lived lock equivalent to upstream ChatSession.respond() pattern.
-                        struct MTPIterationResult {
-                            let stream: AsyncStream<MLXLMCommon.Generation>
-                            let renderedTail: String
-                        }
-                        let iterResult: MTPIterationResult
+                        let iterStream: AsyncStream<MLXLMCommon.Generation>
                         // Snapshot messages as raw pairs — [Chat.Message] is non-Sendable.
                         // Convert to (role, content) pairs and reconstruct inside perform.
                         let iterationPairs = mtpMessages.map { m -> (String, String) in
@@ -3799,7 +3804,7 @@ extension EnginePool {
                         }()
 
                         do {
-                            iterResult = try await handleRef.modelContainer.perform(
+                            iterStream = try await handleRef.modelContainer.perform(
                                 nonSendable: drafterWrapper
                             ) { context, wrapped in
                                 let drafterModel = wrapped.model
@@ -3877,13 +3882,7 @@ extension EnginePool {
                                     components: mtpGenComponents,
                                     wiredMemoryTicket: wiredMemoryTicket
                                 )
-                                // Capture primedInside for reasoning emitter — compute outside perform.
-                                // LMInput not Sendable, so export token count + tokenizer ref.
-                                let tokens = mtpInput.text.tokens.asArray(Int32.self)
-                                let tail = context.tokenizer.decode(
-                                    tokenIds: tokens.suffix(64).map(Int.init)
-                                )
-                                return MTPIterationResult(stream: mtpGenStream, renderedTail: tail)
+                                return mtpGenStream
                             }
                         } catch {
                             continuation.yield(
@@ -3896,18 +3895,14 @@ extension EnginePool {
                             return
                         }
 
-                        // Stream consumed OUTSIDE modelContainer.perform lock
-                        var reasoningEmitter: ReasoningEventEmitter?
-                        // Fix 2: reuse mtpReasoningConfig from L1842 instead of re-fetching
-                        if let rc = mtpReasoningConfig {
-                            let primed = ReasoningEventEmitter.promptEndsInsideReasoning(
-                                renderedPromptTail: iterResult.renderedTail, config: rc
-                            )
-                            reasoningEmitter = ReasoningEventEmitter(
-                                config: rc, primedInside: primed)
-                        }
-
-                        mtpGenerationLoop: for try await generation in iterResult.stream {
+                        // Stream consumed OUTSIDE modelContainer.perform lock. No segmentation here:
+                        // since lm #563 the MTP generate() decodes through upstream's own emitter,
+                        // primed from the *prepared* prompt via promptPrimesReasoning, so `.reasoning`
+                        // arrives split with delimiters stripped. A second emitter would scan answer
+                        // text that can no longer contain a delimiter, holding back any prefix that
+                        // looks like one.
+                        // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2574 reasoning: context.configuration.reasoningConfig.map
+                        mtpGenerationLoop: for try await generation in iterStream {
                             if Task.isCancelled || cancellation.isCancelled {
                                 // Inline emit .done(.cancelled) — same as std cancel path (L2379).
                                 // Outer .done (L2234) is blocked by localStoppedBySeq=true,
@@ -3945,72 +3940,50 @@ extension EnginePool {
                                 break
                             }
                             switch generation {
+                            case .reasoning(let text):
+                                if !localFirstToken {
+                                    metrics.firstTokenMs = metrics.overallMs
+                                    localFirstToken = true
+                                }
+                                metrics.incrementGenerated()
+                                localAccumulatedText += text
+                                let (shouldBreakR, newTextR) = checkStopSequence(
+                                    segment: text,
+                                    accumulated: localAccumulatedText,
+                                    eventKind: { .reasoning($0) },
+                                    tokenCount: localTokenCount,
+                                    tokenFallback: metrics.generatedTokenCount,
+                                    promptTokPerSec: localPromptTokPerSec,
+                                    reasoningTokenCount: phase1ReasoningTokenCount
+                                        + phase2ReasoningTokenCount
+                                )
+                                if shouldBreakR {
+                                    localAccumulatedText = newTextR
+                                    localStoppedBySeq = true
+                                    break mtpGenerationLoop
+                                }
                             case .chunk(let text):
                                 if !localFirstToken {
                                     metrics.firstTokenMs = metrics.overallMs
                                     localFirstToken = true
                                 }
                                 metrics.incrementGenerated()
-                                // If reasoning config is available, route through emitter.
-                                // Otherwise pass text through directly as .text.
-                                if let e = reasoningEmitter {
-                                    var emitter = e
-                                    for segment in emitter.process(text) {
-                                        switch segment {
-                                        case .reasoning(let segmentText):
-                                            localAccumulatedText += segmentText
-                                            let (shouldBreak2, newText2) = checkStopSequence(
-                                                segment: segmentText,
-                                                accumulated: localAccumulatedText,
-                                                eventKind: { .reasoning($0) },
-                                                tokenCount: localTokenCount,
-                                                tokenFallback: metrics.generatedTokenCount,
-                                                promptTokPerSec: localPromptTokPerSec,
-                                                reasoningTokenCount: phase1ReasoningTokenCount
-                                                    + phase2ReasoningTokenCount
-                                            )
-                                            if shouldBreak2 {
-                                                localAccumulatedText = newText2
-                                                localStoppedBySeq = true
-                                                break mtpGenerationLoop
-                                            }
-                                        case .response(let segmentText):
-                                            localAccumulatedText += segmentText
-                                            let (shouldBreak, newText) = checkStopSequence(
-                                                segment: segmentText,
-                                                accumulated: localAccumulatedText,
-                                                eventKind: { .text($0) },
-                                                tokenCount: localTokenCount,
-                                                tokenFallback: metrics.generatedTokenCount,
-                                                promptTokPerSec: localPromptTokPerSec,
-                                                reasoningTokenCount: phase1ReasoningTokenCount
-                                                    + phase2ReasoningTokenCount
-                                            )
-                                            if shouldBreak {
-                                                localAccumulatedText = newText
-                                                localStoppedBySeq = true
-                                                break mtpGenerationLoop
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    // No reasoning config — pass through as plain text
-                                    localAccumulatedText += text
-                                    let (shouldBreak3, newText3) = checkStopSequence(
-                                        segment: text,
-                                        accumulated: localAccumulatedText,
-                                        eventKind: { .text($0) },
-                                        tokenCount: localTokenCount,
-                                        tokenFallback: metrics.generatedTokenCount,
-                                        promptTokPerSec: localPromptTokPerSec,
-                                        reasoningTokenCount: phase1ReasoningTokenCount
-                                            + phase2ReasoningTokenCount
-                                    )
-                                    if shouldBreak3 {
-                                        localAccumulatedText = newText3
-                                        localStoppedBySeq = true
-                                        break mtpGenerationLoop
-                                    }
+                                // `.chunk` is the answer channel: reasoning never reaches it.
+                                localAccumulatedText += text
+                                let (shouldBreak3, newText3) = checkStopSequence(
+                                    segment: text,
+                                    accumulated: localAccumulatedText,
+                                    eventKind: { .text($0) },
+                                    tokenCount: localTokenCount,
+                                    tokenFallback: metrics.generatedTokenCount,
+                                    promptTokPerSec: localPromptTokPerSec,
+                                    reasoningTokenCount: phase1ReasoningTokenCount
+                                        + phase2ReasoningTokenCount
+                                )
+                                if shouldBreak3 {
+                                    localAccumulatedText = newText3
+                                    localStoppedBySeq = true
+                                    break mtpGenerationLoop
                                 }
                             case .info(let completionInfo):
                                 localTokenCount = completionInfo.generationTokenCount
@@ -4045,13 +4018,12 @@ extension EnginePool {
                                 localPassthroughReason = completionInfo.passthroughReason
                                 // Capture speculativeDecodingTelemetry (upstream Evaluate.swift:L2138)
                                 _ = completionInfo.speculativeDecodingTelemetry?.roundCount ?? 0
-                                // D2-fix: Phase 2 reasoning token tracking.
-                                // When inside a reasoning span at end of iteration, attribute
-                                // the iteration's tokens to the reasoning count (upstream pattern:
-                                // AllowedToolOutputRouter counts per-token while isInsideReasoning).
-                                if reasoningEmitter?.isInsideReasoning == true {
-                                    phase2ReasoningTokenCount += completionInfo.generationTokenCount
-                                }
+                                // Phase 2 reasoning tokens: upstream counts them per token
+                                // (MTPSpeculativeTokenIterator.reasoningTokenCount -> GenerateCompletionInfo),
+                                // which replaces attributing the whole iteration to thinking when the
+                                // span happened to be open at the end — the answer tokens of that
+                                // iteration were being billed to reasoning.
+                                phase2ReasoningTokenCount += completionInfo.reasoningTokenCount ?? 0
                             case .toolCall(let mlxTC):
                                 // Collect tool calls for dispatch after iteration
                                 iterationToolCalls.append(mlxTC)
@@ -4276,7 +4248,7 @@ extension EnginePool {
                     // True input-token count (upstream GenerateCompletionInfo.promptTokenCount)
                     let promptTokenCount: Int?
                     // Prompt tokens served by a reused KV-cache prefix (upstream
-                    // GenerateCompletionInfo.cachedPromptTokenCount, pinned 604fae7).
+                    // GenerateCompletionInfo.cachedPromptTokenCount, landed in 604fae7).
                     // nil = no .info before termination (e.g. early cancel).
                     let cachedPromptTokenCount: Int?
                 }
@@ -4368,7 +4340,7 @@ extension EnginePool {
                             var localStdPassthroughReason: String?
                             var localPromptTokenCount: Int?
                             // Upstream GenerateCompletionInfo.cachedPromptTokenCount (mlx-swift-lm
-                            // pinned 604fae7): prompt tokens served by a reused KV-cache prefix
+                            // landed in 604fae7): prompt tokens served by a reused KV-cache prefix
                             // instead of being prefilled. nil until a .info arrives (0 = no reuse).
                             var localCachedPromptTokenCount: Int?
 
@@ -4607,11 +4579,16 @@ extension EnginePool {
                     var localStdProposedDraftTokens: Int?
                     var localStdAcceptedDraftTokens: Int?
                     var localStdPassthroughReason: String?
+                    // Thinking tokens on this lane, read from GenerateCompletionInfo. nil until a
+                    // .info arrives — the wire omits the field rather than claiming 0 unmeasured.
+                    // Named apart from the reasoning lane's per-token counter above: same meaning,
+                    // different authority (that one counts tokens, this one is upstream's number).
+                    var streamedReasoningTokenCount: Int?
                     // True input-token count (upstream GenerateCompletionInfo.promptTokenCount),
                     // captured from this branch's .info. nil → wire keeps pre-flight estimate.
                     var localPromptTokenCount: Int?
                     // Upstream GenerateCompletionInfo.cachedPromptTokenCount (mlx-swift-lm
-                    // pinned 604fae7): prompt tokens served by a reused KV-cache prefix
+                    // landed in 604fae7): prompt tokens served by a reused KV-cache prefix
                     // instead of being prefilled. nil until a .info arrives (0 = no reuse).
                     var localCachedPromptTokenCount: Int?
 
@@ -4692,6 +4669,29 @@ extension EnginePool {
                                         lastStopReason = .stopSequence
                                         break streamDetailsLoop
                                     }
+                                case .reasoning(let text):
+                                    // Upstream #563 frames reasoning on the ChatSession lane too, so a
+                                    // tools-or-schema turn on a reasoning model — the case that skips the
+                                    // token-level reasoning branch below — used to deliver its thinking
+                                    // nowhere. It is a separate channel, never content: `localStdAccumulated`
+                                    // becomes the pooled assistant message (L4824), so the thought is scanned
+                                    // for the caller's stop sequences without being written into it.
+                                    if actualTokenCount == nil {
+                                        metrics.firstTokenMs = metrics.overallMs
+                                    }
+                                    metrics.incrementGenerated()
+                                    let (shouldBreakR2, _) = checkStopSequence(
+                                        segment: text,
+                                        accumulated: localStdAccumulated + text,
+                                        eventKind: { .reasoning($0) },
+                                        tokenCount: actualTokenCount,
+                                        tokenFallback: metrics.generatedTokenCount,
+                                        promptTokPerSec: promptTokPerSec
+                                    )
+                                    if shouldBreakR2 {
+                                        lastStopReason = .stopSequence
+                                        break streamDetailsLoop
+                                    }
                                 case .info(let completionInfo):
                                     if actualTokenCount == nil {
                                         actualTokenCount = completionInfo.generationTokenCount
@@ -4729,6 +4729,7 @@ extension EnginePool {
                                     localStdProposedDraftTokens = completionInfo.proposedDraftTokens
                                     localStdAcceptedDraftTokens = completionInfo.acceptedDraftTokens
                                     localStdPassthroughReason = completionInfo.passthroughReason
+                                    streamedReasoningTokenCount = completionInfo.reasoningTokenCount
                                 case .toolCall(let mlxTC):
                                     let tc = InferenceEvent.mlxToolCall(from: mlxTC)
                                     continuation.yield(.init(kind: .toolCall(tc)))
@@ -4758,7 +4759,7 @@ extension EnginePool {
                                             promptTokenCount: localPromptTokenCount,
                                             tokPerSec: generationTokPerSec,
                                             promptTokPerSec: promptTokPerSec,
-                                            reasoningTokenCount: 0,
+                                            reasoningTokenCount: streamedReasoningTokenCount,
                                             cachedPromptTokens: localCachedPromptTokenCount,
                                             proposedDraftTokens: localStdProposedDraftTokens,
                                             acceptedDraftTokens: localStdAcceptedDraftTokens,

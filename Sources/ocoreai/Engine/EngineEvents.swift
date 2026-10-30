@@ -88,9 +88,10 @@ struct InferenceEvent {
         /// passthroughReason) sourced from GenerateCompletionInfo when MTP iterates are active.
         ///
         /// `cachedPromptTokens` (when non-nil) = prompt tokens served by a reused KV-cache
-        /// prefix, upstream `GenerateCompletionInfo.cachedPromptTokenCount` (mlx-swift-lm
-        /// pinned 604fae7, Evaluate.swift:2512 — ChatSession attributes it from its cache
-        /// reuse decision). `0` = whole prompt prefilled (no reuse) — a known value, not
+        /// prefix, upstream `GenerateCompletionInfo.cachedPromptTokenCount`, which ChatSession
+        /// attributes from its own cache-reuse decision (it landed in 604fae7;
+        // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1417 base.cachedPromptTokenCount = cachedPromptTokenCount
+        /// `0` = whole prompt prefilled (no reuse) — a known value, not
         /// "unknown"; nil = path without a GenerateCompletionInfo (guided/FM/CoreAI).
         case done(
             StopReason,

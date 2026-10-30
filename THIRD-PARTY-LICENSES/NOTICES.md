@@ -16,8 +16,8 @@ ocoreai's own code is MIT (see LICENSE). This product additionally ships:
 | async-http-client | 1.36.0 | Apache-2.0 | async-http-client.txt |
 | eventsource | 1.4.2 | MIT | eventsource.txt |
 | hummingbird | 2.26.0 | Apache-2.0 | hummingbird.txt |
-| mlx-swift | 0.32.3 | MIT | mlx-swift.txt |
-| mlx-swift-lm | rev 991266ad300f | MIT | mlx-swift-lm.txt |
+| mlx-swift | 0.33.0 | MIT | mlx-swift.txt |
+| mlx-swift-lm | rev f5b0677f6b52 | MIT | mlx-swift-lm.txt |
 | swift-algorithms | 1.2.1 | Apache-2.0 | swift-algorithms.txt |
 | swift-asn1 | 1.7.1 | Apache-2.0 | swift-asn1.txt |
 | swift-async-algorithms | 1.1.5 | Apache-2.0 | swift-async-algorithms.txt |

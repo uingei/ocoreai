@@ -79,7 +79,7 @@ decision API."
 - **No diffusion LM arch in our registry.** The only "Diffusion" under `Sources/` is
   `Video/CoreAIDiffusionModelFunction.swift` (video generation — unrelated axis). Upstream
   mlx-swift-lm at our pin registers `nemotron_labs_diffusion`
-  (`Libraries/MLXLLM/LLMModelFactory.swift:118-119`, shipped config `:527`, listed `:603`) whose
+  (`Libraries/MLXLLM/LLMModelFactory.swift:119-119`, shipped config `:527`, listed `:603`) whose
   header documents AR / block-diffusion / linear-self-speculation over one weight set
   (`Libraries/MLXLLM/Models/NemotronLabsDiffusion.swift:7-12`) — so Shape A has an upstream
   consumer path at mlx level, but no DiffusionGemma in mlx-swift-lm as of the pin.

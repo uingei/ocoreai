@@ -32,7 +32,7 @@ struct MTPDrafterModelWrapper: @unchecked Sendable {
 
 /// Bounded rejected-tool-call recovery policy on the standard ChatSession path.
 ///
-/// Upstream contract (mlx-swift-lm pin 604fae7, `ChatSession.swift:1404`):
+/// Upstream contract (mlx-swift-lm landed it in 604fae7, `ChatSession.swift:1422`):
 /// a rejected tool call is rolled back and thrown — recovery is the
 /// **caller's** responsibility ("the caller owns recovery"). ocoreai is
 /// that caller. `StdToolCallRecoveryTests` pins the boundaries (3 attempts,
@@ -162,7 +162,7 @@ struct TokenBiasCache: @unchecked Sendable {
 /// 上游实证:
 ///   - `GuidedGenerationLoop.swift:466` — maxTokens 耗尽且语法未终止时
 ///     `throw GuidedGenerationError.incompleteOutput` (emit 已流式输出, 部分文本在)。
-///   - `MLXFoundationModels/MLXLanguageModel.swift:1370/1704` — canonical 下游处理:
+///   - `MLXFoundationModels/MLXLanguageModel.swift:1386/1704` — canonical 下游处理:
 ///     `catch GuidedGenerationError.incompleteOutput { incomplete = true }` 保留已产出,
 ///     照常收尾, **不 throw**; prematureEOS 不在吸收清单(上游只 catch incompleteOutput)。
 ///   - `GuidedGenerationError.swift:8-14` (pin 991266ad3, 全文件 15 行) — 上游对该错误的原文
@@ -194,7 +194,7 @@ func absorbGuidedGenerationPartialOutput(
 /// Completion-zone reserves for `GuidedGenerationLoop`, clamped to the request
 /// budget.
 ///
-/// Upstream recipe (`MLXLanguageModel.swift:1411-1415`): soft nudge starts
+/// Upstream recipe (`MLXLanguageModel.swift:1427-1431`): soft nudge starts
 /// `max(structural×3, maxTokens÷4)` tokens before the budget, hard force starts
 /// `structural×8` before it. With a modest `max_tokens` that formula pushes
 /// `hardReserve` to or past the whole budget, so *every* sampled step runs in the

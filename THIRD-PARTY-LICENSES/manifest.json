@@ -32,14 +32,14 @@
     {
       "license": "MIT",
       "name": "mlx-swift",
-      "pin": "0.32.3",
+      "pin": "0.33.0",
       "repository": "https://github.com/ml-explore/mlx-swift.git",
       "textFile": "mlx-swift.txt"
     },
     {
       "license": "MIT",
       "name": "mlx-swift-lm",
-      "pin": "rev 991266ad300f",
+      "pin": "rev f5b0677f6b52",
       "repository": "https://github.com/ml-explore/mlx-swift-lm.git",
       "textFile": "mlx-swift-lm.txt"
     },
@@ -215,7 +215,7 @@
       "license": "Apache-2.0",
       "name": "swift-system",
       "pin": "1.8.0",
-      "repository": "https://github.com/apple/swift-system",
+      "repository": "https://github.com/apple/swift-system.git",
       "textFile": "swift-system.txt"
     },
     {
