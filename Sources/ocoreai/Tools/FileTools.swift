@@ -510,7 +510,17 @@ enum FileTools {
             throw ToolError.invalidParameter("search_files: path not found: \(path)")
         }
         let maxResults = max(1, limit ?? 50)
-        let candidates: [URL] = isDir.boolValue ? listFiles(under: url) : [url]
+        let walk = isDir.boolValue ? listFiles(under: url) : DirectoryWalk(urls: [url])
+        // A root the engine cannot open has no honest search result: "0 files matching"
+        // would report a complete scan that never ran, so the refusal names the OS
+        // reason instead (codex #57186 fails closed on the same face).
+        if let blocked = walk.blockedRoot {
+            throw ToolError.checkFailed(
+                "search_files: path not readable: \(url.path) (\(blocked))"
+            )
+        }
+        let candidates = walk.urls
+        let partialNote = walk.partialNote
 
         if (target ?? "files") == "content" {
             var matches: [String] = []
@@ -544,9 +554,11 @@ enum FileTools {
             if matches.isEmpty {
                 return
                     "search_files: 0 files containing '\(pattern)' under \(path) (scanned \(scanned))"
+                    + partialNote
             }
             return matches.map { "  \($0)" }.joined(separator: "\n")
                 + "\n─── total: \(matches.count) (substring in file content) ───"
+                + partialNote
         }
 
         var matches: [String] = []
@@ -557,10 +569,11 @@ enum FileTools {
         }
         matches.sort()
         if matches.isEmpty {
-            return "search_files: 0 files matching '\(pattern)' under \(path)"
+            return "search_files: 0 files matching '\(pattern)' under \(path)" + partialNote
         }
         return matches.map { "  \($0)" }.joined(separator: "\n")
             + "\n─── total: \(matches.count) (filename glob) ───"
+            + partialNote
     }
 
     // MARK: - Helpers
@@ -715,15 +728,45 @@ enum FileTools {
         return URL(fileURLWithPath: expanded, relativeTo: URL(fileURLWithPath: anchor))
     }
 
+    /// What a directory walk actually read, and what it could not.
+    ///
+    /// `blockedRoot`/`skipped` are not decoration: a walk that dropped unreadable
+    /// directories on the floor let `search_files` answer "0 files matching" about a
+    /// tree it never opened — the surface claiming more than the engine measured.
+    struct DirectoryWalk: Sendable {
+        var urls: [URL] = []
+        /// The OS reason when the root itself could not be opened (nothing was scanned).
+        var blockedRoot: String?
+        /// Sub-trees skipped, `"path — reason"` each, in walk order.
+        var skipped: [String] = []
+
+        /// Appended to every result a partial walk produced, so a negative answer
+        /// states its own bound instead of implying an exhaustive search.
+        var partialNote: String {
+            skipped.isEmpty
+                ? ""
+                : "\n[partial scan: \(skipped.count) unreadable dir(s), first: \(skipped[0])"
+                    + " — only readable sub-trees were searched]"
+        }
+    }
+
     /// Hidden files and VCS/build dirs are skipped; depth-bounded DFS.
-    static func listFiles(under root: URL) -> [URL] {
-        var out: [URL] = []
+    static func listFiles(under root: URL) -> DirectoryWalk {
+        var walk = DirectoryWalk()
         var stack: [(url: URL, depth: Int)] = [(root, 0)]
         while let (current, depth) = stack.popLast() {
-            guard
-                let children = try? FileManager.default.contentsOfDirectory(
+            let children: [URL]
+            do {
+                children = try FileManager.default.contentsOfDirectory(
                     at: current, includingPropertiesForKeys: nil)
-            else { continue }
+            } catch {
+                if depth == 0 {
+                    walk.blockedRoot = error.localizedDescription
+                } else {
+                    walk.skipped.append("\(current.path) — \(error.localizedDescription)")
+                }
+                continue
+            }
             for child in children where !child.lastPathComponent.hasPrefix(".") {
                 var childIsDir: ObjCBool = false
                 guard FileManager.default.fileExists(atPath: child.path, isDirectory: &childIsDir)
@@ -733,11 +776,11 @@ enum FileTools {
                         stack.append((child, depth + 1))
                     }
                 } else {
-                    out.append(child)
+                    walk.urls.append(child)
                 }
             }
         }
-        return out
+        return walk
     }
 
     /// `*` glob over a basename: leading, trailing, both, or exact.

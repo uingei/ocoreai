@@ -9,6 +9,70 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-30
 
+**10-30(65) The codex window read end to end: one face it named, one face it merely exposed**
+
+- **What improved.** `make drift` sat red on a 426-commit codex window (`bd5a836..f752c97f7`) — an unread
+  axis is the state this instrument exists to refuse, so the whole window was read, not sampled. It is
+  overwhelmingly codex's own machinery: Guardian review 57, TUI/terminal 51, release/Bazel/dependency
+  bumps 61, auth and credential plumbing 36, rollout/trace/telemetry 31, remote executors and cloud
+  providers 32, MXC/Windows/NFS sandbox 19, plugins and marketplace 16, MCP connection sharing 17 (an
+  overlapping keyword screen over the 426 subjects, not a partition — `grep -icE` on
+  `git log --format='%s' bd5a836..HEAD`). One commit maps onto a face we ship today: **#57186 "Fail closed
+  on unreadable glob search root metadata errors"**. Ours failed open. `FileTools.listFiles` read each
+  directory with `try? … else { continue }`, so a directory that exists but cannot be opened came back as
+  `[]`, and `search_files` rendered that as `search_files: 0 files matching '<pattern>' under <path>` —
+  a complete-scan claim for a scan that never ran — while a skipped sub-tree left no trace on either face.
+  The walk now returns what it read *and* what it could not (`DirectoryWalk.blockedRoot`, `.skipped`): a
+  blocked root is a `ToolError.checkFailed` naming the path and the OS's own words, and a partial walk
+  appends its bound to all four result faces, hit and empty alike. Nothing new was gated on
+  `contentMode`/`maxSearchFiles` truncation because the caller already owns that number: the schema
+  discloses `limit` and the content face prints `scanned N`.
+
+- **What same-session output proves it.** `Tests/ocoreaiTests/SearchScanHonestyTests.swift` (3): the
+  blocked-root face is asserted as `.checkFailed` prefixed by the path and checked for the absence of
+  `0 files`; the disclosure is a paired flip — the same query on the same tree, one `chmod 000` apart,
+  exact-equality on the whole result string before and the `[partial scan: 1 unreadable dir(s), first:
+  <path>` note after — and the single-file face is pinned unchanged so the walk's new fields cannot leak
+  into a path that is not a walk. The suite floors its own premise: a host that ignores mode bits would
+  turn every expectation here into a vacuous pass, so `block()` asserts the OS really refused. **Red
+  proof:** reverting only `Sources/ocoreai/Tools/FileTools.swift` makes it 3 failed / 6 issues; restored,
+  92 tests / 14 suites pass across `FileTools|SearchScan|ToolSpec|PDFRead|ToolRegistry|OutputSanitizer|
+  EditMismatch|ToolAttempt`. Writing the gate found a trap worth naming: the walk hands back
+  realpath-shaped paths (`/private/var/…`) while Foundation's `resolvingSymlinksInPath` *strips*
+  `/private` rather than adding it, so a fixture anchored on `FileManager.temporaryDirectory` compares
+  two different voices and every exact-string assertion fails for a reason that is not a defect.
+
+- **The face the same read exposed but did not patch.** codex #57207 attributes approval waits to a tool's
+  critical path instead of folding them in. Ours folds them in: the clock starts at
+  `Engine/EngineInference.swift:2955` (`dispStart`, and `mtpDispStart` at `:4104`) and
+  `Tools/ToolRegistry.swift:604` awaits the human's approval *inside* that window, so a three-minute
+  decision renders in the transcript as a three-minute tool (`UI/Views/ChatView.swift:1473`). The number
+  is measured, it measures the wrong span. Recorded as an open item with the owner question attached —
+  which number the chip owes — rather than half-plumbed through the actor seam in a round that already
+  moved a search contract. #58161 (tool names in approval metadata) needed no change: a refusal already
+  travels inside a tool result that carries the tool name and `tool_call_id`.
+
+- **Codex verdict and adopt.** 426 subjects read, one adopted above, the rest consumer-transparent by axis
+  (ocoreai has no Guardian reviewer, no Rust TUI, no remote/provisioned executor, no MXC/seatbelt sandbox,
+  no plugin marketplace, no hooks config server). The adopt stamps the *API's* HEAD, not the mirror's, so
+  `f2ac998355` — one commit past what had been read — was fetched and adjudicated before the stamp rather
+  than quietly buried in it: #58324 propagates an unreadable/malformed `auth.json` as a transient failure
+  instead of letting it read as an account mismatch, in `codex-rs/login` — an axis ocoreai does not have
+  (no token refresh, no `auth.json` storage), and the second instance in one window of the invariant this
+  round just paid for: **a read that failed must not be laundered into a verdict**. Baseline
+  `bd5a836 → f2ac998` via `bash scripts/upstream-drift.sh adopt codex`, and the same command then reads
+  four axes at `0 new` with exit 0 (lm, coreai-models, codex, and the mlx-swift tag axis at 0.33.0). The
+  two axis candidates that were checked rather than waved away: #55991 (double-counted retained reasoning)
+  — our MTP sum is per-phase and clamped to the turn total, and the ChatSession lane reports upstream's own
+  number (entry 64), so there is no second counter to reconcile; #57500/#57262/#56530 (skill-catalog byte
+  budget) — our analogue is the `tools[]` surface, already open with its own measured −18.8 pp row.
+
+- **Docs paid for the row it added.** `docs/agent/open-items.md` is at its 15 609-byte cap, so the new
+  timing row bought its bytes by deleting two restatements of rules that already have a home (the
+  gate stop-rule lives in `AGENTS.md` § Working here; the eval reproduce recipe lives in
+  `scripts/eval/README.md`) — 15 562/15 609 after. `make docs-check` green (claims 35/35, numbered 39/39,
+  files-with-@Test 328), `anchor-check` 79/79 zero drift, `make format-check` zero reformat.
+
 **10-30(64) Both pins moved: upstream's reasoning split replaced ours, and the tool-bearing turn started thinking**
 
 - **What improved.** Entry 63 left the bump one decision short — does upstream split reasoning on the two

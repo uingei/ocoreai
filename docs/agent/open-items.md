@@ -50,10 +50,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `exec-sum-column` 0/3 → 2/3 and `exec-report-two-numbers` 2/3 → 3/3 improved on the full surface while every
   edit/fix face collapsed (`fix-syntax-error`, `fix-typo-variable`, `read-and-report`,
   `fix-boundary-comparison` 3/3 → 0/3). Noise floor from the same runs lives in `scripts/eval/README.md`
-  (±6 tasks single-run; ≥9 unpaired, 6 clean flips paired). Reproduce:
-  `OCOREAI_EVAL_REPEAT_ROOT=/tmp/board6 OCOREAI_EVAL_REPEATS=3 bash scripts/eval/repeat.sh`, again with
-  `OCOREAI_EVAL_TOOLS=all` into a second root, then `python3 scripts/eval/_repeat_stats.py --a /tmp/board6
-  --b /tmp/board40`. The open half is a product decision, not a measurement: the wire is caller-scoped
+  (±6 tasks single-run; ≥9 unpaired, 6 clean flips paired). Reproduce: `scripts/eval/README.md` § the
+  repeat recipe, both arms into separate roots. The open half is a product decision, not a measurement: the wire is caller-scoped
   (`Tools/ToolRegistry.swift:135`: no `tools[]` declared ⇒ no tools) while the app's own loop hands the whole
   registry over every turn (`UI/ViewModels/ChatViewModel.swift:1098`) — 40 declarations, 25,092 B, to a 4-bit
   checkpoint. Every comparator refuses that shape: codex declares 13 specs and defers the tail behind
@@ -114,10 +112,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 
 - **The gate layer is frozen; the tag is not.** Measured before cutting: 329 of 1415 commits went to
   docs/CI/gates against `git tag` = empty (the counts and the deleted family: CHANGELOG
-  `gate-deletion-10-28`), and `AGENTS.md` § Working here carries the stop rule — a new check names the red it
-  was sampled against and the reader whose action it changes, or it does not get written. What remains open
-  is not a measurement and not an audit — it is the owner pushing a tag, the only act here that makes a
-  surviving gate someone else's problem to run.
+  `gate-deletion-10-28`), and `AGENTS.md` § Working here carries the stop rule. What remains open is the
+  owner pushing a tag — the only act that makes a surviving gate someone else's problem to run.
 
 - **The release job holds the publish credential while it runs repository code** (CI/) —
   `.github/workflows/ci.yml:403` carries `contents: write` (`:410`) and builds inside that job (`:414`
@@ -127,12 +123,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   runner, 10-29), so the credential no longer has to *prove* the build — it still runs it. The rest is the
   split itself: opencode's shape (`../references/opencode/.github/workflows/release-dry-run.yml:4-9`) runs
   build jobs with no secrets and no `id-token` and publishes from a `release` environment over artefacts.
-  Deliberately not touched before a first release lands — that job is the one path a rehearsal cannot run,
-  and it is not the moment to redesign it. Owner call, since it decides who/what may publish.
+  Deliberately untouched before a first release lands: it is the one path a rehearsal cannot run.
+  Owner call (who/what may publish).
 - **The one latency figure we quote is not the metric we want** (packaging/) — *clean machine → first
   completion* is unmeasured with the model download included: the 22.1 s figure ran with weights already on
-  disk, and nothing is notarised, so neither the metric nor the cask rung above it can be floored yet
-  (ladder rung 2, `docs/agent/long-horizon-goal.md`).
+  disk, and nothing is notarised, so neither the metric nor the cask rung can be floored yet
+  (rung 2, `docs/agent/long-horizon-goal.md`).
 
 - **A measured gallery is the one adoption surface we can win outright** (README/, Handlers/) — the leaders
   advertise model support as adjectives while `/v1/models` already publishes per-checkpoint measured verdicts
@@ -156,14 +152,19 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   while its library README still lists tool calls and reasoning in transcripts as *Planned*
   <!-- anchor:mlx-swift-lm Libraries/MLXScriptedLM/README.md:20 Planned -->
   — which is exactly the half `Engine/ScriptedInference.swift` exists to decide at k=1. So today's local
-  lane is not a duplicate of delivered upstream capability, but the footprint ladder's first rung says
-  consume before author: the trigger to re-open this is upstream delivering transcript tool calls, and the
-  check is the pin diff on that library at the next bump.
+  lane is not a duplicate of delivered upstream capability. Re-open trigger: upstream delivering transcript
+  tool calls; check: the pin diff on that library at the next bump.
 
 - **No weight-free witness for MTP drafter mixing** (Engine/) — the drafter belongs to one model now
   (`Engine/LoadedModel.swift:112`, read at `Engine/EngineInference.swift:3452`); until 10-29(55) it sat
   unkeyed in the pool, so a refused family could route on another family's drafter. Keying is
   compile-enforced; the wire proof wants two checkpoints live — owner call.
+
+- **`durationMs` charges the human's approval to the tool** (Engine/, UI/) — the clock starts at
+  `Engine/EngineInference.swift:2955` and `Tools/ToolRegistry.swift:604` awaits the approval inside that
+  window, so a slow answer renders as a slow tool in the transcript
+  (`UI/Views/ChatView.swift:1473`). Codex #57207 attributes approval waits apart; paying it needs the wait
+  measured where it is awaited. Owner call: which number the chip owes.
 
 - **`memory_events` outlived its API** (SQLite/) — 10-29(53) deleted the last of it, leaving a table,
   FTS index and 3 triggers (`SQLite/SQLiteStore.swift:670`) nothing writes. Old databases keep the rows
