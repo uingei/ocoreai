@@ -9,6 +9,42 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-30
 
+**10-30(63) The mlx pin window was measured end to end, and the pin did not move**
+
+- **What improved.** The `mlx-swift-lm` window (+10 commits since `991266ad3`) had been carried as an
+  unquantified cost. It is now quantified, by doing the bump and reading what breaks. It is a two-pin
+  bump: `f5b0677f6` moved its own constraint to `.upToNextMinor(from: "0.33.0")` (`3d066d3`, #720), so
+  `exact: "0.32.3"` at `Package.swift:96` has to move with it. Resolution then got all the way to our
+  sources, where the entire compile-time blast radius on ocoreai is **two** errors —
+  `Engine/EngineInference.swift:3947:29` and `:4675:33`, both `switch must be exhaustive` — because
+  upstream's `Generation` gained `case reasoning(String)` (`Evaluate.swift:3187`) between `.chunk` and
+  `.info` (#563). Nothing else: 0 references to the deleted `CompileOverloads.swift` in `Sources/` or
+  `Tests/`. The arm is not mechanical, which is why the bump stopped there. Both switches already feed
+  `.chunk` through `ReasoningEventEmitter.process(text)`, and this repo already owns a reasoning sink —
+  `StreamOutputFilter` routes thinking spans to the wire's `reasoning_content`, and
+  `ChatViewModel.swift:1141` reads `chunk.reasoningContent`. So a native `.reasoning` channel arriving
+  already classified has to decide: emit it straight to that sink, or hand it to the marker parser and
+  split twice. That is a wire-visible decision on a checkpoint that emits channels, not a `default:`
+  case, and AGENTS.md forbids a stub that hides a capability gap. What the bump buys, named: #728
+  (attention masks sized from the absolute cache offset — the prefix-reuse face we advertise), #703
+  (prefill over a quantized KV cache through the fused SDPA kernel), #723 (Gemma 3 RoPE scaling from
+  `rope_parameters`), plus mlx-swift 0.33.0 itself (#496 float16 attention mask, #499 the
+  `evalLock`/`dispatch_once` inversion on globalStreams, #501 the sibling-replace leak).
+
+- **What same-session output proves it.** `swift build` at the bumped pins reached `ocoreai`'s own
+  sources and printed exactly `error: switch must be exhaustive` at the two lines above and nothing
+  else of ours; the two-pin requirement is `git show 3d066d3 -- Package.swift` on the upstream clone,
+  and the empty `CompileOverloads` audit is a grep over `Sources/` and `Tests/`. The pins were then
+  returned to `991266ad3` / `0.32.3` and rebuilt, so `main` is the same tree it was, with the window
+  still reported by `make drift`.
+
+- **What this did not do.** The pin did not move, so none of the four fixes above are in the shipped
+  binary yet — that is the round this measurement de-risks, and it is one switch arm per site plus a
+  decision about where native reasoning text lands. A bump also owes both `Package.resolved` copies, a
+  re-run of `scripts/collect-third-party-licenses.sh` (AGENTS.md: a pin bump moves the licences that
+  travel with the binary), the pin sentence plus its `anchor:mlx-swift-lm Package.swift:67` cite, and
+  `DependencyPinStatementTests`, which reads upstream's floor out of the resolved checkout.
+
 **10-30(62) The fork's "top candidate" treated a disease this lane does not have — measured before porting**
 
 - **What improved.** Two docs named coreai-models #368 (cap whitespace between JSON tokens at 32) as
