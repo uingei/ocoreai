@@ -16,8 +16,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   suites now skip on this OS through `PlatformPremise.hasMacOS27` instead of reporting a red.
 - **The coreai fork's debt is 8 named verdicts, not a drift window** (Engine/) — 77a122f read all 36 commits
   behind the four engine windows: 7 absorbed, 21 n/a, **8 open**, one row each with its action in
-  `docs/agent/coreai-fork-adjudication.md` (`f03e8ce` #368 is the top candidate — ours compiles
-  `anyWhitespace: true`). `make drift` reads 0 un-adjudicated per file today; the axis moved once since,
+  `docs/agent/coreai-fork-adjudication.md` (#368 measured 10-30 by probe 12 §5b: the lane that ships
+  damps whitespace through upstream `WhitespaceTokenBias`, so its exposure is CoreAI-only and
+  unverifiable here). `make drift` reads 0 un-adjudicated per file today; the axis moved once since,
   `db7823e` (#389), 2 Python files and 0 Swift — export-side, the axis § Upstream 2 has no surface for.
   <!-- claim:fork_verdicts_open=8 :: grep -c '^| .*open\*\*' docs/agent/coreai-fork-adjudication.md -->
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail

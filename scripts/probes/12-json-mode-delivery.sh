@@ -27,12 +27,15 @@
 #      everywhere, and §2's pass would be worth nothing.
 #   5. The ungently shape: an OPEN-ENDED prompt, temp 0, max_tokens 512, k=6 — does the
 #      constrained document actually close? §1–§4 name their own keys in a 96-token budget,
-#      which is the easiest form a grammar ever sees. coreai-models shipped a mask-level
-#      whitespace cap for the hard form (Gemma 4 E2B/E4B run to the token limit on open
-#      prompts, whitespace runs up to 99 chars), enforced on the mask because compiling it
-#      expands a nested schema from 0.3 MiB to 1.2 GiB; our bridge passes
-#      max_whitespace_cnt = nullopt (Sources/lib/CXGrammar/xgrammar_c_bridge.cpp:138).
-#      Recorded as XFAIL while open, XPASS (red) once it closes, so a fix cannot pass silently.
+#      which is the easiest form a grammar ever sees. coreai-models shipped a mask-level whitespace
+#      cap for ITS version of this face (Gemma 4 E2B/E4B, runs to 99 chars), enforced on the mask
+#      because compiling it expands a nested schema from 0.3 MiB to 1.2 GiB; our bridge leaves that
+#      knob unset (Sources/lib/CXGrammar/xgrammar_c_bridge.cpp:138, max_whitespace_cnt = nullopt).
+#      Measured 10-30 in §5b: the whitespace axis is CLOSED on this lane (max run 11 against Apple's
+#      32, because the guided loop applies upstream's WhitespaceTokenBias at -200), and what still
+#      fails is a 126-character repeat run. Document closure is therefore recorded as XFAIL while
+#      open, XPASS (red) once it closes so a fix cannot pass silently, and §5b reddens if
+#      whitespace ever does run past 32 here — that is the day #368 becomes ours to port.
 #   6. The shape a client really sends: `response_format` + `tools[]` in ONE turn, k=3, against the
 #      control of the same request with `tools` removed. This USED to deliver 0/3 on both shapes —
 #      every turn ending `finish=tool_calls`, one of them a schema-valid but semantically absurd
@@ -148,6 +151,8 @@ fi
 probe_section "5 — open-ended json_object · temp 0 · max_tokens 512 · k=6 — the document must close"
 OPEN_TOTAL=0
 OPEN_BAD=0
+OPEN_MAX_WS=0
+OPEN_MAX_REP=0
 OPEN_NOTES=""
 for ask in "Tell me about the city you would most like to visit." \
            "Explain how a phone camera works and what makes a photo good."; do
@@ -184,6 +189,10 @@ sys.stdout.write("%s finish=%s completion=%s maxWSrun=%d maxRepeatRun=%d tail=%r
 ')"
     OPEN_TOTAL=$(( OPEN_TOTAL + 1 ))
     printf '  · ask=%.28s… %s\n' "$ask" "$verdict"
+    ws="$(printf '%s' "$verdict" | sed -n 's/.*maxWSrun=\([0-9]*\).*/\1/p')"
+    rep="$(printf '%s' "$verdict" | sed -n 's/.*maxRepeatRun=\([0-9]*\).*/\1/p')"
+    if [ -n "$ws" ] && [ "$ws" -gt "$OPEN_MAX_WS" ]; then OPEN_MAX_WS="$ws"; fi
+    if [ -n "$rep" ] && [ "$rep" -gt "$OPEN_MAX_REP" ]; then OPEN_MAX_REP="$rep"; fi
     case "$verdict" in
       INVALID*) OPEN_BAD=$(( OPEN_BAD + 1 )); OPEN_NOTES="$OPEN_NOTES; $verdict" ;;
     esac
@@ -194,6 +203,21 @@ if [ "$OPEN_BAD" -gt 0 ]; then
 else
   probe_xfail fixed "open-ended json_object closed $OPEN_TOTAL/$OPEN_TOTAL — promote §5 to probe_ok and delete this xfail"
 fi
+
+# §5b — the whitespace axis, measured instead of imported. coreai-models #368 caps whitespace
+# between JSON tokens at 32 (ConstrainedGenerationSession.defaultMaxWhitespaceCount) because ITS
+# Gemma 4 runs reached 99. This lane applies upstream's WhitespaceTokenBias (-200 on
+# whitespace-only tokens, Engine/EngineInference.swift:2090), so the honest question is whether
+# #368's cap would bind anything here. While this holds it binds nothing — and if a bridge bump or
+# a new checkpoint lets a run pass 32, this is the red that re-opens the port with a number on it.
+if [ "$OPEN_TOTAL" -lt 6 ]; then
+  probe_fail "§5b ran $OPEN_TOTAL/6 open-ended turns — the premise is gone, so a whitespace verdict here would be vacuous"
+elif [ "$OPEN_MAX_WS" -le 32 ]; then
+  probe_ok "whitespace stays inside Apple's 32 on OUR lane (max run $OPEN_MAX_WS over $OPEN_TOTAL open-ended turns) — #368's mask cap would bind nothing here"
+else
+  probe_fail "whitespace ran to $OPEN_MAX_WS > 32 — coreai-models #368 applies to this lane now, port WhitespaceGuard (docs/agent/coreai-fork-adjudication.md)"
+fi
+probe_note "what §5 leaves open is repetition, not whitespace: maxRepeatRun=$OPEN_MAX_REP inside a 512-token budget"
 
 # ── 6. response_format + tools[] in ONE turn — the shape a client actually sends ──
 # §1–§5 pass without tools. The task scoreboard sends `tools` on EVERY turn

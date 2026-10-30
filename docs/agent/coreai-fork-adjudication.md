@@ -60,7 +60,7 @@ next upstream commit is the only thing that can raise a number here.
 | `8cf3075` | #370 | Gemma 4 image input: static-shape runtime (+152 L), `LanguageConfig` (+103 L), `ImagePreprocessor` (access level) | **open** (narrow) | the `ImagePreprocessor` half is `private`→`public` only (upstream L194; ours is `private func renderToContext` at `CoreAIImagePreprocessor.swift:188`, internal callers at :91, :136, :170 — nothing to take); the runtime half sits in the ~500 L of static-shape code our slice never took |
 | `8623ac6` | #302 | Gemma 4 E2B/E4B iOS runner upgrades | **open** (big) | upstream rewrote ~500 L of `CoreAIStaticShapeEngine.swift` and 89 L of `LanguageConfig.swift`; our copy is 646 L total. The largest un-absorbed change on a mirrored file — re-sync or record a permanent divergence, one or the other |
 | `2704a69` | #264 | recover exported turn-end stop tokens by scanning `tokenizer.json` (`\|end\|` pattern, Gemma/Phi) | **open** | 0 hits for `end_of_turn` in `Sources/ocoreai`. A bundle whose metadata omits the turn-end token would run past it on our CoreAI lane; whether any bundle we advertise does is unmeasured here (macOS 27) |
-| `f03e8ce` | #368 | limit whitespace between JSON tokens under schema-constrained generation (`maxWhitespaceCount`, default 32) | **open** — top candidate | Apple's limit is enforced on the next-token mask, not in the grammar (upstream `GuidedGeneration/ConstrainedGenerationSession.swift:24-27`: 32 covers 15 nesting levels), so it ports without touching the vendored xgrammar; ours compiles with `anyWhitespace: true` (`GuidedGeneration/XGrammarWrapper.swift:69`), i.e. unbounded indentation inside every tool-call argument |
+| `f03e8ce` | #368 | cap whitespace between JSON tokens (`maxWhitespaceCount` 32 — upstream `ConstrainedGenerationSession.swift:24-27`: 15 nesting levels) | **open** — CoreAI lane only | probe 12 §5b measures OUR lane at maxWSrun 11: the guided loop already applies upstream `WhitespaceTokenBias` (-200, `EngineInference.swift:2090`), so the cap binds nothing there. Rest is the CoreAI lane — `#if canImport(CoreAI)` at `EngineInference.swift:781`, ours passes `anyWhitespace: true` at `XGrammarWrapper.swift:69` — unverifiable here |
 | `5b0f350` | #383 | ChunkedEmbedding fix for Gemma-3n-E4B | n/a | python export side (`_constants.py`, `export/pipeline.py`, `models/macos/gemma3n.py`) — this repo has no export surface (§ Upstream 2) |
 | `957fa7b` | #365 | new eager APIs for Qwen 3.5+ on macOS | n/a | python reference implementations (`models/macos/qwen3_5.py`, `primitives/macos/cache.py`), same rule |
 | `dc0b0dd` | #376 | Gemma 4 draft-head export + hidden-state decode output | n/a | `models/gemma4/export.py`, `export_drafter.py`, `models/ios/gemma4_text.py` — export side only |
@@ -79,10 +79,10 @@ next upstream commit is the only thing that can raise a number here.
 
 ## Open, in the order that pays
 
-1. **`f03e8ce` whitespace limit.** Cheapest real win: it ports into `ConstrainedGenerationSession` and
-   bounds the whitespace our constrained tool calls can burn. Before writing code, measure the cost on
-   a live turn — a probe counting whitespace tokens inside a tool-call argument across a few schemas
-   says whether 32 buys anything. No measurement, no change.
+1. **`f03e8ce` whitespace cap** — measured 10-30: not our face on the lane that ships. probe 12
+   §5b now asserts maxWSrun ≤ 32 there, so a run past 32 re-opens this port with a number attached.
+   What still fails is repetition (126 chars), which #368 does not touch: this sits behind `cc3c234`
+   until a macOS 27 host can verify the CoreAI lane.
 2. **`cc3c234` Wan asset names.** One bundle manifest read against a real download answers whether our
    hardcoded `Transformer.aimodel` / `TextEncoder.aimodel` / `VAEDecoder.aimodel` can miss a declared
    name. If it can, port upstream's `resolveDeclaredPipelineAsset`; if it cannot, record that here and

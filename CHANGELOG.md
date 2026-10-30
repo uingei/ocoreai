@@ -9,6 +9,38 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-30
 
+**10-30(62) The fork's "top candidate" treated a disease this lane does not have — measured before porting**
+
+- **What improved.** Two docs named coreai-models #368 (cap whitespace between JSON tokens at 32) as
+  the cheapest win, "i.e. unbounded indentation inside every tool-call argument". The adjudication file
+  itself said "no measurement, no change", so the measurement went first: probe 12 §5, open-ended
+  `json_object`, temp 0, 512 tokens, k=6 against a live serve. Three of six turns never close the
+  document, but the longest whitespace run in them is **11** characters and the turn that does run to
+  the limit repeats one digit **126** times (`finish=length completion=512 tail='…000000000'`). The
+  shipping lane already answers whitespace — the guided loop hands upstream's `WhitespaceTokenBias`
+  (-200 on whitespace-only tokens) to the loop at `Engine/EngineInference.swift:2090`, which is why it
+  is 11 and not Apple's observed 99 — so #368's mask cap binds nothing measurable on the route that
+  ships, and porting it would have renamed the wrong disease. What is genuinely left is the CoreAI lane
+  (`#if canImport(CoreAI)` at `EngineInference.swift:781`; ours passes `anyWhitespace: true` at
+  `XGrammarWrapper.swift:69`), which the standing rule already covers: no blind fix and no claim of one
+  where CoreAI cannot be imported. §5's own header carried the same wrong remedy
+  (`max_whitespace_cnt = nullopt`, `Sources/lib/CXGrammar/xgrammar_c_bridge.cpp:138`), so it says what
+  the run showed instead.
+
+- **What same-session output proves it.** §5b in `scripts/probes/12-json-mode-delivery.sh` now asserts
+  the measured axis rather than the imported one: green on the live run at "max run 11 over 6 open-ended
+  turns". All three arms were sampled — limit 32 PASS, limit 5 FAIL ("#368 applies to this lane now"),
+  and the vacuity guard FAIL at 3/6 turns, because an assertion over zero turns is the red nobody sees.
+  The §5 XFAIL stays open, since non-closure is unchanged and still honest, with the NOTE now naming
+  repetition as the face that remains. The probe's own scoreboard moved `8 passed, 0 failed, 9 measured,
+  2 known-open` → `9 passed, 0 failed, 10 measured, 2 known-open` at exit 0, and `make docs-check` and
+  `anchor-check` (75/75) are green.
+
+- **What this did not do.** No `WhitespaceGuard` port, no edit to the vendored bridge, and no chase of
+  the repetition loop — that is a distinct face with no measured remedy in either tree, and §5 already
+  seats it as XFAIL with its number attached. The CoreAI-lane whitespace exposure stays open, gated on a
+  host that can import CoreAI.
+
 **10-30(61) The open-items row ordered an adjudication round that had already run, and the last fork window was export-side**
 
 - **What improved.** `docs/agent/open-items.md` told the next reader that the coreai fork had "4 open
