@@ -9,6 +9,38 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-30(61) The open-items row ordered an adjudication round that had already run, and the last fork window was export-side**
+
+- **What improved.** `docs/agent/open-items.md` told the next reader that the coreai fork had "4 open
+  windows … Pipelined 8, Sequential 10, StaticShape 7 and VisionConfig 6 … whose move: an adjudication
+  round, not an owner call". `77a122f` had run that round the day before — 36 commits read, 7 absorbed /
+  21 n/a / 8 open, one row and one piece of our-tree evidence each in `docs/agent/coreai-fork-adjudication.md`
+  — and `make drift` measures 0 un-adjudicated on every `CoreAI*` file today. The row quoted the windows as
+  they measured *before* that pass, which is exactly the rot invariant 1 names, and it left out the number a
+  reader would act on: **8 open verdicts, each with its action named**, `f03e8ce` (#368 — ours compiles
+  `anyWhitespace: true`, so unbounded indentation rides inside every tool-call argument) the top candidate.
+  That count is no longer re-typed either: `<!-- claim:fork_verdicts_open=8 -->` greps the adjudication
+  table, so absorbing a verdict reddens the row that describes it. The axis had moved once since that pass —
+  `db7823e` (#389), taken from `api.github.com` rather than the mirror — read line by line:
+  `conv_input.narrow(1, S-1, K)` → `narrow(1, -K, K)` in qwen3_5's `GatedDeltaNet`, plus deleting
+  `supports_graph_quantization = False`. Python export side, 0 Swift files, and `Sources/` has 0 hits for
+  `GatedDeltaNet` ⇒ n/a (§ Upstream 2: no export surface here). The arithmetic is the interesting half and
+  is recorded with the verdict: `conv_input` is `cat([conv_state(K-1), mixed_qkv(S)])`, length `(K-1)+S`, so
+  index `S-1` and index `-K` name the same element for every K and S (checked K∈{2,4,8} × S∈{1,7,128}) — a
+  tracer-attribution fix, not a numeric one. What it does change for someone: a qwen3_5 bundle exported
+  after #389 may arrive graph-quantized where an earlier one could not, which is a fact the day ocoreai
+  advertises such a bundle, and none is loadable here (macOS 27 gate).
+
+- **What same-session output proves it.** `bash scripts/upstream-drift.sh` prints
+  `coreai-models HEAD=db7823ee6 0 new ✓ 与基线同点` where it printed `+1 commits … ⚠ 新窗口待裁决` minutes
+  earlier; `make docs-check` green at `claims=35/35`, the new claim included; and the adjudication file
+  landed at 15 595 of its pinned 15 609-byte per-guide cap, so the verdict was written to fit the budget
+  instead of raising the cap to fit the verdict.
+
+- **What this did not do.** The mlx-swift-lm (+10) and codex (+424) windows stay open and `make drift`
+  still exits non-zero — the ledger reporting honestly, not a red to clear. An adopt records a *read*, never
+  a fix: `f03e8ce` is still open and is the cheapest of the eight to port.
+
 **10-30(60) 1 089 lines nothing named — and one deleted file turned out to be a fake reference**
 
 - **What improved.** The tree carried 18 files no file in the tree names. `test.sh` (34 L) is not just

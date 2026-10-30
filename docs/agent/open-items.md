@@ -14,12 +14,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — three `@available(macOS 27.0, *)` or
   SDK-gated sites (detail: `docs/agent/build-gate-reality.md`) ⇒ no blind fix and no claim of one; their
   suites now skip on this OS through `PlatformPremise.hasMacOS27` instead of reporting a red.
-- **The coreai fork's ledger is askable, with 4 open windows** (Engine/) — measured 10-29 by `make drift`'s
-  fork block: Pipelined 8, Sequential 10, StaticShape 7 and VisionConfig 6 upstream commits un-adjudicated
-  since each file's own recorded baseline (that pass baselined the files which had none, so every window
-  reads a number now). Un-adjudicated is not un-fixed: upstream `82c3488` (KV-state handling, static-shape + sliding-ring caches)
-  and `f03e8ce` (JSON whitespace under schema-constrained generation) sit inside surfaces we advertise. Whose
-  move: an adjudication round (`bash scripts/upstream-drift.sh adopt coreai-models`), not an owner call.
+- **The coreai fork's debt is 8 named verdicts, not a drift window** (Engine/) — 77a122f read all 36 commits
+  behind the four engine windows: 7 absorbed, 21 n/a, **8 open**, one row each with its action in
+  `docs/agent/coreai-fork-adjudication.md` (`f03e8ce` #368 is the top candidate — ours compiles
+  `anyWhitespace: true`). `make drift` reads 0 un-adjudicated per file today; the axis moved once since,
+  `db7823e` (#389), 2 Python files and 0 Swift — export-side, the axis § Upstream 2 has no surface for.
+  <!-- claim:fork_verdicts_open=8 :: grep -c '^| .*open\*\*' docs/agent/coreai-fork-adjudication.md -->
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
   and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The injection seam landed
   upstream at pin `991266ad3` (`observe(to:using:)` + `GenerationTransformer`), so what is left is

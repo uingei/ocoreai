@@ -75,6 +75,7 @@ next upstream commit is the only thing that can raise a number here.
 | `7debb8d` | #191 | Wan 2.1 text-to-video pipeline | n/a (measured absence) | added `flattenBFloat16NDArray` to the mirrored helper file; 0 hits in `Sources/ocoreai` — our Wan lane (`Video/WanPipeline.swift`) does not call it, so the slice stays a slice until a consumer appears |
 | `684ae8e` | #184 | live transcription with Parakeet v3 | n/a | additive helpers (`argmaxFloat`, `forEachFloatElement`, `floatElements`) for an audio path that uses its own sampler — 0 hits in `Sources/ocoreai` |
 | `0aff938` | #385 | attention mask for SAM3 export and runtime (`ImageSegmentationEngine.swift`) | n/a | ocoreai has no image-segmentation surface (0 hits for `SAM3`/`ImageSegmentation` outside a comment) — this commit landed *during* this pass, and the axis baseline adopted today (`0aff938`) is its sha, so the row exists because the ledger noticed the gap before a human did |
+| `db7823e` | #389 | qwen3_5: `narrow(1, S-1, K)` → `narrow(1, -K, K)` in `GatedDeltaNet`, graph quant re-enabled | n/a | python export side, 0 Swift § Upstream 2, 0 hits for `GatedDeltaNet` in `Sources/`; `conv_input` is `(K-1)+S` long so `S-1` and `-K` are one element: attribution, not arithmetic |
 
 ## Open, in the order that pays
 
