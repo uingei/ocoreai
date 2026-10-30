@@ -80,7 +80,7 @@ Run each finding through an independent validation pass:
 1. Re-read the diff context (±10 lines around the flagged line)
 2. Check: does this finding pass the confidence ≥ 80 threshold on a second look?
 3. Check: is this a real issue or a "looks like a bug but is actually correct"?
-4. Check: does the finding reference an actual CLAUDE.md / repo convention that applies to this file?
+4. Check: does the finding reference an actual AGENTS.md / repo convention that applies to this file?
 5. If true positive → keep. If false positive → discard and note the count.
 
 This double-pass catches the "reviewer sees a pattern match but the code is actually fine" class of error.

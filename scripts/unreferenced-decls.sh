@@ -53,6 +53,8 @@ TAIL_HASH = re.compile(r"(?<!:)\s#.*$")
 # nor the compiler can name it. Keep this list one line per name, with the framework in the reason.
 EXEMPT = {
     "photoOutput": "AVCapturePhotoCaptureDelegate — AVFoundation sends didFinishProcessingPhoto by selector",
+    "OcoreaiApp": "@main — Swift synthesises the executable entry point, nothing names it in the tree",
+    "applicationDidFinishLaunching": "NSApplicationDelegate — AppKit sends it by selector",
 }
 
 SELF = "scripts/unreferenced-decls.sh"

@@ -13,5 +13,5 @@ ignore-words-list = ane,caf,nd,ans,inout,unparseable,uptodate,ontext,allready,op
 # rewording history to satisfy a spell gate would falsify the record. This file is skipped too
 # (as codex does) for the same reason — a rule that explains itself by quoting a typo must not
 # be tripped by its own explanation.
-skip = .git*,.build*,.build-clt*,Sources/lib/*,*dlpack*,THIRD-PARTY-LICENSES/*,.codespellrc,CHANGELOG.md,CHECKPOINT.md,IDEA.md,*.json,*.jsonl,*.lock,*.png,*.icns,*.metallib,*.svg,Package.resolved
+skip = .git*,.build*,.build-clt*,Sources/lib/*,*dlpack*,THIRD-PARTY-LICENSES/*,.codespellrc,CHANGELOG.md,IDEA.md,*.json,*.jsonl,*.lock,*.png,*.icns,*.metallib,*.svg,Package.resolved
 check-hidden = true

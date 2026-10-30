@@ -9,6 +9,44 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-29
 
+**10-30(60) 1 089 lines nothing named — and one deleted file turned out to be a fake reference**
+
+- **What improved.** The tree carried 18 files no file in the tree names. `test.sh` (34 L) is not just
+  unreferenced, it cannot run: it injects `@rpath`s into `.build/arm64-apple-macosx/debug/…xctest`, and
+  SwiftPM 6.4 puts products at `.build/out/Products/Debug` — the same staleness `make test-clt` names in
+  its own comment, and that target is the one CLT route (`scripts/resolve-metallib.sh` owns its payload
+  ladder). `_archive/training/**` + `_archive/project.yml` + `archive/ocoreaiApp-scaffold-20260828/`
+  (12 files, 869 L) are a DeepSpeed pretrain pipeline and a pre-SwiftPM App scaffold; `data/*.jsonl`
+  (141 L, 52 KB) exists only as `data_path` in `_archive/training/configs/training_args.yaml`, and
+  `scripts/eval` reads no `.jsonl`. `CHECKPOINT.md` (45 L) was the round-14 diary, and a second diary at
+  the root is the second home AGENTS.md forbids — its three rulings are already here (`SessionIsolation` 9
+  rows, `canReusePooledSession` 10, `pressureIsOurs`). It was not pure duplication, which is why it was
+  not just `rm`'d: it was the only home for four owner decisions, and three of the four no longer hold —
+  the durable history key is code now (`DurableHash.fingerprint` at `Engine/SessionPool.swift:176`, with a
+  manifest sidecar refusing an identity-less snapshot at `:1185`), the device-switch claim closed at
+  `f226780`, and the RAM clamp carries its decision-status block at `Engine/ContextWindowPolicy.swift:49`.
+  The one live decision — the ~70 GB scheduling budget is accounting, not a device ceiling — moved to the
+  file that owns it (`Scheduler/AdmissionGate.swift`, `queryHeadroom`), on the `ContextWindowPolicy`
+  pattern, and its skip-list entries went with it (`.codespellrc`, the English-rule DIARY set).
+
+- **What same-session output proves it.** Deleting the scaffold moved `scripts/unreferenced-decls.sh`
+  from 0 to **2**, and reading those two is the find of the round: `OcoreaiApp`
+  (`UI/Application.swift:27`) and `applicationDidFinishLaunching` (`:302`) have no caller because the
+  *runtime* names them — `grep -rn "@main" Sources/` is that one line and no `main.swift` exists, and
+  AppKit sends the delegate method by selector. The archived scaffold was never a caller: it *re-declared*
+  both, and the index counts an occurrence, so a duplicate declaration in a dead file read as a reference.
+  That is the third face of what entries 54 and 56 fixed (prose first, then comments). Both names are now
+  `EXEMPT` entries that name their framework and the count is back to **0**, which is why the root claim
+  tightened `unreferenced_decls_ours<=1` → `<=0` at the same byte cost. `make docs-check` green
+  (claims 35/35, `diary-excluded=2`), `make audit` green, `swift build` exit 0, and `git grep` for every
+  deleted path returns nothing outside the deleted files themselves.
+
+- **What this did not do.** The scan still counts an *occurrence*, not a *call*: a second declaration of a
+  name in any archived or vendored file still reads as a reference, so the dead count is a floor and not
+  an exact number (`vendored=` prints 16 beside `ours` for the same reason). No gate was added for "a
+  tracked tree nobody reads" — the deletions are their own evidence, and `docs-check` already reds a doc
+  citing a vanished path (it found none here).
+
 **10-30(59) Integrity checked the size of a model, and the hub had already published its digest**
 
 - **What improved.** After a download, `verifyDownloadedFiles` compared local bytes to the

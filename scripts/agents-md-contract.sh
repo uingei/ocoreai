@@ -977,7 +977,7 @@ if len(_unver) > UNVERIFIED_CEILING:
 CJK_RE = re.compile(r"[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]")
 ESC_RE = re.compile(r"\\u[0-9a-fA-F]{4}")
 MIRROR = "README.zh.md"
-DIARY = {"CHANGELOG.md", "CHECKPOINT.md", "IDEA.md"}  # excluded from the English rule
+DIARY = {"CHANGELOG.md", "IDEA.md"}  # excluded from the English rule
 tracked_md = subprocess.run(["git", "ls-files", "*.md"], capture_output=True, text=True).stdout.split()
 lang_zero = [f for f in tracked_md if f != MIRROR and f not in DIARY and not f.endswith(".zh.md")]
 if len(lang_zero) < env_int("OCOREAI_FLOOR_LANG_SCANNED"):

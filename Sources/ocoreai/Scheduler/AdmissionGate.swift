@@ -198,6 +198,12 @@ actor AdmissionGate {
     /// downgrade level and the routing channel — it does not gate the per-request
     /// headroom. The real OOM backstop is MLX's own `Memory.cacheLimit`.
     ///
+    /// ### Decision status — the budget is accounting; OWNER'S CALL as a device ceiling
+    /// This budget (~70 GB on a 128 GB box) gates admission here and feeds OOMGuard's level. It is
+    /// deliberately not written to `MLX.Memory.memoryLimit`, whose value is Metal's recommended max
+    /// working set (121 GB here; boot prints the budget and the ceiling on two lines). Clamping the
+    /// ceiling to the budget would refuse a large model before Metal says it cannot fit.
+    ///
     /// `currentUsage()` is still polled for the advisory level/logging and to
     /// feed the HardwareRouter's channel recommendation.
     private func queryHeadroom(
