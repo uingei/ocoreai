@@ -7,7 +7,7 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-10-29
+## [Unreleased] — 2026-09-05 → 2026-10-30
 
 **10-30(61) The open-items row ordered an adjudication round that had already run, and the last fork window was export-side**
 
