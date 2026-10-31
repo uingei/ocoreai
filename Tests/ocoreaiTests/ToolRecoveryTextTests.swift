@@ -5,8 +5,11 @@
 //   1) 保留 `[tool_error:` 前缀 — wire 契约(FMToolErrorRecoveryTests 钉死
 //      FM 路径同型串;MLX 拒绝分支不得另造前缀)
 //   2) 拒绝 → 显式否定完成;失败 → 显式"先验证再声称成功"
-// reason 为 ToolError.errorDescription 原文(含 "Tool call denied by hook:"
-// 等包装前缀,不剥壳 — 剥壳=平行契约)。
+// reason 为 ToolError.errorDescription 原文(含其包装前缀),不剥壳 — 剥壳=平行契约。
+// 前缀只说"被拒"，不说"被谁拒"：五个 throw 点里只有一个是 PreToolUse hook，
+// `.never` 策略、headless 通道、本人拒绝、无 broker 都抛同一个 case（10-31 实测
+// `/mcp` 上写文件拿到 "Tool call denied by hook: denied: interactive approval …" —
+// 一条根本没用过的机制被指为原因，而且 denied 出现了两次）。
 // 门控说明: 不能并进 FMToolErrorRecoveryTests — 那个文件整体被
 // #if FoundationModelsIntegration 剔除(macOS<27 连符号都不存在)。
 
@@ -23,8 +26,8 @@ struct ToolRecoveryTextTests {
         let reason = "denied: interactive approval is not available on this (headless) channel"
         let t = EnginePool.toolRecoveryText(for: ToolError.denied(reason: reason))
         #expect(
-            t.hasPrefix("[tool_error: Tool call denied by hook: \(reason)]"),
-            "denial keeps wire prefix + ToolError's own description verbatim")
+            t.hasPrefix("[tool_error: Tool call denied: \(reason)]"),
+            "denial keeps the wire prefix verbatim and names no mechanism that did not decide")
         #expect(t.contains("NOT executed"))
         #expect(t.contains("Do NOT claim"))
         #expect(t.contains("nothing exists"))
@@ -33,7 +36,7 @@ struct ToolRecoveryTextTests {
     @Test("auto-denied policy denial also gets honesty wording")
     func autoDeniedWording() {
         let t = EnginePool.toolRecoveryText(for: ToolError.denied(reason: "auto-denied"))
-        #expect(t.hasPrefix("[tool_error: Tool call denied by hook: auto-denied]"))
+        #expect(t.hasPrefix("[tool_error: Tool call denied: auto-denied]"))
         #expect(t.contains("NOT executed"))
     }
 

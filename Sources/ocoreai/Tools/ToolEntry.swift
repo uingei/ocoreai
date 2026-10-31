@@ -246,8 +246,12 @@ enum ToolError: Error, LocalizedError {
     case checkFailed(String)
     case loopDetected(String)
     case executionFailed(Error)
-    /// Denied by a `PreToolUse` hook (codex `HookEventName.preToolUse`).
-    /// Reason is the hook's message; surfaced to the caller as an HTTP 403-equivalent.
+    /// The gate refused the call. Five sites throw this and exactly one of them is a
+    /// `PreToolUse` hook (codex `HookEventName.preToolUse`) — a `.never` policy, a headless
+    /// channel, the person's own denial and a missing broker throw the same case — so the
+    /// wrapper names the verdict and never the mechanism. `reason` is the cause its thrower
+    /// owns and travels verbatim; surfaced to the caller as an HTTP 403-equivalent, and to
+    /// the model as the `[tool_error: …]` line.
     case denied(reason: String)
     /// Exec-host failure breaker engaged (absorbs codex #41454: exec goal blocked
     /// after 3 consecutive failed attempts). Distinct from `loopDetected` so an
@@ -268,7 +272,7 @@ enum ToolError: Error, LocalizedError {
         case .checkFailed(let name): "Tool check failed: \(name)"
         case .loopDetected(let name): "Execution loop detected: \(name)"
         case .executionFailed(let error): "Tool execution failed: \(error.localizedDescription)"
-        case .denied(let reason): "Tool call denied by hook: \(reason)"
+        case .denied(let reason): "Tool call denied: \(reason)"
         case .breakerEngaged(let name):
             "Exec host blocked after 3 consecutive failures (tool: \(name))"
         case .loopStalled(let detail):

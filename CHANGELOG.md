@@ -9,6 +9,45 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(82) A refusal that named a hook which never ran**
+
+- **What improved.** `ToolError.denied`'s description read `"Tool call denied by hook: \(reason)"` —
+  wording written when the case had one thrower, the `PreToolUse` hook, which its doc comment still
+  asserted. Five sites throw it and exactly one is a hook: a `.never` policy
+  (`Sources/ocoreai/Tools/ToolRegistry.swift:536`), the headless channel (`:544`), the person's own
+  denial (`:553`), a missing broker (`:561`), the hook (`:503`). So the sentence a model reads back as
+  `[tool_error: …]`, and a wire client reads as the tool result, attributed every refusal to machinery
+  that had not been consulted. Measured on this host, on the face round 81 had just opened:
+  `Tool call denied by hook: denied: interactive approval is not available on this (headless) channel`
+  — a mechanism that never ran named as the cause, and "denied" twice. The same lie reached the model
+  for `auto-denied` (a policy) and now for `request-cancelled` (round 80).
+  The wrapper names only the verdict (`Tool call denied: …`); the `reason`, which each thrower already
+  owns as a cause, travels verbatim, and the case's doc comment now records the five throwers so the
+  next one reads as a thrower rather than as licence to re-add a mechanism word. Left alone, and named
+  so it is not mistaken for an oversight: the residual `denied: denied:` on the headless face — that
+  reason string is pinned contract text in two test files, and rewriting a pinned wire string is a
+  decision of its own, not a leftover from this one.
+  The board cannot price this lane and that is recorded, not waved through: it runs `approval=auto`
+  (`scripts/eval/README.md:6`), so no task ever reaches a denial. What is checked instead is that
+  nothing keys behaviour off the sentence — `Sources/ocoreai/Engine/EngineInference.swift:111` matches
+  the case, never the text — so this changes what a reader is told and not what any branch takes.
+
+- **What same-session output proves it.** Before and after on the same live route with the same probe:
+  at round 81 the wire body carried the hook attribution, and now probe 46 prints
+  `Tool call denied: denied: interactive approval is not available on this (headless) channel` at
+  **6 passed, 0 failed, 5 measured** — its leg-2 assertion is on the channel word, so a loosened refusal
+  could not have passed by accident. The red is a reverted wrapper: `ToolRecoveryTextTests` → **5 tests,
+  2 issues**, exactly the two verbatim mirrors. Restored, **202 tests in 36 suites** green across
+  `ToolRecovery|ToolRegistry|Approva|MCP|Hook`, pinned formatter rewrites 0 files, `make docs-check`
+  green, and a repo-wide grep leaves the old sentence nowhere but this diary.
+
+- **Which gate goes red if it regresses.** `ToolRecoveryTextTests`(5): the two `hasPrefix` mirrors are
+  the gate (sampled red above), and the duties that matter are untouched by the wording — the
+  `[tool_error:` prefix, `NOT executed`, `Do NOT claim`, `nothing exists`, and denial and failure
+  branches staying distinguishable. `scripts/probes/46-mcp-wire-headless-denial.sh` leg 2 keeps the
+  live face honest, so a parallel string or a re-attributed cause goes red against a running server
+  and not only against a mirror of the source.
+
 **10-31(81) A wire lane that never said who it was waited 15 s for a GUI that is not on it**
 
 - **What improved.** `MCPServer.doCall` called `registry.call(name, arguments:)` on its default
