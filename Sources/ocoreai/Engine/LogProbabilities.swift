@@ -15,12 +15,17 @@
 // is unresolvable on runners without CoreAI and the build fails. Consumers
 // (CompletionsHandler loglikelihood path) are likewise CoreAI-gated.
 //
-// One local divergence from that baseline: upstream substitutes `0.0` for a NaN target
-// logprob, which the loglikelihood route then ships as probability 1.0 (measured: a NaN row
-// yields `0.0` at every position, and `JSONEncoder` refuses a non-finite Double). This tree
-// propagates the NaN and carries the absence instead — `Entry.wireValue`. Gates:
-// `LogProbabilitiesTests` (runs here: `canImport` is a compile gate, this function is pure)
-// and `CompletionsWireTests` (the payload half, ungated).
+// Two local divergences from that baseline, both measured rather than stylistic:
+//   • Upstream substitutes `0.0` for a NaN target logprob, which the loglikelihood route then
+//     ships as probability 1.0 (a NaN row yields `0.0` at every position, and `JSONEncoder`
+//     refuses a non-finite Double). This tree propagates the NaN and carries the absence
+//     instead — `Entry.wireValue`. Gates: `LogProbabilitiesTests` (runs here: `canImport` is a
+//     compile gate, this function is pure) and `CompletionsWireTests` (the payload half, ungated).
+//   • Upstream's `sum`/`mean`/`perplexity` are gone. Nothing in this tree reads them, and
+//     `mean` returns 0 when no entry is finite — so `perplexity` scores a run with no
+//     measurement at all as 1.0, the same "no evidence reads as perfect" shape the first
+//     divergence removes at the field level. A consumer that wants them must arrive with the
+//     aggregate's honest domain (no finite entry ⇒ no score), not re-import the collision.
 
 #if canImport(CoreAI)
 
@@ -49,19 +54,6 @@ struct LogProbabilities: Sendable {
     }
 
     let entries: [Entry]
-
-    var sum: Double {
-        entries.reduce(0) { $0 + ($1.value.isFinite ? $1.value : 0) }
-    }
-
-    var mean: Double {
-        let finite = entries.filter(\.value.isFinite)
-        return finite.isEmpty ? 0 : finite.reduce(0) { $0 + $1.value } / Double(finite.count)
-    }
-
-    var perplexity: Double {
-        exp(-mean)
-    }
 
     /// Compute per-token log probabilities from raw logits and target token IDs.
     ///

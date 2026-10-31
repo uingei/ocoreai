@@ -9,6 +9,33 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(79) An aggregate that scored "nothing measurable" as perfect, and 15 lines nothing read**
+
+- **What improved.** `LogProbabilities` carried upstream's `sum`/`mean`/`perplexity` across four
+  rounds of edits to that file. Two facts made them worse than unused: nothing in this tree reads
+  them, and `mean` returns `0` when no entry is finite — so `perplexity` computes `exp(-0)` = **1.0**,
+  i.e. a run in which nothing at all was measurable scores perfect. That is the collision round 75
+  removed at the field level (`0.0` read by a client as probability 1.0), sitting one level up in the
+  aggregate, where it would have been inherited by whoever finally wired a score endpoint. All three
+  are gone. The file header now records both divergences from the `8cec4f8` baseline — NaN propagation
+  and these deletions, each with the measurement that forced it — so the next `coreai-models` sync
+  adjudicates a difference rather than discovering one. Kept-and-cited would have been defensible for
+  an Apple-copyrighted vendored file; this one is a port under our own MIT header, which is exactly
+  the case `scripts/unreferenced-decls.sh` does *not* protect.
+
+- **What same-session output proves it.** A deletion's strongest evidence is a link: `swift build -c
+  release` is green with the three gone, which means no call site existed anywhere in the product, and
+  `swift build --build-tests` green with `LogProbabilitiesTests`(12) green means no test read them
+  either. The grep was re-run for the record before cutting: `.sum`/`.mean`/`.perplexity` outside the
+  file yields only the vision preprocessor's unrelated `mean`.
+
+- **Which gate goes red if it regresses.** None new, deliberately, and a deletion cannot rot silently:
+  re-introducing an aggregate arrives as a diff, and a consumer needs the honest domain first (no
+  finite entry ⇒ *no* score, not `0`). What does go red is the reasoning that let them survive this
+  long unnoticed, now recorded in `scripts/unreferenced-decls.sh`: the index is a bag of words, so a
+  member named `mean` reads as referenced forever — for a common word the verdict is a grep-and-compile
+  read, and that pair is what this round ran.
+
 **10-31(78) `ocoreai serve --help` booted a production server instead of answering**
 
 - **What improved.** The process entry inspected exactly one token: `HeadlessMode` asked only
