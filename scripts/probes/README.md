@@ -339,6 +339,7 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     on disk for the next load to read.
 
 - `44-reasoning-channel-delivery.sh` — does thinking reach `reasoning_content`, or the answer?
+- `45-cli-argument-honesty.sh` — does `serve --help` answer, or boot? Is a flag `serve` cannot honour refused before the bind?
     A reasoning model emits thinking and its answer in one decoded stream, and since lm #563 upstream
     splits them into `Generation.reasoning` on both lanes this server switches over
     (`ChatSession.swift:1414`, `Evaluate.swift:2574`). §1 asks for thinking and gets a non-empty

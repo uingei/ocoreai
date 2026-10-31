@@ -9,6 +9,40 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(78) `ocoreai serve --help` booted a production server instead of answering**
+
+- **What improved.** The process entry inspected exactly one token: `HeadlessMode` asked only
+  `args[1] == "serve"` and dropped everything after it, and its own comment recorded the trailing
+  flags as "documented but not yet consumed". Measured on this host while writing this round — the
+  quoted failure is an accident, not a hypothesis — `ocoreai serve --help` registered the crash
+  handlers, opened the operator's real SQLite store, took the single-instance lock, and printed no
+  usage; `serve --port 9090` would do the same on the port it had just been told to use. `serve` has
+  no flags to consume (the bridge is configured by environment), so the honest answers are two:
+  `serve --help|-h|help` prints the usage `--help` prints and exits 0, and any other trailing token
+  prints that usage with the offending token quoted, names `OCOREAI_HOST`/`OCOREAI_PORT` as the real
+  channel, and exits 64 (`EX_USAGE`) having booted nothing. Fail-safe default unchanged — a leading
+  flag (`--help serve`) and every near-miss still take the GUI branch. `EntryPoint` and
+  `entryPoint(for:)` left with it: nothing outside their own tests read them, and
+  `serveRequest(for:)` is now the single classifier. This is `CLIMode`'s own first-principles fix
+  for `--version` (live-tested 10-11) applied one token later, and it corrected that file's header,
+  which had documented `serve --version` as "stays headless".
+
+- **What same-session output proves it.** The accidental boot above, with the store's mtime moved
+  to the minute it happened. Then: `make test FILTER=HeadlessServeMode` — 6 tests, 7 cases green
+  (the three help tokens; four refused shapes compared against the token list *verbatim*, including
+  `["--port","9090"]` and help tangled with junk; leading-flag and the five near-miss GUI defaults);
+  `make test FILTER=CLIMode` — 6 green unchanged, which is what proves the two classifiers do not
+  overlap (`serve --version` is still nil to `CLIMode`, and refused by `HeadlessMode`). The new
+  probe ran green against the release binary in 4.4 s: exit 0 + usage for both help forms, exit 64
+  naming `--port` for the refusal, and nothing listening on its port afterwards.
+
+- **Which gate goes red if it regresses.** `HeadlessServeModeTests`(6) for the decision, and
+  `scripts/probes/45-cli-argument-honesty.sh` for the process: it waits under a bounded budget, so
+  *booting instead of answering is itself the red* (return 99), and it asserts the port stayed shut
+  after all three refusals. Every leg exports `OCOREAI_DATA_DIR` into a temp store first, so a
+  regression boots into scratch rather than into the operator's sessions — the difference between a
+  red probe and a wrecked workspace.
+
 **10-31(77) A LoRA `batch_size` of 0 was a client-supplied way to kill the server**
 
 - **What improved.** Upstream cuts a batch as `(index ..< min(index + batchSize, count))`

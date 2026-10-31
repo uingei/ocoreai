@@ -22,6 +22,8 @@ import SwiftUI
 ///     SwiftUI View instantiation, which never happens without WindowServer.
 ///   • `ocoreai --version` / `-v` → print the bundle version, exit 0.
 ///   • `ocoreai --help` / `-h` / `help` → usage, exit 0.
+///   • `ocoreai serve --help` → the same usage, exit 0; any other argument after `serve` →
+///     usage on stderr and exit 64 (`EX_USAGE`), booting nothing.
 ///   • anything else → `OcoreaiGUIApp.main()` — the untouched SwiftUI path,
 ///     byte-identical to the previous `@main struct OcoreaiApp: App`.
 @main
@@ -43,9 +45,27 @@ struct OcoreaiApp {
                 Data((report.hasSuffix("\n") ? report : report + "\n").utf8))
             exit(0)
         }
-        if HeadlessMode.isServeInvocation(CommandLine.arguments) {
+        switch HeadlessMode.serveRequest(for: CommandLine.arguments) {
+        case .run:
             HeadlessServer.run()
-        } else {
+        case .help:
+            // The other half of the same answer: a stranger's first try is `serve --help`, and
+            // until now that token booted a production server against the caller's own data.
+            FileHandle.standardOutput.write(Data((CLIMode.usageText() + "\n").utf8))
+            exit(0)
+        case .refused(let unrecognized):
+            // `serve` consumes no arguments, so honouring the invocation silently would mean
+            // serving on a configuration nobody asked for. Name the tokens, print the real
+            // configuration channel, and leave the exit code for a script to read.
+            let refusal =
+                CLIMode.usageText()
+                + "\n\nocoreai: 'serve' takes no arguments — \""
+                + unrecognized.joined(separator: "\" \"")
+                + "\" would have been ignored. Configure the bridge with the environment "
+                + "variables above (OCOREAI_HOST, OCOREAI_PORT)."
+            FileHandle.standardError.write(Data((refusal + "\n").utf8))
+            exit(64)  // EX_USAGE
+        case .notServe:
             OcoreaiGUIApp.main()
         }
     }

@@ -39,40 +39,47 @@ import AppKit
 
 // MARK: - Entry-point selection (pure)
 
-/// Which main() branch the process takes. Pure decision, pinned by tests.
-enum EntryPoint: Equatable {
-    /// Windowless engine + HTTP bridge (`ocoreai serve`).
-    case headless
-    /// SwiftUI app (default, unchanged behavior).
-    case gui
-}
-
-/// Pure argument classifier for the headless `serve` subcommand.
+/// Pure argument classifier for the process entry.
 /// No I/O, no globals — safe to unit-test exhaustively.
+///
+/// Rules (exhaustively pinned by `HeadlessServeModeTests`):
+///   • `args[0]` is argv[0] (the binary path) — ignored by definition.
+///   • The FIRST argument after argv[0] must be exactly `"serve"`; everything else leaves the
+///     GUI branch untouched (no arguments, a near-miss token like `"server"`, or a leading flag
+///     such as `--help serve` — leading flags are never skipped past, and `CLIMode` has already
+///     answered a leading help flag before this classifier is consulted).
+///   • `serve` then takes **no arguments**, because the bridge is configured by the environment
+///     (`CLIMode.usageText` lists the variables it consumes). A token after `serve` is either a
+///     help request or a refusal.
 enum HeadlessMode {
     /// Exact subcommand token that selects headless mode.
     static let serveCommand = "serve"
 
-    /// Decide whether the invocation selects headless serve mode.
-    ///
-    /// Rules (exhaustively pinned by `HeadlessServeModeTests`):
-    ///   • `args[0]` is argv[0] (the binary path) — ignored by definition.
-    ///   • The FIRST argument after argv[0] must be exactly `"serve"` → true.
-    ///   • Everything else → false (fail-safe default = GUI): no arguments,
-    ///     near-miss tokens (`"server"`), and flags before the token
-    ///     (e.g. `--help serve`) — leading flags are never skipped, so a
-    ///     flag-first invocation stays GUI.
-    ///   • Trailing flags after `serve` (e.g. `serve --port 9090`) select
-    ///     headless; those flags are documented but not yet consumed
-    ///     (`OCOREAI_PORT`/`OCOREAI_HOST` env vars configure the bridge).
-    static func isServeInvocation(_ args: [String]) -> Bool {
-        guard args.count >= 2 else { return false }
-        return args[1] == serveCommand
+    /// What the process does with an invocation, decided before anything boots.
+    enum ServeRequest: Equatable {
+        /// `serve`, and nothing after it: boot the windowless engine + HTTP bridge.
+        case run
+        /// `serve` plus one help token: print usage and exit 0.
+        case help
+        /// `serve` plus something it cannot honour, quoted exactly as it arrived.
+        case refused(unrecognized: [String])
+        /// Not a serve invocation: the GUI branch, unchanged.
+        case notServe
     }
 
-    /// Entry-point branch selection — GUI unless `serve` selects headless.
-    static func entryPoint(for args: [String]) -> EntryPoint {
-        isServeInvocation(args) ? .headless : .gui
+    /// Why the refusal exists: `serve --port 9090` used to be "documented but not yet consumed",
+    /// which meant the process booted a bridge on a port nobody had told it to use and said
+    /// nothing. A surface that cannot honour an argument has to say so before it starts, since
+    /// after it starts the only answer is a log line in a daemon the caller cannot read.
+    static func serveRequest(for args: [String]) -> ServeRequest {
+        guard args.count >= 2, args[1] == serveCommand else { return .notServe }
+        let trailing = Array(args.dropFirst(2))
+        if trailing.isEmpty { return .run }
+        // One help token is the only thing after `serve` with an answer. Help tangled with other
+        // tokens is refused instead: usage printed beside arguments that would still be ignored
+        // would repeat the mistake in friendlier type.
+        if trailing.count == 1, CLIMode.helpTokens.contains(trailing[0]) { return .help }
+        return .refused(unrecognized: trailing)
     }
 }
 

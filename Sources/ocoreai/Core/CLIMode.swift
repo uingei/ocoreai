@@ -13,8 +13,9 @@
 /// ### Rules (fail-safe, mirrors HeadlessMode)
 ///   • `args[0]` is argv[0] — ignored by definition.
 ///   • Only the FIRST token after argv[0] is inspected; leading flags are
-///     never skipped past (`serve --version` stays headless, `--version
-///     serve` is answered as version — the flag is the first token).
+///     never skipped past (`--version serve` is answered as version — the flag
+///     is the first token). A flag *after* `serve` is not this classifier's to
+///     answer: `HeadlessMode` refuses it, because `serve` consumes no arguments.
 ///   • Nothing matched → nil → caller's GUI/serve routing is untouched.
 /// The report strings are assembled from AppInfo (the single version truth)
 /// and the env-var names actually consumed by the bridge — never a
