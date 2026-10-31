@@ -76,12 +76,40 @@ struct LogProbabilitiesTests {
         #expect(p.entries[0].alternatives.isEmpty)
     }
 
-    @Test("NaN logit: value is 0.0 (algorithm's NaN guard)")
+    @Test("NaN row: no log probability, and no alternative priced either")
     func nanLogit() {
+        // This asserted `value == 0.0` until 10-31: a green suite pinning probability 1.0 for a row
+        // the model never scored, which the loglikelihood route ships in `token_logprobs`. The row
+        // is not a distribution, so the honest value is the one that cannot be read as certainty.
         let logits: [[LogitsScalarType]] = [[.nan, 0]]
         let p = LogProbabilities.compute(logits: logits, targets: [0], topK: 0)
         #expect(p.entries.count == 1)
-        #expect(p.entries[0].value == 0.0)
+        #expect(p.entries[0].value.isNaN)
+        #expect(p.entries[0].wireValue == nil)
+    }
+
+    @Test("a NaN row prices no alternative, since each is measured against a NaN log-sum-exp")
+    func nanRowPricesNoAlternatives() {
+        let logits: [[LogitsScalarType]] = [[.nan, 0]]
+        let p = LogProbabilities.compute(logits: logits, targets: [0], topK: 2)
+        // The raw candidates exist (two vocabulary entries) and none of them is a measurement.
+        #expect(p.entries[0].alternatives.count == 2)
+        #expect(p.entries[0].wireAlternatives.isEmpty)
+    }
+
+    @Test("a measured logprob still reaches the wire; only a non-finite value is withheld")
+    func finiteValuePassesThrough() throws {
+        let measured = try #require(
+            LogProbabilities.compute(
+                logits: [[0, 0]] as [[LogitsScalarType]], targets: [1], topK: 0
+            )
+            .entries[0].wireValue)
+        #expect(abs(measured - (-log(2.0))) < 1e-6)
+        // A target outside the vocabulary has no probability either, and must not reach JSON as -inf.
+        #expect(
+            LogProbabilities.compute(logits: [[0, 1]] as [[LogitsScalarType]], targets: [5])
+                .entries[0]
+                .wireValue == nil)
     }
 
     @Test("topK=2: exactly 2 alternatives, most likely first")
@@ -100,7 +128,7 @@ struct LogProbabilitiesTests {
     func topKExceedsVocab() {
         let logits: [[LogitsScalarType]] = [[0, 0, 0]]
         let p = LogProbabilities.compute(logits: logits, targets: [1], topK: 9)
-        #expect(p.entries[0].alternatives.count <= 3)
+        #expect(p.entries[0].alternatives.count == 3)
     }
 
     @Test("multiple positions: one entry per position, targets order preserved")

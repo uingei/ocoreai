@@ -9,6 +9,45 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(75) A row the engine never scored is no longer shipped as certainty**
+
+- **What improved.** `LogProbabilities.compute` carried upstream's `raw.isNaN ? 0.0 : raw`, and one
+  consumer reads that field: `Engine/EngineLogprobs.swift:154` puts it in `token_logprobs`. So a position
+  whose logits were not a distribution (fp16 overflow, a corrupt KV page — the ordinary failure of a
+  quantized open model) left the wire as log-probability `0.0`, which is probability **1.0**: the largest
+  claim the field can make, emitted for the one row that earned the smallest. The fix removes the
+  invention rather than adding a guard — the algorithm propagates the NaN — and puts the decision about
+  *encoding* where the encoding happens: `LogProbabilities.Entry.wireValue`/`wireAlternatives` are the one
+  home for "a non-finite value is not a measurement", and the payload spends on it the absence form it
+  already uses for the first prompt token (`null`), because `array`-shaped `token_logprobs` cannot drop a
+  slot without sliding every later token onto the wrong logprob. Measured, not assumed: `JSONEncoder`
+  throws `EncodingError.invalidValue` on `nan`/`±inf` and encodes `nil` as `null` — which is exactly why
+  the choice was ever between a lie and a 500, and why a sentinel number was never an option.
+  Scope, read off the declarations: only `CoreAISequentialEngine`/`CoreAISequentialVLMEngine`/
+  `CoreAIStaticShapeEngine` report `supportsLogits == true` and the protocol's default is `false`
+  (`CoreAIEngine.swift:352`), so the wire face needs a macOS 27 CoreAI model. Nothing here claims a live
+  CoreAI run: what runs here is the algorithm and the payload, and the unit gate for the route is
+  host-executable precisely because `canImport(CoreAI)` is a compile gate over a pure function.
+  Two lines of tidiness came with it: `topK larger than vocab` asserted `<= 3` where the value is exactly
+  3 (a knowable bound is not a bound), and `scripts/unreferenced-decls.sh` now records why `sum`/`mean`/
+  `.perplexity` scored clean while having no caller — the index is a bag of words, so a common *name*
+  reads as referenced, and the claim's honest reading is "no uniquely-named declaration is unowned".
+
+- **What same-session output proves it.** The strongest evidence is a test that was green *before* this
+  round: `NaN logit: value is 0.0 (algorithm's NaN guard)` asserted the false number and passed, so the
+  suite was certifying the bug. It now asserts `value.isNaN` and `wireValue == nil`, and
+  `make test FILTER=LogProbabilities` runs 12 green here (three added: the NaN value, the alternatives a
+  NaN row cannot price, and a finite measurement still passing through — the fix must not be a blanket
+  nil). `make test FILTER=CompletionsWireTests` runs 13 green, two of them new: `null` keeps its
+  positional slot against `tokens`/`text_offset`, and a non-finite logprob throws at encode. The
+  `<= 3`→`== 3` tightening passes at 3.
+
+- **Which gate goes red if it regresses.** `LogProbabilitiesTests`(12): restore the substitution and
+  `NaN row: no log probability, and no alternative priced either` goes red — the exact regression, in the
+  file where it would be reintroduced by a future upstream re-sync. `CompletionsWireTests`(13): red if a
+  non-finite value ever reaches the encoder, or if the null's slot is dropped rather than carried.
+  `swift build --build-tests` green, `swift build -c release` green, `make format` clean.
+
 **10-31(74) The coreai-models window read end to end: one commit absorbed, one has no surface, one is a decision**
 
 - **What improved.** `make drift` opened a three-commit window (`db7823e` → `d3382a5`) and each commit now

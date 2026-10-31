@@ -26,6 +26,13 @@
 # a stale exemption is an error: an exemption for a name that is not currently a hit is dead weight in
 # the gate itself.
 #
+# Name collisions are the second hole, and this scan cannot close it: the index is a bag of words, so a
+# member reads as referenced when its *name* occurs anywhere. `LogProbabilities.sum`/`.mean`/`.perplexity`
+# had no caller in the tree and still scored clean, because `mean` and `perplexity` occur in other types
+# (10-31: a CHANGELOG row asserted a consumer for them and was wrong). So `unreferenced_decls_ours<=0`
+# means "no uniquely-named declaration is unowned" — for a common word the verdict is a `file:line` read
+# at the use site, never this count.
+#
 # Exit 0 on a counted tree: the verdict belongs to the claim's direction, not to this script.
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"

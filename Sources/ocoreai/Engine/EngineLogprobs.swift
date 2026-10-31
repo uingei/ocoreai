@@ -149,13 +149,15 @@ extension EnginePool {
         for entry in probs.entries {
             let tokenStr = try await provider.detokenize(tokenIds: [entry.tokenId])
             tokens.append(tokenStr)
-            tokenLogprobs.append(entry.value)
+            /// Upstream L180: a position with no measurement is `null` here, not `0.0` —
+            /// the array is positional, so absence travels in the slot (see Entry.wireValue).
+            tokenLogprobs.append(entry.wireValue)
             textOffsets.append(currentOffset)
             currentOffset += tokenStr.utf8.count
 
             if topN > 0 {
                 var topMap: [String: Double] = [:]
-                for alt in entry.alternatives {
+                for alt in entry.wireAlternatives {
                     topMap[try await provider.detokenize(tokenIds: [alt.tokenId])] = alt.value
                 }
                 topLogprobsList.append(topMap)

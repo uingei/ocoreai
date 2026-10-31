@@ -201,6 +201,37 @@ struct CompletionsWireTests {
         #expect(usage?["completion_tokens"] as? Int == 4)
         #expect(usage?["total_tokens"] as? Int == 9)
     }
+
+    // MARK: A2 loglikelihood — what a position with no measurement looks like
+
+    @Test("LogprobsResult: an unmeasured position is JSON null, arrays stay aligned")
+    func logprobsNullAbsence() throws {
+        // Two routes reach the same slot: the first prompt token (no preceding context) and a
+        // position whose logits were never a distribution. Neither may arrive as a number.
+        let result = LogprobsResult(
+            tokens: ["a", "b"],
+            tokenLogprobs: [nil, -log(2.0)],
+            topLogprobs: [nil, ["b": -log(2.0)]],
+            textOffset: [0, 1])
+        let root = try Self.encodeDict(result)
+        let values = root["token_logprobs"] as? [Any] ?? []
+        #expect(values.count == 2)
+        #expect(values[0] is NSNull)
+        #expect((values[1] as? Double).map { abs($0 - (-log(2.0))) < 1e-12 } == true)
+        // `tokens` / `token_logprobs` / `text_offset` are positional siblings: dropping a slot
+        // would shift every later token onto the wrong logprob, so the null must carry its place.
+        #expect(root["tokens"] as? [String] == ["a", "b"])
+        #expect(root["text_offset"] as? [Int] == [0, 1])
+    }
+
+    @Test("A non-finite logprob has no JSON encoding at all")
+    func nonFiniteLogprobCannotBeEncoded() {
+        // Why the payload spends `null` instead of a sentinel: `0.0` encodes fine and reads as
+        // probability 1.0, while the truthful number cannot be expressed — so absence, not a value.
+        let result = LogprobsResult(
+            tokens: ["a"], tokenLogprobs: [-Double.infinity], topLogprobs: [nil], textOffset: [0])
+        #expect(throws: (any Error).self) { try JSONEncoder().encode(result) }
+    }
 }
 
 // MARK: - E2E: Router guard + handler validation (no inference)

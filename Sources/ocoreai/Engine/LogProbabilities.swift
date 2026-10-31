@@ -14,6 +14,13 @@
 // single-module equivalent of that isolation is this gate — ungated, the type
 // is unresolvable on runners without CoreAI and the build fails. Consumers
 // (CompletionsHandler loglikelihood path) are likewise CoreAI-gated.
+//
+// One local divergence from that baseline: upstream substitutes `0.0` for a NaN target
+// logprob, which the loglikelihood route then ships as probability 1.0 (measured: a NaN row
+// yields `0.0` at every position, and `JSONEncoder` refuses a non-finite Double). This tree
+// propagates the NaN and carries the absence instead — `Entry.wireValue`. Gates:
+// `LogProbabilitiesTests` (runs here: `canImport` is a compile gate, this function is pure)
+// and `CompletionsWireTests` (the payload half, ungated).
 
 #if canImport(CoreAI)
 
@@ -27,6 +34,18 @@ struct LogProbabilities: Sendable {
         let tokenId: Int32
         let value: Double
         let alternatives: [(tokenId: Int32, value: Double)]
+
+        /// What a client may read as a measurement. JSON carries no NaN or ±Infinity, and `0.0` is
+        /// no neutral stand-in: it is the largest claim this field can make (probability 1.0). So a
+        /// position the engine did not score is absent, in the form the payload already uses for
+        /// the first prompt token.
+        var wireValue: Double? { value.isFinite ? value : nil }
+
+        /// The same decision for the map-shaped half: a candidate with no measurement is omitted
+        /// rather than priced, since a token-keyed map has no positional slot to leave empty.
+        var wireAlternatives: [(tokenId: Int32, value: Double)] {
+            alternatives.filter { $0.value.isFinite }
+        }
     }
 
     let entries: [Entry]
@@ -79,8 +98,9 @@ struct LogProbabilities: Sendable {
                 // +Inf logits: tokens with +Inf get log-prob 0, others get -Inf
                 targetLogProb = Double(floatBuffer[tokenIndex]).isInfinite ? 0.0 : -.infinity
             } else {
-                let raw = Double(floatBuffer[tokenIndex]) - logSumExp
-                targetLogProb = raw.isNaN ? 0.0 : raw
+                // A row holding a NaN is not a distribution, so there is no log probability to
+                // report: propagate it and let the payload carry the absence (`Entry.wireValue`).
+                targetLogProb = Double(floatBuffer[tokenIndex]) - logSumExp
             }
 
             var alts: [(tokenId: Int32, value: Double)] = []
