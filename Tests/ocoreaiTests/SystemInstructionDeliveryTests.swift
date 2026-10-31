@@ -18,9 +18,14 @@
 /// re-cast as a user turn.
 
 import Foundation
+import MLXLMCommon
 import Testing
 
 @testable import ocoreai
+
+/// Both halves are tested here: the wire DTO and the engine feed. `MLXLMCommon` exports a
+/// `Message` typealias too, so the local name pins which one the unqualified uses mean.
+private typealias Message = ocoreai.Message
 
 @Suite("Instruction-role messages — extraction before assembly")
 struct SystemInstructionDeliveryTests {
@@ -150,5 +155,74 @@ struct SystemInstructionDeliveryTests {
         // One home for the phases: neither face composes its own system prompt.
         #expect(openAI.range(of: "func buildMessages(") == nil)
         #expect(anthropic.range(of: "func buildMessages(") == nil)
+    }
+
+    /// Extraction was this suite's first half; this is the second. Measured 11-01 on the
+    /// resident checkpoint (`mlx-community/gemma-4-e2b-it-4bit`, temp 0): a plain turn whose
+    /// assembled prompt was 814 tokens reported `usage.prompt_tokens = 24`, and an instruction
+    /// written in the `system` turn left the answer at `4` where the same words in the *user*
+    /// turn moved it to `"7"`. Upstream `ChatSession` renders `instructions` as a leading
+    /// `.system` message (`ChatSession.swift:1069-1070`); every lane that prepares its own
+    /// `LMInput` around ChatSession owes that prepend, and three of them did not pay it.
+    @Test(
+        "the instructions become exactly one leading system turn",
+        arguments: [
+            (nil, ["user:hi"], ["user:hi"]),
+            ("", ["user:hi"], ["user:hi"]),
+            ("SYS", ["user:hi"], ["system:SYS", "user:hi"]),
+            (
+                "SYS", ["user:hi", "assistant:yo", "user:again"],
+                ["system:SYS", "user:hi", "assistant:yo", "user:again"],
+            ),
+            // Never a second copy — a feed that already opens with the instructions keeps one.
+            ("SYS", ["system:SYS", "user:hi"], ["system:SYS", "user:hi"]),
+            ("SYS", ["system:OTHER", "user:hi"], ["system:OTHER", "user:hi"]),
+        ] as [(instructions: String?, feed: [String], expected: [String])]
+    )
+    func instructionsBecomeOneLeadingSystemTurn(
+        instructions: String?, feed: [String], expected: [String]
+    ) throws {
+        let pairs = feed.map { spec -> Chat.Message in
+            let at = spec.firstIndex(of: ":") ?? spec.endIndex
+            let role = Chat.Message.Role(rawValue: String(spec[..<at])) ?? .user
+            return Chat.Message(role: role, content: String(spec[spec.index(after: at)...]))
+        }
+        let got = promptMessagesCarryingInstructions(pairs, instructions: instructions)
+            .map { "\($0.role.rawValue):\($0.content)" }
+        #expect(got == expected)
+    }
+
+    /// Every prompt an engine lane prepares carries them, counted rather than trusted: the
+    /// file's `prompt: .chat(` sites must equal its prepend call sites, so a lane added
+    /// without the prepend cannot pass quietly. The margin probe is checked in its own file
+    /// because its claim (`fidelity`) only means something if its reconstruction and the live
+    /// prompt are built by the same rule.
+    @Test("every lane that prepares its own LMInput prepends the instructions")
+    func everyLanePrepends() throws {
+        let engine = try Self.source("Sources/ocoreai/Engine/EngineInference.swift")
+        let decls = try Self.count("func promptMessagesCarryingInstructions(", in: engine)
+        #expect(decls == 1, "one home for the rule, found \(decls)")
+        let calls = try Self.count("promptMessagesCarryingInstructions(", in: engine) - decls
+        let promptSites = try Self.count("prompt: .chat(", in: engine)
+        #expect(calls >= 4, "four lanes prepare their own LMInput; only \(calls) prepend")
+        let missingPrepend =
+            "\(promptSites) prompt sites against \(calls) prepend sites — a prompt now "
+            + "renders without carrying the instructions"
+        #expect(promptSites == calls, Comment(rawValue: missingPrepend))
+
+        let probe = try Self.source("Sources/ocoreai/Engine/DegenerateMarginProbe.swift")
+        #expect(try Self.count("promptMessagesCarryingInstructions(", in: probe) == 1)
+        let duplicateRule =
+            "the probe grew its own copy of the rule again: two homes, and `fidelity` "
+            + "compares a reconstruction against a prompt it no longer describes"
+        #expect(
+            try Self.count("rebuiltMessages.insert(", in: probe) == 0,
+            Comment(rawValue: duplicateRule))
+    }
+
+    private static func count(_ needle: String, in text: String) throws -> Int {
+        let pattern = NSRegularExpression.escapedPattern(for: needle)
+        let regex = try NSRegularExpression(pattern: pattern)
+        return regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).count
     }
 }

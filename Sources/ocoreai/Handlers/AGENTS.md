@@ -70,7 +70,7 @@ how code is written anywhere, it belongs at the root. Two copies of one rule is 
   `splitInstructionMessages` hoists `system`/`developer` into that channel pre-assembly, and
   `canReusePooledSession` requires `instructionsMatch` (a pooled session renders the instructions it was
   *created* with). Long form: `docs/agent/instruction-channel.md`. Gates:
-  `SystemInstructionDeliveryTests`(9) + `SessionIsolationTests`(25) + probe 15.
+  `SystemInstructionDeliveryTests`(11) + `SessionIsolationTests`(25) + probe 15.
 - `tools[]`'s truth set is the declaration; grammar follows the *request* and never "were tools declared" —
   decided once in `shouldConstrainOutput` and honoured
   identically by every `InferenceOptions` assembly. Publishing is measured (`ToolCallDeliveryLedger`, zeroed

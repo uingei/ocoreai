@@ -150,11 +150,17 @@ struct VideoDeliveryPathTests {
             inference.components(separatedBy: call).count - 1 == 1,
             "expected exactly one call site of \(call)")
         guard let callRange = inference.range(of: call) else { return }
-        guard let releaseRange = inference.range(of: "releasePoolSlotWithAssistant(assistantKey")
-        else {
-            Issue.record("the completion path no longer releases with the assistant message")
-            return
-        }
+        // The premise is a call site, not a line: a literal written across a wrap reads "the
+        // seam moved" when all that moved is a newline (measured 11-01, when the formatter
+        // wrapped this call and the gate reported a moved completion path). Floored at one
+        // match — the `func` takes the key as `_ historyKey`, so only a call can match.
+        let releaseCalls = inference.matches(
+            of: #/releasePoolSlotWithAssistant\(\s*assistantKey\b/#)
+        #expect(
+            releaseCalls.count == 1,
+            "expected exactly one completion-path release with the assistant message, found \(releaseCalls.count)"
+        )
+        guard let releaseRange = releaseCalls.first?.range else { return }
         guard
             let catchRange = inference.range(
                 of: "RAII: guarantee pool slot release on any inference exception.",

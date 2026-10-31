@@ -95,7 +95,7 @@ Not proven:
 
 ## 6. Gates
 
-- `Tests/ocoreaiTests/SystemInstructionDeliveryTests.swift` (9) — split semantics (order,
+- `Tests/ocoreaiTests/SystemInstructionDeliveryTests.swift` (11) — split semantics (order,
   casing, empty text, tool/function roles stay put, the role set itself) plus two premise-floored
   source scans: `splitInstructionMessages(context.rawMessages)` exactly once, and
   `var messages = context.rawMessages` zero times (the unfiltered feed must stay gone).

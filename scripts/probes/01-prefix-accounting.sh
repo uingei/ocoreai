@@ -30,6 +30,16 @@
 #
 # What it measures: tokens paid / reused / promptTime per turn, and the tok/s rate with
 # its 30k-context extrapolation, printed from this run's own numbers.
+#
+# Which lane it measures: turns 1-5 declare one inert tool, because a turn that registers a
+# tool generates through the pooled `ChatSession` — the only route that continues a resident
+# KV cache, and therefore the only one where withholding a prefix the cache already holds is
+# a saving rather than a loss. Plain chat on a reasoning checkpoint answers on a lane that
+# renders its own `LMInput` and calls `generateTokensTask` with `cache:` unset
+# (`Evaluate.swift:2647`), so nothing it withholds is resident: measured 11-01, the same
+# body on a session that had run turn 1 answered "I do not have access to any information
+# regarding a vault" at `prompt_tokens=684`, while the identical body on a cold session
+# answered `MANGO-42` at 712. That lane owes a different assertion, and §F makes it.
 # Turn 4 is an edited resend (a past turn reworded). `canReusePooledSession` still refuses
 # to ANSWER from that cache — and since 10-21 the cache is no longer discarded either: the
 # session is forked onto the shared prefix, so this turn reuses it and the turn owes an
@@ -51,6 +61,10 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_lib.sh"
 SESSION="PROBE-PREFIX-$$"
 MAX_TOKENS="${OCOREAI_PROBE_MAX_TOKENS:-8}"
 PAD="$(probe_pad_text "${OCOREAI_PROBE_PAD_UNITS:-40}")"
+# An inert tool, declared only to choose the lane (see the header). `tool_choice: auto` keeps
+# the model free to answer in prose; nothing here asserts a tool call.
+PROBE_TOOLS_JSON='[{"type":"function","function":{"name":"prefix_probe_noop","description":"Report a fixed status string. Call only when the user explicitly asks for a status report.","parameters":{"type":"object","properties":{},"required":[]}}}]'
+export PROBE_TOOLS_JSON
 
 probe_boot
 probe_require_ready_model
@@ -285,8 +299,9 @@ import json,sys
 print(json.dumps([{"role":"user","content":sys.argv[1]},{"role":"assistant","content":sys.argv[2]},{"role":"user","content":sys.argv[3]}]))' "$U1" "$SA1" "$U2")"
 STREAM_BODY="$(python3 - "$PROBE_MODEL" "$SSESSION" "$STREAM_MSGS" "$MAX_TOKENS" <<'PY'
 import json, sys
+import os
 model, session_id, messages, max_tokens = sys.argv[1:5]
-print(json.dumps({
+body = {
     "model": model,
     "session_id": session_id,
     "max_tokens": int(max_tokens),
@@ -294,7 +309,14 @@ print(json.dumps({
     "stream": True,
     "stream_options": {"include_usage": True},
     "messages": json.loads(messages),
-}))
+}
+# Same lane as the turns above: this stream is the warm turn whose whole prompt has to
+# reach both hops, and a whole differs from a suffix only where a prefix was reused.
+tools = os.environ.get("PROBE_TOOLS_JSON") or ""
+if tools:
+    body["tools"] = json.loads(tools)
+    body["tool_choice"] = "auto"
+print(json.dumps(body))
 PY
 )"
 probe_chat "$SSESSION" "$STREAM_BODY" || true
@@ -506,4 +528,116 @@ else
 fi
 fi
 
+# F. a lane that builds its own prompt keeps its whole feed. Plain chat on a reasoning
+# checkpoint renders its own LMInput and calls `generateTokensTask` with `cache:` unset, so
+# what the pool withholds on a HIT is not already resident — it is gone. One body is sent
+# twice, to a session that could withhold and to a cold one: equal `prompt_tokens` and the
+# same recalled fact mean the warm turn was fed the conversation. Before 11-01 the warm copy
+# answered `prompt_tokens=684` and refused the fact the cold copy (`712`) named.
+#
+# Why this section runs last: its premise is `prefixReuse.warmTurns`, read over HTTP. The
+# engine's log lines are block-buffered, so a grep issued moments after a turn races the
+# flush (measured 11-01 — the line was present on re-read and absent at the check), and a
+# premise that races is a premise that passes vacuously. A published counter cannot.
+probe_section "F — a self-preparing lane keeps its whole feed (plain chat, no tools)"
+if [ "${PR_WARM:-0}" -ge 2 ]; then
+  probe_ok "§F is aimed at a live pool — $PR_WARM warm turn(s) already booked by the route above"
+else
+  probe_fail "§F cannot aim: only ${PR_WARM:-0} warm turn(s) booked before it started, so the pooled route never ran in this run"
+fi
+
+export FT1="The passphrase for the vault is MANGO-42. Reply with ACK only."
+export FQ="What is the vault passphrase? Reply with the phrase only."
+# The body §F sends warm and cold — turn 1, the answer it earned, and a question only turn 1
+# can answer. One builder, so the two sends cannot differ by construction.
+f_body() {
+  ANSWER="$1" python3 -c '
+import json, os
+print(json.dumps([{"role": "user", "content": os.environ["FT1"]},
+                  {"role": "assistant", "content": os.environ["ANSWER"]},
+                  {"role": "user", "content": os.environ["FQ"]}]))'
+}
+
+# F1 — one lane throughout: this conversation never continues the pooled session's KV, so the
+# pool has nothing to claim and must claim nothing.
+FSESS="PROBE-PREFIX-SELF-$$"
+probe_chat "$FSESS" "$(PROBE_TOOLS_JSON= probe_chat_body "$FSESS" "$(python3 -c 'import json,sys;print(json.dumps([{"role":"user","content":sys.argv[1]}]))' "$FT1")" "$MAX_TOKENS")"
+FA1="$(probe_json "$PROBE_BODY" 'choices.0.message.content')"
+probe_chat "$FSESS" "$(PROBE_TOOLS_JSON= probe_chat_body "$FSESS" "$(f_body "$FA1")" "$MAX_TOKENS")"
+F_WARM_P="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens')"
+F_WARM_C="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens_details.cached_tokens')"
+F_WARM_A="$(probe_json "$PROBE_BODY" 'choices.0.message.content')"
+probe_chat "PROBE-PREFIX-SELF-COLD-$$" "$(PROBE_TOOLS_JSON= probe_chat_body "PROBE-PREFIX-SELF-COLD-$$" "$(f_body "$FA1")" "$MAX_TOKENS")"
+F_COLD_P="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens')"
+probe_note "single lane — warm prompt_tokens=${F_WARM_P:-?} cached=${F_WARM_C:-none} reply=${F_WARM_A:-?} | same body cold prompt_tokens=${F_COLD_P:-?}"
+case "$F_WARM_P$F_COLD_P" in
+  ''|*[!0-9]*)
+    probe_fail "F1 could not read both prompt_tokens (warm=${F_WARM_P:-none} cold=${F_COLD_P:-none}) — no comparison was made"
+    ;;
+  *)
+    if [ "$F_WARM_P" -eq "$F_COLD_P" ]; then
+      probe_ok "the warm turn was fed the whole conversation — prompt_tokens=$F_WARM_P on the used session, the same number cold"
+    else
+      probe_fail "warm turn answered prompt_tokens=$F_WARM_P for a body a cold session charged $F_COLD_P — the difference is text the model was never given"
+    fi
+    ;;
+esac
+case "$(lower "${F_WARM_A:-}")" in
+  *mango-42*) probe_ok "the warm turn still knew the fact from turn 1 (MANGO-42)" ;;
+  *) probe_fail "the warm turn could not recall a passphrase its own turn 1 supplied (reply: ${F_WARM_A:-<empty>}) — the withheld messages were never fed to it" ;;
+esac
+if [ "$F_WARM_C" = "0" ]; then
+  probe_ok "cached_tokens=0 on the self-preparing turn — nothing was reused, and nothing is claimed"
+else
+  probe_fail "self-preparing turn reported cached_tokens=${F_WARM_C:-none} — that lane has no continued cache to have reused anything from"
+fi
+
+# F2 — the mixed conversation, where the clamp actually bites. Turn 1 runs on the pooled
+# session and leaves a hot ledger, so the plain turn that follows has a real divergence it
+# could withhold, and still must be fed everything.
+MSESS="PROBE-PREFIX-MIXED-$$"
+probe_chat "$MSESS" "$(probe_chat_body "$MSESS" "$(python3 -c 'import json,sys;print(json.dumps([{"role":"user","content":sys.argv[1]}]))' "$FT1")" "$MAX_TOKENS")"
+MA1="$(probe_json "$PROBE_BODY" 'choices.0.message.content')"
+M_MSGS="$(f_body "$MA1")"
+probe_chat "$MSESS" "$(PROBE_TOOLS_JSON= probe_chat_body "$MSESS" "$M_MSGS" "$MAX_TOKENS")"
+M_WARM_P="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens')"
+M_WARM_A="$(probe_json "$PROBE_BODY" 'choices.0.message.content')"
+M_WARM_C="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens_details.cached_tokens')"
+MCSESS="PROBE-PREFIX-MIXED-COLD-$$"
+probe_chat "$MCSESS" "$(PROBE_TOOLS_JSON= probe_chat_body "$MCSESS" "$M_MSGS" "$MAX_TOKENS")"
+M_COLD_P="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens')"
+probe_note "mixed lanes — plain turn after a pooled one: prompt_tokens=${M_WARM_P:-?} cached=${M_WARM_C:-none} reply=${M_WARM_A:-?} | same body cold: prompt_tokens=${M_COLD_P:-?}"
+# The pool's own sentence about the turn it declined to truncate. A NOTE, never a verdict:
+# reading it this soon races the log's block flush (see the header), and a verdict that
+# depends on when the reader looked is not a verdict.
+POOL_SAYS="$(grep -c "Session pool HIT for .*$MSESS.*builds its own prompt and cache" "$PROBE_LOG" 2>/dev/null || true)"
+probe_note "the pool's own line for the mixed turn: ${POOL_SAYS:-0} (informational — the assertions below are wire numbers)"
+case "$M_WARM_P$M_COLD_P" in
+  ''|*[!0-9]*)
+    probe_fail "F2 could not read both prompt_tokens (mixed=${M_WARM_P:-none} cold=${M_COLD_P:-none}) — no comparison was made"
+    ;;
+  *)
+    if [ "$M_WARM_P" -eq "$M_COLD_P" ]; then
+      probe_ok "a hot ledger was declined, not spent — the mixed turn's prompt equals the cold body at $M_WARM_P tokens"
+    else
+      probe_fail "mixed-lane turn charged $M_WARM_P where the same body cold charged $M_COLD_P — a pooled turn's history went missing behind a reasoning turn"
+    fi
+    ;;
+esac
+case "$(lower "${M_WARM_A:-}")" in
+  *mango-42*) probe_ok "the mixed-lane turn recalled the passphrase its first turn supplied" ;;
+  *) probe_fail "the mixed-lane turn could not recall the passphrase (reply: ${M_WARM_A:-<empty>}) — the withheld prefix was never re-fed" ;;
+esac
+
+# And the ledger must not have moved: a turn that cannot continue a cache may not be booked
+# as one that did, or `prefixReuse` advertises savings the engine never made.
+probe_api GET "/v1/models/${ENC_MODEL}/kv-cache"
+WARM_AFTER="$(probe_json "$PROBE_BODY" 'prefixReuse.warmTurns')"
+if [ -z "$WARM_AFTER" ] || [ -z "${PR_WARM:-}" ]; then
+  probe_fail "§F could not read warmTurns on both sides (before=${PR_WARM:-none} after=${WARM_AFTER:-none}) — the ledger claim went unjudged"
+elif [ "$WARM_AFTER" -eq "$PR_WARM" ]; then
+  probe_ok "warmTurns stayed at $WARM_AFTER across four self-preparing turns — the ledger counts only turns that continued a cache"
+else
+  probe_fail "warmTurns moved $PR_WARM -> $WARM_AFTER over turns that cannot reuse a prefix — the surface credits reuse the engine did not perform"
+fi
 probe_summary "$PROBE_NAME"

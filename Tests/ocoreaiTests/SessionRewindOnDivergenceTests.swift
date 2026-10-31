@@ -152,6 +152,22 @@ struct SessionRewindOnDivergenceTests {
         #expect(bypasses(grammar: true, grammarSafe: true, mtp: true, media: true) == false)
     }
 
+    /// What the caller may leave out of its feed. Withholding is only ever a saving when the
+    /// turn continues the cache that holds the withheld text; on a lane that prefills a
+    /// fresh cache it is the conversation going missing, so a hot divergence must not move
+    /// the feed at all. Live half: probe 01 §F (a warm plain turn must still name the fact
+    /// from turn 1, and the wire must report the whole prompt it was actually fed).
+    @Test("feedIndex — the suffix only for a lane that continues the resident cache")
+    func feedFollowsTheLane() {
+        #expect(MLXSessionPool.feedIndex(divergence: 2, laneRunsOnPooledSession: true) == 2)
+        #expect(MLXSessionPool.feedIndex(divergence: 2, laneRunsOnPooledSession: false) == 0)
+        // Nothing to withhold, either way.
+        #expect(MLXSessionPool.feedIndex(divergence: 0, laneRunsOnPooledSession: true) == 0)
+        // A whole-feed divergence is the shape that would feed the session nothing; on a
+        // self-preparing lane it becomes an ordinary full feed instead.
+        #expect(MLXSessionPool.feedIndex(divergence: 9, laneRunsOnPooledSession: false) == 0)
+    }
+
     /// Structure, pinned mechanically: one fork site, one decision home, one reserve
     /// constant, and the reserve actually requested at every exit of the resolver. Both
     /// scans prove they can match (positive control) before asserting a count, so a renamed
@@ -195,7 +211,9 @@ struct SessionRewindOnDivergenceTests {
         // The lane fact: computed once in the engine, declared once at the acquire call,
         // and consulted once by the pool. Three occurrences of one fact in three files is
         // how one of them drifts; these floors say the wiring exists, and the truth table
-        // above says what it decides.
+        // above says what it decides. It now decides three things (feed, offer, ledger), so
+        // the name says which side of the pooled session the turn runs on rather than what
+        // it was first wired to gate.
         let laneComputed =
             inferenceSource.components(separatedBy: "Self.bypassesPooledChatSession(")
             .count - 1
@@ -204,15 +222,42 @@ struct SessionRewindOnDivergenceTests {
             "the bypass decision must be computed at one home; found \(laneComputed)")
         let lanePassed =
             inferenceSource.components(
-                separatedBy: "rewindUsable: !routesAroundChatSession"
+                separatedBy: "laneRunsOnPooledSession: runsOnPooledSession"
             ).count - 1
         #expect(
             lanePassed == 1,
-            "acquire must be told whether this turn can spend a rewind; found \(lanePassed)")
-        let laneGated = poolSource.components(separatedBy: "laneCanSpend: rewindUsable").count - 1
+            "acquire must be told whether this turn runs on the pooled session; found \(lanePassed)"
+        )
+        let laneGated =
+            poolSource.components(
+                separatedBy: "laneCanSpend: laneRunsOnPooledSession"
+            ).count - 1
         #expect(
             laneGated == 1,
             "the offer must be gated on the caller's lane; found \(laneGated)")
+
+        // The std-reasoning lane renders its own LMInput and prefills a fresh cache, so it
+        // must answer the same question no. A flag named for the bypass that forgot it left
+        // the plain-chat route withholding messages nobody would ever re-feed: measured
+        // 11-01, a warm plain turn answered "I do not have access to any information" about
+        // a fact the same body answered cold. The floor is on the wording because the
+        // consequence is a lost conversation, not a slower one.
+        #expect(
+            inferenceSource.contains(
+                "!(mayRunReasoning && reasoningConfig != nil)"),
+            "runsOnPooledSession must fold in the std-reasoning route; without it the plain turn on a reasoning checkpoint withholds a prefix nobody continues"
+        )
+        // …and the ledger must be written by the same answer, or the loss returns one turn
+        // later: an entry that lists messages its cache never held makes the next pooled
+        // turn skip a prefill for text that was never cached.
+        let ledgerGated =
+            inferenceSource.components(
+                separatedBy: "if runsOnPooledSession {"
+            ).count - 1
+        #expect(
+            ledgerGated == 1,
+            "history may be extended only on the lane whose KV landed in the session; found \(ledgerGated) gated site(s)"
+        )
 
         // The reserve is what makes the fork pay, and it is pinned because its absence is
         // invisible to a correctness probe: with the fork applied but no reserve, upstream

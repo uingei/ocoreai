@@ -48,6 +48,15 @@
 #   further back than 1024 tokens still re-prefills its prefix. That residual is the
 #   memory dial, not a correctness dial, which is why it is reported and not asserted.
 #
+# ### Which lane, and why it is declared
+# Every turn here declares one inert tool. A turn that registers a tool generates through the
+# pooled `ChatSession`, which is the route that continues a resident KV cache — the only route
+# on which an appended turn reuses anything, a ledger means anything, and a rewind has a cache
+# to rewind. A plain turn on a reasoning checkpoint renders its own `LMInput` and prefills a
+# fresh cache, so an expected `cached_tokens>0` there is a premise that cannot hold; asking
+# this lane to reuse is asking it to lie. What that lane owes instead — the whole feed, and
+# no claim of reuse — is priced by 01-prefix-accounting §F.
+#
 # Run: bash scripts/probes/run.sh 27
 PROBE_NAME="27-edited-history-honesty"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_lib.sh"
@@ -56,6 +65,11 @@ SESSION="PROBE-EDIT-$$"
 OLD_WORD="MARLIN"
 NEW_WORD="SALMON"
 MAX_TOKENS=16
+# Chosen lane: an inert tool, never called (see the header). The bypass-lane turn below adds
+# `response_format` on top, which still routes it around the pooled session — that section
+# depends on the lane, it does not depend on this turn being tool-free.
+PROBE_TOOLS_JSON='[{"type":"function","function":{"name":"edit_probe_noop","description":"Report a fixed status string. Call only when the user explicitly asks for a status report.","parameters":{"type":"object","properties":{},"required":[]}}}]'
+export PROBE_TOOLS_JSON
 
 U1="Reply with exactly the word ALPHA and nothing else."
 A1="ALPHA"

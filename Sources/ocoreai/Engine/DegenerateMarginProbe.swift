@@ -203,21 +203,19 @@ enum DegenerateMarginProbe {
                     AsyncStream<MLXLMCommon.LogProbabilityGeneration<MLXLMCommon.Generation>>,
                     Task<Void, Never>, Int, String, String
                 ) in
-                // Rebuild the conversation inside the closure, and put instructions on a leading
-                // .system message — what ChatSession does with its `instructions:` channel, which
-                // this probe has to reproduce because it bypasses ChatSession (see file header).
-                var rebuiltMessages = messagePairs.map { pair in
-                    MLXLMCommon.Chat.Message(
-                        role: MLXLMCommon.Chat.Message.Role(rawValue: pair.role) ?? .user,
-                        content: pair.content)
-                }
-                if let instructionsSnapshot, !instructionsSnapshot.isEmpty,
-                    rebuiltMessages.first?.role != .system
-                {
-                    rebuiltMessages.insert(
-                        MLXLMCommon.Chat.Message(role: .system, content: instructionsSnapshot),
-                        at: 0)
-                }
+                // Rebuild the conversation inside the closure, with the instructions on a
+                // leading .system message — what ChatSession does with its `instructions:`
+                // channel, which this probe has to reproduce because it bypasses ChatSession
+                // (see file header). Shared with the inference lanes, so a reconstruction and
+                // a live prompt cannot drift apart and call the result `fidelity`.
+                let rebuiltMessages = promptMessagesCarryingInstructions(
+                    messagePairs.map { pair in
+                        MLXLMCommon.Chat.Message(
+                            role: MLXLMCommon.Chat.Message.Role(rawValue: pair.role) ?? .user,
+                            content: pair.content)
+                    },
+                    instructions: instructionsSnapshot
+                )
 
                 let prepared = try await context.processor.prepare(
                     input: MLXLMCommon.UserInput(

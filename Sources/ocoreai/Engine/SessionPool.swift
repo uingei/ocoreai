@@ -559,7 +559,8 @@ actor MLXSessionPool {
     /// ``PooledChatSession/messageHistory`` to find the longest common message
     /// prefix.  The caller should only ``prefixMessages[divergenceIndex...]``
     /// to ``ChatSession`` — the cached KV context already represents the
-    /// matched portion.
+    /// matched portion, and only a turn that generates through that session may
+    /// leave the matched portion out of its feed (``feedIndex``).
     ///
     /// - Note: On cold miss, `prefixMessages` is recorded into the session's
     ///   history so the next turn can benefit from prefix matching.  The caller
@@ -573,6 +574,9 @@ actor MLXSessionPool {
     ///     to avoid inconsistent per-image token counts.
     ///   - prefixMessages: Rendered message keys for this turn, used for prefix matching.
     ///     Convert `[Chat.Message]` to `[MessageHistoryKey]` before calling across actor boundary.
+    ///   - laneRunsOnPooledSession: this turn generates through the session handed back.
+    ///     A lane that renders its own `LMInput` and prefills a fresh cache still gets the
+    ///     session, but with `divergenceIndex` 0 — see ``feedIndex``.
     func acquire(
         from modelContainer: MLXLMCommon.ModelContainer,
         modelId: String,
@@ -582,7 +586,7 @@ actor MLXSessionPool {
         instructions: String? = nil,
         processing: MLXLMCommon.UserInput.Processing? = nil,
         prefixMessages: [MessageHistoryKey]? = nil,
-        rewindUsable: Bool,
+        laneRunsOnPooledSession: Bool,
     ) async -> AcquireResult {
         // 1. Expire stale sessions
         await evictExpired()
@@ -687,7 +691,7 @@ actor MLXSessionPool {
                     instructionsMatch: instructionsMatch,
                     carriesMedia: (prefixMessages?.contains { $0.hasMedia } ?? false)
                         || pooled.messageHistory.contains { $0.hasMedia },
-                    laneCanSpend: rewindUsable
+                    laneCanSpend: laneRunsOnPooledSession
                 )
                 if let rewindOffer {
                     pendingRewind = PooledRewind(source: pooled, historyEnd: rewindOffer)
@@ -711,9 +715,9 @@ actor MLXSessionPool {
                 // refusal, and publishing one for it would report a full rebuild the engine
                 // did not perform (AGENTS.md invariant 2 — the surface may not state more
                 // than the engine delivered). That holds only because an offer is made when
-                // the turn can spend it: `rewindUsable` comes from the caller's lane, and
-                // `SessionRewindOnDivergenceTests` pins both that the offer is gated on it
-                // and that exactly one fork site exists to take it with.
+                // the turn can spend it: `laneRunsOnPooledSession` comes from the caller's
+                // lane, and `SessionRewindOnDivergenceTests` pins both that the offer is
+                // gated on it and that exactly one fork site exists to take it with.
                 if rewindOffer == nil,
                     let reason = ReuseRefusalReason.decide(
                         instructionsMatch: instructionsMatch,
@@ -773,10 +777,15 @@ actor MLXSessionPool {
                         "Session pool HIT \(key) — this turn overrides the knobs it was created with: \(overriddenFields.joined(separator: ","))"
                     )
                 }
+                // What the feed actually gets, decided once: this value is both the log
+                // claim below and the index the caller slices by, so the two cannot drift.
+                let feed = Self.feedIndex(
+                    divergence: divergence,
+                    laneRunsOnPooledSession: laneRunsOnPooledSession)
                 if divergence > 0 {
-                    // What this line can honestly claim is about the *feed*: the
-                    // caller withholds `divergence` messages this session's transcript
-                    // already holds. Whether the KV cache skipped a prefill is not
+                    // What this line can honestly claim is about the *feed*: the caller
+                    // withholds `feed` messages this session's transcript already holds.
+                    // Whether the KV cache skipped a prefill is not
                     // knowable here — upstream decides it and reports it on
                     // GenerateCompletionInfo.cachedPromptTokenCount, and this call site
                     // deliberately does not restate that verdict: a second hand-written
@@ -787,16 +796,22 @@ actor MLXSessionPool {
                     // 710/730 and 733/749 tokens reused — but that is upstream's answer
                     // for that day's revision, read from the wire, not a promise this
                     // line may make.
-                    logger.info(
-                        "Session pool HIT: \(key) — \(divergence)/\(prefixMessages?.count ?? 0) messages already in this session's transcript, withholding them from this feed"
-                    )
+                    if feed > 0 {
+                        logger.info(
+                            "Session pool HIT: \(key) — \(feed)/\(prefixMessages?.count ?? 0) messages already in this session's transcript, withholding them from this feed"
+                        )
+                    } else {
+                        logger.info(
+                            "Session pool HIT for \(key): this conversation extends the resident transcript by \(divergence) message(s), but this lane builds its own prompt and cache — the whole feed goes to it, and nothing is booked as prefix reuse"
+                        )
+                    }
                 } else {
                     logger.debug("Session pool HIT: \(key), divergence=0")
                 }
                 return AcquireResult(
                     pooled: pooled,
-                    isHit: divergence > 0,
-                    divergenceIndex: divergence
+                    isHit: feed > 0,
+                    divergenceIndex: feed
                 )
             }
         }
@@ -831,13 +846,16 @@ actor MLXSessionPool {
             hitCount += 1
             totalAcquireAttempts += 1
             logHitRateIfNeeded()
+            let restoredFeed = Self.feedIndex(
+                divergence: reusedCount,
+                laneRunsOnPooledSession: laneRunsOnPooledSession)
             logger.info(
-                "Session RESTORED from disk cache: \(key) — \(reusedCount) cached message(s), feeding the suffix"
+                "Session RESTORED from disk cache: \(key) — \(reusedCount) cached message(s), \(restoredFeed > 0 ? "feeding the suffix" : "the whole feed goes to this lane, which builds its own cache")"
             )
             return AcquireResult(
                 pooled: diskPooled,
-                isHit: true,
-                divergenceIndex: reusedCount
+                isHit: restoredFeed > 0,
+                divergenceIndex: restoredFeed
             )
         }
 
@@ -893,6 +911,28 @@ actor MLXSessionPool {
             divergenceIndex: 0,
             rewind: pendingRewind
         )
+    }
+
+    /// How many of this conversation's messages the caller may leave out of its feed.
+    ///
+    /// The ledger says which messages the resident KV already represents, and a turn that
+    /// continues that KV can start from the suffix. A turn that renders its own `LMInput`
+    /// and prefills a fresh cache cannot: what it withholds is not a saved prefill, it is
+    /// the conversation. Measured 11-01 (`gemma-4-e2b-it-4bit`, temp 0, one body sent
+    /// twice): cold, whole feed → `prompt_tokens=712`, answer `MANGO-42`; on the session
+    /// that had already run turn 1 the same body had 2 of its 3 messages withheld →
+    /// `prompt_tokens=684`, answer "I do not have access to any information regarding a
+    /// vault". The `ChatSession` route of the same conversation withheld the same 2 messages
+    /// and answered `MANGO-42` while reusing 768 of 789 tokens, which is what identifies the
+    /// lane rather than the withholding as the cause.
+    ///
+    /// The divergence itself still decides refusal and rewind above: those are judgements
+    /// about the cache, and they stay true whoever runs the turn.
+    nonisolated static func feedIndex(
+        divergence: Int,
+        laneRunsOnPooledSession: Bool
+    ) -> Int {
+        laneRunsOnPooledSession ? divergence : 0
     }
 
     /// Return a session back to the pool after inference completes.

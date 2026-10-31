@@ -28,6 +28,9 @@
 #   OCOREAI_API_KEYS       passed through to the server; when set, probes send
 #                          `Authorization: Bearer <first key>` like a real client
 #   OCOREAI_PROBE_KEEP_LOGS=1  keep the server log and print its path
+#   PROBE_TOOLS_JSON       JSON `tools[]` for every `probe_chat_body` turn: a probe's choice
+#                          of generation lane (a declared tool generates through the pooled
+#                          `ChatSession`, which is the route that continues a resident KV).
 
 # Deliberately NOT `-e`: probes count failures and report them all in one run.
 set -uo pipefail
@@ -690,9 +693,9 @@ probe_chat() {
 # large enough for prompt-time differences to be measurable rather than noise.
 probe_chat_body() {
   local session_id="$1" messages_json="$2" max_tokens="${3:-8}"
-  python3 - "$PROBE_MODEL" "$session_id" "$messages_json" "$max_tokens" "${PROBE_SYS_PAD:-}" <<'PY'
+  python3 - "$PROBE_MODEL" "$session_id" "$messages_json" "$max_tokens" "${PROBE_SYS_PAD:-}" "${PROBE_TOOLS_JSON:-}" <<'PY'
 import json, sys
-model, session_id, messages, max_tokens, pad = sys.argv[1:6]
+model, session_id, messages, max_tokens, pad, tools = sys.argv[1:7]
 body = {
     "model": model,
     "session_id": session_id,
@@ -702,6 +705,13 @@ body = {
 }
 if pad:
     body["messages"] = [{"role": "system", "content": pad}] + body["messages"]
+# Declaring a tool is how a probe chooses its lane: with tools registered the turn generates
+# through the pooled ChatSession, the only route that continues a resident KV cache; without
+# them a thinking checkpoint answers on a lane that prefills its own cache. Opt-in, so every
+# probe keeps the route it has always exercised unless it says otherwise.
+if tools:
+    body["tools"] = json.loads(tools)
+    body["tool_choice"] = "auto"
 print(json.dumps(body))
 PY
 }

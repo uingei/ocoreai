@@ -30,7 +30,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   upstream. Owner call.
 - **Rewind is landed; the reserve is a guessed constant** (Engine/) — 1024 rows measured on one checkpoint,
   not tuned to model or memory pressure, so an edit further back than the reserve still pays its full prefix.
-  `SessionRewindOnDivergenceTests`(7) + probe 27 hold the wiring and the number.
+  `SessionRewindOnDivergenceTests`(8) + probe 27 hold the wiring and the number.
 - **Video publishing is per-checkpoint** (Multimodal/) — one processor reads `input.videos`, the other does
   not, so it is never inferred from architecture; a turn that got frames but never answered is not
   counted; relaxing that is untested (`VideoDeliveryLedger`).

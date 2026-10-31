@@ -140,7 +140,7 @@ verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name bel
   owner call: the terminal word for four faces.
 - **CoreAI / macOS 27 items unverifiable here** (Engine/) — `PlatformPremise.hasMacOS27`.
 - **A no-tool turn cannot be interrupted** (Engine/) — upstream seam landed at `991266ad3`; owner call.
-- **Rewind landed; the reserve is untuned** (Engine/) — `SessionRewindOnDivergenceTests`(7) + probe 27.
+- **Rewind landed; the reserve is untuned** (Engine/) — `SessionRewindOnDivergenceTests`(8) + probe 27.
 - **`tools[]` gaps; two prefix questions await an owner** — `UI/AGENTS.md`, `ReuseRefusalLedger`.
 - **Multimodal: video publishes per-checkpoint; capture cannot stream headlessly** —
   `VideoDeliveryLedger`; `screenStatus` needs a delivered frame.

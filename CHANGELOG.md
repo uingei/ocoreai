@@ -9,6 +9,82 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-01
 
+**11-01(90) A warm plain turn forgot its own conversation, and a `system` message never reached the prompt**
+
+- **What improved.** Two faces of one root: the engine renders its own prompt in five places, and
+  every one of them described a prompt it had not fed. **The instructions never rode along** —
+  `nonSystemMessages` strips each `system` turn so the text can be handed to `ChatSession` on its
+  `instructions:` channel, which upstream renders as a leading `.system` message
+  (`ChatSession.swift:1069-1070`), so a lane preparing its own `LMInput` without that prepend feeds
+  the conversation and loses the instructions. **Withholding was booked as a saving on a lane that
+  cannot spend it** — the pool hands back a divergence index so a warm turn sends only the suffix,
+  which is a saving only for a turn that continues the resident KV; the std-reasoning route renders
+  its own `LMInput` and calls `generateTokensTask` with `cache:` unset (`Evaluate.swift:2647`), so
+  for it the withheld prefix is simply gone. One body, sent twice, on `gemma-4-e2b-it-4bit` at
+  temperature 0: cold → `prompt_tokens=712` and the answer `MANGO-42`; warm → `684` and "I do not
+  have access to any information regarding a vault". The `ChatSession` route of the same
+  conversation withheld the same 2 messages, reused 768 of 789 tokens and answered `MANGO-42`,
+  which is what indicts the lane rather than the withholding. One home each now:
+  `promptMessagesCarryingInstructions` (`EngineInference.swift:97`) is called by all five
+  `prompt: .chat(` sites *and* by `DegenerateMarginProbe`, so a reconstruction of the live prompt
+  can no longer disagree with the prompt whose `fidelity` it reports; and
+  `MLXSessionPool.feedIndex` (`SessionPool.swift:931`) decides the feed from
+  `laneRunsOnPooledSession` — the flag renamed off `rewindUsable` because it now answers three
+  questions, not one: what the feed carries, whether a rewind is worth offering, and whether this
+  turn's messages may enter the pool's ledger. The third is why this is one change and not two — a
+  lane whose KV never landed releases without the assistant key, or the loss returns one turn later
+  as the *next* pooled turn skipping a prefill for text nobody ever cached.
+
+- **What same-session output proves it.** Three probes against a live `serve`, and each fix
+  red-sampled by undoing it. Probe 01 **25 passed / 0 failed / 12 measured**, its new §F sending one
+  body warm and cold (`prompt_tokens=712` both, `cached=0`, the passphrase named in both the
+  single-lane and the mixed-lane send) with `warmTurns` staying at 4 across four self-preparing
+  turns; forcing `runsOnPooledSession` back to `true` took it to **23 / 2** — warm `684` against
+  cold `712`, answer "I do not have access to any information". Probe 15 **9 / 0**, with the
+  instruction differential measured rather than assumed (+181 prompt tokens for 996 chars,
+  `developer` landing the same +181, both faces at 860) and §5 now running on the pooled lane so it
+  has a reuse to refuse: 798 tokens kept when the instructions are unchanged, 0 once the caller
+  rewrites them. Undoing the prepend took it to **7 / 2**: plain `prompt_tokens=17`, with `17`,
+  differential 0 — and §4 stayed green, the assembly still logging `systemChars 2672 → 3670` while
+  `usage` charged 17, which is round 89's residual seen from the other side. Probe 27 **20 / 0**
+  with every turn declaring one inert tool to choose its lane. Suites: focused
+  `SystemInstructionDelivery|SessionRewindOnDivergence|UpstreamDriftWindow` **24 tests / 3 suites**,
+  `VideoDeliveryPath` **6 / 1 suite**, both green; full `make test` **3464 tests / 612 suites**.
+  That full run earned this round a red of its own, and it was the round's own doing: the fix
+  wrapped the release call over two lines, and `VideoDeliveryPathTests` matched the literal
+  `releasePoolSlotWithAssistant(assistantKey`, so it reported "the completion path no longer
+  releases with the assistant message" about a completion path that was intact. The behaviour was
+  right and the premise was a line — the match now spans whitespace and floors its own count at one
+  (red sample: renaming the argument reads `found 0`, reverted). Two further issues appeared across
+  the two full runs (`SleepSteerWakeTests:198` at 2827 ms against a 2500 ms budget, then
+  `MCPStderrDiagnosisTests:293` and `ToolAttemptLedgerTests:213`); none recurred, all four are green
+  focused, and none touches a value this round changed — reported, not absorbed.
+
+- **Which gate goes red if it regresses.** `SystemInstructionDeliveryTests`(11) in
+  `Tests/ocoreaiTests/SystemInstructionDeliveryTests.swift` — the prepend as a truth table (nil /
+  empty / middle of feed / a feed already opening with a system turn never gets a second copy), and
+  a scan that counts the `prompt: .chat(` sites against the prepend sites so a lane added without
+  the prepend fails by number, floors itself at ≥ 4 prepends, and pins that the probe kept the
+  shared rule instead of growing its own (`rebuiltMessages.insert(` must stay 0).
+  `SessionRewindOnDivergenceTests`(8) — `feedIndex` over four cells including the whole-feed
+  divergence, plus the two structural floors that keep the flag honest: it must fold in the
+  std-reasoning route, and exactly one ledger site may be gated on it. `VideoDeliveryPathTests`(6)
+  for the premise fix. Live: probe 01 §F (warm prompt == cold prompt, the fact still recalled, and
+  `warmTurns` unmoved), probe 15 §1–§3 (the differential must be ≥ 40 tokens for 996 chars) and §5,
+  probe 27 §1–§5 on the declared lane.
+
+- **Residual, named rather than gated.** A reasoning checkpoint with no tools and no grammar now gets
+  **no** prefix reuse: those turns pay the whole prefill every time, because the lane that could
+  continue a cache is not the lane they run on — widening it means `cache:` reaching
+  `generateTokensTask` upstream (`Evaluate.swift:2647`), which is upstream's seam, not a local
+  override. The same seam leaves the two numbers still disagreeing: the assembly logs the
+  instructions it assembled while `usage.prompt_tokens` counts what the lane was fed (measured above
+  at 17 charged against 998 chars logged); publishing either as the other needs the owner call round
+  89 asked for. And the new rule cannot live in the area guide — `Sources/ocoreai/Engine/AGENTS.md`
+  sits at 32 755 of the host's 32 768 B injected chain, so `make docs-check` reddened the four-line
+  addition at 33 126 B; `MLXSessionPool.feedIndex`'s doc comment is its prose home, with its gate
+  beside it.
+
 **11-01(89) `/v1/messages` answered a shape request with prose and a 200**
 
 - **What improved.** Measured on one live `serve` driving the scripted engine (the model is

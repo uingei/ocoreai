@@ -38,6 +38,10 @@
 #      refuse the pooled session (`cached_tokens==0`), because that cache was rendered under an
 #      instruction list this turn never sent. §5 fails as vacuous if the first pattern shows no
 #      reuse, so the second half can never pass on a dead premise.
+#      A lane that renders its own prompt and prefills a fresh cache cannot reuse at all, so
+#      §5 declares one inert tool and runs on the pooled-`ChatSession` route, the route that
+#      continues a resident KV. The other lane owes a different claim — it keeps its whole
+#      feed and claims nothing — and 01-prefix-accounting §F prices that.
 #
 # Needs a real Metal device: run unsandboxed (`bash scripts/probes/run.sh 15`).
 #
@@ -170,6 +174,12 @@ fi
 probe_section "5 — changed instructions must not reuse the pooled session"
 SAME="Keep answers to one line."
 OTHER="Answer in French, keep it to one line."
+# An inert tool, declared only to choose the lane (see the header): a turn that registers a
+# tool generates through the pooled `ChatSession`, which is the route that continues a
+# resident KV cache and therefore the only one where a changed instruction list can cost a
+# reuse. Without it a reasoning checkpoint answers on a lane that has no reuse to refuse.
+PROBE_TOOLS_JSON='[{"type":"function","function":{"name":"instruction_probe_noop","description":"Report a fixed status string. Call only when the user explicitly asks for a status report.","parameters":{"type":"object","properties":{},"required":[]}}}]'
+export PROBE_TOOLS_JSON
 # reuse_run SESSION SYS1 SYS2 — turn 1 under SYS1, then replay the whole conversation with
 # SYS2 and a new question. Writes turn 2's cached_tokens to $PROBE_TMP/<sess>.cached and
 # prints both turns' measured numbers directly (globals do not survive command substitution).

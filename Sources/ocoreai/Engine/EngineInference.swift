@@ -81,6 +81,29 @@ private func logGuidedGenError(
     )
 }
 
+/// The prompt a lane builds for itself, with this turn's instructions in front of it.
+///
+/// Upstream `ChatSession` renders its `instructions` as a leading `.system` message
+/// (`ChatSession.swift:1069-1070`), and these lanes filter every `system` role out of the
+/// feed they build (`nonSystemMessages`) so the text can be handed to ChatSession on its
+/// own. A lane that prepares its own `LMInput` around ChatSession and skips this prepend
+/// feeds the conversation and drops the instructions: measured 11-01 on a resident
+/// checkpoint, a plain turn whose assembled prompt was 814 tokens reported 24 and answered
+/// as if no instructions had been sent, while the identical instruction placed in the user
+/// turn moved the answer from `4` to `"7"`. The guided lane dropped them too while its
+/// reported count still included them — the lie probe 15 §1 exists to catch. One home for
+/// the rule, and `DegenerateMarginProbe` calls it as well: a reconstruction of the live
+/// prompt that prepends differently cannot report `fidelity` honestly.
+func promptMessagesCarryingInstructions(
+    _ messages: [Chat.Message],
+    instructions: String?
+) -> [Chat.Message] {
+    guard let instructions, !instructions.isEmpty else { return messages }
+    // Never a second copy: a feed that already opens with a system turn carries them.
+    guard messages.first?.role != .system else { return messages }
+    return [Chat.Message(role: .system, content: instructions)] + messages
+}
+
 extension EnginePool {
     // MARK: - Denial honesty (tool-result contract)
 
@@ -1988,6 +2011,7 @@ extension EnginePool {
         /// All inference within modelContainer.perform for thread-safe ModelContext.
         func handleGuidedGeneration(
             messagePairs: [(role: String, content: String)],
+            instructions: String?,
             grammarSchema: String,
             maxTokens: Int,
             toolSpecs: [ToolSpec]? = nil,
@@ -1995,12 +2019,17 @@ extension EnginePool {
             try await handleRef.modelContainer.perform { context in
                 // Rebuild Chat.Message inside the @Sendable closure to avoid
                 // cross-actor capture of non-Sendable [Chat.Message].
-                var messages = messagePairs.map { pair in
-                    Chat.Message(
-                        role: Chat.Message.Role(rawValue: pair.role) ?? .system,
-                        content: pair.content
-                    )
-                }
+                // This lane prepares its own LMInput, so the instructions are in this list
+                // or they are not in the prompt at all.
+                var messages = promptMessagesCarryingInstructions(
+                    messagePairs.map { pair in
+                        Chat.Message(
+                            role: Chat.Message.Role(rawValue: pair.role) ?? .system,
+                            content: pair.content
+                        )
+                    },
+                    instructions: instructions
+                )
                 // Strip trailing empty assistant message so the chat template
                 // leaves the assistant turn open for generation — mirrors upstream
                 // MLXChatExample pattern (see upstream L104-107)
@@ -3172,6 +3201,20 @@ extension EnginePool {
                 carriesMedia: turnCarriesMedia,
                 messageCount: mlxMessages.count
             )
+            /// Whether this turn's KV lands in the session the pool handed back.
+            ///
+            /// Guided gen and MTP already answer no here. The std-reasoning lane must too:
+            /// it renders its own `LMInput` and calls `generateTokensTask` with `cache:`
+            /// unset (`Evaluate.swift:2647`), so its prompt starts from an empty cache and
+            /// anything withheld from it is simply not in the model's context — measured
+            /// 11-01, where a warm plain turn forgot a fact its cold twin answered. The same
+            /// conversation on the `ChatSession` route reused 768 of 789 tokens and answered
+            /// correctly, so the lane, not the pool, is what cannot skip the prefill.
+            /// One flag, three consumers: what the feed carries, whether a rewind is worth
+            /// offering, and whether this turn's messages may enter the pool's ledger.
+            /// Mirrors the routing condition at `if mayRunReasoning, let rc = …` below.
+            let runsOnPooledSession =
+                !routesAroundChatSession && !(mayRunReasoning && reasoningConfig != nil)
 
             /// This turn's message keys, computed once: they identify the conversation
             /// the KV cache will represent, for prefix matching at acquire and for the
@@ -3190,7 +3233,7 @@ extension EnginePool {
                     instructions: systemInstructions,
                     processing: sessionProcessing,
                     prefixMessages: keys,
-                    rewindUsable: !routesAroundChatSession
+                    laneRunsOnPooledSession: runsOnPooledSession
                 )
                 let readyAt = ContinuousClock.now
                 let acquireMs = elapsedMs(acquireStart.duration(to: readyAt))
@@ -3431,6 +3474,7 @@ extension EnginePool {
                         messagePairs: mlxMessages.map {
                             (role: $0.role.rawValue, content: $0.content)
                         },
+                        instructions: systemInstructions,
                         grammarSchema: schema,
                         maxTokens: effectiveMaxTokens,
                         toolSpecs: registeredToolSpecs,
@@ -3596,19 +3640,26 @@ extension EnginePool {
                             let phase1Pairs = mtpMessages.map { m -> (String, String) in
                                 (m.role.rawValue, m.content)
                             }
+                            // Snapshot for the @Sendable closure below: this lane prepares
+                            // its own LMInput, so its prompt owes the instructions prepend.
+                            let phase1Instructions = systemInstructions
                             let phase1Result:
                                 (thinkingText: String, closed: Bool, tokenCount: Int) =
                                     try await handleRef.modelContainer.perform { context in
                                         let reasoningCtx = try? rc.promptStrategy.additionalContext(
                                             forThinkingEnabled: mtpThinkingEnabled ? true : nil
                                         )
-                                        let rebuiltPhase1Messages = phase1Pairs.map { pair in
-                                            Chat.Message(
-                                                role: Chat.Message.Role(rawValue: pair.0)
-                                                    ?? .system,
-                                                content: pair.1
+                                        let rebuiltPhase1Messages =
+                                            promptMessagesCarryingInstructions(
+                                                phase1Pairs.map { pair in
+                                                    Chat.Message(
+                                                        role: Chat.Message.Role(rawValue: pair.0)
+                                                            ?? .system,
+                                                        content: pair.1
+                                                    )
+                                                },
+                                                instructions: phase1Instructions
                                             )
-                                        }
                                         let phase1Processing = UserInput.Processing(
                                             resize: config.vlmImageResize
                                         )
@@ -3777,6 +3828,8 @@ extension EnginePool {
                         let iterationPairs = mtpMessages.map { m -> (String, String) in
                             (m.role.rawValue, m.content)
                         }
+                        // Snapshot for the @Sendable closure below (same prepend as phase 1).
+                        let iterationInstructions = systemInstructions
                         let snapMtpToolAwareContext = mtpToolAwareContext
                         // N1-fix: completionReserve floor on MTP phase2 per-iteration budget.
                         // Upstream MLXLanguageModel.respond() L1372-1376:
@@ -3810,11 +3863,14 @@ extension EnginePool {
                                     parameters: genParams
                                 )
                                 // Reconstruct Chat.Message from Sendable pairs
-                                let messages = iterationPairs.map { (role, content) in
-                                    Chat.Message(
-                                        role: Chat.Message.Role(rawValue: role) ?? .system,
-                                        content: content)
-                                }
+                                let messages = promptMessagesCarryingInstructions(
+                                    iterationPairs.map { (role, content) in
+                                        Chat.Message(
+                                            role: Chat.Message.Role(rawValue: role) ?? .system,
+                                            content: content)
+                                    },
+                                    instructions: iterationInstructions
+                                )
                                 let mtpProcessing = UserInput.Processing(
                                     resize: config.vlmImageResize)
                                 let mtpUserInput = UserInput(
@@ -4263,6 +4319,10 @@ extension EnginePool {
                         // Snapshot: stdMsgPairs is a var (mutated by continueGeneration downstream),
                         // so copy to a let before crossing the @Sendable closure boundary.
                         let msgPairsSnapshot = stdMsgPairs
+                        // This lane prepares its own LMInput: the instructions ride into the
+                        // prompt it renders below, and into the priming render, which must
+                        // see the same prompt the turn feeds.
+                        let stdInstructions = systemInstructions
                         let primed: Bool
                         do {
                             // Upstream: reasoningPrimedInside(input:, config:, tokenizer:)
@@ -4270,6 +4330,7 @@ extension EnginePool {
                             // This prevents misrouting when model pre-fill differs from strategy defaults.
                             primed = try await Self.computeReasoningPrimedInside(
                                 messages: msgPairsSnapshot,
+                                instructions: stdInstructions,
                                 config: rc,
                                 resize: config.vlmImageResize,
                                 additionalContext: reasoningContext,
@@ -4279,12 +4340,15 @@ extension EnginePool {
                         stdResult = try await handleRef.modelContainer.perform { context in
                             // Rebuild Chat.Message inside @Sendable closure to avoid
                             // cross-actor capture of non-Sendable [Chat.Message].
-                            let rebuiltMessages = msgPairsSnapshot.map { pair in
-                                Chat.Message(
-                                    role: Chat.Message.Role(rawValue: pair.role) ?? .system,
-                                    content: pair.content
-                                )
-                            }
+                            let rebuiltMessages = promptMessagesCarryingInstructions(
+                                msgPairsSnapshot.map { pair in
+                                    Chat.Message(
+                                        role: Chat.Message.Role(rawValue: pair.role) ?? .system,
+                                        content: pair.content
+                                    )
+                                },
+                                instructions: stdInstructions
+                            )
 
                             // Prepare LMInput inside closure for thread-safe ModelContext.
                             let stdProcessing = UserInput.Processing(resize: config.vlmImageResize)
@@ -4843,7 +4907,19 @@ extension EnginePool {
                     hasMedia: false,
                     hasToolTraffic: false
                 )
-                await releasePoolSlotWithAssistant(assistantKey, promptTokens: stdPromptTokenCount)
+                if runsOnPooledSession {
+                    await releasePoolSlotWithAssistant(
+                        assistantKey, promptTokens: stdPromptTokenCount)
+                } else {
+                    // The turn answered, but its KV never entered the pooled session, so the
+                    // ledger must not say it did: an entry listing messages its cache does not
+                    // hold makes the *next* pooled turn skip a prefill for text that was never
+                    // cached, which is this round's defect deferred one turn. `release` only
+                    // extends history when both keys arrive, so releasing without the
+                    // assistant key claims nothing — the guided-gen and MTP lanes already end
+                    // the same way.
+                    await releasePoolSlot()
+                }
                 // The answer came out, so this turn completed: whatever lane it ran on,
                 // whatever the pool decided, every frame it carried went into the model.
                 // The else branch (no assistant text at all) deliberately records nothing —
@@ -5054,18 +5130,24 @@ extension EnginePool {
     /// actual rendered prompt tail rather than the strategy default.
     private static func computeReasoningPrimedInside(
         messages: [(role: String, content: String)],
+        instructions: String?,
         config: ReasoningConfig,
         resize: CGSize,
         additionalContext: [String: any Sendable]?,
         container: ModelContainer
     ) async throws -> Bool {
         // Rebuild Chat.Message for processor
-        let rebuiltMessages = messages.map { pair in
-            Chat.Message(
-                role: Chat.Message.Role(rawValue: pair.role) ?? .system,
-                content: pair.content
-            )
-        }
+        // …with the instructions, so priming reads the tail of the prompt the turn actually
+        // feeds rather than of a prompt missing its leading system turn.
+        let rebuiltMessages = promptMessagesCarryingInstructions(
+            messages.map { pair in
+                Chat.Message(
+                    role: Chat.Message.Role(rawValue: pair.role) ?? .system,
+                    content: pair.content
+                )
+            },
+            instructions: instructions
+        )
 
         // Prepare input to get tokenized prompt
         let processing = UserInput.Processing(resize: resize)
