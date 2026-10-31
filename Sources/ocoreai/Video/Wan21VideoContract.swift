@@ -160,11 +160,82 @@ public struct VideoConfiguration: Sendable {
     }
 }
 
+// MARK: - Bundle metadata + asset resolution (upstream cc3c234, #357)
+
+/// Role keys of the `assets` map in a Wan bundle's `metadata.json`.
+///
+/// Values copied verbatim from upstream `DiffusionComponentKey`
+/// (coreai-models `CoreAIDiffusionPipeline/Pipelines/DiffusionComponentKey.swift`);
+/// on-disk asset *filenames* are pipeline-specific and live with the pipeline.
+public enum WanComponentKey {
+    public static let textEncoder = "text_encoder"
+    public static let transformer = "transformer"
+    public static let vaeDecoder = "vae_decoder"
+}
+
+/// A Wan bundle's `metadata.json`, decoded: the `diffusion` config block and
+/// the `assets` role→filename map.
+///
+/// Upstream shape: `DiffusionBundle` (coreai-models `CoreAIDiffusionPipeline/Bundle/
+/// DiffusionBundle.swift`) holds the same two fields. Re-typed here because the
+/// upstream type sits in a module that requires the CoreAI framework (floor
+/// macOS 27); this slice stays CoreAI-free so the resolution logic is exercisable
+/// on the macOS 14 floor.
+///
+/// The manifest is the only source of asset filenames (upstream `cc3c234`, #357,
+/// fixing #355): the compile tooling renames `.aimodel` → `.aimodelc` and rewrites
+/// the `assets` entries, so a hardcoded exporter default names a file that is
+/// not there.
+public struct WanBundleMetadata: Sendable {
+    public let bundlePath: URL
+    public let textDim: Int
+    public let latentChannels: Int
+    public let defaultSteps: Int
+    public let defaultGuidanceScale: Float
+    public let schedulerShift: Float
+    public let defaultFrameCount: Int
+    public let assets: [String: String]
+
+    public init(metadataURL: URL) throws {
+        let data = try Data(contentsOf: metadataURL)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let diffusion = json["diffusion"] as? [String: Any]
+        else {
+            throw WanError.invalidMetadata("metadata.json missing 'diffusion' block")
+        }
+        self.bundlePath = metadataURL.deletingLastPathComponent()
+        self.textDim = diffusion["text_dim"] as? Int ?? 4096
+        self.latentChannels = diffusion["z_dim"] as? Int ?? 16
+        self.defaultSteps = diffusion["default_steps"] as? Int ?? 50
+        self.defaultGuidanceScale =
+            (diffusion["default_guidance_scale"] as? NSNumber)?.floatValue ?? 5.0
+        self.schedulerShift = (diffusion["default_shift"] as? NSNumber)?.floatValue ?? 3.0
+        self.defaultFrameCount = diffusion["default_num_frames"] as? Int ?? 81
+        self.assets = (json["assets"] as? [String: String]) ?? [:]
+    }
+
+    /// The URL of the asset the manifest declares for `key`. An undeclared key, or
+    /// a declared file missing on disk, throws `WanError.missingComponent` naming
+    /// what was looked for — mirrors upstream `resolveDeclaredPipelineAsset`
+    /// (coreai-models `DiffusionAssetResolution.swift:38-45`).
+    public func assetURL(for key: String) throws -> URL {
+        guard let filename = assets[key] else {
+            throw WanError.missingComponent("\(key) (not declared in metadata.json)")
+        }
+        let url = bundlePath.appendingPathComponent(filename)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw WanError.missingComponent("\(key) (expected \(filename))")
+        }
+        return url
+    }
+}
+
 // MARK: - Wan 2.1 errors (copied verbatim from upstream WanError)
 
 public enum WanError: Error, LocalizedError {
     case invalidMetadata(String)
     case invalidConfiguration(String)
+    case missingComponent(String)
     case cancelled
 
     public var errorDescription: String? {
@@ -173,6 +244,9 @@ public enum WanError: Error, LocalizedError {
             return "Invalid Wan pipeline metadata: \(msg)"
         case .invalidConfiguration(let msg):
             return "Invalid video configuration: \(msg)"
+        case .missingComponent(let name):
+            // Upstream PipelineLoadError.missingComponent wording, verbatim.
+            return "Required component '\(name)' not found in model directory"
         case .cancelled:
             return "Video generation was cancelled"
         }

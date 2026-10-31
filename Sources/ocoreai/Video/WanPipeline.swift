@@ -91,42 +91,26 @@ public struct WanPipeline: VideoPipeline {
     }
 
     public init(from url: URL, lazyModelLoading: Bool = true) async throws {
-        let metadataURL = url.appendingPathComponent("metadata.json")
-        let metadataData = try Data(contentsOf: metadataURL)
-        guard let json = try JSONSerialization.jsonObject(with: metadataData) as? [String: Any],
-            let diffusion = json["diffusion"] as? [String: Any]
-        else {
-            throw WanError.invalidMetadata("metadata.json missing 'diffusion' block")
-        }
-
-        let textDim = diffusion["text_dim"] as? Int ?? 4096
-        let latentChannels = diffusion["z_dim"] as? Int ?? 16
-        let defaultSteps = diffusion["default_steps"] as? Int ?? 50
-        let defaultGuidanceScale =
-            (diffusion["default_guidance_scale"] as? NSNumber)?.floatValue ?? 5.0
-        let shift = (diffusion["default_shift"] as? NSNumber)?.floatValue ?? 3.0
-        let defaultFrameCount = diffusion["default_num_frames"] as? Int ?? 81
-
+        let metadata = try WanBundleMetadata(
+            metadataURL: url.appendingPathComponent("metadata.json"))
         let tokenizerURL = url.appendingPathComponent("tokenizer")
         let tokenizer = try await AutoTokenizer.from(modelFolder: tokenizerURL)
 
+        let transformerURL = try metadata.assetURL(for: WanComponentKey.transformer)
+        let textEncoderURL = try metadata.assetURL(for: WanComponentKey.textEncoder)
+        let decoderURL = try metadata.assetURL(for: WanComponentKey.vaeDecoder)
+
         self.init(
-            transformer: CoreAIDiffusionModelFunction(
-                modelURL: url.appendingPathComponent("Transformer.aimodel")
-            ),
-            textEncoder: CoreAIDiffusionModelFunction(
-                modelURL: url.appendingPathComponent("TextEncoder.aimodel")
-            ),
-            decoder: CoreAIDiffusionModelFunction(
-                modelURL: url.appendingPathComponent("VAEDecoder.aimodel")
-            ),
+            transformer: CoreAIDiffusionModelFunction(modelURL: transformerURL),
+            textEncoder: CoreAIDiffusionModelFunction(modelURL: textEncoderURL),
+            decoder: CoreAIDiffusionModelFunction(modelURL: decoderURL),
             tokenizer: tokenizer,
-            textDim: textDim,
-            latentChannels: latentChannels,
-            defaultSteps: defaultSteps,
-            defaultGuidanceScale: defaultGuidanceScale,
-            schedulerShift: shift,
-            defaultFrameCount: defaultFrameCount,
+            textDim: metadata.textDim,
+            latentChannels: metadata.latentChannels,
+            defaultSteps: metadata.defaultSteps,
+            defaultGuidanceScale: metadata.defaultGuidanceScale,
+            schedulerShift: metadata.schedulerShift,
+            defaultFrameCount: metadata.defaultFrameCount,
             lazyModelLoading: lazyModelLoading
         )
     }

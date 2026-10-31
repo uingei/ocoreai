@@ -13,6 +13,11 @@
 //   latent-shape math    -> WanPipeline.swift:171-174
 //   validation rules     -> WanPipeline.swift:138-161 (exact messages)
 //   WanError             -> WanPipeline.swift:672-687
+//   WanBundleMetadata    -> DiffusionBundle.swift (cc3c234, #357; re-typed, CoreAI-free)
+//   WanComponentKey      -> DiffusionComponentKey.swift (verbatim values)
+//   asset resolution     -> DiffusionAssetResolution.swift:23-46
+//                           (resolveExisting/DeclaredPipelineAsset, cc3c234)
+//   missingComponent     -> PipelineLoadError.missingComponent (verbatim wording)
 
 import Foundation
 import Testing
@@ -204,5 +209,150 @@ struct Wan21ErrorTests {
 
     @Test func cancelledDescription() {
         #expect(WanError.cancelled.errorDescription == "Video generation was cancelled")
+    }
+
+    @Test func missingComponentDescriptionIsUpstreamWord() {
+        // Upstream PipelineLoadError.missingComponent wording, verbatim.
+        #expect(
+            WanError.missingComponent("transformer (expected T.aimodelc)").errorDescription
+                == "Required component 'transformer (expected T.aimodelc)' not found in model directory"
+        )
+    }
+}
+
+@Suite("Wan 2.1 video contract — asset resolution (upstream cc3c234, #357)")
+struct Wan21AssetResolutionTests {
+    /// A fixture bundle directory: `metadata.json` plus the named asset files.
+    private static func fixture(
+        metadata: [String: Any], files: [String]
+    ) throws -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("wan-bundle-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: metadata)
+            .write(to: dir.appendingPathComponent("metadata.json"))
+        for name in files {
+            try Data([0x01]).write(to: dir.appendingPathComponent(name))
+        }
+        return dir
+    }
+
+    /// The compiled-bundle shape #355 was about: renamed `.aimodelc` files that
+    /// only the manifest names.
+    private static var compiledMetadata: [String: Any] {
+        [
+            "diffusion": [
+                "text_dim": 3072, "z_dim": 4, "default_steps": 30,
+                "default_guidance_scale": 4.5, "default_shift": 5.0, "default_num_frames": 33,
+            ],
+            "assets": [
+                "transformer": "Transformer.aimodelc",
+                "text_encoder": "TextEncoder.aimodelc",
+                "vae_decoder": "VAEDecoder.aimodelc",
+            ],
+        ]
+    }
+
+    @Test func declaredFilenamesAreAuthoritative() throws {
+        let dir = try Self.fixture(
+            metadata: Self.compiledMetadata,
+            files: ["Transformer.aimodelc", "TextEncoder.aimodelc", "VAEDecoder.aimodelc"])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let metadata = try WanBundleMetadata(
+            metadataURL: dir.appendingPathComponent("metadata.json"))
+        // The pre-fix shape hardcoded `Transformer.aimodel` et al. — names this
+        // bundle does not contain. The declared name resolves, exactly.
+        #expect(
+            try metadata.assetURL(for: WanComponentKey.transformer)
+                == dir.appendingPathComponent("Transformer.aimodelc"))
+        #expect(
+            try metadata.assetURL(for: WanComponentKey.textEncoder)
+                == dir.appendingPathComponent("TextEncoder.aimodelc"))
+        #expect(
+            try metadata.assetURL(for: WanComponentKey.vaeDecoder)
+                == dir.appendingPathComponent("VAEDecoder.aimodelc"))
+    }
+
+    @Test func missingDeclaredFileReportsTheExpectedName() throws {
+        let dir = try Self.fixture(
+            metadata: Self.compiledMetadata,
+            files: ["TextEncoder.aimodelc", "VAEDecoder.aimodelc"])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let metadata = try WanBundleMetadata(
+            metadataURL: dir.appendingPathComponent("metadata.json"))
+        do {
+            _ = try metadata.assetURL(for: WanComponentKey.transformer)
+            Issue.record("a declared-but-missing asset must throw")
+        } catch {
+            #expect(
+                (error as? WanError)?.errorDescription
+                    == "Required component 'transformer (expected Transformer.aimodelc)' not found in model directory"
+            )
+        }
+    }
+
+    @Test func undeclaredKeyNamesTheKey() throws {
+        var metadata = Self.compiledMetadata
+        var assets = metadata["assets"] as! [String: Any]
+        assets.removeValue(forKey: "vae_decoder")
+        metadata["assets"] = assets
+        let dir = try Self.fixture(
+            metadata: metadata, files: ["Transformer.aimodelc", "TextEncoder.aimodelc"])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let bundle = try WanBundleMetadata(
+            metadataURL: dir.appendingPathComponent("metadata.json"))
+        do {
+            _ = try bundle.assetURL(for: WanComponentKey.vaeDecoder)
+            Issue.record("an undeclared key must throw")
+        } catch {
+            #expect(
+                (error as? WanError)?.errorDescription
+                    == "Required component 'vae_decoder (not declared in metadata.json)' not found in model directory"
+            )
+        }
+    }
+
+    @Test func diffusionValuesAreKept() throws {
+        let dir = try Self.fixture(
+            metadata: Self.compiledMetadata,
+            files: ["Transformer.aimodelc", "TextEncoder.aimodelc", "VAEDecoder.aimodelc"])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let metadata = try WanBundleMetadata(
+            metadataURL: dir.appendingPathComponent("metadata.json"))
+        #expect(metadata.textDim == 3072)
+        #expect(metadata.latentChannels == 4)
+        #expect(metadata.defaultSteps == 30)
+        #expect(metadata.defaultGuidanceScale == 4.5)
+        #expect(metadata.schedulerShift == 5.0)
+        #expect(metadata.defaultFrameCount == 33)
+        #expect(metadata.assets.count == 3)
+    }
+
+    @Test func diffusionDefaultsApplyPerField() throws {
+        let dir = try Self.fixture(
+            metadata: ["diffusion": ["text_dim": 3072]], files: [])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let metadata = try WanBundleMetadata(
+            metadataURL: dir.appendingPathComponent("metadata.json"))
+        #expect(metadata.textDim == 3072)
+        #expect(metadata.latentChannels == 16)
+        #expect(metadata.defaultSteps == 50)
+        #expect(metadata.defaultGuidanceScale == 5.0)
+        #expect(metadata.schedulerShift == 3.0)
+        #expect(metadata.defaultFrameCount == 81)
+    }
+
+    @Test func missingDiffusionBlockThrowsTheExistingMessage() throws {
+        let dir = try Self.fixture(
+            metadata: ["assets": ["transformer": "T.aimodel"]], files: ["T.aimodel"])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        do {
+            _ = try WanBundleMetadata(metadataURL: dir.appendingPathComponent("metadata.json"))
+            Issue.record("a missing diffusion block must throw")
+        } catch {
+            #expect(
+                (error as? WanError)?.errorDescription
+                    == "Invalid Wan pipeline metadata: metadata.json missing 'diffusion' block")
+        }
     }
 }

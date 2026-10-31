@@ -9,6 +9,36 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(71) A Wan bundle's own manifest is the only thing that knows its filenames — the pipeline stopped guessing**
+
+- **What improved.** `WanPipeline.init(from:)` read the `diffusion` block out of `metadata.json` and then
+  hardcoded the three asset filenames, which is the exact defect upstream fixed in `cc3c234` (#357, fixing
+  #355): the compile tooling renames `.aimodel` → `.aimodelc` and rewrites the manifest's `assets` map, so a
+  compiled bundle ships names a hardcoded default cannot know and the pipeline dies looking for a file that
+  is not there. Now `WanBundleMetadata` decodes the manifest once and `assetURL(for:)` is the only route to an
+  asset — undeclared role and declared-but-missing file both throw `WanError.missingComponent` naming what was
+  looked for, in upstream's own wording — and `init(from:)` lost its hand-rolled JSON block (−31 lines) to
+  three role lookups. Re-typed rather than imported on purpose: upstream's `DiffusionBundle` sits in a module
+  whose floor is macOS 27 (it needs the CoreAI framework), and this slice has to stay decodable and testable
+  on the macOS 14 floor, so the *shape* is upstream's and the module is not. `WanComponentKey`'s values are
+  copied verbatim from upstream `DiffusionComponentKey`, and role keys — not filenames — are what travels.
+
+- **What same-session output proves it.** `Wan21AssetResolutionTests`(6) against a fixture bundle in the
+  compiled shape #355 was about — a manifest declaring `Transformer.aimodelc` / `TextEncoder.aimodelc` /
+  `VAEDecoder.aimodelc`: the declared names resolve exactly (the pre-fix code asked for `.aimodel`, which this
+  bundle does not contain); a declared-but-missing file fails with the expected filename inside the message,
+  asserted as a whole string rather than a substring; and an undeclared role names the role. `anchor-check`
+  resolves every cite in the new headers against the upstream tree, and the commit adopted from (`cc3c234`) is
+  an ancestor of the fork's adjudicated baseline, so this is not a fetch from an open window.
+
+- **Which gate goes red if it regresses.** Those 6: any return to a guessed filename fails the first face,
+  and a resolution that stops checking the disk fails the second — the check is on the exact error text, so a
+  message that stops naming the expected file is red too. Residue, and it is a finding about the instrument:
+  the diffusion lane is consumed from `coreai-models` (`CoreAIDiffusionPipeline/`) while `make drift` tracks
+  only `Engine/CoreAI*` against 12 inference-side upstream files, so nothing watches this second consumption
+  surface for movement — a bundle-shape change upstream would not be reported as drift. Named here, next to
+  the window-premise defect the same command showed in the same session (below).
+
 **10-31(70) Constrained decoding recompiled every grammar on every request, because the cache hit always threw**
 
 - **What improved.** Guided generation looked cached and was not. `LoadedModel.getOrCreateConstraint` stored
