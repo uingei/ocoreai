@@ -9,6 +9,53 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(83) Measured: an external MCP tool runs unasked, and the gate that forbids it is unreachable**
+
+- **What was measured (nothing was changed).** A verdict round, because the two facts below each have a
+  fix that a user would feel, and neither reading of intent is clearly the only one. Both were
+  observed on this host at this HEAD with a throwaway suite (run, printed, deleted in the same session
+  — the tree holds nothing from it):
+  an entry shaped exactly as MCP discovery makes it (`toolset: "mcp:<source>"`, `mcpSource:` set,
+  `Sources/ocoreai/MCP/MCPBridge.swift:854-861`) was called through the production route
+  (`ToolRegistry.call(..., headless: true)`) on a registry whose broker held the default `.interactive`
+  policy, and it **ran**: `isDestructive=false`, handler executed once, `ApprovalBroker` held **0**
+  rows, no reason string. The same call shape against a locally-declared destructive tool in the same
+  registry returned **refused**. The contrast is the finding — the gate asks the local declaration and
+  nothing asks the external one.
+  And the gate written for precisely this bypass is unreachable: `securityPrecheckExternal`
+  (`Sources/ocoreai/Tools/ToolRegistry.swift:455`) states in its own header that without it "MCP calls
+  bypassed approval under the default wiring (7-name local hook never matches an external name →
+  `.allow`)" and cites codex `ApprovalAction::McpToolCall` / `mcp_tool_call.rs:1497` (`OnRequest`
+  default), but it is reached only through `MCPBridge.routeToolCall` (`Sources/ocoreai/MCP/MCPBridge.swift:318`),
+  and `grep -rn routeToolCall Sources/` returns the declaration alone — the only caller in the tree is
+  `Tests/ocoreaiTests/MCPElicititationResponderTests.swift`. So the suite named "External MCP approval
+  gate (codex #41094 parity)" gates a path production never takes, which is the shape of gate this
+  project says it does not want. Not a hook capability gap: a `PreToolUse` hook with a nil/`"*"`
+  matcher does reach external names (`ToolRegistry.swift:490`), so the statement is about the default
+  wiring with nothing configured.
+  Why no line changed here: `docs/agent/open-items.md` is at its per-guide cap (15609 B, shrink-only)
+  and root has 13 B, so the address could not be filed there without deleting someone else's item; the
+  unbudgeted diary is where AGENTS.md sends a round verdict, and the decision is asked of the owner
+  below rather than taken.
+
+- **What same-session output proves it.** The two printed measurements above (`isDestructive=false
+  outcome=ran ran=1 brokerRows=0` against `outcome=refused` for the declared tool), and for the second
+  fact a one-line instrument that anyone can re-run: `grep -rn routeToolCall Sources/` → one hit, its
+  own declaration. Round 81's probe is unaffected (it exercises the local-declared face, which does
+  refuse), and `make docs-check` is green with this entry added — the diary is unbudgeted on purpose, so
+  a verdict like this has a home even when the pointer files are full.
+
+- **Whose call it is, with both prices.** *Wire the claim in:* make the fallback at
+  `ToolRegistry.swift:430-432` ask for externally-sourced declarations too — the fact is already on the
+  entry as `mcpSource`, so it is one home and one line — which under `.interactive` means MCP calls
+  prompt in the GUI and are refused fail-closed on the wire lanes, with autonomy then costing the
+  documented `approvalPolicy: auto` exactly as it does for local destructive tools. *Retire the claim:*
+  keep external calls policy-free by default, delete the unreachable dispatcher and its gate, and
+  correct the headers that promise codex parity — an unreachable contract is the thing invariant 2
+  forbids. Whichever way, the durable gate already has a shape: this round's contrast pair is the test
+  (external entry + interactive broker → asked, not run; and `headless: true` → refused), so the fix
+  arrives with a red to prove it, not a claim.
+
 **10-31(82) A refusal that named a hook which never ran**
 
 - **What improved.** `ToolError.denied`'s description read `"Tool call denied by hook: \(reason)"` —
