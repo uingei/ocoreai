@@ -47,6 +47,47 @@ local_count() { local d; d="$(local_dir "$1")" || return 1
 local_msgs() { local d; d="$(local_dir "$1")" || return 1
   git -C "$d" log --format=%s "$2..$3" 2>/dev/null; }
 
+# 一条 resolver，两个消费者（轴 + fork 台账）。此前两边各自解析 HEAD：轴 api 优先、
+# 台账只读本地 clone 的 origin/HEAD，于是「轴已见 d3382a5 / 台账停在 6a6bb0e」在同一轮
+# 报告里同时出现，而逐文件那一行照打「未读 0 个 | 无」—— d3382a5 恰给
+# CoreAIStaticShapeEngine.swift 加了 243 行（10-31 实测）。
+axis_head() { # axis_head <name> <repo> → "<sha>:<api|clone>"
+  local name="$1" repo="$2" h=""
+  h="$(api "repos/$repo/commits?per_page=1" head 2>/dev/null)" || true
+  [ -n "$h" ] && { printf '%s:api' "$h"; return 0; }
+  h="$(local_head "$name" 2>/dev/null)" || true
+  [ -n "$h" ] && { printf '%s:clone' "$h"; return 0; }
+  return 1
+}
+
+# fork 台账窗口终点的阶梯：候选只有在本地被探到才算数（resolve 的规矩）。
+#   1) 轴 HEAD 这个对象本地已有 ⇒ 就用它：轴与台账同刻度量，漏读在结构上不可能
+#   2) 只有 clone 的 origin/HEAD ⇒ 用它，但把「落后于轴」说出来并 exit 10：
+#      逐文件「未读 0 个」只代表 clone 上次 fetch 之前的世界，不能读成「无待裁决」
+#   3) 连 clone 的远端 ref 都没有 ⇒ exit 1，窗口不可测
+window_endpoint() { # window_endpoint <clone-dir> <axis-ref> → "endpoint=<sha> src=<axis|clone>"
+  local dir="$1" axis="${2:-}" mirror=""
+  if [ -n "$axis" ] && git -C "$dir" rev-parse --verify -q "${axis}^{commit}" >/dev/null 2>&1; then
+    printf 'endpoint=%s src=axis\n' "$(git -C "$dir" rev-parse --short "${axis}^{commit}")"
+    return 0
+  fi
+  mirror="$(git -C "$dir" rev-parse --verify -q origin/HEAD 2>/dev/null \
+    || git -C "$dir" rev-parse --verify -q origin/main 2>/dev/null \
+    || git -C "$dir" rev-parse --verify -q origin/master 2>/dev/null)" || true
+  if [ -z "$mirror" ]; then
+    printf 'endpoint= src=none clone 无任何远端 ref，窗口不可测\n'
+    return 1
+  fi
+  if [ -z "$axis" ]; then
+    printf 'endpoint=%s src=clone 轴亦读此 clone（同一 ref）\n' \
+      "$(git -C "$dir" rev-parse --short "$mirror")"
+    return 0
+  fi
+  printf 'endpoint=%s src=clone LAGGING 轴 HEAD=%s 不在此 clone 上\n' \
+    "$(git -C "$dir" rev-parse --short "$mirror")" "${axis:0:9}"
+  return 10
+}
+
 # ── 第四轴：mlx-swift —— 判定单位是 tag，不是 HEAD ─────────────────────────
 # 三轴盯 HEAD 是对的：lm 是 revision pin（HEAD 前进 = 待裁决窗口），coreai-models/codex
 # 是参考轴。mlx-swift 不同：本仓对它下的是 `exact:` tag（Package.swift），main 上没打 tag
@@ -182,12 +223,17 @@ coreai_fork_ledger() {
   # 窗口,看不到"我们 fork 的那几个引擎各自吸收到哪"。这一段把那个数变成一条命令能问出来的
   # 东西:逐文件读 header 的台账起点,再数上游对该文件的未裁决 commit。只报数,不参与裁决
   # (exit 语义仍由上面的轴决定)。
-  local d
+  local d axis="" res="" upref=""
   d="$(local_dir coreai-models)" || { echo "  coreai fork 台账   SKIP ($REFS/coreai-models 不存在)"; return 0; }
-  # 窗口终点必须和上面轴用同一个 ref：轴读 origin/HEAD，台账读 checkout 的 HEAD，两者一旦
-  # 分叉（clone 未 checkout 到最新），台账会少报——10-29 实测轴已见 0aff938 而台账仍停在 7fd2063。
-  local upref
-  upref="$(local_head coreai-models 2>/dev/null || echo HEAD)"
+  # 窗口终点与轴同刻度这件事,10-29 只写进了注释,所以 10-31 又漏一次。现在终点走
+  # window_endpoint 的阶梯:轴 HEAD 在本地探得到就用它,探不到就明说落后并 exit 10。
+  axis="$(axis_head coreai-models apple/coreai-models 2>/dev/null | cut -d: -f1)" || axis=""
+  res="$(window_endpoint "$d" "$axis")" || true
+  upref="$(printf '%s\n' "$res" | sed -n 's/^endpoint=\([^ ]*\).*/\1/p')"
+  if [ -z "$upref" ]; then
+    echo "  coreai fork 台账   SKIP — $(printf '%s' "$res" | sed 's/^endpoint=[^ ]* //')"
+    return 0
+  fi
   python3 - "$d" "$upref" <<'LEDGER_PY'
 import os, re, subprocess, sys
 up, ref = sys.argv[1], sys.argv[2]
@@ -239,10 +285,26 @@ for f in sorted(os.listdir(ours)):
     rows.append("  %-31s %s | 上游 %s 未读 %s 个 | %s"
                 % (f, start, src.split("/")[-1], n if n != "0" else "0", (new or "无")[:78]))
 print("\n".join(rows) if rows else "  (无 fork 台账条目)")
-print("  窗口终点 = %s（与轴同一 ref；镜像不是 GitHub 权威）" % git("rev-parse", "--short", ref))
 print("  另有 %d 个 CoreAI* 是 ocoreai 自己的胶合层(头里既不指名上游文件也无基线)" % glue)
 LEDGER_PY
+  local srcline
+  srcline="$(printf '%s\n' "$res" | sed -n 's/^endpoint=[^ ]* \(src=[a-z]*\).*/\1/p')"
+  printf '  窗口终点 = %s（%s；镜像不是 GitHub 权威）\n' "$upref" "$srcline"
+  case "$res" in
+    *LAGGING*)
+      DRIFT=10
+      printf '  ⚠ 台账落后于轴：%s — 逐文件「未读」只数到该 clone 上次 fetch，先 fetch 再读这张表\n' \
+        "$(printf '%s' "$res" | sed 's/^endpoint=[^ ]* src=[a-z]* //')"
+      ;;
+  esac
 }
+
+# 测试缝：终点阶梯可以在一个合成 clone 上问，不碰网络、不读 ~/references。
+if [ "$cmd" = "window-endpoint" ]; then
+  rc=0
+  window_endpoint "${2:-}" "${3:-}" || rc=$?
+  exit "$rc"
+fi
 
 echo "═══ ocoreai upstream drift — baseline $(baseline_note) ═══"
 coreai_fork_ledger || true
@@ -251,12 +313,10 @@ echo
 for pair in $REPOS; do
   name="${pair%%:*}"
   repo="${pair##*:}"
-  src=api
-  head="$(api "repos/$repo/commits?per_page=1" head 2>/dev/null)" || true
-  if [ -z "$head" ]; then
-    head="$(local_head "$name" 2>/dev/null)" || true
-    [ -n "$head" ] && src=clone
-  fi
+  res="$(axis_head "$name" "$repo" 2>/dev/null)" || res=""
+  head="${res%%:*}"
+  src="${res##*:}"
+  [ -n "$head" ] || src=""
   if [ -z "$head" ]; then
     echo "!!  $name: api 失败且无本地 clone（$REFS/${name}），跳过"
     DRIFT=1

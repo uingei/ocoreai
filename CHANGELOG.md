@@ -9,6 +9,45 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-01
 
+**11-01(91) `make drift` reported the newest upstream commit as "nothing unread"**
+
+- **What improved.** The fork ledger — one `未读 N 个` row per file forked from Apple's
+  `coreai-models` — resolved its window endpoint off the local clone's `origin/HEAD`, while the
+  axis above it resolved GitHub's HEAD. Two resolvers for one quantity, and the gap between them
+  is where the lie lived: measured 10-31 with the axis at `d3382a5` and the clone at `6a6bb0e`,
+  the ledger printed `未读 0 个 | 无` for `CoreAIStaticShapeEngine.swift` about the very commit
+  that added 243 lines to it, in the same breath as a report asserting `与轴同一 ref`. That is
+  invariant 1 with a name on it — a premise carried by prose. The script now has one resolver,
+  `window_endpoint`, on a ladder: the axis commit if the clone can actually name that object,
+  otherwise the clone's mirror ref *said out loud as a lag*, and nothing at all if the clone has
+  no remote ref. Exit codes are the contract (0 = the table measures the axis, 10 = it measures
+  the last fetch, 1 = nothing is measurable), the axis resolves its HEAD once for both readers,
+  and the "与轴同一 ref" sentence was deleted because the channel is now printed instead of
+  claimed (`src=axis` / `src=clone`).
+
+- **What same-session output proves it.** `make drift` on this tree, after the change: the row
+  that lied reads `CoreAIStaticShapeEngine.swift … 未读 1 个 | d3382a5 Static-shape engine
+  implementation for speculative decoding protocol`, and the footer reads
+  `窗口终点 = d3382a5（src=axis；镜像不是 GitHub 权威）`. The four cases are then run, not
+  asserted: `UpstreamDriftWindowTests`(5) builds throwaway clones and asks the resolver what it
+  measures, with no network and nothing read out of `~/references` — an axis ref the clone holds
+  is used as-is, a clone behind the axis exits 10 and names both the lag and the sha it cannot
+  see, the no-axis case says `src=clone` and is not a lag, and a repo with no remote ref exits 1
+  rather than reporting a clean window.
+
+- **Which gate goes red if it regresses.** `UpstreamDriftWindowTests`(5) in
+  `Tests/ocoreaiTests/UpstreamDriftWindowTests.swift`. Four cases pin the ladder's exits against
+  real throwaway repositories; the fifth is the one that keeps the fix a fix — it reads the
+  script and fails if the fork ledger stops calling `window_endpoint`, or if the axis grows its
+  own HEAD resolution again. A seam nobody calls is exactly how two resolvers come back.
+
+- **Residual, named rather than gated.** `10` still means two things to the top-level script —
+  "a window awaits adjudication" and, since this round, "the ledger is behind the axis" — which
+  the report disambiguates in prose (`⚠ 台账落后于轴`) but the exit code does not. Splitting them
+  is a call about how CI reads `make drift`, not a local preference. And the adjudication itself
+  is still owed: the three `coreai-models` commits this run now counts honestly, of which
+  `d3382a5` is the one touching a file this repo forks.
+
 **11-01(90) A warm plain turn forgot its own conversation, and a `system` message never reached the prompt**
 
 - **What improved.** Two faces of one root: the engine renders its own prompt in five places, and
