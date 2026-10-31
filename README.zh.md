@@ -159,9 +159,12 @@ memory:
   enabled: true              # 会话记忆（SQLite FTS5 + LLM 压缩）
 ```
 
-> **认证**不是 YAML 键：设环境变量 `OCOREAI_API_KEYS`（逗号分隔）即开启；为空 = 不认证。
+> **绑定、认证、CORS 都不是 YAML 键。**监听地址由 `OCOREAI_HOST` / `OCOREAI_PORT` 决定；
+> `OCOREAI_API_KEYS`（逗号分隔）开启认证，为空 = 不认证；
+> `OCOREAI_CORS_ORIGIN=<origin>`（或 `*`）才让**浏览器页面**能读到响应：不设 = 不授权任何跨源读取者，
+> 本地原生/`curl` 客户端两种情况下都不受影响。
 
-> **环境变量全参考**：运行时表面积为 **30 个环境变量**（22 个静态 `environment["KEY"]` 字面量 + 8 个经常量/访问器/插值前缀读取，如 `HttpBridgePolicy.envVar`、`ConfigSystem.applyEnvOverrides`），横跨 server/auth/backend/agent-approval/model-store/HF/ModelScope/web tools。见 [`.env.example`](.env.example) — 每个键附代码出处默认值（行号引用）。守卫测试集（`EnvKeysDocumentationTests`）在文件与代码实际读取集漂移时即编译红。
+> **环境变量全参考**：运行时表面积为 **31 个环境变量**（23 个静态 `environment["KEY"]` 字面量 + 8 个经常量/访问器/插值前缀读取，如 `HttpBridgePolicy.envVar`、`ConfigSystem.applyEnvOverrides`），横跨 server/auth/backend/agent-approval/model-store/HF/ModelScope/web tools。见 [`.env.example`](.env.example) — 每个键附代码出处默认值（行号引用）。守卫测试集（`EnvKeysDocumentationTests`）在文件与代码实际读取集漂移时即编译红。
 
 显存预算自 `sysctl hw.memsize` 自动检测；默认保护档 `balanced` = 物理 RAM 的 55%（档位：safe 40% / balanced 55% / aggressive 75%，下限 4 GB）。
 

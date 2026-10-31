@@ -49,6 +49,9 @@ enum CLIMode {
           OCOREAI_HOST / OCOREAI_PORT      Bridge bind address (serve).
           OCOREAI_ENABLE_HTTP=1            Enable the HTTP bridge in the GUI app.
           OCOREAI_API_KEYS                 Require bearer auth on the bridge.
+          OCOREAI_CORS_ORIGIN              Authorize one browser origin (or *)
+                                           to read bridge responses; unset
+                                           leaves cross-origin reads blocked.
           OCOREAI_DATA_DIR                 Override app data directory.
           OCOREAI_MODELS_DIR               Override model weights directory.
 

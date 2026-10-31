@@ -97,7 +97,8 @@ struct CLIModeTests {
         let usage = CLIMode.usageText(version: "0.1.12")
         let envs = [
             "OCOREAI_HOST", "OCOREAI_PORT", "OCOREAI_ENABLE_HTTP",
-            "OCOREAI_API_KEYS", "OCOREAI_DATA_DIR", "OCOREAI_MODELS_DIR",
+            "OCOREAI_API_KEYS", "OCOREAI_CORS_ORIGIN", "OCOREAI_DATA_DIR",
+            "OCOREAI_MODELS_DIR",
         ]
         for env in envs {
             #expect(usage.contains(env), "usage must list \(env)")

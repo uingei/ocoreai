@@ -190,9 +190,12 @@ memory:
   enabled: true              # session memory (SQLite FTS5 + LLM compression)
 ```
 
-> **Auth** is not a YAML key: set the `OCOREAI_API_KEYS` env var (comma-separated) to enable it; empty = unauthenticated.
+> **Bind, auth and CORS are not YAML keys.** The address is `OCOREAI_HOST` / `OCOREAI_PORT`.
+> `OCOREAI_API_KEYS` (comma-separated) enables auth; empty = unauthenticated.
+> `OCOREAI_CORS_ORIGIN=<origin>` (or `*`) is what lets a **browser page** read a response: unset, no
+> cross-origin reader is authorized, and native/`curl` clients are unaffected either way.
 
-> **Full env-var reference**: the runtime surface is **30 environment variables** (22 static `environment["KEY"]` literals + 8 read through a constant, the hub accessor or an interpolated prefix, e.g. `HttpBridgePolicy.envVar`, `ConfigSystem.applyEnvOverrides`) spread across server/auth/backend/agent-approval/model-store/HF/ModelScope/web tools. See [`.env.example`](.env.example) — every key with its code-source default value (line-cited). A guard test set (`EnvKeysDocumentationTests`) fails the build if the file ever drifts from what the code actually reads.
+> **Full env-var reference**: the runtime surface is **31 environment variables** (23 static `environment["KEY"]` literals + 8 read through a constant, the hub accessor or an interpolated prefix, e.g. `HttpBridgePolicy.envVar`, `ConfigSystem.applyEnvOverrides`) spread across server/auth/backend/agent-approval/model-store/HF/ModelScope/web tools. See [`.env.example`](.env.example) — every key with its code-source default value (line-cited). A guard test set (`EnvKeysDocumentationTests`) fails the build if the file ever drifts from what the code actually reads.
 
 Memory budget auto-detected from `sysctl hw.memsize`; default guard tier is `balanced` = 55% of physical RAM (tiers: safe 40% / balanced 55% / aggressive 75%, custom 20–85%, floor 4 GB). OOMGuard then enforces the downgrade chain 8-bit → 4-bit → refuse (no CPU tier on UMA) — no disk I/O, the correct approach for Apple Silicon UMA.
 

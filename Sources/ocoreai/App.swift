@@ -766,6 +766,7 @@ public final class OcoreaiEngine {
                     logger: logger,
                     authMiddleware: authMiddleware,
                     rateLimitMiddleware: rateLimitMiddleware,
+                    corsMiddleware: CORSPolicy.bootstrap(logger: logger),
                     hfToken: hfToken,
                     msToken: msToken,
                     toolRegistry: _toolRegistry,
@@ -884,6 +885,9 @@ func buildApplication(
     logger: Logger,
     authMiddleware: AuthMiddleware<OCoreAIContext>,
     rateLimitMiddleware: RateLimitMiddleware<OCoreAIContext>,
+    // Resolved by the caller that owns the process environment; `nil` is the default
+    // posture (no CORS middleware exists on the chain), not an unset reminder.
+    corsMiddleware: CORSMiddleware<OCoreAIContext>? = nil,
     hfToken: String? = nil,
     msToken: String? = nil,
     toolRegistry: ToolRegistry? = nil,
@@ -900,6 +904,7 @@ func buildApplication(
         logger: logger,
         authMiddleware: authMiddleware,
         rateLimitMiddleware: rateLimitMiddleware,
+        corsMiddleware: corsMiddleware,
         hfToken: hfToken,
         msToken: msToken,
         toolRegistry: toolRegistry,

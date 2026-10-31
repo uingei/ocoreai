@@ -2,7 +2,7 @@
 //
 // Locks the env-var documentation surface (.env.example) against code drift.
 //
-// ocoreai reads 30 environment variables: 22 static `environment["KEY"]`
+// ocoreai reads 31 environment variables: 23 static `environment["KEY"]`
 // literals + 8 read through a constant, an accessor, or an interpolated prefix
 // (`HttpBridgePolicy.envVar`, `HF_ENDPOINT_MIRROR` via operatorEnvironment,
 // and `\(...)HOST/PORT/BACKEND/...` in ConfigSystem.applyEnvOverrides).
@@ -20,7 +20,7 @@
 // additions. Assertion 5 derives the literal key set from Sources/ and fails
 // on any key the contract does not carry, so the list can no longer lag code.
 //
-// This test set pins the EXPECTED 30-key set as the single source of truth.
+// This test set pins the EXPECTED 31-key set as the single source of truth.
 // Assertions 1-4 compare two declared lists (no re-derivation, which is itself
 // drift-prone); assertion 5 adds one deliberately dumb derivation over Sources/
 // so a declared list cannot silently omit a key the code reads. Asserts:
@@ -44,10 +44,10 @@ import Testing
 
 struct EnvKeysDocumentationTests {
 
-    /// The 30 env-var keys ocoreai reads. This list IS the contract.
+    /// The 31 env-var keys ocoreai reads. This list IS the contract.
     private static let expectedKeys: [String] = [
         // Server
-        "OCOREAI_HOST", "OCOREAI_PORT", "OCOREAI_ENABLE_HTTP",
+        "OCOREAI_HOST", "OCOREAI_PORT", "OCOREAI_ENABLE_HTTP", "OCOREAI_CORS_ORIGIN",
         // Auth
         "OCOREAI_API_KEYS", "OCOREAI_ADMIN_KEYS",
         // Backend (ConfigSystem.applyEnvOverrides)
@@ -198,8 +198,8 @@ struct EnvKeysDocumentationTests {
         let viaAccessor = Self.keysDeclaredByAccessor
         let derived = literal.union(viaAccessor)
         // Guard the guard, in parts, because the union alone would hide a collapsed half:
-        // 22 = the literal reads left in the tree today (19 before the three margin-probe keys
-        // landed, 21 before the two hub tokens moved behind `HubSource.envVar`); the accessor
+        // 22 = the floor; the tree today reads 23 literals (the CORS knob joined them, and the
+        // three margin-probe keys landed before that count, two hub tokens moved behind accessor)
         // must name one distinct variable per
         // provider, or a duplicated/blank `envVar` would shrink the set unnoticed.
         // If a key is legitimately REMOVED from code, lower the matching floor in the same

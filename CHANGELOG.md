@@ -9,6 +9,44 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(69) A browser could not use this server at all: one opt-in origin knob, answered before the key**
+
+- **What improved.** Every `curl` and native verdict in this repo was true while the same request from a web
+  page failed: `fetch` hides a cross-origin response from the page unless that response carries
+  `Access-Control-Allow-Origin`, and this server never sent one — so the whole failure lived in a browser
+  console, out of reach of every gate in the tree. The behaviour is upstream's (Hummingbird's
+  `CORSMiddleware`: preflight short-circuit, `Vary: Origin`, headers on the error path too), so
+  `Sources/ocoreai/Middleware/CORSPolicy.swift` decides only *whether* and *for whom* and re-implements
+  nothing. Opt-in, because this is a loopback process that may hold no API key at all and an allow-origin
+  header is the one thing that lets an unrelated web page read this user's inference:
+  `OCOREAI_CORS_ORIGIN` names one origin or `*`, and unset registers no middleware whatsoever. Knob shape
+  matches the comparators users already know — ollama `OLLAMA_ORIGINS`, vllm `--allow-origins`, sglang
+  `--cors-allow-origins`. Two ordering facts no single layer shows: it is registered *before* auth, because a
+  preflight carries no `Authorization` — that is what a preflight is *for*, so an auth-first chain answers 401
+  to the question whose answer the browser needs in order to send the key; and it sits *outside* the 404
+  envelope, because upstream re-throws a downstream error wrapped so that it gains its CORS headers
+  (`CORSMiddleware.swift:220-229`) while the envelope middleware matches `HTTPError`, not the wrapper — inside
+  it, a browser would read a bare 404 body that no client can parse. An out-of-domain value (a comma list
+  naming more origins than this knob carries) is refused by name in the boot log rather than half-applied.
+
+- **What same-session output proves it.** 7 tests run the real `buildRouter` chain in-process
+  (`HummingbirdTesting`), not a stand-in: preflight with auth **on** answers 204, never 401; a listed origin
+  reads a normal response and `*` opens every one; an unlisted origin gets no authorisation on either face; a
+  404 read by a browser keeps `route_not_found` *and* gains the header; and with the knob unset there is no
+  header anywhere and `OPTIONS` is still a route miss — that last face is what makes "opt-in" a fact instead
+  of a word. The key is documented in `.env.example` and the `serve` usage text, and
+  `EnvKeysDocumentationTests`, which reads the key set out of the source rather than out of the docs, is green
+  with it (31 keys, README's count now agrees).
+
+- **Which gate goes red if it regresses.** Those 7 flip individually: 401 to a preflight if the chain order
+  changes, envelope lost if CORS moves inside the 404 middleware, and the off face fails if `nil` ever
+  registers something. Residue, stated rather than papered over: no test executes the *boot* wiring — the
+  suites call `buildApplication` with the middleware as an argument, so nothing runs
+  `CORSPolicy.bootstrap`'s read of the environment at process start, and the instrument for that is a live
+  probe (`serve` + a real `OPTIONS` with the knob set), not written yet. No browser was pointed at the
+  server in this session either: the assertions are the response headers, which is the only thing a browser
+  acts on, but that is the boundary of what was measured.
+
 **10-31(68) `config.yaml` advertised a `server:` block that bound nothing — deleted, validator and all**
 
 - **What improved.** `AppConfig.server` decoded five keys (`host`, `port`, `workers`, `corsOrigin`,

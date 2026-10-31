@@ -93,6 +93,7 @@ func buildRouter(
     logger: Logger,
     authMiddleware: AuthMiddleware<OCoreAIContext>,
     rateLimitMiddleware: RateLimitMiddleware<OCoreAIContext>,
+    corsMiddleware: CORSMiddleware<OCoreAIContext>?,
     hfToken: String? = nil,
     msToken: String? = nil,
     toolRegistry: ToolRegistry? = nil,
@@ -101,10 +102,21 @@ func buildRouter(
     // says GET implies HEAD; without the option `HEAD /health` 404s
     // (live-observed 10-07), lying about a route that exists.
     let routes = Router(context: OCoreAIContext.self, options: [.autoGenerateHeadEndpoints])
-    // Registered FIRST so the whole surface — including unmatched paths — is
-    // covered: HB composes the notFound responder through this same
-    // middleware chain (Router.swift:70), so the trie miss picks up the
-    // flat-JSON 404 envelope instead of Hummingbird's bare empty body.
+    // CORS first, ahead of the 404 envelope, for two reasons that are both about
+    // ordering and neither is visible in one layer: a preflight carries no
+    // `Authorization`, so an auth-first chain answers 401 to the question the browser
+    // asks before it can send the key; and upstream's CORS layer re-throws a downstream
+    // error as one that *adds* its headers (CORSMiddleware.swift:220-229), which the 404
+    // middleware — matching on `HTTPError`, not on the wrapper — would then miss and the
+    // error body would lose its envelope. Outside it instead, a browser reads a 404 that
+    // still says `route_not_found`. `nil` (the default posture) registers nothing.
+    if let corsMiddleware {
+        routes.add(middleware: corsMiddleware)
+    }
+    // Registered ahead of auth and every route so the whole surface — including
+    // unmatched paths — is covered: HB composes the notFound responder through this
+    // same middleware chain (Router.swift:70), so the trie miss picks up the flat-JSON
+    // 404 envelope instead of Hummingbird's bare empty body.
     routes.add(middleware: NotFoundEnvelopeMiddleware<OCoreAIContext>())
     routes.add(middleware: authMiddleware)
     routes.add(middleware: rateLimitMiddleware)
