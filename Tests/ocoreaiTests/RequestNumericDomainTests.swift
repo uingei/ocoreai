@@ -272,6 +272,30 @@ struct CompletionsNumericDomainTests {
         }
         #expect(param == "temperature")
     }
+
+    /// The window knobs, same rule as `/v1/chat/completions` above. This leg exists because the
+    /// sibling route refused `presence_context_size: 0` while this one answered 200: the key was
+    /// not declared at all, so a client that set a window got MLX's default of 20 under a penalty
+    /// it had asked for, and a value out of the domain bought silence instead of the 400 its
+    /// sibling gives (measured 10-31: `400 … presence_context_size must be at least 1, got 0.` vs
+    /// `200` for the same body on the two routes).
+    @Test("the three penalty windows must be at least 1 here too, and name which one")
+    func windowKnobs() {
+        for field in [
+            "repetition_penalty_window", "repetition_context_size",
+            "presence_context_size", "frequency_context_size",
+        ] {
+            guard
+                case .some(.invalidParameter(let param, let message, _)) = Self.violation(
+                    "\"\(field)\":0")
+            else {
+                Issue.record("\(field)=0 must be refused on this wire as it is on chat")
+                continue
+            }
+            #expect(param == field, "wrong field blamed: \(param) for \(field)")
+            #expect(message.contains("at least 1"), "must state the range: \(message)")
+        }
+    }
 }
 
 @Suite("AnthropicMessageRequest numeric domain — Anthropic bounds, not OpenAI bounds")

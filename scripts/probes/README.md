@@ -393,13 +393,17 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     (`logprob_token_ids`, `repetition_context_size`) were declared in `CodingKeys` and never decoded,
     the second one the spelling `/v1/chat/completions` honours. The dangerous one is `echo`: a
     loglikelihood harness asking to be conditioned on the prompt gets a *continuation* and scores it
-    as the quantity it asked for. Green 10-31: **13 passed, 0 failed** — each un-honoured parameter
+    as the quantity it asked for. Green 10-31: **19 passed, 0 failed** — each un-honoured parameter
     comes back 400 `invalid_request_error` with `param` naming the field the client wrote and
     `value` carrying what it sent (asserting the field, not the status: the first run of this probe
     failed on its own shorthand and found the server blameless), while `repetition_context_size`
     gets a 200 because it is threaded now, `logprobs` gets its own honest answer (501
     `logitsUnsupported` here, scoring where CoreAI exists), and `echo` **with** `logprobs` reaches
-    the scoring seat instead of the echo refusal.
+    the scoring seat instead of the echo refusal. §4 is the window contract added the same day:
+    `presence_context_size` and `frequency_context_size` were undeclared keys that bought a silent
+    200 while `presence_penalty`/`frequency_penalty` *were* applied — over MLX's default window of
+    20, not the 200 the client asked for — so a legal window must return 200 and `0` must return the
+    400 with that field named and the bound in its message, which `/v1/chat/completions` already gave.
 
 - `_lib.sh` — shared harness
 Fails when: —

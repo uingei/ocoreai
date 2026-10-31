@@ -18,7 +18,7 @@ how code is written anywhere, it belongs at the root. Two copies of one rule is 
   (`Scheduler/KVCacheBudget.swift`, `KVCachePriceLedger` — an unpriced model reserves at the floor, and
   every decision names its basis `measured`|`fallback`). A capability problem arriving on the wire is
   asked once with `is` at the entry point (`Models/LoRAModelSupport.swift`).
-  Gates: `RequestNumericDomainTests`(25), `KVCacheAdmissionPricingTests`(7) + probes 09, 35.
+  Gates: `RequestNumericDomainTests`(26), `KVCacheAdmissionPricingTests`(7) + probes 09, 35.
 - A fallback schema is a promise too: `"properties": {}` means "no key is legal", so a schema-less
   `json_object` answered `{}`. One permissive schema, `jsonObjectSchema`; a JSON shape arriving with `tools[]`
   constrains the answer unless `tool_choice` demands a call — one home, `buildGrammarSchema` (upstream

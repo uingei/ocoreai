@@ -258,6 +258,7 @@ struct CompletionRequestKeyCoverageTests {
               "presence_penalty": 0.12, "min_p": 0.05, "seed": 4242,
               "repetition_penalty": 1.05, "repetition_penalty_window": 9,
               "repetition_context_size": 12,
+              "presence_context_size": 200, "frequency_context_size": 300,
               "stream_options": {"include_usage": true}, "echo": true, "suffix": " END",
               "logprobs": 2, "logprob_token_ids": [7, 8],
               "include_stop_str_in_output": true, "min_tokens": 5,
@@ -283,6 +284,10 @@ struct CompletionRequestKeyCoverageTests {
         // The two this suite was written against: declared, never decoded.
         #expect(req.repetitionContextSize == 12)
         #expect(req.logprobTokenIds == [7, 8])
+        // The penalty windows: declared after the round that found the two above, because a
+        // penalty without its window is applied over a window the client never asked for.
+        #expect(req.presenceContextSize == 200)
+        #expect(req.frequencyContextSize == 300)
         #expect(req.streamOptions?.includeUsage == true)
         // The refused six still have to decode: the refusal is only honest if it knows what
         // the client sent.
@@ -299,6 +304,8 @@ struct CompletionRequestKeyCoverageTests {
         let req = try JSONDecoder().decode(
             CompletionRequest.self, from: Data(#"{"prompt": "hi"}"#.utf8))
         #expect(req.repetitionContextSize == nil)
+        #expect(req.presenceContextSize == nil)
+        #expect(req.frequencyContextSize == nil)
         #expect(req.logprobTokenIds == nil)
         #expect(req.echo == false)
         #expect(req.minTokens == 0)

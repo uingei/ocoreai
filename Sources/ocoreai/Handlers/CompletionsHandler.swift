@@ -190,6 +190,13 @@ func completionsHandler(
     // own slot. It used to be dropped twice: never decoded, and this line took the runtime default.
     let effectiveRepetitionContextSize =
         request.repetitionContextSize ?? runtimeDefaults.repetitionContextSize
+    // Both penalties are threaded, so both windows have to be: upstream applies a penalty over
+    // `presenceContextSize`/`frequencyContextSize` (Evaluate.swift:355), so honouring the penalty
+    // and defaulting the window silently applies it over 20 tokens when the client asked for 200.
+    let effectivePresenceContextSize =
+        request.presenceContextSize ?? runtimeDefaults.presenceContextSize
+    let effectiveFrequencyContextSize =
+        request.frequencyContextSize ?? runtimeDefaults.frequencyContextSize
 
     let rawSampling = SamplingConfiguration(
         seed: effectiveSeed,
@@ -207,8 +214,8 @@ func completionsHandler(
         prefill: .init(stepSize: nil, chunking: runtimeDefaults.prefill.chunking),
         maxKVSize: nil,
         repetitionContextSize: effectiveRepetitionContextSize,
-        presenceContextSize: runtimeDefaults.presenceContextSize,
-        frequencyContextSize: runtimeDefaults.frequencyContextSize,
+        presenceContextSize: effectivePresenceContextSize,
+        frequencyContextSize: effectiveFrequencyContextSize,
     )
     let sampling = rawSampling.normalized()
 

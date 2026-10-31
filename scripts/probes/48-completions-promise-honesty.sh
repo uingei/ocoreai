@@ -26,8 +26,12 @@
 #     200, threaded to its own sampler slot) and `logprobs` (its own honest answer: A2 scoring
 #      where CoreAI exists, 501 `logitsUnsupported` where it does not), plus `echo` *with*
 #      `logprobs`, which must reach the scoring path rather than the echo refusal;
-#   4) floor — the leg counts its own subjects, so a server that 200s everything cannot pass §2 and
-#      a server that 400s everything cannot pass §1 or §3.
+#   4) domain — a penalty window out of range (0) is refused with the field named and the bound in
+#      the message, the way `/v1/chat/completions` already refuses it. `presence_context_size` and
+#      `frequency_context_size` bought a silent 200 here until 10-31: undeclared keys, dropped by
+#      Codable, while the penalty they bound *was* applied — over MLX's default window of 20.
+#   5) floor — the leg counts its own subjects in both directions, so a server that 200s everything
+#      cannot pass §2 or §4 and one that 400s everything cannot pass §1 or §3.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -57,12 +61,27 @@ CASES = {
     "skip_special": {"skip_special_tokens": False},
     # Must NOT be refused: a knob this route threads, and the two loglikelihood shapes.
     "repetition_context": {"repetition_context_size": 12},
+    # A penalty window the client asked for: threaded, so legal, so never refused.
+    "presence_window": {"presence_penalty": 1.5, "presence_context_size": 200},
+    "frequency_window": {"frequency_penalty": 0.4, "frequency_context_size": 300},
     "logprobs": {"logprobs": 2},
     "echo_with_logprobs": {"echo": True, "logprobs": 2},
+}
+BAD = {
+    # Out of domain on both routes. Until 10-31 this route answered 200 to these two, because the
+    # keys were not declared at all: /v1/chat/completions says "must be at least 1, got 0".
+    "bad_repetition_window": ("repetition_context_size", 0),
+    "bad_presence_window": ("presence_context_size", 0),
+    "bad_frequency_window": ("frequency_context_size", 0),
 }
 for name, extra in CASES.items():
     body = dict(base)
     body.update(extra)
+    with open(os.path.join(out, name + ".json"), "w") as fh:
+        json.dump(body, fh)
+for name, (field, value) in BAD.items():
+    body = dict(base)
+    body[field] = value
     with open(os.path.join(out, name + ".json"), "w") as fh:
         json.dump(body, fh)
 print("bodies=%d" % len(os.listdir(out)), file=sys.stderr)
@@ -129,16 +148,25 @@ for shape in echo suffix logprob_token_ids include_stop min_tokens skip_special;
 done
 
 probe_section "3) the other direction — a knob that works, and the path loglikelihood owns"
-post_body repetition_context
-if [ "$PROBE_STATUS" = "400" ]; then
-  probe_fail "repetition_context_size was refused — it is a real sampler knob (threaded at" \
-    " CompletionsHandler's effectiveRepetitionContextSize), and refusing a working parameter costs" \
-    " a client a knob it can use"
-elif [ "$PROBE_STATUS" = "200" ]; then
-  probe_ok "repetition_context_size → 200 — decoded and threaded, not refused and not dropped"
-else
-  probe_fail "repetition_context_size → HTTP $PROBE_STATUS ($(printf '%s' "$PROBE_BODY" | head -c 120))"
-fi
+KNOBS_OK=0
+for shape in repetition_context presence_window frequency_window; do
+  case "$shape" in
+    repetition_context) field='repetition_context_size' ;;
+    presence_window) field='presence_context_size' ;;
+    frequency_window) field='frequency_context_size' ;;
+  esac
+  post_body "$shape"
+  if [ "$PROBE_STATUS" = "400" ]; then
+    probe_fail "$field was refused — it is a real sampler knob (threaded at CompletionsHandler's" \
+      " effective*ContextSize), and refusing a working parameter costs a client a knob it can use"
+  elif [ "$PROBE_STATUS" = "200" ]; then
+    KNOBS_OK=$(( KNOBS_OK + 1 ))
+    probe_ok "$field → 200 — decoded and threaded, not refused and not dropped"
+  else
+    probe_fail "$field → HTTP $PROBE_STATUS ($(printf '%s' "$PROBE_BODY" | head -c 120))"
+  fi
+done
+
 for shape in logprobs echo_with_logprobs; do
   post_body "$shape"
   CODE="$(probe_json "$PROBE_BODY" 'error.error_code')"
@@ -159,13 +187,53 @@ for shape in logprobs echo_with_logprobs; do
   esac
 done
 
-probe_section "4) floor — this leg counts its own subjects"
+probe_section "4) domain — a value chat refuses must not buy a 200 here"
+# Measured 10-31 before the round: `presence_context_size:0` and `frequency_context_size:0` were
+# undeclared keys, so this route dropped them and answered 200, while `/v1/chat/completions`
+# answered 400 "must be at least 1, got 0". A client that asked for a 200-token window under a
+# penalty it also asked for got MLX's default of 20 (Evaluate.swift:355) and nothing said so.
+DENIED=0
+for shape in bad_repetition_window bad_presence_window bad_frequency_window; do
+  case "$shape" in
+    bad_repetition_window) field='repetition_context_size' ;;
+    bad_presence_window) field='presence_context_size' ;;
+    bad_frequency_window) field='frequency_context_size' ;;
+  esac
+  post_body "$shape"
+  PARAM="$(probe_json "$PROBE_BODY" 'error.param')"
+  MESSAGE="$(probe_json "$PROBE_BODY" 'error.message')"
+  if [ "$PROBE_STATUS" != "400" ]; then
+    probe_fail "$field:0 → HTTP $PROBE_STATUS — the sibling route refuses this value by name, so the" \
+    " same body cannot be silently accepted here on the strength of a key nobody declared"
+    continue
+  fi
+  if [ "$PARAM" != "$field" ]; then
+    probe_fail "$field:0 → 400 blaming param='${PARAM:-<absent>}' — the client must be told which" \
+      " window to fix"; continue
+  fi
+  case "$MESSAGE" in
+    *"at least 1"*) ;;
+    *) probe_fail "$field:0 → 400 without the range in its message: \"$MESSAGE\"" \
+      " — a bound without the bound is not a diagnosis"; continue ;;
+  esac
+  DENIED=$(( DENIED + 1 ))
+  probe_ok "$field:0 → 400 invalid_request_error, param=$field, range stated"
+done
+
+probe_section "5) floor — this leg counts its own subjects"
 if [ "$REFUSED" -ge 6 ]; then
   probe_ok "$REFUSED/6 un-honoured parameters refused by name — §2 has subjects, so its green is" \
     " not a scan that matched nothing"
 else
   probe_fail "only $REFUSED/6 parameters refused by name — the leg that counts these is not" \
     " measuring what it claims"
+fi
+if [ "$KNOBS_OK" -ge 3 ] && [ "$DENIED" -ge 3 ]; then
+  probe_ok "$KNOBS_OK/3 legal windows accepted and $DENIED/3 out-of-domain ones refused by name — the" \
+    " two directions of the window contract were both actually exercised"
+else
+  probe_fail "windows leg measured $KNOBS_OK/3 accepted, $DENIED/3 refused — one direction went" \
+    " untested, so a green here would not mean the contract holds"
 fi
 
 probe_summary "$PROBE_NAME"

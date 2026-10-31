@@ -9,6 +9,67 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(88) `/v1/completions` applied a penalty over a window the client never asked for**
+
+- **What improved.** Measured on one live `serve` driving the scripted engine (the model is
+  replaced, the wire is not): one body carrying `presence_context_size: 0` answered
+  `400 … presence_context_size must be at least 1, got 0.` on `/v1/chat/completions` and **200** on
+  `/v1/completions`, and a legal pair — `presence_penalty:1.5, presence_context_size:200,
+  frequency_penalty:0.4, frequency_context_size:300` — returned a body **byte-identical to the same
+  request without the windows**. Cause: neither key is declared on `CompletionRequest`, so `Codable`
+  dropped them without a word while `CompletionsHandler` filled both sampler slots from runtime
+  defaults. The asymmetry has teeth because the *penalties* are declared and threaded: upstream
+  applies each penalty over its own window (`GenerateParameters.presenceContextSize` /
+  `frequencyContextSize`, `MLXLMCommon/Evaluate.swift:234`, `:355`) and the shipped default is 20
+  (`Config/ConfigStruct.swift:842-844`), so a client that asked for a penalty *and* a 200-token
+  window got the penalty over 20 tokens under a 200 that said nothing, while the sibling route took
+  the same request seriously. The fix follows the sibling exactly — declare, decode, run both
+  through the numeric-domain gate (≥ 1, naming the field), thread them
+  (`effectivePresenceContextSize` / `effectiveFrequencyContextSize`) — so all three windows reach
+  `MLXBridge.swift:1237`'s `GenerateParameters` under one rule for three siblings, with no new
+  mechanism. Declaring rather than refusing (the exit round 86 chose for six other parameters) is
+  the right exit *here* because the plumbing exists at the pin and the sibling route already keeps
+  the promise: a knob that works on one route and is refused on the other is the same asymmetry
+  wearing a different face.
+
+- **What same-session output proves it.** The measured differential above (400 vs 200 for one body,
+  identical bodies for a legal window), then red from the gate written before the fix:
+  `CompletionsNumericDomainTests.windowKnobs` **2 issues** — `presence_context_size=0 must be
+  refused on this wire as it is on chat`, and the same line for `frequency_context_size` — while the
+  two windows chat already refuses passed, on a run taken with the source fix stashed. A DTO key
+  that does not exist yet can only be red at compile time
+  (`value of type 'CompletionRequest' has no member 'presenceContextSize'`), which is why the
+  behavioural red is the domain leg and the live red is probe 48 §4: **200 before, 400 naming the
+  field after**. After the fix: probe 48 **19 passed / 0 failed** (was 13 / 0),
+  `make test FILTER='Completions|NumericDomain|ChatCompletionRequest'` **60 tests / 9 suites
+  green**, `swift build --build-tests` exit 0, `make format-check` green (the five warnings in
+  `OpenAIModels.swift` are pre-existing and none sit in the added ranges). Full `make test` =
+  **3454 tests / 610 suites, 1 issue** — the +1 test is this round's `windowKnobs` — and the issue
+  is `ExecSessionsTests` "back-to-back reaped children finalize on wall clock", which caught
+  `The file "ocoreai-cwd-<UUID>" doesn't exist`: a temp cwd removed under a live exec session, i.e.
+  a cross-suite lifetime race in the harness, green re-run alone (**22 tests / 6 suites**).
+  `make round-gates` green, and it earned its keep during this round: it went red on
+  `RequestNumericDomainTests`(25) in `Sources/ocoreai/Handlers/AGENTS.md` the moment the suite grew
+  to 26, which is the numbered claim being what it claims to be. Probes: 48 **19 passed / 0 failed**,
+  37 **24 / 0** (the round-87 leg still green, so the two rounds did not trade places).
+
+- **Which gate goes red if it regresses.** `CompletionsNumericDomainTests.windowKnobs` in
+  `Tests/ocoreaiTests/RequestNumericDomainTests.swift` mirrors the chat test above it — every window
+  knob, `param` and the bound asserted, not the status alone; `CompletionRequestKeyCoverageTests`
+  gains both keys in its one body that sets every declared key, so a key that stops being decoded
+  fails by name and the absent-key floor still holds under it; and
+  `scripts/probes/48-completions-promise-honesty.sh` asserts both directions against a live server —
+  a legal window must reach 200 (a working knob must not be refused), an out-of-domain one must come
+  back naming the field with the bound in its message — and §5 floors 3/3 accepted *and* 3/3 refused,
+  so neither direction can pass by measuring nothing.
+
+- **Residual, named rather than gated.** A key neither route declares (`best_of`, `user`) is still an
+  unknown key dropped in silence; the line stays where round 86 drew it — *if this repo declares a
+  key, it must read it* — because refusing every unrecognised field punishes proxies that add one.
+  Whether MLX's window is worth setting per-request at all (everything gets 20 today) is a tuning
+  question for a resident model, not a wire question, and it belongs with the prompt-count
+  measurement named above.
+
 **10-31(87) `/v1/completions` published the model's thinking as its answer**
 
 - **What improved.** Measured on one live `serve` driving the scripted engine (the model is

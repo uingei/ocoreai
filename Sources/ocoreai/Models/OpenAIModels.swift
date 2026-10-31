@@ -1220,6 +1220,13 @@ struct CompletionRequest: Decodable {
     var repetitionPenalty: Double? = nil
     var repetitionPenaltyWindow: Int? = nil
     var repetitionContextSize: Int? = nil
+    /// The window each penalty is applied over, as upstream names it
+    /// (`GenerateParameters.presenceContextSize` / `frequencyContextSize`,
+    /// `MLXLMCommon/Evaluate.swift:234`, `:355`). Declared because `presence_penalty` and
+    /// `frequency_penalty` are: accepting the penalty while dropping its window applies it over
+    /// a window the client never asked for, and `/v1/chat/completions` already takes all three.
+    var presenceContextSize: Int? = nil
+    var frequencyContextSize: Int? = nil
 
     // MARK: Stream Control
 
@@ -1267,6 +1274,8 @@ struct CompletionRequest: Decodable {
         case repetitionPenalty = "repetition_penalty"
         case repetitionPenaltyWindow = "repetition_penalty_window"
         case repetitionContextSize = "repetition_context_size"
+        case presenceContextSize = "presence_context_size"
+        case frequencyContextSize = "frequency_context_size"
         case streamOptions = "stream_options"
         case echo, suffix, logprobs
         case logprobTokenIds = "logprob_token_ids"
@@ -1355,6 +1364,8 @@ struct CompletionRequest: Decodable {
         // lines too. Gate: `CompletionRequestKeyCoverageTests`.
         repetitionContextSize = try c.decodeIfPresent(Int.self, forKey: .repetitionContextSize)
         logprobTokenIds = try c.decodeIfPresent([Int].self, forKey: .logprobTokenIds)
+        presenceContextSize = try c.decodeIfPresent(Int.self, forKey: .presenceContextSize)
+        frequencyContextSize = try c.decodeIfPresent(Int.self, forKey: .frequencyContextSize)
         stream = try c.decodeIfPresent(Bool.self, forKey: .stream) ?? false
         stop = try decodeStopUnion(from: c, forKey: .stop)
         streamOptions = try c.decodeIfPresent(StreamOptions.self, forKey: .streamOptions)
@@ -1393,6 +1404,12 @@ struct CompletionRequest: Decodable {
                             field: "repetition_penalty_window", value: repetitionPenaltyWindow ?? 1),
                         SamplingKnobs.Count(
                             field: "repetition_context_size", value: repetitionContextSize ?? 1),
+                        // The three windows share one rule (≥ 1) and one message: a value the
+                        // sibling route refuses cannot buy a 200 here.
+                        SamplingKnobs.Count(
+                            field: "presence_context_size", value: presenceContextSize ?? 1),
+                        SamplingKnobs.Count(
+                            field: "frequency_context_size", value: frequencyContextSize ?? 1),
                     ]
                 )
             )
