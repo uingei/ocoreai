@@ -9,6 +9,70 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(86) `/v1/completions` had six parameters that bought a 200 and did nothing**
+
+- **What improved.** Measured on one live `serve` (scripted engine, so a wire-tier verdict claiming
+  nothing about a model): `echo:true`, `suffix`, `logprob_token_ids`,
+  `include_stop_str_in_output:true`, `min_tokens:40` and `skip_special_tokens:false` each returned a
+  response body **identical to the plain request** — HTTP 200, six times — while `n`, `stop`, `seed`,
+  `temperature` and the repetition knobs do reach the sampler. The handler's own header called them
+  "decoded for wire parity, no-op". `echo` is the one that costs someone the wrong *number*: it is
+  how a loglikelihood harness asks for a score conditioned on the prompt, and given a 200 holding a
+  continuation it computes an accuracy from the wrong quantity and reports it as the right one. Now
+  each is refused at the seat where `logprobs` is already answered — `400 invalid_request_error`,
+  `param` naming the field the client wrote, `value` carrying what it sent — the way this route
+  already answers for `n > 1` on chat and for `logprobs` itself, and the way the comparator refuses
+  the combinations it cannot serve (`vllm/entrypoints/openai/completion/protocol.py:535-550`,
+  `parameter="echo"`). Checking there rather than inside generation keeps `echo` + `logprobs` on the
+  scoring path, which is the one place `echo` *is* honoured (`collectLogits(echo:)`).
+  Two keys were worse than no-ops: `logprob_token_ids` and `repetition_context_size` are listed in
+  `CompletionRequest.CodingKeys` and were never read by its hand-written `init(from:)`, so the
+  properties stayed at their defaults whatever the client sent, and `repetition_context_size` — the
+  spelling `/v1/chat/completions` honours at `Sources/ocoreai/Handlers/ChatHandler.swift:635` — also
+  had its sampling slot filled from runtime defaults in `CompletionsHandler`. Both decode now, and
+  the knob threads to its own sampler slot (`effectiveRepetitionContextSize`; it is a distinct knob
+  from `repetition_penalty_window`, not an alias, so no precedence rule was invented). A scan of the
+  request DTOs that decode by hand found exactly these two — `ChatCompletionRequest`'s 32 keys and
+  `ContentPart`'s five all reach a property — which is why the gate is a test over the DTO rather
+  than a grep over the file.
+
+- **What same-session output proves it.** The six identical 200s above, then the same bodies after
+  the change: `400 invalid_request_error` with `param` = `echo`/`suffix`/`logprob_token_ids`/
+  `include_stop_str_in_output`/`min_tokens`/`skip_special_tokens` and their values. The key drop was
+  reproduced before it was fixed, by the suite written for it — **3 issues**: `req.repetitionContextSize
+  → nil` and `req.logprobTokenIds → nil` against the values the body sent, and the resulting absence
+  of a `logprob_token_ids` refusal. `swift build` / `--build-tests` exit 0;
+  `make test FILTER='CompletionRequestKeyCoverage|Completions'` = **24 tests / 4 suites green**
+  (the three new ones plus the existing wire/E2E suites). Full `make test` = **3453 tests / 610
+  suites green, exit 0** (the suite baseline was 3450/609; +3 tests and +1 suite are this round's),
+  `make round-gates` green, probes 47 **12 passed / 0 failed** and 48 **13 / 0**. The first full run
+  of the same tree recorded **7 issues across 5 suites**, every one a wall-clock bound measured past
+  its ceiling — the rate-limit burst, the live MCP stderr child, `SleepSteerWake`,
+  `EngineBusyAdmission`, `LoopStallTermination` — none of them an assertion of this round, all green
+  on the immediate re-run: load, reported and not fixed, because a threshold that only holds on an
+  idle machine is its own round's problem.
+
+- **Which gate goes red if it regresses.** Unit: `CompletionRequestKeyCoverageTests` in
+  `Tests/ocoreaiTests/CompletionsEndpointTests.swift` — one body setting **every declared key** to a
+  value distinct from its default and one assertion per property, so a key that stops being decoded
+  (or drifts in name) fails by name; a second test pins that absent keys *stay* at defaults, which is
+  the floor under the first; a third pins `unkeptPromise()` naming the field the client sent, that
+  the defaults ask for nothing (`echo:false`, `min_tokens:0`, `skip_special_tokens:true` and
+  `logprobs` never refuse), and that the first offender is stable so a probe can pin one.
+  Wire: `scripts/probes/48-completions-promise-honesty.sh` (green **13 passed / 0 failed**) — §2
+  asserts `param` and `value`, not the status alone (probe rule 7; its first run failed two legs by
+  blaming the server for the probe's own shorthand labels, which is the rule earning its keep), §3
+  refuses the other direction — a working knob must return 200, and `echo` *with* `logprobs` must
+  reach the scoring seat (501 `logitsUnsupported` on this box, scoring where CoreAI exists) rather
+  than the refusal — and §4 floors the leg at 6/6 subjects.
+
+- **Residual, named rather than gated.** A key the DTO does not declare at all
+  (`presence_context_size`, `best_of`, `user`) is still an unknown key that Codable drops without a
+  word: refusing every unrecognised field would punish proxies that add one, so the line drawn here
+  is "if this repo declares a key, it must read it". On this route `presence_context_size` is
+  honoured on chat and absent here — the honest fix is to declare and thread it, which is a feature
+  and not this round.
+
 **10-31(85) The codex window `f2ac998355..67f0994b53` adjudicated — 37 commits, and the method stated**
 
 - **What the round is, and how far it read.** `make drift` exits 10 with the codex axis at +37: an

@@ -382,6 +382,23 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     `param` pointing at `messages[i].content[j].type` and the client's own type string in the
     message. Controls both ways: a text-only turn and an inline `image_url` are untouched.
 
+- `48-completions-promise-honesty.sh` — does a `/v1/completions` parameter that nothing acts on
+  say so, or buy a 200 that looks like it was honoured?
+    Measured 10-31 on one live server, scripted engine: six bodies — `echo:true`, `suffix`,
+    `logprob_token_ids`, `include_stop_str_in_output:true`, `min_tokens:40`,
+    `skip_special_tokens:false` — returned bodies **identical to the plain request**, each HTTP 200,
+    while `n`/`stop`/`seed`/`temperature`/the repetition knobs all reach the sampler; two more keys
+    (`logprob_token_ids`, `repetition_context_size`) were declared in `CodingKeys` and never decoded,
+    the second one the spelling `/v1/chat/completions` honours. The dangerous one is `echo`: a
+    loglikelihood harness asking to be conditioned on the prompt gets a *continuation* and scores it
+    as the quantity it asked for. Green 10-31: **13 passed, 0 failed** — each un-honoured parameter
+    comes back 400 `invalid_request_error` with `param` naming the field the client wrote and
+    `value` carrying what it sent (asserting the field, not the status: the first run of this probe
+    failed on its own shorthand and found the server blameless), while `repetition_context_size`
+    gets a 200 because it is threaded now, `logprobs` gets its own honest answer (501
+    `logitsUnsupported` here, scoring where CoreAI exists), and `echo` **with** `logprobs` reaches
+    the scoring seat instead of the echo refusal.
+
 - `_lib.sh` — shared harness
 Fails when: —
 

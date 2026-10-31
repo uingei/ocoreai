@@ -234,6 +234,106 @@ struct CompletionsWireTests {
     }
 }
 
+// MARK: - Key coverage: every wire key this DTO declares must reach a property
+
+/// A `CodingKeys` case that no line of `init(from:)` reads is a wire field a client can set
+/// with no effect and no word — the same shape as the dropped `input_audio` part, one struct
+/// over. Two were live here before this suite: `logprob_token_ids` and `repetition_context_size`
+/// were declared, listed in `CodingKeys`, and never decoded, so `repetition_context_size` (the
+/// spelling `/v1/chat/completions` honours at `ChatHandler.swift:635`) was dropped on this route
+/// while its sibling knob was applied.
+///
+/// One body, every declared key, each value distinct from its default: that is what makes this
+/// self-flooring rather than a list of hopes. A key name that drifts, or a decode line that is
+/// deleted, leaves its property at the default and the assertion names it.
+@Suite("Completions wire keys — declared keys are decoded keys")
+struct CompletionRequestKeyCoverageTests {
+    @Test("every declared wire key lands on its property, not on a default")
+    func allDeclaredKeysDecode() throws {
+        let wire = #"""
+            {
+              "model": "probe-model", "prompt": "The capital of France is", "n": 3,
+              "stream": true, "stop": ["\n\n"], "temperature": 0.42, "top_p": 0.31,
+              "top_k": 17, "max_tokens": 77, "frequency_penalty": 0.11,
+              "presence_penalty": 0.12, "min_p": 0.05, "seed": 4242,
+              "repetition_penalty": 1.05, "repetition_penalty_window": 9,
+              "repetition_context_size": 12,
+              "stream_options": {"include_usage": true}, "echo": true, "suffix": " END",
+              "logprobs": 2, "logprob_token_ids": [7, 8],
+              "include_stop_str_in_output": true, "min_tokens": 5,
+              "skip_special_tokens": false
+            }
+            """#
+        let req = try JSONDecoder().decode(CompletionRequest.self, from: Data(wire.utf8))
+        #expect(req.model == "probe-model")
+        #expect(req.prompt == ["The capital of France is"])
+        #expect(req.n == 3)
+        #expect(req.stream == true)
+        #expect(req.stop == ["\n\n"])
+        #expect(req.temperature == 0.42)
+        #expect(req.topP == 0.31)
+        #expect(req.topK == 17)
+        #expect(req.maxTokens == 77)
+        #expect(req.frequencyPenalty == 0.11)
+        #expect(req.presencePenalty == 0.12)
+        #expect(req.minP == 0.05)
+        #expect(req.seed == 4242)
+        #expect(req.repetitionPenalty == 1.05)
+        #expect(req.repetitionPenaltyWindow == 9)
+        // The two this suite was written against: declared, never decoded.
+        #expect(req.repetitionContextSize == 12)
+        #expect(req.logprobTokenIds == [7, 8])
+        #expect(req.streamOptions?.includeUsage == true)
+        // The refused six still have to decode: the refusal is only honest if it knows what
+        // the client sent.
+        #expect(req.echo == true)
+        #expect(req.suffix == " END")
+        #expect(req.logprobs == 2)
+        #expect(req.includeStopStrInOutput == true)
+        #expect(req.minTokens == 5)
+        #expect(req.skipSpecialTokens == false)
+    }
+
+    @Test("an absent key stays a default — the floor under the test above")
+    func absentKeysStayAtDefaults() throws {
+        let req = try JSONDecoder().decode(
+            CompletionRequest.self, from: Data(#"{"prompt": "hi"}"#.utf8))
+        #expect(req.repetitionContextSize == nil)
+        #expect(req.logprobTokenIds == nil)
+        #expect(req.echo == false)
+        #expect(req.minTokens == 0)
+        #expect(req.skipSpecialTokens == true)
+        #expect(req.n == 1)
+    }
+
+    @Test("a refused parameter is named by the field the client sent, not the next one")
+    func unkeptPromiseNamesTheField() throws {
+        func param(_ body: String) throws -> String? {
+            let req = try JSONDecoder().decode(CompletionRequest.self, from: Data(body.utf8))
+            guard case .invalidParameter(let p, _, _)? = req.unkeptPromise() else { return nil }
+            return p
+        }
+        let plain = #"{"prompt": "hi", "model": "m"}"#
+        #expect(try param(plain) == nil)
+        #expect(try param(#"{"prompt":"hi","echo":true}"#) == "echo")
+        #expect(try param(#"{"prompt":"hi","suffix":" x"}"#) == "suffix")
+        #expect(try param(#"{"prompt":"hi","logprob_token_ids":[1]}"#) == "logprob_token_ids")
+        #expect(
+            try param(#"{"prompt":"hi","include_stop_str_in_output":true}"#)
+                == "include_stop_str_in_output")
+        #expect(try param(#"{"prompt":"hi","min_tokens":4}"#) == "min_tokens")
+        #expect(try param(#"{"prompt":"hi","skip_special_tokens":false}"#) == "skip_special_tokens")
+        // The defaults ask for nothing, and `logprobs` has its own honest answer (A2 scoring
+        // where it exists, 501 `logitsUnsupported` where it does not) — never this refusal.
+        #expect(
+            try param(
+                #"{"prompt":"hi","echo":false,"min_tokens":0,"skip_special_tokens":true,"logprobs":2}"#
+            ) == nil)
+        // The first offender is enough to act on; the order is stable so a probe can pin one.
+        #expect(try param(#"{"prompt":"hi","min_tokens":4,"echo":true}"#) == "echo")
+    }
+}
+
 // MARK: - E2E: Router guard + handler validation (no inference)
 
 @Suite("Completions E2E — HTTP Validation Pipeline")

@@ -1233,21 +1233,25 @@ struct CompletionRequest: Decodable {
     /// Stream options (usage inclusion) — mirrors chat.
     var streamOptions: StreamOptions? = nil
 
-    // MARK: Accepted-but-no-op fields (decoded for wire parity, P1 no-op)
+    // MARK: Fields this route decodes and cannot honour — refused by name, never no-op'd
 
-    /// Echo the prompt in the completion. vllm default `false`; P1 = no-op.
+    /// Echo the prompt in the completion. Kept because the `logprobs` loglikelihood path
+    /// *does* honour it (`EnginePool/collectLogits(echo:)`); on the generation path it is
+    /// refused — see `CompletionRequest/unkeptPromise()`.
     var echo: Bool = false
-    /// Text that follows the prompt (suffix). vllm; P1 = no-op.
+    /// Text that follows the prompt (legacy OpenAI/vllm). Refused, not ignored.
     var suffix: String? = nil
     /// Return top-k log-proabilities. A2 (loglikelihood) implements the true value.
     var logprobs: Int? = nil
-    /// Per-position log-prob details. A2.
+    /// Per-position log-prob details. A2 — refused: scoring returns the top tokens per
+    /// position and no path reads this subset.
     var logprobTokenIds: [Int]? = nil
-    /// Whether the final stop token is present in the output (vllm). P1 = no-op.
+    /// Whether the final stop token is present in the output (vllm). Refused, not ignored.
     var includeStopStrInOutput: Bool = false
-    /// Minimum tokens to generate before a stop token (vllm). P1 = no-op.
+    /// Minimum tokens to generate before a stop token (vllm). Refused, not ignored.
     var minTokens: Int = 0
-    /// Skip special tokens in output (vllm, default true). P1 = no-op.
+    /// Skip special tokens in output (vllm, default true). Refused when the client turns it
+    /// off — the default asks for nothing.
     var skipSpecialTokens: Bool = true
 
     enum CodingKeys: String, CodingKey {
@@ -1345,6 +1349,12 @@ struct CompletionRequest: Decodable {
         seed = try c.decodeIfPresent(Int64.self, forKey: .seed)
         repetitionPenalty = try c.decodeIfPresent(Double.self, forKey: .repetitionPenalty)
         repetitionPenaltyWindow = try c.decodeIfPresent(Int.self, forKey: .repetitionPenaltyWindow)
+        // Both of these were declared in `CodingKeys` and read by nothing: a key the hand-written
+        // decoder skips is a field the client can set with no effect, so the rule this file keeps
+        // for the snake_case names (a dropped key is silent data loss) applies to the decode
+        // lines too. Gate: `CompletionRequestKeyCoverageTests`.
+        repetitionContextSize = try c.decodeIfPresent(Int.self, forKey: .repetitionContextSize)
+        logprobTokenIds = try c.decodeIfPresent([Int].self, forKey: .logprobTokenIds)
         stream = try c.decodeIfPresent(Bool.self, forKey: .stream) ?? false
         stop = try decodeStopUnion(from: c, forKey: .stop)
         streamOptions = try c.decodeIfPresent(StreamOptions.self, forKey: .streamOptions)
@@ -1391,6 +1401,67 @@ struct CompletionRequest: Decodable {
         }
         return .invalidParameter(
             param: violation.param, message: violation.message, value: violation.value)
+    }
+
+    /// The first parameter whose **promise** this route cannot keep, as the 400 that names it.
+    ///
+    /// ``numericDomainError()`` covers a value outside the range a spec publishes; this covers
+    /// the other failure a client cannot debug from the outside: a legal value that nothing
+    /// acts on. Measured 10-31 against one live `serve` (scripted engine, so no model claim),
+    /// `echo:true`, `suffix`, `logprob_token_ids`, `include_stop_str_in_output:true`,
+    /// `min_tokens:40` and `skip_special_tokens:false` each returned a response body identical
+    /// to the plain request — the fields decoded into properties no consumer read. `echo` is
+    /// the expensive one: a loglikelihood harness asking to be conditioned on the prompt gets a
+    /// *continuation* instead, and scores it as if it were the thing it asked for.
+    ///
+    /// A default is not a promise, so every case fires only on a value the client chose to
+    /// send. `logprobs` is absent here deliberately: it has its own honest answer (the A2
+    /// loglikelihood path, or 501 `logitsUnsupported`), and the handler checks this where that
+    /// is decided, so an `echo` that CoreAI scoring can serve still reaches the scoring path.
+    func unkeptPromise() -> AppError? {
+        if echo {
+            return .invalidParameter(
+                param: "echo",
+                message:
+                    "`echo` is not implemented on the generation path — a completion here continues the prompt and never repeats it. Prompt-conditioned scoring is a `logprobs` request, which does honour `echo`.",
+                value: "true")
+        }
+        if let suffix, !suffix.isEmpty {
+            return .invalidParameter(
+                param: "suffix",
+                message:
+                    "`suffix` is not implemented: this response carries no text that follows the prompt, and the field changes nothing else about the answer.",
+                value: suffix)
+        }
+        if let logprobTokenIds, !logprobTokenIds.isEmpty {
+            return .invalidParameter(
+                param: "logprob_token_ids",
+                message:
+                    "`logprob_token_ids` is not implemented: scoring reports the top tokens per position, and no path reads a chosen subset.",
+                value: "\(logprobTokenIds.count) id(s)")
+        }
+        if includeStopStrInOutput {
+            return .invalidParameter(
+                param: "include_stop_str_in_output",
+                message:
+                    "`include_stop_str_in_output` is not implemented: nothing reads it, so this server cannot promise a stop sequence in or out of the emitted text.",
+                value: "true")
+        }
+        if minTokens > 0 {
+            return .invalidParameter(
+                param: "min_tokens",
+                message:
+                    "`min_tokens` is not implemented: no minimum-token constraint is applied to generation here.",
+                value: String(minTokens))
+        }
+        if !skipSpecialTokens {
+            return .invalidParameter(
+                param: "skip_special_tokens",
+                message:
+                    "`skip_special_tokens: false` is not implemented: the emitted text is produced the same way whatever this says.",
+                value: "false")
+        }
+        return nil
     }
 
 }

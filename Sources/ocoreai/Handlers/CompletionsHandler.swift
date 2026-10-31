@@ -19,9 +19,13 @@
 ///
 /// P1 boundary (documented, no expansion):
 /// - `n > 1`: accepted, generated sequentially (one pass per choice).
-/// - `echo` / `suffix` / `logprobs` / `logprob_token_ids` / `min_tokens` /
-///   `skip_special_tokens`: decoded for wire parity, no-op. (True `logprobs`
-///   value = A2 — coreai-models loglikelihood, separate batch.)
+/// - `logprobs`: the true value is A2 — coreai-models loglikelihood; answered by that path
+///   where it exists, and 501 `logitsUnsupported` where it does not.
+/// - `echo` / `suffix` / `logprob_token_ids` / `include_stop_str_in_output` / `min_tokens` /
+///   `skip_special_tokens: false`: **refused by name** (`CompletionRequest/unkeptPromise()`),
+///   checked here rather than deep in generation because a request this box cannot satisfy
+///   should not reserve the resources to answer something else. They used to be "decoded for
+///   wire parity, no-op", which measured as six different bodies producing one identical 200.
 ///
 /// Wire shape (source: vllm `completion/protocol.py` 345-610 @ cdefd9d4):
 /// `object="text_completion"`, `id="cmpl-*"`, `choices[].text`, `finish_reason`,
@@ -120,6 +124,16 @@ func completionsHandler(
         #endif
     }
 
+    /// A parameter whose promise this route cannot keep is refused with the field named, at the
+    /// seat where `logprobs` was just decided — so an `echo` the CoreAI scoring path *can* serve
+    /// has already returned, and this only refuses what nothing reads.
+    if let refusal = request.unkeptPromise() {
+        logger.warning(
+            "Completions parameter refused: this route does not implement it",
+            metadata: ["error_code": .string("parameter_not_implemented")])
+        throw refusal
+    }
+
     /// Scheduler admission (parallelism + OOM gate).
     let schedulingRequest = SchedulingRequest(
         id: "req-\(UUID().uuidString.prefix(8))",
@@ -165,6 +179,11 @@ func completionsHandler(
         request.repetitionPenalty ?? runtimeDefaults.repetitionPenalty
     let effectiveRepetitionPenaltyWindow =
         request.repetitionPenaltyWindow ?? runtimeDefaults.repetitionPenaltyWindow
+    // `repetition_context_size` is the spelling `/v1/chat/completions` takes (ChatHandler.swift:635)
+    // and a distinct sampler knob from the window above, not an alias for it — so it threads to its
+    // own slot. It used to be dropped twice: never decoded, and this line took the runtime default.
+    let effectiveRepetitionContextSize =
+        request.repetitionContextSize ?? runtimeDefaults.repetitionContextSize
 
     let rawSampling = SamplingConfiguration(
         seed: effectiveSeed,
@@ -181,7 +200,7 @@ func completionsHandler(
         combined: true,
         prefill: .init(stepSize: nil, chunking: runtimeDefaults.prefill.chunking),
         maxKVSize: nil,
-        repetitionContextSize: runtimeDefaults.repetitionContextSize,
+        repetitionContextSize: effectiveRepetitionContextSize,
         presenceContextSize: runtimeDefaults.presenceContextSize,
         frequencyContextSize: runtimeDefaults.frequencyContextSize,
     )
