@@ -147,5 +147,4 @@ so framing and accounting claims decide at k=1 in seconds instead of a Metal loa
   `Generation.reasoning` to `reasoning_content` and holds **no local emitter on either Generation
   lane** — one survives only where a lane reads raw tokens (FM snapshots, think-then-call phase 1).
   Cites: `docs/agent/engine-line-cites.md`.
-- Sampling: `argmax` when temperature is 0, `multinomialSample` above it, with filters mirroring
-  upstream `CompositeSampler` — `Models/InferenceStubs.swift`.
+- Sampling: `CompositeSampler.swift` is the one CPU fallback (`argmax` at temperature 0, seeded multinomial above); Generation lanes sample inside upstream.

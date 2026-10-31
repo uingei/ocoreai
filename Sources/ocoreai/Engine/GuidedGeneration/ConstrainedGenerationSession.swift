@@ -68,7 +68,8 @@ struct ConstrainedGenerationSession: ~Copyable {
         try Self.validateJSONSchema(jsonSchema)
         let tokenizerInfo = TokenizerInfo(
             vocabulary: vocabulary,
-            vocabType: vocabType
+            vocabType: vocabType,
+            stopTokenIds: stopTokenIds
         )
         try self.init(jsonSchema: jsonSchema, tokenizerInfo: tokenizerInfo, validated: true)
     }

@@ -167,6 +167,4 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   (`UI/Views/ChatView.swift:1473`). Codex #57207 attributes approval waits apart; paying it needs the wait
   measured where it is awaited. Owner call: which number the chip owes.
 
-- **`memory_events` outlived its API** (SQLite/) — 10-29(53) deleted the last of it, leaving a table,
-  FTS index and 3 triggers (`SQLite/SQLiteStore.swift:670`) nothing writes. Old databases keep the rows
-  a migration call: drop at the next schema bump, or name the consumer.
+- **Memory is read by every request, written only behind `self_correction`** (SQLite/) — 10-29's row here said the table had no API left: false (`ChatHandler.swift:944` reads, `addMemory` writes). Owner call: publish the flag, or gate the recall.

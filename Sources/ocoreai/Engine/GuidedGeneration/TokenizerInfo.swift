@@ -63,7 +63,8 @@ final class TokenizerInfo {
     init(
         vocabulary: [String],
         vocabType: VocabularyType? = nil,
-        addPrefixSpace: Bool = false
+        addPrefixSpace: Bool = false,
+        stopTokenIds: [Int32]? = nil
     ) {
         // The single resolution point: every grammar entry point reaches xgrammar through here,
         // so a caller that does not state an encoding gets the one inferred from its own
@@ -89,15 +90,33 @@ final class TokenizerInfo {
             cStringArray[i] = UnsafePointer(cStr)
         }
 
-        // Call C bridge — NULL indicates a programming error (corrupt vocabulary)
-        guard
-            let handle = xgrammar_tokenizer_info_create(
+        // Two arms because NULL is a *meaningful* argument here, not a missing one: it selects
+        // xgrammar's stop-token detection from the vocabulary (8 hard-coded literals), while a
+        // pointer names the caller's own stop ids. Callers that own stop semantics pass ids.
+        // NULL for the handle itself still indicates a programming error (corrupt vocabulary).
+        let created: OpaquePointer?
+        if let stopTokenIds {
+            created = stopTokenIds.withUnsafeBufferPointer { stops in
+                xgrammar_tokenizer_info_create(
+                    cStringArray,
+                    Int32(vocabulary.count),
+                    resolvedType.cValue,
+                    stops.baseAddress,
+                    Int32(stops.count),
+                    addPrefixSpace
+                )
+            }
+        } else {
+            created = xgrammar_tokenizer_info_create(
                 cStringArray,
                 Int32(vocabulary.count),
                 resolvedType.cValue,
+                nil,
+                0,
                 addPrefixSpace
             )
-        else {
+        }
+        guard let handle = created else {
             preconditionFailure(
                 "Failed to create xgrammar TokenizerInfo: invalid vocabulary (\(vocabulary.count) tokens)"
             )

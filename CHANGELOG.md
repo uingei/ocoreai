@@ -9,6 +9,61 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(73) The stop tokens a caller named never reached the grammar — upstream's fix, absorbed**
+
+- **What improved.** `ConstrainedDecodingStrategy.createSession` derives single-token stop ids from the
+  request's `stop` field, logs `stopTokenIds=[…]`, and until today the value went nowhere:
+  `ConstrainedGenerationSession` built its `TokenizerInfo` without them and the vendored bridge handed
+  xgrammar `std::nullopt` for `stop_token_ids`. xgrammar then substituted the eight literals it detects by
+  text (`tokenizer_info_impl.h:92`), and a checkpoint whose stop token is not one of those eight was routed
+  to the *special* list instead — the two lists are disjoint, since `tokenizer_info.cc:280` sends each
+  vocabulary entry down exactly one branch. That routing is not cosmetic: xgrammar's bitmask filler un-sets
+  a stop id once the grammar can reach its end (`grammar_matcher.cc:1065`), sets it while it cannot
+  (`:1085`), and sets a special id in neither case, so the mask a constrained turn samples under is a
+  function of a list the caller was told it owned. Absorbed coreai-models **#374** (`6a6bb0e`) in shape: the
+  bridge takes `stop_token_ids`/`stop_token_count` and passes them into `TokenizerInfo`, and the session
+  parameter that documented this behaviour now performs it. Our `Sources/lib/CXGrammar` *is* upstream's file,
+  so consuming their patch narrows the fork window rather than opening one; the discard was invariant 2 in
+  its purest shape — a log line and a doc comment promising an effect the code could not produce.
+
+- **What same-session output proves it.** `swift build -c release` → `Build complete!`, twice (the second a
+  3.10 s no-op), so the widened C signature and both Swift call sites agree. The exposure is measured, not
+  assumed: the cached `mlx-community/LFM2.5-Embedding-350M-4bit` declares the `<|eos|>` literal as its
+  `eos_token`, which is not among xgrammar's eight. No behavioural claim is made from this host — the whole
+  grammar surface is `@available(macOS 27.0, *)` and cannot execute on macOS 26.6 — so the suite is honest
+  about skipping here rather than reporting a green it did not run.
+
+- **Which gate goes red if it regresses.** `GrammarStopTokenPlumbingTests`(2), gated on
+  `PlatformPremise.hasMacOS27`: one schema and one vocabulary driven twice, and the *only* difference is the
+  argument. Naming `{` as the stop id flips the first mask's bit for `{` from set to clear, and `acceptToken`
+  follows the same list through the matcher's other entry point (`:634` → `AcceptStopToken`). A re-introduced
+  discard at either the session or the bridge reads identical masks and goes red.
+
+**10-31(72) A second sampler lived in `Models/`, nothing called it, and the guide pointed at it**
+
+- **What improved.** `SamplingConfiguration.sample(from logits: [Float])` and the private cluster hanging off
+  it — `argmax`, `softmax`, `applyFilters`, `topPSubset`, `topKSubset`, `multinomialSample`, and the
+  `effectiveTemperature` whose only reader it was — were 128 lines with no caller. Sampling has exactly one
+  home per lane: `Engine/CompositeSampler.swift` for the CoreAI CPU fallback (Apple-derived, upstream's
+  algorithm including #265's seeded stream), and upstream's own processors on both Generation lanes. Deleting
+  the duplicate also deletes the reason it survived: `Engine/AGENTS.md` named `Models/InferenceStubs.swift` as
+  *the* sampling path, so the next agent reading the guide would have extended dead code. One sample also
+  The same guide-level rot sat in `open-items.md`, where the row claiming `memory_events` had "no API in the tree at all" invited a future agent to DROP a live table: recall runs on every chat completion and the UI searches the same table, while the single writer sits behind `request.selfCorrection`. The row now states what is measured and leaves the flag to its owner. Same defect, same lesson: a claim nobody re-greps does not merely drift, it arms the next reader. The cluster was not merely unused but wrong-shaped — its greedy guard
+  (`guard !logits.isEmpty, … else { return argmax(logits) }`) routed the empty row into the function that
+  indexes `logits[0]`, where upstream's equivalent returns `0`; deleting it removes the question rather than
+  answering it.
+
+- **What same-session output proves it.** Every name in the cluster grepped across `Sources` and `Tests`
+  with the matched lines read: the only call sites were inside the cluster, and the two same-named functions
+  in `CompositeSampler` are members of a different type. `swift build -c release` → `Build complete!` after
+  the deletion, and the guide's row now names where each lane actually samples.
+
+- **Which gate goes red if it regresses.** None, and naming that is the point: `unreferenced_decls_ours<=0`
+  is word-based, and the word `sample` occurs in `CompositeSampler.sample(from:config:)`, so a duplicate
+  `sample` on another type reads as referenced forever — the instrument's own header calls this blind spot out
+  rather than pretending otherwise. The compiler is the only witness for same-named overloads, so a re-added
+  copy is found by the next deletion pass, not by a scan.
+
 **10-31(71) A Wan bundle's own manifest is the only thing that knows its filenames — the pipeline stopped guessing**
 
 - **What improved.** `WanPipeline.init(from:)` read the `diffusion` block out of `metadata.json` and then
