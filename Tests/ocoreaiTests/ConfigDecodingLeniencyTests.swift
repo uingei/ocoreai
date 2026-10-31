@@ -24,20 +24,23 @@ struct ConfigDecodingLeniencyTests {
               approvalPolicy: auto
             """)
         #expect(c.agent.approvalPolicy == "auto", "owner's value must be honored")
-        #expect(c.server.port == 8080, "un-written keys resolve to documented defaults")
         #expect(c.backend.preference == ["coreai", "mlx"])
         #expect(c.models["default"] != nil, "default model entry present")
     }
 
-    @Test("partial server block: owner's port honored, rest default")
-    func partialServerBlockHonored() throws {
-        let c = try Self.decode(
-            """
-            server:
-              port: 9100
-            """)
-        #expect(c.server.port == 9100)
-        #expect(c.server.host == "127.0.0.1")
+    @Test("a server-only document is refused, not default-adopted")
+    func serverOnlyDocumentIsRefused() throws {
+        // The bind belongs to OCOREAI_HOST/OCOREAI_PORT, so `server:` is no longer a key
+        // this file recognizes. A document that says nothing else must fail the funnel's
+        // "no recognized key" check rather than be adopted as a default configuration —
+        // the difference between naming the problem and silently ignoring it.
+        var threw = false
+        do {
+            _ = try decodeVerifiedConfig(from: Data("server:\n  port: 9100\n".utf8))
+        } catch {
+            threw = true
+        }
+        #expect(threw, "a document whose only key configures nothing must be refused")
     }
 
     @Test("model entry missing modelId degrades models block, not the whole file")
@@ -59,11 +62,6 @@ struct ConfigDecodingLeniencyTests {
     @Test("full-config sentinel round-trips EXACTLY (no field silently dropped)")
     func fullConfigSentinelRoundTrips() throws {
         var cfg = AppConfig()
-        cfg.server.host = "127.0.0.7"
-        cfg.server.port = 7077
-        cfg.server.corsOrigin = "http://loopback.test"
-        cfg.server.bindInterface = "lan"
-        cfg.server.workers = 3
         cfg.backend.preference = ["mlx"]
         cfg.backend.maxConcurrentSessions = 2
         cfg.backend.kvCacheGB = 9.5
@@ -99,17 +97,18 @@ struct ConfigDecodingLeniencyTests {
     func validationStillEnforcedAfterLenientDecode() throws {
         let c = try Self.decode(
             """
-            server:
-              port: 999999
+            agent:
+              approvalPolicy: sometimes
             """)
-        #expect(c.server.port == 999999, "decode is permissive about RANGE")
+        #expect(c.agent.approvalPolicy == "sometimes", "decode is permissive about DOMAIN")
         var threw = false
         do {
             try c.validate()
         } catch {
             threw = true
         }
-        #expect(threw, "port 999999 must throw in validate() — leniency never relaxes validation")
+        #expect(
+            threw, "leniency never relaxes validation — an out-of-domain policy must throw")
     }
 
     @Test(

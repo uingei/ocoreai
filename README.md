@@ -175,10 +175,6 @@ One process, no boundary: gateway (Hummingbird `:8080` + SwiftUI) → control pl
 Create `~/.ocoreai/config.yaml`:
 
 ```yaml
-server:
-  port: 8080
-  host: 127.0.0.1
-
 backend:
   preference: ["coreai", "mlx"]   # default order — first available wins
   wiredMemory:

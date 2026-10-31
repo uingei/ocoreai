@@ -169,14 +169,6 @@ actor ConfigSystem {
 extension AppConfig {
     /// Apply OCOREAI_* environment variable overrides (higher priority than YAML).
     mutating func applyEnvOverrides() {
-        if let h = ProcessInfo.processInfo.environment["\(envPrefix)HOST"] {
-            server.host = h
-        }
-        if let p = ProcessInfo.processInfo.environment["\(envPrefix)PORT"],
-            let port = Int(p), (1 ... 65535).contains(port)
-        {
-            server.port = port
-        }
         if let b = ProcessInfo.processInfo.environment["\(envPrefix)BACKEND"] {
             backend.preference = [b.lowercased()]
         }

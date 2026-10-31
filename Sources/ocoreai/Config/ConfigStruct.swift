@@ -40,7 +40,7 @@ public func decodeVerifiedConfig(from data: Data) throws -> AppConfig {
             let c = try decoder.container(keyedBy: AnyKey.self)
             recognized =
                 c.allKeys.filter {
-                    ["server", "backend", "models", "memory", "metrics", "safety", "agent"]
+                    ["backend", "models", "memory", "metrics", "safety", "agent"]
                         .contains($0.stringValue)
                 }.count
         }
@@ -48,7 +48,7 @@ public func decodeVerifiedConfig(from data: Data) throws -> AppConfig {
     let count = try YAMLDecoder().decode(TopKeyProbe.self, from: data).recognized
     guard count >= 1 else {
         throw ConfigValidationError(
-            "config.yaml carries no recognized top-level key (server, backend, models, memory, metrics, safety, agent) — refusing to default-adopt this document"
+            "config.yaml carries no recognized top-level key (backend, models, memory, metrics, safety, agent) — refusing to default-adopt this document"
         )
     }
     return try YAMLDecoder().decode(AppConfig.self, from: data)
@@ -56,7 +56,6 @@ public func decodeVerifiedConfig(from data: Data) throws -> AppConfig {
 
 /// Root configuration structure — decoded from YAML, written back on change.
 public struct AppConfig: Sendable, Codable, Equatable {
-    public var server: ServerConfig
     public var backend: BackendConfig
     public var models: [String: ModelConfigEntry]
     public var memory: MemoryConfig
@@ -65,7 +64,6 @@ public struct AppConfig: Sendable, Codable, Equatable {
     public var agent: AgentConfig
 
     public init(
-        server: ServerConfig = .default,
         backend: BackendConfig = .default,
         models: [String: ModelConfigEntry] = ModelConfigEntry.defaultModels,
         memory: MemoryConfig = .default,
@@ -73,7 +71,6 @@ public struct AppConfig: Sendable, Codable, Equatable {
         safety: SafetyConfig = .default,
         agent: AgentConfig = .default,
     ) {
-        self.server = server
         self.backend = backend
         self.models = models
         self.memory = memory
@@ -87,7 +84,6 @@ public struct AppConfig: Sendable, Codable, Equatable {
     /// un-written keys defaulted (behavior-superset: full files decode identically).
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        self.server = (try? c.decode(ServerConfig.self, forKey: .server)) ?? .default
         self.backend = (try? c.decode(BackendConfig.self, forKey: .backend)) ?? .default
         self.models =
             (try? c.decode([String: ModelConfigEntry].self, forKey: .models))
@@ -100,7 +96,6 @@ public struct AppConfig: Sendable, Codable, Equatable {
 
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(server, forKey: .server)
         try c.encode(backend, forKey: .backend)
         try c.encode(models, forKey: .models)
         try c.encode(memory, forKey: .memory)
@@ -110,12 +105,11 @@ public struct AppConfig: Sendable, Codable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case server, backend, models, memory, metrics, safety, agent
+        case backend, models, memory, metrics, safety, agent
     }
 
     /// Run validation — throws on invalid config.
     public func validate() throws {
-        try server.validate()
         try backend.validate()
         try memory.validate()
         try safety.validate()
@@ -256,62 +250,6 @@ public struct AgentConfig: Sendable, Codable, Equatable {
             throw ConfigValidationError(
                 "agent.approvalPolicy must be one of \(ApprovalPolicy.allCases.map(\.rawValue).sorted()), got \(approvalPolicy)"
             )
-        }
-    }
-}
-
-// MARK: - Server Config
-
-public struct ServerConfig: Sendable, Codable, Equatable {
-    public var host: String
-    public var port: Int
-    public var workers: Int
-    public var corsOrigin: String?
-    public var bindInterface: String
-
-    public static let `default` = ServerConfig()
-
-    public init(
-        host: String? = nil,
-        port: Int = 8080,
-        workers: Int? = nil,
-        corsOrigin: String? = nil,
-        bindInterface: String? = nil,
-    ) {
-        self.host = host ?? "127.0.0.1"
-        self.port = port
-        self.workers = workers ?? max(1, ProcessInfo.processInfo.activeProcessorCount / 2)
-        self.corsOrigin = corsOrigin
-        self.bindInterface = bindInterface ?? "localhost"
-    }
-
-    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
-    public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        let d = Self.default
-        self.host = (try? c.decode(String.self, forKey: .host)) ?? d.host
-        self.port = (try? c.decode(Int.self, forKey: .port)) ?? d.port
-        self.workers = (try? c.decode(Int.self, forKey: .workers)) ?? d.workers
-        self.corsOrigin = try? c.decode(String.self, forKey: .corsOrigin)
-        self.bindInterface = (try? c.decode(String.self, forKey: .bindInterface)) ?? d.bindInterface
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(host, forKey: .host)
-        try c.encode(port, forKey: .port)
-        try c.encode(workers, forKey: .workers)
-        try c.encodeIfPresent(corsOrigin, forKey: .corsOrigin)
-        try c.encode(bindInterface, forKey: .bindInterface)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case host, port, workers, corsOrigin, bindInterface
-    }
-
-    func validate() throws {
-        guard (1 ... 65535).contains(port) else {
-            throw ConfigValidationError("server.port must be 1-65535, got \(port)")
         }
     }
 }

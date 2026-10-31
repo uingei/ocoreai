@@ -7,7 +7,43 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-10-30
+## [Unreleased] — 2026-09-05 → 2026-10-31
+
+**10-31(68) `config.yaml` advertised a `server:` block that bound nothing — deleted, validator and all**
+
+- **What improved.** `AppConfig.server` decoded five keys (`host`, `port`, `workers`, `corsOrigin`,
+  `bindInterface`), validated `port ∈ 1…65535`, round-tripped through YAML on every save, and was read by
+  nothing: the bridge binds from `OCOREAI_HOST`/`OCOREAI_PORT` (`Sources/ocoreai/App.swift:707`, `:775-776`),
+  and `applyEnvOverrides` copied the env values *into* the struct, which is what made the unread copy look
+  authoritative. Two homes for one decision, and the unread one was the one a person could type into — the
+  README's own example told them `server: {port: 8080}` configured the listener. Deleted with its validator:
+  −65 lines in `ConfigStruct.swift`, −8 in `ConfigSystem.swift`; the recognized-top-key funnel and its refusal
+  message now name the six sections that exist instead of seven.
+
+- **What same-session output proves it.** The claim is about readers, so it was measured as one, at the commit
+  this round sits on top of: `git grep -nE '\.server\.(host|port|workers|corsOrigin|bindInterface)' HEAD -- Sources`
+  returns only the three *UserDefaults* key strings in `SettingsStore` (a different lane — see residue) and
+  nothing else outside tests. The three config suites moved their assertions onto sections that exist without
+  losing what they were for: the tier-1 minimal `agent:`-block document still decodes and still honours the
+  written value, the full-sentinel exact round-trip still passes with every remaining field, and the
+  leniency-never-relaxes-validation face changed subject rather than strength — an out-of-domain
+  `approvalPolicy: sometimes` now throws in `validate()` where the out-of-range port used to. New face:
+  a document whose only key is `server:` is *refused* with the recognized-key list, not adopted as defaults,
+  which is the difference between naming the problem and silently ignoring it. README's yaml example loses
+  the block here; the sentence that replaces it lands with the CORS round, since it names bind, auth and CORS
+  in one breath.
+
+- **Which gate goes red if it regresses.** `ConfigDecodingLeniencyTests.serverOnlyDocumentIsRefused` fails the
+  moment `server` re-enters the recognized set, so a dead section cannot come back as a silent no-op; the
+  refusal text is asserted by exact message in `ConfigValidationTests`, and `fullConfigSentinelRoundTrips`
+  still round-trips every field that exists (an added field that no test names is a dropped field). Residue,
+  named not fixed: the same shape survives one lane over — `SettingsStore.serverHost`/`serverPort` are
+  persisted and read by nothing, and `SettingsViewModel.verifyConnection()` answers from
+  `OcoreaiEngine.shared.activeEnginePool != nil`, so the Settings pane says `Connected` whatever the user
+  types into "Server Address". That is invariant 2, it is a UI-scope fix with its own gate, and it is now in
+  named here rather than filed there: `docs/agent/open-items.md` measures 15 609 bytes against a 15 609-byte
+  per-guide cap, so a row goes in only when another is adjudicated out — which is the owner's call, not a
+  reason to keep the finding to this diary.
 
 **10-30(67) A thought that never ends is a missing answer: one thinking budget, at the one place a budget is sound**
 

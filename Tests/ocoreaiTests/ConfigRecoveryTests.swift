@@ -28,8 +28,8 @@ struct ConfigRecoveryTests {
     /// A valid config with EXACT, distinguishable values (round-trip fingerprint).
     private static func exactConfig() -> AppConfig {
         var c = AppConfig()
-        c.server.port = 18092
-        c.server.host = "127.0.0.9"
+        c.backend.maxConcurrentSessions = 18
+        c.agent.approvalPolicy = "never"
         if var m = c.models["default"] {
             m.modelId = "fixture-model-0"
             c.models["default"] = m
@@ -80,7 +80,7 @@ struct ConfigRecoveryTests {
 
         let decoded = try ConfigRecovery.decode(at: cfg)
         #expect(decoded == Self.exactConfig(), "decoded config must equal the exact fixture")
-        #expect(decoded.server.port == 18092)
+        #expect(decoded.backend.maxConcurrentSessions == 18)
     }
 
     @Test("decode: corrupt YAML throws (does NOT silently return defaults)")
@@ -98,10 +98,10 @@ struct ConfigRecoveryTests {
         #expect(threw, "corrupt YAML must throw, not decode to defaults")
     }
 
-    @Test("decode: valid YAML failing validation throws (e.g. port out of range)")
+    @Test("decode: valid YAML failing validation throws (e.g. an unknown approval policy)")
     func decodeInvalidConfigThrows() throws {
         var c = Self.exactConfig()
-        c.server.port = 999999  // > 65535 → ConfigValidationError
+        c.agent.approvalPolicy = "sometimes"  // not an ApprovalPolicy → ConfigValidationError
         let (cfg, dir) = try Self.fixture()
         defer { Self.cleanup(dir) }
         try Self.writeConfig(c, to: cfg)
@@ -112,7 +112,7 @@ struct ConfigRecoveryTests {
         } catch {
             threw = true
         }
-        #expect(threw, "port 999999 must fail validation in decode")
+        #expect(threw, "an approval policy outside ApprovalPolicy must fail validation in decode")
     }
 
     // MARK: - Snapshot
@@ -149,7 +149,7 @@ struct ConfigRecoveryTests {
         let restored = ConfigRecovery.restoreLastGood(forCorruptFileAt: cfg, logger: Self.logger)
         #expect(restored != nil, "usable snapshot must restore")
         #expect(restored == Self.exactConfig(), "restored config must be the EXACT snapped fixture")
-        #expect(restored?.server.port == 18092)
+        #expect(restored?.agent.approvalPolicy == "never")
 
         // Corrupt user file untouched — user can inspect/diff it.
         let onDisk = try Data(contentsOf: URL(fileURLWithPath: cfg))
@@ -194,15 +194,16 @@ struct ConfigRecoveryTests {
 
         // Save a NEW config to the main path, then verify+snapshot.
         var updated = Self.exactConfig()
-        updated.server.port = 19199
+        updated.backend.maxConcurrentSessions = 19
         try Self.writeConfig(updated, to: cfg)
 
         let ok = ConfigRecovery.verifyAndSnapshot(newFileAt: cfg, logger: Self.logger)
         #expect(ok == true)
         let redecoded = try ConfigRecovery.decode(at: good)
         #expect(
-            redecoded.server.port == 19199,
-            "good must reflect the new verified value, got \(String(redecoded.server.port))")
+            redecoded.backend.maxConcurrentSessions == 19,
+            "good must reflect the new verified value, got \(redecoded.backend.maxConcurrentSessions)"
+        )
     }
 
     @Test(
@@ -211,7 +212,7 @@ struct ConfigRecoveryTests {
         let (cfg, good) = try Self.fixture()
         defer { Self.cleanup(((cfg as NSString).deletingLastPathComponent)) }
 
-        try ConfigRecovery.snapshotGood(fileAt: cfg, logger: Self.logger)  // good = fixture (port 18092)
+        try ConfigRecovery.snapshotGood(fileAt: cfg, logger: Self.logger)  // good = fixture (sessions 18)
 
         // Simulate a failed save: main file is now corrupt.
         try Data("broken:".utf8).write(to: URL(fileURLWithPath: cfg))
@@ -220,8 +221,8 @@ struct ConfigRecoveryTests {
 
         let goodNow = try ConfigRecovery.decode(at: good)
         #expect(
-            goodNow.server.port == 18092,
-            "good snapshot must keep the last KNOWN-GOOD value (18092), got \(String(goodNow.server.port))"
+            goodNow.backend.maxConcurrentSessions == 18,
+            "good snapshot must keep the last KNOWN-GOOD value (18), got \(goodNow.backend.maxConcurrentSessions)"
         )
         // And it must still be recoverable from the corrupt main file.
         #expect(

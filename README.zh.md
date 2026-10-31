@@ -144,10 +144,6 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 创建 `~/.ocoreai/config.yaml`：
 
 ```yaml
-server:
-  port: 8080
-  host: 127.0.0.1
-
 backend:
   preference: ["coreai", "mlx"]   # 默认顺序 — 取第一个可用的
   wiredMemory:

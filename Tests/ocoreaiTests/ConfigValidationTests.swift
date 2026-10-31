@@ -11,38 +11,8 @@ import Yams
 
 @Suite("ConfigValidation")
 struct ConfigValidationTests {
-    // MARK: - Server Config
-
-    @Test("defaultServerValid")
-    func defaultServerValid() throws {
-        let config = ServerConfig()
-        try config.validate()
-    }
-
-    @Test("serverPortOutOfRange")
-    func serverPortOutOfRange() throws {
-        do {
-            try ServerConfig(port: 0).validate()
-            #expect(Bool(false), "Port 0 should be invalid")
-        } catch {
-            let desc = (error as? LocalizedError)?.errorDescription ?? ""
-            #expect(desc.contains("port") || !desc.isEmpty)
-        }
-
-        do {
-            try ServerConfig(port: 70000).validate()
-            #expect(Bool(false), "Port 70000 should be invalid")
-        } catch {
-            let desc = (error as? LocalizedError)?.errorDescription ?? ""
-            #expect(desc.contains("port") || !desc.isEmpty)
-        }
-    }
-
-    @Test("serverEdgePorts")
-    func serverEdgePorts() throws {
-        try ServerConfig(port: 1).validate()
-        try ServerConfig(port: 65535).validate()
-    }
+    // There is no `server:` face to validate: the bind is configured by OCOREAI_HOST and
+    // OCOREAI_PORT and by nothing else, so no config value for it exists to check.
 
     // MARK: - Backend Config
 
@@ -231,7 +201,7 @@ struct ConfigValidationTests {
     @Test("fullConfigCatchesNestedError")
     func fullConfigCatchesNestedError() throws {
         var config = AppConfig()
-        config.server.port = 0
+        config.agent.approvalPolicy = "sometimes"
         do {
             try config.validate()
             #expect(Bool(false))
