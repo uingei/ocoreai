@@ -7,7 +7,98 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-10-31
+## [Unreleased] — 2026-09-05 → 2026-11-01
+
+**11-01(89) `/v1/messages` answered a shape request with prose and a 200**
+
+- **What improved.** Measured on one live `serve` driving the scripted engine (the model is
+  replaced, the wire is not): a `/v1/messages` body carrying `output_config.format` returned a
+  body **byte-identical to the same body without it**, and the OpenAI spelling
+  `response_format` was equally inert. Cause: `AnthropicMessageRequest` declared
+  `response_format` — the OpenAI key on an Anthropic wire — decoded it into a property, and
+  then all three sites that could have used it passed a literal `nil`:
+  `shouldConstrainOutput(responseFormat: nil, …)`,
+  `buildGrammarSchema(from: declaredTools, responseFormat: nil, …)`, and
+  `toChatCompletionRequest`'s `responseFormat: nil`. A field with no route to the engine: the
+  client asked for JSON, got prose, `stop_reason: end_turn`, and a 200. Anthropic's Messages
+  API has no `response_format` at all — its shape request is `output_config.format`, and the
+  comparator declares it with `json_schema` aliased to the wire key `schema`
+  (`vllm/entrypoints/anthropic/protocol.py:202-207`) and maps it onto the OpenAI
+  `ResponseFormat` in `_handle_output_config`: same `type`, schema forwarded whole, name taken
+  from the type, guarded on the schema being present (`serving.py:745-761`). That is now this
+  repo's mapping (`AnthropicModels.swift:1156`), on a seam that already existed —
+  `buildGrammarSchema` already speaks `ResponseFormat` — so no new mechanism was introduced.
+  The structural half is why two `nil`s could sit there at all: `buildGrammarSchema(from:)`
+  was `private` to `ChatHandler`, so the other face rebuilt the decision by hand; it is now
+  one function that reads the declaration, shape and demand off the request
+  (`ChatHandler.swift:2246`), called by both wires (`AnthropicMessagesHandler.swift:281`).
+  Also deleted, being the same defect one struct over: `AnthropicMetadata.userId`, decoded and
+  read nowhere (`session_id` *is* read — `AnthropicMessagesHandler.swift:442`), so
+  `git grep user_id -- Sources` is now empty.
+
+- **What same-session output proves it.** The measured differential above, then two reds. The
+  first one was this round's own slip: an `apply_patch` hunk out of order aborts the rest of
+  the patch, the mapping hunk silently did not apply, and the suite written before it went red
+  on `Expectation failed: chat.responseFormat` — the gate catching an r86-class mistake inside
+  the round that wrote it. The second red was taken deliberately: a phantom `user_temp` key
+  added to the DTO made `AnthropicMessageRequestKeyCoverageTests` report
+  `unread → ["userTemp"]`, and it went green when the key was removed — the gate's premise
+  proven rather than asserted. One invariant was wrong on the first try and is worth the
+  correction: byte equality between the two faces' grammars is *not* the invariant — the first
+  cross-face assertion failed on key order alone (`required` before `properties`), because the
+  schema travels as `[String: AnyCodable]`; the assertion now compares sorted-key canonical
+  forms (precedent: `AudioTranscriptionHandler.swift:613`), since a byte claim there would
+  flake on a runtime that hashes differently.
+  **§12 added to probe 13**, measured on `mlx-community/gemma-4-e2b-it-4bit` at temperature 0:
+  with `output_config.format` naming two required keys the reply is bare parseable
+  `{"answer": 8, "unit": "planets"}`, while the same ask with nothing asked returns the same
+  object **fenced in ```json** — not parseable JSON — so the grammar did visible work and the
+  checkpoint's agreeableness is measured, not assumed; the identical schema spelled OpenAI's way
+  on `/v1/chat/completions` agrees (`ok` / `ok`), and an unknown `format.type` is answered, not
+  guessed at. Probe 13 after the fix: **38 passed / 3 failed**; the pre-fix baseline of the same
+  probe (same build path, the three source files stashed) **36 / 5** — the two legs that flipped
+  are §12's, and §1–§11 moved in neither direction, which is the regression proof for sharing
+  the grammar helper. The **3 legs red in both runs are pre-existing and not this round's**:
+  §8's "the knob never costs the answer" (`thinking` enabled = 279 output tokens against
+  disabled = 30, on a checkpoint whose template reports no reasoning channel), and §9's pair —
+  the assembly logs `systemChars=2940 promptTokens=748` on **both** faces while `usage` charges
+  **24** and `count_tokens` says 748. Written down because a red a reader acts on must not stay
+  in a terminal; both need an owner call and neither is gated by this round.
+  Suites: focused `make test FILTER='GrammarSchema|Anthropic'` **127 tests / 19 suites** green
+  (was 124 / 18 — this round's +3 key-coverage tests and their suite); full `make test`
+  **3461 tests / 612 suites**, 1 issue (baseline 3454 / 610 — +7 tests and +2 suites are this
+  round's), and that issue is `ProactiveActionExecutorTests` asserting
+  `ProactiveSuggestionStore.shared.current == nil` against a suggestion another suite presented:
+  green alone (**8 tests / 2 suites**), so a second live instance of the process-global-set-
+  instead-of-leased class `ProcessGlobalLeaseDisciplineTests` exists to prevent, reported rather
+  than silently absorbed. Probes re-run after the change: 37 **24 / 0** (round 87's leg still
+  green) and 48 **19 / 0** (round 88's legs still green) — this round did not trade places with
+  either.
+
+- **Which gate goes red if it regresses.** `AnthropicOutputConfigGrammarTests`(4) in
+  `Tests/ocoreaiTests/GrammarSchemaRegressionTests.swift` — the mapping (type, name, the
+  forwarded schema *and* its `required` list), `shouldConstrainOutput` true-when-asked with an
+  absent-floor under it so the first half cannot pass by measuring nothing, cross-face grammar
+  equality, and the four prose cases (absent config / absent `format` / unknown `type` / empty
+  schema — the last is vllm's own guard); `AnthropicMessageRequestKeyCoverageTests`(3) in
+  `Tests/ocoreaiTests/AnthropicRequestDecodeTests.swift` — one body that sets every declared key,
+  so a deleted decode line fails by name, with the absent-key floor under it, plus a scan that
+  reads the property list off the real `CodingKeys` block (floors itself at ≥ 12 keys, proves
+  each scanned file still mentions the DTO) and names every declared key no consumer reads: the
+  axis both `user_id` and `response_format` died on, since a key can be decoded and still be a
+  lie; and `scripts/probes/13-anthropic-tool-delivery.sh` §12 against a live checkpoint — both
+  named keys must arrive, the two faces must agree, an unknown type must not be guessed at, with
+  the shape-free control printed so a reader sees how much of the line is grammar.
+
+- **Residual, named rather than gated.** `output_config.effort` is deliberately **not**
+  declared: vllm maps it to `reasoning_effort` (`serving.py:762-763`), and this engine has no
+  per-request depth knob with a measured depth behind it (probe 38 is the honesty gate for
+  `reasoning_effort` on the chat face), so declaring the key would manufacture this round's own
+  defect — a field a client can set with no effect and no word. It becomes a declaration the day
+  a measurement says what `effort` changes here. §12's delivery proof holds for the checkpoint
+  ready on this host; on a build without the guided path it would redden for a reason probe 12 §3
+  already owns. `thinking.budget_tokens` is still a request, not a binding cap (the reason sits
+  above `effectiveMaxTokens`), and §8's red above is that seam asking for its owner call.
 
 **10-31(88) `/v1/completions` applied a penalty over a window the client never asked for**
 

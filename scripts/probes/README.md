@@ -102,10 +102,12 @@ Fails when: `json_object` fails to parse or disagrees with `json_schema{"type":"
     JSON grammar, so 200 comes back with schema-valid integers the file never stated (fixture says 47 by 13; answers said 10/10, twice ran the digits out to `finish=length`). §5 splits by prompt, not by run — 3/3 close
     on one ask, 3/3 run to `finish=length` with a 126-character repeat run on the other.
 
-- `13-anthropic-tool-delivery.sh` — Does the Anthropic face deliver what its wire promises — a call, a result continuation, thinking, the same prompt the OpenAI face sends, and a steer?
+- `13-anthropic-tool-delivery.sh` — Does the Anthropic face deliver what its wire promises — a call, a result continuation, thinking, the same prompt the OpenAI face sends, a steer, and the shape it was asked for?
 Fails when: a demanded call arrives as `end_turn` prose instead of a `tool_use` block (id/name, `input` as an object); the SSE stream opens a block without naming it or leaks the call dialect as text; `message_delta` carries no `tool_use` reason; a declaration without demand loses the answer; `tool_choice:{"type":"none"}` still calls; the shared
     `toolCallDelivery` gauge stays unmoved; `thinking` never reaches `InferenceOptions` (the assembly line must read `enableReasoning=on/off/default`) or `disabled` resolves to ON; `budget_tokens ≥ max_tokens` not refused by name; a `tool_result` turn that re-dispatches the call or ignores the result; the two faces assembling or reporting different numbers for
-    one request; `count_tokens` drifting from `usage.input_tokens`; a queued steer swallowed on this face; one declared tool inflating the system message
+    one request; `count_tokens` drifting from `usage.input_tokens`; a queued steer swallowed on this face; one declared tool inflating the system message;
+    `output_config.format` naming two required keys and the reply carrying neither, or the same schema spelled OpenAI's way on `/v1/chat/completions` agreeing with one face and not the
+    other (the shape-free control is recorded so a reader can see how much of that line is the grammar and how much is the checkpoint)
 
 - `14-parallel-and-terminal-word.sh` — Does a tool turn tell the truth about itself — how many calls it may run, whether the budget cut it, and which chunk is the last?
 Fails when: `parallel_tool_calls:false` / `disable_parallel_tool_use:true` still delivers two calls; a turn the budget chopped says `tool_calls` instead of `length` (`completion_tokens == max_tokens`); an SSE delta carries a `finish_reason` or more than one chunk does; a delivered call ends with `stop`; OpenAI's nested `tool_choice` answers 400 `Coding key

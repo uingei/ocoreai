@@ -271,14 +271,14 @@ func anthropicMessagesHandler(
     /// every face of the product (`shouldConstrainOutput`, Models/OpenAIModels.swift).
     let useGuidedGeneration = shouldConstrainOutput(
         declaredTools: declaredTools,
-        responseFormat: nil,
+        responseFormat: chatRequest.responseFormat,
         toolChoice: toolChoice
     )
     /// Grammar built from the DECLARATION, never a narrowed subset: grammar == surface
     /// == what the client sent.
     let grammarSchema: String? =
         useGuidedGeneration
-        ? buildGrammarSchema(from: declaredTools, responseFormat: nil, toolChoice: toolChoice)
+        ? buildGrammarSchema(from: chatRequest)
         : nil
     if let toolChoice {
         logger.info(

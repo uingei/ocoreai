@@ -55,6 +55,16 @@
 #  11. one declared tool vs the prompt it produces: the assembly's schema-less `## Tool:`
 #      text is measured against the no-tools baseline and recorded (two copies reach the
 #      model — structured spec + name/description prose), because removal needs an A/B.
+#  12. `output_config.format` — the shape request on THIS wire (Anthropic has no
+#      `response_format`; vllm's front maps `output_config.format` onto the OpenAI
+#      `response_format` its grammar builder already speaks,
+#      `entrypoints/anthropic/protocol.py:202-207` + `serving.py:745-761`). Measured 10-31
+#      before the mapping: a body with `output_config.format` and the same body without it
+#      returned byte-identical prose at 200. Asserted here with a resident checkpoint: the
+#      two keys the schema names must be in the reply, the same schema spelled OpenAI's way
+#      on `/v1/chat/completions` must agree (parity is the claim of the fix, not the
+#      checkpoint's cleverness — the shape-free control is recorded for that reason), and an
+#      unknown `format.type` is answered, never guessed at.
 #
 # Needs a real Metal device: run unsandboxed (`bash scripts/probes/run.sh 13`).
 PROBE_NAME="13-anthropic-tool-delivery"
@@ -731,5 +741,124 @@ else
       ;;
   esac
 fi
+
+# ── 12 — output_config.format: the shape asked on this face reaches the grammar ──
+probe_section "12 — output_config.format asks for a shape and gets it"
+
+# The same ask probe 12 uses on the OpenAI face, so a row here and a row there describe one
+# request rather than two similar ones.
+ASK_SHAPE='Reply as JSON with two keys: answer, whose value is the number of planets in our solar system as an integer, and unit, whose value is the word planets.'
+
+# shape_body <shape:1|0> [type] — the ask with and without `output_config.format`.
+shape_body() {
+  python3 - "$PROBE_MODEL" "$ASK_SHAPE" "$1" "${2:-json_schema}" <<'PY'
+import json, sys
+model, ask, shape, ftype = sys.argv[1:5]
+body = {
+    "model": model,
+    "max_tokens": 128,
+    "temperature": 0.0,
+    "messages": [{"role": "user", "content": ask}],
+}
+if shape == "1":
+    body["output_config"] = {"format": {
+        "type": ftype,
+        "schema": {
+            "type": "object",
+            "properties": {"answer": {"type": "integer"}, "unit": {"type": "string"}},
+            "required": ["answer", "unit"],
+        },
+    }}
+print(json.dumps(body))
+PY
+}
+
+# shape_verdict [wire] — "ok", "no-json" or "missing:<keys>" for the answer this face
+# returned ("anthropic" body by default, "openai" for the sibling route's body).
+shape_verdict() {
+  PROBE_MSG_BODY="$PROBE_BODY" PROBE_SHAPE_WIRE="${1:-anthropic}" python3 - <<'PY'
+import json, os
+raw = os.environ["PROBE_MSG_BODY"]
+wire = os.environ["PROBE_SHAPE_WIRE"]
+try:
+    data = json.loads(raw)
+except Exception:
+    print("unparseable-envelope"); raise SystemExit(0)
+if wire == "openai":
+    msg = ((data.get("choices") or [{}])[0].get("message") or {})
+    text = msg.get("content") or ""
+    if isinstance(text, list):
+        text = "".join(b.get("text", "") for b in text if isinstance(b, dict))
+else:
+    text = "".join(b.get("text", "") for b in (data.get("content") or [])
+                   if isinstance(b, dict) and b.get("type") == "text")
+try:
+    doc = json.loads(text)
+except Exception:
+    print("no-json"); raise SystemExit(0)
+if not isinstance(doc, dict):
+    print("no-json"); raise SystemExit(0)
+missing = [k for k in ("answer", "unit") if k not in doc]
+print("ok" if not missing else "missing:" + ",".join(missing))
+PY
+}
+
+probe_api POST /v1/messages "$(shape_body 1)"
+SHAPE_STATUS="$PROBE_STATUS"
+SHAPE_BODY="$PROBE_BODY"
+SHAPE_VERDICT="$(shape_verdict)"
+SHAPE_TEXT="$(text_block_text 200)"
+case "$SHAPE_STATUS" in
+  200) probe_ok "a request carrying output_config.format answered 200" ;;
+  *) probe_fail "output_config.format -> HTTP $SHAPE_STATUS: $(printf %.200s "$PROBE_BODY")" ;;
+esac
+if [ "$SHAPE_VERDICT" = "ok" ]; then
+  probe_ok "the shape the client named arrived: $SHAPE_TEXT"
+else
+  probe_fail "output_config.format named two required keys and the reply is '$SHAPE_TEXT' " \
+    "($SHAPE_VERDICT) — the shape request reached no grammar"
+fi
+
+# The control says how much of the line above is the grammar and how much is the
+# checkpoint: an answer that is JSON unprompted would make it worth nothing on its own.
+probe_api POST /v1/messages "$(shape_body 0)"
+probe_note "control — same ask, nothing asked for a shape: HTTP $PROBE_STATUS, " \
+  "verdict $(shape_verdict), text $(text_block_text 120)"
+
+PROBE_BODY="$SHAPE_BODY"
+
+# One schema, two spellings: the OpenAI face has been gated on this since probe 12 §3, so
+# agreement here is the parity claim, and a disagreement names this face as the half that
+# drops the request.
+BODY12="$(python3 - "$PROBE_MODEL" "$ASK_SHAPE" <<'PY'
+import json, sys
+model, ask = sys.argv[1:3]
+print(json.dumps({
+    "model": model, "max_tokens": 128, "temperature": 0.0,
+    "messages": [{"role": "user", "content": ask}],
+    "response_format": {"type": "json_schema", "json_schema": {
+        "name": "planets",
+        "schema": {"type": "object",
+                   "properties": {"answer": {"type": "integer"}, "unit": {"type": "string"}},
+                   "required": ["answer", "unit"]}}},
+}))
+PY
+)"
+probe_api POST /v1/chat/completions "$BODY12"
+CHAT12_VERDICT="$(shape_verdict openai)"
+if [ "$CHAT12_VERDICT" = "$SHAPE_VERDICT" ]; then
+  probe_ok "one schema, both wires agree: /v1/messages=$SHAPE_VERDICT /v1/chat/completions=$CHAT12_VERDICT"
+else
+  probe_fail "one schema, two answers: this face gave $SHAPE_VERDICT, the OpenAI face gave " \
+    "$CHAT12_VERDICT — the shape request reaches one grammar and not the other"
+fi
+
+# A `format.type` nothing here constrains asks for nothing (the `thinking.type` rule): it
+# must be answered, not answered *as* JSON on the strength of a guess.
+probe_api POST /v1/messages "$(shape_body 1 xml)"
+case "$PROBE_STATUS" in
+  200) probe_ok "an unknown format.type is answered, not guessed at (HTTP 200)" ;;
+  *) probe_fail "unknown format.type -> HTTP $PROBE_STATUS: $(printf %.200s "$PROBE_BODY")" ;;
+esac
 
 probe_summary "$PROBE_NAME"

@@ -23,7 +23,7 @@ how code is written anywhere, it belongs at the root. Two copies of one rule is 
   `json_object` answered `{}`. One permissive schema, `jsonObjectSchema`; a JSON shape arriving with `tools[]`
   constrains the answer unless `tool_choice` demands a call — one home, `buildGrammarSchema` (upstream
   installs a tool grammar only for a demand, serving_chat.py:1488-1501).
-  Gate: `GrammarSchemaRegressionTests`(11) + probe 12 §6, §7.
+  Gate: `GrammarSchemaRegressionTests`(15) + probe 12 §6, §7.
 - A per-turn knob must be refreshed where the object is *reused*, not only where it is parsed: sampling
   lives on the upstream session, so a pooled session that keeps last turn's parameters answers this turn
   under them. One home: `MLXSessionPool.staleSamplingFields`. Gate: `PooledParameterDriftTests`(6) + probe 14.

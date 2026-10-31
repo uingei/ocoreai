@@ -2239,7 +2239,11 @@ extension Message {
 
 /// Build JSON schema for GuidedGeneration grammar constraint from request tools/schema.
 /// Returns a JSON string that GrammarConstraint can parse.
-private func buildGrammarSchema(from request: ChatCompletionRequest) -> String? {
+/// The grammar one request asks for: declaration, shape and demand, read off the request
+/// itself. Shared by both faces (`AnthropicMessagesHandler` calls it with the request
+/// `toChatCompletionRequest` produced), so a client's shape request cannot reach the engine
+/// through one face and not the other.
+func buildGrammarSchema(from request: ChatCompletionRequest) -> String? {
     buildGrammarSchema(
         from: request.tools, responseFormat: request.responseFormat, toolChoice: request.toolChoice)
 }

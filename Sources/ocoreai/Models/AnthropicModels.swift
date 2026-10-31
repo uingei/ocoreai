@@ -69,8 +69,12 @@ struct AnthropicMessageRequest: Decodable {
     /// read it as tri-state (`AnthropicMessagesHandler.swift:292` == true).
     var stream: Bool? = nil
 
-    /// Response format (for structured output)
-    var responseFormat: AnthropicResponseFormat? = nil
+    /// `output_config`: the shape the client wants back. This replaces a
+    /// `response_format` field that used to sit here — the OpenAI spelling on an
+    /// Anthropic wire, decoded into a property that three sites then overrode with a
+    /// literal `nil`, so a client asking for structured output got prose and a 200
+    /// (measured 10-31: a body byte-identical to the same request without the field).
+    var outputConfig: AnthropicOutputConfig? = nil
 
     /// Thinking configuration (for reasoning models)
     var thinking: AnthropicThinkingConfig? = nil
@@ -86,7 +90,7 @@ struct AnthropicMessageRequest: Decodable {
         case maxTokens = "max_tokens"
         case stopSequences = "stop_sequences"
         case toolChoice = "tool_choice"
-        case responseFormat = "response_format"
+        case outputConfig = "output_config"
         case thinking, metadata
     }
 
@@ -1044,15 +1048,28 @@ struct AnthropicToolChoice: Decodable {
     }
 }
 
-// MARK: - Response Format
+// MARK: - Output Config
 
-/// Anthropic response format for structured output
-struct AnthropicResponseFormat: Decodable {
-    let type: String  // "json"
+/// Anthropic's `output_config`, of which only `format` is declared — because only `format`
+/// is read. `effort` is how vllm reaches `reasoning_effort`
+/// (`vllm/entrypoints/anthropic/serving.py:762-763`) and this engine has no per-request
+/// depth knob shown to work, so declaring it here would hand a client a key it can set
+/// with no effect and no word.
+struct AnthropicOutputConfig: Decodable {
+    let format: AnthropicJsonOutputFormat?
+}
 
-    enum CodingKeys: String, CodingKey {
-        case type
-    }
+/// `output_config.format` = `{"type":"json_schema","schema":{…}}`.
+///
+/// `schema` is the wire key because that is what the comparator's protocol declares —
+/// `json_schema` is the Python field, aliased to `schema`
+/// (`vllm/entrypoints/anthropic/protocol.py:202-207`). A `type` nothing here constrains
+/// asks for nothing: as with `thinking.type`, an unrecognised value is not guessed at.
+struct AnthropicJsonOutputFormat: Decodable {
+    let type: String
+    let schema: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey { case type, schema }
 }
 
 // MARK: - Thinking Config
@@ -1087,11 +1104,9 @@ struct AnthropicThinkingConfig: Decodable {
 
 /// User/session metadata
 struct AnthropicMetadata: Decodable {
-    let userId: String?
     let sessionId: String?
 
     enum CodingKeys: String, CodingKey {
-        case userId = "user_id"
         case sessionId = "session_id"
     }
 }
@@ -1131,6 +1146,24 @@ func toChatCompletionRequest(_ req: AnthropicMessageRequest) throws -> ChatCompl
     /// binding effect). The pair is validated instead: see ``numericDomainError()``.
     let effectiveMaxTokens: Int? = req.maxTokens
 
+    /// The client's asked-for output shape, in the vocabulary the grammar builder already
+    /// speaks. Mapped as the comparator maps it: `output_config.format` becomes the OpenAI
+    /// `response_format` whose grammar path is already built, with the schema named after the
+    /// format type (`vllm/entrypoints/anthropic/serving.py:745-761`, `_handle_output_config`).
+    /// Absent config, absent `format`, a `type` nothing here constrains, and a schema with
+    /// nothing in it are one answer — no constraint — which is also vllm's guard: it maps only
+    /// when the schema is there.
+    let responseFormat: ResponseFormat? = {
+        guard let format = req.outputConfig?.format,
+            format.type == "json_schema",
+            let schema = format.schema,
+            !schema.isEmpty
+        else { return nil }
+        return ResponseFormat(
+            type: format.type,
+            jsonSchema: JSONSchemaRequest(name: format.type, schema: schema, strict: nil))
+    }()
+
     return ChatCompletionRequest(
         model: req.model,
         messages: messages,
@@ -1138,7 +1171,7 @@ func toChatCompletionRequest(_ req: AnthropicMessageRequest) throws -> ChatCompl
         topP: req.topP,
         topK: req.topK,
         maxTokens: effectiveMaxTokens,
-        responseFormat: nil,
+        responseFormat: responseFormat,
         stream: req.stream ?? false,
         stop: req.stopSequences,
         frequencyPenalty: 0,

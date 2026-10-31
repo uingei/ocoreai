@@ -257,3 +257,111 @@ struct GrammarSchemaRegressionTests {
 private func decodeTools(_ json: String) throws -> [ToolDef] {
     try JSONDecoder().decode([ToolDef].self, from: Data(json.utf8))
 }
+
+// MARK: - The shape a `/v1/messages` client asks for
+
+/// `/v1/messages` has no `response_format` — that is the OpenAI spelling. Its shape request is
+/// `output_config.format`, and the comparator translates that into the OpenAI field its grammar
+/// builder already understands (`vllm/entrypoints/anthropic/serving.py:745-761`,
+/// `_handle_output_config`: same type, schema forwarded whole, name taken from the type).
+/// Measured 10-31 before that mapping existed here: a body with `output_config.format` and the
+/// same body without it produced byte-identical responses — while this repo's DTO declared a
+/// `response_format` key that the grammar site overrode with a literal `nil` twice and the
+/// translation a third time. A client asking for JSON got prose and a 200 either way.
+@Suite("output_config.format — the shape asked for on /v1/messages reaches the grammar")
+struct AnthropicOutputConfigGrammarTests {
+
+    /// One schema, spelled once: the two faces must end up asking for exactly this, so the
+    /// comparison below is between two grammar strings, not two descriptions of intent.
+    private static let schemaJSON =
+        #"{"type":"object","properties":{"answer":{"type":"integer"}},"required":["answer"]}"#
+
+    /// The shape request in Anthropic's vocabulary (`schema` is the wire key the comparator's
+    /// protocol declares for it).
+    private static let asked =
+        #""output_config":{"format":{"type":"json_schema","schema":"# + schemaJSON + "}}"
+
+    private static func anthropicBody(_ tail: String) -> String {
+        let base = #"{"model":"m","max_tokens":64,"messages":[{"role":"user","content":"hi"}]"#
+        return tail.isEmpty ? base + "}" : base + "," + tail + "}"
+    }
+
+    private static func mapped(_ tail: String) throws -> ChatCompletionRequest {
+        let req = try JSONDecoder().decode(
+            AnthropicMessageRequest.self, from: Data(anthropicBody(tail).utf8))
+        return try toChatCompletionRequest(req)
+    }
+
+    @Test("the mapping is the comparator's: same type, forwarded schema, name from the type")
+    func mapsToTheGrammarVocabulary() throws {
+        let chat = try Self.mapped(Self.asked)
+        let format = try #require(chat.responseFormat)
+        #expect(format.type == "json_schema")
+        // vllm names the schema after the format type; the name is not a client concept here.
+        #expect(format.jsonSchema?.name == "json_schema")
+        let forwarded = String(
+            decoding: try JSONEncoder().encode(format.jsonSchema?.schema), as: UTF8.self)
+        #expect(forwarded.contains("answer"), "the schema did not survive the map: \(forwarded)")
+        #expect(forwarded.contains("integer"))
+        #expect(
+            forwarded.contains("required"),
+            "a lost required list tells the grammar nothing is mandatory")
+    }
+
+    @Test("a shape request alone engages the constraint; an absent one does not")
+    func engagesTheConstraint() throws {
+        let asked = try Self.mapped(Self.asked)
+        #expect(
+            shouldConstrainOutput(
+                declaredTools: nil, responseFormat: asked.responseFormat, toolChoice: nil),
+            "a shape request with no tools must still constrain — same rule as the chat face")
+        let plain = try Self.mapped("")
+        #expect(
+            !shouldConstrainOutput(
+                declaredTools: nil, responseFormat: plain.responseFormat, toolChoice: nil),
+            "nothing asked, nothing constrained — the floor under the assertion above")
+    }
+
+    @Test("both faces end up asking for the same grammar")
+    func sameGrammarOnBothFaces() throws {
+        let viaAnthropic = try Self.mapped(Self.asked)
+        let openAIWire =
+            #"{"model":"m","messages":["#
+            + #"{"role":"user","content":"hi"}],"response_format":{"type":"json_schema","#
+            + #""json_schema":{"name":"json_schema","schema":"#
+            + Self.schemaJSON + #"}}}"#
+        let viaOpenAI = try JSONDecoder().decode(
+            ChatCompletionRequest.self, from: Data(openAIWire.utf8))
+        #expect(viaOpenAI.responseFormat != nil, "the OpenAI face did not decode its own shape")
+        let a = try #require(buildGrammarSchema(from: viaAnthropic))
+        let b = try #require(buildGrammarSchema(from: viaOpenAI))
+        let canonicalA = try Self.canonical(a)
+        let canonicalB = try Self.canonical(b)
+        #expect(canonicalA == canonicalB, "one client intent, two grammars: \(a) vs \(b)")
+        #expect(a.contains("answer"), "the grammar lost the property the client named: \(a)")
+    }
+
+    @Test("absent config, no format, an unknown type, and an empty schema are all prose")
+    func nothingAskedIsNoConstraint() throws {
+        #expect(try Self.mapped("").responseFormat == nil)
+        #expect(try Self.mapped(#""output_config":{}"#).responseFormat == nil)
+        #expect(
+            try Self.mapped(#""output_config":{"format":{"type":"xml"}}"#).responseFormat == nil,
+            "an unknown type is not guessed at — the `thinking.type` rule, same file")
+        #expect(
+            try Self.mapped(
+                #""output_config":{"format":{"type":"json_schema","schema":{}}}"#
+            ).responseFormat == nil, "an empty schema constrains nothing; vllm's guard skips it")
+    }
+
+    /// Same grammar, not same bytes: the schema travels as `[String: AnyCodable]`, so key order
+    /// in the serialized grammar is unspecified and a byte claim here would flake on a runtime
+    /// that hashes differently. Sorting the keys asserts the content — the property set, the
+    /// required list, the types — without pinning an order nobody promised.
+    private static func canonical(_ json: String) throws -> String {
+        let object = try JSONSerialization.jsonObject(with: Data(json.utf8))
+        return String(
+            decoding: try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]),
+            as: UTF8.self)
+    }
+}
