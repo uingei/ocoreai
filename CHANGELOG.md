@@ -9,6 +9,39 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(76) `/v1/models/evaluate` reported three numbers that had not been measured**
+
+- **What improved.** One call, four fields, and three of them described something other than the run:
+  **`perplexity` carried the loss.** `LoRATrain.evaluate` returns `sum(batch CE × batch tokens) /
+  total tokens` (`LoraTrain.swift:242`) over the per-position mean at `:199` — mean cross-entropy per
+  predicted token, in nats — so the field shipped e²·⁰ as `2.0`: the right quantity in the wrong unit,
+  on the one number a client ranks runs by. `EvalSummary.measured` derives `exp(loss)` from that
+  declared quantity, which is upstream's arithmetic read off its lines rather than a local convention.
+  **`batchesEvaluated` came from the dataset, not the run** — `(count + batch − 1) / batch` — while
+  upstream stops at `batchCount` and reads 0 as "no cap" (`:237-239`), so a request capped at one
+  batch over ten samples answered `3`; a caller who bounded the cost could not tell from the body what
+  was scored. **`durationSeconds` was the constant `0`** for a call that spent real time; it is now the
+  house clock (`ContinuousClock`), scoped to the scoring call — a model load is not a scoring cost, and
+  folding it in would rank runs by cache warmth. The derivation moved out of the engine closure into
+  that one factory, so it is testable with no model in the process. Wire keys are untouched: the
+  endpoint catalog publishes method/path/note only (`V1EndpointCatalog.swift:114-115`), so nothing
+  promised a different spelling and nothing needed renaming.
+
+- **What same-session output proves it.** `make test FILTER=EvalSummaryHonesty` — 4 tests, 14
+  parameterized cases green: the identity at four losses against the literal eˣ values (`0 → 1`,
+  `2 → 7.38905609893065`), the cap traversed at `max_batches` 0/1/2/99 against datasets of 1/8/10 at
+  batch 4 (both sides of the clamp and the exact-divisibility case), and a decode of all four keys.
+  The live half could not run here — this cache holds 195 MB of pointers over 15 model dirs, no
+  weights — so its power was demonstrated instead of assumed: the probe's own identity check, fed the
+  body the old code sent (`loss=2.0 perplexity=2.0`), exits 1, and fed `perplexity=7.389056` exits 0.
+  A probe that fails on the old body and passes on the new one is the durable form of this claim.
+
+- **Which gate goes red if it regresses.** `EvalSummaryHonestyTests`(4): a pass-through reddens the
+  identity (the two agree only at loss 0), an unclamped count reddens the cap rows, and a re-hardcoded
+  duration reddens the fourth. Probe 23 §1 asserts the same three properties against a live body, so
+  the claim is checked on the tier that has weights — recorded as *authored, not yet run here*, which
+  is the honest state of a probe whose premise this host lacks. `swift build -c release` green.
+
 **10-31(75) A row the engine never scored is no longer shipped as certainty**
 
 - **What improved.** `LogProbabilities.compute` carried upstream's `raw.isNaN ? 0.0 : raw`, and one

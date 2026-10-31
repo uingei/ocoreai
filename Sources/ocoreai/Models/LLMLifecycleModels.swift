@@ -191,4 +191,30 @@ struct EvalSummary: Encodable {
     var perplexity: Float
     var batchesEvaluated: Int
     var durationSeconds: Double
+
+    /// The summary built from what the engine actually ran, rather than from the request that asked.
+    ///
+    /// `LoRATrain.evaluate` returns `sum(batch CE × batch tokens) / total tokens` (`LoraTrain.swift:242`)
+    /// over a per-position mean (`:199`) — mean cross-entropy per predicted token, in nats — so
+    /// perplexity is `exp(loss)`. Passing the loss through under this name reported e²·⁰ as `2.0`:
+    /// the right quantity with the wrong unit, on the one field a client compares across runs.
+    ///
+    /// Upstream stops once `batchCount` batches are done and reads 0 as "no cap"
+    /// (`LoraTrain.swift:237-239`), so a capped request must report the batches it ran and not the
+    /// batches the dataset could have filled.
+    static func measured(
+        loss: Float,
+        datasetCount: Int,
+        batchSize: Int,
+        maxBatches: Int,
+        durationSeconds: Double
+    ) -> EvalSummary {
+        let fitsInDataset = (datasetCount + batchSize - 1) / batchSize
+        return EvalSummary(
+            loss: loss,
+            perplexity: exp(loss),
+            batchesEvaluated: maxBatches > 0 ? min(fitsInDataset, maxBatches) : fitsInDataset,
+            durationSeconds: durationSeconds,
+        )
+    }
 }

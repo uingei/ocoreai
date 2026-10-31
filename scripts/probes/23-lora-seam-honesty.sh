@@ -75,6 +75,41 @@ if [ "$EVAL_STATUS" = "200" ]; then
     *loss*) probe_ok "$MODEL conforms — loss measured: $(printf '%s' "$EVAL_BODY" | head -c 120)" ;;
     *) probe_fail "200 without a loss in the body: ${EVAL_BODY:0:160}" ;;
   esac
+  # Three of the four fields were not measurements until 10-31: `perplexity` held the loss,
+  # `batchesEvaluated` came from the dataset rather than the run, `durationSeconds` was 0. Read
+  # them off the bytes this server sent, in the unit each name promises.
+  EVAL_LOSS="$(probe_json "$EVAL_BODY" 'loss')"
+  EVAL_PPL="$(probe_json "$EVAL_BODY" 'perplexity')"
+  EVAL_SECONDS="$(probe_json "$EVAL_BODY" 'durationSeconds')"
+  if PROBE_LOSS="$EVAL_LOSS" PROBE_PPL="$EVAL_PPL" python3 -c '
+import math, os, sys
+loss, ppl = os.environ["PROBE_LOSS"], os.environ["PROBE_PPL"]
+if not loss or not ppl:
+    sys.exit(1)
+loss, ppl = float(loss), float(ppl)
+sys.exit(0 if abs(ppl - math.exp(loss)) <= 1e-4 * max(1.0, abs(ppl)) else 1)
+'; then
+    probe_ok "perplexity is exp(loss) as the field's name promises (loss=$EVAL_LOSS ppl=$EVAL_PPL)"
+  else
+    probe_fail "perplexity=$EVAL_PPL is not exp(loss=$EVAL_LOSS) — the body reports another unit"
+  fi
+  case "$EVAL_SECONDS" in
+    ""|0|0.0) probe_fail "durationSeconds=$EVAL_SECONDS for a run that did work — a placeholder, not a measurement" ;;
+    *) probe_ok "durationSeconds measured: $EVAL_SECONDS" ;;
+  esac
+  # The cap has to show up in the answer: upstream stops at `max_batches`, so four samples with a
+  # batch of one and a cap of one scored exactly one batch.
+  probe_api POST /v1/models/evaluate "{\"model\":\"$MODEL\",\"dataset\":[\"$LONG_SAMPLE\",\"$LONG_SAMPLE\",\"$LONG_SAMPLE\",\"$LONG_SAMPLE\"],\"batch_size\":1,\"max_batches\":1}" || true
+  if [ "${PROBE_STATUS:-}" = "200" ]; then
+    RAN_BATCHES="$(probe_json "$PROBE_BODY" 'batchesEvaluated')"
+    if [ "$RAN_BATCHES" = "1" ]; then
+      probe_ok "a capped run reports the one batch it scored"
+    else
+      probe_fail "capped at 1 batch, reported $RAN_BATCHES — coverage the engine skipped"
+    fi
+  else
+    probe_note "cap check needs a 200 from a conforming model (got ${PROBE_STATUS:-000})"
+  fi
 elif [ "$EVAL_STATUS" = "400" ]; then
   case "$EVAL_BODY" in
     *LLMModel*) probe_ok "named refusal: the message names the capability it needs" ;;

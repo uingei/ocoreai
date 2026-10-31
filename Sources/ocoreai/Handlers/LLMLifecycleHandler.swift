@@ -356,7 +356,10 @@ func evaluateHandler(
     // with the reason actually hit.
     let modelContainer = try await enginePool.mlxContainer(modelId: request.model)
 
-    let (loss, batches): (Float, Int) = try await modelContainer.perform { ctx in
+    // Measured, not asserted: `durationSeconds` is a field a client ranks runs by, and it shipped
+    // as the constant 0 while the call above took real time.
+    let scoringStarted = ContinuousClock.now
+    let loss: Float = try await modelContainer.perform { ctx in
         // The loss this call passes (`LoRATrain.loss`) casts `model as! any LLMModel`
         // upstream: without this guard the request traps the server instead of failing.
         if let rejection = LoRAModelSupport.rejection(for: ctx.model) {
@@ -383,15 +386,17 @@ func evaluateHandler(
             batchSize: request.batchSize,
             batchCount: request.maxBatches,
         )
-        let batches = (request.dataset.count + request.batchSize - 1) / request.batchSize
-        return (loss, batches)
+        return loss
     }
+    let scoring = ContinuousClock.now - scoringStarted
 
-    let summary = EvalSummary(
+    let summary = EvalSummary.measured(
         loss: loss,
-        perplexity: loss,
-        batchesEvaluated: batches,
-        durationSeconds: 0,
+        datasetCount: request.dataset.count,
+        batchSize: request.batchSize,
+        maxBatches: request.maxBatches,
+        durationSeconds:
+            Double(scoring.components.seconds) + Double(scoring.components.attoseconds) / 1e18,
     )
 
     var headers: HTTPFields = [:]
