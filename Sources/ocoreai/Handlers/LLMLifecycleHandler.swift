@@ -61,6 +61,23 @@ private func _doTrain(
     logger: Logger,
     continuation: AsyncStream<ByteBuffer>.Continuation,
 ) async throws {
+    // Geometry first, before any load: `batch_size` below 1 traps inside upstream's batch
+    // iterator (`LoRABatchGeometry`), and this face can only answer on the stream.
+    if let violation = LoRABatchGeometry.firstViolation(
+        batchSize: request.hyperparams.batchSize,
+        batchSizeField: "hyperparams.batch_size"
+    ) {
+        _ = yieldSSE(
+            TrainProgressChunk(
+                type: "error", iteration: 0, trainingLoss: nil, validationLoss: nil,
+                iterationsPerSec: nil, tokensPerSec: nil, checkpointPath: nil,
+                message: LoRABatchGeometry.message(for: violation),
+                timestamp: Int64(Date().timeIntervalSince1970),
+            ), to: continuation,
+        )
+        return
+    }
+
     // Load-on-demand, the way a chat turn does. The old lookup only reported residency, so a
     // cold server refused the very id `/v1/models` advertises (measured 10-21); whatever this
     // throws already names the real reason — not found, still loading, or no MLX lane — and
@@ -343,6 +360,17 @@ func evaluateHandler(
 ) async throws -> Response {
     guard !request.dataset.isEmpty else {
         throw AppError.invalidRequest("Evaluation dataset must not be empty")
+    }
+
+    // Refused before the load: a `batch_size` below 1 builds an empty or inverted batch range
+    // inside upstream and traps the process, and a negative cap would be scored as one batch.
+    if let violation = LoRABatchGeometry.firstViolation(
+        batchSize: request.batchSize, maxBatches: request.maxBatches
+    ) {
+        throw AppError.invalidParameter(
+            param: violation.field,
+            message: LoRABatchGeometry.message(for: violation),
+            value: String(violation.arrived))
     }
 
     logger.info(

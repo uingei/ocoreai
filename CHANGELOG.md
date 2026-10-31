@@ -9,6 +9,35 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(77) A LoRA `batch_size` of 0 was a client-supplied way to kill the server**
+
+- **What improved.** Upstream cuts a batch as `(index ..< min(index + batchSize, count))`
+  (`LoraTrain.swift:43-45`) and validates nothing about the integer it is given: negative inverts that
+  range and Swift's `Range` precondition traps, 0 yields an empty batch so `maxLength` is 0 and
+  `precondition(maxLength >= 2)` at `:49` traps. Both reach `POST /v1/models/evaluate` and
+  `POST /v1/models/train` as ordinary JSON, and both take the process — and every other session on the
+  box — with them, the same family as the 1-token sample (`LoRASampleDomain`) and `{"max_tokens":-5}`
+  on 10-17. `LoRABatchGeometry` is now the one home for the rule and its wording; each face reports it
+  the only way its response can (eval: `error.param` naming the key; train: a `type:"error"` chunk),
+  and **both ask before resolving a model**, which is what makes a refused request cost nothing.
+  `max_batches` joins the rule for a reason that reaches back to round 76: upstream reads it as
+  `batchCount != 0 && iteration + 1 >= batchCount` (`:237-239`), so a negative scores exactly one
+  batch and says nothing, while `EvalSummary.measured` counts only a positive as a cap — refused,
+  rather than given a meaning it never had. 0 stays legal and still means "no cap".
+
+- **What same-session output proves it.** `make test FILTER=LoRABatchGeometry` — 6 tests, 13
+  parameterized cases green, including the placement property read off the file rather than asserted
+  about it: two guards (lines 66, 367) and exactly two model resolutions (87, 385), each guard before
+  its load by 19 and 18 lines. Counts and order are both floored and the scan self-proves its
+  patterns, so "the walk broke" cannot read as clean. `swift build --build-tests` green.
+
+- **Which gate goes red if it regresses.** `LoRABatchGeometryTests`(6): a face that moves its guard
+  after `mlxContainer` reddens the ordering case; a third LoRA face without a guard reddens the count.
+  Probe 23 §1b is the live half — authored here and not yet run, because the fatal value needs
+  weights this cache lacks — but its first assertion is model-free on purpose: a `batch_size` of 0 with
+  a nonexistent id must answer 400 naming `batch_size`, and before this round no such refusal existed,
+  so that line is red on the pre-fix tree without a model anywhere on the host.
+
 **10-31(76) `/v1/models/evaluate` reported three numbers that had not been measured**
 
 - **What improved.** One call, four fields, and three of them described something other than the run:

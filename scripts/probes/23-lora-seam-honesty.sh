@@ -122,6 +122,44 @@ if alive; then probe_ok "server alive after evaluate"; else
   probe_fail "server died on /v1/models/evaluate (HTTP $EVAL_STATUS) — a LoRA request owned the process"
 fi
 
+probe_section "1b) batch_size below 1 — a client integer may not own the process"
+# Upstream cuts a batch as `(index ..< min(index + batchSize, count))` (`LoraTrain.swift:43-45`) and
+# validates nothing about it: 0 yields an empty batch and `precondition(maxLength >= 2)` at `:49`
+# traps, a negative inverts the range and traps there too. The seam refuses both before any model is
+# resolved, so the first call below must answer 400 about `batch_size` even for an id that does not
+# exist — a 404 would mean the load ran first.
+probe_api POST /v1/models/evaluate "{\"model\":\"$BOGUS\",\"dataset\":[\"$LONG_SAMPLE\"],\"batch_size\":0,\"max_batches\":1}" || true
+GEOM_STATUS="${PROBE_STATUS:-000}"
+if [ "$GEOM_STATUS" = "400" ] && printf '%s' "$PROBE_BODY" | grep -q 'batch_size'; then
+  probe_ok "refused by name before any load: ${PROBE_BODY:0:140}"
+else
+  probe_fail "batch_size 0 gave HTTP $GEOM_STATUS — expected 400 naming batch_size: ${PROBE_BODY:0:160}"
+fi
+# And on a conforming model, where the value would have reached the iterator and trapped.
+if [ "$EVAL_STATUS" = "200" ]; then
+  probe_api POST /v1/models/evaluate "{\"model\":\"$MODEL\",\"dataset\":[\"$LONG_SAMPLE\"],\"batch_size\":-1,\"max_batches\":1}" || true
+  NEG_STATUS="${PROBE_STATUS:-000}"
+  if [ "$NEG_STATUS" = "400" ] && printf '%s' "$PROBE_BODY" | grep -q 'batch_size'; then
+    probe_ok "negative batch_size refused with its own value: ${PROBE_BODY:0:140}"
+  else
+    probe_fail "batch_size -1 gave HTTP $NEG_STATUS on a conforming model: ${PROBE_BODY:0:160}"
+  fi
+fi
+if alive; then probe_ok "server alive after bad batch geometry"; else
+  probe_fail "server died on a bad batch_size — a client integer owned the process"
+fi
+
+# The train face shares the rule and answers on its own channel, also before any load. One key is
+# enough on the wire: `TrainHyperparams` decodes each field with `decodeIfPresent` (its own comment
+# names the rule), so this is the body a client would actually send.
+probe_api POST /v1/models/train "{\"model\":\"$BOGUS\",\"trainingData\":{\"inline\":[\"$LONG_SAMPLE\",\"$LONG_SAMPLE\"]},\"hyperparams\":{\"batch_size\":0}}" || true
+if printf '%s' "$PROBE_BODY" | grep -q '"type":"error"' && printf '%s' "$PROBE_BODY" | grep -q 'hyperparams.batch_size';
+then
+  probe_ok "train refused the same rule on the stream: ${PROBE_BODY:0:140}"
+else
+  probe_fail "train did not refuse batch_size 0 on the stream: ${PROBE_BODY:0:160}"
+fi
+
 probe_section "2) train with well-formed samples — the stream must close honestly"
 probe_api POST /v1/models/train "{\"model\":\"$MODEL\",\"trainingData\":{\"inline\":[\"$LONG_SAMPLE\",\"Pack my box with five dozen liquor jugs and three dozen more.\"]}}" \
   || probe_note "train returned no response at all: ${PROBE_BODY:0:160}"
