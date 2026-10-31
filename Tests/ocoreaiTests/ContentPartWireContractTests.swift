@@ -10,7 +10,10 @@
 ///
 /// Coverage: all three media part types + text control, decode + encode +
 /// round-trip on real wire JSON (not in-process construction), including
-/// the minimal real-client shape (video without max_frames).
+/// the minimal real-client shape (video without max_frames), and the carriage
+/// rule — the spec's `input_audio` arrives as the one audio shape this engine
+/// reads, and a part that names an attachment this server cannot carry is
+/// reported by name instead of decoding into nothing (`CarriageTests`).
 
 import Foundation
 import Testing
@@ -202,5 +205,108 @@ struct ContentPartWireEncodeTests {
         #expect(re.imageUrl?.url == part.imageUrl?.url)
         #expect(re.text == part.text)
         #expect(re.isMedia == true)
+    }
+}
+
+// MARK: - Carriage: what the wire names, this server either carries or refuses by name
+
+/// Measured on one live server, same bytes, two shapes: `audio_url` with a real wav was
+/// refused honestly (`503 Transcription unavailable`), while OpenAI's `input_audio` with
+/// those identical bytes returned **200 and a blind answer** — the part decoded into a
+/// `ContentPart` carrying nothing, so ingestion, media resolution, the tokenizer and the
+/// engine were each correct about a request that had silently lost its payload. `file`,
+/// an unknown part type, an `image_url` with no payload object and an empty media URL
+/// had the same fate. Now the spec shape is carried, and the rest is refused by name
+/// with the client's own field path (`ChatHandler` → `ChatMedia.uncarried`).
+@Suite("ContentPart carriage — input_audio carried, an un-honoured part refused by name")
+struct ContentPartCarriageTests {
+    private static let wavBase64 = "UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA="
+
+    private func decode(_ wire: String) throws -> ContentPart {
+        try JSONDecoder().decode(ContentPart.self, from: wire.data(using: .utf8)!)
+    }
+
+    @Test("input_audio (OpenAI spec) becomes the one audio shape this engine reads")
+    func inputAudioBecomesAudioURL() throws {
+        let wire =
+            #"{"type":"input_audio","input_audio":{"data":"\#(Self.wavBase64)","format":"wav"}}"#
+        let part = try decode(wire)
+        // vllm constructs the same reference (content_parser.py: `data:audio/{format};base64,{data}`),
+        // and `makeMLXAudio`/`ChatAudio` already resolve a `data:` audio reference.
+        #expect(part.audioURL?.url == "data:audio/wav;base64," + Self.wavBase64)
+        #expect(part.isMedia == true)
+        #expect(part.uncarriedType == nil)
+    }
+
+    @Test("input_audio encoded on the way out writes audio_url, never the spec key twice")
+    func carriedAudioEncodesCanonically() throws {
+        let wire =
+            #"{"type":"input_audio","input_audio":{"data":"\#(Self.wavBase64)","format":"mp3"}}"#
+        let obj =
+            try JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(try decode(wire))) as? [String: Any]
+        #expect((obj ?? [:])["audio_url"] != nil)
+        #expect((obj ?? [:])["input_audio"] == nil)
+    }
+
+    @Test(arguments: [
+        ("{\"type\":\"file\",\"file\":{\"filename\":\"a.pdf\",\"file_data\":\"AAAA\"}}", "file"),
+        ("{\"type\":\"mystery_part\"}", "mystery_part"),
+        ("{\"type\":\"image_url\"}", "image_url"),
+        ("{\"type\":\"audio_url\",\"audio_url\":{\"url\":\"\"}}", "audio_url"),
+        ("{\"type\":\"video_url\",\"video_url\":{\"url\":\"\"}}", "video_url"),
+        // A named attachment with nothing in it: no container name, no bytes — guessing
+        // `wav` would invent a format the client never sent.
+        (
+            "{\"type\":\"input_audio\",\"input_audio\":{\"data\":\"\",\"format\":\"wav\"}}",
+            "input_audio"
+        ),
+        ("{\"type\":\"input_audio\",\"input_audio\":{\"format\":\"wav\"}}", "input_audio"),
+    ])
+    func uncarriedShapesAreInvisibleBelowAndNamedByTheirOwnType(wire: String, expected: String)
+        throws
+    {
+        let part = try decode(wire)
+        #expect(part.uncarriedType == expected)
+        // Why the drop was silent: every consumer below the handler keys off a payload that
+        // arrived, so each of these reads as "no media in this conversation" — which is why
+        // the refusal cannot live below here.
+        let conversation = [Message(role: "user", content: .parts([part]))]
+        #expect(ChatMedia.mediaParts(in: conversation).isEmpty)
+        #expect(ChatAudio.audioParts(in: conversation).isEmpty)
+    }
+
+    @Test(arguments: [
+        // A declared text part carries nothing and is still not a lost attachment — clients
+        // pad with these, and refusing one would break a working request for no gain.
+        "{\"type\":\"text\"}",
+        "{\"type\":\"text\",\"text\":\"\"}",
+        // Real content under a type string this server does not know: the words arrive, so
+        // the turn is answerable and refusing it would throw a message away.
+        "{\"type\":\"file\",\"text\":\"summarise this\"}",
+        "{\"type\":\"image_url\",\"image_url\":{\"url\":\"https://i.png\"}}",
+        "{\"type\":\"audio\",\"audio_url\":{\"url\":\"/tmp/a.wav\"}}",
+        "{\"type\":\"video_url\",\"video_url\":{\"url\":\"https://v.mp4\"}}",
+    ])
+    func carriedOrTextualPartsAreNeverRefused(wire: String) throws {
+        #expect(try decode(wire).uncarriedType == nil)
+    }
+
+    @Test("the extraction publishes the wire path of each offender, in wire order")
+    func indicesPointAtTheOffendingField() throws {
+        let wire = #"""
+            {"model":"m","messages":[
+              {"role":"user","content":[{"type":"text","text":"fine"}]},
+              {"role":"user","content":[{"type":"file","file":{"filename":"a.pdf"}},{"type":"text","text":"kept"}]}
+            ]}
+            """#
+        let request = try JSONDecoder().decode(
+            ChatCompletionRequest.self, from: wire.data(using: .utf8)!)
+        let found = ChatMedia.uncarried(in: request.messages)
+        #expect(found.count == 1)
+        // The refusal's `param` is built from exactly these: messages[1].content[0].type
+        #expect(found.first?.messageIndex == 1)
+        #expect(found.first?.partIndex == 0)
+        #expect(found.first?.type == "file")
     }
 }

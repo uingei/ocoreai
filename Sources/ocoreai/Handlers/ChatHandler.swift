@@ -244,6 +244,25 @@ func chatCompletionsHandler(
     /// If this handler is ever called directly, empty messages will still cause
     /// downstream failures — the router guard is the source of truth.
 
+    /// A part that names an attachment this server has no shape for is refused before
+    /// anything else runs, with the client's own field path: until now `file`, an
+    /// unknown type, and an `image_url` with no payload decoded into a part that carries
+    /// nothing, so every consumer downstream — media resolution, audio ingestion, the
+    /// tokenizer, the engine — was correct about a request that had silently lost its
+    /// payload, and the caller got a 200 and a confident answer about bytes nobody read.
+    /// Cheapest check in this function, and the only one that runs on the DTO alone.
+    let uncarried = ChatMedia.uncarried(in: request.messages)
+    if let first = uncarried.first {
+        logger.warning(
+            "Content part refused: type '\(first.type)' carries nothing this server reads (\(uncarried.count) part(s))",
+            metadata: ["error_code": .string("content_part_uncarried")])
+        throw AppError.invalidParameter(
+            param: "messages[\(first.messageIndex)].content[\(first.partIndex)].type",
+            message:
+                "Content part type '\(first.type)' names an attachment this server cannot carry. It reads text, image_url, video_url, audio_url and input_audio (`{data, format}` with base64 bytes); omit a part it cannot carry rather than sending one that goes unread.",
+            value: first.type)
+    }
+
     /// Audio attached to a chat turn cannot reach a model as waveform in this build —
     /// `ChatAudioIngestion` carries the measurement (no `UserInputProcessor` at the pinned
     /// revision consumes `input.audios`) and the two honest routes that remain: hear it

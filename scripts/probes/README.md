@@ -367,6 +367,21 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     and a thinking-only turn published the thought as `content`. Fixing the gate moved §2 from
     0 chars to 550.
 
+- `47-never-blind-content-part.sh` — does a content part this server cannot carry get refused by
+  name, or decoded into nothing and answered over?
+    Measured 10-31 on one live server, one request per shape, scripted engine (no weights):
+    `audio_url` carrying a real wav got `503 speech_not_determined` naming the cause and the fix,
+    while `input_audio` carrying **the identical bytes** got **HTTP 200 and a confident answer** —
+    the decoder had no key for OpenAI's own audio shape, so `ChatMedia`, `ChatAudio`, the tokenizer
+    and the engine were each correct about a conversation whose payload had vanished. `file`, an
+    unknown part type, an `image_url` with no payload object and an empty media URL had the same
+    fate, on a route that already 400s a media *path* it cannot open. Green 10-31: **12 passed,
+    0 failed** — the spec shape is carried into the same audio path (the pair's fate must agree, so
+    the leg is host-independent: it asserts agreement, never which side of the speech-permission
+    line the box sits on), and every un-carriable shape comes back 400 `invalid_request_error` with
+    `param` pointing at `messages[i].content[j].type` and the client's own type string in the
+    message. Controls both ways: a text-only turn and an inline `image_url` are untouched.
+
 - `_lib.sh` — shared harness
 Fails when: —
 

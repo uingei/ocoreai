@@ -9,6 +9,74 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(84) A named attachment nobody read got a 200; the spec's audio shape was one of them**
+
+- **What improved.** The wire decoder had no key for OpenAI's `input_audio`, and any content part
+  whose payload it could not fill decoded into an inert `ContentPart` — so `ChatMedia`, `ChatAudio`,
+  the tokenizer and the engine were each *correct* about a conversation whose payload had vanished,
+  and the caller got HTTP 200 with a confident answer about bytes nobody read. Measured on one live
+  `serve` (scripted engine: no weights, so this is a wire-tier verdict and claims nothing about a
+  model), one request per shape, before the change:
+  `audio_url` + a real 16 kHz wav inline as a data URL → `503 speech_not_determined`, naming the
+  cause and the fix; `input_audio` + **the identical bytes** → **200 and an answer**; and
+  `{"type":"file",…}`, `{"type":"mystery_part"}`, `{"type":"image_url"}` with no payload object and
+  `audio_url` with an empty URL → 200 likewise. The same route already answers
+  `400 media_unresolvable` for a media *path* it cannot open, and `/v1/messages` already refuses an
+  unknown block "by name rather than dropping it" (`Sources/ocoreai/Models/AnthropicModels.swift`) —
+  the asymmetry inside one repo is what makes this a defect rather than a policy choice.
+  Two edits, at the two homes that already own the decision: the decoder now maps
+  `input_audio{data,format}` onto the one audio shape this engine reads, as the construction is
+  `data:audio/<format>;base64,<data>` at the comparator
+  (`references/vllm vllm/renderers/chat_utils/content_parser.py:261-265`) and `makeMLXAudio` plus
+  `ChatAudio` already resolve a `data:` audio reference — so the spec shape cost a key mapping
+  rather than a second audio path; and `ChatMedia.uncarried` (with `ContentPart.uncarriedType`)
+  names what is left, refused in the handler before the guards, the scheduler and any engine
+  handle, as `400 invalid_request_error` carrying `param = messages[i].content[j].type` and the
+  client's own type string. The check cannot live below the handler: every consumer there decides
+  from a payload that arrived, which is exactly why the drop was silent.
+  Deliberate cost, stated: an empty media URL or an unknown part type now costs a 400 where it used
+  to get a working text turn. A blind 200 about an attachment nobody read is the failure a stranger
+  cannot debug, and a 400 that names the field is fixable in one edit; a declared `text` part is
+  never refused (clients pad with those), and a part carrying real words under an unknown type is
+  kept. Whether OpenAI itself 400s an unsupported content type is inference from its published
+  error shapes, not a measurement made here — what was measured is our own five shapes.
+
+- **What same-session output proves it.** The pre-fix lines above, then the same binary after the
+  change on the same bodies: `input_audio` with those bytes now gets **HTTP 503
+  `speech_not_determined`, identical to `audio_url`** (it reaches the audio path, and this box's
+  speech permission decides), and all five un-carriable shapes get 400 with
+  `param messages[0].content[1].type` and their own type named in the message. `swift build` and
+  `swift build --build-tests` exit 0; `make test
+  FILTER='ContentPart|ChatMedia|ChatAudio|MessageWire'` = **51 tests / 9 suites green** — the new
+  carriage suite included — and the full suite result is stated below this entry.
+  and the pinned formatter is silent on every file touched here (`OpenAIModels.swift` keeps five
+  pre-existing warnings, all outside these hunks). `make test` full suite: **3450 tests / 609
+  suites**, green on its first run; a second run on a host that was concurrently building and
+  booting servers reported 6 deadline-overshoot issues in six timing suites (`LoopStallTermination`,
+  `ToolAttemptLedger`, `SystemSleepBackend`, `EnginePool`, `SleepSteerWake`, MCP stderr live
+  child), and those **62 tests / 12 suites pass when re-run alone** — load, not this change. The
+  two runs are reported rather than the flattering one because nothing here ties a deadline to a
+  content part, and a claim about that should be checkable.
+
+- **Which gate goes red if it regresses.** `scripts/probes/47-never-blind-content-part.sh`
+  (green: **12 passed, 0 failed, 5 measured**), in four legs with controls both ways. §2 is the
+  regression this round was born from, stated host-independently: the *same bytes* as `audio_url`
+  and as `input_audio` must have the same fate and the same `error_code`, so dropping the key
+  mapping turns it red whether or not this box can hear — one spelling carried, one dropped, is
+  precisely the blind 200. §3 asserts each refusal's **field**, not just its status (probe rule 7):
+  400 + `invalid_request_error` + a `param` shaped `messages[…].content[…].type` + the client's own
+  type string in the message, and §4 floors the leg at 5/5 subjects while its control asserts that
+  a real inline `image_url` is *not* refused, so the rule cannot pass by refusing everything.
+  Unit half: `ContentPartCarriageTests` in `Tests/ocoreaiTests/ContentPartWireContractTests.swift`
+  pins the constructed data URL byte-for-byte, that the spec key is read but never written back
+  (encode stays canonical `audio_url`), each offender's exact `(messageIndex, partIndex, type)`,
+  and — the premise of the whole leg — that every un-carriable shape is invisible to
+  `ChatMedia.mediaParts` and `ChatAudio.audioParts`, which is why a refusal below the handler could
+  never have caught it.
+  Residual, not gated here: a payload that *arrives* but fails to decode later (bad base64, an
+  image AVFoundation rejects) is still answered per axis downstream, and a part whose URL is
+  whitespace rather than empty passes this check. Both are named rather than covered.
+
 **10-31(83) Measured: an external MCP tool runs unasked, and the gate that forbids it is unreachable**
 
 - **What was measured (nothing was changed).** A verdict round, because the two facts below each have a

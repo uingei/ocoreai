@@ -740,6 +740,15 @@ enum ContentPolymorphic: Codable {
 /// decodes to `imageUrl = nil` — the image is **silently dropped at the
 /// wire layer** before it ever reaches the engine (confident blind
 /// answer, HTTP 200, zero error). Hence the keys are pinned exactly.
+///
+/// A part is therefore decoded into the one shape each axis has here, and
+/// ``uncarriedType`` names the case the decoder cannot fill: a part that
+/// declares itself as neither text nor anything this server reads. The
+/// handler refuses those by name (`ChatMedia.uncarried`) — measured 10-31,
+/// `{"type":"file",…}` and an `image_url` with no payload both answered
+/// 200 with the attachment gone, while the same route 400s a media *path*
+/// it cannot open. Silence about a named payload is the defect this file
+/// already names for the snake_case keys; it just had one face left.
 struct ContentPart: Codable {
     enum CodingKeys: String, CodingKey {
         case type
@@ -808,6 +817,56 @@ struct ContentPart: Codable {
         /// URL string (http/https or local file path)
         let url: String
     }
+
+    /// OpenAI's `input_audio` payload: base64 bytes plus the container name.
+    /// Both are optional in the DTO because a part missing either carries
+    /// nothing this server can read, and ``ContentPart/uncarriedType`` says so
+    /// rather than the decoder guessing a format it was not given.
+    struct InputAudio: Codable {
+        let data: String?
+        let format: String?
+    }
+}
+
+extension ContentPart {
+    /// The one wire key ``CodingKeys`` does not carry, because it names no stored
+    /// property: OpenAI's inline audio part is decoded *into* `audio_url`, so there is
+    /// exactly one audio shape below this point. Kept apart from `CodingKeys` rather
+    /// than added to it because an extra case there breaks the synthesized `encode(to:)`
+    /// — and this key is read once, here, and never written back.
+    private enum InlineAudioKey: String, CodingKey {
+        case inputAudio = "input_audio"
+    }
+
+    /// Written by hand for one reason: `input_audio` must land in `audioURL`.
+    /// The construction is vllm's (`vllm/renderers/chat_utils/content_parser.py`:
+    /// `data:audio/{format};base64,{data}`), which is the point — ``makeMLXAudio``
+    /// and `ChatAudio` already resolve a `data:` audio reference, so the spec
+    /// shape costs a key mapping here instead of a second audio path below.
+    init(from decoder: Decoder) throws {
+        let keys = try decoder.container(keyedBy: CodingKeys.self)
+        type = try keys.decode(String.self, forKey: .type)
+        text = try keys.decodeIfPresent(String.self, forKey: .text)
+        imageUrl = try keys.decodeIfPresent(ImageURL.self, forKey: .imageUrl)
+        videoUrl = try keys.decodeIfPresent(VideoURL.self, forKey: .videoUrl)
+        var audio = try keys.decodeIfPresent(AudioURL.self, forKey: .audioURL)
+        if audio == nil {
+            let inline = try decoder.container(keyedBy: InlineAudioKey.self)
+            audio = try inline.decodeIfPresent(InputAudio.self, forKey: .inputAudio)?.audioURL
+        }
+        audioURL = audio
+    }
+}
+
+extension ContentPart.InputAudio {
+    /// The bytes as the one reference form this engine reads, or nil when the
+    /// part declared an attachment without saying what it is — an unknown
+    /// container is not a licence to guess `wav`.
+    fileprivate var audioURL: ContentPart.AudioURL? {
+        let container = format?.trimmingCharacters(in: .whitespaces)
+        guard let data, !data.isEmpty, let container, !container.isEmpty else { return nil }
+        return ContentPart.AudioURL(url: "data:audio/\(container);base64,\(data)")
+    }
 }
 
 // MARK: - Media Detection (single source of truth)
@@ -817,6 +876,21 @@ extension ContentPart {
     /// Pure predicate — no side effects, safe from any isolation domain.
     var isMedia: Bool {
         imageUrl != nil || videoUrl != nil || audioURL != nil
+    }
+
+    /// The part's own `type` when it carries nothing this server reads, else nil.
+    ///
+    /// `nil` for anything declared `text` (a client's empty text part is padding,
+    /// not a lost attachment) and for any part whose payload arrived non-empty.
+    /// Everything else is a part the client named and this turn cannot honour —
+    /// which the handler refuses rather than answering as if it were never sent.
+    var uncarriedType: String? {
+        if type == "text" { return nil }
+        if let text, !text.isEmpty { return nil }
+        if imageUrl?.url.isEmpty == false { return nil }
+        if videoUrl?.url.isEmpty == false { return nil }
+        if audioURL?.url.isEmpty == false { return nil }
+        return type
     }
 }
 

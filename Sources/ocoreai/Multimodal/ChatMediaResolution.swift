@@ -134,6 +134,35 @@ enum ChatMedia {
         }
     }
 
+    /// Which parts name an attachment this server has no shape for at all —
+    /// `{"type":"file",…}`, an `image_url` with no payload, an unknown part
+    /// type. Distinct from ``unresolvable(in:spoolDirectory:fileExists:)``,
+    /// which is about a *reference* that exists but cannot be opened: here the
+    /// decoder never got a payload to resolve, so nothing below this point ever
+    /// sees the attachment. Measured 10-31 on one server: `audio_url` with real
+    /// bytes was refused honestly, `input_audio` with the same bytes got a 200
+    /// and a blind answer.
+    ///
+    /// Pure over the wire DTO, and the indices are for the client's own field
+    /// path — a refusal that cannot be pointed at is a riddle.
+    ///
+    /// Gate: `ContentPartCarriageTests` (both directions — what is refused, and what must
+    /// never be) and probe 47, which decides the same contract against a live server.
+    static func uncarried(
+        in messages: [Message]
+    ) -> [(messageIndex: Int, partIndex: Int, type: String)] {
+        var found: [(messageIndex: Int, partIndex: Int, type: String)] = []
+        for (messageIndex, message) in messages.enumerated() {
+            guard case .parts(let parts) = message.content else { continue }
+            for (partIndex, part) in parts.enumerated() {
+                if let type = part.uncarriedType {
+                    found.append((messageIndex, partIndex, type))
+                }
+            }
+        }
+        return found
+    }
+
     /// Wire-ready explanation for the first unresolvable reference, plus whether it is
     /// ours to blame. One sentence per request is enough to act on; the list rides along
     /// in the error's metadata for the cases with several.
