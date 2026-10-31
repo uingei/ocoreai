@@ -449,11 +449,11 @@ struct ConstraintTemplateCacheTests {
         let model = makeLoadedModel()
         let a = try Self.matcher(model, schema: Self.objectSchema, fastForward: true)
         let b = try Self.matcher(model, schema: Self.objectSchema, fastForward: true)
-        let bBefore = try b.computeMask()
+        let maskBefore = try b.computeMask()
         _ = try a.commitToken(0)  // grammarTestVocab[0] == "{"
-        let bAfter = try b.computeMask()
-        #expect(bAfter.mask == bBefore.mask)
-        #expect(bAfter.isTerminated == bBefore.isTerminated)
+        let maskAfter = try b.computeMask()
+        #expect(maskAfter.mask == maskBefore.mask)
+        #expect(maskAfter.isTerminated == maskBefore.isTerminated)
     }
 
     /// Token ids a mask admits, in vocab order — the observable a sampler acts on.
