@@ -170,12 +170,41 @@ public actor ApprovalBroker {
             if let observer = onPending {
                 Task { await observer(row) }
             }
-            // 2) 登记并挂起，直到 resolve
-            return await withCheckedContinuation {
-                (cont: CheckedContinuation<ApprovalDecision, Never>) in
-                pendingByID[row.id] = (row, cont)
+            // 2) 登记并挂起，直到 resolve —— 但发起它的任务可能先结束：`stopStreaming()`
+            // (ChatView.swift:1024) 在 `cancelInference()` 之后还打 `activeTask?.cancel()`，撤的正是
+            // 跑 `chat(...)` 的这个任务，而 continuation 对取消无感。`cancelAll()` 只清*那一刻已
+            // 登记*的行；行若在其之后才登记，bulk clear 结构上救不到 —— banner 长留、任务永挂，事后
+            // 一次点击就能复活 owner 已死的破坏性 call。codex #58350（Resolve approval prompts when
+            // their requests end）定的就是这条归属关系。（HTTP 断连不是动机：probe 31 实测它不撤销
+            // 上游任务。）
+            return await withTaskCancellationHandler {
+                await withCheckedContinuation {
+                    (cont: CheckedContinuation<ApprovalDecision, Never>) in
+                    // 先登记再看取消位：`onPending` 已发布过这行，未登记的早退会让 banner 永远等不到
+                    // `onResolved`。登记与清场之间不让出 actor，才没有「`onCancel` 还在排队、而点击
+                    // 先被处理成 `.approved`」那个复活窗口。
+                    pendingByID[row.id] = (row, cont)
+                    if Task.isCancelled {
+                        abandonPending(id: row.id)
+                    }
+                }
+            } onCancel: {
+                // 非隔离闭包 → 回 actor 排队；与用户裁决相撞时由 `resolve` 的 removeValue
+                // 决出唯一一次 resume。
+                Task { [weak self] in
+                    await self?.abandonPending(id: row.id)
+                }
             }
         }
+    }
+
+    /// 取消路径的理由串。与 `cancelAll` 的 `session-ended` 区分：那是会话终结，这是单次请求。
+    static let cancelledReason = "request-cancelled"
+
+    /// 请求已结束、prompt 还挂着 → 翻译成一次拒绝裁决，走 `resolve` 这条唯一清场路径
+    /// （removeValue 保证 exactly-once，`onResolved` 顺带清 banner）。找不到 = 已被消费。
+    private func abandonPending(id: UUID) {
+        _ = resolve(id: id, decision: .denied(reason: Self.cancelledReason))
     }
 
     /// 挂起行 → UI。返回当前全部 pending（按发布时间序）。

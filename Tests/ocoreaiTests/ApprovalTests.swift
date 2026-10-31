@@ -732,3 +732,167 @@ struct ApprovalExactlyOnceTests {
         #expect(await b.sessionApprovalCount == 0)
     }
 }
+
+// MARK: - 请求结束即终结自己的 prompt（codex #58350）
+
+/// codex #58350（`Resolve approval prompts when their requests end`）定的是一条归属关系：
+/// 挂起的 prompt 属于发起它的那个请求，请求结束它就得结束。
+///
+/// 面（量出来的，不是假想）：`ChatView.stopStreaming()`（ChatView.swift:1021）在
+/// `cancelInference()` 之后还打 `activeTask?.cancel()`，注释自陈「propagate cancellation to both
+/// the Task layer and the InferenceCancellation layer」，而 `activeTask` 跑的 `chatState.chat(...)`
+/// 正是可能 park 在 `request()` 里的那个任务；`withCheckedContinuation` 对取消无感 —— Stop 撤销了
+/// 任务，没撤销 prompt。
+///
+/// 已有的两条清场（`cancelInference()` / `resetConversation()` → `cancelAll()`，见
+/// `ChatStateTurnEndApprovalClosureTests`）都是**当下的批量**清场，只 resolve 那一刻已登记的行。
+/// 行若在清场之后才登记（Stop 落在登记前），bulk clear 结构上救不到它，broker 也从不看调用方的
+/// 取消位 —— banner 长留、任务永挂，事后一次点击就能复活 owner 已死的破坏性 call。`ChatViewModel`
+/// reset 处的注释（「否则旧审批卡仍可 resolve 复活已死 call」）承认的正是这个危险，只是只在会话
+/// 边界防它。HTTP 客户端断连**不是**本改动的依据：probe 31 实测它不撤销上游任务。
+///
+/// 两条交错都要覆盖：`onCancel` 晚于登记（`cancelResolvesItsOwnPrompt` 靠 20 次循环撞两条分支）与
+/// 早于登记（`cancelBeforeRegistration` 用门钉成确定顺序）。未修复时挂起方**永不返回**，所以裁决经
+/// ``ResultBox`` 有界读取 —— 回归必须报成红色，而不是把整个 suite 挂死。
+@Suite("ApprovalBroker — 请求取消即终结自己的 prompt")
+struct ApprovalCancellationPromptTests {
+
+    /// UI 侧观察者替身：pending 发布了几行、resolved 清场了几次。banner 的寿命就是这两个数。
+    private actor PromptProbe {
+        private(set) var published: [PendingApproval] = []
+        private(set) var resolutions = 0
+
+        func publish(_ row: PendingApproval) { published.append(row) }
+        func resolve() { resolutions += 1 }
+    }
+
+    /// 挂起方的落点，由调用任务自己写。调用没返回就永远是 nil —— 有界等待才能把死锁报成失败。
+    private actor ResultBox {
+        private(set) var value: ApprovalDecision?
+
+        func store(_ decision: ApprovalDecision) { value = decision }
+    }
+
+    /// 让任务先进门、等测试按下取消再出发 —— 把「取消先于登记」从赛跑变成确定顺序。
+    private actor StartGate {
+        private var arrived = false
+        private var go = false
+
+        func markArrived() { arrived = true }
+        func setGo() { go = true }
+        func waitArrived() async {
+            while !arrived { try? await Task.sleep(nanoseconds: 1_000_000) }
+        }
+        func waitGo() async {
+            while !go { try? await Task.sleep(nanoseconds: 1_000_000) }
+        }
+    }
+
+    /// 一个 prompt 的完整一生：发布几次、清场几次、挂起方最终拿到什么。
+    private struct Lifetime {
+        var published = 0
+        var resolved = 0
+        var decision: ApprovalDecision?
+    }
+
+    /// 观察者与挂起方各跑在自己的 Task 上，所以轮询到三者齐备；400 轮（~0.8 s）不够就是真挂住了。
+    private func settle(_ probe: PromptProbe, _ box: ResultBox) async -> Lifetime {
+        var seen = Lifetime()
+        for _ in 0 ..< 400 {
+            seen = Lifetime(
+                published: await probe.published.count,
+                resolved: await probe.resolutions,
+                decision: await box.value)
+            if seen.published == 1, seen.resolved == 1, seen.decision != nil {
+                return seen
+            }
+            try? await Task.sleep(nanoseconds: 2_000_000)
+        }
+        return seen
+    }
+
+    /// 一次被取消的 prompt 应当留下的全部痕迹：发布 1 次、清场 1 次、挂起方拿到
+    /// `denied(request-cancelled)`、broker 里不留行，且迟到的「允许」救不活它。
+    private func expectCancelledPrompt(
+        _ b: ApprovalBroker, _ probe: PromptProbe, _ box: ResultBox, round note: String
+    ) async {
+        let seen = await settle(probe, box)
+        let got = String(describing: seen.decision)
+        #expect(
+            seen.decision == .denied(reason: ApprovalBroker.cancelledReason),
+            "\(note): caller got \(got) — parked instead of answered")
+        #expect(
+            seen.published == 1,
+            "\(note): prompt published \(seen.published)× — expected exactly one")
+        #expect(
+            seen.resolved == 1,
+            "\(note): banner cleared \(seen.resolved)× — expected the cancel path to clear it once")
+        #expect(await b.snapshot().isEmpty, "\(note): a dead prompt stayed published")
+        if let first = await probe.published.first {
+            #expect(
+                await b.resolve(id: first.id, decision: .approved) == false,
+                "\(note): a cancelled call was resurrected by a late click")
+        }
+    }
+
+    @Test("cancel → denied(request-cancelled), row gone, banner cleared once — 20 interleavings")
+    func cancelResolvesItsOwnPrompt() async throws {
+        for round in 0 ..< 20 {
+            let b = ApprovalBroker(policy: .interactive)
+            let probe = PromptProbe()
+            let box = ResultBox()
+            await b.setOnPending { row in await probe.publish(row) }
+            await b.setOnResolved { _, _ in await probe.resolve() }
+
+            let call = Task {
+                let decision = await b.request(
+                    toolName: "write_file", arguments: "{\"path\":\"/tmp/x\"}", reason: "r")
+                await box.store(decision)
+            }
+            call.cancel()
+            await expectCancelledPrompt(b, probe, box, round: "round \(round)")
+        }
+    }
+
+    @Test(
+        "cancel landing BEFORE registration still leaves nothing (cancelAll cannot reach this order)"
+    )
+    func cancelBeforeRegistration() async throws {
+        let b = ApprovalBroker(policy: .interactive)
+        let probe = PromptProbe()
+        let box = ResultBox()
+        let gate = StartGate()
+        await b.setOnPending { row in await probe.publish(row) }
+        await b.setOnResolved { _, _ in await probe.resolve() }
+
+        let call = Task {
+            await gate.markArrived()
+            await gate.waitGo()
+            let decision = await b.request(
+                toolName: "write_file", arguments: "{\"path\":\"/tmp/x\"}", reason: "r")
+            await box.store(decision)
+        }
+        // 取消确定地发生在 `request()` 之前：任务带着已置位的取消标记进入挂起分支。
+        await gate.waitArrived()
+        call.cancel()
+        await gate.setGo()
+
+        await expectCancelledPrompt(b, probe, box, round: "cancel-before-registration")
+    }
+
+    @Test("an uncancelled request is untouched by this path (approve still approves)")
+    func uncancelledRequestStillApproves() async throws {
+        let b = ApprovalBroker(policy: .interactive)
+        let call = Task {
+            await b.request(
+                toolName: "write_file", arguments: "{\"path\":\"/tmp/x\"}", reason: "r")
+        }
+        guard let row = await waitForRow(b) else {
+            #expect(false, "approval row never published")
+            return
+        }
+        #expect(await b.resolve(id: row.id, decision: .approved) == true)
+        #expect(await call.value == .approved)
+        #expect(await b.snapshot().count == 0)
+    }
+}

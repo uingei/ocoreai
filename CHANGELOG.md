@@ -9,6 +9,49 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(80) Stop revoked the request but not its approval prompt — and a late click could still run it**
+
+- **What improved.** `ApprovalBroker.request()` parked on a bare `withCheckedContinuation`, which is
+  indifferent to cancellation, so a prompt could outlive the request that raised it. The face is in the
+  UI: `stopStreaming()` (`Sources/ocoreai/UI/Views/ChatView.swift:1021`) fires `cancelInference()` and
+  then `activeTask?.cancel()` — its own comment reads "propagate cancellation to both the Task layer
+  and the InferenceCancellation layer" — and that task runs `chat(...)`
+  (`Sources/ocoreai/UI/ViewModels/ChatViewModel.swift:976`) → tool dispatch → `securityGate` →
+  `broker.request`. So Stop revoked the task and left the prompt: banner on screen, caller parked
+  forever, and the approval card still live — answering for a caller that no longer exists. Pre-fix that
+  was measured, not inferred, and one of the four reds is destructive rather than cosmetic: after the
+  cancel, `resolve(id:, decision: .approved)` returned **true** ("a cancelled call was resurrected by a
+  late click"), i.e. one click on a stale card executes the destructive tool. The park is now wrapped in
+  `withTaskCancellationHandler`, and cancellation resolves the row as `.denied(reason:
+  "request-cancelled")` through `resolve()` — the one exactly-once path — so the banner clears via
+  `onResolved` and every later click returns `false`. The row is registered *before* the cancellation
+  bit is read and `abandonPending` runs in the same actor job as the registration: `onCancel` alone
+  leaves a window in which a queued clear loses to a click that already arrived as `.approved`. This is
+  codex #58350 (`Resolve approval prompts when their requests end`) — the prompt belongs to the request
+  that raised it. What already existed, and stays untouched: `cancelInference()`/`resetConversation()` →
+  `cancelAll()` (`ChatStateTurnEndApprovalClosureTests`(3)), a **bulk** clear of the rows registered at
+  that instant; a row registered afterwards is unreachable by it, and the broker never read the caller's
+  cancellation bit at all. Recorded so nobody re-cites it as motivation: an HTTP client walking away is
+  **not** a face here — probe 31 measures that Hummingbird does not cancel the upstream task
+  (`ChatHandler.swift:1421`'s `onTermination` bridge never fires), and that stays open.
+
+- **What same-session output proves it.** The red was sampled with only the wiring removed, so the suite
+  still compiled against the old shape: `✘ Test run with 3 tests in 1 suite failed after 22.830 seconds
+  with 84 issues`, four distinct messages — `caller got nil — parked instead of answered`, `banner
+  cleared 0× — expected the cancel path to clear it once`, `a dead prompt stayed published`, `a
+  cancelled call was resurrected by a late click`. With the handler the same three tests pass in 0.061 s
+  and the surrounding surface is green: `make test FILTER='Approval|approval'` → **58 tests in 12
+  suites**, including `ChatState: turn-end closes the approval circuit` unchanged, so the bulk-clear lane
+  still works and this closes only what it cannot reach. `swift build -c release` green (176 s); the
+  pinned 603.0.0 ruleset would rewrite 0 files under `Sources/` and `Tests/`; `make docs-check` green.
+
+- **Which gate goes red if it regresses.** `ApprovalCancellationPromptTests`(3): the 20-interleaving
+  loop (catches `onCancel` landing both before and after registration), a `StartGate` variant that pins
+  the cancel-before-registration order deterministically — the one order `cancelAll()` structurally
+  cannot reach — and an uncancelled control, so the path cannot over-fire and deny a live prompt. The
+  caller's verdict is read through a bounded `ResultBox` (400 × 2 ms) rather than `await call.value`:
+  a regression parks the caller, and a gate that hangs on its own red cannot report it.
+
 **10-31(79) An aggregate that scored "nothing measurable" as perfect, and 15 lines nothing read**
 
 - **What improved.** `LogProbabilities` carried upstream's `sum`/`mean`/`perplexity` across four
