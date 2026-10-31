@@ -4,18 +4,18 @@ The host injects root `AGENTS.md` plus every `AGENTS.md` to the cwd, truncated a
 32 KiB (B2, `scripts/agents-md-contract.sh`). `make anchor-check` and `make docs-check` P3 both
 sweep `docs/agent/*.md`, so one hop out loses nothing.
 
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:172 Task.sleep(until: deadline -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1409 Float.leastNormalMagnitude -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3044 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3755 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:195 Task.sleep(until: deadline -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1432 Float.leastNormalMagnitude -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3073 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3806 SteerQueue.shared.drain -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInferenceSupport.swift:116 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4339 components: thinkingComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4333 answerOnly: true -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3858 components: mtpGenComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4403 components: thinkingComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4397 answerOnly: true -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3914 components: mtpGenComponents -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:919 case "affine" -->
-<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1526 static func rewindHistoryEnd -->
-<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:683 Self.rewindHistoryEnd( -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3223 rewind.source.session.fork( -->
+<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1566 static func rewindHistoryEnd -->
+<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:687 Self.rewindHistoryEnd( -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3266 rewind.source.session.fork( -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:943 let kvCacheRewindReserveTokens = 1024 -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:14 public struct Message { -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/UserInput.swift:131 public struct Image { -->
