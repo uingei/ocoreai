@@ -232,7 +232,12 @@ actor MCPBridge {
         }
 
         // 转发到本地 MCP server
-        return await server.dispatch(trimmed)
+        // 本函数唯一的调用面是 HTTP `POST /mcp`，而 wire 消费者答不了审批：`.ask` 若在这里
+        // park 到 broker，等的是本机 GUI 的一张审批卡，请求方只会一直沉默。实测（10-31，
+        // 默认 interactive 策略）：`tools/call write_file` 十二秒无响应（curl -m 12 → 000），
+        // 文件也没写 —— 三条 chat/completions/anthropic 线都传 `headless: true` 并 fail-closed
+        // 拒绝，只有这条线没报自己的通道。codex `codex-rs/exec/src/lib.rs:566` 同一语义。
+        return await server.dispatch(trimmed, headless: true)
     }
 
     /// 处理 Bridge 管理命令（内部路由）

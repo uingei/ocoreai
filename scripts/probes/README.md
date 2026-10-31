@@ -340,6 +340,16 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
 
 - `44-reasoning-channel-delivery.sh` — does thinking reach `reasoning_content`, or the answer?
 - `45-cli-argument-honesty.sh` — does `serve --help` answer, or boot? Is a flag `serve` cannot honour refused before the bind?
+
+- `46-mcp-wire-headless-denial.sh` — does a destructive `tools/call` on `/mcp` get refused, or wait
+  forever for a GUI that is not on its channel?
+    Measured 10-31 before the fix, with the shipped default policy: `initialize` answered and
+    `tools/call write_file` answered nothing for 12 s (`curl -m 12` → status 000), file unwritten —
+    `.ask` parked on `ApprovalBroker` waiting for the in-app approval card, while the three other
+    tool-bearing lanes declare `headless: true` and are refused at the gate (codex
+    `codex-rs/exec/src/lib.rs:566`). Green 10-31: the handshake answers, the refusal arrives naming
+    the channel, the target file stays absent, and `echo` still runs on the same lane — the lane was
+    scoped, not switched off. Boots no model.
     A reasoning model emits thinking and its answer in one decoded stream, and since lm #563 upstream
     splits them into `Generation.reasoning` on both lanes this server switches over
     (`ChatSession.swift:1414`, `Evaluate.swift:2574`). §1 asks for thinking and gets a non-empty

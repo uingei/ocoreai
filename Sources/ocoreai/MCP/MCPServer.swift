@@ -114,7 +114,12 @@ actor MCPServer {
     }
 
     /// Dispatch one JSON-RPC message string, returns response string or nil for notifications.
-    func dispatch(_ line: String) async -> String? {
+    ///
+    /// - Parameter headless: whether the channel that received this message can answer an
+    ///   approval prompt. The wire route (`POST /mcp`) cannot, so it declares itself headless and
+    ///   the gate refuses fail-closed; the bridge's own local dispatch keeps the default and still
+    ///   asks a person who is present.
+    func dispatch(_ line: String, headless: Bool = false) async -> String? {
         guard let data = line.data(using: .utf8) else {
             return err(.parse, id: nil)
         }
@@ -148,7 +153,8 @@ actor MCPServer {
                 return err(.badParams, id: req.id, detail: "missing required field `name`")
             }
             let arguments = params["arguments"] as? [String: Any] ?? [:]
-            return res(await doCall(name: name, arguments: arguments), id: req.id)
+            return res(
+                await doCall(name: name, arguments: arguments, headless: headless), id: req.id)
         case "ping":
             return res(JVal([String: String]()), id: req.id)
         case "$/cancel": return nil
@@ -206,13 +212,16 @@ actor MCPServer {
         return JVal(["tools": list])
     }
 
-    private func doCall(name: String, arguments args: [String: Any]) async -> JVal {
+    private func doCall(
+        name: String, arguments args: [String: Any], headless: Bool = false
+    ) async -> JVal {
         let j =
             (try? JSONSerialization.data(withJSONObject: args)).flatMap {
                 String(decoding: $0, as: UTF8.self)
             } ?? "{}"
         do {
-            let r = try await registry.call(name, arguments: j)
+            let r = try await registry.call(
+                name, arguments: j, caller: "mcp", headless: headless)
             return JVal(["content": [["type": "text", "text": r]], "isError": false])
         } catch {
             return JVal([

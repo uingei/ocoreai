@@ -9,6 +9,55 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(81) A wire lane that never said who it was waited 15 s for a GUI that is not on it**
+
+- **What improved.** `MCPServer.doCall` called `registry.call(name, arguments:)` on its default
+  `headless: false`, so the fourth tool-bearing wire surface never declared its channel: an `.ask`
+  verdict parked on `ApprovalBroker`, waiting for the in-app GUI's approval card — a surface that does
+  not exist for a client on `POST /mcp`. Measured against a live `serve` with the shipped default
+  policy, no model booted: `initialize` answered, `tools/call write_file` answered nothing for 12 s
+  (`curl -m 12` → status 000), file unwritten. The other three lanes (`chat/completions`,
+  `completions`, `anthropic/messages`) already pass `headless: true` and are refused at the gate
+  (codex `codex-rs/exec/src/lib.rs:566` — a headless consumer cannot be asked); `/mcp` was simply
+  missed, so an agent harness driving the advertised MCP surface could hang with no error, no timeout
+  and no way out — and the prompt stays published afterwards, because probe 31 measures that
+  Hummingbird does not cancel the handler task when the client walks away.
+  The channel now travels from the entry that knows it: `handleLine` (its only caller is the
+  `POST /mcp` route) declares `headless: true`, `MCPServer.dispatch(_:headless:)` hands it to
+  `doCall`, and the one existing gate refuses fail-closed. The default stays `false` on purpose — the
+  bridge's own local dispatch is a different channel and must still ask a person who is present, so
+  this scopes the refusal instead of switching approvals off on a surface. It also names the caller
+  (`caller: "mcp"`): the durable audit row recorded every `/mcp` call as `unknown`, so the record
+  could not say which channel a destructive call arrived on.
+  Measured while writing the probe, and left alone here: the refusal the client gets reads
+  `Tool call denied by hook: denied: interactive approval is not available on this (headless)
+  channel` — a hook that never ran is named as the cause. That prefix is pinned by
+  `ToolRecoveryTextTests` and is text a model reads back, so it owes its own round, not a fold-in.
+
+- **What same-session output proves it.** The red is the probe, on the real route: with the lane
+  declaration removed and rebuilt, `FAIL write_file on /mcp still parks — 15 s and no answer` and
+  `5 passed, 1 failed`; with it, **6 passed, 0 failed, 5 measured** — handshake answers, the refusal
+  arrives inside the budget naming the channel, the target file stays absent, and `echo` still runs on
+  the same lane (so the refusal is scoped, not a dead surface). The unit half is
+  `MCPServerHeadlessGateTests`(3) inside `make test FILTER=MCP` → **86 tests in 14 suites** green, and
+  its third test is the one that keeps this from becoming a blanket refusal: the presenting lane still
+  publishes a row and runs the tool once approved. `swift build -c release` green, pinned formatter
+  rewrites 0 files, `make docs-check` green with `probe-index=46/46`.
+  Two harness facts came out of the same measurement and are recorded in the probe: a `mktemp -d` path
+  makes `arguments` exceed the 80-grapheme review surface (codex #41159), so the call is refused as
+  unreviewable before it ever reaches the channel branch — a probe that missed that would certify the
+  wrong refusal; and stock macOS bash (3.2) splits an escaped-quote body inside nested `$( … "$(…)"
+  … )`, which sends torn JSON and answers `-32700` — measuring its own harness instead of the server.
+
+- **Which gate goes red if it regresses.** `scripts/probes/46-mcp-wire-headless-denial.sh` (row added
+  to `scripts/probes/README.md`): leg 1 is the positive control — a surface that answered nothing would
+  otherwise look like a hang that got fixed — so leg 2's silence means silence, and a parked handler
+  is itself the red; leg 3 fails if the lane is switched off instead of the prompt being refused.
+  `MCPServerHeadlessGateTests`(3) pins what no wire surface can show: the broker holds no orphan row,
+  the refusal text names the channel, the handler's execution count is the observable (0 refused, 1
+  approved) rather than a copied reason string, and the dispatch result is read through a bounded box
+  so a regression reports instead of hanging the suite.
+
 **10-31(80) Stop revoked the request but not its approval prompt — and a late click could still run it**
 
 - **What improved.** `ApprovalBroker.request()` parked on a bare `withCheckedContinuation`, which is
