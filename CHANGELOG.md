@@ -9,6 +9,74 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(85) The codex window `f2ac998355..67f0994b53` adjudicated — 37 commits, and the method stated**
+
+- **What the round is, and how far it read.** `make drift` exits 10 with the codex axis at +37: an
+  un-adjudicated window, which is the state that script refuses to fold into a baseline quietly.
+  This entry is the verdict, so the number has a home. Method first, because a triage that
+  overstates itself is exactly what invariant 1 forbids: all 37 subjects **and their rationale
+  bodies** were read (the two dumps the tool truncated were re-read commit by commit), `--stat`
+  file areas were listed for every one, and a diff was opened in full for the one in-window commit
+  the work leaned on plus two outside it — `7c997fe2de` (#57207, the timing-attribution precedent
+  round 84 cites) and #58350 (opened in round 80). Nothing below claims a diff it did not open;
+  where a commit is classified by the surface its own body names, that is said in the line.
+  Reproduce the subject and the count with `git -C ~/references/codex log --oneline
+  f2ac998355..67f0994b53` — 37, no merges.
+
+- **One landed as code (round 84).** **#58430** — audio file references with *explicit runtime
+  rejection*: accept the shape in the API, refuse it before inference or history injection, preserve
+  the accompanying text, keep a rejected attachment out of follow-ups. That is the parent claim of
+  round 84 ("the surface never claims more than the engine delivered", applied to an attachment).
+  The code we gained is vllm's construction, not theirs, and the measurement is ours; saying which
+  part came from where is the point — the repo consumes an answer rather than re-authoring one.
+
+- **Six already met, most of them measured in earlier rounds.** **#58350** (a prompt resolves when
+  its request ends) is round 80's `withTaskCancellationHandler` + abandon-in-the-registration-job.
+  **#58368 / #58357** (PreToolUse hooks ahead of direct review policy, then the helper extraction):
+  our `securityGate` runs hooks before the broker on both lanes, and `HookVerdict` has no rewrite
+  case to sequence. **#58351** (serialize duplicate approval prompts per endpoint):
+  `sessionApprovedKeys` is consulted before a prompt row exists (`Sources/ocoreai/Agents/Approval.swift:160`),
+  so no prompt in this repo can answer another request — n/a today, not "won't matter".
+  **#58361** (carry model-metadata **origin** instead of a fallback bool): we publish no origin
+  field — only `tokenizerBackend: real|heuristic` — so there is nothing here to falsify.
+  **#58434** (audio validation failures are non-retryable input errors): `invalidAudio` /
+  `transcriptionRejected` already answer as typed 400s with remediation; the *non-retryable* half is
+  inference here — no retry loop around them was traced.
+
+- **Three axes this window re-prices, with no code yet.** **#58404** — context-token estimates must
+  count output whose usage never arrived, or automatic compaction is late while reasoning piles up.
+  Our analogue is the real-token context wall behind `SessionCompressor`; whether an aborted or
+  failed turn's tokens reach that ledger **was not measured in this session**, and it is the first
+  thing to price at the next pin bump. **#58456** — attempted tool calls must survive a failed
+  trace (they live only in the terminal payload when `incompleteOutput` bites); the nearest home
+  here is `ToolAttemptLedger`, which records handler failures, and the incomplete-output face is
+  likewise unmeasured. **#58410** — deferred tool namespaces move into the developer `<tools>`
+  context: the same file as the open `tools[]`-gaps item, and the owner's prefix questions, not
+  arithmetic.
+
+- **Twenty-seven have no surface here**, classified by the files each touched and not read as
+  claims: the TUI (#58457 cross-backend session switching, #58446, #58436, #58427, and #58412 —
+  whose composer shell-mode this repo does not have at all: a grep for a `!`- or `/`-prefixed
+  submission branch under `Sources/ocoreai/UI` returns nothing), sign-in/auth/keyring/workspace
+  (#58343, #58355, #58381), Apps catalogue and plugin config (#58441, #58352, #58428), Guardian
+  reviewer-context budgeting (#58388, #58444, #58454 — there is no reviewer here; our corpus tail is
+  the same *problem*, disclosed rather than budgeted), host-managed child threads and the input-wait
+  API they expose (#58390, #58406, #58411 — the wait-interrupt family beneath them already landed
+  as `ToolInvocationContext`/`SteerQueue`, per codex #55644), MCP request-metadata scoping (#58395,
+  #58378 — no host metadata keys are sent), announcement suppression (#58405, a context-injection
+  concern), a message-board MCP adapter (#58341), and exec/CI/platform plumbing (#58418, #58403,
+  #58459, #58385, #58399, #58380).
+
+- **What this round deliberately did not do.** It did not absorb the window into
+  `.upstream-baseline.json`: `scripts/upstream-drift.sh` is modified in this working tree by another
+  live session, and the script's own stated rule is that a window never read must not be folded into
+  a baseline — absorbing is one command once that round lands. Nor did it touch the round-83 MCP
+  call, which is still the owner's with both exits priced there, nor the approval-wait charge to
+  `durationMs` (open-items, codex #57207): round 84 changed what *this* route measures for a tool's
+  own run, not what it charges a human's answer. No gate goes red on a verdict entry; the two numbers
+  in its heading are one command from reproducible, and `make docs-check` is what keeps the diary
+  parseable (green with this entry: `entries=402 paired=92`, probe-index 47/47).
+
 **10-31(84) A named attachment nobody read got a 200; the spec's audio shape was one of them**
 
 - **What improved.** The wire decoder had no key for OpenAI's `input_audio`, and any content part
