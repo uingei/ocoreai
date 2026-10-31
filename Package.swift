@@ -40,7 +40,7 @@ let package = Package(
         // in CHANGELOG.md; AGENTS.md keeps only the current pin and the transferable rules.
         // (docs/agent/upstream-audit-log.md was written once and deleted the same session:
         //  CHANGELOG.md already carries the round-by-round verdicts — one diary, one home.)
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "f5b0677f6"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "128f49f1d"),
         // mlx-swift: pinned exact 0.33.0 (resolved revision 7ede4fd6d). This sentence is
         // gated against the pin below and against Package.resolved by
         // DependencyPinStatementTests — this sentence named 0.32.2 as the pin long after

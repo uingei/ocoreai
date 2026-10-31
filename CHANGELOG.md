@@ -9,6 +9,45 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(70) Constrained decoding recompiled every grammar on every request, because the cache hit always threw**
+
+- **What improved.** Guided generation looked cached and was not. `LoadedModel.getOrCreateConstraint` stored
+  a compiled template and cloned it on a hit, but `clone()` is `xg_matcher_fork`, and lm vendors xgrammar
+  **v0.1.30**, where `GrammarMatcher::Fork()` does not exist — the shim answers `XG_ERR_INTERNAL` in its own
+  words, "xg_matcher_fork: Fork() not available in xgrammar v0.1.30" (`Libraries/MLXCXGrammar/shim.cc:495-502`,
+  read at the pin this round moves to). The hit therefore threw, the code evicted the template it had just
+  read, and the miss path's `if let cloned = try? constraint.clone()` stored nothing: nothing was ever cached,
+  so every request paid the compile the comment promised to skip ("~5-20ms … caching + cloning (~0.1ms)").
+  Upstream #732 shipped the primitive that fits the vendored tree: `freshMatcher()` builds a new matcher over
+  the already-compiled grammar — no Fork, initial state, no inherited state (`XGrammarBridge.swift:742`).
+  Adopted, which is why the pin moved `f5b0677f6` → `128f49f1d`; the cache property is internal rather than
+  private so the cache itself is assertable, not only its output.
+
+- **What same-session output proves it.** 5 tests over a one-token-per-character vocab: the same schema asked
+  twice leaves exactly **one** stored template and two distinct matchers — pre-fix the store held zero, because
+  the hit path could not execute at all; a valid `{"n":42}` closes on both faces (miss compiles, hit reuses)
+  with exactly `<eos>` admissible afterwards; and two matchers over one template are independent — committing a
+  token on one does not move the other's mask, which is the Fork contract still owed. `make audit` green across
+  both lockfiles (34 pins in sync) and `anchor-check` 79/79 with pin == HEAD. The FULL suite ran here — 3 417
+  tests in 601 suites, 7 issues, every one traced to a cause: (a) `ThirdPartyNoticesTests` went red on this
+  round's own omission, the recorded label still `rev f5b0677f6b52` against the live `rev 128f49f1db38`, i.e.
+  `scripts/collect-third-party-licenses.sh` had not been re-run — re-run, and its output is in this commit, so
+  the round's evidence includes the gate that caught the round; (b) 4 issues from README's env-key count read
+  mid-session while the bind/CORS doc split was being staged apart — each commit states a count its own
+  `Sources/` agrees with, and the suite is green re-run; (c) 1 from `SleepSteerWakeTests`' 2.5 s wall at
+  3 572 ms on a loaded box, green in isolation here — load-suspect, named not attributed, and untouched by
+  these rounds. No speedup number is claimed: nothing was timed, which is why the gate below is on the store,
+  not on a duration.
+
+- **Which gate goes red if it regresses.** `ConstraintTemplateCacheTests`(5): `count == 1` fails the moment
+  anything starts cloning through a shim that cannot fork again — the failure mode is silent (it degrades to
+  recompile-per-request while every request still succeeds), which is exactly why the assertion reads the
+  store instead of timing a request; the mask-closure test fails if a cached template ever hands out a spent
+  matcher. `ThirdPartyNoticesTests`(16) owns the pin↔notices pairing and was the first thing red. Residue:
+  vendored xgrammar is still v0.1.30, so `clone()` stays unusable here — a true fork (shared compiled grammar,
+  matcher state that commits independently) needs upstream to sync xgrammar ≥ v0.1.33, and patching the
+  vendored tree by hand is forbidden by its own VERSION note.
+
 **10-31(69) A browser could not use this server at all: one opt-in origin knob, answered before the key**
 
 - **What improved.** Every `curl` and native verdict in this repo was true while the same request from a web

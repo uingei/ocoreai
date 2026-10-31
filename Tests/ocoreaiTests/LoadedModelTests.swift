@@ -9,6 +9,8 @@
 import Atomics
 import Foundation
 import Logging
+import MLXGuidedGeneration
+import MLXLMCommon
 import Testing
 import ocoreaiTestUtilities
 
@@ -338,5 +340,163 @@ struct SendableSafetyTests {
         }
         // Every pair completed — counter must be zero
         #expect(model.activeSessions == 0)
+    }
+}
+
+// MARK: - Constraint template cache (upstream #732 freshMatcher adoption)
+
+/// One token per character: the fast-forward detokenization path validates
+/// 1:1 against this mapping, and tests read token IDs as character indexes.
+private let grammarTestVocab: [String] = [
+    "{", "}", "\"", ":", ",",
+    "a", "b", "c", "d", "e", "i", "j", "m", "n", "o", "p", "q", "r", "s",
+    "t", "u", "y", "2", "4",
+    "<eos>",
+]
+
+/// Minimal `MLXLMCommon.Tokenizer` for grammar tests: one token per char,
+/// so the grammar's fast-forward path round-trips through `encode`.
+private struct GrammarTestTokenizer: MLXLMCommon.Tokenizer {
+    private let tokenToID: [String: Int]
+    private let idToToken: [String]
+
+    init(vocab: [String]) {
+        idToToken = vocab
+        tokenToID = Dictionary(uniqueKeysWithValues: vocab.enumerated().map { ($1, $0) })
+    }
+
+    func encode(text: String, addSpecialTokens: Bool) -> [Int] {
+        text.map { tokenToID[String($0)] ?? 0 }
+    }
+
+    func decode(tokenIds: [Int], skipSpecialTokens: Bool) -> String {
+        tokenIds.compactMap { id in
+            (id >= 0 && id < idToToken.count) ? idToToken[id] : nil
+        }.joined()
+    }
+
+    func convertTokenToId(_ token: String) -> Int? { tokenToID[token] }
+
+    func convertIdToToken(_ id: Int) -> String? {
+        (id >= 0 && id < idToToken.count) ? idToToken[id] : nil
+    }
+
+    var bosToken: String? { nil }
+    var eosToken: String? { nil }
+    var unknownToken: String? { nil }
+
+    func applyChatTemplate(
+        messages: [[String: any Sendable]],
+        tools: [[String: any Sendable]]?,
+        additionalContext: [String: any Sendable]?
+    ) throws -> [Int] { [] }
+}
+
+@Suite("LoadedModel constraint template cache (upstream #732 freshMatcher)")
+struct ConstraintTemplateCacheTests {
+    /// Both schemas stay inside `grammarTestVocab` (one token per char).
+    private static let objectSchema =
+        #"{"type":"object","properties":{"n":{"type":"number"}},"required":["n"]}"#
+    private static let arraySchema = #"{"type":"array","items":{"type":"number"}}"#
+
+    private static func matcher(
+        _ model: LoadedModel, schema: String, fastForward: Bool
+    ) throws -> GrammarConstraint {
+        let tokenizer = try GrammarTokenizer(
+            vocab: grammarTestVocab, vocabType: .raw,
+            eosTokenId: Int32(grammarTestVocab.count - 1))
+        return try model.getOrCreateConstraint(
+            grammarTokenizer: tokenizer,
+            hostTokenizer: GrammarTestTokenizer(vocab: grammarTestVocab),
+            jsonSchema: schema,
+            fastForward: fastForward)
+    }
+
+    @Test("the template is stored once and reused across requests")
+    func templateStoredOnce() throws {
+        let model = makeLoadedModel()
+        let first = try Self.matcher(model, schema: Self.objectSchema, fastForward: true)
+        let second = try Self.matcher(model, schema: Self.objectSchema, fastForward: true)
+        // Pre-fix shape: clone() throws on lm's vendored xgrammar v0.1.30
+        // (no Fork), the template was evicted, and every request recompiled.
+        #expect(model._constraintTemplates.count == 1)
+        #expect(first !== second)
+        _ = try Self.matcher(model, schema: Self.objectSchema, fastForward: true)
+        #expect(model._constraintTemplates.count == 1)
+    }
+
+    @Test("distinct schemas keep distinct templates")
+    func distinctSchemasDistinctTemplates() throws {
+        let model = makeLoadedModel()
+        _ = try Self.matcher(model, schema: Self.objectSchema, fastForward: true)
+        _ = try Self.matcher(model, schema: Self.arraySchema, fastForward: true)
+        #expect(model._constraintTemplates.count == 2)
+    }
+
+    @Test("every matcher starts at the grammar's initial state")
+    func matchersStartFresh() throws {
+        let model = makeLoadedModel()
+        let a = try Self.matcher(model, schema: Self.objectSchema, fastForward: true)
+        let b = try Self.matcher(model, schema: Self.objectSchema, fastForward: true)
+        let maskA = try a.computeMask()
+        let maskB = try b.computeMask()
+        #expect(maskA.isTerminated == false)
+        #expect(maskA.mask == maskB.mask)
+    }
+
+    @Test("advancing one matcher does not move the other")
+    func matchersAreIndependent() throws {
+        let model = makeLoadedModel()
+        let a = try Self.matcher(model, schema: Self.objectSchema, fastForward: true)
+        let b = try Self.matcher(model, schema: Self.objectSchema, fastForward: true)
+        let bBefore = try b.computeMask()
+        _ = try a.commitToken(0)  // grammarTestVocab[0] == "{"
+        let bAfter = try b.computeMask()
+        #expect(bAfter.mask == bBefore.mask)
+        #expect(bAfter.isTerminated == bBefore.isTerminated)
+    }
+
+    /// Token ids a mask admits, in vocab order — the observable a sampler acts on.
+    ///
+    /// This suite asserts closure through the mask rather than through
+    /// `isTerminated`, because measured on lm's vendored xgrammar v0.1.30 (pin
+    /// `128f49f1d`) a completed JSON value leaves `isTerminated` false while the
+    /// mask admits exactly `<eos>`: the flag reports an empty rule stack, the mask
+    /// reports "nothing but EOS is admissible", and only the second is a promise a
+    /// sampler can keep. `ConstrainedGenerationSession.isTerminated` ORs the flag
+    /// with `allTokensBlocked` for the same reason.
+    private static func allowedTokens(_ result: MaskResult) -> [Int] {
+        result.mask.enumerated().flatMap { word, bits in
+            (0 ..< 32).compactMap { bit in
+                guard bits & (1 << bit) != 0 else { return nil }
+                let id = word * 32 + bit
+                return id < grammarTestVocab.count ? id : nil
+            }
+        }
+    }
+
+    @Test("a cached template still closes a valid JSON value")
+    func validJsonClosesTheGrammar() throws {
+        let model = makeLoadedModel()
+        // `{"n":42}` — each char is one token of grammarTestVocab. Both faces of
+        // the cache run: the miss compiles and stores, the hit hands out a matcher
+        // over the stored template, and a stub or spent matcher fails the second.
+        let sequence = ["{", "\"", "n", "\"", ":", "4", "2", "}"]
+        let eos = grammarTestVocab.count - 1
+        for request in 1 ... 2 {
+            let constraint = try Self.matcher(model, schema: Self.objectSchema, fastForward: false)
+            for ch in sequence {
+                guard let id = grammarTestVocab.firstIndex(of: ch) else {
+                    Issue.record("test vocab lost \(ch)")
+                    return
+                }
+                _ = try constraint.commitToken(Int32(id))
+            }
+            let allowed = Self.allowedTokens(try constraint.computeMask())
+            let names = allowed.map { grammarTestVocab[$0] }
+            #expect(
+                allowed == [eos],
+                "request \(request) after the closing brace: only EOS may follow, got \(names)")
+        }
     }
 }

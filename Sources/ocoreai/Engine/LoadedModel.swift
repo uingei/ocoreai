@@ -140,12 +140,19 @@ final class LoadedModel: @unchecked Sendable {
 
     /// Constraint template cache — mirrors upstream ModelCache.constraintTemplates.
     /// Grammar compilation is expensive (~5-20ms); caching + cloning (~0.1ms) lets
-    /// repeated requests with the same schema skip recompilation.
-    /// Key format: "json:\(schema)"
-    private var _constraintTemplates: [String: GrammarConstraint] = [:]
+    /// Cached compiled constraint templates, keyed "json:\(schema)".
+    /// Internal (not private) so the cache property itself is assertable.
+    var _constraintTemplates: [String: GrammarConstraint] = [:]
 
-    /// Get or build a cached GrammarConstraint template, cloning on hit — mirrors
-    /// upstream ModelCache.makeConstraint(modelID:kind:source:tokenizer:hostTokenizer:fastForward:).
+    /// Get a matcher for the schema over the cached compiled template.
+    ///
+    /// Mirrors upstream `ModelCache.makeConstraint` in shape, with one deliberate
+    /// difference: upstream clones the template on hit, and `clone()` needs
+    /// `GrammarMatcher::Fork()`, which lm's vendored xgrammar v0.1.30 lacks (Fork
+    /// landed in v0.1.33 — the note #732 corrected). A clone here throws on
+    /// every call, so the template was never stored and every request recompiled
+    /// the grammar. `freshMatcher()` (upstream #732) builds a new matcher over the
+    /// already-compiled grammar — no Fork, initial state, no inherited state.
     func getOrCreateConstraint(
         grammarTokenizer: GrammarTokenizer,
         hostTokenizer: any MLXLMCommon.Tokenizer,
@@ -154,11 +161,7 @@ final class LoadedModel: @unchecked Sendable {
     ) throws -> GrammarConstraint {
         let cacheKey = "json:\(jsonSchema)"
         if let template = _constraintTemplates[cacheKey] {
-            do {
-                return try template.clone()
-            } catch {
-                _constraintTemplates.removeValue(forKey: cacheKey)
-            }
+            return try template.freshMatcher()
         }
         let constraint = try GrammarConstraint(
             tokenizer: grammarTokenizer,
@@ -166,11 +169,8 @@ final class LoadedModel: @unchecked Sendable {
             fastForward: fastForward,
             hostTokenizer: hostTokenizer
         )
-        if let cloned = try? constraint.clone() {
-            _constraintTemplates[cacheKey] = constraint
-            return cloned
-        }
-        return constraint
+        _constraintTemplates[cacheKey] = constraint
+        return try constraint.freshMatcher()
     }
 
     /// Get or build the cached GrammarTokenizer for guided generation.
