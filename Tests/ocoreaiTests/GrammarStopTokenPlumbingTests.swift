@@ -44,7 +44,6 @@ struct GrammarStopTokenPlumbingTests {
         "a", "1", "0", "-", "+", ".", "e", "E", "n", "u", "l", "t", "r", "f", "s", "e2", "q",
     ]
     private static let lbrace = 0
-    private static let quote = 6
     private static let ordinaryQ = 25
 
     private static let schema =
@@ -53,6 +52,7 @@ struct GrammarStopTokenPlumbingTests {
         """
 
     /// One bit of a session's first mask. `nil` mask means xgrammar reported the grammar as done.
+    @available(macOS 27.0, *)
     private static func allowedAtStart(_ id: Int, stopTokenIds: [Int32]?) throws -> Bool? {
         var session = try ConstrainedGenerationSession(
             jsonSchema: schema,
@@ -64,15 +64,30 @@ struct GrammarStopTokenPlumbingTests {
         return (mask[id / 32] >> (UInt32(id % 32))) & 1 == 1
     }
 
+    /// `acceptToken` on a fresh session, read into a value first: the session is `~Copyable`, and
+    /// `#expect` would otherwise try to capture it.
+    @available(macOS 27.0, *)
+    private static func acceptsFirst(_ id: Int, stopTokenIds: [Int32]?) throws -> Bool {
+        var session = try ConstrainedGenerationSession(
+            jsonSchema: schema,
+            vocabulary: vocabulary,
+            vocabType: .byteLevel,
+            stopTokenIds: stopTokenIds
+        )
+        return session.acceptToken(Int32(id))
+    }
+
     @Test(
         "naming a stop id blocks it while the document is incomplete",
         .enabled(if: PlatformPremise.hasMacOS27))
     @available(macOS 27.0, *)
     func namedStopIdIsBlockedMidDocument() throws {
         // Without ids the caller's stop token is nothing to xgrammar, so `{` opens as usual.
-        #expect(try Self.allowedAtStart(Self.lbrace, stopTokenIds: nil) == true)
+        let unowned = try Self.allowedAtStart(Self.lbrace, stopTokenIds: nil)
+        #expect(unowned == true)
         // Naming it makes xgrammar own it: blocked until the grammar can reach its end.
-        #expect(try Self.allowedAtStart(Self.lbrace, stopTokenIds: [Int32(Self.lbrace)]) == false)
+        let owned = try Self.allowedAtStart(Self.lbrace, stopTokenIds: [Int32(Self.lbrace)])
+        #expect(owned == false)
     }
 
     @Test(
@@ -80,24 +95,14 @@ struct GrammarStopTokenPlumbingTests {
         .enabled(if: PlatformPremise.hasMacOS27))
     @available(macOS 27.0, *)
     func acceptFollowsTheNamedList() throws {
-        // The same value through the other xgrammar entry point: a named stop id is refused by the
-        // matcher until the document is complete, and accepted as an ordinary character when the
-        // caller named somebody else. Two entry points, so a discard at either one goes red.
-        var asStop = try ConstrainedGenerationSession(
-            jsonSchema: Self.schema,
-            vocabulary: Self.vocabulary,
-            vocabType: .byteLevel,
-            stopTokenIds: [Int32(Self.lbrace)]
-        )
-        #expect(!asStop.acceptToken(Int32(Self.lbrace)))
-
-        var asOrdinary = try ConstrainedGenerationSession(
-            jsonSchema: Self.schema,
-            vocabulary: Self.vocabulary,
-            vocabType: .byteLevel,
-            stopTokenIds: [Int32(Self.ordinaryQ)]
-        )
-        #expect(asOrdinary.acceptToken(Int32(Self.lbrace)))
+        // The same value through the matcher's other entry point (`:634` → `AcceptStopToken`): a named
+        // stop id is refused until the document is complete, and accepted as an ordinary character when
+        // the caller named somebody else. Two entry points, so a discard at either one goes red.
+        let namedStop = try Self.acceptsFirst(Self.lbrace, stopTokenIds: [Int32(Self.lbrace)])
+        #expect(!namedStop)
+        let namedElsewhere = try Self.acceptsFirst(
+            Self.lbrace, stopTokenIds: [Int32(Self.ordinaryQ)])
+        #expect(namedElsewhere)
     }
 }
 

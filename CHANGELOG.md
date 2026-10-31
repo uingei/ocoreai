@@ -9,6 +9,45 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(74) The coreai-models window read end to end: one commit absorbed, one has no surface, one is a decision**
+
+- **What improved.** `make drift` opened a three-commit window (`db7823e` → `d3382a5`) and each commit now
+  has a verdict with its evidence rather than a shared shrug. **`1c25c57` (#382)** — n/a: it teaches their
+  `llm-server --replay` to carry a `completion` body, and `ReplayRequest`/`ReplayRunner`/`runLoglikelihood`
+  are 0 hits across `Sources/`; our scoring surface is the `/v1/completions` logprobs route
+  (`Engine/EngineLogprobs.swift`), which never grew a replay file format. **`6a6bb0e` (#374)** — absorbed
+  above (round 73), in the same shape upstream landed it. **`d3382a5` (#386)** — open, and the most
+  expensive row here: their static-shape engine now conforms to `SpeculativeEngine` and exposes the verify
+  primitive (`forwardWithPerPositionLogits`, `forwardPerPositionArgmax`, verify tiles sized by
+  `verifyTileWidth`, rewind aligned to the window stride), which is precisely the capability our MTP lane
+  runs on MLX and has no CoreAI counterpart for; `SpeculativeEngine`/`verifyTileWidth`/`canTruncate` are all
+  0 hits in our tree, so the choice is the standing re-sync decision (adjudication § Open row 3), not a
+  patch. Two transferable rules came out of reading it, recorded because they price code we already have:
+  a verify block longer than the widest graph silently yields *fewer rows than tokens* (prefill graphs
+  return no logits) — upstream throws on that, and our static-shape copy has the same `maxQueryLength`
+  guard to reason about; and `LogitRowScan` states the greedy rule explicitly (first maximum wins, a NaN
+  ranks as negative infinity) *because* `vDSP_maxvi` returns an arbitrary index on a row holding a NaN, so
+  a row is checked first. Our single bare `vDSP_maxvi` scan is `Engine/LogProbabilities.swift:160` (the
+  `topK == 1` alternative), and the file's `raw.isNaN ? 0.0 : raw` — the same line upstream carries —
+  reports log-probability `0.0` (probability 1.0) for every position of a NaN row. Its live consumer is
+  the wire: `Engine/EngineLogprobs.swift:132` puts each entry's value straight into `token_logprobs`. The
+  file's `sum`/`mean`/`perplexity` would score such a row perfect as well, and nothing reads them —
+  `.mean`/`.perplexity` on this type are 0 hits outside the file, so the wire is the whole exposure.
+  Priced here, not patched (round 75 read what made patching honest, and did it). What this row first
+  asserted about verifiability was wrong in its premise, and the correction is the transferable part:
+  `#if canImport(CoreAI)` is a *compile* gate, so a pure function inside it still runs on a macOS 26 host
+  — `make test FILTER=LogProbabilities` ran 10 green here — while a function touching CoreAI types at
+  runtime does not. Only the second kind owes the macOS 27 skip, and claiming the first is unverifiable
+  talks a fix out of the rounds that can run it.
+
+- **What same-session output proves it.** The 0-hit greps above are the n/a evidence; the absorbed row is
+  proved by its own suite and build. `make drift` still exits 10, which is the honest state: the window is
+  read, one row of it awaits an owner decision, and a red that means "someone owes a call" is the point.
+
+- **Which gate goes red if it regresses.** None new, deliberately — the gate layer is frozen, and this round
+  changed no behaviour. The red that matters is the one already standing: `make drift` goes green only when
+  the #386 window is adopted or recorded as a permanent divergence in the file header.
+
 **10-31(73) The stop tokens a caller named never reached the grammar — upstream's fix, absorbed**
 
 - **What improved.** `ConstrainedDecodingStrategy.createSession` derives single-token stop ids from the
