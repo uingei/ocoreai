@@ -18,10 +18,13 @@
 #      `[DONE]`, with the segments concatenated byte-for-byte.
 #   5. Non-streaming shape: `finish_reason`, the assembled `tool_calls`, and `usage` equal to the
 #      declared counts — and no `prompt_tokens_details`, because a replay reuses no prefix.
-#   6. A broken script fails loudly: the cause reaches the client (5xx off, diagnostic on), never a
+#   6. The completions lane keeps the thought channel out of `choices[].text`, and both of its
+#      lanes release the same bytes — this endpoint has no field for thinking, so it must not
+#      publish one by concatenating two channels into the answer.
+#   7. A broken script fails loudly: the cause reaches the client (5xx off, diagnostic on), never a
 #      quiet empty turn that looks finished.
-#   7. Static floor: the scoreboard still refuses a scripted backend.
-#   8. The tool count AGENTS.md quotes is this server's: the injected file says how many tools the wire
+#   8. Static floor: the scoreboard still refuses a scripted backend.
+#   9. The tool count AGENTS.md quotes is this server's: the injected file says how many tools the wire
 #      advertises, so a tool added or left unregistered must move the sentence, not age inside it.
 
 set -uo pipefail
@@ -34,6 +37,9 @@ PROBE_NAME="scripted-engine-wire"
 SCRIPT_FILE="$(mktemp -t ocoreai-script-XXXXXX).json"
 probe_atexit "rm -f '$SCRIPT_FILE'"
 EXPECTED_TEXT='Sure — two deltas, in order.'
+## The same script's thinking channel, spelled out because the assertion below is about a leak:
+## matching on prose that the script owns keeps the verdict about the wire, not about this file.
+EXPECTED_REASONING='planning the read'
 
 cat > "$SCRIPT_FILE" <<JSON
 {
@@ -146,7 +152,88 @@ else
   probe_ok "no prompt_tokens_details — no cache-reuse claim on a replayed turn"
 fi
 
-# 6 — same path, broken content: the cause must reach the client.
+# 6 — the completions lane, which has no second channel to put thinking in.
+#     Measured 10-31 against this very script: `stream:false` published
+#     "planning the read Sure — two deltas, in order." as `choices[0].text` while `stream:true`
+#     published "Sure — two deltas, in order.", and the chat sibling of the same turn split them
+#     into `content` and `reasoning_content`. `text` is what a client prints and what a harness
+#     scores, so on a thinking model this route handed the thought back as the answer. The decision
+#     already has a home with the other two consumers of the event (ChatHandler.swift:1072-1075 —
+#     "leaked the full thought block into the non-streaming `content` field" — and
+#     AnthropicMessagesHandler.swift:1031, which gives it a `thinking` block): reasoning is its own
+#     channel, and a wire with no field for it does not publish one by concatenating.
+COMPLETIONS_BODY='{"model":"scripted-model","prompt":"write a line","max_tokens":8}'
+LANES=0
+probe_api POST /v1/completions "$COMPLETIONS_BODY"
+PLAIN_TEXT=""
+if [ "${PROBE_STATUS:-}" != "200" ]; then
+  probe_fail "non-streaming /v1/completions -> ${PROBE_STATUS:-no response}:" \
+    "$(printf '%s' "$PROBE_BODY" | head -c 200)" \
+    " — neither lane below can be read as a verdict while the route does not answer"
+else
+  PLAIN_TEXT="$(probe_json "$PROBE_BODY" 'choices.0.text')"
+  LANES=$(( LANES + 1 ))
+  if [ "$PLAIN_TEXT" = "$EXPECTED_TEXT" ]; then
+    probe_ok "completions choices[0].text is the answer alone (\"$PLAIN_TEXT\") — the thought channel" \
+      "stayed off the field a client prints"
+  elif printf '%s' "$PLAIN_TEXT" | grep -qF "$EXPECTED_REASONING"; then
+    probe_fail "completions choices[0].text carries the thought: \"$PLAIN_TEXT\" — the reasoning channel" \
+      "was concatenated into the answer, so every score read off this field reads the wrong bytes"
+  else
+    probe_fail "completions choices[0].text is \"$PLAIN_TEXT\", expected \"$EXPECTED_TEXT\" — neither the" \
+      "answer nor a known leak: the segments stopped reaching this wire"
+  fi
+fi
+
+CSTREAM="$(curl -sSN -m "${OCOREAI_PROBE_CURL_TIMEOUT:-180}" -X POST "$PROBE_BASE/v1/completions" \
+  -H 'Content-Type: application/json' \
+  -d "{\"model\":\"scripted-model\",\"prompt\":\"write a line\",\"max_tokens\":8,\"stream\":true}")"
+CFRAMES="$(printf '%s' "$CSTREAM" | grep -c '^data: ')"
+probe_require_int "completions SSE frame count" "$CFRAMES"
+CJOINED="$(printf '%s' "$CSTREAM" | python3 -c '
+import json, sys
+text = ""
+for line in sys.stdin:
+    line = line.strip()
+    if not line.startswith("data:"):
+        continue
+    payload = line[5:].strip()
+    if payload == "[DONE]":
+        break
+    try:
+        choice = (json.loads(payload).get("choices") or [{}])[0]
+    except Exception:
+        continue
+    text += choice.get("text") or ""
+print(text)')"
+if [ "${CFRAMES:-0}" -ge 1 ]; then
+  LANES=$(( LANES + 1 ))
+fi
+if [ "$CJOINED" = "$EXPECTED_TEXT" ]; then
+  probe_ok "completions stream released \"$CJOINED\" in $CFRAMES frame(s) — the same bytes, no thought"
+elif printf '%s' "$CJOINED" | grep -qF "$EXPECTED_REASONING"; then
+  probe_fail "completions stream released the thought too: \"$CJOINED\" — the two lanes now disagree with" \
+    "each other and with the sanitizer, which is the drift this file's invariant forbids"
+else
+  probe_fail "completions stream released \"$CJOINED\", expected \"$EXPECTED_TEXT\" (frames:" \
+    "$(printf '%s' "$CSTREAM" | head -3 | tr '\n' '|'))"
+fi
+if [ -n "$PLAIN_TEXT" ] && [ "$PLAIN_TEXT" = "$CJOINED" ]; then
+  probe_ok "both lanes of /v1/completions released byte-identical text — the streaming wire did not" \
+    "drift from the non-streaming one"
+else
+  probe_fail "/v1/completions lanes disagree: non-stream \"$PLAIN_TEXT\" vs stream \"$CJOINED\" — one" \
+    "endpoint cannot publish two different turns for one request"
+fi
+if [ "$LANES" -ge 2 ]; then
+  probe_ok "$LANES/2 completions lanes measured — §6's green is a verdict about both, not a scan that" \
+    "answered nothing"
+else
+  probe_fail "only $LANES/2 completions lanes were measured — §6 has no subjects, so its verdict means" \
+    "nothing (probe rule: floor your own premises)"
+fi
+
+# 7 — same path, broken content: the cause must reach the client.
 printf '{"segments":["x"],"finishReason":"bogus"}\n' > "$SCRIPT_FILE"
 probe_chat "" "$BODY"
 if [ "${PROBE_STATUS:-0}" -ge 500 ] && printf '%s' "$PROBE_BODY" | grep -q 'bogus'; then
@@ -156,7 +243,7 @@ else
     "— an unusable script must name its cause, never answer 200 with nothing in it"
 fi
 
-# 7 — the scoreboard's refusal, so this tier can never be read as a score.
+# 8 — the scoreboard's refusal, so this tier can never be read as a score.
 if grep -q 'engineBackend' "$HERE/../eval/run.sh" && grep -qi 'scripted' "$HERE/../eval/run.sh"; then
   probe_ok "scripts/eval/run.sh still checks engineBackend and refuses a scripted run"
 else
@@ -164,7 +251,7 @@ else
     "published as a task-success score, which is the one thing this tier must never allow"
 fi
 
-# 8 — the injected context quotes one number about the tool surface; this is the seat that can check it,
+# 9 — the injected context quotes one number about the tool surface; this is the seat that can check it,
 # because the count is a property of a running server and `make docs-check` runs without one.
 # The phrasing around the number is prose and gets rewritten (it drifted from "measures 6 of the 43
 # tools" to "scores 6 of the 40 advertised tools" and this scan silently found nothing), so match on

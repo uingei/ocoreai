@@ -9,6 +9,62 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-10-31
 
+**10-31(87) `/v1/completions` published the model's thinking as its answer**
+
+- **What improved.** Measured on one live `serve` driving the scripted engine (the model is
+  replaced, the wire is not, so this is a wire-tier verdict and claims nothing about a checkpoint):
+  one script — `reasoning:["planning the read"]`, segments joining to `"Sure — two deltas, in
+  order."` — reached the **two lanes of the same endpoint** differently. `stream:false` published
+  `choices[0].text = "planning the readSure — two deltas, in order."`; `stream:true` published
+  `"Sure — two deltas, in order."`. The chat sibling of the same turn split them honestly
+  (`content` = the answer, `reasoning_content` = the thought). The cause is one line in
+  `generateTextCompletion`: it folds `.reasoning` into the same accumulator as `.text` and then
+  runs `OutputSanitizer.strip` — a sanitizer whose whole job is taking thinking *out* of the answer,
+  defeated whenever an engine reports thinking on its own channel instead of as inline markers.
+  `text` is the field a client prints and a harness scores, so a thinking model on this route made
+  every such score read the thought as the answer — the same failure as the `echo` round above, one
+  accumulator over: a caller computing a number from the wrong bytes and publishing it as the right
+  one. The decision already has a home with the other two consumers of that event:
+  `Sources/ocoreai/Handlers/ChatHandler.swift:1072` removed exactly this merge ("leaked the full
+  thought block into the non-streaming `content` field") and
+  `Sources/ocoreai/Handlers/AnthropicMessagesHandler.swift:1031` answers it with a `thinking` block.
+  `/v1/completions` was the third consumer and the only one the adjudication never reached — it
+  landed 09-02 in `6ce1fda` with no reason recorded and no gate. The exit is to drop the thought, as
+  this route's own streaming lane already does: `text_completion` has no reasoning field (vllm's
+  `TextCompletionResponseChoice` is text/index/logprobs/finish_reason), and inventing one would be a
+  new surface with no consumer today when two routes already carry it on a field they have.
+  Two readings from the same sweep were checked and are **not** defects, recorded so the next session
+  does not re-litigate them: `n:3` really does produce 3 choices with summed usage, and
+  `stream_options.include_usage` is honoured; and the completions stream releasing its text in one
+  frame is the documented rule, not a bug — `StreamOutputFilter` settles content only at
+  end-of-stream because a later closer can demote already-emitted text, and chat's content lane does
+  the same (its *reasoning* deltas are what stream live).
+
+- **What same-session output proves it.** Red before the fix, from the gate written first: probe 37
+  §6 **2 failed / 22 passed**, quoting the wire — `FAIL completions choices[0].text carries the
+  thought: "planning the readSure — two deltas, in order."` and `FAIL /v1/completions lanes
+  disagree: non-stream … vs stream …`. After: probe 37 **24 passed / 0 failed**. `swift build`
+  exit 0; `make test FILTER='Completions'` **24 tests / 4 suites green**; full `make test` =
+  3453 tests / 610 suites with **2 issues, both the known wall-clock suites** (`MCPStderrDiagnosis`
+  live child, `SleepSteerWake` beat), both green re-run alone (**27 tests / 7 suites**) — load, not
+  this change, which touches one line of one completions accumulator.
+
+- **Which gate goes red if it regresses.** `scripts/probes/37-scripted-engine-wire.sh` §6, which CI
+  runs as its own step (`scripts/probes/ci-step.sh 37`, macos-26 — the authority tier, not a local
+  only). It asserts the *leak* by matching the script's own reasoning text, so a merge returns as a
+  named leak rather than a length mismatch; it asserts both lanes and their byte-equality, which is
+  the invariant this route exists to keep; and it floors its own subjects at 2/2, so a route that
+  stopped answering cannot buy a green. No unit test was added: the claim is about the wire, §6 *is*
+  that wire, and a second assertion over the same bytes would be a second home for one decision.
+
+- **Residual, named rather than gated.** The same sweep showed `usage.prompt_tokens` disagreeing
+  between the two routes on one scripted turn — chat 6 (the count the script declared), completions 1
+  (its own tokenisation of a one-character prompt). With a model resident both sides are
+  measurements: chat bills the count the engine reported after the turn, completions the count its
+  tokenizer reported before it. A fixture's declaration is not reality, so nothing here proves either
+  number wrong and no guard was written for it; putting the two under one accounting rule wants a
+  live-model measurement, which is the next chance this gets.
+
 **10-31(86) `/v1/completions` had six parameters that bought a 200 and did nothing**
 
 - **What improved.** Measured on one live `serve` (scripted engine, so a wire-tier verdict claiming

@@ -228,6 +228,8 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     or without its reasoning delta / tool call / terminal frame / `[DONE]`, an aggregated turn
     publishes a `finish_reason`, `tool_calls` id, function name or `usage` count other than the
     declared 7/12/19, `usage` grows a `prompt_tokens_details` cache claim a replay never earned, a
+    `/v1/completions` lane puts the script's reasoning text into `choices[].text` (the field a client
+    prints and a harness scores) or its two lanes release different bytes for one request, a
     broken script answers 200 with an empty turn instead of naming its cause, or
     `scripts/eval/run.sh` stops refusing to score a scripted run, or AGENTS.md's quoted advertised-tool
     count (40) stops matching `GET /v1/tools` — the injected file's number about the tool surface is the

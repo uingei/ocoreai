@@ -27,6 +27,12 @@
 ///   should not reserve the resources to answer something else. They used to be "decoded for
 ///   wire parity, no-op", which measured as six different bodies producing one identical 200.
 ///
+/// - **Thinking stays out of `text`.** `text_completion` has no reasoning field (vllm's choice
+///   object is text/index/logprobs/finish_reason), so a turn whose engine separates the two
+///   channels publishes the answer only, and both lanes drop the thought identically. A client
+///   that wants it asks `/v1/chat/completions` (`reasoning_content`) or `/v1/messages`
+///   (`thinking`), each of which has a field for it.
+///
 /// Wire shape (source: vllm `completion/protocol.py` 345-610 @ cdefd9d4):
 /// `object="text_completion"`, `id="cmpl-*"`, `choices[].text`, `finish_reason`,
 /// `usage`. Streaming = SSE `data: {CompletionChunk}` … `data: [DONE]`.
@@ -326,8 +332,13 @@ private func generateTextCompletion(
                 tokens = tokenCount
             }
             finish = stopReasonToString(reason) ?? "stop"
-        case .reasoning(let r):
-            acc += r
+        case .reasoning:
+            // The thought is not the answer, and this wire has no field to put it in: merging it
+            // into `acc` published the reasoning channel as `choices[].text`, which is what a
+            // client prints and what a harness scores. Chat gives it `reasoning_content`
+            // (ChatHandler.swift:1072), Anthropic a `thinking` block (AnthropicMessagesHandler.swift:1031);
+            // the streaming lane of this route already drops it the same way.
+            break
         case .error(let msg):
             // Capacity gets its own status (see ChatHandler): 429 + Retry-After, never a 500.
             throw EngineBusySignal.isBusy(msg)
