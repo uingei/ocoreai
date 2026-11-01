@@ -1,4 +1,4 @@
-# ocoreai — An Agent for Open Models. Natively Local.
+# ocoreai — An Agent Made for Open Models. Natively Local.
 
 **Built for creativity, work, and code** — a complete agentic system designed for coding and knowledge work: one Swift 6.2 binary on macOS/iOS: on-device inference (MLX Metal + CoreAI, upstream-derived), agent tool loop, session memory, Apple-native multimodal I/O, and an OpenAI/Anthropic-compatible HTTP gateway — single process, no IPC.
 

@@ -1,4 +1,4 @@
-# ocoreai — 开放模型的 Agent · 原生本地
+# ocoreai — 为开放模型而生的 Agent · 原生本地
 
 **为创作、工作与代码而生** —— 面向编码与知识工作的完整 agentic 系统 — macOS/iOS 上的一个 Swift 6.2 二进制：端侧推理（MLX Metal + CoreAI，上游衍生）、Agent 工具循环、会话记忆、Apple 原生多模态 I/O、OpenAI/Anthropic 兼容 HTTP 网关——单进程无 IPC。
 

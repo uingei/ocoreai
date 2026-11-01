@@ -10,7 +10,7 @@
 > root+guide against it (rationale: the head of `scripts/agents-md-contract.sh`).
 
 ## Identity
-- An agent for open models, natively local on Apple silicon: it sees, hears, speaks and codes, in one binary.
+- An agent made for open models, natively local on Apple silicon: it sees, hears, speaks and codes, in one binary.
 - Deepest slice: the coding/computer agent (Execute → Verify → Recover); perception and multimodal are
   product surfaces, not demos.
 - Stack: Swift 6.2 · SwiftPM · Hummingbird 2 · SwiftUI · SQLite + FTS5. Two engines:

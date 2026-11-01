@@ -9,6 +9,41 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-01
 
+**11-01(102) the docs drifted from the tree in five seams the green contract cannot see — and "made for" paid its way in**
+
+- **What improved.** The owner restated the positioning ("An agent **made for** open models. Natively local.
+Built for creativity, work, and code"), which turned the question on the docs themselves: does every restated
+number agree with the instrument that owns it? Five seams opened. (a) `adoption-runbook.md` carried two
+botched bullets — an earlier edit had deleted the sglang and hermes-agent intake bullets and glued their
+prefixes onto the next two (`sglang- **opencode**`, `hermes- **deepseek-harness**`), breaking the list and
+orphaning "one step past sglang's permissions-as-data" (the mechanism itself re-verified in the clone:
+`.github/CI_PERMISSIONS.json`, `MAINTAINER.md`); unglued in `2276486`, the deleted bullets not re-authored —
+restoring claims from inference is not this round's licence. (b) The Effort paragraph's basis was mislabelled
+and its ours-cell wrong in kind: commits/emails are 14-day windows (openclaw printed 11 359 against 123 704
+total, 13 276 re-measured 11-01), tags are totals — and **ours read 1 453, the repo `rev-list` total, not the
+window (295 at 10-28, 317 today)**: the same mixed basis the 10-28 entry wrote up as fixed and left standing.
+(c) The leaderboard's star order had broken (goose 55 836 under Strata 34 577). (d) Two restatements whose
+instruments had moved: "41 live probes" (probes span 01–48, and the row's own `make docs-check` printed
+`probe-index=48/48`) and "20 trees … in § The leaderboard" (17 ranked trees plus our row; the 20-tree roster
+is a different set in `comparator-repos.md`) — counts deleted, instruments are their homes, `39314ad`.
+(e) The positioning then paid its way: "made for" in `README.md`, the zh mirror (whose "而生" was already more
+faithful than the English) and the root's Identity line (+5 B — root 21 453/21 461, deepest-chain
+32 760/32 768), with `comparator-repos.md`'s footprint quote re-measured to match.
+- **What same-session output proves it.** Comparator re-measures settled the basis: openclaw total 123 704 /
+14-d 13 276 / tags 555; codex 12 940 / 733 / 1 504; ollama 5 962 / 72 / 722 — printed cells are windows and
+tags totals, ours was a total. Ours in-window: 295 (`git log --since=2026-10-14 --until=2026-10-29`).
+Both broken bullets quoted verbatim from the file before the edit. `make docs-check` green after: claims
+35/35, suites 38/38, all guides back under cap.
+- **Which gate goes red.** The existing ones, and they earned it: B2's per-guide byte cap RED on this round's
+own first draft (runbook 15 704 > 15 609), forcing the fix to be paid by trims in the same file, not a raise;
+the root budget goes red if the Identity line grows again un-paid; `comparator-repos.md`'s tuple quote check
+reded the moment the root moved +5 B — the family working exactly as invariant 1 intends. No new gate written;
+the freeze holds.
+- **Residual.** Star/fork/rate cells stay dated snapshots by the file's own exemption and have now visibly
+aged ~3 d (openclaw window 13 276). The sglang and hermes intake bullets are gone, not restored — re-deriving
+them from the clones is a round nobody has asked for yet. `OpenHands` ranks in the leaderboard without a
+`comparator-repos.md` roster row (harmless under count-free wording; owner call to roster it or drop the row).
+
 **11-01(101) the "zero bytes" diagnosis was wrong: the fetch runs at hub speed, and no one tells the client**
 
 - **What improved.** 11-01(99) concluded that a non-resident model downloads nothing and parks the request,
