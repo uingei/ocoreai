@@ -9,6 +9,37 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-01
 
+**11-01(99) the lightest advertised model cannot be fetched at all, and the 5-minute budget dies there**
+
+- **What improved.** The cold-run figure from 11-01(97) was read as "the network is slow"; this round
+  settled what the product actually fetches and what happens when it fetches something smaller, and the
+  answer changed the diagnosis. `ModelConfigEntry.defaultEntry` names
+  `mlx-community/gemma-4-e2b-it-4bit` (`Sources/ocoreai/Config/ConfigStruct.swift:669`), and the app
+  advertises that checkpoint as "~3.58 GB" (`Sources/ocoreai/Localization/Localization.swift:1239`) — the
+  cold run's 3 583 MB is therefore the product's own first-run choice, not a network accident, and no
+  harness fix reaches the 5-minute budget with it. So the light path was tried for real:
+  `mlx-community/Qwen3.5-0.8B-4bit`, the lightest entry in `ModelManager.recommendedModels`
+  (`Sources/ocoreai/UI/ViewModels/ModelManager.swift:90-94`; server resolved `~685M params`), asked of a
+  headless `serve` for the installed bundle with `tool_choice:"required"` and one tool declared.
+- **What same-session output proves it.** The request never answered: `curl -m 300` gave up at 300 s with
+  an empty body. The server log stops at `Fetching from ModelScope (local-cache hit possible)`
+  (16:04:49) and says nothing after; `sample` of the pid shows **no thread in any network or download
+  frame** — every NIO loop idle in `kevent` — so the load task is gone while the client's continuation
+  waits; and no bytes landed anywhere (`~/.modelscope` is 4 KB, no `~/.cache/modelscope/hub`, no
+  working-directory copy). The hub is not the excuse: from the same host the ModelScope file listing
+  answered 200 in 0.25 s and a ranged 8 MB GET of `model.safetensors` returned 206 in 1.56 s — 5.4 MB/s,
+  i.e. the ~500 MB model is a ~95 s fetch, so the 5-minute budget is reachable on the light path *if the
+  downloader finishes*. HuggingFace is not a fallback on this network right now: its `resolve/master` and
+  its model API both timed out at 12–15 s (code 000).
+- **Which gate goes red.** None yet, and that is stated as the gap rather than papered over: nothing in
+  the suite or the probe set asks for a model that is not resident, which is exactly why a first-run dead
+  end of this size survived every green run so far. The open item names the gate it wants.
+- **Residual.** The fix is the next change: a deadline and progress on the fetch, one bounded retry on the
+  other hub, and a bounded honest answer to the client instead of a parked continuation — the shape
+  `AGENTS.md` § Concurrency already states for continuations around SDK callbacks. Owner: the first-run
+  checkpoint is now priced on both ends (≈95 s if the light fetch works, 350 s for the current default),
+  so which one a stranger's first minute gets is a decision that can be made with numbers.
+
 **11-01(98) an unmet `tool_choice` demand now reaches the client, not only the operator**
 
 - **What improved.** `tool_choice:"required"` that produced no call answered `200 · finish_reason:"stop"`

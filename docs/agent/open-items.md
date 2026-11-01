@@ -73,29 +73,14 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   claim. Owner call: which tier the scripted lane may run in, and whether a nightly takes the
   checkpoint tiers (`package.yml` is this repo's first non-push seat).
 
-- **The chain ceiling, now that the drop speaks** (Skills/, docs/). `make docs-check` prints
-  `budgets … deepest-chain=N/CAP`, and B2 both prices each root→guide chain against the host's 32,768 and
-  re-derives the `ocoreai` row of `docs/agent/comparator-repos.md` from the tree: that header is the one
-  home of a chain figure, so a stale number goes red there instead of drifting (it drifted twice on 10-28,
-  and this file used to restate it). The deepest chain is root + `Engine/AGENTS.md`, and the headroom that
-  field reports is what stands between a new root rule and never being injected at all; four comparator
-  trees already read rulesets their own loader cut. The next rule written into
-  `Sources/ocoreai/Engine/AGENTS.md` truncates its own tail unless something else leaves; settled by a trim,
-  not a raise, with § *Known defect* (a macOS 27 face no host here can execute) and the lane map (it
-  duplicates § *Architecture*'s route to the wire) as the candidates. The silence under the ceiling closed
-  10-28: one resolver (`WorkspaceContext.swift:204` `assemble`) measures each doc's fate and both consumers
-  read it — the injected text carries the truncation/drop notice (`noticeLine`) and `/v1/capabilities`
-  publishes `instructionBudget` beside `tokenizerBackend`, labelled `<root>/…` because it is public. The
-  borrow is not invented: deepseek-harness states the drop inside the injected text and pins the wording as a
-  fixture
-  <!-- anchor:deepseek-harness snapshots/session/agent-instructions-budget/snapshot.yml:2 scenario: agent-instructions-budget -->
-  ("Workspace instruction budget 700 bytes: truncated … from 1900 to 292 bytes"). Gates: `WorkspaceContextTests`(15)
-  — exact bytes, both states, no notice when nothing was cut, no absolute path on the row — and probe 03,
-  which boots a server against a workspace it seeds to overflow the cap; both were red-sampled by reporting
-  the dropped doc as `whole`. What stays open is not a disclosure question: (a) whether injection should be
-  **gated by capacity** (the curve below, one checkpoint wide) — owner call; (b) the disclosure's own
-  **behaviour verdict**, since telling a 2B model its instructions were cut may itself cost points and the
-  board has not priced that arm; (c) no UI surface reports it yet.
+- **The chain ceiling, now that the drop speaks** (Skills/, docs/). The disclosure half closed
+  10-28 (`closed-items-log.md`): `make docs-check` prints `deepest-chain=N/CAP` and re-derives the
+  `comparator-repos.md` row from the tree. Open: (a) whether injection should be **gated by
+  capacity** — owner call; (b) the disclosure's own **behaviour verdict** (telling a 2B model its
+  instructions were cut may itself cost points; the board has not priced that arm); (c) no UI surface
+  reports it yet. The next rule written into `Sources/ocoreai/Engine/AGENTS.md` truncates its own tail
+  unless something else leaves: settled by a trim, not a raise, with § *Known defect* and the lane map
+  as the candidates.
 - **The corpus's cost is injection, and the curve is one checkpoint wide.** Four arms, 39 tasks,
   `gemma-4-e2b-it-4bit`, k=3 (10-27(25)): doc absent **25.00**, the same 2,442 B present but *not* injected
   **24.00** (p = 0.51), 2,442 B injected **19.00** (p = 0.0003), root 21.5 KB injected **16.33** (p = 0.12
@@ -112,25 +97,27 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 
 - **The release job holds the publish credential while it runs repository code** (CI/) —
   `.github/workflows/ci.yml:403` carries `contents: write` (`:410`) and builds inside that job (`:414`
-  metallib, `:424` `build-dmg.sh`, and the GUI proof under them), so a compromised dependency in the build holds the
-  artefact-upload right in the same step. The dry-run half of the ask is paid: `.github/workflows/package.yml`
-  builds and judges the same DMG under `permissions: contents: read` on a clean
-  runner, so the credential no longer has to *prove* the build — it still runs it. The rest is the
-  split itself: opencode's shape (`../references/opencode/.github/workflows/release-dry-run.yml:4-9`) runs
+`:414` metallib and `:424` `build-dmg.sh`, so a compromised dependency in the build holds the
+  artefact-upload right in the same step. The dry-run half is paid (`.github/workflows/package.yml` builds the same DMG under
+  `contents: read`); the rest is the split itself: opencode's shape (`../references/opencode/.github/workflows/release-dry-run.yml:4-9`) runs
   build jobs with no secrets and no `id-token` and publishes from a `release` environment over artefacts.
   Deliberately untouched before a first release lands: it is the one path a rehearsal cannot run.
   Owner call (who/what may publish).
 - **A cold first run is 350 s; a clean machine is not measured** (packaging/) — the download alone
-  breaks the 5-min budget; nothing is notarised, so the Gatekeeper decision and the cask stay
-  outside every figure (diary 11-01(97)). Owner: notarisation.
+  breaks the 5-min budget; nothing is notarised, so Gatekeeper and the cask stay outside every figure
+  (diary 11-01(97)). Owner: notarisation.
+- **A non-resident advertised model parks the request forever** (Engine/, Config/) — the lightest quick
+  model reaches "Fetching from ModelScope" and then nothing downloads (no network frame, zero bytes,
+  no client answer in 300 s) while ModelScope serves 8 MB in 1.6 s here. Wanted: a fetch deadline and a
+  bounded honest answer. Gate: none yet (diary 11-01(99)).
 - **The audit infers a write, it never reads the workspace** (Models/, Tools/) — a shell success is
-  `.unobserved` now, an unknown MCP tool still counts as a writer, and the key
-  is process-wide. Wanted: turn-scoped effect off the filesystem (codex, per turn: `../references/codex/codex-rs/core/src/turn_diff_tracker.rs:46`). Gate: `ClaimVsAuditTests`(19).
-- **A demanded tool call is reported, not forced** (Engine/, Handlers/) — the unmet demand now rides
-  in the result at all four sites; the engine still answers `required` with zero tokens, where
-  sglang constrains generation to a call
+  `.unobserved`; an unknown MCP tool still counts as a writer; the key is process-wide. Wanted:
+  turn-scoped effect off the filesystem (codex, per turn:
+  `../references/codex/codex-rs/core/src/turn_diff_tracker.rs:46`).
+- **A demanded tool call is reported, not forced** (Engine/, Handlers/) — the unmet demand now rides in
+  the result at all four sites; the engine still answers `required` with zero tokens, where sglang
+  constrains it to a call
   (`../references/sglang/python/sglang/srt/entrypoints/openai/serving_chat.py:1937-1945`).
-  Gate: `ToolChoiceUnsatisfiedTests`.
 - **A measured gallery is the one adoption surface we can win outright** (README/, Handlers/) — the leaders
   advertise model support as adjectives while `/v1/models` already publishes per-checkpoint measured verdicts
   (`vlm`, `contextLength`, `toolCallDelivery`, `reasoningEffort`, `videoInput`) and `scripts/eval/` scores 39

@@ -89,3 +89,14 @@
   even on identical conditions. What it does not settle is the shape of the curve —
   `docs/agent/open-items.md`. Numbers, red samples, reproduce command: `CHANGELOG.md` 10-27(24),
   `scripts/eval/README.md`.
+
+- **The silence under the instruction-budget ceiling — the drop speaks (10-28, moved here 11-01).**
+  One resolver (`WorkspaceContext.swift:204` `assemble`) measures each injected doc's fate and both
+  consumers read it: the injected text carries the truncation/drop notice (`noticeLine`) and
+  `/v1/capabilities` publishes `instructionBudget` beside `tokenizerBackend`, labelled `<root>/…`
+  because it is public. Borrowed, not invented: deepseek-harness states the drop inside the injected
+  text and pins the wording as a fixture ("Workspace instruction budget 700 bytes: truncated … from
+  1900 to 292 bytes"). Gates: `WorkspaceContextTests`(15) — exact bytes, both states, no notice when
+  nothing was cut, no absolute path on the row — and probe 03, which boots a server against a
+  workspace seeded to overflow the cap; both were red-sampled by reporting the dropped doc as
+  `whole`. What the open item keeps is only what can still change a decision.
