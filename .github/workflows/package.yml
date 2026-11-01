@@ -90,7 +90,16 @@ jobs:
         # Same premise build-appstore had to buy on 10-28: the component is not preinstalled, and
         # Cmlx's .metal sources need a real compiler. The release leg above still carries its own
         # copy of this chain; package.yml runs it first, so a regression here is found on main.
-        run: xcodebuild -downloadComponent MetalToolchain
+        run: |
+          set -euo pipefail
+          xcodebuild -downloadComponent MetalToolchain
+          # Verify the download bought what it names, on the route the very next step builds with:
+          # measured 10-28 the step went green while CompileMetalFile died, because the component
+          # installed onto a route the job never evals. The judge is a compiled kernel, never
+          # `metal --version`, and this lane is where a regression in it reaches main first.
+          ROUTE="$(bash scripts/toolchain-contract.sh print-delivery-env)"
+          eval "$ROUTE"
+          bash scripts/toolchain-contract.sh check --require-metal --probe-metal
 
         # No metallib step in this lane, and that is a measurement rather than an oversight: on 10-29 the
         # appStore leg printed `rung: swiftpm-product · 2 389 928 bytes` at the SwiftPM product path with no

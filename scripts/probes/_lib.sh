@@ -12,6 +12,9 @@
 # Contract every probe here keeps:
 #   • It boots its OWN server on a free port, so runs are repeatable and never ride
 #     on a GUI instance someone else left open.
+#   • The one exception is named, never inherited: a probe may judge a caller-supplied subject when
+#     the question is about an ARTEFACT rather than a binary it could start (`OCOREAI_PROBE_BASE_URL`,
+#     honoured by probe 40 alone). Such a run prints the subject on every verdict line.
 #   • A server that never became ready is a FAILURE with the remedy, never a silent
 #     skip — a check that passes vacuously is worse than no check (invariant 1).
 #   • It floors its own premises: an assertion block that produced no verdict fails.

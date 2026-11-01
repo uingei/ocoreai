@@ -209,6 +209,11 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild -downloadComponent MetalToolchain
+          # A download is a request, not a fact: on the macos-26 runner this very step went green and
+          # the build still died at CompileMetalFile (measured 10-28). So ask the question the build
+          # will ask, by COMPILING a kernel — never by `metal --version`. R1 is switched off with the
+          # documented opt-in, because this cell exists to compile the macOS-27 shape on purpose.
+          OCOREAI_TARGET_SDK=macos27 bash scripts/toolchain-contract.sh check --require-metal --probe-metal
 
       - name: Build for testing (xcodebuild)
         run: |
@@ -405,7 +410,18 @@ jobs:
       # this exact shape green the same night (DMG 1 111 s, probe 41 12 assertions), so the release leg and
       # its rehearsal now differ by one thing: the credential this job holds and that lane does not.
       - name: Install MetalToolchain (SwiftPM needs a metal compiler, the CLT route has none)
-        run: xcodebuild -downloadComponent MetalToolchain
+        run: |
+          set -euo pipefail
+          xcodebuild -downloadComponent MetalToolchain
+          # The download is a request, not a fact — measured 10-28 on the runner: this step green, the
+          # build dead at CompileMetalFile, because the component landed on a route this job does not
+          # build with. So ask on the route build-dmg.sh evaluates one step later, and ask by compiling
+          # a kernel (AGENTS.md: `metal --version` is not evidence). Finding it out here costs seconds;
+          # finding it out in build-dmg.sh costs a DMG leg and reports the wrong subject (a missing
+          # payload, not a missing compiler).
+          ROUTE="$(bash scripts/toolchain-contract.sh print-delivery-env)"
+          eval "$ROUTE"
+          bash scripts/toolchain-contract.sh check --require-metal --probe-metal
 
       - name: Build DMG (appStore trait — App Store 审核面)
         run: |
@@ -673,7 +689,11 @@ jobs:
           # runner pass of this step therefore ran a debug `swift build` and printed its first line — the
           # annotation then truncated at that newline, so the answer was invisible (both gotchas are this
           # repo's own documented ones, and both were re-made here anyway).
-          RESOLVED="$(bash scripts/resolve-metallib.sh .build 2>&1 | tr '\r\n' '  ' | cut -c1-200)"
+          # The `|| true` is load-bearing: GitHub runs this block under `bash -e`, and an assignment from
+          # a command substitution carries the substitution's exit status — so on a tree where the ladder
+          # finds no payload (exit 1, its honest answer) the step died before printing anything, and a
+          # step that declares itself a measurement killed the job it was measuring the cost of.
+          RESOLVED="$(bash scripts/resolve-metallib.sh .build 2>&1 | tr '\r\n' '  ' | cut -c1-200 || true)"
           echo "::notice::payload after the appStore build: ${RESOLVED:-the ladder printed nothing}"
 
   ## ── iOS compile-validation (independent job — no matrix sharing) ──

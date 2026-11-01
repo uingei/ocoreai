@@ -122,11 +122,14 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   build jobs with no secrets and no `id-token` and publishes from a `release` environment over artefacts.
   Deliberately untouched before a first release lands: it is the one path a rehearsal cannot run.
   Owner call (who/what may publish).
-- **The one latency figure we quote is not the metric we want** (packaging/) — *clean machine → first
-  completion* stays unmeasured: `scripts/e2e-gui-app.sh` stamps its four conditions beside the number
-  and prints `COLD LEG NOT MEASURED` rather than implying one (warm figure: diary 11-01(93)). Nothing
-  is notarised, so the metric and the cask floor only once a fresh runner installs the public artefact
-  and prints that line (rung 2, `docs/agent/long-horizon-goal.md`; owner: notarisation).
+- **A cold cache is measured; a clean machine still is not** (packaging/) — `FIRST_RUN_COLD=1` empties
+  the model store and times the real download, but nothing is notarised, so the Gatekeeper decision and
+  the cask path stay outside every figure (diary 11-01(94); rung 2, `docs/agent/long-horizon-goal.md`).
+  Owner: notarisation.
+- **A demanded tool call comes back as an empty stop** (Engine/, Handlers/) — `tool_choice:"required"`
+  on a 2B yields `HTTP 200 · finish=stop · content="" · zero calls` (measured live), so a client cannot
+  tell an unsatisfiable demand from a normal end. Wanted: the demand's failure in one result, per the
+  `reasoning_effort` gate pattern; cost ~1 handler branch + a probe assertion. Owner: error or word.
 
 - **A measured gallery is the one adoption surface we can win outright** (README/, Handlers/) — the leaders
   advertise model support as adjectives while `/v1/models` already publishes per-checkpoint measured verdicts

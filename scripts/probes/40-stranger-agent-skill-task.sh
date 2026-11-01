@@ -103,45 +103,81 @@ fi
 
 # ── §2 the real agent ───────────────────────────────────────────────────────────────────────────
 probe_section "§2 a fresh agent, given only the artefact, against a live server"
-PORT="$(probe_free_port)"
-BASE="http://127.0.0.1:${PORT}"
-LOG="$(mktemp -t ocoreai-stranger-XXXXXX).log"
-WS="$SCRATCH/ws"
-mkdir -p "$WS"
-OCOREAI_ENABLE_HTTP=1 OCOREAI_HOST=127.0.0.1 OCOREAI_PORT="$PORT" OCOREAI_APPROVAL_POLICY=auto \
-  OCOREAI_WORKSPACE="$WS" "$(probe_resolve_binary)" serve < /dev/null > "$LOG" 2>&1 &
-SPID=$!
-probe_atexit "kill -TERM $SPID 2>/dev/null || true"
+SPID=""
+LOG=""
+BASE="${OCOREAI_PROBE_BASE_URL:-}"
+if [ -n "$BASE" ]; then
+  # The caller names the subject, and this probe is the one place that needs the exception: the
+  # question `docs/agent/long-horizon-goal.md` asks is whether the thing a stranger INSTALLED carries
+  # an agent to a real job, and a probe that can only judge a `serve` binary it started itself cannot
+  # answer that about a .app or a mounted DMG. The default stays boot-your-own (_lib.sh's contract:
+  # never ride on a server nobody started). Nothing below this branch differs between the two modes —
+  # same premise, same injection, same verifier — so instrument and measurement cannot drift apart,
+  # and the run line says which subject produced the verdict.
+  probe_note "§2 subject: caller-supplied server at $BASE — this run judges an artefact, not a binary" \
+    "this probe booted (the caller is responsible for its identity; scripts/e2e-gui-app.sh asserts it)"
+else
+  PORT="$(probe_free_port)"
+  BASE="http://127.0.0.1:${PORT}"
+  LOG="$(mktemp -t ocoreai-stranger-XXXXXX).log"
+  WS="$SCRATCH/ws"
+  mkdir -p "$WS"
+  OCOREAI_ENABLE_HTTP=1 OCOREAI_HOST=127.0.0.1 OCOREAI_PORT="$PORT" OCOREAI_APPROVAL_POLICY=auto \
+    OCOREAI_WORKSPACE="$WS" "$(probe_resolve_binary)" serve < /dev/null > "$LOG" 2>&1 &
+  SPID=$!
+  probe_atexit "kill -TERM $SPID 2>/dev/null || true"
+fi
 
 READY=1
 waited=0
 code=000
 while [ "$waited" -lt "${OCOREAI_READY_TIMEOUT:-240}" ]; do
-  kill -0 "$SPID" 2>/dev/null || break
+  [ -z "$SPID" ] || kill -0 "$SPID" 2>/dev/null || break
   code="$(curl -sS -m 3 -o /dev/null -w '%{http_code}' "$BASE/health" 2>/dev/null || echo 000)"
   [ "$code" = "200" ] && break
   sleep 1; waited=$(( waited + 1 ))
 done
-if ! kill -0 "$SPID" 2>/dev/null || [ "$code" != "200" ]; then
+if { [ -n "$SPID" ] && ! kill -0 "$SPID" 2>/dev/null; } || [ "$code" != "200" ]; then
   READY=0
   probe_note "§2 skipped — the real engine never became ready within ${waited}s:"
-  tail -3 "$LOG" | sed 's/^/        /'
+  if [ -n "$LOG" ] && [ -f "$LOG" ]; then
+    tail -3 "$LOG" | sed 's/^/        /'
+  else
+    probe_note "        (no server log — the subject is the caller's process; read its own output)"
+  fi
   probe_xfail open "§2 unmeasured on this host: no live engine, so the artefact was never read by" \
     " a model (run outside the agent sandbox to judge it)"
 else
-  probe_ok "/health 200 after ${waited}s (real engine, nothing scripted, nothing replayed)"
+  probe_ok "/health 200 after ${waited}s on $BASE (real engine, nothing scripted, nothing replayed)"
 fi
 
 MODEL=""
 if [ "$READY" = "1" ]; then
+  # WHICH checkpoint is judged is a condition of the verdict, not a detail. Measured 11-01: the same
+  # artefact passes this task on Qwen3.6-35B and fails it 6/6 on gemma-4-e2b, while the choice was
+  # made by /v1/models list order — so two runs of one tree could report opposite verdicts and the
+  # log would not say why. OCOREAI_PROBE_MODEL names the subject; a pinned id that is not ready is a
+  # harness fault reported as one, never a silent fallback onto whatever else is resident.
+  PIN="${OCOREAI_PROBE_MODEL:-}"
   MODEL="$(curl -sS -m 20 "$BASE/v1/models" 2>/dev/null | python3 -c '
-import json,sys
-try: data = json.load(sys.stdin).get("data", [])
-except Exception: data = []
-for m in data:
-    if str(m.get("state","ready")) == "ready":
-        print(m.get("id","")); break
-' 2>/dev/null || true)"
+import json, sys
+pin = sys.argv[1]
+try:
+    data = json.load(sys.stdin).get("data", [])
+except Exception:
+    data = []
+ready = [m.get("id", "") for m in data if str(m.get("state", "ready")) == "ready"]
+print((pin if pin in ready else "") if pin else (ready[0] if ready else ""))
+' "$PIN" 2>/dev/null || true)"
+  if [ -n "$PIN" ] && [ "$MODEL" != "$PIN" ]; then
+    READY=0
+    probe_fail "OCOREAI_PROBE_MODEL=$PIN is not a ready checkpoint on this server" \
+      " the subject of the run was named and is absent, so nothing was measured — the probe does not" \
+      " fall back to another model, because the verdict is about the model it names"
+  elif [ -z "$PIN" ]; then
+    probe_note "§2 checkpoint chosen by /v1/models list order (pin it with OCOREAI_PROBE_MODEL to make" \
+      " this run comparable with another one; the verdict is a claim about this checkpoint only)"
+  fi
   if [ -z "$MODEL" ]; then
     READY=0
     probe_note "§2 skipped — /v1/models reports no ready checkpoint; task success is a claim about a" \

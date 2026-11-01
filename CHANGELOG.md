@@ -9,6 +9,52 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-01
 
+**11-01(94) the first-run clock now stops where a stranger's job actually gets done**
+
+- **What improved.** Three instruments were incapable of the question the goal asks, and were made
+  capable: probe 40 could only judge a `serve` binary it started itself, so nothing could ask whether
+  the artefact a stranger *installs* carries an agent to a real job (`OCOREAI_PROBE_BASE_URL` names the
+  subject; `scripts/probes/_lib.sh` names the exception instead of leaving it inherited); the
+  checkpoint under judgment was chosen by `/v1/models` list order, so one tree could return opposite
+  verdicts and the log would not say why (`OCOREAI_PROBE_MODEL` pins it, and a pinned id that is not
+  ready is a failure, never a silent fallback); and `scripts/e2e-gui-app.sh` timed a *completion*,
+  which is not the rung — its clock now ends at probe 40's own verdict line, binds to that line rather
+  than to an exit code (probe 40 exits 0 on premises it could not establish), and gained the cold leg
+  (`FIRST_RUN_COLD=1`: empty model store, download stopped by the server's `completed` frame, and that
+  frame's `cacheDir` asserted to be inside the exported directory, so the cold premise is proven and
+  not assumed). CI side: three bare `xcodebuild -downloadComponent MetalToolchain` sites now verify
+  the download bought a compiler by compiling a kernel on the route each job builds with, and the
+  payload-measurement step can no longer kill the job it measures.
+- **What same-session output proves it.** Warm clock on the shipping bundle: `open→health 3s ·
+  health→model-ready 2s · ready→first-completion 2s`, `machine=macOS 26.6.2 arm64 128GB ·
+  model=mlx-community/gemma-4-e2b-it-4bit · cache=warm(2 checkpoints)`. Then the terminal verifier
+  went RED against that same installed artefact — premise PASS (the note was storable and retrievable),
+  agent turn `HTTP 200 finish=stop tool_calls_echoed=0`, content `The secret token has been written
+  to <path>`, verifier `VERIFY FAIL no deliverable`, while §1's negative control PASSED in the same
+  run (so the checker is not the soft part). The 35B passes the identical task, and the divergence was
+  invisible until the checkpoint could be pinned. Cause was measured, not guessed: sampler is
+  exonerated (0/6 zero tool calls at greedy *and* at the checkpoint's own `temperature 1.0/top_k 64/
+  top_p 0.95` from `generation_config.json`); artefact size is exonerated (0/9 across 29 573 B,
+  11 493 B and a hand-written 1 012 B core); the parser is exonerated (the same checkpoint calls
+  `get_weather` correctly, `finish=tool_calls`); the `exec_command` declaration is 548 B with one
+  required param. What remains is that a 2B *knows the answer to `echo hi`*: asked to run it with the
+  tool it replied ``hi`` without executing anything. And `tool_choice:"required"` — the spec's own
+  remedy, which this repo implements (`Models/OpenAIModels.swift:2417`) — answered `HTTP 200,
+  finish=stop, content=""` with zero calls: a demand accepted, nothing produced, terminal word "stop".
+  The CI fix's red sample: the old command line exits 1 printing nothing under `bash -e -o pipefail`
+  (job killed before its own annotation); the new one exits 0 printing the ladder's real answer.
+- **Which gate goes red.** `scripts/e2e-gui-app.sh` step 5 — it stays red until a stranger's agent
+  finishes the job on the installed artefact, and it cannot go green on a completion, a known-open
+  premise or a probe exit code. `scripts/probes/40-stranger-agent-skill-task.sh` reds if a pinned
+  checkpoint is absent instead of quietly judging another. The three CI install steps red when the
+  component lands on a route the job does not build with (verified shape: `metal=ok-probed`, exit 0,
+  on both the delivery route and with `OCOREAI_TARGET_SDK=macos27`).
+- **Residual.** The empty-completion-under-`required` answer is the next fix and is logged as an open
+  item; `FIRST_RUN_COLD=1` is implemented but its first cold figure is this round's own pending
+  number, and no mode of the script is a clean machine (unsigned, unstapled, no Gatekeeper, no cask).
+  Nothing in this entry has reached a stranger: the tree sits unpushed and the newest public tag is
+  still `v0.1.14`, so criterion ② is not assessable at all — a red verifier is not a shipped fix.
+
 **11-01(93) the first-run number now says which machine it belongs to**
 
 - **What improved.** Started from the experience instead of from the tech: `scripts/e2e-gui-app.sh`
