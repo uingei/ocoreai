@@ -9,6 +9,38 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-01
 
+**11-01(101) the "zero bytes" diagnosis was wrong: the fetch runs at hub speed, and no one tells the client**
+
+- **What improved.** 11-01(99) concluded that a non-resident model downloads nothing and parks the request,
+  and the next change was going to be a transport rewrite. Measuring it instead of trusting that read
+  inverted the diagnosis three times, and the surviving facts are different in kind. (a) Bytes *were*
+  landing: (99) looked in `~/.modelscope` and `~/.cache/modelscope/hub`, while the cache root is
+  `ModelStore.root` (`OCOREAI_MODELS_DIR` > `~/.ocoreai/models`), and the temps were sitting there.
+  (b) A clean cache dir (`OCOREAI_MODELS_DIR` pointed at an empty tree, `serve` from the installed bundle)
+  fetched the default checkpoint's `model.safetensors` — 3 550 670 554 B — in **794 s = 4.5 MB/s**, and a
+  `curl` of the same object *at the same instant* got 4.37 MB/s, so the limit is the hub path, not us.
+  (c) `du` reading ~2× the model is APFS clone accounting, not double storage: ModelStore writes the flat
+  ModelScope layout and clones the weights into the HubCache layout, and deleting the `huggingface/` side
+  of a 3 502 204 KB tree freed **110 MB**. (d) A same-instant paired test — URLSession against curl, 32 MiB
+  each, three rounds — gives 3 974 / 4 483 / 4 653 KB/s against 4 365 / 4 908 / 4 240 KB/s: the client is
+  not slower than curl, and the 94 KB/s samples taken earlier were measured while this same app held the
+  link (four parallel `curl` streams split ~8 MB/s aggregate, so the ceiling was shared). "URLSession is
+  80× slower than curl" is retracted; a transport rewrite on that premise would have been a week of work
+  that fixes nothing.
+- **What same-session output proves it.** The completed cache tree (`ls -laT`): weights at full size at
+  17:24:42 against a 17:11:28 start; `df` before/after deleting one layout (959 035 → 959 145 MB); the
+  paired arms run inside one process so any per-IP throttle hits both equally.
+- **Which gate goes red.** None — this round deletes false premises rather than adding a check, and the
+  value is that two `open-items.md` rows no longer point the next reader at a downloader bug: the cold-run
+  row now carries the 794 s figure, and the parked-request row now names the real gap (the load's *owner*
+  waits the whole fetch, and its progress never reaches the wire).
+- **Residual.** Still true and still bad: a stranger's first answer is ~14 min away because the product's
+  own default is 3.58 GB, and `EngineConfig.defaultModelId` has no override, so the 5-min budget cannot be
+  reached without a rebuild — owner call. Two orphan temps (2 MB + 1 MB, 17:11) stayed beside promoted
+  files after a discarded attempt, and `request.timeoutInterval = 120` is the only bound on a stalled
+  connection: the in-loop 300 s stall timer lives inside the body loop, so it cannot fire before the first
+  byte arrives.
+
 **11-01(100) a full-suite run on a busy host says flaky=0 is not true today**
 
 - **What improved.** CI's red was chased to its case instead of re-pushed and hoped on: the failing

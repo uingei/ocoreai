@@ -103,13 +103,16 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   build jobs with no secrets and no `id-token` and publishes from a `release` environment over artefacts.
   Deliberately untouched before a first release lands: it is the one path a rehearsal cannot run.
   Owner call (who/what may publish).
-- **A cold first run is 350 s; a clean machine is not measured** (packaging/) — the download alone
-  breaks the 5-min budget; nothing is notarised, so Gatekeeper and the cask stay outside every figure
-  (diary 11-01(97)). Owner: notarisation.
-- **A non-resident advertised model parks the request forever** (Engine/, Config/) — the lightest quick
-  model reaches "Fetching from ModelScope" and then nothing downloads (no network frame, zero bytes,
-  no client answer in 300 s) while ModelScope serves 8 MB in 1.6 s here. Wanted: a fetch deadline and a
-  bounded honest answer. Gate: none yet (diary 11-01(99)).
+- **A cold first run is 794 s of download, at hub speed** (packaging/, Config/) — a clean cache dir here
+  fetched the default checkpoint's 3 550 670 554 B in 794 s (4.5 MB/s) while a paired `curl` of the same
+  object at the same instant got 4.37 MB/s: the hub path is the limit, so no harness change reaches the
+  5-min budget with a 3.58 GB default. Nothing is notarised, so Gatekeeper and the cask stay outside every
+  figure (diary 11-01(97), re-measured by 11-01(101)). Owner: notarisation + the first-run checkpoint.
+- **The request that triggers a load waits out the whole load** (Engine/, Config/) — the fetch is honest
+  (4.5 MB/s, hub-limited) and nothing about it reaches the client: a waiter gets `AppError.modelLoading` at
+  120 s while the *owning* request waits ~13 min, and no byte count or percent travels on the wire although
+  `OcoreaiDownloadProgress` holds it. Wanted: a pool-owned load task, so every caller gets the same bounded
+  pollable answer, with progress in the body. Gate: none yet (diary 11-01(99), re-measured by (101)).
 - **The audit infers a write, it never reads the workspace** (Models/, Tools/) — a shell success is
   `.unobserved`; an unknown MCP tool still counts as a writer; the key is process-wide. Wanted:
   turn-scoped effect off the filesystem (codex, per turn:
