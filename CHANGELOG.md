@@ -9,6 +9,42 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-01
 
+**11-01(95) the "2B answered without executing" claim was wrong, and the audit that should have caught
+it counts a read as a write**
+
+- **What improved.** A published causal claim was retracted by reading the server's own record instead
+  of the wire echo, and the reason a false completion survived is now isolated. `tool_calls: null` on
+  the wire does **not** mean the model never called: on a native tool turn the loop runs inside upstream
+  `ChatSession` and the server executes, so nothing is echoed — `ClaimVsAudit.swift`'s own header says
+  so, and 11-01(94) read its conclusion past it. The server log settles it: 20 successful
+  `exec_command` calls across the six tier trials (`caller: mlx_engine`, auto-approved), so the model
+  called, the command ran, and `echo hi` really printed `hi`. What is actually broken is the audit that
+  was supposed to refuse the lie: `ToolMutationLedger.countsAsMutation(isReadOnly:)` counts any
+  successful tool outside the read-only name list as a file mutation, so a turn whose three calls only
+  `curl`ed the server presents a non-empty mutation set, `ClaimVsAudit.notice`'s `mutations.isEmpty`
+  branch never fires, and the "[audit] nothing was written" line — the one thing standing between a
+  2B and a user who believes it — is structurally silenced by the very tool that cannot prove a write.
+  Logged with its gate (`docs/agent/open-items.md`).
+- **What same-session output proves it.** Same six trials: 20 executed calls, 0 deliverables, and
+  `/tmp/tier40/ws` held no files at all. `resp-C-3` / `resp-A-1` content `The secret token has been
+  written to <path>` with no `[audit]` line appended while the file was absent. `resp-D-1` shows the
+  mirror-image defect: a zero-call turn was told "This turn did change files" because the ledger is
+  process-wide with a turn-head baseline (its own header admits the inflation; the notice then asserts
+  a causality the scope cannot support). `tool_choice:"required"` still stands on its own evidence:
+  that trial executed nothing (0 successes) and answered `finish=stop` with `content=""`, so the
+  demand's failure is still invisible to the client.
+- **Which gate goes red.** `ClaimVsAuditTests` once the ledger's input is filesystem effect rather than
+  a name list — today the suite passes while the notice fails to fire live, which is what "the gate
+  tests the predicate, not the input" looks like. `scripts/e2e-gui-app.sh` step 5 stays red on the byte
+  check regardless of what any ledger believes.
+- **Residual.** *Why* those commands did not create the file is still open, and the reason it is hard to
+  answer is now the next fix: the dispatch log names the tool and its duration but never the command,
+  while the path/command string already exists at the chokepoint (`SuccessfulMutation.target`) — an
+  audit that cannot say what ran cannot be argued with. `ocoreai serve` refuses to start while the GUI
+  bundle holds `SingleInstanceLock`, which is why judging an installed artefact needs a
+  caller-supplied base URL rather than a second server. The cold download was still in flight when this
+  round was written, so no cold figure is claimed here.
+
 **11-01(94) the first-run clock now stops where a stranger's job actually gets done**
 
 - **What improved.** Three instruments were incapable of the question the goal asks, and were made
@@ -33,12 +69,12 @@ heading are when the work landed (measured from git).
   to <path>`, verifier `VERIFY FAIL no deliverable`, while §1's negative control PASSED in the same
   run (so the checker is not the soft part). The 35B passes the identical task, and the divergence was
   invisible until the checkpoint could be pinned. Cause was measured, not guessed: sampler is
-  exonerated (0/6 zero tool calls at greedy *and* at the checkpoint's own `temperature 1.0/top_k 64/
+  exonerated (0/6 with no call echoed at the wire — 11-01(95) says what that echo does not mean; at greedy *and* at the checkpoint's own `temperature 1.0/top_k 64/
   top_p 0.95` from `generation_config.json`); artefact size is exonerated (0/9 across 29 573 B,
   11 493 B and a hand-written 1 012 B core); the parser is exonerated (the same checkpoint calls
   `get_weather` correctly, `finish=tool_calls`); the `exec_command` declaration is 548 B with one
-  required param. What remains is that a 2B *knows the answer to `echo hi`*: asked to run it with the
-  tool it replied ``hi`` without executing anything. And `tool_choice:"required"` — the spec's own
+  required param. **Superseded by 11-01(95): the "what remains" below was read off the wire echo and is
+  false — the model did call and the server did execute.** What `tool_choice:"required"` — the spec's own
   remedy, which this repo implements (`Models/OpenAIModels.swift:2417`) — answered `HTTP 200,
   finish=stop, content=""` with zero calls: a demand accepted, nothing produced, terminal word "stop".
   The CI fix's red sample: the old command line exits 1 printing nothing under `bash -e -o pipefail`

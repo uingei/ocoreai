@@ -66,14 +66,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   (`ReasoningEffortHonestyTests`(9) + probe 38, both tiers red-sampled); probe 12 §6 is *not* an open
   instance — it was fixed earlier and its README now requires keys 3/3 with the tools still declared.
 
-- **Weight-free probes exist; only three hold a CI seat, and no checkpoint tier does.** The scripted lane holds
-  three — 37 (wire contract), 38 §1 (a refusal), 39 §1/§1b (the skill executed marker by marker) — one
-  step each in `Build & Test (macos-26)`, first runner pass green 10-29 (4 / 3 / 7 s; each step's tier
-  counts are printed as annotations, because a runner holds no weights and 38 §2 / 39 §2 / 40 §2 took
-  their skip branch). Open: 36 probes' claims are about the engine (prefix reuse, sampling delivery, KV
-  residency) and move cheap only when one turns out to be a frame claim. Owner call: which tier the
-  scripted lane may run in, and whether a nightly takes the checkpoint tiers (`package.yml`, added 10-29,
-  is this repo's first non-push seat).
+- **Weight-free probes exist; only three hold a CI seat, and no checkpoint tier does.** The scripted lane
+  holds 37 (wire contract), 38 §1 (a refusal) and 39 §1/§1b (the skill's markers), one step each in
+  `Build & Test (macos-26)`; §2 of 38/39/40 needs weights, so on a runner it takes its skip branch.
+  Open: 36 probes' claims are about the engine and move cheap only when one turns out to be a frame
+  claim. Owner call: which tier the scripted lane may run in, and whether a nightly takes the
+  checkpoint tiers (`package.yml` is this repo's first non-push seat).
 
 - **The chain ceiling, now that the drop speaks** (Skills/, docs/). `make docs-check` prints
   `budgets … deepest-chain=N/CAP`, and B2 both prices each root→guide chain against the host's 32,768 and
@@ -122,15 +120,17 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   build jobs with no secrets and no `id-token` and publishes from a `release` environment over artefacts.
   Deliberately untouched before a first release lands: it is the one path a rehearsal cannot run.
   Owner call (who/what may publish).
-- **A cold cache is measured; a clean machine still is not** (packaging/) — `FIRST_RUN_COLD=1` empties
-  the model store and times the real download, but nothing is notarised, so the Gatekeeper decision and
-  the cask path stay outside every figure (diary 11-01(94); rung 2, `docs/agent/long-horizon-goal.md`).
+- **A cold cache is measured; a clean machine still is not** (packaging/) — nothing is notarised, so the
+  Gatekeeper decision and the cask path stay outside every first-run figure (diary 11-01(94),(95)).
   Owner: notarisation.
+- **A success claim survives an audit that counted reads as writes** (Models/, Tools/) — a shell call
+  that only read the server still counts as a mutation (`countsAsMutation(isReadOnly:)`), so
+  `ClaimVsAudit.notice` stayed silent while the claimed file was absent (diary 11-01(95)). Wanted:
+  mutation truth from filesystem effect at the dispatch chokepoint. Gate: `ClaimVsAuditTests`.
 - **A demanded tool call comes back as an empty stop** (Engine/, Handlers/) — `tool_choice:"required"`
-  on a 2B yields `HTTP 200 · finish=stop · content="" · zero calls` (measured live), so a client cannot
-  tell an unsatisfiable demand from a normal end. Wanted: the demand's failure in one result, per the
-  `reasoning_effort` gate pattern; cost ~1 handler branch + a probe assertion. Owner: error or word.
-
+  answered `200 · finish=stop · content=""` with nothing executed (diary 11-01(95)), so a client cannot
+  tell an unsatisfiable demand from a normal end. Wanted: the failure in one result, per the
+  `reasoning_effort` pattern. Owner: error or honest terminal word.
 - **A measured gallery is the one adoption surface we can win outright** (README/, Handlers/) — the leaders
   advertise model support as adjectives while `/v1/models` already publishes per-checkpoint measured verdicts
   (`vlm`, `contextLength`, `toolCallDelivery`, `reasoningEffort`, `videoInput`) and `scripts/eval/` scores 39
