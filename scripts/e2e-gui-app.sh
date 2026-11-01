@@ -184,12 +184,21 @@ print("%s|%s|%s" % (ev.get("eventType") or "no-terminal-frame",
   fi
   # realpath on both sides: mktemp answers /var/while the server reports /private/var/, and a
   # prefix compare across those two spellings would call a correct download a wrong cache.
-  if ! python3 -c '
+  #
+  # The verdict is a printed word, never an exit code, and a run that could not execute is a third
+  # answer. Measured the same night this leg shipped: a `raise SystemExit(…)` missing its closing
+  # paren made Python die with a SyntaxError, `if !` read exit 2 as "premise false", and a completed
+  # 3.58 GB download was reported as the exported store having been ignored — the shell checked clean,
+  # because the broken program is only a string to it. Two states, two words, and silence is neither.
+  INSIDE="$(python3 -c '
 import os, sys
-raise SystemExit(0 if os.path.realpath(sys.argv[1]).startswith(os.path.realpath(sys.argv[2])) else 1
-' "$DL_CACHE" "$COLD_DIR"; then
-    echo "❌ cold premise NOT in effect — the server wrote to ${DL_CACHE:-nothing}, this run exported $COLD_DIR"
-    echo "   The exported store never reached the bundle, so every second above would be a warm number."
+print("yes" if os.path.realpath(sys.argv[1]).startswith(os.path.realpath(sys.argv[2])) else "no")
+' "$DL_CACHE" "$COLD_DIR" 2>"$SCRATCH_E2E/premise.err" || echo harness-fault)"
+  if [ "$INSIDE" != "yes" ]; then
+    echo "❌ cold premise check returned '$INSIDE' — server wrote to ${DL_CACHE:-nothing}," \
+      " this run exported $COLD_DIR ($(cat "$SCRATCH_E2E/premise.err" 2>/dev/null | tail -1))"
+    echo "   'no' means the exported store never reached the bundle, so every second above is a warm" \
+      " number; 'harness-fault' means this check itself did not run, which is not evidence either way."
     exit 1
   fi
   ON_DISK="$(du -sk "$COLD_DIR" 2>/dev/null | awk '{print $1}')"
