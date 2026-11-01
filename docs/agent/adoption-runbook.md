@@ -12,8 +12,8 @@
 `curl -sL api.github.com/repos/<owner>/<repo>` — api.github.com is authoritative for HEAD (§ Upstream), a
 mirror proves content, never HEAD.
 
-Age and rate are columns now, because 10-28's re-measure turned up a tree created eleven weeks ago that
-outran every premise written here. Re-measure: `curl -sL api.github.com/repos/<owner>/<repo>`, then
+Age and rate are columns now, because 10-28's re-measure turned up an eleven-week-old tree that outran
+every premise here. Re-measure: `curl -sL api.github.com/repos/<owner>/<repo>`, then
 `stars ÷ (today − created_at)`; the shape, not the number, is what the ladder reads.
 
 | repo | stars | age d | **stars/day** | forks | open iss+PR | what the number is made of |
@@ -27,9 +27,9 @@ outran every premise written here. Re-measure: `curl -sL api.github.com/repos/<o
 | earendil-works/pi | 118 294 | 445 | 265 | 15 153 | 380 | minimal coding agent; extensions over core |
 | vllm-project/vllm | 95 715 | 1 357 | 70 | 24 070 | 9 616 | serving (not an agent) |
 | OpenHands/OpenHands | 92 031 | 959 | 95 | 12 227 | 1 138 | agent platform |
-| Niko1221/Strata | 34 577 | 34 | **1 016** | 3 708 | 955 | local-AI product: desktop app + agent terminal + multi-backend engine |
 | aaif-goose/goose | 55 836 | 796 | 70 | 6 480 | 530 | agent platform + ACP |
 | sgl-project/sglang | 38 288 | 1 024 | 37 | 9 937 | 6 210 | serving (not an agent) |
+| Niko1221/Strata | 34 577 | 34 | **1 016** | 3 708 | 955 | local-AI product: desktop app + agent terminal + multi-backend engine |
 | jundot/omlx | 23 108 | 257 | 89 | 2 071 | 573 | MLX server + native menubar app (closest published distribution analogue) |
 | apple/coreai-models | 2 225 | 142 | 15 | 242 | 48 | our pin 2 |
 | ddalcu/mlx-serve | 2 114 | 253 | 8.4 | 227 | 84 | MLX serving; 55 area guides |
@@ -37,11 +37,11 @@ outran every premise written here. Re-measure: `curl -sL api.github.com/repos/<o
 | ml-explore/mlx-swift-lm | 848 | 391 | 2.2 | 445 | 127 | our pin 1 |
 | **uingei/ocoreai** | **1** | 136 | **0.007** | **0** | **0** | this repo |
 
-Two numbers decide how the ladder reads. Effort, one 14-day window (`git log --since='14 days ago'
---oneline | wc -l`; tags from `git tag | wc -l`; author emails from `--format='%ae' | sort -u`):
+Two numbers decide how the ladder reads. Effort, 10-28 (commits/emails: one 14-day window, `git log
+--since='14 days ago' --oneline | wc -l`; emails `--format='%ae' | sort -u`; tags totals, `git tag | wc -l`):
 openclaw 11 359 commits / 543 tags / 320 emails, hermes-agent 5 714 / 234, TensorFold 2 724 / 50,
 Strata 2 381 / 67, deepseek-harness 1 570 / 33, opencode 1 126 / 1 156, codex 587 / 1 501, ollama 62 / 719 —
-**ours 1 453 commits, 4 authors, 0 tags then; `v0.1.14` landed 10-29.** Rate is the finding that had to
+**ours 295 commits / 4 authors / 1 tag (`v0.1.14`); 317 re-measured 11-01.** Rate is the finding that had to
 delete a sentence: this file claimed the field's best sustained rate is ~150/day and openclaw's total is
 "~7 years of growth". Measured 10-28 the category's own record is **263 687 stars in 76 days**
 (deepseek-harness, 3 469/day), with openclaw at 1 163/day and Strata — created 2026-09-24, the closest
@@ -94,10 +94,10 @@ column ranks machines, not resolutions.
 - **pi** — `.github/APPROVED_CONTRIBUTORS` (411 lines) as merge policy in data, and `README.md:40`
   `npm install -g --ignore-scripts` as an explicit supply-chain contract (a normal install runs no
   lifecycle scripts).
-sglang- **opencode** — intake closed by bots (`triage-close-issues.yml`, `triage-close-prs.yml`,
+- **opencode** — intake closed by bots (`triage-close-issues.yml`, `triage-close-prs.yml`,
   `triage-pr-standards.yml`, `triage-contributor.yml`), and 22 README locales kept fresh by
   `bot-docs-locale.yml`. Latency is the product: 3 865 open issues at 222 k stars.
-hermes- **deepseek-harness** — intake and review as *code with its own tests*: `.github/issue-management/`
+- **deepseek-harness** — intake and review as *code with its own tests*: `.github/issue-management/`
   (`policy.mjs`, `rules.mjs`, `lifecycle.mjs`, beside `policy.test.mjs`) and `.github/review-ownership/`
   (`approval-policy.json`, `author-weight.mjs`, `check-approval.test.mjs`) publish an approval **weight** per
   reviewer derived from blame ownership, delegable in points, surfaced as a check by
