@@ -48,6 +48,11 @@ struct CORSPreflightWireTests {
         cors: CORSPolicy.Allow?,
         authKeys: [String] = []
     ) async throws -> (some ApplicationProtocol, String) {
+        // One decision feeds both halves of the chain, exactly as `App` wires it: the
+        // value that registers the middleware is the value `AuthMiddleware` consults
+        // before a browser write. Passing them separately here would let a test build a
+        // chain the server could never build.
+        let access = cors.map { CORSPolicy.Decision.on($0) } ?? .off
         let db = dbPath()
         let enginePool = EnginePool(
             config: .default, logger: Self.log, tokenizerManager: TokenizerManager())
@@ -72,7 +77,8 @@ struct CORSPreflightWireTests {
             systemPromptBuilder: SystemPromptBuilder(basePrompt: "test"),
             messageBuilder: mb, logger: Self.log,
             authMiddleware: AuthMiddleware<OCoreAIContext>(
-                config: AuthConfig(apiKeys: authKeys), logger: Self.log),
+                config: AuthConfig(apiKeys: authKeys), browserMutation: access,
+                logger: Self.log),
             rateLimitMiddleware: RateLimitMiddleware(
                 provider: RateLimitProvider(
                     config: RateLimitProvider.Config(
@@ -82,7 +88,7 @@ struct CORSPreflightWireTests {
                     logger: Self.log),
                 logger: Self.log
             ),
-            corsMiddleware: cors.map { CORSPolicy.middleware(for: $0) }
+            cors: access,
         )
         return (app, db)
     }
@@ -120,6 +126,65 @@ struct CORSPreflightWireTests {
         }
         #expect(value.contains(","), "the refusal quotes what was sent")
         #expect(remedy.contains("*"), "the refusal names the exit: \(remedy)")
+    }
+
+    /// The write half of the same decision, as a table rather than a story. Pure, so every
+    /// row is asserted without a server: no `Origin` means a native client (measured —
+    /// `URLSession` sends none), and a knob whose value was refused admits nothing, exactly
+    /// as it registers no middleware.
+    @Test("the write table: no Origin is a native client; off/refused admits no page")
+    func mutationTable() {
+        #expect(CORSPolicy.admitsMutation(origin: nil, against: .off))
+        #expect(
+            CORSPolicy.admitsMutation(origin: "", against: .off),
+            "an empty Origin names no page, so it is not a reason to refuse")
+        #expect(!CORSPolicy.admitsMutation(origin: Self.allowed, against: .off))
+        #expect(
+            !CORSPolicy.admitsMutation(
+                origin: Self.allowed, against: .rejected(value: "a,b", remedy: "*")),
+            "a refused knob must not admit the very origin it refused to parse")
+        #expect(
+            CORSPolicy.admitsMutation(origin: Self.allowed, against: .on(.origin(Self.allowed))))
+        #expect(
+            !CORSPolicy.admitsMutation(origin: Self.other, against: .on(.origin(Self.allowed))))
+        #expect(CORSPolicy.admitsMutation(origin: Self.other, against: .on(.anyOrigin)))
+        // A read answers the same either way and a browser cannot read a reply we do not
+        // label; `OPTIONS` is the preflight, whose job is to arrive credential-free.
+        #expect(
+            !CORSPolicy.mutates(.get) && !CORSPolicy.mutates(.head)
+                && !CORSPolicy.mutates(.options))
+        #expect(
+            CORSPolicy.mutates(.post) && CORSPolicy.mutates(.patch)
+                && CORSPolicy.mutates(.delete),
+            "PATCH/DELETE are live routes — refusing only POST would leave them open")
+    }
+
+    /// The knob is the exit, so the row a real browser client depends on: the admitted
+    /// origin writes and the next one over does not — not even holding a key, because a key
+    /// says WHO the caller is while `Origin` says WHAT KIND of caller it is.
+    @Test("an admitted origin may write; the next origin over may not, key or no key")
+    func admittedOriginMayWrite() async throws {
+        let (app, db) = try await makeApp(cors: .origin(Self.allowed), authKeys: ["sk-test-1"])
+        defer { try? FileManager.default.removeItem(atPath: db) }
+        try await app.test(.router) { client in
+            var body = ByteBufferAllocator().buffer(capacity: 32)
+            body.writeString("{}")
+            for (origin, mustRefuse) in [(Self.allowed, false), (Self.other, true)] {
+                var h: HTTPFields = [.contentType: "application/json", .origin: origin]
+                h[.authorization] = "Bearer sk-test-1"
+                try await client.execute(
+                    uri: "/v1/chat/completions", method: .post, headers: h, body: body
+                ) { r in
+                    if mustRefuse {
+                        #expect(r.status == .forbidden, "\(origin) was allowed to write")
+                    } else {
+                        #expect(
+                            r.status != .forbidden,
+                            "the admitted origin was refused: \(r.status)")
+                    }
+                }
+            }
+        }
     }
 
     // ── §2 off is the old surface, unchanged ───────────────────────────────────
@@ -172,7 +237,9 @@ struct CORSPreflightWireTests {
                     #expect(methods.contains(want), "allow-methods is missing \(want): \(methods)")
                 }
                 let headers = (r.headers[.accessControlAllowHeaders] ?? "").lowercased()
-                for want in ["authorization", "content-type", "accept", "origin", "api-key"] {
+                for want in [
+                    "authorization", "content-type", "accept", "origin", "api-key", "x-api-key",
+                ] {
                     #expect(headers.contains(want), "allow-headers is missing \(want): \(headers)")
                 }
                 #expect(

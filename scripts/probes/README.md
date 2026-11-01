@@ -127,7 +127,7 @@ Fails when: no `Tool prose <mode> for <model>` line at all (the load-time templa
 Fails when: a turn on that lane naming the clip's colour with a prompt-token jump (measured 712 → 856) while `/v1/models` still reads `video_input=not_observed` — the record used to live inside the pooled release, which never runs here; also fails if the premise is false (log claims the pool enabled, or a second turn reuses a session via
     `cached_tokens`/`Session pool HIT` despite `OCOREAI_SESSION_POOL=0`), and if `delivered` arrives without evidence naming turns and parts
 
-- `18-auth-surface.sh` — Does the `auth` column `/v1/capabilities` publishes match what the server actually enforces?
+- `18-auth-surface.sh` — Does the `auth` column `/v1/capabilities` publishes match what the server actually enforces? Also the three header facts a route table cannot show: the credential rungs it reads (incl. Anthropic's `x-api-key`), the `WWW-Authenticate` a 401 owes, and that a browser `Origin` may not write.
 Fails when: boots with keys ON and floors that premise first (a disabled middleware makes every refusal pass vacuously at 200), then certifies all 7 public routes answer keyless, all 27 key/admin routes refuse with 401, `GET /v1/perception` by name (401 keyless / 200 keyed — the router's own docstring called it "public" while it was never in
     `AuthRoutePolicy.publicPaths`), and `DELETE /sessions/:id` with a **user** key → 403 `adminKeyRequired` (never a silent 2xx); last, the public set measured on the wire must equal README.md's documented list. A route that never answered counts as a contradiction, never as "open"; red sample — adding
     `/v1/perception` to `publicPaths` fails 3 assertions (keyless 200, and README's 7 paths vs the wire's 8)

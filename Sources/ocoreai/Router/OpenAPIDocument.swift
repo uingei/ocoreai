@@ -301,6 +301,7 @@ enum OpenAPIDocument {
         guard auth != "public" else { return .array([]) }
         return .array([
             .object([("bearerAuth", .object([]))]),
+            .object([("xApiKey", .object([]))]),
             .object([("apiKeyHeader", .object([]))]),
             .object([("apiKeyQuery", .object([]))]),
         ])
@@ -363,12 +364,29 @@ enum OpenAPIDocument {
                         ])
                     ),
                     (
+                        "xApiKey",
+                        .object([
+                            ("type", .string("apiKey")),
+                            ("in", .string("header")),
+                            ("name", .string("x-api-key")),
+                            (
+                                "description",
+                                .string(
+                                    "Anthropic's header — what its SDK sends, so /v1/messages is reachable from it."
+                                )
+                            ),
+                        ])
+                    ),
+                    (
                         "apiKeyHeader",
                         .object([
                             ("type", .string("apiKey")),
                             ("in", .string("header")),
                             ("name", .string("api-key")),
-                            ("description", .string("OpenAI-compatible fallback, checked second.")),
+                            (
+                                "description",
+                                .string("Azure/OpenAI-compatible fallback, checked third.")
+                            ),
                         ])
                     ),
                     (

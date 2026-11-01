@@ -9,6 +9,48 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-01
 
+**11-01(92) `/mcp` answered a browser page, and Anthropic's credential was not read**
+
+- **What improved.** Three things a route table cannot show. (a) A mutating request carrying a
+  browser `Origin` is refused 403 *before* the key question: `POST /mcp` dispatches
+  `tools/call`, no key is configured by default, and a `text/plain` JSON-RPC body is a *simple*
+  request, so the browser sends it unpreflighted and only hides the reply — measured on the live
+  server an hour before this entry, that request answered **200**. MCP's HTTP transport answers an
+  invalid Origin with 403, codex refuses `Origin` outright on its local listeners
+  (`app-server-transport/src/transport/websocket.rs:107`), and splash — same posture: loopback,
+  key off by default, destructive tools — defaults to "No other origin" (`docs/server.md:85`).
+  The decision sits in `CORSPolicy` (its self-declared one home) and is carried into
+  `AuthMiddleware` as *one value*, so the knob that registers CORS and the gate that admits a
+  write cannot answer one request differently — the second-home bug was in my own first draft.
+  (b) `x-api-key` is read: Anthropic's SDK header, with `/v1/messages` published in
+  `openapi.json` — a configured key advertised a door that refused the client it was advertised
+  to (omlx `server.py:412`, splash `http_security.py:22`, mlx-serve, sglang `wasm-guest-auth:49`
+  all read it; we were the odd one out). (c) A 401 carries `WWW-Authenticate: Bearer
+  realm="ocoreai"` (RFC 9110 §10.2.3 — the section this repo already honours with `Retry-After`
+  on a 429, applied one rung earlier), and the contract gained the matching `xApiKey` scheme and
+  its preflight header.
+- **What same-session output proves it.** Probe 18 live: **17 passed / 0 failed**, and the red
+  sample of that same run with the gate unwired printed `POST /mcp with Origin:
+  drive-by.example -> 200`. Unit: 25 tests / 2 suites green; with three mutations applied at once
+  exactly 5 named tests went red, each on its own expectation. The premise was measured before the
+  guard was written, not argued: a `URLSession` POST on this host sent Host, Content-Type, Accept,
+  UA, Content-Length and **nothing named Origin**, so the refusal cannot be a self-inflicted
+  outage — and probe 18 asserts the other half on the wire (`the same write without an Origin is
+  served (200)`).
+- **Which gate goes red.** `MiddlewareChainTests` (6 new) + `CORSPreflightWireTests` (2 new) +
+  probe 18's three new sections. Unwiring the gate reds 3 tests and 1 live leg; dropping the
+  `x-api-key` rung reds 1 test and 1 live leg; dropping the challenge reds 1 test and 1 live leg.
+  The ladder *order* is pinned too — a stale Bearer ahead of a good `x-api-key` is refused, not
+  skipped — which is where a future move to splash's "every supplied credential must match"
+  (`http_security.py:22-38`) has to be argued rather than slipped in.
+- **Residual.** `anthropic-version` / `anthropic-beta` are still unread (12 and 9 of the 20
+  comparator trees read them): ollama carries the header only in its own integration test and
+  vllm nowhere, so refusing a request for a missing one would be stricter than the field and
+  could break a client that works today — an owner call, not a defect. A constant-time key
+  compare (splash `hmac.compare_digest`, mlx-serve `constTimeEql`) is a speculative-timing edge
+  § Working here says to price with the owner, not to write. And none of this reaches a stranger:
+  25 commits are unpushed and `v0.1.14` is still the only installable artefact.
+
 **11-01(91) `make drift` reported the newest upstream commit as "nothing unread"**
 
 - **What improved.** The fork ledger — one `未读 N 个` row per file forked from Apple's

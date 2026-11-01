@@ -722,7 +722,13 @@ public final class OcoreaiEngine {
             ),
             logger: logger,
         )
-        let authMiddleware = AuthMiddleware<OCoreAIContext>(config: .default, logger: logger)
+        // Resolved once, then handed to both consumers: it decides whether a CORS
+        // middleware exists (who may READ a cross-origin reply) and whether a browser may
+        // WRITE at all. Two reads of the knob could answer those differently for one
+        // request, which is the second-home bug this line exists to prevent.
+        let browserAccess = CORSPolicy.bootstrap(logger: logger)
+        let authMiddleware = AuthMiddleware<OCoreAIContext>(
+            config: .default, browserMutation: browserAccess, logger: logger)
         let rateLimitMiddleware = RateLimitMiddleware<OCoreAIContext>(
             provider: rateLimitProvider,
             logger: logger,
@@ -766,7 +772,7 @@ public final class OcoreaiEngine {
                     logger: logger,
                     authMiddleware: authMiddleware,
                     rateLimitMiddleware: rateLimitMiddleware,
-                    corsMiddleware: CORSPolicy.bootstrap(logger: logger),
+                    cors: browserAccess,
                     hfToken: hfToken,
                     msToken: msToken,
                     toolRegistry: _toolRegistry,
@@ -885,9 +891,11 @@ func buildApplication(
     logger: Logger,
     authMiddleware: AuthMiddleware<OCoreAIContext>,
     rateLimitMiddleware: RateLimitMiddleware<OCoreAIContext>,
-    // Resolved by the caller that owns the process environment; `nil` is the default
-    // posture (no CORS middleware exists on the chain), not an unset reminder.
-    corsMiddleware: CORSMiddleware<OCoreAIContext>? = nil,
+    // One value answers both browser questions for this chain: who may read a
+    // cross-origin reply (the middleware it registers) and whether a browser may write
+    // (it is handed to `AuthMiddleware` by the caller that resolved it). `.off` is the
+    // default posture — no middleware, and no admitted browser write.
+    cors: CORSPolicy.Decision = .off,
     hfToken: String? = nil,
     msToken: String? = nil,
     toolRegistry: ToolRegistry? = nil,
@@ -904,7 +912,7 @@ func buildApplication(
         logger: logger,
         authMiddleware: authMiddleware,
         rateLimitMiddleware: rateLimitMiddleware,
-        corsMiddleware: corsMiddleware,
+        corsMiddleware: cors.corsMiddleware,
         hfToken: hfToken,
         msToken: msToken,
         toolRegistry: toolRegistry,

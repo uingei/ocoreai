@@ -208,6 +208,9 @@
             "bearerAuth": {}
           },
           {
+            "xApiKey": {}
+          },
+          {
             "apiKeyHeader": {}
           },
           {
@@ -275,6 +278,9 @@
             "bearerAuth": {}
           },
           {
+            "xApiKey": {}
+          },
+          {
             "apiKeyHeader": {}
           },
           {
@@ -324,6 +330,9 @@
         "security": [
           {
             "bearerAuth": {}
+          },
+          {
+            "xApiKey": {}
           },
           {
             "apiKeyHeader": {}
@@ -377,6 +386,9 @@
             "bearerAuth": {}
           },
           {
+            "xApiKey": {}
+          },
+          {
             "apiKeyHeader": {}
           },
           {
@@ -426,6 +438,9 @@
         "security": [
           {
             "bearerAuth": {}
+          },
+          {
+            "xApiKey": {}
           },
           {
             "apiKeyHeader": {}
@@ -479,6 +494,9 @@
             "bearerAuth": {}
           },
           {
+            "xApiKey": {}
+          },
+          {
             "apiKeyHeader": {}
           },
           {
@@ -528,6 +546,9 @@
         "security": [
           {
             "bearerAuth": {}
+          },
+          {
+            "xApiKey": {}
           },
           {
             "apiKeyHeader": {}
@@ -581,6 +602,9 @@
             "bearerAuth": {}
           },
           {
+            "xApiKey": {}
+          },
+          {
             "apiKeyHeader": {}
           },
           {
@@ -630,6 +654,9 @@
         "security": [
           {
             "bearerAuth": {}
+          },
+          {
+            "xApiKey": {}
           },
           {
             "apiKeyHeader": {}
@@ -683,6 +710,9 @@
             "bearerAuth": {}
           },
           {
+            "xApiKey": {}
+          },
+          {
             "apiKeyHeader": {}
           },
           {
@@ -732,6 +762,9 @@
         "security": [
           {
             "bearerAuth": {}
+          },
+          {
+            "xApiKey": {}
           },
           {
             "apiKeyHeader": {}
@@ -795,6 +828,9 @@
             "bearerAuth": {}
           },
           {
+            "xApiKey": {}
+          },
+          {
             "apiKeyHeader": {}
           },
           {
@@ -830,6 +866,9 @@
         "security": [
           {
             "bearerAuth": {}
+          },
+          {
+            "xApiKey": {}
           },
           {
             "apiKeyHeader": {}
@@ -883,6 +922,9 @@
             "bearerAuth": {}
           },
           {
+            "xApiKey": {}
+          },
+          {
             "apiKeyHeader": {}
           },
           {
@@ -924,6 +966,9 @@
         "security": [
           {
             "bearerAuth": {}
+          },
+          {
+            "xApiKey": {}
           },
           {
             "apiKeyHeader": {}
@@ -979,6 +1024,9 @@
             "bearerAuth": {}
           },
           {
+            "xApiKey": {}
+          },
+          {
             "apiKeyHeader": {}
           },
           {
@@ -1017,6 +1065,9 @@
         "security": [
           {
             "bearerAuth": {}
+          },
+          {
+            "xApiKey": {}
           },
           {
             "apiKeyHeader": {}
@@ -1070,6 +1121,9 @@
             "bearerAuth": {}
           },
           {
+            "xApiKey": {}
+          },
+          {
             "apiKeyHeader": {}
           },
           {
@@ -1119,6 +1173,9 @@
         "security": [
           {
             "bearerAuth": {}
+          },
+          {
+            "xApiKey": {}
           },
           {
             "apiKeyHeader": {}
@@ -1172,6 +1229,9 @@
             "bearerAuth": {}
           },
           {
+            "xApiKey": {}
+          },
+          {
             "apiKeyHeader": {}
           },
           {
@@ -1221,6 +1281,9 @@
         "security": [
           {
             "bearerAuth": {}
+          },
+          {
+            "xApiKey": {}
           },
           {
             "apiKeyHeader": {}
@@ -1274,6 +1337,9 @@
             "bearerAuth": {}
           },
           {
+            "xApiKey": {}
+          },
+          {
             "apiKeyHeader": {}
           },
           {
@@ -1325,6 +1391,9 @@
             "bearerAuth": {}
           },
           {
+            "xApiKey": {}
+          },
+          {
             "apiKeyHeader": {}
           },
           {
@@ -1373,6 +1442,9 @@
         "security": [
           {
             "bearerAuth": {}
+          },
+          {
+            "xApiKey": {}
           },
           {
             "apiKeyHeader": {}
@@ -1428,6 +1500,9 @@
             "bearerAuth": {}
           },
           {
+            "xApiKey": {}
+          },
+          {
             "apiKeyHeader": {}
           },
           {
@@ -1468,6 +1543,9 @@
             "bearerAuth": {}
           },
           {
+            "xApiKey": {}
+          },
+          {
             "apiKeyHeader": {}
           },
           {
@@ -1506,6 +1584,9 @@
         "security": [
           {
             "bearerAuth": {}
+          },
+          {
+            "xApiKey": {}
           },
           {
             "apiKeyHeader": {}
@@ -1570,11 +1651,17 @@
         "scheme": "bearer",
         "description": "Authorization: Bearer <key> — the primary route."
       },
+      "xApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "Anthropic's header — what its SDK sends, so /v1/messages is reachable from it."
+      },
       "apiKeyHeader": {
         "type": "apiKey",
         "in": "header",
         "name": "api-key",
-        "description": "OpenAI-compatible fallback, checked second."
+        "description": "Azure/OpenAI-compatible fallback, checked third."
       },
       "apiKeyQuery": {
         "type": "apiKey",

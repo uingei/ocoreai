@@ -4,8 +4,12 @@
 ///
 /// ### Authentication Strategy:
 /// 1. Bearer token header (``Authorization: Bearer <key>``) — primary
-/// 2. API-Key header (``OpenAI-compatible``) — secondary
-/// 3. Query parameter ``?api_key=`` — debug-only fallback
+/// 2. ``x-api-key`` header — what the Anthropic SDK authenticates with
+/// 3. ``api-key`` header (Azure/OpenAI-compatible)
+/// 4. Query parameter ``?api_key=`` — debug-only fallback
+///
+/// A mutating request that carries a browser ``Origin`` is refused before any of that:
+/// ``CORSPolicy`` is the one home for the browser-origin decision on this server.
 ///
 /// ### Env Config:
 /// - ``OCOREAI_API_KEYS``: Comma-separated allowed keys (if empty, auth is bypassed)
@@ -177,6 +181,13 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
     /// Observability logger
     private let logger: Logger
 
+    /// Who may write from a browser. Held as a value rather than re-read from the
+    /// environment here: the same resolution also decides whether a CORS middleware gets
+    /// registered, and two reads of `OCOREAI_CORS_ORIGIN` could disagree about one request.
+    /// `.off` is the fail-closed default — forgetting to pass it denies browser writes,
+    /// never widens them.
+    private let browserMutation: CORSPolicy.Decision
+
     // Route policy lives in ``AuthRoutePolicy`` (file scope), not here: this type
     // is generic over `Context`, and a generic type cannot hold static stored
     // properties. The point of moving it out rather than copying it is that the
@@ -191,9 +202,11 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
     ///   - logger: Observability logger
     init(
         configProvider: @escaping @Sendable () -> AuthConfig = { AuthConfig.default },
+        browserMutation: CORSPolicy.Decision = .off,
         logger: Logger
     ) {
         _makeConfig = configProvider
+        self.browserMutation = browserMutation
         self.logger = logger
     }
 
@@ -202,8 +215,9 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
     /// - Parameters:
     ///   - config: Authentication configuration (defaults to env-loaded)
     ///   - logger: Observability logger
-    init(config: AuthConfig, logger: Logger) {
+    init(config: AuthConfig, browserMutation: CORSPolicy.Decision = .off, logger: Logger) {
         _makeConfig = { config }
+        self.browserMutation = browserMutation
         self.logger = logger
     }
 
@@ -214,6 +228,20 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
     ) async throws -> Response {
         // 1. Load config fresh per-request (supports hot-reload of OCOREAI_API_KEYS env var)
         let config = _makeConfig()
+        // 1b. A browser's write is refused before the key question, because the hole this
+        // closes is widest exactly when no key is configured (the default): the decision
+        // and its evidence live in `CORSPolicy.admitsMutation`, the one origin home.
+        if CORSPolicy.mutates(request.method),
+            let origin = request.headers[.origin],
+            !CORSPolicy.admitsMutation(origin: origin, against: browserMutation)
+        {
+            // The origin is named to the operator, never echoed into the reply: that
+            // body is hand-built JSON and an origin is a client-supplied string.
+            logger.warning(
+                "Refused \(request.method) \(request.uri.path) from Origin \(origin.prefix(160)) — this server serves no page. Set OCOREAI_CORS_ORIGIN=<that origin> to admit it (that also publishes Access-Control-Allow-Origin)."
+            )
+            throw AuthError.browserOrigin
+        }
         // 2. Auth bypass — config disabled
         guard config.enabled else {
             return try await next(request, context)
@@ -257,7 +285,9 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
 
     /// Extract API key from request headers or query parameters.
     ///
-    /// Priority: Bearer token > ``api-key`` header > ``?api_key=`` query param.
+    /// Priority: Bearer > ``x-api-key`` > ``api-key`` > ``?api_key=``. The order is a
+    /// decision, not an accident of history, and `MiddlewareChainTests` pins it: a client
+    /// that sends two rungs gets the earlier one judged, exactly once.
     ///
     /// - Parameter request: Incoming HTTP request
     /// - Returns: Extracted API key string
@@ -274,7 +304,21 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
             return trimmed
         }
 
-        // Secondary: api-key header (OpenAI-compatible)
+        // Second: x-api-key — the header the Anthropic SDK authenticates with. Every local
+        // comparator reads it beside Bearer (omlx `server.py:412`, splash
+        // `http_security.py:22`, mlx-serve `apiKeyAuthorized`, sglang `wasm-guest-auth:49`),
+        // and openapi.json publishes `/v1/messages`: without this rung that door is
+        // advertised and unreachable for that SDK as soon as a key is configured.
+        if let anthropicKey = HTTPField.Name("x-api-key"),
+            let value = request.headers[anthropicKey]
+        {
+            let trimmed = value.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+
+        // Third: api-key header (Azure/OpenAI-compatible)
         if let apiKeyName = HTTPField.Name("api-key"),
             let apiKeyValue = request.headers[apiKeyName]
         {
@@ -284,7 +328,8 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
             }
         }
 
-        // Tertiary: ?api_key= query parameter (debug only)
+        // Last: ?api_key= query parameter (debug only — a URL outlives the request that
+        // put the key in it, which is why nothing above it is a query)
         if let queryKey = request.uri.queryParameters["api_key"], !queryKey.isEmpty {
             return String(queryKey)
         }
@@ -308,6 +353,10 @@ enum AuthError: Error, LocalizedError, HTTPResponseError {
     /// 403 Forbidden — operation requires admin-level API key
     case adminKeyRequired
 
+    /// 403 Forbidden — a browser page tried to mutate this server (see
+    /// ``CORSPolicy/admitsMutation(origin:against:)`` for who is admitted)
+    case browserOrigin
+
     /// 401 Unauthorized — no API key found in request headers or query
     case missingAPIKey
 
@@ -318,8 +367,14 @@ enum AuthError: Error, LocalizedError, HTTPResponseError {
             "401 Unauthorized — Invalid API key"
         case .adminKeyRequired:
             "403 Forbidden — Admin key required for this operation"
+        // The refused Origin is deliberately absent: this string is interpolated into a
+        // hand-built JSON body and an Origin is client-supplied. The server log names it.
+        case .browserOrigin:
+            "403 Forbidden — a browser Origin may not write here; this server serves no page"
+                + " (native clients send no Origin; to admit one, set OCOREAI_CORS_ORIGIN)"
         case .missingAPIKey:
-            "401 Unauthorized — API key required (use Authorization: Bearer *** or api-key header)"
+            "401 Unauthorized — API key required"
+                + " (use Authorization: Bearer <key>, x-api-key, api-key, or ?api_key=)"
         }
     }
 
@@ -328,7 +383,7 @@ enum AuthError: Error, LocalizedError, HTTPResponseError {
         switch self {
         case .unauthorized, .missingAPIKey:
             .unauthorized
-        case .adminKeyRequired:
+        case .adminKeyRequired, .browserOrigin:
             .forbidden
         }
     }
@@ -343,6 +398,14 @@ enum AuthError: Error, LocalizedError, HTTPResponseError {
         // HTTPField.Name for standard keys is guaranteed by Hummingbird — safe to unwrap
         if let ctKey = HTTPField.Name("content-type") {
             resp.headers[ctKey] = "application/json"
+        }
+        // RFC 9110 §10.2.3: a 401 MUST name at least one challenge applicable to the
+        // resource, and the scheme that applies is the first rung of `extractAPIKey`. The
+        // same section is why a 429 here carries `Retry-After` rather than a guess
+        // (`EngineBusySignal`); a 403 gets none, because no credential would change the
+        // answer — that is what the refusal says.
+        if status == .unauthorized {
+            resp.headers[.wwwAuthenticate] = #"Bearer realm="ocoreai""#
         }
         return resp
     }

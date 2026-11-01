@@ -210,6 +210,136 @@ struct MiddlewareChainTests {
 
     // ── Rate limit ──
 
+    // ── § credential rungs: the ladder is a decision, and the order is pinned ──
+
+    /// Anthropic's SDK authenticates with `x-api-key`, and `openapi.json` publishes
+    /// `/v1/messages`. With a key configured and this rung missing, that SDK got 401 from
+    /// a door the contract advertised — the surface claiming more than it served.
+    @Test("Auth on: x-api-key passes (what the Anthropic SDK sends)")
+    func testAuthAnthropicKeyHeader() async throws {
+        let (app, dbs) = try await Self.makeApp(authKeys: ["secret"])
+        defer { cleanupE2E(dbs) }
+        try await app.test(.router) { client in
+            let buf = try Self.jsonBody(["model": "x", "messages": []])
+            var h: HTTPFields = [.contentType: "application/json"]
+            h[HTTPField.Name("x-api-key")!] = "secret"
+            try await client.execute(
+                uri: "/v1/chat/completions", method: .post, headers: h, body: buf
+            ) { r in
+                #expect(r.status != .unauthorized, "auth fail: \(r.status)")
+            }
+        }
+    }
+
+    /// The rung must not become a bypass: an empty-looking credential on a readable rung
+    /// still has to match the configured key.
+    @Test("Auth on: wrong key in x-api-key → 401 (a rung, not a bypass)")
+    func testAuthAnthropicKeyWrong() async throws {
+        let (app, dbs) = try await Self.makeApp(authKeys: ["correct"])
+        defer { cleanupE2E(dbs) }
+        try await app.test(.router) { client in
+            let buf = try Self.jsonBody(["model": "x", "messages": []])
+            var h: HTTPFields = [.contentType: "application/json"]
+            h[HTTPField.Name("x-api-key")!] = "guessed"
+            try await client.execute(
+                uri: "/v1/chat/completions", method: .post, headers: h, body: buf
+            ) { r in
+                #expect(r.status == .unauthorized, "got \(r.status)")
+            }
+        }
+    }
+
+    /// The order, stated as an assertion because it is a decision: the FIRST rung present
+    /// is the one judged, once. splash instead refuses any request whose supplied
+    /// credentials disagree (`http_security.py:22-38`); we keep the ladder mlx-serve and
+    /// omlx run, so a client sending two rungs is answered by the earlier one — and this
+    /// line is where a future change to that choice has to be argued.
+    @Test("Ladder order: a bad Bearer ahead of a good x-api-key is refused, not skipped")
+    func testCredentialLadderOrder() async throws {
+        let (app, dbs) = try await Self.makeApp(authKeys: ["secret"])
+        defer { cleanupE2E(dbs) }
+        try await app.test(.router) { client in
+            let buf = try Self.jsonBody(["model": "x", "messages": []])
+            var h: HTTPFields = [.contentType: "application/json"]
+            h[.authorization] = "Bearer stale"
+            h[HTTPField.Name("x-api-key")!] = "secret"
+            try await client.execute(
+                uri: "/v1/chat/completions", method: .post, headers: h, body: buf
+            ) { r in
+                #expect(r.status == .unauthorized, "got \(r.status)")
+            }
+        }
+    }
+
+    // ── § the 401 names a scheme (RFC 9110 §10.2.3), the 403 does not ──
+
+    @Test("401 carries WWW-Authenticate naming the scheme that applies")
+    func testUnauthorizedNamesChallenge() async throws {
+        let (app, dbs) = try await Self.makeApp(authKeys: ["key1"])
+        defer { cleanupE2E(dbs) }
+        try await app.test(.router) { client in
+            let buf = try Self.jsonBody(["model": "x", "messages": []])
+            let h: HTTPFields = [.contentType: "application/json"]
+            try await client.execute(
+                uri: "/v1/chat/completions", method: .post, headers: h, body: buf
+            ) { r in
+                #expect(r.status == .unauthorized, "got \(r.status)")
+                #expect(
+                    r.headers[.wwwAuthenticate] == #"Bearer realm="ocoreai""#,
+                    "a 401 with no challenge leaves the client to guess: \(r.headers)")
+            }
+        }
+    }
+
+    // ── § a browser page may not write here ──
+
+    /// `POST /mcp` reaches `tools/call`, no key is configured by default, and a
+    /// `text/plain` body never preflights — so before this gate any web page the user
+    /// happened to have open could drive this process. The control matters as much as the
+    /// refusal: the same write WITHOUT an Origin is a native client and must still work,
+    /// or the gate is a self-inflicted outage measured as a security win.
+    @Test("A mutating request from a browser Origin is refused — and the key does not buy it")
+    func testBrowserOriginWriteRefused() async throws {
+        let (app, dbs) = try await Self.makeApp(authKeys: ["key1"])
+        defer { cleanupE2E(dbs) }
+        try await app.test(.router) { client in
+            let buf = try Self.jsonBody(["jsonrpc": "2.0", "id": 1, "method": "tools/list"])
+            var page: HTTPFields = [.contentType: "text/plain"]
+            page[.origin] = "http://some-page.example"
+            page[.authorization] = "Bearer key1"
+            try await client.execute(uri: "/mcp", method: .post, headers: page, body: buf) { r in
+                #expect(r.status == .forbidden, "got \(r.status)")
+                // No credential would change the answer — that is what the refusal says —
+                // so RFC 9110 gives a 403 no challenge.
+                #expect(r.headers[.wwwAuthenticate] == nil, "403 named a challenge")
+            }
+            var native: HTTPFields = [.contentType: "application/json"]
+            native[.authorization] = "Bearer key1"
+            try await client.execute(
+                uri: "/mcp", method: .post, headers: native, body: buf
+            ) { r in
+                #expect(
+                    r.status != .forbidden && r.status != .unauthorized,
+                    "a native client (no Origin) must still be served, got \(r.status)")
+            }
+        }
+    }
+
+    @Test("A read from a browser Origin is not a write (and CORS still withholds the reply)")
+    func testBrowserOriginReadNotRefused() async throws {
+        let (app, dbs) = try await Self.makeApp(authKeys: ["key1"])
+        defer { cleanupE2E(dbs) }
+        try await app.test(.router) { client in
+            var h: HTTPFields = [:]
+            h[.origin] = "http://some-page.example"
+            h[.authorization] = "Bearer key1"
+            try await client.execute(uri: "/health", method: .get, headers: h) { r in
+                #expect(r.status == .ok, "a GET is not a mutation, got \(r.status)")
+                #expect(r.headers[.accessControlAllowOrigin] == nil, "CORS is off here")
+            }
+        }
+    }
+
     @Test("Rate limit: burst=2 → 3rd request 429")
     func testRateLimitExhaustion() async throws {
         let tiny = RateLimitProvider.Config(

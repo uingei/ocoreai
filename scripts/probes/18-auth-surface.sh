@@ -23,6 +23,21 @@
 #   • the public set measured here equals the count and the members documented in
 #     README.md — the wire, the index and the human-facing list must be one fact.
 #
+# Then the three things a route table cannot show (measured 11-01, each red before the fix):
+#   • `x-api-key` is a credential this server READS. `/v1/messages` is published in
+#     openapi.json and Anthropic's SDK authenticates with that header, so a key configured
+#     here advertised a door that refused that client (omlx `server.py:412`, splash
+#     `http_security.py:22` and mlx-serve all read it; we were the odd one out).
+#   • a 401 names a challenge (RFC 9110 §10.2.3: the server "MUST send any [WWW-Authenticate
+#     fields] that would apply"), and a 403 names none — the same section we already cite for
+#     `Retry-After` on a 429, applied one rung earlier.
+#   • a browser `Origin` may not write. `POST /mcp` reaches `tools/call`, no key is
+#     configured by default, and a `text/plain` body is a *simple* request the browser sends
+#     without preflighting — so before this gate any page the user happened to have open
+#     could drive this process. The control is as load-bearing as the refusal: the same
+#     write with NO Origin is a native client and must still be served (measured: URLSession
+#     sends no Origin, so this is not a self-inflicted outage).
+#
 # Run: OCOREAI_BIN=... bash scripts/probes/18-auth-surface.sh
 PROBE_NAME="18-auth-surface"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_lib.sh"
@@ -49,6 +64,36 @@ raw_call() {
   RAW_STATUS="${raw##*$'\n'}"
   RAW_BODY="${raw%$'\n'*}"
   return 0
+}
+
+# raw_call_h METHOD PATH KEY CONTENT_TYPE BODY [EXTRA_HEADER ...]
+# — the same call, but the Content-Type is an argument (a browser's simple request is
+# `text/plain`, which is the whole reason the Origin gate exists) and the response headers
+# come back, because two of the three claims below are header facts.
+RAW_HEADERS=""
+raw_call_h() {
+  local method="$1" path="$2" key="${3:-}" ctype="${4:-application/json}"
+  local body="${5:-}"
+  shift 5
+  local -a args=(-sS -m "${OCOREAI_PROBE_CURL_TIMEOUT:-30}" -X "$method"
+    -D - -o /dev/null -w $'%{http_code}')
+  [ -n "$ctype" ] && args+=(-H "Content-Type: $ctype")
+  if [ -n "$key" ]; then args+=(-H "Authorization: Bearer $key"); fi
+  if [ -n "$body" ]; then args+=(--data "$body"); fi
+  local hdr
+  for hdr in "$@"; do args+=(-H "$hdr"); done
+  local raw
+  if ! raw="$(curl "${args[@]}" "$PROBE_BASE$path" 2>&1)"; then
+    RAW_STATUS="000"; RAW_HEADERS=""; return 1
+  fi
+  RAW_STATUS="${raw##*$'\n'}"
+  RAW_HEADERS="${raw%$'\n'*}"
+  return 0
+}
+header_value() {
+  # Header names are case-insensitive on the wire; HTTP/1.1 here capitalises as sent.
+  printf '%s' "$RAW_HEADERS" | tr -d '\r' | awk -v n="$1" '
+    tolower($1) == tolower(n":") { sub(/^[^:]*:[ ]*/, ""); print; exit }'
 }
 
 probe_section "premise: auth is actually on"
@@ -189,6 +234,63 @@ if [ "$RAW_STATUS" = "401" ]; then
   probe_ok "DELETE /sessions/:id keyless -> 401 (key check precedes the admin check)"
 else
   probe_fail "DELETE /sessions/:id keyless -> $RAW_STATUS, expected 401 before any admin check"
+fi
+
+probe_section "credentials the wire actually reads"
+# `/v1/perception` is keyed and answers 200 with a key, so it is the cheapest probe of
+# which header this server READS. Auth runs before routing, so the method stays GET (the
+# route is GET-only; a 404 after a 200 would prove nothing about the credential).
+raw_call_h GET /v1/perception "" "" "" "x-api-key: $USER_KEY"
+if [ "$RAW_STATUS" = "200" ]; then
+  probe_ok "x-api-key: <user key> -> 200 (what Anthropic's SDK sends is accepted)"
+else
+  probe_fail "x-api-key: <user key> -> $RAW_STATUS, expected 200. openapi.json publishes"
+  probe_fail "  /v1/messages and its SDK authenticates with this header: an advertised door"
+  probe_fail "  that refuses the client it was advertised to (omlx server.py:412 reads it)"
+fi
+raw_call_h GET /v1/perception "" "" "" "x-api-key: guessed-not-a-key"
+if [ "$RAW_STATUS" = "401" ]; then
+  probe_ok "x-api-key: wrong -> 401 (a rung in the ladder, not a bypass around it)"
+else
+  probe_fail "x-api-key: wrong key -> $RAW_STATUS, expected 401"
+fi
+
+probe_section "the 401 names a scheme (RFC 9110 10.2.3)"
+raw_call_h GET /v1/perception "" "" ""
+CHALLENGE="$(header_value WWW-Authenticate)"
+if [ "$RAW_STATUS" != "401" ]; then
+  probe_fail "keyless GET /v1/perception -> $RAW_STATUS, expected 401 — nothing below means anything"
+elif [ -n "$CHALLENGE" ]; then
+  probe_ok "401 carries WWW-Authenticate: $CHALLENGE"
+else
+  probe_fail "401 carried no WWW-Authenticate. RFC 9110 10.2.3: the server MUST send the"
+  probe_fail "  challenge fields that apply. Same section this repo already honours with"
+  probe_fail "  Retry-After on a 429 (EngineBusySignal) — applied one rung earlier."
+fi
+
+probe_section "a browser page may not write here"
+MCP_BODY='{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+# The exact drive-by shape: a *simple* request (text/plain -> the browser never preflights),
+# an Origin no user wired to this process, and even a valid key. A key says who the caller
+# is; Origin says what KIND of caller, and this server serves no page.
+raw_call_h POST /mcp "$USER_KEY" "text/plain" "$MCP_BODY" "Origin: http://drive-by.example"
+if [ "$RAW_STATUS" = "403" ]; then
+  probe_ok "POST /mcp from a browser Origin -> 403 even holding a valid key"
+else
+  probe_fail "POST /mcp with Origin: drive-by.example -> $RAW_STATUS, expected 403."
+  probe_fail "  /mcp dispatches tools/call, so a page the user merely had open can drive"
+  probe_fail "  this process — MCP's HTTP transport answers the same request with 403."
+fi
+# The control, without which the line above is an outage measured as a security win:
+# a native client sends no Origin (measured: URLSession sends none).
+raw_call_h POST /mcp "$USER_KEY" "application/json" "$MCP_BODY"
+if [ "$RAW_STATUS" = "000" ]; then
+  probe_fail "POST /mcp without an Origin did not answer — the control is uncountable"
+elif [ "$RAW_STATUS" = "403" ] || [ "$RAW_STATUS" = "401" ]; then
+  probe_fail "POST /mcp WITHOUT an Origin -> $RAW_STATUS: the gate refuses native clients"
+  probe_fail "  too, which is a self-inflicted outage, not a fix"
+else
+  probe_ok "the same write without an Origin is served ($RAW_STATUS) — native clients unaffected"
 fi
 
 probe_section "wire == index == README"
