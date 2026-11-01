@@ -126,10 +126,60 @@ struct ToolMutationLedgerTests {
         #expect(await ledger.since(baseline) == [])
     }
 
-    @Test("only read-only tools never produce a mutation")
-    func readOnlyExclusion() {
-        #expect(ToolMutationLedger.countsAsMutation(isReadOnly: true) == false)
-        #expect(ToolMutationLedger.countsAsMutation(isReadOnly: false) == true)
+    /// The classifier is three-valued because `!isReadOnly` conflated two different things.
+    /// Red sample for the probe-40 live tier of 2026-11-01: a turn whose only calls were three
+    /// read-only `curl`s through `exec_command` filled the mutation set, so the honesty line
+    /// under a "file created" answer never fired while the verifier found no deliverable.
+    @Test("a shell call is evidence of nothing about the workspace")
+    func writeEvidenceIsThreeValued() {
+        #expect(ToolMutationLedger.writeEvidence(name: "read_file", isReadOnly: true) == .readOnly)
+        #expect(
+            ToolMutationLedger.writeEvidence(name: "exec_command", isReadOnly: false) == .unobserved
+        )
+        #expect(
+            ToolMutationLedger.writeEvidence(name: "exec_poll", isReadOnly: false) == .unobserved)
+        #expect(
+            ToolMutationLedger.writeEvidence(name: "edit_file", isReadOnly: false) == .reported)
+        #expect(
+            ToolMutationLedger.writeEvidence(name: "write_file", isReadOnly: false) == .reported)
+    }
+
+    /// `exec_command` succeeded but wrote nothing this audit can see: the over-claim must still
+    /// be answered, and answered with the sentence that is true in both worlds.
+    @Test("an over-claim over shell-only calls is answered, not silenced")
+    func unobservedCallsStillAnswerAnOverClaim() {
+        let attempts = [
+            ToolAttempt(
+                tool: "exec_command", target: "curl -s :8080/v1/models", evidence: .unobserved,
+                outcome: .succeeded, failure: nil),
+            ToolAttempt(
+                tool: "exec_command", target: "curl -s :8080/health", evidence: .unobserved,
+                outcome: .succeeded, failure: nil),
+        ]
+        let notice = ClaimVsAudit.notice(
+            text: "I created the file build/report.txt.", mutations: [], attempts: attempts)
+        let text = notice ?? ""
+        #expect(!text.isEmpty, "the silence this gate exists for: \(text)")
+        #expect(text.contains("2 shell/exec call(s)"), "counts what ran: \(text)")
+        #expect(text.contains("neither confirmed nor contradicted"), "no invented verdict: \(text)")
+        #expect(!text.contains("Nothing was written"), "cannot claim that blind: \(text)")
+    }
+
+    /// The mirror direction (diary 11-01(96), `resp-D-1`): shell calls are not a change either,
+    /// so a turn reporting failure over a record of shell-only successes stays quiet instead of
+    /// being told "This turn did change files".
+    @Test("shell-only successes do not summon a changed-files correction")
+    func unobservedCallsDoNotProveAChange() {
+        let attempts = [
+            ToolAttempt(
+                tool: "exec_command", target: "uname -m", evidence: .unobserved,
+                outcome: .succeeded, failure: nil)
+        ]
+        let notice = ClaimVsAudit.notice(
+            text: "I failed to create the report file.", mutations: [], attempts: attempts)
+        #expect(
+            notice == nil, "a shell success is not a witnessed write: \(String(describing: notice))"
+        )
     }
 
     @Test("the naming window is bounded at 32 so a long-lived server cannot grow it")

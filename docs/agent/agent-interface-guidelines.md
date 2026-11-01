@@ -21,7 +21,7 @@ statistical acceptance rule design docs never carried.
 
 | # | What the person is owed | Decidable assertion | Goes red here |
 |---|---|---|---|
-| 1 | Its last sentence is true about what happened | file-change sentences of a self-terminated answer vs the write ledger at `ToolRegistry.call`, which native/MTP/GUI/MCP all pass | `ClaimVsAuditTests`(17) |
+| 1 | Its last sentence is true about what happened | file-change sentences of a self-terminated answer vs the write ledger at `ToolRegistry.call`, which native/MTP/GUI/MCP all pass | `ClaimVsAuditTests`(19) |
 | 2 | Your stop word ends the turn | a stop string ends with `finish_reason: stop`; only the last SSE chunk speaks | `StopSequenceDeliveryTests`(13) + probe 10 |
 | 3 | You may change your mind mid-turn | steered text merges at the head of the chat handler, pre-assembly | `SteerRequestHeadTests` + probe 21 |
 | 4 | A refused edit still tells you where it is | durability and validity in one result (`OK-but-invalid`), quoting the file with its line numbers | `EditLinesContractTests`(10) |

@@ -83,8 +83,11 @@ how code is written anywhere, it belongs at the root. Two copies of one rule is 
 - **A turn's last sentence is a claim, checked against the audit.** `ClaimVsAudit` compares a
   self-terminated answer's file-change sentences with `ToolMutationLedger`, fed at
   `ToolRegistry.call` — the chokepoint native loop, MTP, GUI and MCP share (a native turn echoes no
-  `tool_calls`, so the wire proves nothing). Both false directions get an `[audit]` line on four faces;
-  read-only tools never count, so a notice can only under-accuse. Gate: `ClaimVsAuditTests`(17).
+  `tool_calls`, so the wire proves nothing). Both false directions get an `[audit]` line on four faces.
+  A shell success is `WriteEvidence.unobserved`, not a write: over a record of shell calls only the line
+  names what the audit cannot see instead of silencing itself (measured silent 11-01, probe 40). The
+  ledger is process-wide, so an earlier turn's write can still summon the changed-files line — § Open.
+  Gate: `ClaimVsAuditTests`(19).
 - `/v1/models/:model/…` takes a **percent-encoded** model id (`:model` matches one segment, `/v1/models`
   publishes `org/name`); the catalog says so and probe 03 pins it — the owner call lives in § Open.
 

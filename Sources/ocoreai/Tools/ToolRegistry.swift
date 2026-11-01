@@ -674,18 +674,19 @@ actor ToolRegistry {
             // Claim/audit cross-check input (Models/ClaimVsAudit.swift): this is the one
             // chokepoint every dispatch goes through — native ChatSession loop, MTP loop,
             // direct GUI calls and external MCP `tools/call` — so "did this turn change any
-            // file" is answered here and nowhere else. Read-only tools do not count; an
-            // unknown external tool counts as mutating, which keeps the notice from ever
-            // accusing a turn that ran an unrecognised writer.
-            let isMutating = ToolMutationLedger.countsAsMutation(isReadOnly: isReadOnly(name))
-            if isMutating {
+            // file" is answered here and nowhere else. A shell call is not a witnessed write
+            // (`WriteEvidence.unobserved`): a turn of read-only `curl`s used to fill the
+            // mutation set and silence the honesty line under a fabricated "file created".
+            let evidence = ToolMutationLedger.writeEvidence(
+                name: name, isReadOnly: isReadOnly(name))
+            if evidence == .reported {
                 await ToolMutationLedger.shared.record(
                     SuccessfulMutation(tool: name, target: Self.mutationTarget(in: arguments)))
             }
             await ToolAttemptLedger.shared.record(
                 ToolAttempt(
                     tool: name, target: Self.mutationTarget(in: arguments),
-                    isMutation: isMutating, outcome: .succeeded, failure: nil))
+                    evidence: evidence, outcome: .succeeded, failure: nil))
             await hookRunner.firePostToolUse(
                 toolName: name, arguments: arguments, result: result, error: nil)
             // Secret redaction (codex main-axis baseline, `secrets/sanitizer.rs`):
@@ -715,7 +716,8 @@ actor ToolRegistry {
             await ToolAttemptLedger.shared.record(
                 ToolAttempt(
                     tool: name, target: Self.mutationTarget(in: arguments),
-                    isMutation: ToolMutationLedger.countsAsMutation(isReadOnly: isReadOnly(name)),
+                    evidence: ToolMutationLedger.writeEvidence(
+                        name: name, isReadOnly: isReadOnly(name)),
                     outcome: .failed, failure: Self.failureLine(of: error)))
             // Complete audit on error
             if let t = token {

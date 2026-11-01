@@ -22,19 +22,37 @@ import Foundation
 
 /// A file-changing tool call that returned successfully during this process' lifetime.
 struct SuccessfulMutation: Equatable, Sendable {
-    /// Tool that performed it (`write_file`, `edit_file`, `exec_command`, …).
+    /// Tool that performed it (`write_file`, `edit_file`, …).
     let tool: String
     /// The path or command it named, when its arguments carried one — the part a user acts on.
     let target: String?
+}
+
+/// What one dispatched tool call proves about the workspace.
+///
+/// Two of the three cases were conflated until 2026-11-01: a shell call that only read the
+/// server looked, in the audit, like a write, which silenced the line whose whole job is to
+/// say "nothing was written" (`docs/agent/open-items.md`, diary 11-01(95)).
+enum WriteEvidence: String, Equatable, Sendable {
+    /// A file-writing tool reported a durable change — the audit's mutation truth.
+    case reported
+    /// The registry declares the tool never writes (`ToolRegistry.readOnlyWhitelist`).
+    case readOnly
+    /// A shell/exec call: it can write anything, and nothing at the chokepoint observes the
+    /// workspace, so it neither confirms nor denies a completion claim. Claiming either would
+    /// breach invariant 2 in whichever direction the command happened to go.
+    case unobserved
 }
 
 /// Process-wide counter of successful file-changing tool calls.
 ///
 /// Monotonic counter + snapshot-at-turn-head is deliberate: the wire can run several turns
 /// concurrently, and a per-conversation ledger needs a conversation key at the dispatch site
-/// that only the engine has (`EngineInference`'s `convKey`). The skew is one-directional and
-/// safe: another client's successful write can only *inflate* this turn's mutation set, which
-/// suppresses a notice — it can never invent a contradiction that was not there.
+/// that only the engine has (`EngineInference`'s `convKey`). The skew is NOT safe: measured
+/// 2026-11-01 on the probe-40 live tier, a turn that dispatched no tool at all was told "This
+/// turn did change files" because an earlier turn's writes were still inside its window — an
+/// inflated set invents the second notice, it does not only suppress the first. Keying the
+/// record by the turn is the open item (`docs/agent/open-items.md`).
 actor ToolMutationLedger {
     static let shared = ToolMutationLedger()
 
@@ -45,12 +63,25 @@ actor ToolMutationLedger {
     private var total: UInt64 = 0
     private var recent: [(seq: UInt64, mutation: SuccessfulMutation)] = []
 
-    /// A successful call counts as mutating unless the registry calls the tool read-only —
-    /// `readOnlyWhitelist` is that truth's home (`ToolRegistry`), so a new read tool cannot
-    /// silently start producing "nothing was written" notices, and an unknown external (MCP)
-    /// tool is treated as mutating, which stays the safe direction.
-    static func countsAsMutation(isReadOnly: Bool) -> Bool {
-        !isReadOnly
+    /// What one dispatched call proves about the workspace, decided off the two sets that
+    /// already own that truth (`ToolRegistry.readOnlyWhitelist`,
+    /// `ToolRegistry.execHostToolNames`) so no second classifier is authored here.
+    ///
+    /// The old rule was `!isReadOnly`, which equated "not declared read-only" with "changed a
+    /// file". Measured 2026-11-01 (probe-40 live tier, installed app): a turn whose tool calls
+    /// were three read-only `curl`s through `exec_command` filled the mutation set, so the
+    /// `mutations.isEmpty` branch never fired and the honesty line stayed silent under an
+    /// answer claiming a file that the verifier could not find. An unknown external (MCP) tool
+    /// still counts as a writer, which is today's conservative direction for names nothing
+    /// here recognises; it is named as the residual in `docs/agent/open-items.md`.
+    static func writeEvidence(name: String, isReadOnly: Bool) -> WriteEvidence {
+        if isReadOnly {
+            return .readOnly
+        }
+        if ToolRegistry.execHostToolNames.contains(name) {
+            return .unobserved
+        }
+        return .reported
     }
 
     func record(_ mutation: SuccessfulMutation) {
@@ -90,9 +121,10 @@ struct ToolAttempt: Equatable, Sendable {
     let tool: String
     /// The path or command it named, when its arguments carried one.
     let target: String?
-    /// Whether this tool writes the workspace — decided where that truth lives
-    /// (`ToolRegistry.readOnlyWhitelist`), so the ledger never invents a second classifier.
-    let isMutation: Bool
+    /// What the call proves about the workspace — decided where that truth lives
+    /// (`ToolRegistry.readOnlyWhitelist`, `ToolRegistry.execHostToolNames`), so the ledger
+    /// never invents a second classifier.
+    let evidence: WriteEvidence
     let outcome: Outcome
     /// First line of the refusal, redacted and capped; nil on success.
     let failure: String?
@@ -143,17 +175,20 @@ actor ToolAttemptLedger {
     /// every attempt succeeded — a turn is never accused on the strength of a repaired mistake.
     nonisolated static func unresolvedMutatingFailures(_ attempts: [ToolAttempt]) -> Int {
         var unresolved = 0
-        for attempt in attempts where attempt.isMutation {
+        for attempt in attempts where attempt.evidence == .reported {
             unresolved = attempt.outcome == .failed ? unresolved + 1 : 0
         }
         return unresolved
     }
 
-    /// `edit_file×2, exec_command×1` for the failed writers, in first-seen order; "" for none.
+    /// `edit_file×2, write_file×1` for the failed writers, in first-seen order; "" for none.
+    /// A failed shell call is not in it: its success would not have been a witnessed write
+    /// either, so naming it here would call a shell mistake an unfinished edit.
     nonisolated static func summarizeFailures(_ attempts: [ToolAttempt]) -> String {
         var order: [String] = []
         var counts: [String: Int] = [:]
-        for attempt in attempts where attempt.isMutation && attempt.outcome == .failed {
+        for attempt in attempts
+        where attempt.evidence == .reported && attempt.outcome == .failed {
             if counts[attempt.tool] == nil {
                 order.append(attempt.tool)
             }
@@ -252,6 +287,12 @@ enum ClaimVsAudit {
     /// — something happened, and it did not land; naming the attempts is what tells an over-claim
     /// apart from a give-up. With no writer attempted at all, "nothing was written" is the whole
     /// truth and the older copy stands.
+    ///
+    /// A third copy exists because a shell call is not a witnessed write: when the turn's only
+    /// dispatched calls were `exec_command`-class, this audit cannot say the workspace is
+    /// unchanged (the command may well have written), and cannot say it changed either. It says
+    /// which of the two it is missing — measured 2026-11-01, where the flat "nothing was
+    /// written" copy was unreachable and the over-claim went out uncorrected.
     static func notice(
         text: String,
         mutations: [SuccessfulMutation],
@@ -274,6 +315,13 @@ enum ClaimVsAudit {
                 return "[audit] This turn attempted \(which) and none of them landed, so the "
                     + "completion claim above is not backed by the workspace. The last refusal "
                     + "quoted what the file actually says — retry it with that text."
+            }
+            let unobserved = attempts.filter { $0.evidence == .unobserved }.count
+            if unobserved > 0 {
+                return "[audit] No file-writing tool reported a change in this turn, and the "
+                    + "\(unobserved) shell/exec call(s) it did dispatch are not evidence this "
+                    + "audit can read, so the completion claim above is neither confirmed nor "
+                    + "contradicted by the tool record. Check the path before treating it as done."
             }
             return "[audit] Nothing was written or edited in this turn (0 successful file-"
                 + "changing tool calls), so the completion claim above is not backed by the "

@@ -123,10 +123,10 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **A cold cache is measured; a clean machine still is not** (packaging/) — nothing is notarised, so the
   Gatekeeper decision and the cask path stay outside every first-run figure (diary 11-01(94),(95)).
   Owner: notarisation.
-- **A success claim survives an audit that counted reads as writes** (Models/, Tools/) — a shell call
-  that only read the server still counts as a mutation (`countsAsMutation(isReadOnly:)`), so
-  `ClaimVsAudit.notice` stayed silent while the claimed file was absent (diary 11-01(95)). Wanted:
-  mutation truth from filesystem effect at the dispatch chokepoint. Gate: `ClaimVsAuditTests`.
+- **The audit infers a write, it never reads the workspace** (Models/, Tools/) — a shell success is
+  `WriteEvidence.unobserved` now, an unknown MCP tool still counts as a writer, and the ledger's key
+  is process-wide. Wanted: turn-scoped effect off the filesystem (codex keeps one per turn:
+  `../references/codex/codex-rs/core/src/turn_diff_tracker.rs:46`). Gate: `ClaimVsAuditTests`(19).
 - **A demanded tool call comes back as an empty stop** (Engine/, Handlers/) — `tool_choice:"required"`
   answered `200 · finish=stop · content=""` with nothing executed (diary 11-01(95)), so a client cannot
   tell an unsatisfiable demand from a normal end. Wanted: the failure in one result, per the

@@ -36,12 +36,12 @@ private func occurrences(of needle: String, in text: String) -> Int {
 private func attempt(
     _ tool: String,
     _ outcome: ToolAttempt.Outcome,
-    isMutation: Bool = true,
+    evidence: WriteEvidence = .reported,
     target: String? = nil,
     failure: String? = nil
 ) -> ToolAttempt {
     ToolAttempt(
-        tool: tool, target: target, isMutation: isMutation, outcome: outcome, failure: failure)
+        tool: tool, target: target, evidence: evidence, outcome: outcome, failure: failure)
 }
 
 @Suite("ToolAttemptLedger — failures are audited too", .serialized)
@@ -54,7 +54,7 @@ struct ToolAttemptLedgerTests {
         #expect(noOpen == 0)
         let allGood = ToolAttemptLedger.unresolvedMutatingFailures([
             attempt("write_file", .succeeded),
-            attempt("read_file", .succeeded, isMutation: false),
+            attempt("read_file", .succeeded, evidence: .readOnly),
         ])
         #expect(allGood == 0)
         let twoOpen = ToolAttemptLedger.unresolvedMutatingFailures([
@@ -79,8 +79,8 @@ struct ToolAttemptLedgerTests {
     /// A read that failed is not an unfinished edit, however many times it failed.
     @Test func readOnlyFailuresNeverCountAsOpenEdits() {
         let reads = ToolAttemptLedger.unresolvedMutatingFailures([
-            attempt("read_file", .failed, isMutation: false),
-            attempt("search_files", .failed, isMutation: false),
+            attempt("read_file", .failed, evidence: .readOnly),
+            attempt("search_files", .failed, evidence: .readOnly),
         ])
         #expect(reads == 0)
     }
@@ -89,12 +89,12 @@ struct ToolAttemptLedgerTests {
     @Test func failureSummaryIsExact() {
         let named = ToolAttemptLedger.summarizeFailures([
             attempt("edit_file", .failed),
-            attempt("exec_command", .failed),
+            attempt("exec_command", .failed, evidence: .unobserved),
             attempt("edit_file", .failed),
-            attempt("read_file", .failed, isMutation: false),
+            attempt("read_file", .failed, evidence: .readOnly),
             attempt("edit_file", .succeeded),
         ])
-        #expect(named == "edit_file×2, exec_command×1")
+        #expect(named == "edit_file×2")
         let empty = ToolAttemptLedger.summarizeFailures([attempt("edit_file", .succeeded)])
         #expect(empty == "")
         let capped = ToolAttemptLedger.summarizeFailures(
@@ -145,7 +145,7 @@ struct ToolAttemptLedgerTests {
         let successes = occurrences(of: "outcome: .succeeded", in: registry)
         #expect(successes == 1, "the success path records, saw \(successes)")
         let classifier = occurrences(
-            of: "ToolMutationLedger.countsAsMutation(isReadOnly: isReadOnly(name))",
+            of: "ToolMutationLedger.writeEvidence(name: name, isReadOnly: isReadOnly(name))",
             in: registry)
         #expect(classifier >= 2, "one classifier serves both halves, saw \(classifier)")
     }
@@ -228,7 +228,7 @@ struct ToolAttemptLedgerTests {
         #expect(attempts.count == 1, "one dispatch, one record: \(attempts.count)")
         let first = attempts.first
         #expect(first?.tool == "read_file", "tool named: \(String(describing: first?.tool))")
-        #expect(first?.isMutation == false, "a reader is not a writer")
+        #expect(first?.evidence == .readOnly, "a reader is not a writer")
         let outcome: ToolAttempt.Outcome? = first?.outcome
         #expect(outcome == .failed, "a missing path is a failed dispatch")
         #expect(

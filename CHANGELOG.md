@@ -9,6 +9,37 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-01
 
+**11-01(96) a shell call is not a witnessed write, and the honesty line that went silent now speaks**
+
+- **What improved.** `ToolMutationLedger.countsAsMutation(isReadOnly:)` equated "not declared read-only"
+  with "changed a file", so a turn whose only tool calls were three read-only `curl`s through
+  `exec_command` held a non-empty mutation set and `ClaimVsAudit.notice`'s `mutations.isEmpty` branch
+  could not fire: the answer claimed a file, the strict verifier found none, and the one sentence written
+  for exactly that case stayed quiet. The classification is now three-valued — `WriteEvidence.reported`
+  / `.readOnly` / `.unobserved` — decided off the sets that already own that truth
+  (`ToolRegistry.readOnlyWhitelist`, `ToolRegistry.execHostToolNames`), so no second classifier got
+  authored, and branch 1 carries a copy for the unobserved world: no file-writing tool reported a change,
+  the N shell calls are not evidence this audit can read. That sentence is true whether or not the
+  command wrote, which is the honest ceiling for an audit that never looks at the workspace. The mirror
+  defect goes with it: a shell success can no longer fill the set that emits "This turn did change files".
+- **What same-session output proves it.** `make test FILTER='ClaimVsAudit|ToolAttemptLedger'` → 29 tests
+  in 3 suites green, the three new ones among them: `writeEvidenceIsThreeValued` pins
+  `exec_command`/`exec_poll` → `.unobserved` and `edit_file`/`write_file` → `.reported`;
+  `unobservedCallsStillAnswerAnOverClaim` reproduces the probe-40 fixture (claim + shell-only record) and
+  demands a line that neither asserts nor denies; `unobservedCallsDoNotProveAChange` holds the
+  `resp-D-1` direction silent. `failureSummaryIsExact` now expects `edit_file×2`: a failed shell call is
+  not an unfinished edit either. The red this is sampled against is not simulated — probe 40's live tier
+  printed `resp-C-3`/`resp-A-1` with no `[audit]` line at all (11-01(95)).
+- **Which gate goes red.** `ClaimVsAuditTests`(19) and `ToolAttemptLedgerTests`;
+  `bothOutcomesAreFedAtTheChokepoint` counts the one classifier expression at both feeds, so a second
+  home for the write/no-write decision fails the run.
+- **Residual.** The audit still infers instead of measuring: a command that really did write is answered
+  "neither confirmed nor contradicted" — true, and weaker than a filesystem verdict. An unrecognised
+  external (MCP) tool still counts as a writer, and the ledger's key is process-wide, which measured
+  *enough* to invent the changed-files line: `ToolMutationLedger`'s doc no longer claims that skew is
+  safe. Owner call: the turn-scoped key, per codex's per-turn tracker
+  (`../references/codex/codex-rs/core/src/turn_diff_tracker.rs:46`).
+
 **11-01(95) the "2B answered without executing" claim was wrong, and the audit that should have caught
 it counts a read as a write**
 
