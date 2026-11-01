@@ -233,10 +233,31 @@ print(json.dumps({
     "messages": [{"role": "user", "content": "Reply with exactly: OCOREAI_GUI_E2E_OK"}],
     "max_tokens": 24, "stream": False}))
 PY
-REPLY="$(curl -s -m 240 "http://127.0.0.1:${PORT}/v1/chat/completions" \
-  -H 'Content-Type: application/json' -d @/tmp/e2e_gui_req.json \
-  | python3 -c 'import json,sys; d=json.load(sys.stdin); ch=d.get("choices"); print(repr((ch[0]["message"].get("content") or "")[:200]) if ch else json.dumps(d)[:200])')"
-echo "reply: $REPLY"
+# `state == "ready"` means LOADABLE, not resident (`EnginePool.swift:1304` writes "loading" only while
+# a prewarm is in flight), so on a cold store the first turn after a download answers
+# 503 "still loading" — the server being honest about work in progress, and the caller owning the
+# retry. This loop is therefore the client a stranger's harness has to be: retry the documented 503
+# inside a bounded budget, count the waits, and let the load time stay INSIDE the first-run clock.
+# A previous version treated the ready edge as "answerable" and reported the 503 as a broken
+# artifact — that was the harness lying about a working server, measured 11-01 on a cold store.
+REPLY=""
+LOAD_WAITS=0
+for _ in $(seq 1 90); do
+  RAW="$(curl -s -m 240 "http://127.0.0.1:${PORT}/v1/chat/completions" \
+    -H 'Content-Type: application/json' -d @/tmp/e2e_gui_req.json)"
+  case "$RAW" in
+    *'"still loading"'*) LOAD_WAITS=$((LOAD_WAITS + 1)); sleep 2; continue ;;
+  esac
+  REPLY="$(printf '%s' "$RAW" | python3 -c 'import json,sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print(sys.stdin.read()[:200]); raise SystemExit
+ch = d.get("choices")
+print(repr((ch[0]["message"].get("content") or "")[:200]) if ch else json.dumps(d)[:200])' 2>&1)"
+  break
+done
+echo "reply: $REPLY (load waits: $LOAD_WAITS)"
 case "$REPLY" in
   *OCOREAI_GUI_E2E_OK*) echo "✅ GUI artifact completed a real turn" ;;
   *) echo "❌ GUI artifact failed the completion round-trip: $REPLY"; exit 1 ;;
@@ -276,7 +297,7 @@ fi
 
 # The number the goal is stated in, plus the only conditions it is comparable inside. The clock stops
 # at the verifier above; a first answer is a segment on the way, not the end.
-echo "FIRST-RUN CLOCK  open→health $((CLOCK_HEALTH - CLOCK_LAUNCH))s · health→model-ready $((CLOCK_READY - CLOCK_HEALTH))s · ready→first-completion $((CLOCK_DONE - CLOCK_READY))s · completion→real-job $((CLOCK_JOB - CLOCK_DONE))s · whole run to the verifier $((CLOCK_JOB - CLOCK_T0))s  [$VERDICT]"
+echo "FIRST-RUN CLOCK  open→health $((CLOCK_HEALTH - CLOCK_LAUNCH))s · health→model-ready $((CLOCK_READY - CLOCK_HEALTH))s · ready→first-completion $((CLOCK_DONE - CLOCK_READY))s (after $LOAD_WAITS 503 load-wait(s)) · completion→real-job $((CLOCK_JOB - CLOCK_DONE))s · whole run to the verifier $((CLOCK_JOB - CLOCK_T0))s  [$VERDICT]"
 echo "CONDITIONS       machine=$MACHINE · artifact=$(basename "$APP") $V · model=$MODEL · cache=$CACHE · $NET"
 if [ -n "$COLD_DIR" ]; then
   echo "COLD LEG         MEASURED — the first download is inside the window above (store emptied, and"

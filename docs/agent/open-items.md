@@ -120,13 +120,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   build jobs with no secrets and no `id-token` and publishes from a `release` environment over artefacts.
   Deliberately untouched before a first release lands: it is the one path a rehearsal cannot run.
   Owner call (who/what may publish).
-- **A cold cache is measured; a clean machine still is not** (packaging/) — nothing is notarised, so the
-  Gatekeeper decision and the cask path stay outside every first-run figure (diary 11-01(94),(95)).
-  Owner: notarisation.
+- **A cold first run is 350 s; a clean machine is not measured** (packaging/) — the download alone
+  breaks the 5-min budget; nothing is notarised, so the Gatekeeper decision and the cask stay
+  outside every figure (diary 11-01(97)). Owner: notarisation.
 - **The audit infers a write, it never reads the workspace** (Models/, Tools/) — a shell success is
-  `WriteEvidence.unobserved` now, an unknown MCP tool still counts as a writer, and the ledger's key
-  is process-wide. Wanted: turn-scoped effect off the filesystem (codex keeps one per turn:
-  `../references/codex/codex-rs/core/src/turn_diff_tracker.rs:46`). Gate: `ClaimVsAuditTests`(19).
+  `.unobserved` now, an unknown MCP tool still counts as a writer, and the key
+  is process-wide. Wanted: turn-scoped effect off the filesystem (codex, per turn: `../references/codex/codex-rs/core/src/turn_diff_tracker.rs:46`). Gate: `ClaimVsAuditTests`(19).
 - **A demanded tool call comes back as an empty stop** (Engine/, Handlers/) — `tool_choice:"required"`
   answered `200 · finish=stop · content=""` with nothing executed (diary 11-01(95)), so a client cannot
   tell an unsatisfiable demand from a normal end. Wanted: the failure in one result, per the

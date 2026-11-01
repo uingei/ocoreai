@@ -9,6 +9,36 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-01
 
+**11-01(97) the cold first-run number is 350 s — the download alone breaks the five-minute budget**
+
+- **What improved.** The cold leg ran for real against the shipping bundle and produced the figure the
+  goal demands, plus the client behaviour its first turn actually needs. Conditions, as printed:
+  `machine=macOS 26.6.2 arm64 128GB · artifact=ocoreai.app 0.1.14 · model=mlx-community/gemma-4-e2b-it-4bit
+  · cache=cold (empty temp store) · en0`. The server's own `completed` frame stopped the clock at
+  **350 s for 3 583 MB** — so on this host and network criterion ① is false before any model runs: the
+  first download costs 5 m 50 s of a 5 m budget, and that is a *product* fact (which checkpoint a first
+  run fetches, whether the fetch streams into use), not a network excuse. `du` accounted **7 195 892 KB**
+  for 3 583 MB transferred — roughly double — which nobody has explained yet and which a 256 GB laptop
+  will feel. The second half of the round is the harness's own dishonesty: `state == "ready"` means
+  **loadable, not resident** (`EnginePool.swift:1304` marks only an in-flight prewarm `"loading"`), so
+  the cold first turn answers `503 "still loading"` and the script read that as a broken artefact. It now
+  behaves like the client a stranger's harness has to be — bounded retries on the documented 503, wait
+  counted and kept inside the clock, `$LOAD_WAITS` printed beside the segment.
+- **What same-session output proves it.** Cold run: `✅ cold leg: … in 350s · 7195892 KB on disk`, then
+  `❌ GUI artifact failed the completion round-trip: {"message":"Model … is still loading — retry when
+  state == \"ready\"","code":503}` — the server honest, the caller not. Warm run after the fix:
+  `reply: 'OCOREAI_GUI_E2E_OK' (load waits: 0)` and the terminal verifier still RED, which is the
+  unchanged state from 11-01(94),(95) — except that the audit line which went silent in those runs
+  speaks now (11-01(96)).
+- **Which gate goes red.** `bash scripts/e2e-gui-app.sh` is the instrument for this whole round: it
+  reds on an unmeasured cold leg, on a completion it cannot make after the documented retries, and at
+  step 5 until a stranger's agent finishes the job on the installed artefact.
+- **Residual.** The whole-run cold figure (download → first answer → verifier) is still unprinted: the
+  cold run above stopped at the pre-fix 503, and re-running it costs another 3.5 GB of the owner's
+  bandwidth, so it waits for an explicit go. Unexplained: the ~2× on-disk cost. And the retry is a
+  harness fix — a third-party harness that does not read the 503 as retryable will see a failed first
+  turn, which is a `skills/ocoreai/` wording question, not a server one.
+
 **11-01(96) a shell call is not a witnessed write, and the honesty line that went silent now speaks**
 
 - **What improved.** `ToolMutationLedger.countsAsMutation(isReadOnly:)` equated "not declared read-only"
