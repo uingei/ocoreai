@@ -144,9 +144,13 @@ struct ToolAttemptLedgerTests {
         #expect(failures == 1, "the failure path records, saw \(failures)")
         let successes = occurrences(of: "outcome: .succeeded", in: registry)
         #expect(successes == 1, "the success path records, saw \(successes)")
+        // Whitespace-free on purpose: swift-format re-wraps a call this wide, and a scan that
+        // dies on a line break stops detecting the one thing it exists to detect (it went red
+        // exactly that way on 11-01, with both feeds intact).
+        let flat = String(registry.filter { !$0.isWhitespace })
         let classifier = occurrences(
-            of: "ToolMutationLedger.writeEvidence(name: name, isReadOnly: isReadOnly(name))",
-            in: registry)
+            of: "ToolMutationLedger.writeEvidence(name:name,isReadOnly:isReadOnly(name))",
+            in: flat)
         #expect(classifier >= 2, "one classifier serves both halves, saw \(classifier)")
     }
 

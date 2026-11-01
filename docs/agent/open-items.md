@@ -126,10 +126,11 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **The audit infers a write, it never reads the workspace** (Models/, Tools/) — a shell success is
   `.unobserved` now, an unknown MCP tool still counts as a writer, and the key
   is process-wide. Wanted: turn-scoped effect off the filesystem (codex, per turn: `../references/codex/codex-rs/core/src/turn_diff_tracker.rs:46`). Gate: `ClaimVsAuditTests`(19).
-- **A demanded tool call comes back as an empty stop** (Engine/, Handlers/) — `tool_choice:"required"`
-  answered `200 · finish=stop · content=""` with nothing executed (diary 11-01(95)), so a client cannot
-  tell an unsatisfiable demand from a normal end. Wanted: the failure in one result, per the
-  `reasoning_effort` pattern. Owner: error or honest terminal word.
+- **A demanded tool call is reported, not forced** (Engine/, Handlers/) — the unmet demand now rides
+  in the result at all four sites; the engine still answers `required` with zero tokens, where
+  sglang constrains generation to a call
+  (`../references/sglang/python/sglang/srt/entrypoints/openai/serving_chat.py:1937-1945`).
+  Gate: `ToolChoiceUnsatisfiedTests`.
 - **A measured gallery is the one adoption surface we can win outright** (README/, Handlers/) — the leaders
   advertise model support as adjectives while `/v1/models` already publishes per-checkpoint measured verdicts
   (`vlm`, `contextLength`, `toolCallDelivery`, `reasoningEffort`, `videoInput`) and `scripts/eval/` scores 39

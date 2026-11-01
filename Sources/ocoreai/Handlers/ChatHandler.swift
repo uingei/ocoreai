@@ -1227,19 +1227,25 @@ private func nonStreamWithToolCalling(
     let finishReasonFinal = ToolCallWire.resolveFinishReason(
         engineReason: finishReason, toolCallsMade: toolCalls != nil)
 
-    /// A client that DEMANDED a call and got none must not leave reading a normal
-    /// empty answer, and the server must not invent a call to fill the gap. Measured
-    /// 10-18: with `tool_choice:"required"` on a question the checkpoint resists
-    /// ("What is 2 + 2?"), constrained decoding yielded zero tokens — `content:""`,
-    /// `finish_reason:"stop"`. Whether a checkpoint can honor the demand is its fact
-    /// (probe 11 §3c records it per model); what this server owns is that the gap is
-    /// loud in the log instead of a silent 200.
-    if toolCalls == nil, toolChoiceDemandsCall(request.toolChoice) {
-        let demandedBy = request.toolChoice ?? "required"
-        let contentState = finalContent.isEmpty ? "empty" : "text only"
-        logger.warning(
-            "tool_choice=\(demandedBy) demanded a tool call and none was produced — no call fabricated (finish=\(finishReasonFinal), content \(contentState))"
-        )
+    /// A client that DEMANDED a call and got none must not leave reading a normal empty answer,
+    /// and the server must not invent a call to fill the gap. Measured 10-18 on a question the
+    /// checkpoint resists ("What is 2 + 2?"): constrained decoding yielded zero tokens —
+    /// `content:""`, `finish_reason:"stop"`. Measured again 11-01 on the installed artefact, where
+    /// the log was loud and the caller still read the turn as done: what an operator reads is not
+    /// what a client reads, so the verdict now rides in the turn's own result
+    /// (`ocoreai.tool_choice_unsatisfied`) and `finish_reason` keeps its standard vocabulary.
+    /// Whether a checkpoint can honor the demand is its fact (probe 11 §3c records it per model).
+    let toolChoiceVerdict = unsatisfiedToolChoice(
+        demanded: request.toolChoice,
+        toolCallsMade: toolCalls != nil,
+        finishReason: finishReasonFinal,
+        contentEmpty: finalContent.isEmpty)
+    if let toolChoiceVerdict {
+        let demandLine =
+            "tool_choice=\(toolChoiceVerdict.demanded) demanded a tool call and none was produced"
+            + " — no call fabricated; the result carries tool_choice_unsatisfied (finish="
+            + "\(toolChoiceVerdict.finishReason), content empty: \(toolChoiceVerdict.contentEmpty))"
+        logger.warning("\(demandLine)")
     }
 
     /// Per-model delivery fact for `tool_call_delivery` on `/v1/models`
@@ -1344,8 +1350,8 @@ private func nonStreamWithToolCalling(
             reasoningTokens: finalReasoningTokens
         ),
         audioInput: audioInput,
-        ocoreai: toolResults.isEmpty
-            ? nil : OcoreaiTurn(toolResults: toolResults.map(OcoreaiToolRecord.from(_:))),
+        ocoreai: OcoreaiTurn.assemble(
+            toolResults: toolResults, toolChoiceUnsatisfied: toolChoiceVerdict),
     )
 
     /// Persist conversation to SQLite (fire-and-forget, non-blocking).
@@ -1939,6 +1945,20 @@ private func streamWithToolCalling(
         let streamResolvedFinish = ToolCallWire.resolveFinishReason(
             engineReason: lastFinishReason,
             toolCallsMade: !deliveredToolCalls.isEmpty)
+        /// Same verdict as the non-stream face, on the terminal chunk (four sites, one rule —
+        /// `OcoreaiTurn.assemble`).
+        let streamToolChoiceVerdict = unsatisfiedToolChoice(
+            demanded: request.toolChoice,
+            toolCallsMade: !deliveredToolCalls.isEmpty,
+            finishReason: streamResolvedFinish,
+            contentEmpty: prevDecodedText.isEmpty)
+        if let streamToolChoiceVerdict {
+            let demandLine =
+                "SSE tool_choice=\(streamToolChoiceVerdict.demanded) demanded a tool call and "
+                + "none was produced — no call fabricated; the terminal chunk carries "
+                + "tool_choice_unsatisfied (finish=\(streamToolChoiceVerdict.finishReason))"
+            logger.warning("\(demandLine)")
+        }
         if deliveredToolCalls.isEmpty, streamResolvedFinish == "stop",
             let notice = ClaimVsAudit.notice(
                 text: prevDecodedText,
@@ -1980,9 +2000,8 @@ private func streamWithToolCalling(
                         toolCallsMade: !deliveredToolCalls.isEmpty),
                 )
             ],
-            ocoreai: streamToolResults.isEmpty
-                ? nil
-                : OcoreaiTurn(toolResults: streamToolResults.map(OcoreaiToolRecord.from(_:))),
+            ocoreai: OcoreaiTurn.assemble(
+                toolResults: streamToolResults, toolChoiceUnsatisfied: streamToolChoiceVerdict),
         )
         _ = yieldSSE(stopChunk, to: continuation)
         /// If stream_options.include_usage is true, emit usage in final SSE chunk.

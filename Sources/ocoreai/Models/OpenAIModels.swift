@@ -1010,12 +1010,61 @@ struct OcoreaiToolRecord: Encodable, Sendable {
 struct OcoreaiTurn: Encodable, Sendable {
     let toolResults: [OcoreaiToolRecord]
 
-    init(toolResults: [OcoreaiToolRecord]) {
+    /// A demanded tool call this turn did not produce. Absent means either no demand was made
+    /// or it was met — never "unknown", which is why the verdict is emitted only once the turn
+    /// has ended.
+    var toolChoiceUnsatisfied: UnsatisfiedToolChoice?
+
+    init(
+        toolResults: [OcoreaiToolRecord],
+        toolChoiceUnsatisfied: UnsatisfiedToolChoice? = nil
+    ) {
         self.toolResults = toolResults
+        self.toolChoiceUnsatisfied = toolChoiceUnsatisfied
     }
 
     enum CodingKeys: String, CodingKey {
         case toolResults = "tool_results"
+        case toolChoiceUnsatisfied = "tool_choice_unsatisfied"
+    }
+}
+
+extension OcoreaiTurn {
+    /// The one assembly rule for the turn extension, shared by all four sites (two faces x
+    /// stream / non-stream): publish it when there is something measured to say — a tool that
+    /// ran, or a demand that went unsatisfied — and never an empty object.
+    static func assemble(
+        toolResults: [ToolResultMeta],
+        toolChoiceUnsatisfied: UnsatisfiedToolChoice? = nil
+    ) -> OcoreaiTurn? {
+        guard !toolResults.isEmpty || toolChoiceUnsatisfied != nil else { return nil }
+        return OcoreaiTurn(
+            toolResults: toolResults.map(OcoreaiToolRecord.from(_:)),
+            toolChoiceUnsatisfied: toolChoiceUnsatisfied)
+    }
+}
+
+/// The turn ended without the call the client demanded, in the one place a client is already
+/// reading: `finish_reason` may not carry a non-spec word (vllm validates only the
+/// `none|auto|named|required` vocabulary — `chat_completion/protocol.py:1009-1015` — and answers
+/// an unsatisfied demand with a normal completion), so a bare `stop` cannot tell an unsatisfiable
+/// demand from a finished answer. Measured 11-01 on the installed artefact:
+/// `200 · finish=stop · content:""` with zero calls executed, which a harness reads as done.
+struct UnsatisfiedToolChoice: Encodable, Sendable {
+    /// The demand as the client wrote it (`required`, or the named function).
+    let demanded: String
+    /// The terminal word the turn actually carried.
+    let finishReason: String
+    /// The case that reads as a normal end: no call **and** no text.
+    let contentEmpty: Bool
+    /// What the client can do next without guessing.
+    let remedy: String
+
+    enum CodingKeys: String, CodingKey {
+        case demanded
+        case finishReason = "finish_reason"
+        case contentEmpty = "content_empty"
+        case remedy
     }
 }
 
@@ -2417,6 +2466,28 @@ func effectiveTools(
 func toolChoiceDemandsCall(_ toolChoice: String?) -> Bool {
     guard let toolChoice else { return false }
     return toolChoice == "required" || toolChoice.hasPrefix("function:")
+}
+
+/// One home for "the client demanded a call and this turn did not deliver one". The verdict goes
+/// in the turn's own result (``UnsatisfiedToolChoice``) because `finish_reason` carries no
+/// standard word for it and this server does not invent one, and does not fabricate a call.
+///
+/// Asked only after the turn ended, so a nil here is a fact (met, or never demanded) and never an
+/// unknown.
+func unsatisfiedToolChoice(
+    demanded toolChoice: String?,
+    toolCallsMade: Bool,
+    finishReason: String,
+    contentEmpty: Bool
+) -> UnsatisfiedToolChoice? {
+    guard !toolCallsMade, toolChoiceDemandsCall(toolChoice) else { return nil }
+    return UnsatisfiedToolChoice(
+        demanded: toolChoice ?? "required",
+        finishReason: finishReason,
+        contentEmpty: contentEmpty,
+        remedy: "No call was fabricated. Retry with tool_choice \"auto\", or a checkpoint whose "
+            + "/v1/models tool_call_delivery reports that it delivers calls."
+    )
 }
 
 /// The one home for "must this turn's output be grammar-constrained?".

@@ -741,12 +741,8 @@ private func nonStreamAnthropicResponse(
         )
     }
 
-    if deliveredCalls.isEmpty, toolChoiceDemandsCall(request.toolChoice) {
-        let demandedBy = request.toolChoice ?? "any"
-        logger.warning(
-            "tool_choice=\(demandedBy) demanded a tool call and none was produced — no call fabricated (finish=\(finishReason), content \(content.isEmpty ? "empty" : "text only"))"
-        )
-    }
+    // An unsatisfied `tool_choice` demand is a verdict for the client, not only for the operator;
+    // computed below, where this face's own terminal word is known (`stopReason`).
 
     /// Per-model delivery fact for `tool_call_delivery` on `/v1/models`: measured at
     /// this wire edge, so the Anthropic face's traffic counts too, and `parsed` means
@@ -777,6 +773,20 @@ private func nonStreamAnthropicResponse(
     let stopReason = openAIToAnthropicStopReason(
         ToolCallWire.resolveFinishReason(
             engineReason: openAIFinishReason, toolCallsMade: !deliveredCalls.isEmpty))
+    /// The demand-unsatisfied verdict, in this face's own terminal word (OpenAI's
+    /// `finish_reason` and Anthropic's `stop_reason` are the same fact here).
+    let toolChoiceVerdict = unsatisfiedToolChoice(
+        demanded: request.toolChoice,
+        toolCallsMade: !deliveredCalls.isEmpty,
+        finishReason: stopReason,
+        contentEmpty: content.isEmpty)
+    if let toolChoiceVerdict {
+        let demandLine =
+            "tool_choice=\(toolChoiceVerdict.demanded) demanded a tool call and none was produced"
+            + " — no call fabricated; the result carries tool_choice_unsatisfied (stop_reason="
+            + "\(toolChoiceVerdict.finishReason), content empty: \(toolChoiceVerdict.contentEmpty))"
+        logger.warning("\(demandLine)")
+    }
 
     let response = AnthropicMessageResponse(
         id: requestId,
@@ -784,8 +794,8 @@ private func nonStreamAnthropicResponse(
         model: modelId,
         stopReason: stopReason.isEmpty ? nil : stopReason,
         usage: usage,
-        ocoreai: toolResults.isEmpty
-            ? nil : OcoreaiTurn(toolResults: toolResults.map(OcoreaiToolRecord.from(_:))),
+        ocoreai: OcoreaiTurn.assemble(
+            toolResults: toolResults, toolChoiceUnsatisfied: toolChoiceVerdict),
     )
 
     logger.info("Anthropic non-stream request completed")
@@ -1119,12 +1129,7 @@ private func streamAnthropicResponse(
             for event in emitter.ensureSomeBlock() { writeSSEEvent(continuation, event: event) }
             for event in emitter.close() { writeSSEEvent(continuation, event: event) }
 
-            if deliveredToolCalls.isEmpty, toolChoiceDemandsCall(request.toolChoice) {
-                let demandedBy = request.toolChoice ?? "any"
-                logger.warning(
-                    "SSE tool_choice=\(demandedBy) demanded a tool call and none was produced — no call fabricated (finish=\(finishReason))"
-                )
-            }
+            // The verdict for this turn is computed with `streamStopReason`, below.
 
             /// `tool_call_delivery` for `/v1/models`, measured on this face too
             /// (`ToolCallDeliveryLedger`); `parsed` = a `tool_use` block reached the client.
@@ -1149,12 +1154,24 @@ private func streamAnthropicResponse(
                 ToolCallWire.resolveFinishReason(
                     engineReason: finishReason,
                     toolCallsMade: !deliveredToolCalls.isEmpty))
+            let streamToolChoiceVerdict = unsatisfiedToolChoice(
+                demanded: request.toolChoice,
+                toolCallsMade: !deliveredToolCalls.isEmpty,
+                finishReason: streamStopReason,
+                contentEmpty: answerText.isEmpty)
+            if let streamToolChoiceVerdict {
+                let demandLine =
+                    "SSE tool_choice=\(streamToolChoiceVerdict.demanded) demanded a tool call and "
+                    + "none was produced — no call fabricated; message_delta carries "
+                    + "tool_choice_unsatisfied (stop_reason=\(streamToolChoiceVerdict.finishReason))"
+                logger.warning("\(demandLine)")
+            }
             let deltaEvent = AnthropicStreamEvent.messageDelta(
                 stopReason: streamStopReason,
                 outputTokens: totalOutputTokens,
-                ocoreai: streamToolResults.isEmpty
-                    ? nil
-                    : OcoreaiTurn(toolResults: streamToolResults.map(OcoreaiToolRecord.from(_:))),
+                ocoreai: OcoreaiTurn.assemble(
+                    toolResults: streamToolResults,
+                    toolChoiceUnsatisfied: streamToolChoiceVerdict),
             )
             writeSSEEvent(continuation, event: deltaEvent)
 

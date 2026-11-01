@@ -9,6 +9,34 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-01
 
+**11-01(98) an unmet `tool_choice` demand now reaches the client, not only the operator**
+
+- **What improved.** `tool_choice:"required"` that produced no call answered `200 · finish_reason:"stop"`
+  and left its only trace in a server log (the pre-fix code at `ChatHandler` / `AnthropicMessagesHandler`
+  was a `logger.warning` and nothing else). An operator reads logs; a harness reads the body, so the
+  verdict now travels in the turn's own result as `ocoreai.tool_choice_unsatisfied` — `{demanded,
+  finish_reason, content_empty, remedy}` — assembled by one rule (`OcoreaiTurn.assemble`) at all four
+  sites, and an undemanded or satisfied turn publishes nothing rather than an empty object. Two
+  deliberate non-choices: `finish_reason` keeps the standard vocabulary, because vllm validates only
+  `none|auto|named|required` (`../references/vllm/vllm/entrypoints/openai/chat_completion/protocol.py:1009-1015`)
+  and answers an unmet demand with a normal completion (`message_assembly.py:104-110`) — inventing a word
+  would break the clients we are trying to be compatible with; and no call is fabricated to fill the gap.
+- **What same-session output proves it.** `swift build --build-tests` green;
+  `make test FILTER='ToolChoiceUnsatisfied|ClaimVsAudit|ToolAttemptLedger'` green, including the exact
+  wire-key assertion (`"tool_choice_unsatisfied"`, `"content_empty":true`, `"demanded":"required"`) and
+  the four-site parity scan. The red it is sampled against is the measured one: the installed
+  artefact's `200 · finish=stop · content=""` with zero calls executed (11-01(95)), which every client
+  in the world read as a finished turn.
+- **Which gate goes red.** `ToolChoiceUnsatisfiedTests`(6): it fails if the verdict is dropped at any
+  face, if a met demand starts reporting, if an empty turn starts publishing `{}`, or if a site
+  hand-rolls the extension and bypasses the one rule.
+- **Residual.** This is honesty, not delivery: the demand still is not *satisfied*. sglang answers the
+  same request by constraining generation to a call
+  (`../references/sglang/python/sglang/srt/entrypoints/openai/serving_chat.py:1937-1945`); ours yields
+  zero tokens under the same demand, which is an engine fact and the open item now. And the field is so
+  far proven by the unit gate — the scripted tier (`scripts/probes/37-scripted-engine-wire.sh`) is where
+  the wire assertion belongs, and it is the next change.
+
 **11-01(97) the cold first-run number is 350 s — the download alone breaks the five-minute budget**
 
 - **What improved.** The cold leg ran for real against the shipping bundle and produced the figure the
