@@ -43,16 +43,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   cross-conversation prefix sharing. `ReuseRefusalLedger` publishes both; the ledger is opportunity, not a
   capability claim.
 
-- **A turn's tool surface costs 19 points; one knob is gated, the surface is not.** 10-27(21) built the
-  instrument (`OCOREAI_EVAL_TOOLS=all` + the `# surface` line); 10-27(22) ran k=3 per arm on
-  `gemma-4-e2b-it-4bit`, temp 0, one serve per run: 6 tools / **4,510 B** ⇒ **24/21/23** (mean 22.67),
-  all 40 / **25,092 B** ⇒ **16/15/15** (mean 15.33) — **−18.8 pp, McNemar exact p < 0.0001** (25 tasks win on
-  the small surface, 3 on the large). Read it as *what a turn is handed*, not "fewer tools everywhere":
-  `exec-sum-column` 0/3 → 2/3 and `exec-report-two-numbers` 2/3 → 3/3 improved on the full surface while every
-  edit/fix face collapsed (`fix-syntax-error`, `fix-typo-variable`, `read-and-report`,
-  `fix-boundary-comparison` 3/3 → 0/3). Noise floor from the same runs lives in `scripts/eval/README.md`
-  (±6 tasks single-run; ≥9 unpaired, 6 clean flips paired). Reproduce: `scripts/eval/README.md` § the
-  repeat recipe, both arms into separate roots. The open half is a product decision, not a measurement: the wire is caller-scoped
+- **A turn's tool surface costs 19 points; one knob is gated, the surface is not.** This is the measured half, k=3 per arm on `gemma-4-e2b-it-4bit`, temp 0, one serve per run:
+  6 tools / 4,510 B against all 40 / 25,092 B ⇒ **−18.8 pp, McNemar exact p < 0.0001**. Read it as *what a
+  turn is handed*, not "fewer tools everywhere" — two exec faces improved on the full surface while every
+  edit/fix face collapsed. Per-arm rows, the named tasks, the noise floor and the reproduce recipe have
+  one home: `scripts/eval/README.md` § the repeat recipe (±6 tasks single-run; ≥9 unpaired, 6 flips paired).
+  The open half is a product decision, not a measurement: the wire is caller-scoped
   (`Tools/ToolRegistry.swift:135`: no `tools[]` declared ⇒ no tools) while the app's own loop hands the whole
   registry over every turn (`UI/ViewModels/ChatViewModel.swift:1098`) — 40 declarations, 25,092 B, to a 4-bit
   checkpoint. Every comparator refuses that shape: codex declares 13 specs and defers the tail behind
@@ -120,16 +116,17 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `.github/workflows/ci.yml:403` carries `contents: write` (`:410`) and builds inside that job (`:414`
   metallib, `:424` `build-dmg.sh`, and the GUI proof under them), so a compromised dependency in the build holds the
   artefact-upload right in the same step. The dry-run half of the ask is paid: `.github/workflows/package.yml`
-  builds and judges the same DMG under `permissions: contents: read` (metallib 777 s, DMG 1187 s on a clean
-  runner, 10-29), so the credential no longer has to *prove* the build — it still runs it. The rest is the
+  builds and judges the same DMG under `permissions: contents: read` on a clean
+  runner, so the credential no longer has to *prove* the build — it still runs it. The rest is the
   split itself: opencode's shape (`../references/opencode/.github/workflows/release-dry-run.yml:4-9`) runs
   build jobs with no secrets and no `id-token` and publishes from a `release` environment over artefacts.
   Deliberately untouched before a first release lands: it is the one path a rehearsal cannot run.
   Owner call (who/what may publish).
 - **The one latency figure we quote is not the metric we want** (packaging/) — *clean machine → first
-  completion* is unmeasured with the model download included: the 22.1 s figure ran with weights already on
-  disk, and nothing is notarised, so neither the metric nor the cask rung can be floored yet
-  (rung 2, `docs/agent/long-horizon-goal.md`).
+  completion* stays unmeasured: `scripts/e2e-gui-app.sh` stamps its four conditions beside the number
+  and prints `COLD LEG NOT MEASURED` rather than implying one (warm figure: diary 11-01(93)). Nothing
+  is notarised, so the metric and the cask floor only once a fresh runner installs the public artefact
+  and prints that line (rung 2, `docs/agent/long-horizon-goal.md`; owner: notarisation).
 
 - **A measured gallery is the one adoption surface we can win outright** (README/, Handlers/) — the leaders
   advertise model support as adjectives while `/v1/models` already publishes per-checkpoint measured verdicts

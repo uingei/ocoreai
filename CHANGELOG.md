@@ -9,6 +9,36 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-01
 
+**11-01(93) the first-run number now says which machine it belongs to**
+
+- **What improved.** Started from the experience instead of from the tech: `scripts/e2e-gui-app.sh`
+  stamps the four conditions beside its number (machine · checkpoint · cache state · artefact) and
+  times the phases a first-run user actually waits through — open→health, health→model-ready,
+  ready→first completion. The only figure this repo had published ("22.1 s from a built DMG") carried
+  no conditions, so a faster number next month could mean a faster product or merely a warmer cache:
+  the measurement could not be compared with itself. The script also states its own limit instead of
+  leaving the gap to inference — it prints `COLD LEG NOT MEASURED`, because an empty cache means the
+  first model download and a clean machine means Gatekeeper, and nothing published here is
+  notarised. A model that never reaches `state=ready` is now a red, not a queued turn timed anyway.
+- **What same-session output proves it.** Against the bundle built this session
+  (`scripts/build-app.sh`, 152 s): `machine=macOS 26.6.2 arm64 128GB · artifact=ocoreai.app 0.1.14 ·
+  model=mlx-community/gemma-4-e2b-it-4bit · cache=warm — 2 checkpoint(s) · default route: en0` and
+  `open→health 3s · health→model-ready 2s · ready→first-completion 2s · whole run 12s`, replying
+  `OCOREAI_GUI_E2E_OK` from the .app's own binary (the run asserts the listener *is* the bundle).
+  The instrument earned its keep on first use: `MODEL=gemma-4-e2b-it-4bit` answered `Model … not
+  found` — ids carry the org prefix — which is precisely the checkpoint field of the four-tuple.
+- **Which gate goes red.** The script exits non-zero on a stale bundle version, a listener that is
+  not the .app, no model reaching `state=ready` in 160 s, or a reply without the marker; the window
+  leg still proves a layer-0 window exists so HTTP health cannot be a windowless zombie. `make
+  docs-check`'s B2 byte cap went red twice this round (open-items.md at 16,388 then 15,689 B over a
+  15,609 B cap) and that is why dated per-arm rows moved back to `scripts/eval/README.md` and the
+  new fact took a sentence in the item that already owned it — no cap was raised, none lowered.
+- **Residual.** The cold/clean-machine number is unmeasured and says so (`docs/agent/open-items.md`
+  § packaging): it wants a fresh runner installing the public artefact plus notarisation
+  credentials, which is an owner call, not code. The install-channel field read
+  `artifact=ocoreai.app` here, not `dmg`, so the DMG/cask number is a different measurement point
+  and this 12 s may not be read as it.
+
 **11-01(92) `/mcp` answered a browser page, and Anthropic's credential was not read**
 
 - **What improved.** Three things a route table cannot show. (a) A mutating request carrying a

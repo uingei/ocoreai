@@ -28,6 +28,19 @@ if [ "$V" != "$TAG" ]; then
 fi
 echo "✅ version parity — bundle $V == tree $TAG"
 
+# ── the four conditions a first-run number is only comparable inside ────────────────
+#
+# A seconds figure without these is a slogan. The same artifact costs minutes on an empty
+# cache and seconds on a warm one, and another machine, checkpoint or install channel moves
+# both — so a change to any one of the four is a NEW measurement point, never an edit of the
+# old one. Printed first and kept with the run for that reason.
+MACHINE="macOS $(sw_vers -productVersion 2>/dev/null || echo ?) $(uname -m) $(sysctl -n hw.memsize 2>/dev/null | awk '{printf "%.0fGB", $1/1073741824}')"
+MODELS_DIR="${OCOREAI_MODELS_DIR:-$HOME/.ocoreai/models}"
+CHECKPOINTS="$(find "$MODELS_DIR" -maxdepth 3 -name config.json 2>/dev/null | wc -l | tr -d ' ')"
+CACHE="warm — $CHECKPOINTS checkpoint(s) already at $MODELS_DIR, no download exercised"
+NET="default route: $(route -n get default 2>/dev/null | awk '/interface:/{print $2}')"
+CLOCK_T0=$SECONDS
+
 # 2. Free the port AND kill any lingering bundle processes (a zombie that
 #    dropped the socket but lives on makes `open` a no-op activate — the
 #    GUI-SIGTERM bug of 2026-10-09; the app now handles SIGTERM itself,
@@ -51,6 +64,7 @@ cleanup_app() {
 trap cleanup_app EXIT
 OCOREAI_ENABLE_HTTP=1 OCOREAI_APPROVAL_POLICY=auto open "$APP"
 echo "launched $APP (pid group via open)"
+CLOCK_LAUNCH=$SECONDS
 
 # 3. Health, then assert the LISTENER is the bundle binary (not a Debug/ proxy).
 ok=0
@@ -65,6 +79,7 @@ case "$BIN" in
   *".app/Contents/MacOS/ocoreai") echo "✅ serving from the shipping bundle: $BIN" ;;
   *) echo "❌ listener is NOT the .app bundle: $BIN"; exit 1 ;;
 esac
+CLOCK_HEALTH=$SECONDS
 
 # 3b. The user must actually SEE a window — HTTP health alone could be a
 #     windowless zombie serving forever. CGWindowList proves a layer-0
@@ -83,6 +98,20 @@ if [ -z "$MODEL" ]; then
 fi
 [ -n "$MODEL" ] || { echo "❌ no model served"; exit 1; }
 echo "model: $MODEL"
+# `state` is how this server says "loadable", and a cold start answers with a model that is
+# still loading — timing a completion from that moment would report the queue, not the
+# first-run path a user waits through. Wait for the honest edge, then stamp it.
+ready=0
+for _ in $(seq 1 80); do
+  curl -s -m 10 "http://127.0.0.1:${PORT}/v1/models" \
+    | python3 -c 'import json,sys
+data = json.load(sys.stdin).get("data", [])
+raise SystemExit(0 if any(str(m.get("state","ready"))=="ready" for m in data) else 1)' \
+    && { ready=1; break; }
+  sleep 2
+done
+[ "$ready" = 1 ] || { echo "❌ no model reached state=ready in 160s — the first-run path stalls here, say so rather than time a queued turn"; exit 1; }
+CLOCK_READY=$SECONDS
 python3 - "$PORT" "$MODEL" <<'PY' > /tmp/e2e_gui_req.json
 import json, sys
 port, model = sys.argv[1], sys.argv[2]
@@ -99,6 +128,18 @@ case "$REPLY" in
   *OCOREAI_GUI_E2E_OK*) echo "✅ GUI artifact completed a real turn" ;;
   *) echo "❌ GUI artifact failed the completion round-trip: $REPLY"; exit 1 ;;
 esac
+CLOCK_DONE=$SECONDS
+# The number the goal is stated in, plus the conditions it is only comparable inside.
+echo "FIRST-RUN CLOCK  open→health $((CLOCK_HEALTH - CLOCK_LAUNCH))s · health→model-ready $((CLOCK_READY - CLOCK_HEALTH))s · ready→first-completion $((CLOCK_DONE - CLOCK_READY))s · whole run $((CLOCK_DONE - CLOCK_T0))s"
+echo "CONDITIONS       machine=$MACHINE · artifact=$(basename "$APP") $V · model=$MODEL · cache=$CACHE · $NET"
+# The cold leg is stated, not simulated: this script has no cold path, so the figure above
+# is a warm-cache number and nothing more. An empty cache means the first-run download, and
+# a clean machine means Gatekeeper — neither is reachable from a warm dev host, and a number
+# invented here would be exactly the kind of claim this repo exists to refuse. Open item:
+# `docs/agent/open-items.md` § first-run clock.
+echo "COLD LEG         NOT MEASURED — this script has no cold path. A clean machine also"
+echo "                 pays the first model download and the Gatekeeper decision (nothing"
+echo "                 here is notarised yet), so no part of the figure above is that number."
 
 # 5. Graceful shutdown assertion: SIGTERM must EXIT the process (GUI bug
 #    of 2026-10-09: it survived two SIGTERMs — port gone, process lingered,
