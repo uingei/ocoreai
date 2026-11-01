@@ -69,7 +69,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **Weight-free probes exist; only three hold a CI seat, and no checkpoint tier does.** The scripted lane
   holds 37 (wire contract), 38 §1 (a refusal) and 39 §1/§1b (the skill's markers), one step each in
   `Build & Test (macos-26)`; §2 of 38/39/40 needs weights, so on a runner it takes its skip branch.
-  Open: 36 probes' claims are about the engine and move cheap only when one turns out to be a frame
+  Open: the probes' claims are mostly about the engine and move cheap only when one turns out to be a frame
   claim. Owner call: which tier the scripted lane may run in, and whether a nightly takes the
   checkpoint tiers (`package.yml` is this repo's first non-push seat).
 

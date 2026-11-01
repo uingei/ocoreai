@@ -30,7 +30,7 @@ claim coverage → 1.0. The product surface grows only where a gate already meas
 | B′ | tasks that can produce a cell | set size, pass/fail split, noise band: `scripts/eval/README.md` (not restated here — a figure in two homes drifts) | `_repeat_stats.py` on the base root |
 | C | cost of one verdict | minutes; the floor is inference throughput, so ≤3 min/proposal is throughput-bound, not orchestration | `stat -f %m` on the run dirs → deltas |
 | G | goal-post write surface | **0** (allow = 1 prefix, protected = 15 judgement paths) | `scripts/eval/autoloop-allow.txt` / `autoloop-protected.txt`, gated by `scripts/eval/_autoab_selftest.py` + `_autoab_mutate.py` |
-| S | claim coverage | incomplete: doc claims reproduce, 41 live probes; gap = MTP acceptance (0 sites); truncation disclosed, ungated | `make docs-check` + rung 3 |
+| S | claim coverage | incomplete: doc claims + probe-index reproduce; gap = MTP acceptance (0 sites); truncation disclosed, ungated | `make docs-check` + rung 3 |
 
 
 **Why B is the constraint**: stable-pass tasks give *no* upward evidence yet *can* trip the regression veto,
@@ -75,10 +75,10 @@ conservative, it is invisible.
 
 ## Rung zero — adoption (the third kill criterion has fired)
 
-"S = 1.0 with no adoption" is measured, not felt: 20 trees with stars, forks, age and stars/day in
+"S = 1.0 with no adoption" is measured, not felt: trees with stars, forks, age and stars/day in
 `docs/agent/adoption-runbook.md` § The leaderboard (`api.github.com` — HEAD's only authority; a mirror proves
 content, never HEAD), and **ocoreai 1 star / 0 forks / 0 open issues / 1 tag / 1 release (`v0.1.14`, 10-29;
-the withdrawn line left with them)**, 137 days old. The gap is not the finding, the *shape* is — and the arithmetic that used to
+the withdrawn line left with them)**, 136 d old. The gap is not the finding, the *shape* is — and the arithmetic that used to
 justify this section is **deleted, not softened (10-28(6))**: it read "the field's best sustained growth is
 ~408/day, so no honest engineering schedule reaches #1", yet `deepseek-ai/deepseek-harness` reached 263 687
 stars 76 days after creation, and `Niko1221/Strata` 34 577 in 34 days (rates per tree: the leaderboard).
