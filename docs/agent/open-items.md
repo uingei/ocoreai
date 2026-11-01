@@ -155,3 +155,14 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   measured where it is awaited. Owner call: which number the chip owes.
 
 - **Memory is read by every request, written only behind `self_correction`** (SQLite/) — 10-29's row here said the table had no API left: false (`ChatHandler.swift:944` reads, `addMemory` writes). Owner call: publish the flag, or gate the recall.
+
+- **Five gates go red on a loaded host** (Tests/) — one full `make test` here: 3 480 tests / 613 suites /
+  6 issues, and five of them are saturation or cross-suite coupling, green in isolation (the same 57 tests
+  in 10 suites pass in 3.3 s): `SleepSteerWakeTests` measured 3 284 ms against `< 2 500` and 3 031 ms
+  against `< 2 000`, `EngineBusyAdmissionTests` waited 2 494 ms against `< 1 500`,
+  `MCPTimeoutDeliveryTests` let a 3 s stub run past a 1 s budget, and
+  `ToolAttemptLedgerTests.windowCapsTheRetainedRecord` saw the process-global dispatch count advance 93
+  while it recorded 70 — ~23 calls from another suite inside its window, the lease § Concurrency requires
+  and this suite does not take. Wanted: bounds measured under saturation or a clock the test controls, and
+  a lease over the process-global counter. Gate: none of the five has one — they *are* the gates, and a
+  gate that fires on a busy machine is a gate that gets ignored the second time (diary 11-01(100)).

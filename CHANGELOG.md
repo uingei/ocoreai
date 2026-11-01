@@ -9,6 +9,28 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-01
 
+**11-01(100) a full-suite run on a busy host says flaky=0 is not true today**
+
+- **What improved.** CI's red was chased to its case instead of re-pushed and hoped on: the failing
+  gate was `ToolResultWireDeliveryTests`' four-site scan, broken by the assembly-rule refactor, and it
+  is fixed with a second expectation (no site may hand-roll the extension) — `6846539`. Chasing it
+  produced the more valuable half: `make test` on this host ran 3 480 tests in 613 suites and reported
+  **6 issues**, five of which are not logic at all.
+- **What same-session output proves it.** `SleepSteerWakeTests` measured 3 284 ms against a `< 2 500`
+  bound and 3 031 ms against `< 2 000`; `EngineBusyAdmissionTests` measured a 2 494 ms wait against
+  `< 1 500`; `MCPTimeoutDeliveryTests` let a 3 s stub run past a 1 s budget without timing out; and
+  `ToolAttemptLedgerTests.windowCapsTheRetainedRecord` found the process-global dispatch count had
+  advanced 93 while it recorded 70 — ~23 calls from another suite inside its window, the exact failure
+  mode § Concurrency names for `@testable` process-global state. The same 57 tests in 10 suites pass in
+  3.3 s when run alone, so these are saturation and cross-suite coupling, not behaviour.
+- **Which gate goes red.** None of the five has a gate of its own — they are the gates, and they go red
+  on a loaded machine, which is the definition of a suite that will be ignored the second time it
+  fires. That is named as the open item rather than blamed on the host.
+- **Residual.** Not fixed this round: the four time-bound assertions need a bound measured under
+  saturation (or a clock the test controls), and the ledger-count assertion needs a lease over the
+  process-global counter, which § Concurrency already requires and this suite does not take. Until then
+  criterion ⑤'s `flaky=0` is false and says so.
+
 **11-01(99) the lightest advertised model cannot be fetched at all, and the 5-minute budget dies there**
 
 - **What improved.** The cold-run figure from 11-01(97) was read as "the network is slow"; this round
