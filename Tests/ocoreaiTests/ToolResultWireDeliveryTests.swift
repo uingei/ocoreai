@@ -146,13 +146,20 @@ struct ToolResultWireDeliveryTests {
         ]
         var sites = 0
         var bindings = 0
+        var bypassed = 0
         for relative in handlers {
             let url = dir.appendingPathComponent(relative)
             let text = try String(contentsOf: url, encoding: .utf8)
-            sites += text.components(separatedBy: "OcoreaiTurn(toolResults:").count - 1
+            // 11-01: the four sites now share one assembly rule (`OcoreaiTurn.assemble`), because
+            // the extension publishes a second verdict as well and "nothing to say" is one rule,
+            // not four hand-rolled ternaries. The scan follows the contract, it does not relax it:
+            // four calls, and zero sites constructing the extension by hand.
+            sites += text.components(separatedBy: "OcoreaiTurn.assemble(").count - 1
+            bypassed += text.components(separatedBy: "OcoreaiTurn(toolResults:").count - 1
             bindings += text.components(separatedBy: "case .toolResult(let meta)").count - 1
         }
         #expect(sites == 4, "OpenAI stream + non-stream, Anthropic stream + non-stream")
+        #expect(bypassed == 0, "every site goes through the one rule; a hand-rolled site drifts")
         #expect(bindings == 4, "each of the four modes must bind the event it publishes")
     }
 }
