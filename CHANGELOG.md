@@ -9,6 +9,42 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-02
 
+**11-02(111) the corpus was re-metered and ollama's open axis closed: our own axis's third reference is `/v1/systemone` on an AR lane**
+
+- **What improved.** The owner asked what `~/references` still holds that we have not used; the answer was
+  sought in the registry's own open cells rather than by re-surveying 21 trees. First the meter: every
+  clone is 10-30→11-02 fresh against `pushed_at` (api.github.com, the § Upstream rule for HEAD), and the
+  category's growth rates have **decayed from their launch windows** — deepseek-harness 3 469 stars/day
+  → +1 101/day since 10-28, Strata 1 016 → ~715/day — which is a new input to § Adoption: the leaders'
+  distribution no longer runs on launch-spike. Then the one big unread tree: ollama was "touched, not
+  audited" since 10-28 and ships this file's own axis — `POST /v1/systemone` (`server/routes.go:2431`)
+  on an autoregressive server, reading Shape A's body (ordered questions, `api/types.go:604-622`) with
+  Shape B's read through an **engine-internal scoring lane**: `ScoreRequest{Rows}` in,
+  `ScoreResponse{Logits [][]float32}` out (`decision/pplx.go:22-30`), never surfaced on a chat route;
+  position order load-bearing ("sorting choices changes scores", `pplx.go:16-17`); malformed lane
+  results refused, not answered (`decision/systemone_test.go:162-164`); noul answers as floats
+  (`server/systemone_test.go:47`) and no probabilities published on the wire beyond them. Their
+  `/v1/messages` (`:2449`) and `/v1/responses` (`:2441`) also mean the 11-02(109) envelope choice now
+  matches the local field's third stack, not only vllm/sglang. This **answers part 1 of
+  `systemone-decisions.md`'s cheapest-slice question** (the seam is a per-lane scoring request shape,
+  not a chat-route bolt-on) and lands as a new § Shape C there; the owner call stands unchanged — our
+  MLX route publishes no logits, our 501 stands, and "their lane proves it possible" is inference
+  about feasibility, not about our tree.
+- **What same-session output proves it.** The 21-slug api.github.com sweep and the per-clone
+  remote/HEAD/date inventory printed this session; every Shape C claim is a `file:line` in the mirror
+  `74686a75` and marked *read, never run* (no ollama binary executed here — `systemone-decisions.md`
+  § Not verified keeps that boundary in prose where the reader meets it).
+- **Which gate goes red.** No new gate (reads do not earn one; the claim markers in
+  `systemone-decisions.md` are untouched and still hold: `/v1/systemone` remains 0 registrations here).
+  `make docs-check` red-sampled on this very round twice: the B2 cap caught the grown cells
+  (`comparator-repos.md` 16 307 > 15 609), and the compression that fixed it moved no claim without a
+  home — the dropped fixture quote's verbatim text still lives at `CHANGELOG.md:3890`, and the cell
+  now says where it was quoted.
+- **Measured, unresolved (⇒ owner).** `claude-code` (154 258 stars, api.github.com 11-02, ~257 release
+  objects, first-party coding-agent behaviour ledger) is still **unregistered**: registering it re-counts
+  "the 20 trees" in the root's § Upstream 6 at 8 B of headroom, and deleting a comparator's dated cell
+  without the owner's word is not this round's hand.
+
 **11-02(110) the sweep's two owner calls landed: `error.type` on the OpenAI face is the spec table, the ceiling ships as `max_model_len`**
 
 - **What improved.** The owner answered the two calls 11-02(109) left open. **OpenAI face:** `AppError`

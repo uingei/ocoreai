@@ -28,9 +28,8 @@ return yes/no probabilities, choices, and scores" — which points at upstream v
 `examples/features/structured_diffusion/README.md:47`: "POST /v1/systemone implements the Jev
 decision API."
 
-- **Body** (`README.md:47-50`): `model`, `state` (the thing being judged, e.g. a ticket), and
-  `questions` = a **map** of id → `{type, instructions, criteria}`. Schema options ride in the
-  same body as extensions.
+- **Body** (`README.md:47-50`): `model`, `state` (the thing judged) and `questions` = a **map** of
+  id → `{type, instructions, criteria}`; schema options ride in the same body.
 - **Question types** (`README.md:43`): `noul` (yes/no), `choice` + `options`, `score` + ordered
   `levels`. Every label must be **a single token in the answer template**, which the server
   checks against the tokenizer when a request uses the schema.
@@ -56,11 +55,10 @@ decision API."
 
 ## Shape B — sglang: `POST /v1/decisions`, autoregressive, no special checkpoint
 
-*read* `~/references/sglang/docs/docs/supported-models/decision_models.mdx:3,5`:
-
-> "Answer typed choice, score, and yes or no questions with a probability for every option from a
-> chat model, without generating text." … "It needs no special checkpoint: any generation model
-> served with a Jinja chat template can answer, as long as the checks below pass for it."
+*read* `~/references/sglang/docs/docs/supported-models/decision_models.mdx:3,5` — typed choice,
+score and yes/no questions with "a probability for every option from a chat model, without
+generating text", needing "no special checkpoint: any generation model served with a Jinja chat
+template can answer, as long as the checks below pass for it".
 
 - The probabilities are read from **next-token scores at the answer position**: no text generated,
   no output parsing (`:3`).
@@ -74,6 +72,35 @@ decision API."
 - Honesty shape worth copying: the "any chat model" claim sits above a **validated-on-two-models**
   table. Design capability and validated capability are two columns, exactly the tier split this
   repo publishes for vision/screen/video (AGENTS.md invariant 2).
+
+## Shape C — ollama: `/v1/systemone` on an autoregressive local server (read 11-02, mirror `74686a75`)
+
+The name of Shape A's route, shipped by the local server the category's users actually hit
+(185 660 stars, api.github.com 11-02) — and it is **not** diffusion: it is Shape B's read on a
+lane of its own. *read* (never run):
+
+- **Registered**: `server/routes.go:2431` — `POST /v1/systemone`, behind the same cloud-passthrough
+  middleware as the chat routes; `/v1/messages` at `:2449` and `/v1/responses` at `:2441` sit in the
+  same block, so their compat trio and our compat trio now cover the same routes on a third stack.
+- **Wire = Shape A's body, Shape B's read.** `api/types.go:604-622`: `model`, `state` (raw JSON),
+  `questions` = **ordered** map id → `{type: noul|choice|score, instructions, criteria}`, `images`,
+  `videos`, `keep_alive`. Answers (`:628-638`): ordered map id → raw JSON whose `type` field names
+  its own fields — fixture `{"type":"noul","noul":0.9}` (`server/systemone_test.go:47`) — plus
+  `usage{input_tokens,output_tokens}`; **no probabilities are published on the wire**.
+- **The lane answers § *The cheapest honest slice* part 1's question.** Their scoring is an engine-internal
+  request shape — `llm.ScoreRequest{Rows[{Question,Options}]}` in, `llm.ScoreResponse{Logits
+  [][]float32}` out (`decision/pplx.go:22-30`) — consumed in the decision layer, **never surfaced
+  on a chat route**. Position order is load-bearing: "the publisher's readout assigns answer codes
+  by position, so sorting choices changes scores" (`pplx.go:16-17`). Malformed lane results (row
+  count ≠ questions, NaN logits) are refused, not answered (`decision/systemone_test.go:162-164`).
+- **400s on capability, not silence**: unknown runner → 400 (`server/systemone_test.go:256`); a
+  video for a candidate model that cannot take one → 400 (`:260-261`).
+- **What it proves and what it does not**: a local AR server can answer typed decisions with no
+  diffusion checkpoint (their decision adapters live in `decision/` — `kev.go`, `pplx.go`,
+  `clef_test.go`); it does **not** lift our owner call — our MLX route still publishes no logits,
+  and this file's 501 stands until that seam exists. Borrowable verdicts, if the owner takes the
+  lane: one scoring request shape per engine lane (not a chat-route bolt-on), ordered questions with
+  the order asserted, and refusal-on-malformed-logits as the floor under every number.
 
 ## What this repo already has — read from our own tree *today*, not run
 

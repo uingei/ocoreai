@@ -54,8 +54,11 @@ Borrow: consumed; `prompt-surface-diff` is the pattern § Documentation Map woul
 
 - `ollama` — Go server; `LLAMA_CPP_VERSION=b11669`, `MLX_C_VERSION=a341b492…`, a 358 B `AGENTS.md`
 Contains: two engine families (llama.cpp + MLX C) behind one local API, each pin versioned separately — the
-  closest published analogue to our MLX + CoreAI dual path.
-Borrow: touched, not audited (185 027 stars, 719 tags)
+  closest published analogue to our MLX + CoreAI dual path, and (audited 11-02, mirror `74686a75`) a local AR
+  server shipping the Jev axis as `/v1/systemone` on an engine-internal `ScoreRequest`→`ScoreResponse{Logits}`
+  lane whose question order is load-bearing — full read with all cites: § Shape C of `systemone-decisions.md`.
+Borrow: consumed for the lane shape (185 660 stars, api.github.com 11-02); the published-logits seam stays the
+  owner call — their lane proves it possible, it does not make ours exist
 
 - `mlx-serve` — MLX serving project with `tests/test_*.sh`
 Contains: The convention that a behaviour claim ships as a committed shell probe (the rule behind `scripts/probes/`)
@@ -94,19 +97,16 @@ Contains: how a Python server reaches Metal — mostly out of stack for a Swift-
   `docs/agent/systemone-decisions.md`).
 Borrow: touched
 
-- `openclaw` — **the #1 repo in this category on GitHub** (393 221 stars / 82 663 forks, created 2025-11-24 —
-  1 163 stars/day; the *rate* record is deepseek-harness's below), TypeScript + 1,596 Swift. **Not** the only
-  native Apple app here — mlx-serve, MTPLX and omlx ship `@main … App` shells, and all four gate their GUI
-  harder than we do (CHANGELOG). What the headline is made of (`README.md:20`, `:30`) — privacy
-  contract in the first screen, installer that provisions its runtime, Sparkle appcasts so updates run
-  in-app, the 20+ channels the user already has plus 6 native apps, 189 `extensions/` and 51 `skills/`,
-  `VISION.md`, a 501(c)(3) that employs the team ("OpenAI is a donor, not an owner") — is itemised in
-  `docs/agent/adoption-runbook.md`. Two of its 120 workflows have no analogue here:
-  `maturity-scorecard.yml` generates a published maturity score from committed QA evidence and opens the diff
-  as a PR, so the score moves only by measurement; `update-migration.yml` exercises a user's stored config
-  across the upgrade — our persisted keys declare their scope (§ Working here in `AGENTS.md`) and nothing
-  proves they survive one. It also states the load-bearing line for our wedge: local models are **plugins it
-  swaps**, not a rival it builds. Iteration shape: `docs/agent/competitor-iteration-paths.md`.
+- `openclaw` — **the #1 repo in this category on GitHub** (393 709 stars 11-02, created 2025-11-24 — the
+  launch rate 1 163/day; the *rate* record is deepseek-harness's below), TypeScript + 1,596 Swift — and not
+  even the only native Apple app here (mlx-serve, MTPLX, omlx ship `@main … App` shells; all four gate their
+  GUI harder than we do). What its headline is made of — first-screen privacy contract, install machine,
+  appcasts, channels, skills — is itemised in `docs/agent/adoption-runbook.md`; it also states the
+  load-bearing line for our wedge: local models are **plugins it swaps**, not a rival it builds. Two of its
+  120 workflows have no analogue here: `maturity-scorecard.yml` publishes a maturity score generated from
+  committed QA evidence as a PR diff — the score moves only by measurement; `update-migration.yml` exercises
+  a user's stored config across the upgrade — our persisted keys declare their scope (§ Working here in
+  `AGENTS.md`) but nothing proves they survive one. Iteration shape: `docs/agent/competitor-iteration-paths.md`.
 Borrow: consumed — adoption machine audited 10-28 (`docs/agent/long-horizon-goal.md` § Rung zero)
 
 - `splash` — Python MLX server; `dev/tests/server/test_anthropic_contract.py`, `api_shapes.py`
@@ -167,10 +167,9 @@ Borrow: consumed — three of those are § Open items in `AGENTS.md` (per-turn t
   `.github/issue-management/{policy,rules,lifecycle}.mjs` + `policy.test.mjs`, and
   `.github/review-ownership/approval-policy.json` — reviewer **weight** from blame ownership, points
   delegable, published by `weighted-approval.yml`. Four axes, all new to this corpus: (1) **the injected
-  corpus is a tested surface** — `snapshots/session/agent-instructions-budget/`, `-budget-chains/` and
-  `-group-failure/` pin sessions whose system prompt states its own budget ("Workspace instruction budget 700
-  bytes: truncated $DSH_HOME/AGENTS.md from 1900 to 292 bytes", `agent-instructions-budget/session.v4.jsonl`,
-  `pin: true`), so what a budget drops is a fixture a reviewer diffs and the model is told; (2) **oversize is
+  corpus is a tested surface** — `snapshots/session/agent-instructions-budget*/` pin sessions whose
+  system prompt states its own budget (fixture text quoted 10-28; `pin: true`), so what a budget
+  drops is a fixture a reviewer diffs and the model is told; (2) **oversize is
   refused, never truncated** (`docs/config-catalog.md:359`) and every result view carries `truncated`/`total`
   "so a UI never presents a partial result as complete" (`docs/subsystems/tools.md:623`); (3) **a translation
   mirror is a record** — `README.i18n.yaml` pairs each heading's en/zh block by hash outside code blocks and

@@ -169,11 +169,11 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   half (11-02(105)). Wanted: a clock the tests control (`ClockToolsTests`) or an uncontended lane
   (`make test-clt`'s split); whose call: the owner.
 - **The 11-02 compat sweep left two owner calls and one dated debt** (Middleware/, Wire/, Router/) —
-  the swept axes landed (spec-name `error.type`; ceiling as `max_model_len`, old key aliased one
+  the swept axes landed (spec-name `error.type`; ceiling as `max_model_len`, aliased one
   release, 11-02(110)). ① Three sites build literal error bodies
-  (`RateLimitMiddleware`, `NotFoundEnvelopeMiddleware`, `ContentGuard` — lines in 11-02(109)), so a
+  (`RateLimitMiddleware`, `NotFoundEnvelopeMiddleware`, `ContentGuard`), so a
   middleware refusal on `/v1/messages` still answers the OpenAI envelope; porting them onto
   `AppError.response` must carry `Retry-After`, `route_not_found` + the endpoint index and
   `content_policy_violation`. ② Jev's answer half is read from both stacks and unwritten until the
-  answer position can be scored (probe 49); the seam and its lane are the call. ③ drop the
-  `contextLength` alias (and probe 03's clash check with it) the release after it landed.
+  answer position can be scored (probe 49; ollama's lane shape: `systemone-decisions.md` § Shape
+  C). ③ drop the `contextLength` alias (+ probe 03's clash check) the release after it landed.
