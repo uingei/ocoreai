@@ -7,7 +7,32 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-11-02
+## [Unreleased] — 2026-09-05 → 2026-11-03
+
+**11-03(1) the tracking loop's first real consumption: family (c) mined for the terminal-word sitting — constraints, not the word**
+
+- **What improved.** The sitting this queue was held for arrived, so `11-02(112)`'s loop ran for real:
+  `pull --ff-only` says the mirror is unchanged (still `v2.1.316` — the marker correctly did not move),
+  and family (c) — termination and steering — was mined across the ledger. Four rows bear on the
+  § *Open* stall item (MTP stops hard; the std lane by consent; the terminal word for four faces is the
+  owner's): `CHANGELOG.md:452` — an **empty stop reason** on a streamed response was itself treated as a
+  defect to fix, i.e. the field's floor is *the terminal word is never absent*; `:247` — a stalled
+  request resolves as **an explicit failure at a fixed, named deadline (300 s)**, not a silent
+  abandonment; `:36` — a queued message answered *after* a Stop was a bug: once the terminal word is
+  said, every downstream face must honour it; `:404` — on unattended surfaces the refusal word carries
+  the next move with it (deny at once **with a rewrite hint**), the same shape as our refusal+remediation
+  rule. These are constraints on the owner's choice, not the choice: the four faces' words stay the
+  owner's hand. The item now links here instead of restating (open-items at its cap).
+- **What same-session output proves it.** The four cited ledger lines were read this session off the
+  unchanged mirror; the loop's mechanics (pull, marker unchanged, family grep) printed as they ran.
+  Cross-check from `11-02`'s matrix stays labelled: the ledger's vocabulary histogram
+  (`Stop` 285 / `resume` 299) is a word-list read, and codex's `compact` (616 touching commits, first as
+  `feat: add /compact` on repo day 2) is what earns this sitting's ranking claim, not the histogram.
+- **Which gate goes red.** None new (mining is a read; the decision, when the owner words it, will gate
+  itself in `LoopStallTerminationTests`'s own way). `make docs-check` continues to hold the byte knife
+  honestly: the open-items link fit only after two compressions in the same item (`route_not_found`+index,
+  the area-guide list losing `Wire/`), 15 606/15 609 — the round's real numbers live here, where they can
+  be re-grepped, not where they eat budget.
 
 **11-02(112) `claude-code` registered as a live tracking axis — a track/mine/verify loop with a stated ceiling, and its first mine (negative, recorded)**
 

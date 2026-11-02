@@ -10,7 +10,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **A stall stops MTP hard, the std lane only by consent** (Tools/, Engine/) — the ladder and
   `LoopStallTerminationTests`(6) landed; upstream `mlx-swift-lm`'s `restart:` loop (ChatSession.swift:1164) still has no
   cap, and a std-lane hard stop throws out of `toolDispatch` (:1632) reaching the wire as an error, not a
-  finished turn — the terminal word for four faces is the owner call.
+  finished turn — the terminal word for four faces is the owner call; field constraints mined
+  11-03: `CHANGELOG` 11-03(1).
 - **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — three `@available(macOS 27.0, *)` or
   SDK-gated sites (detail: `docs/agent/build-gate-reality.md`) ⇒ no blind fix and no claim of one; their
   suites now skip on this OS through `PlatformPremise.hasMacOS27` instead of reporting a red.
@@ -168,12 +169,11 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   not a test premise. The median is measurable, the tail is not. Closed: the ledger's cross-suite
   half (11-02(105)). Wanted: a clock the tests control (`ClockToolsTests`) or an uncontended lane
   (`make test-clt`'s split); whose call: the owner.
-- **The 11-02 compat sweep left two owner calls and one dated debt** (Middleware/, Wire/, Router/) —
+- **The 11-02 compat sweep left two owner calls and one dated debt** (Middleware/, Router/) —
   the swept axes landed (spec-name `error.type`; ceiling as `max_model_len`, aliased one
   release, 11-02(110)). ① Three sites build literal error bodies
   (`RateLimitMiddleware`, `NotFoundEnvelopeMiddleware`, `ContentGuard`), so a
   middleware refusal on `/v1/messages` still answers the OpenAI envelope; porting them onto
-  `AppError.response` must carry `Retry-After`, `route_not_found` + the endpoint index and
-  `content_policy_violation`. ② Jev's answer half is read from both stacks and unwritten until the
+  `AppError.response` must carry `Retry-After`, `route_not_found`+index, `content_policy_violation`. ② Jev's answer half is read from both stacks and unwritten until the
   answer position can be scored (probe 49; ollama's lane shape: `systemone-decisions.md` § Shape
   C). ③ drop the `contextLength` alias (+ probe 03's clash check) the release after it landed.
