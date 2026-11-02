@@ -9,6 +9,77 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-02
 
+**11-02(104) The red 27-runner leg had a wrong fixture, not a wrong engine — and xgrammar's honest answer is a starved grammar**
+
+- **What improved.** `Build & Test (xcode-27)` has been red since `d664f7b` and its cause is now named
+  without a token (public check-run annotations need none): `GrammarStopTokenPlumbingTests`. Its
+  expectation asked `nextTokenBitmask()` for `false` where the engine's answer is *"the document is
+  finished"*. Naming a stop id does not merely hold that id back until the grammar ends — it takes the id
+  out of the alphabet the matcher matches against (`tokenizer_info.cc:281-287` is one if / else-if / else
+  chain, and the arm that classifies a named stop id is not the arm that pushes into
+  `sorted_decoded_vocab_`). So naming a token the schema *needs* empties the mask at the position that
+  needed it, and `ConstrainedGenerationSession.swift:175` reads an empty mask as a complete document. The
+  suite now asserts that shape, with the mask and the session's own verdict reported together because which
+  one happened *is* the finding; the hazard is an open item carrying its owner call; and `TokenizerInfo`
+  reads `stopTokenIds` back the way upstream's does (verified at the mirror: `TokenizerInfo.swift:17` is
+  that declaration). Our local variant of the test was dropped for upstream's: `StopTokenTests`(4) from
+  coreai-models #374 (`6a6bb0e`, 10-30) — whose stop ids sit outside the grammar's alphabet, which is what
+  a caller's end-of-turn id actually is — plus their `allowedTokenIDs` body
+  (`swift/Tests/GuidedGenerationTests/TestUtilities.swift:68`, also verified) in
+  `GrammarTestUtilities.swift`; three named deviations, in that file's header. Two instruments were blind to
+  exactly this class. `upstream-cite-check.sh` scanned `py|rs|go|zig|mm|swift` and nothing else, so every
+  `.cc`/`.h` cite — the whole xgrammar consumption surface, including several this round wrote — could not
+  be read at all (a planted bogus `.cc` cite stayed green); it now resolves `cc|cpp|h|hpp`, with the SDK's
+  6 592 headers indexed off `xcrun --show-sdk-path`, because § Upstream 4 already makes the SDK an
+  authority. And the board scored only code: it holds **45 tasks / 11 families**, adding the two domains the
+  identity line names and it did not measure — `knowledge-work` (distil a transcript past its decoy date and
+  decoy owner, group a changelog without leaking an entry into the wrong section, leave an undecided figure
+  `unknown`) and `creative` (an acrostic, three sentences with named openers, a word-banded tagline). Each
+  is decidable on *form* — initials, line count, section membership, a banned word — so no judge is bought
+  and taste is not claimed; floors moved 34 → 40.
+- **What same-session output proves it.** The C layer, on this host, through this tree's own bridge against
+  the pinned xgrammar 0.2.2 — the recipe the code comments point here for, since the Swift half cannot run
+  on a macOS 26 host: `cc -I Sources/lib/CXGrammar/include measure.c .build/debug/XGrammar.o
+  .build/debug/CXGrammar.o -lc++`, with the suite's own 26-entry byte-level vocabulary and schema,
+  `anyWhitespace=true`, `strictMode=true`, `maxRollbackTokens=64`. After `{`: nothing named → **3** allowed
+  (`"` plus the two whitespace spellings); `"` named → **2**, quote withheld — the witness that the ids
+  arrive at all. `{` named at position 0 → **count 0, all-zero mask, `fill_next_token_bitmask` returned
+  *true*, matcher `is_terminated` *false***: the `nil` the Swift layer reports is its own all-zero rule, not
+  xgrammar ending the grammar, which is exactly why a truncated object can reach the wire as a finished
+  turn. Accept face: `{` refused when it is the named stop id, admitted (3 allowed) when `q` was named
+  instead. `swift build` exit 0; `_verifier_selftest.py` 45 tasks / 0 defects / near-miss coverage 31/31, so
+  every new verifier rejects an untouched workspace, accepts a hand-written solution, and rejects three near
+  misses each; smallest family 3 against floor 2; `make anchor-check` 78 anchors + 281/281 bare cites, 0
+  missing; `make format-check` (603.0.0, pinned) and `make audit` green; `make docs-check` green after the
+  trims below.
+- **Which gate goes red.** `StopTokenTests`(4) + `GrammarStopTokenPlumbingTests`(3) — both compile out on
+  this host, so **no Swift verdict is claimed for them here**: the C numbers above are what was measured and
+  the first 27-runner pass is the wire proof, which is also what closes the CI leg. `_verifier_selftest.py`
+  plus `run.sh`'s floors go red if the board shrinks or a verifier softens; `docs-check` P10b if a README
+  re-types a stale task count (it caught 39-vs-45 in both locales the moment the set grew); the cite scan's
+  floor if a `.cc`/`.h` cite stops resolving.
+- **Paid for, and where each deleted line's other home is.** `open-items.md` blew its 15 609-byte cap with
+  these two items, so it paid in restatements, each checked for its other home first: the reasoning-effort
+  host instance (`CHANGELOG.md:3888`/`:3898`), the k=3 and per-arm-byte rows
+  (`scripts/eval/README.md:205-206`, `:236-237`), `db7823e`'s export-side row (`CHANGELOG.md:1313`, `:1843`)
+  and the scripted lane's CI seat (`ci.yml:340-353`). One sentence was **moved, not deleted**, because
+  11-02(103) had recorded it as the only copy of a closure this log did not carry: probe 12 §6 now sits in
+  `closed-items-log.md`. The stale `39 tasks` count was not re-typed — the guide points at `_eval.py count`
+  instead, so that number has one home again. And the CI guide's own cites had drifted when that job lost its
+  producer step on 10-29: `contents: write` is `ci.yml:402` (not `:403`), and the metallib and DMG steps are
+  `:412`/`:426` (not the duplicated `:414` and stale `:424` printed there) — re-read line by line, because
+  nothing checks a bare cite written in prose.
+- **Found by reading the history, not this diff.** `git log` says 447 of 1 528 commits — every one since
+  10-08 — are authored `user.email <uingei@163.com>`, a placeholder `user.name`, plus 67 as
+  `t <t@tdeMac-mini.local>`: the last four weeks of work is unattributable at the object level, which is the
+  first thing § Contribution policy assumes. Fixed locally (`git config user.name`) and by `.mailmap`, which
+  maps the placeholder and machine-local identities to the account they all share; nothing rewrote history.
+  The same read put numbers on two more debts, recorded rather than fixed: 250 `fix|feat|refactor|perf`
+  commits touched `Sources/` with no `Tests/` or probe in the same commit, and only 17% of commits that
+  touched `Sources/` carried their `CHANGELOG.md` entry with them (186/1 059) — the three-questions contract
+  is mostly paid after the fact. Both await an owner call on whether a make-layer lock is worth its runner
+  seconds.
+
 **11-02(103) `/v1/decisions` landed as the contract plus the refusal — and the suite written for it had never compiled**
 
 - **What improved.** The Jev axis (`docs/agent/systemone-decisions.md`, research-only until today) now has

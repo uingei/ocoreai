@@ -14,6 +14,16 @@
   `tags_published>=1` claim under it, re-run by `make docs-check`. Reproduce: `curl -s
   api.github.com/repos/uingei/ocoreai/releases` and `git tag | wc -l`. Numbers: `CHANGELOG.md` 10-29(50).
 
+- **Probe 12 §6 was never a `tools[]`-enforcement gap — it was the probe's own fixture (11-02).** It read as
+  an open instance of "the wire accepts a declared tool the model never calls"; it is not one. §6 reads its
+  specs from `GET /v1/tools` (`scripts/probes/12-json-mode-delivery.sh:257-259`) and passes only by
+  delivering the declared keys 3/3 **with the tools still declared** (`:358`), failing when that same prompt
+  *without* tools answers 3/3 while the one with tools loses the channel (`:367`) — the tool channel is held
+  constant, so a pass there means the answer channel survived it. `open-items.md` carried that as a sentence
+  rather than a closure until 11-02(104); it moved here when the open guide hit its cap, so the closure now
+  has a home that does not cost every session. Reproduce: run probe 12 against a live serve and read §6's
+  fail branch, which names the without-tools control it was measured against.
+
 - **The runner's probe stall — the harness walked a path forever (10-29).** `Wire probe 37` died on its 180 s
   step bound while the same box ran 3 210 tests and the headless serve contract green, and the probe log's
   last line predated the harness's first note. Cause: `probe_scratch_for_binary` walks up from the binary

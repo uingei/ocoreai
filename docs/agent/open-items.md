@@ -17,8 +17,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **The coreai fork's debt is 8 named verdicts, not a drift window** (Engine/) — 77a122f read all 36 commits
   behind the four engine windows: 7 absorbed, 21 n/a, **8 open**, one row each with its action in
   `docs/agent/coreai-fork-adjudication.md` (#368 measured 10-30 by probe 12 §5b: the shipping lane damps whitespace via
-  upstream `WhitespaceTokenBias`, so its exposure is CoreAI-only, unverifiable here). `make drift` reads 0 un-adjudicated per file today; the axis moved once since,
-  `db7823e` (#389), 2 Python files and 0 Swift — export-side, the axis § Upstream 2 has no surface for.
+  upstream `WhitespaceTokenBias`, so its exposure is CoreAI-only, unverifiable here). `make drift` reads 0
+  un-adjudicated per file today, and the axis since then has moved export-side only — the surface
+  § Upstream 2 has none for.
   <!-- claim:fork_verdicts_open=8 :: grep -c '^| .*open\*\*' docs/agent/coreai-fork-adjudication.md -->
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
   and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The seam landed upstream at
@@ -43,8 +44,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   cross-conversation prefix sharing. `ReuseRefusalLedger` publishes both; the ledger is opportunity, not a
   capability claim.
 
-- **A turn's tool surface costs 19 points; one knob is gated, the surface is not.** This is the measured half, k=3 per arm on `gemma-4-e2b-it-4bit`, temp 0, one serve per run:
-  6 tools / 4,510 B against all 40 / 25,092 B ⇒ **−18.8 pp, McNemar exact p < 0.0001**. Read it as *what a
+- **A turn's tool surface costs 19 points; one knob is gated, the surface is not.** The measured half, on
+  `gemma-4-e2b-it-4bit`: 6 tools against all 40 ⇒ **−18.8 pp, McNemar exact p < 0.0001**. Read it as *what a
   turn is handed*, not "fewer tools everywhere" — two exec faces improved on the full surface while every
   edit/fix face collapsed. Per-arm rows, the named tasks, the noise floor and the reproduce recipe have
   one home: `scripts/eval/README.md` § the repeat recipe.
@@ -61,17 +62,13 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `honored`/`template_ignores`/`not_observed` (`ReasoningEffortLedger`), publishes it on `/v1/models`, and
   refuses a demanded word 400 naming the knob, the evidence and both exits — codex's
   `unsupported_code_mode_warning` shape (`core/src/session/code_mode_warning.rs:6-24`), with fail-open pinned
-  too (unmeasured is never refused). On this host `gemma-4-e2b-it-4bit` renders identically with and without
-  the kwarg, so the word was dropped before generation while the caller got 200
-  (`ReasoningEffortHonestyTests`(9) + probe 38, both tiers red-sampled); probe 12 §6 is *not* an open
-  instance — it was fixed earlier and its README now requires keys 3/3 with the tools still declared.
+  too (unmeasured is never refused); measured on this host, both tiers red-sampled
+  (`ReasoningEffortHonestyTests`(9) + probe 38).
 
 - **Weight-free probes exist; only three hold a CI seat, and no checkpoint tier does.** The scripted lane
-  holds 37 (wire contract), 38 §1 (a refusal) and 39 §1/§1b (the skill's markers), one step each in
-  `Build & Test (macos-26)`; §2 of 38/39/40 needs weights, so on a runner it takes its skip branch.
-  Open: the probes' claims are mostly about the engine and move cheap only when one turns out to be a frame
-  claim. Owner call: which tier the scripted lane may run in, and whether a nightly takes the
-  checkpoint tiers.
+  holds 37 (wire contract), 38 §1 (a refusal) and 39 §1/§1b (the skill's markers); §2 of 38/39/40 needs
+  weights, so on a runner it takes its skip branch.
+  Owner call: which tier the scripted lane may run in, and whether a nightly takes the checkpoint tiers.
 
 - **The chain ceiling, now that the drop speaks** (Skills/, docs/). The disclosure half closed
   10-28 (`closed-items-log.md`): `make docs-check` prints `deepest-chain=N/CAP` and re-derives the
@@ -96,17 +93,23 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   owner pushing a tag — the only act that makes a surviving gate someone else's problem to run.
 
 - **The release job holds the publish credential while it runs repository code** (CI/) —
-  `.github/workflows/ci.yml:403` carries `contents: write` (`:410`) and builds inside that job (`:414`
-`:414` metallib and `:424` `build-dmg.sh`, so a compromised dependency in the build holds the
-  artefact-upload right in the same step. The dry-run half is paid (`.github/workflows/package.yml` builds the same DMG under
+  `.github/workflows/ci.yml:402` carries `contents: write` and builds inside that job (`:412` the
+  MetalToolchain step, `:426` `build-dmg.sh`), so a compromised dependency in the build holds the
+  artefact-upload right in the same step. The dry-run half is paid (`package.yml` builds the same DMG under
   `contents: read`); the rest is the split itself: opencode's shape (`../references/opencode/.github/workflows/release-dry-run.yml:4-9`) runs
   build jobs with no secrets and no `id-token` and publishes from a `release` environment over artefacts.
   Deliberately untouched before a first release lands: it is the one path a rehearsal cannot run.
   Owner call (who/what may publish).
-- **Two CI legs red since `d664f7b`** (CI/) — `make ci-status` read 11-02: xcode-27's
-  *Run tests (xcrun xctest)* and the clean-runner *Build the DMG* fail (the authority leg, macos-26, is
-  green, so no suite verdict moves; the `contents: read` seat above is wired right but no longer green).
-  Logs unread here, so no test name is claimed. Owner: read both, fix or record each red.
+- **Two CI legs red since `d664f7b`; one named, one unread** (CI/) — the xcode-27 *Run tests* red is
+  `GrammarStopTokenPlumbingTests`: it asked for a blocked stop token where xgrammar starves the grammar
+  instead, and the suite now asserts what was measured (11-02(104)); one 27-runner pass verifies it. The
+  clean-runner *Build the DMG* leg is unread (annotations need no token); macos-26 is green.
+  Owner: read that log, fix or record it.
+- **A caller's one-token `stop` can starve a constrained turn** (Engine/, Handlers/) — naming a stop id
+  takes it out of xgrammar's alphabet (`TokenizerInfo.swift`, at the create call), so a `stop` the schema
+  needs empties the mask where it was needed and `nextTokenBitmask()` reads empty as finished: truncated
+  JSON, no error, CoreAI lane only. Measured at the C layer (11-02(104)), Swift face read not run.
+  Owner call: refuse such a `stop` at `ConstrainedDecodingStrategy.createSession`, or say so on the wire.
 
 - **A cold first run is 794 s of download, at hub speed** (packaging/, Config/) — bytes, rate, the paired
   `curl` and the cache-path correction have one home: diary 11-01(97), re-measured by 11-01(101). The
@@ -114,7 +117,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   3.58 GB default, and nothing is notarised, so Gatekeeper and the cask stay outside every figure.
   Owner: notarisation + the first-run checkpoint.
 - **The request that triggers a load waits out the whole load** (Engine/, Config/) — the fetch is honest
-  (4.5 MB/s, hub-limited) and nothing about it reaches the client: a waiter gets `AppError.modelLoading` at
+  hub-limited and nothing about it reaches the client: a waiter gets
+  `AppError.modelLoading` at
   120 s while the *owning* request waits ~13 min, and no byte count or percent travels on the wire although
   `OcoreaiDownloadProgress` holds it. Wanted: a pool-owned load task, so every caller gets the same bounded
   pollable answer, with progress in the body. Gate: none yet (diary 11-01(99), re-measured by (101)).
@@ -128,8 +132,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   (`../references/sglang/python/sglang/srt/entrypoints/openai/serving_chat.py:1937-1945`).
 - **A measured gallery is the one adoption surface we can win outright** (README/, Handlers/) — the leaders
   advertise model support as adjectives while `/v1/models` already publishes per-checkpoint measured verdicts
-  (`vlm`, `contextLength`, `toolCallDelivery`, `reasoningEffort`, `videoInput`) and `scripts/eval/` scores 39
-  tasks; owed is the artefact — a generated README table plus `models.json` (absent), refreshed by a probe with its
+  (`vlm`, `contextLength`, `toolCallDelivery`, `reasoningEffort`, `videoInput`) and `scripts/eval/` scores a
+  task board (count: `_eval.py count`, never re-typed here); owed is the artefact — a generated README table
+  plus `models.json` (absent), refreshed by a probe with its
   command beside it (precedent: pi publishes its catalog from CI behind a compatibility gate,
   `../references/pi/.github/workflows/publish-model-catalog.yml:1-14`). Owner call: publishing a catalog is
   promising it stays true, and the refresh probe going red on a stale row is the instrument.
@@ -139,7 +144,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   drift), but opencode ships 22 README locales (`../references/opencode/README.md:17-32`) and hermes-agent 3
   badge-linked, so the rule is a priced cap on a distribution channel, not a neutrality: deepseek-harness
   pairs each heading's en/zh block by hash in `README.i18n.yaml` so drift is machine-visible. Recorded so the
-  owner prices it deliberately; nothing here changes the rule.
+  owner prices it deliberately.
 
 - **Upstream already ships a scripted engine; ours has to be re-judged when the planned half lands**
   (Engine/) — `MLXScriptedLM` is a published product at the pin, and its scripted tokenizer implements
@@ -162,7 +167,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   (`UI/Views/ChatView.swift:1473`). Codex #57207 attributes approval waits apart; paying it needs the wait
   measured where it is awaited. Owner call: which number the chip owes.
 
-- **Memory is read by every request, written only behind `self_correction`** (SQLite/) — 10-29's row here said the table had no API left: false (`ChatHandler.swift:944` reads, `addMemory` writes). Owner call: publish the flag, or gate the recall.
+- **Memory is read by every request, written only behind `self_correction`** (SQLite/) — `ChatHandler.swift:944` reads, `addMemory` writes. Owner call: publish the flag, or gate the recall.
 
 - **Five gates go red on a loaded host** (Tests/) — one full `make test` here: 3 480 tests / 613 suites /
   6 issues, five of them saturation or cross-suite coupling and green in isolation:

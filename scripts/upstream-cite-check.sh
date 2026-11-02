@@ -28,7 +28,7 @@ import glob, json, os, re, subprocess, sys
 
 root = sys.argv[1]
 floor = int(os.environ.get("OCOREAI_UPSTREAM_CITE_FLOOR", "120"))
-CITE = re.compile(r"([A-Za-z0-9_+./-]+\.(?:py|rs|go|zig|mm|swift))(?::(\d{1,6})(?:-(\d{1,6}))?)(?![A-Za-z0-9_])")
+CITE = re.compile(r"([A-Za-z0-9_+./-]+\.(?:py|rs|go|zig|mm|swift|cc|cpp|h|hpp))(?::(\d{1,6})(?:-(\d{1,6}))?)(?![A-Za-z0-9_])")
 SHA = re.compile(r"@[0-9a-f]{7,40}")
 
 homes = [h for h in (os.environ.get("OCOREAI_REFS"), os.environ.get("HOME")) if h]
@@ -68,6 +68,37 @@ try:
     ext = {e["path"]: e for e in json.load(open(os.path.join(root, ".upstream-external-cites.json")))["entries"]}
 except (OSError, ValueError, KeyError):
     ext = {}
+
+
+def load_sdk():
+    """Header basename -> path, for the macOS SDK this host builds against. `AGENTS.md` § Upstream 4
+    already makes the SDK an authority (`.swiftinterface` for exact signatures), so a comment citing
+    an Apple header owes the same resolution as one citing a clone. Measured 11-02(104): the scan's
+    extension set knew `py|rs|go|zig|mm|swift` and nothing else, so every `.cc`/`.h` cite — the whole
+    xgrammar and AppKit consumption surface — was invisible to it, and a planted bogus cite stayed
+    green. Without an SDK (the ubuntu text-gate runner) the index is empty and such cites report as
+    unresolved or skipped exactly as a missing reference root already does."""
+    try:
+        sdk = subprocess.run(["xcrun", "--show-sdk-path"], capture_output=True, text=True).stdout.strip()
+    except OSError:
+        return "", {}
+    if not sdk or not os.path.isdir(sdk):
+        return "", {}
+    idx = {}
+    # Bounded globs, not a recursive walk: the SDK holds ~100k files and this scan runs on every
+    # `make anchor-check`. Framework headers sit under Headers/ or Versions/A/Headers/, sometimes one
+    # SubFrameworks/ level deeper (AXValue.h is inside HIServices), plus the C headers under usr/include.
+    for pat in ("System/Library/Frameworks/*/Headers/*.h",
+                "System/Library/Frameworks/*/Versions/A/Headers/*.h",
+                "System/Library/Frameworks/*/Frameworks/*/Headers/*.h",
+                "System/Library/Frameworks/*/Versions/A/Frameworks/*/Headers/*.h",
+                "usr/include/*.h", "usr/include/*/*.h", "usr/include/*/*/*.h"):
+        for f in glob.glob(os.path.join(sdk, pat)):
+            idx.setdefault(os.path.basename(f), f)
+    return sdk, idx
+
+
+sdk_path, sdk_index = load_sdk()
 
 def load_pins():
     """repo identity -> the revision this project actually consumes (Package.resolved, then the
@@ -162,6 +193,15 @@ def resolve(path, hint):
     for epath, e in ext.items():
         if path.endswith(epath) or os.path.basename(path) == os.path.basename(epath):
             return ("external", "%s@%s" % (e.get("repo", "?"), e.get("sha", "?")), None)
+    base = os.path.basename(path)
+    if base.endswith((".h", ".hpp")):
+        hit = sdk_index.get(base)
+        if hit:
+            try:
+                return ("sdk", "%s:%s" % (os.path.basename(sdk_path), base),
+                        sum(1 for _ in open(hit, encoding="utf-8", errors="ignore")))
+            except OSError:
+                pass
     return (None, None, None)
 
 scanned = ok = 0
@@ -209,6 +249,7 @@ for src in files:
 
 print("  roots: %d (references + checkouts), external manifest entries: %d, line counts read at the pin for: %s"
       % (len(roots), len(ext), ", ".join(sorted(at_pin)) or "none — no resolution pins found"))
+print("  sdk headers: %d indexed from %s" % (len(sdk_index), os.path.basename(sdk_path) or "no SDK on this host"))
 print("  bare upstream cites: scanned=%d ok=%d missing=%d line-past-eof=%d external-without-sha=%d skipped=%d"
       % (scanned, ok, len(missing), len(oor), len(nosha), skipped))
 if stale_roots:

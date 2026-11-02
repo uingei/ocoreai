@@ -58,6 +58,11 @@ final class TokenizerInfo {
     let vocabularySize: Int
     let vocabType: VocabularyType
     let addPrefixSpace: Bool
+    /// The ids this handle was built with, kept so a caller can read what it asked for instead of
+    /// trusting that the bridge forwarded it (upstream carries the same property,
+    /// coreai-models/swift/Sources/CoreAILanguageModels/GuidedGeneration/TokenizerInfo.swift:17).
+    /// Reading it back proves the value reached *this* object, not that xgrammar honoured it.
+    let stopTokenIds: [Int32]?
 
     /// Extract vocabulary from any tokenizer with a vocabulary property
     init(
@@ -73,6 +78,7 @@ final class TokenizerInfo {
         self.vocabulary = vocabulary
         self.vocabType = resolvedType
         self.addPrefixSpace = addPrefixSpace
+        self.stopTokenIds = stopTokenIds
 
         // Convert Swift strings to C string array
         let cStrings = vocabulary.map { strdup($0) }
@@ -94,6 +100,14 @@ final class TokenizerInfo {
         // xgrammar's stop-token detection from the vocabulary (8 hard-coded literals), while a
         // pointer names the caller's own stop ids. Callers that own stop semantics pass ids.
         // NULL for the handle itself still indicates a programming error (corrupt vocabulary).
+        //
+        // What naming an id costs, measured against the pinned xgrammar 0.2.2 through this bridge
+        // (recipe: CHANGELOG 11-02(104)): the classifier is one if / else-if / else chain, so a named
+        // id joins `stop_token_ids_` and never joins `sorted_decoded_vocab_`, the alphabet the matcher
+        // matches against (xgrammar/cpp/tokenizer_info.cc:281-287). A named stop id therefore *leaves*
+        // the grammar rather than being held back for its end — name a token the schema needs and the
+        // mask empties at the position that needed it, which
+        // `ConstrainedGenerationSession.nextTokenBitmask()` reads as a finished document.
         let created: OpaquePointer?
         if let stopTokenIds {
             created = stopTokenIds.withUnsafeBufferPointer { stops in
