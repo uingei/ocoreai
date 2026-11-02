@@ -166,13 +166,20 @@ enum V1EndpointCatalog {
                 "Multimodal toggles + measured permissions, device/voice counts, screen delivery evidence (ready needs a captured frame), per-channel ready|blocked|unknown|unsupported verdicts and reasons"
         ),
         RouteSpec(method: "POST", path: "/mcp", note: "MCP JSON-RPC (single message per request)"),
-        RouteSpec(method: "GET", path: "/sessions", note: "List stored sessions"),
+        RouteSpec(
+            method: "GET", path: "/sessions",
+            note:
+                "List stored sessions, newest first — returns at most `limit` (default 100) and "
+                + "reports no total, so a full page is a warning, not an end of list"),
         RouteSpec(method: "DELETE", path: "/sessions/:id", note: "Delete one session"),
         RouteSpec(
             method: "GET", path: "/sessions/:id/memory",
             note: "Hot window (recent messages) of a session"),
         RouteSpec(
-            method: "GET", path: "/sessions/search", note: "FTS5 search over session history"),
+            method: "GET", path: "/sessions/search",
+            note:
+                "FTS5 search over session history — at most `limit` matches (default 20) and no "
+                + "total, so narrow the query rather than assuming you saw everything"),
         RouteSpec(method: "GET", path: "/skills", note: "Installed skills"),
         RouteSpec(
             method: "GET", path: "/openapi.json",

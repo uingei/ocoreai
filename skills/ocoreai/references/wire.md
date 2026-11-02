@@ -39,10 +39,10 @@
 | `POST` | `/v1/multimodal/speak` | `key` | Text-to-speech (needs speakerEnabled and at least one installed voice) |
 | `POST` | `/v1/multimodal/status` | `key` | Multimodal toggles + measured permissions, device/voice counts, screen delivery evidence (ready needs a captured frame), per-channel ready/blocked/unknown/unsupported verdicts and reasons |
 | `POST` | `/mcp` | `key` | MCP JSON-RPC (single message per request) |
-| `GET` | `/sessions` | `key` | List stored sessions |
+| `GET` | `/sessions` | `key` | List stored sessions, newest first — at most `limit` (default 100), no total reported, so a full page is a warning not an end of list |
 | `DELETE` | `/sessions/:id` | `admin` | Delete one session |
 | `GET` | `/sessions/:id/memory` | `key` | Hot window (recent messages) of a session |
-| `GET` | `/sessions/search` | `key` | FTS5 search over session history |
+| `GET` | `/sessions/search` | `key` | FTS5 search over session history — at most `limit` matches (default 20), no total, narrow the query rather than assuming you saw everything |
 | `GET` | `/skills` | `key` | Installed skills |
 
 ## Capability rows as served (name → available, and the server's own words for why not)

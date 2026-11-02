@@ -321,10 +321,14 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     "the committed artefact and the running server are one artefact". §5 it binds nothing:
     `servers[0].url` is `/` and no `127.0.0.1` / `localhost` / `:8080` appears, because the bind
     truth is the four `OCOREAI_PORT` reads and a fifth copy in a spec would describe a deployment
-    that may not exist. No CI seat on purpose: `OpenAPIContractTests.committedArtefactIsTheRenderedDocument`
+    that may not exist. §6 the capped lists disclose their cap **on the served bytes**: the two
+    operations that read a `limit` query parameter (`GET /sessions`, `GET /sessions/search`) must
+    name it and their default in the served `summary`, with the two subjects floored before any
+    grep, since a vanished `summary` must fail as a missing subject and not as a pattern that
+    matched nothing. No CI seat on purpose: `OpenAPIContractTests.committedArtefactIsTheRenderedDocument`
     already turns a stale `openapi.json` red inside `make test-ci`, and a second job over the same
-    claim costs runner minutes it does not buy. Green 10-29 against a scripted serve: **15 passed, 0 failed,
-    4 measured** in 3 s. Two reds were sampled on the way and both are why §2 is written the way it is — a
+    claim costs runner minutes it does not buy. Green 11-03 against a scripted serve: **18 passed, 0 failed,
+    4 measured** in 3 s (15 before §6 landed). Two reds were sampled on the way and both are why §2 is written the way it is — a
     ~14 KB `endpoints[]` payload will not fit in `argv` ("File name too long"), and `json.load` of that
     payload from an env var raised inside the heredoc, which made the comparison print *nothing*. An
     uninformative red is the bug this probe exists to avoid, so §2 carries the body by environment, captures

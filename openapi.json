@@ -1436,7 +1436,7 @@
       "parameters": [],
       "get": {
         "operationId": "get_sessions",
-        "summary": "List stored sessions",
+        "summary": "List stored sessions, newest first — returns at most `limit` (default 100) and reports no total, so a full page is a warning, not an end of list",
         "tags": [
           "operations"
         ],
@@ -1588,7 +1588,7 @@
       "parameters": [],
       "get": {
         "operationId": "get_sessions_search",
-        "summary": "FTS5 search over session history",
+        "summary": "FTS5 search over session history — at most `limit` matches (default 20) and no total, so narrow the query rather than assuming you saw everything",
         "tags": [
           "operations"
         ],

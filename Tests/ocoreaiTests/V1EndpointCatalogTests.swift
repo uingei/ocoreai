@@ -9,6 +9,9 @@
 /// checked instead of asserted — and check the checker, because a route scan that
 /// stopped matching would otherwise make "catalog == routes" pass vacuously
 /// (CONTRIBUTING → "The three questions": the gate asserts its own premises).
+///
+/// The index also carries the promise each route makes in prose, so a note is contract text: one
+/// test scans the handlers for a `limit` parameter and requires the published note to name the cap.
 
 import Foundation
 import Testing
@@ -103,6 +106,68 @@ struct V1EndpointCatalogTests {
         for route in V1EndpointCatalog.routes {
             #expect(!route.path.hasSuffix("/"), "trailing slash in \(route.path)")
             #expect(!route.note.isEmpty, "\(route.method) \(route.path) has an empty note")
+        }
+    }
+
+    /// A route that stops at a `limit` may not publish a note that reads as a complete list. The
+    /// field draws the line the same way everywhere (codex `message-board/src/types.rs:23-30`,
+    /// deepseek-harness `docs/subsystems/tools.md:623`, pi `bash-executor.ts:28-35`); here the
+    /// note is what reaches a stranger's agent — through `/v1/capabilities` `endpoints[]` and
+    /// `/openapi.json` — and "List stored sessions" promised every stored session while the SQL
+    /// said `ORDER BY updated_at DESC LIMIT ?` (`SessionCompressor.swift:227`).
+    ///
+    /// The scan finds capped routes by reading the handlers, so a third capped endpoint that
+    /// forgets to say so goes red without anyone editing this test first.
+    @Test("every route that caps by limit says the cap in the note the caller reads")
+    func cappedRoutesDiscloseTheirCap() throws {
+        let source = try Self.routerSource()
+        let regex = try NSRegularExpression(
+            pattern: #"routes\.(get|post|patch|put|delete)\("([^"]+)"\)"#)
+        let range = NSRange(source.startIndex..., in: source)
+        let matches = regex.matches(in: source, range: range)
+
+        var capped: [String] = []
+        for (offset, match) in matches.enumerated() {
+            guard match.numberOfRanges == 3,
+                let pathRange = Range(match.range(at: 2), in: source),
+                let declRange = Range(match.range, in: source)
+            else { continue }
+            let path = String(source[pathRange])
+            // The handler is the text until the next route registers — good enough to see which
+            // query parameters this closure reads.
+            let bodyStart = declRange.upperBound
+            let bodyEnd: String.Index
+            if offset + 1 < matches.count,
+                let next = Range(matches[offset + 1].range, in: source)
+            {
+                bodyEnd = next.lowerBound
+            } else {
+                bodyEnd = source.endIndex
+            }
+            if source[bodyStart ..< bodyEnd].contains(#"queryParameters["limit"]"#) {
+                capped.append(path)
+            }
+        }
+
+        // Premise floor: the scan really saw the two caps this repo has, or the loop below is a
+        // pass earned by reading nothing.
+        #expect(
+            capped.count >= 2,
+            "the scan found \(capped.count) capped routes — it is not reading the handlers")
+        #expect(Set(capped).isSuperset(of: ["/sessions", "/sessions/search"]), "capped: \(capped)")
+
+        for path in capped {
+            guard let spec = V1EndpointCatalog.routes.first(where: { $0.path == path }) else {
+                Issue.record("\(path) caps by limit but is not in the published index")
+                continue
+            }
+            #expect(
+                spec.note.contains("limit")
+                    && spec.note.localizedCaseInsensitiveContains("default"),
+                """
+                \(path) answers at most `limit` rows while its published note promises a list; \
+                a caller that pages on this endpoint cannot tell a full page from the end: \(spec.note)
+                """)
         }
     }
 

@@ -9,6 +9,36 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-03
 
+**11-03(5) the two capped HTTP endpoints publish their bound — the note is contract text**
+
+- **What improved.** `GET /sessions` and `GET /sessions/search` answered with at most 100 and 20 rows
+  while the sentence a stranger's agent reads said "List stored sessions" and "FTS5 search over
+  session history" — a promise of the whole set, against SQL that says `ORDER BY updated_at DESC
+  LIMIT ?` (`SessionCompressor.swift:227`). The note in `V1EndpointCatalog` is not commentary: it
+  renders into `/v1/capabilities` `endpoints[]`, into `/openapi.json`, and into the skill's `wire.md`,
+  so it is the surface invariant 2 governs. Both notes now name the cap, the default and the absence
+  of a total, and say what to do about a full page. What was deliberately *not* built: a
+  `X-Total-Count` or a `{sessions, total}` body reshape. Nothing in this tree pages these endpoints —
+  the UI reads SQLite directly — so a `COUNT(*)` per request would be a number no consumer asked for,
+  and a reshape would break every client the published contract already describes. The bound is the
+  claim available today; the total would be a promise.
+- **What same-session output proves it.** `make test`: **3 530 tests / 618 suites, 0 issues** — the
+  second consecutive clean full run, which is a fact about these runs, not a property being claimed.
+  Probe 42 on a live scripted serve: **18 passed, 0 failed, 4 measured** in 3.11 s, its new §6 reading
+  the two summaries off the wire rather than off git — a note can be honest in the source and stale in
+  the renderer. §6 was then sampled against two doctored contracts: reverting `/sessions` to the old
+  text produced 3 reds including the floor line, deleting the summaries produced 3 reds naming the
+  missing subject, and the real contract passed the same harness 3/0 as the positive control. Off-box,
+  `V1EndpointCatalogTests`' new scan reads the *handlers* for `queryParameters["limit"]` and demands
+  the published note name cap and default — it found exactly the two capped routes and was sampled by
+  planting the old note, which went red naming `/sessions`. `openapi.json` re-derived (`make openapi`):
+  a two-line diff, exactly the two notes, which is the render's own receipt. Probe 39 was not re-run:
+  its markers are path names, and probe 42 §2 re-checks the served index against the spec anyway.
+- **Which gate goes red.** `V1EndpointCatalogTests` — `cappedRoutesDiscloseTheirCap`, whose premise
+  floor requires the scan to find at least the two known capped routes by name, so a third capped
+  endpoint that ships without a disclosure goes red without anyone editing this test first; probe 42
+  §6 with its 2-of-2 subject floor; `OpenAPIContractTests` for the committed copy of the same render.
+
 **11-03(4) the two caps that bound in silence name themselves — a SERP window and a perception preview**
 
 - **What improved.** The survey that closed 11-03(3) left two faces where a limit could cut and the

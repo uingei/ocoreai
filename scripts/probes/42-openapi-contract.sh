@@ -226,4 +226,44 @@ for forbidden in "127.0.0.1" "localhost" ":8080"; do
   fi
 done
 
+# ── §6 a capped list discloses its cap on the served bytes, not just in git ────────────────
+probe_section "§6 the two capped endpoints disclose their cap in the served contract"
+# Read off the wire: a note can be honest in the source and stale in the renderer. The subjects
+# are floored before any grep, so a description that vanished fails as a missing subject rather
+# than as a pattern that matched nothing and passed.
+CAPPED="$(python3 - "$SPEC_FILE" <<'PY'
+import json, sys
+spec = json.load(open(sys.argv[1]))
+for path in ("/sessions", "/sessions/search"):
+    # The catalog note renders as `summary` here — read the key the renderer actually writes,
+    # or this leg would floor on a field that is not part of this contract.
+    # (No apostrophes in this heredoc: bash 3.2 mis-lexes them inside a command substitution.)
+    op = (spec.get("paths", {}).get(path) or {}).get("get") or {}
+    summary = op.get("summary", "")
+    print(path + "\t" + summary)
+PY
+)"
+FOUND=0
+DISCLOSED=0
+while IFS=$'\t' read -r CAP_PATH CAP_DESC; do
+  [ -n "$CAP_PATH" ] || continue
+  FOUND=$((FOUND + 1))
+  if [ -z "$CAP_DESC" ]; then
+    probe_fail "$CAP_PATH serves no summary — a caller cannot tell a list from a window"
+  elif printf '%s' "$CAP_DESC" | grep -q "limit" \
+    && printf '%s' "$CAP_DESC" | grep -qiE 'default[[:space:]]+[0-9]+'; then
+    probe_ok "$CAP_PATH names its cap and its default"
+    DISCLOSED=$((DISCLOSED + 1))
+  else
+    probe_fail "$CAP_PATH answers at most \`limit\` rows while its summary promises a list: $CAP_DESC"
+  fi
+done <<EOF
+$CAPPED
+EOF
+if [ "$FOUND" -eq 2 ] && [ "$DISCLOSED" -eq 2 ]; then
+  probe_ok "floor: both capped subjects were served, and both disclosed"
+else
+  probe_fail "floor: found $FOUND of 2 capped subjects, $DISCLOSED disclosed"
+fi
+
 probe_summary "$PROBE_NAME"
