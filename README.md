@@ -15,7 +15,7 @@
 **macOS 14+ · iOS 17+ · Apple Silicon · Swift 6.2 · Pure SwiftPM**
 
 **Measured vs declared:** executed on macOS 26 — the full test suite, live `/v1/*` probes and the
-39-task scoreboard all run here, and `make release` asserts its artifact is CoreAI-free at
+45-task scoreboard all run here, and `make release` asserts its artifact is CoreAI-free at
 minos 14.0. macOS 14/15: never executed on hardware. iOS 17+: compile-validated only
 (`generic/platform=iOS` in CI) — no iOS runtime has been executed by this project, so the
 platform line above is the declared floor from `Package.swift`, not a measurement.

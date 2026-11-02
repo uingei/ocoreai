@@ -32,13 +32,13 @@ PROBE_NAME="eval-task-success"
 export OCOREAI_APPROVAL_POLICY
 : "${OCOREAI_EVAL_TOOLS:=read_file write_file edit_file edit_lines search_files exec_command}"
 export OCOREAI_EVAL_TOOLS
-# Two sets share this runner: the default 39-task set and the frozen 52-task edit-repair set the
+# Two sets share this runner: the default 45-task set and the frozen 52-task edit-repair set the
 # A/B loop judges with. The floor sits under both so a silently truncated set still goes red —
 # measured 10-24 against the loaded sets (`_eval.py count`), and raised with them: 30 covered a
-# 36/40 pair; 34 covers the 39/52 pair loaded today, so the frozen set losing eighteen tasks is a
-# failure and the default set losing five is a failure. Screening pools override this env rather
-# than the default.
-: "${OCOREAI_EVAL_FLOOR_TASKS:=34}"
+# 36/40 pair; 34 covered the 39/52 pair, and 40 covers the 45/52 pair loaded today, so the frozen
+# set losing thirteen tasks is a failure (39 loaded) and the default set losing six is. Screening
+# pools override this env rather than the default.
+: "${OCOREAI_EVAL_FLOOR_TASKS:=40}"
 : "${OCOREAI_EVAL_FLOOR_SPECS:=4}"
 # A family floor is a different question from a total floor: 24 tasks with zero edit tasks is
 # still a shrunken instrument. Measured 10-22 over tasks.json: the smallest family has 2.

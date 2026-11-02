@@ -14,7 +14,7 @@
 
 **macOS 14+ · iOS 17+ · Apple Silicon · Swift 6.2 · 纯 SwiftPM**
 
-**测过的 vs 声明的:** 本项目在 macOS 26 上实机执行——全量测试、live `/v1/*` 探针、39 题任务台
+**测过的 vs 声明的:** 本项目在 macOS 26 上实机执行——全量测试、live `/v1/*` 探针、45 题任务台
 都在此机跑过,且 `make release` 断言产物不含 CoreAI、minos=14.0。macOS 14/15:未在真机运行过。
 iOS 17+:仅编译验证(CI 的 `generic/platform=iOS`),iOS 上从未真跑过一次;所以上面那行是
 `Package.swift` 里声明的下限,不是实测结论。

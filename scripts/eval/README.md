@@ -50,10 +50,10 @@ printed as a directory at the start of the run — read the failures, not only t
 
 - the server must have a ready model (`probe_require_ready_model`) — never a silent skip;
 - the pinned dependency checkout must be clean (inherited from `scripts/probes/_lib.sh`);
-- ≥ `OCOREAI_EVAL_FLOOR_TASKS` (34) tasks loaded and ≥ `OCOREAI_EVAL_FLOOR_SPECS` (4) of the
+- ≥ `OCOREAI_EVAL_FLOOR_TASKS` (40) tasks loaded and ≥ `OCOREAI_EVAL_FLOOR_SPECS` (4) of the
   needed tools declared by `GET /v1/tools` — otherwise every task would fail for the wrong
   reason, which is a harness bug, not a model result. The default sits under both sets it serves
-  (39 scored, 52 frozen edit-repair), so losing five tasks is a failure, and
+  (45 scored, 52 frozen edit-repair), so losing six of the default set is a failure, and
   `OCOREAI_EVAL_FLOOR_FAMILY` (2) is the floor under that: a set missing a whole *family* of
   tasks is a shrunken instrument even when the total clears;
 - `_verifier_selftest.py` refuses a task file below `OCOREAI_SELFTEST_FLOOR` (20) — a
@@ -401,9 +401,10 @@ here, and wiring an unknown number into CI turns a ceiling into a fake regressio
 into `make test-ci` only once its number is measured, stable across runs, and recorded in
 `CHANGELOG.md` with the run that produced it.
 
-Task set: **39 tasks** (`tasks.json`), nine families — write / edit / code-fix / code-fix-with-tests /
-read / exec / multi-step / honesty / structured — each family floored (`_eval.py families`) so a family vanishing from the
-set is a harness failure, not a smaller score. Add a task by adding one object to `tasks.json`; `verify` runs in
+Task set: **45 tasks** (`tasks.json`), eleven families — write / edit / code-fix / code-fix-with-tests /
+read / exec / multi-step / honesty / structured / knowledge-work / creative — each family floored
+(`_eval.py families`) so a family vanishing from the set is a harness failure, not a smaller score.
+Add a task by adding one object to `tasks.json`; `verify` runs in
 the workspace with `$OCOREAI_EVAL_ANSWER` (the final assistant text) and, where the expectation belongs to the
 machine rather than the prose, `$OCOREAI_EVAL_EXPECT` computed from the task's own `expect_cmd`.
 
@@ -421,7 +422,7 @@ A fourth scenario closes the distance between "cannot fail" and "cannot notice":
 mutates the disk must also name a **near miss** — right path, wrong bytes; right bytes, wrong path; one bound
 shifted; the neighbouring setting collateral-damaged; the test assertion edited to bless the bug — and `verify`
 must reject it. Coverage is asserted rather than trusted: a disk-mutating task with no near-miss entry is itself
-a defect, so the rule cannot rot into an empty dict. Measured: `near-miss coverage 25/25 disk-mutating task(s)` on `tasks.json` and `35/35` on the
+a defect, so the rule cannot rot into an empty dict. Measured: `near-miss coverage 31/31 disk-mutating task(s)` on `tasks.json` and `35/35` on the
 frozen set, 0 defects on both — and both pairs are re-derived from the task files by the script itself
 (`readme_claims`), which is how this sentence will fail rather than drift when the set grows again.
 
