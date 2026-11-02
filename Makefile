@@ -485,6 +485,11 @@ push-ready:
 	@# nothing local could ask what CI concluded. Exit 2 from this script means "could not ask"
 	@# (offline, rate-limited, still running) and must never be read as green.
 	@bash scripts/ci-status.sh || true
+	@# The spell gate runs on the runner (ci.yml:57-68) and sat off this path: `make spell` had been red
+	@# on main since `f820d93` (two deliberate payloads, now pinned in .codespellrc with the reason) while
+	@# that round ran this target and reported only the runner's reds. It costs 3 s, so the arm64-minute
+	@# argument that keeps the other text gates on ubuntu does not reach it.
+	@$(MAKE) --no-print-directory spell || { echo "::error::spell gate"; exit 1; }
 	@# Hygiene goes LAST, measured 10-29: its "N commits ahead of origin" FAIL is the one failure
 	@# whose remedy is the push itself, so it aborted the recipe before the text gates and CI found a red
 	@# docs contract that this target nominally covers (the runner-premise mode passes on a tree-rich host

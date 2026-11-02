@@ -79,6 +79,15 @@ heading are when the work landed (measured from git).
   touched `Sources/` carried their `CHANGELOG.md` entry with them (186/1 059) — the three-questions contract
   is mostly paid after the fact. Both await an owner call on whether a make-layer lock is worth its runner
   seconds.
+- **A gate off the path taken: the spell gate had been red on `main` since `f820d93`.** `make spell` named
+  six `temprature` and one `probabilit`, and every one is a deliberate payload: `temprature` is the near-miss
+  field name `DecisionsContractTests`(17) and probe 49 must refuse *by name*, so spelling it right makes it
+  the real `temperature` and silently un-refuses the case; `probabilit` is the stem probe 49 scans refusal
+  bodies with, so it must stay a stem. Pinned in `.codespellrc` with that reason instead of reworded. The
+  structural half is why it survived a day on `main`: the gate runs on the runner (`ci.yml:57-68`) but not in
+  `push-ready`, whose own header comment states the rule — a gate that exists off the path taken is not a
+  gate — and the round that landed those payloads ran `push-ready` and reported the runner's reds, not this
+  local one. It costs 3 s, so it now runs there too, ahead of hygiene.
 
 **11-02(103) `/v1/decisions` landed as the contract plus the refusal — and the suite written for it had never compiled**
 
