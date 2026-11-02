@@ -1,11 +1,22 @@
 # System 1 / Jev decisions — what the axis is, and what it would cost here
 
-> Status: **research, nothing implemented, nothing run.** "Jev Compatibility" appears in the
-> mission line and had **no definition anywhere in this repo** (`git grep -in jev -- Sources` = 0
-> hits, and no doc defined it either). The comparators do define it, in two shapes. Everything below marked *read* came from a file in a local clone at
-> the cited path:line; nothing here was executed.
+> Status: **Shape B's contract landed; scoring is still refused.** `POST /v1/decisions` is registered,
+> validates a body against sglang's rules in one home (`Wire/DecisionsWire.swift`), and refuses every
+> request that passed — a 501 naming the read that is missing (`Handlers/DecisionsHandler.swift`). Gates:
+> `DecisionsContractTests` for the contract, probe 49 for the live pair of answers. Nothing scores yet: an
+> answer is a label probability read at the answer position and only the CoreAI route publishes logits
+> (§ What this repo already has), so the slice that could ship honestly was the contract plus the refusal,
+> which is what shipped. Shape A (`POST /v1/systemone`) stays unregistered: a route row is a promise, since
+> it renders onto `/v1/capabilities` and `/openapi.json`.
 >
-> <!-- claim:systemone_route_sites<=0 :: git grep -lE '/v1/(systemone|decisions)' -- Sources | wc -l -->
+> The research below stands as written before any of that existed. Everything marked *read* came from a
+> file in a local clone at the cited path:line; none of it was executed then, and the parts about our own
+> tree that are still true are re-grepped by the markers here rather than re-asserted in prose. "Jev
+> Compatibility" in the mission line had no definition anywhere in this repo until this file supplied one;
+> the word now appears in `Sources/` only as this route's name for itself.
+>
+> <!-- claim:decisions_route_registered>=1 :: git grep -lE 'routes\.post\("/v1/decisions"\)' -- Sources | wc -l -->
+> <!-- claim:systemone_route_registered<=0 :: git grep -lE 'routes\.(post|get)\("/v1/systemone"\)' -- Sources | wc -l -->
 > <!-- claim:logprob_surface_files>=2 :: git grep -l "includeLogits" -- Sources | wc -l -->
 
 ## Shape A — vllm: `POST /v1/systemone`, diffusion-native
@@ -83,34 +94,46 @@ decision API."
   header documents AR / block-diffusion / linear-self-speculation over one weight set
   (`Libraries/MLXLLM/Models/NemotronLabsDiffusion.swift:7-12`) — so Shape A has an upstream
   consumer path at mlx level, but no DiffusionGemma in mlx-swift-lm as of the pin.
-- **Neither route exists here**: `/v1/systemone`, `/v1/decisions` = 0 sites in `Sources/` (claim
-  marker above), and `make drift` reports all three HEAD axes at the baseline — so this is an
-  **unclaimed axis**, not upstream drift we failed to follow.
+- **Shape A stays unregistered here; Shape B is registered and refuses.** `/v1/systemone` = 0
+  registrations in `Sources/` (marker above). `/v1/decisions` is registered (marker above) but answers a
+  501 on every body that validates, for the reason in the next-but-one bullet. `make drift` reports all
+  three HEAD axes at the baseline, so the *capability* is still an **unclaimed axis**, not upstream drift
+  we failed to follow — what landed is the contract, not the measurement.
 
-## What the cheapest honest slice would need (owner decision — not started)
+## The cheapest honest slice, part by part — what landed and what is still owner-call
 
 Shape B is cheaper than Shape A: no new checkpoint family, no canvas semantics, and it reuses the
-logprob primitive we already ship honestly. Priced in five parts:
+logprob primitive we already ship honestly. Priced in five parts; each part now says which way it went:
 
-1. a published-logits seam on the MLX path — or ship B on the CoreAI route first and 501 with the
-   remediation the completions face already uses;
-2. questions-schema decode + **per-request single-token label validation** against our tokenizer
-   (sglang's contract is the reference: refuse with 400 naming the reason, and expose
-   `prompt_token_ids` so a caller can see where the answer position landed);
-3. the answer-shape family (`noul` / `choice`+`confidence` / `score`+`legend`) in **one home**, the
-   way `Models/ToolCallWire.swift` is the one home for what a tool turn asserts about itself;
-4. disclosure: a per-model `decisions: ready|blocked|unsupported` + reason, measured, with the
-   validated-list tier kept separate from the design claim (invariant 2 — the sglang page is the
-   template for saying it honestly);
-5. a probe for this surface (`run.sh` enumerates `scripts/probes/[0-9]*.sh`, so the next number self-registers) that either returns real probabilities for
-   a ready model or refuses naming the missing prerequisite — **never a fabricated probability**. A
-   decision API that returns made-up numbers is the worst failure mode this file can imagine: the
-   whole point of the axis is a number a caller acts on.
+1. **Landed as the 501 half, not the seam half.** No published-logits seam was invented for this; the
+   route answers 501 naming the missing read, the way the `logprobs` face on
+   `POST /v1/completions` already does. The seam (MLX publishes logits, or scoring runs on the CoreAI
+   route first) is still the owner-call that gates every probability this API will ever return.
+2. **Decode landed; the tokenizer check did not, deliberately.** The questions schema is validated in
+   one home (`Wire/DecisionsWire.swift`, `DecisionsContractTests`). The *per-request single-token label
+   validation* needs the served tokenizer at the answer position, so it cannot be measured before a
+   checkpoint is loaded to score with — and while every validated request is refused, a multi-token
+   label cannot answer anything. It lands with the seam, and it must not be skipped then: it is the
+   check that stops a label scored as two tokens from being read as one. `return_prompt_token_ids` is
+   accepted on the wire and means nothing yet, which the probe pins.
+3. **Deliberately absent.** No answer-shape DTO was written: `noul` / `choice`+`confidence` /
+   `score`+`legend` would be a type nothing in the tree can fill, and the empty version of it is how a
+   probability gets invented. It goes in one home when there is a producer.
+4. **Not landed.** A per-model `decisions: ready|blocked|unsupported` row is a measurement per
+   checkpoint; with no scoring there is nothing to measure. Today the honest disclosure is the route
+   note itself — it renders onto `/v1/capabilities` and `/openapi.json` saying this build answers 501.
+5. **Landed as probe 49** (`scripts/probes/49-decisions-contract-refusal.sh`): a malformed body must
+   400 with every reason at once, a valid body must 501 naming the prerequisite, and neither response
+   may carry a probability. A decision API that returns made-up numbers is the worst failure mode this
+   file can imagine: the whole point of the axis is a number a caller acts on.
 
 ## Not verified, stated rather than hidden
 
-Nothing above was executed. Not read: sglang's full `/v1/decisions` request/response field list
-beyond the intro and error rules, and vllm's `structured_server.py` internals (the example server
-that adapts `/v1/completions` into `/v1/systemone` — worth reading before any implementation,
-because it shows which parts of the contract live in the server vs the client). Not tested:
-whether `nemotron_labs_diffusion` loads through our `MLXModelLoader` at all.
+What is executed now is only our own side: the decoder's rules run in `DecisionsContractTests`, and the
+live pair of answers runs in probe 49. What was never executed is the axis's *reference*: every sglang
+rule the wire adopts was read in `protocol.py`/`http_server.py`, never sent to a running sglang, so a
+field listed here as the reference's is a read until some request says otherwise. Still not read:
+sglang's full response field list beyond the intro and error rules (read it before writing answer DTOs,
+not after), and vllm's `structured_server.py` internals (the example server that adapts
+`/v1/completions` into `/v1/systemone` — it shows which parts of the contract live in the server vs the
+client). Not tested: whether `nemotron_labs_diffusion` loads through our `MLXModelLoader` at all.

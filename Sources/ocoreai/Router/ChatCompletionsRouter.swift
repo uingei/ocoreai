@@ -741,6 +741,22 @@ func buildRouter(
         return try Response.json(response)
     }
 
+    /// `POST /v1/decisions` — the Jev / System 1 decision API (typed choice | score | yes_no
+    /// questions answered as label probabilities, no generation). The contract lives in
+    /// `Wire/DecisionsWire.swift` and the scoring state in `Handlers/DecisionsHandler.swift`; the
+    /// body is decoded here rather than by `request.decode(as:)` because the contract refuses an
+    /// unknown field by name, which a synthesized `Decodable` cannot see.
+    routes.post("/v1/decisions") { request, _ in
+        let bodyBuffer = try await request.body.collect(upTo: 10 * 1024 * 1024)
+        let decoded: DecisionsRequest
+        do {
+            decoded = try DecisionsRequest.decode(Data(bodyBuffer.readableBytesView))
+        } catch let error as DecisionsValidationError {
+            throw AppError.invalidRequest(error.description)
+        }
+        return try DecisionsHandler.handle(decoded)
+    }
+
     // MARK: - LLM Lifecycle — Train + Evaluate
 
     routes.post("/v1/models/train") { request, context in

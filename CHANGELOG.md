@@ -7,7 +7,57 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-11-01
+## [Unreleased] — 2026-09-05 → 2026-11-02
+
+**11-02(103) `/v1/decisions` landed as the contract plus the refusal — and the suite written for it had never compiled**
+
+- **What improved.** The Jev axis (`docs/agent/systemone-decisions.md`, research-only until today) now has
+  a route: `POST /v1/decisions` validates a body against sglang's rules in one home
+  (`Wire/DecisionsWire.swift` — field names, defaults, both bounds, the non-blank rule, option-name
+  folding, the refuse-unknown-fields-by-name rule, every one cited to `protocol.py:1554-1700`; all reasons
+  collected in one pass, as its detail list does), and then refuses scoring with 501 `unsupported` naming
+  the read that is missing, the label count that went unmeasured and both exits
+  (`Handlers/DecisionsHandler.swift`, `AppError.decisionsUnavailable`). That is the whole honest slice:
+  an answer is a label probability read at the answer position, only the CoreAI route publishes logits,
+  so the contract could ship and the number could not — inventing one is item 5 of that file's own list.
+  Surface followed the route: catalog row → `/v1/capabilities` `endpoints[]` and `/openapi.json`
+  (`make openapi` → 44 099 B, one new path), README rows in both locales phrased so neither promises a
+  probability, and the
+  doc's stale status ("nothing implemented", `systemone_route_sites<=0`) rewritten into two claims that
+  re-grep: the decisions route is registered, `/v1/systemone` still is not. Three defects fell out on the
+  way, all real: the handler had no `import Hummingbird` (the product target did not build); and
+  `DecisionsContractTests` had never been compiled at all — static helpers called unqualified, an
+  optional chain on a non-optional, and `choiceQuestion` emitting `"options":["name":"opt0"]` (no braces,
+  not JSON), which made 11 assertions quietly judge "body must be a JSON object" instead of the rule each
+  one named.
+- **What same-session output proves it.** Probe 49 **25 passed, 0 failed** on a live `serve` (scripted
+  engine, no weights — a wire-tier verdict, nothing claimed about a checkpoint): the route is in
+  `endpoints[]`; the five legal shapes (26 options, 10 levels, all three question types, every accepted key
+  at once, an unserved model name) reached the scoring seat and answered 501; the eight malformed bodies
+  answered 400 each naming its own fault; one four-fault body was told all four at once. §4 scans refusal
+  bodies **by parsed key** for anything answer-shaped and found none in 10; its first run substring-matched
+  raw bodies and reported every 501 as a leak, because the refusal's own sentence contains "no probability"
+  — the scan was re-sampled against a planted nested `probabilities`/`confidence` pair before it was
+  trusted. `make test FILTER=Decisions` 17/17, incl. a new test asserting the suite's own builders emit
+  parseable JSON (the gate the brace bug needed). `make docs-check` green: claims 36/36, probe-index
+  49/49, README 36/36 rows; `make format-check` green.
+- **Which gate goes red.** Probe 49, if the route answers anything it did not measure, if a legal shape
+  starts 400ing, or if a refusal stops naming the missing read; `DecisionsContractTests`(17) on the
+  contract rules and on the refusal's counts; `V1EndpointCatalogTests` if the row and the route disagree;
+  `OpenAPIContractTests` if `openapi.json` is committed stale; `docs-check` P4 (a `/v1/systemone`
+  registration appears, or the decisions route vanishes), P10 (either README drops the row), P14 (probe 49
+  leaves the index).
+- **Residual.** Scoring is still blocked on a published-logits seam on MLX, or on running scoring through
+  the CoreAI route — owner call, and it gates every probability this API will ever return. The per-request
+  single-token label validation and the per-model `decisions: ready|blocked|unsupported` row are deliberately
+  not written yet: neither can be measured before a checkpoint is loaded to score, and while every validated
+  request is refused a multi-token label cannot answer anything; both land with the seam
+  (`systemone-decisions.md` § the cheapest honest slice says which part went which way). Every sglang rule
+  here was *read* in `protocol.py`/`http_server.py`, never sent to a running sglang. `return_prompt_token_ids`
+  is accepted and means nothing yet — probe 49 pins that it buys nothing back, so the acceptance is not a
+  promise. The 501 is build-wide: an unserved model name gets the same refusal, which the probe pins and
+  which a 404 would contradict. The root's § Open carries no row for this — 8 B of budget left, and the
+  pointer to the one-hop doc already exists.
 
 **11-01(102) the docs drifted from the tree in five seams the green contract cannot see — and "made for" paid its way in**
 

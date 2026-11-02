@@ -107,6 +107,7 @@ Known boundaries (as of this commit, not aspirations):
 | `POST` | `/v1/messages/count_tokens` | Anthropic pre-flight: sizes the request `/v1/messages` will send (a floor) |
 | `POST` | `/v1/count-tokens` | Token count of the text you send (`prompt` / `input` / `messages`) |
 | `POST` | `/v1/embeddings` | Local embeddings (LFM2.5-Embedding-350M, 1024-dim) |
+| `POST` | `/v1/decisions` | Jev decisions — choice / score / yes-no as label probabilities, no generation; validates the body to the contract, then answers 501 naming the missing logits read wherever this build cannot score (it never invents a probability) |
 | `GET`  | `/v1/tools` | Agent tool surface, paste-ready OpenAI `tools[]` shape |
 | `GET`  | `/v1/capabilities` | Device capability matrix (measured, not merely compiled) + tokenizer backend (`real`/`heuristic`) + endpoint index |
 | `POST` | `/v1/steer` | Interject into a live turn (or queue for the next) |

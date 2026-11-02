@@ -110,6 +110,11 @@ enum V1EndpointCatalog {
             note: "Token count for prompt | input | messages"),
         RouteSpec(method: "POST", path: "/v1/embeddings", note: "Text embeddings"),
         RouteSpec(
+            method: "POST", path: "/v1/decisions",
+            note:
+                "Jev decisions (choice | score | yes_no as label probabilities); 501 naming the missing logits read where this build cannot score"
+        ),
+        RouteSpec(
             method: "POST", path: "/v1/models/train", note: "Start a fine-tune run for a model"),
         RouteSpec(
             method: "POST", path: "/v1/models/evaluate", note: "Evaluate a model against a suite"),

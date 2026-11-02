@@ -86,6 +86,7 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 | `POST` | `/v1/messages/count_tokens` | Anthropic 预检：数 `/v1/messages` 实际要送出的那次请求（下界） |
 | `POST` | `/v1/count-tokens` | 数你送出的那段文本（`prompt` / `input` / `messages`） |
 | `POST` | `/v1/embeddings` | 本地 embeddings（LFM2.5-Embedding-350M，1024 维） |
+| `POST` | `/v1/decisions` | Jev 决策 — choice / score / yes_no 给出各标签概率，不生成文本；请求体照常按契约校验，读不到 logits 的构建如实回 501 并说明缺什么（绝不编一个概率） |
 | `GET`  | `/v1/tools` | Agent 工具面（OpenAI `tools[]` 形状，可直接粘回请求） |
 | `GET`  | `/v1/capabilities` | 设备能力矩阵（按实测说话，不止看编译进去了什么）+ 分词后端（`real`/`heuristic`）+ 端点索引 |
 | `POST` | `/v1/steer` | 向进行中的 turn 插话（无则并入下一次请求） |

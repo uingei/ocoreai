@@ -2192,6 +2192,13 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// tell "transient, retry" apart from "permanent, give up".
     case modelLoading(String)
 
+    /// Not Implemented — a Jev decision was asked for and this build cannot read one. The answer
+    /// is probability mass over the answer labels at the answer position, which no engine here
+    /// publishes on the delivery platform; the payload names the prerequisite and both exits,
+    /// because the alternative — an invented probability — is the one answer this API must never
+    /// give (`Wire/DecisionsWire.swift` § *What is deliberately absent*).
+    case decisionsUnavailable(String)
+
     /// Internal Error — inference pipeline failed
     case inferenceFailed(String)
 
@@ -2273,6 +2280,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
                 + "or raise the memory budget, then retry."
         case .modelLoading(let name):
             "Model \(name) is still loading — retry when state == \"ready\""
+        case .decisionsUnavailable(let why):
+            "Decision refused: \(why)"
         case .inferenceFailed(let msg): "Inference failed: \(msg)"
         case .tokenizationFailed(let msg): "Tokenization failed: \(msg)"
         case .toolCallFailed(let msg): "Tool call failed: \(msg)"
@@ -2319,6 +2328,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         case .sessionExpired:
             .gone
         case .logitsUnsupported:
+            .notImplemented
+        case .decisionsUnavailable:
             .notImplemented
         case .kvCacheStatusUnsupported:
             .notImplemented
@@ -2388,6 +2399,15 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         if case .mediaLost(let reason) = self {
             detail["error_code"] = "media_lost"
             detail["remediation"] = reason
+        }
+        // `unsupported` is the reference stack's own word for this exact refusal — coreai-models
+        // answers a `logprobs` request on a logits-less engine with `code:"unsupported"`
+        // (`swift/Sources/Tools/llm-server/CompletionHandler.swift`, and 1c25c57 moved that message
+        // into one constant rather than into a second spelling), so a client that already handles
+        // one of these handles both.
+        if case .decisionsUnavailable(let why) = self {
+            detail["error_code"] = "unsupported"
+            detail["remediation"] = why
         }
         // Request-shape refusals speak the clients' own error type. Both specs name
         // `invalid_request_error` for a 400 (OpenAI Errors, Anthropic Errors), and vllm —

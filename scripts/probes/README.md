@@ -407,6 +407,24 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     20, not the 200 the client asked for — so a legal window must return 200 and `0` must return the
     400 with that field named and the bound in its message, which `/v1/chat/completions` already gave.
 
+- `49-decisions-contract-refusal.sh` — does `/v1/decisions` ever answer with a number it did not measure?
+    The axis hands a caller a probability it will *act on*, and this build cannot read one (an answer is
+    the probability of each offered label at the answer position; only the CoreAI route publishes
+    logits), so the only answers this route may give are a 400 naming every reason a body is wrong and a
+    501 naming the read that is missing. Green 11-02: **25 passed, 0 failed** on one live server, scripted
+    engine (no weights — a wire-tier verdict, nothing claimed about a checkpoint) — the route is in
+    `endpoints[]`, the five legal shapes (26 options, 10 levels, all three question types, every accepted
+    key at once, an unserved model name) reached the scoring seat and got 501 `unsupported` naming the
+    logits read and both exits, and the eight malformed bodies got 400 `invalid_request_error` each
+    naming its own fault, with a four-fault body told all four in one message. Two legs are worth
+    naming: the unserved model must get the *same* 501 (the refusal is about this build, and a 404 would
+    imply the box could score one if asked nicely), and §4 scans refusal bodies **by parsed key** for
+    anything answer-shaped — `probabilities`, `confidence`, `prompt_token_ids`, `answers`, `legend`. That
+    scan's first run substring-matched raw bodies instead and reported every 501 as a leak, because the
+    refusal's own sentence says "returns no probability rather than an invented one"; it was re-sampled
+    against a planted nested `probabilities`/`confidence` pair before being trusted, and `prompt_token_ids`
+    staying absent is the other half of what `docs/agent/systemone-decisions.md` says that key means today.
+
 - `_lib.sh` — shared harness
 Fails when: —
 

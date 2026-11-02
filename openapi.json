@@ -697,6 +697,60 @@
         }
       }
     },
+    "/v1/decisions": {
+      "parameters": [],
+      "post": {
+        "operationId": "post_v1_decisions",
+        "summary": "Jev decisions (choice | score | yes_no as label probabilities); 501 naming the missing logits read where this build cannot score",
+        "tags": [
+          "v1"
+        ],
+        "security": [
+          {
+            "bearerAuth": {}
+          },
+          {
+            "xApiKey": {}
+          },
+          {
+            "apiKeyHeader": {}
+          },
+          {
+            "apiKeyQuery": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AppError"
+          },
+          "404": {
+            "$ref": "#/components/responses/AppError"
+          }
+        }
+      }
+    },
     "/v1/models/train": {
       "parameters": [],
       "post": {
