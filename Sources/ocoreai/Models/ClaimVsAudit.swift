@@ -141,8 +141,9 @@ actor ToolAttemptLedger {
     static let shared = ToolAttemptLedger()
 
     /// How many recent attempts to keep (turn-local windows are tiny; the cap exists so a
-    /// long-lived server does not grow this without bound).
-    private static let window = 64
+    /// long-lived server does not grow this without bound). Exposed on the `failureLineLimit`
+    /// precedent: the test asserting this bound reads it here instead of re-typing it.
+    nonisolated static let windowCapacity = 64
 
     /// Longest failure line kept: enough to name the cause, short enough to quote in a notice.
     nonisolated static let failureLineLimit = 160
@@ -153,8 +154,8 @@ actor ToolAttemptLedger {
     func record(_ attempt: ToolAttempt) {
         total &+= 1
         recent.append((total, attempt))
-        if recent.count > Self.window {
-            recent.removeFirst(recent.count - Self.window)
+        if recent.count > Self.windowCapacity {
+            recent.removeFirst(recent.count - Self.windowCapacity)
         }
     }
 

@@ -9,6 +9,34 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-02
 
+**11-02(105) A gate that fires on a busy machine is a gate that gets ignored — one of the loaded-host five is now load-immune by ownership**
+
+- **What improved.** `ToolAttemptLedgerTests.windowCapsTheRetainedRecord` was red on the 11-01(100)
+  loaded-host run for a structural reason, not a timing accident: it measured the *process-global*
+  ledger (`.shared`) — baseline, 70 records, then `== 64` and `== 70` against a counter that 15 other
+  test files advance by dispatching through `ToolRegistry.call` while swift-testing runs suites in
+  parallel. `.serialized` orders a suite's *own* tests, never suites against each other, and a
+  `ProcessGlobalLease` cannot fence those writers — § Concurrency forbids holding the lease across
+  live I/O, and a registry dispatch is live I/O. The measurements moved to what the test can own:
+  the window semantics now run on a `ToolAttemptLedger` instance the test constructs (same actor,
+  same code path) with per-record tags, so the assertion checks eviction drops the *oldest* six and
+  not merely that six went missing. The dispatch proof keeps `.shared` — feeding the real chokepoint
+  *is* its subject — but pins this dispatch's own record (tool + target identify it exactly) instead
+  of the bare window count, which is unknowable at runtime while other suites dispatch. The window
+  size also left its second home: the test re-typed `64`, now it reads
+  `ToolAttemptLedger.windowCapacity` on the `failureLineLimit` precedent, and `.serialized` came off
+  the suite because load-immunity is now by construction, not by ordering.
+- **What same-session output proves it.** 6/6 runs of
+  `ToolAttemptLedgerTests|ToolRegistryTests|FileToolsTests|ExecCommandToolTests` (62 tests / 10
+  suites) green while 18 CPU spinners saturated the box, so the ledger's writers ran concurrently
+  with its reader for every run — the exact coupling the old assertions could not survive.
+- **Which gate goes red.** This suite *is* the gate (10 tests, same count as before the round); the
+  red was sampled once, at 11-01(100), and the fix is structural rather than tuned to that sample:
+  if someone re-points the window assertions at `.shared` with a bare count, the race returns on a
+  loaded host, which is why the test's header comment names the 11-01 sample. No new gate — the fix
+  removes the coupling instead of fencing it, and a prose scan for "do not read `.shared`" is the
+  shape § Working here deletes.
+
 **11-02(104) The red 27-runner leg had a wrong fixture, not a wrong engine — and xgrammar's honest answer is a starved grammar**
 
 - **What improved.** `Build & Test (xcode-27)` has been red since `d664f7b` and its cause is now named

@@ -44,7 +44,10 @@ private func attempt(
         tool: tool, target: target, evidence: evidence, outcome: outcome, failure: failure)
 }
 
-@Suite("ToolAttemptLedger — failures are audited too", .serialized)
+// No `.serialized` here on purpose: the two tests that touch the ledger either own their
+// instance or pin their own record, so nothing in this suite can be raced by another suite
+// dispatching through the shared chokepoint — load-immunity is by ownership, not by ordering.
+@Suite("ToolAttemptLedger — failures are audited too")
 struct ToolAttemptLedgerTests {
 
     /// A failed writer with no later success is open; a repaired mistake is not.
@@ -204,33 +207,60 @@ struct ToolAttemptLedgerTests {
         #expect(plain, "the mutation set is the whole story: \(text)")
     }
 
-    /// The window is a bound, not a suggestion: 70 recorded leaves exactly 64 queryable.
+    /// The window is a bound, not a suggestion: overshooting it leaves exactly the newest
+    /// `windowCapacity`, the evicted ones are the OLDEST, and the count never drops a dispatch.
+    ///
+    /// The ledger here is one this test owns, not `.shared`, because `.shared` is written by
+    /// every suite that dispatches a tool and swift-testing parallelizes suites: measured
+    /// 11-01(100), foreign dispatches landed inside this test's own window and it went red on a
+    /// loaded host. A lease cannot fence those writers — `ToolRegistry.call` legitimately does
+    /// live I/O and § Concurrency forbids holding the lease across it — so the bound is measured
+    /// on an instance instead: the same actor, the same code path, zero cross-suite coupling.
     @Test func windowCapsTheRetainedRecord() async {
-        let baseline = await ToolAttemptLedger.shared.snapshot()
-        for _ in 0 ..< 70 {
-            await ToolAttemptLedger.shared.record(attempt("edit_file", .succeeded))
+        let ledger = ToolAttemptLedger()
+        let capacity = ToolAttemptLedger.windowCapacity
+        let recorded = capacity + 6
+        let baseline = await ledger.snapshot()
+        #expect(baseline == 0, "a fresh ledger starts at zero dispatches")
+        for i in 0 ..< recorded {
+            await ledger.record(attempt("edit_file", .succeeded, target: "probe-\(i)"))
         }
-        let kept = await ToolAttemptLedger.shared.since(baseline)
-        #expect(kept.count == 64, "window holds 64, kept \(kept.count)")
-        let total = await ToolAttemptLedger.shared.snapshot()
+        let kept = await ledger.since(baseline)
+        #expect(kept.count == capacity, "window holds \(capacity), kept \(kept.count)")
+        #expect(
+            kept.first?.target == "probe-\(recorded - capacity)",
+            "eviction drops the oldest, not an arbitrary six: \(String(describing: kept.first?.target))"
+        )
+        #expect(
+            kept.last?.target == "probe-\(recorded - 1)",
+            "the newest dispatch is always retained: \(String(describing: kept.last?.target))")
+        let total = await ledger.snapshot()
         let advanced = Int(total &- baseline)
-        #expect(advanced == 70, "the count never drops a dispatch: \(advanced)")
+        #expect(advanced == recorded, "the count never drops a dispatch: \(advanced)")
     }
 
     /// The ledger is fed by `ToolRegistry.call`, so a dispatch through the registry is an
     /// attempt with the failure line the model actually received.
+    ///
+    /// The assertions pin this dispatch's OWN record (tool + target identify it exactly) rather
+    /// than "everything since the baseline": other suites dispatch concurrently through the
+    /// shared chokepoint, so the bare window count is unknowable at runtime while this dispatch's
+    /// record count is exactly 1 under any load.
     @Test func dispatchedRefusalIsRecordedWithItsCause() async throws {
         let registry = ToolRegistry(log: Logger(label: "test.attemptledger"))
         await bootstrapBuiltInTools(registry: registry)
+        let probePath = "/nonexistent/ocoreai-attempt-probe"
         let baseline = await ToolAttemptLedger.shared.snapshot()
         _ = try? await registry.call(
             "read_file",
-            arguments: #"{"path": "/nonexistent/ocoreai-attempt-probe"}"#,
+            arguments: #"{"path": "\#(probePath)"}"#,
             caller: "attempt-ledger-test",
             headless: true)
-        let attempts = await ToolAttemptLedger.shared.since(baseline)
-        #expect(attempts.count == 1, "one dispatch, one record: \(attempts.count)")
-        let first = attempts.first
+        let mine =
+            (await ToolAttemptLedger.shared.since(baseline))
+            .filter { $0.tool == "read_file" && $0.target == probePath }
+        #expect(mine.count == 1, "one dispatch, one record: \(mine.count)")
+        let first = mine.first
         #expect(first?.tool == "read_file", "tool named: \(String(describing: first?.tool))")
         #expect(first?.evidence == .readOnly, "a reader is not a writer")
         let outcome: ToolAttempt.Outcome? = first?.outcome
