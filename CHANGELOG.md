@@ -88,6 +88,16 @@ heading are when the work landed (measured from git).
   `push-ready`, whose own header comment states the rule — a gate that exists off the path taken is not a
   gate — and the round that landed those payloads ran `push-ready` and reported the runner's reds, not this
   local one. It costs 3 s, so it now runs there too, ahead of hygiene.
+- **The 27-runner pass landed, and it was the wire proof this round claimed.** `make ci-status` on 11-02:
+  `Build & Test (xcode-27)` **success**, with the authority leg (`macos-26`), `Text gates (ubuntu)`,
+  `Governance Check`, `macOS 26 · iOS compile-only` and `App Store trait compile` also green. So
+  `StopTokenTests`(4) + `GrammarTestUtilities` ran on a macOS 27 host for the first time in this repo's
+  history and passed, and `GrammarStopTokenPlumbingTests`(3)'s rewritten expectations — the starved mask and
+  the session calling it finished — held against the real matcher. The leg that had been red since `d664f7b`
+  is green. What that does *not* buy: 197 of 3 513 `@Test` (5%, 29 files) live behind
+  `canImport(CoreAI)`/`hasMacOS27`, so the authority leg cannot see a single one of them — while that leg was
+  red, nothing anywhere exercised those 197. Recorded here as the measured size of the blind spot; the
+  address already sits in `open-items.md` (§ *CoreAI / macOS 27 items unverifiable on this host*).
 - **The unread DMG leg: read as far as the public route allows, then made to read itself.** The open item
   asked somebody to read that log; the public route was exhausted first — `check-runs/124904901860` answers
   five annotations, of which the only load-bearing ones are `Process completed with exit code 1` and the two
@@ -103,6 +113,19 @@ heading are when the work landed (measured from git).
   either goes green with a readable tail or arrives already naming its own cause. `open-items.md` paid for
   the item within its 15 609-byte cap by sending the comparator trio back to `comparator-repos.md` (its one
   home) and the two corpus arms the entry did not need to `CHANGELOG.md:3882`: 15 584 bytes, green.
+- **The new families then ran against a live checkpoint, and one verifier caught its own near miss.**
+  `bash scripts/eval/run.sh` on this host: **TASK SUCCESS 30/45**, median 1 663 ms and 3 409 tokens per
+  success, 45/45 usage rows — the six new tasks went 4/6 (`knowledge-work` 3/3, `creative` 1/3). The two
+  misses are the interesting part, and the artefact snapshot is what made them legible: `acrostic-spells-nova`
+  really did write `poem.txt`, holding `N`/`O`/`V`/`A` on four lines — exactly the degenerate form its
+  near-miss entry enumerates — while answering "I wrote the poem."; `story-three-named-openers` wrote one
+  152-byte sentence carrying all three required openers, fluent and off-brief. A judge model grading prose
+  would have passed both; the per-line-length and sentence-count rules did not. One older failure was read
+  rather than filed: `make-third-test-pass` died because the model called `python` (this host has only
+  `python3`) and reported itself unable to run tests instead of retrying — a Recover miss on the checkpoint,
+  verified not to be a harness bug (the verifier calls `python3`). No improvement is claimed against the
+  `25/39` row: the set changed and no paired run exists. Ledger row `B2oqq7JtVF`, with those caveats, sits in
+  `scripts/eval/README.md`.
 
 **11-02(103) `/v1/decisions` landed as the contract plus the refusal — and the suite written for it had never compiled**
 

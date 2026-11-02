@@ -9,6 +9,17 @@ mission's own question: **did the agent finish a real coding job on this machine
 |---|---|---|---|---|---|---|
 | `013050` | 21/39 | 2191 | 11346 | 8126 | 4224 | first four-axis board |
 | `KcooVJ3yuB` | **25/39** | 2144 | 8362 | **5429** | **3560** | after `edit_file` named the removal route |
+| `B2oqq7JtVF` | **30/45** | 1663 | 11761 | 4501 | 3409 | first run of the 45-task set: `knowledge-work` 3/3, `creative` 1/3 — **not comparable with the 25/39 row** (different set, and the new tasks are short-output, so they pull the cost columns down by composition, not by capability: no paired run exists, so no improvement is claimed) |
+
+The two `creative` misses are both worth reading, because the artefact snapshot (`artifacts-<id>.txt`)
+shows the model *did* write its file and the form rule is what rejected it. `acrostic-spells-nova` produced
+`N\nO\nV\nA\n` — precisely the degenerate shape its near-miss entry enumerates — and answered "I wrote the
+poem."; `story-three-named-openers` produced **one** 152-byte sentence carrying all three required openers
+("Once …, Midnight …, and Later, …"), which is fluent, off-brief, and caught only by the sentence-count and
+per-sentence-opener rules. A judge model grading the prose would have passed both. One older failure is also
+worth naming: `make-third-test-pass` died because the model invoked `python`, which this host does not have,
+and reported that it could not run the tests instead of retrying `python3` — an Execute→Verify→**Recover**
+miss on a checkpoint, not a harness bug (the verifier uses `python3`).
 
 Row-by-row diff between the two (same task-file hash `b709e8aab69d`, same tool hash, temp 0): gained
 `delete-only-what-was-asked`, `edit-remove-line`, `edit-rename-key-keep-value`, `fix-wrong-key`;

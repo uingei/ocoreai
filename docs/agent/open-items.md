@@ -97,14 +97,13 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   build jobs with no secrets and no `id-token` and publishes from a `release` environment over artefacts.
   Deliberately untouched before a first release lands: it is the one path a rehearsal cannot run.
   Owner call (who/what may publish).
-- **Two CI legs red since `d664f7b`; both now name themselves** (CI/) — the xcode-27 *Run tests* red is
-  `GrammarStopTokenPlumbingTests`: it asked for a blocked stop token where xgrammar starves the grammar, and
-  the suite now asserts what was measured (11-02(104)); one 27-runner pass verifies it. The *Build the DMG*
-  leg's public annotation says only exit-1 with both artefacts missing, and its log needs a token this host
-  has not, while `build-dmg.sh` yields a 27 932 392-byte DMG here (11-02) — so a clean-runner premise,
-  candidates inferred: the metal-component route, the SPM cache, the headless GUI. The step now tees its log
-  and republishes the tail as annotations (`ci-step.sh:84`'s shape), so the next red names itself, and
-  touching package.yml is what re-triggers that lane.
+- **One CI leg red since `d664f7b`, and it is now made to name itself** (CI/) — xcode-27 went green on 11-02
+  once the grammar suite asserted what was measured (11-02(104)); both stop-token suites ran there for the
+  first time. The *Build the DMG* leg's public annotation says only exit-1 with both artefacts missing, and
+  its log needs a token this host has not, while `build-dmg.sh` yields a 27 932 392-byte DMG here (11-02) — a
+  clean-runner premise, candidates inferred: the metal route, the SPM cache, the headless GUI. The step now
+  tees its log and republishes the tail as annotations (`ci-step.sh:84`'s shape), and touching package.yml
+  re-triggers that lane.
 - **A caller's one-token `stop` can starve a constrained turn** (Engine/, Handlers/) — naming a stop id
   takes it out of xgrammar's alphabet (`TokenizerInfo.swift`, at the create call), so a `stop` the schema
   needs empties the mask where it was needed and `nextTokenBitmask()` reads empty as finished: truncated
