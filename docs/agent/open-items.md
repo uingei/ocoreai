@@ -52,10 +52,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   The open half is a product decision, not a measurement: the wire is caller-scoped
   (`Tools/ToolRegistry.swift:135`: no `tools[]` declared ⇒ no tools) while the app's own loop hands the whole
   registry over every turn (`UI/ViewModels/ChatViewModel.swift:1098`) — 40 declarations, 25,092 B, to a 4-bit
-  checkpoint. Every comparator refuses that shape: codex declares 13 specs and defers the tail behind
-  `tool_search` (`codex-rs/core/src/tools/handlers/tool_search_spec.rs:19`), hermes-agent runs 38 modules
-  behind a reserved three-name bridge (`tools/tool_search_catalog.py:15-21`), pi loads deferred matches into
-  the conversation's `modelTools` (`packages/durable/src/tool-search/tool-search.ts:1-13`). Settled by a
+  checkpoint. Every comparator refuses that shape (the three cites — codex, hermes-agent, pi — sit in
+  `comparator-repos.md`, their one home). Settled by a
   per-turn shortlist (whose score, which shortlist, who pays for a wrong pick) plus the composer half — what
   the GUI may offer once `/v1/models` says `template_ignores`. The one knob already gated is the pattern to
   extend: `reasoning_effort` renders the checkpoint's own template with a sentinel at load, records
@@ -79,10 +77,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   unless something else leaves: settled by a trim, not a raise, with § *Known defect* and the lane map
   as the candidates.
 - **The corpus's cost is injection, and the curve is one checkpoint wide.** Four arms, 39 tasks,
-  `gemma-4-e2b-it-4bit`, k=3 (10-27(25)): doc absent **25.00**, the same 2,442 B present but *not* injected
-  **24.00** (p = 0.51), 2,442 B injected **19.00** (p = 0.0003), root 21.5 KB injected **16.33** (p = 0.12
-  against the distillate) — presence is free, injection is what is paid for, and volume beyond that is not
-  resolvable at this n. Unanswered, in spending order: does capacity buy context tolerance (needs a
+  `gemma-4-e2b-it-4bit`, k=3 (all four rows: 10-27(25)): presence is free (absent vs present-but-uninjected,
+  p = 0.51), injection is what is paid for (2,442 B: 24.00 → **19.00**, p = 0.0003), and volume beyond that
+  is not resolvable at this n. Unanswered, in spending order: does capacity buy context tolerance (needs a
   default-model knob — `EngineConfig.defaultModelId` is hard-defaulted, no `OCOREAI_*` override), and does a
   short per-turn corpus beat a long one on the faces that collapsed? Owner call either way — gate injection
   by capacity, or move the doc behind the base prompt (`MessageBuilder`).
@@ -100,11 +97,14 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   build jobs with no secrets and no `id-token` and publishes from a `release` environment over artefacts.
   Deliberately untouched before a first release lands: it is the one path a rehearsal cannot run.
   Owner call (who/what may publish).
-- **Two CI legs red since `d664f7b`; one named, one unread** (CI/) — the xcode-27 *Run tests* red is
-  `GrammarStopTokenPlumbingTests`: it asked for a blocked stop token where xgrammar starves the grammar
-  instead, and the suite now asserts what was measured (11-02(104)); one 27-runner pass verifies it. The
-  clean-runner *Build the DMG* leg is unread (annotations need no token); macos-26 is green.
-  Owner: read that log, fix or record it.
+- **Two CI legs red since `d664f7b`; both now name themselves** (CI/) — the xcode-27 *Run tests* red is
+  `GrammarStopTokenPlumbingTests`: it asked for a blocked stop token where xgrammar starves the grammar, and
+  the suite now asserts what was measured (11-02(104)); one 27-runner pass verifies it. The *Build the DMG*
+  leg's public annotation says only exit-1 with both artefacts missing, and its log needs a token this host
+  has not, while `build-dmg.sh` yields a 27 932 392-byte DMG here (11-02) — so a clean-runner premise,
+  candidates inferred: the metal-component route, the SPM cache, the headless GUI. The step now tees its log
+  and republishes the tail as annotations (`ci-step.sh:84`'s shape), so the next red names itself, and
+  touching package.yml is what re-triggers that lane.
 - **A caller's one-token `stop` can starve a constrained turn** (Engine/, Handlers/) — naming a stop id
   takes it out of xgrammar's alphabet (`TokenizerInfo.swift`, at the create call), so a `stop` the schema
   needs empties the mask where it was needed and `nextTokenBitmask()` reads empty as finished: truncated

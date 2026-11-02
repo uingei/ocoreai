@@ -88,6 +88,21 @@ heading are when the work landed (measured from git).
   `push-ready`, whose own header comment states the rule — a gate that exists off the path taken is not a
   gate — and the round that landed those payloads ran `push-ready` and reported the runner's reds, not this
   local one. It costs 3 s, so it now runs there too, ahead of hygiene.
+- **The unread DMG leg: read as far as the public route allows, then made to read itself.** The open item
+  asked somebody to read that log; the public route was exhausted first — `check-runs/124904901860` answers
+  five annotations, of which the only load-bearing ones are `Process completed with exit code 1` and the two
+  downstream uploads reporting nothing found (`dist/*.dmg`, `/tmp/ocoreai-window.png`), and its `output`
+  fields are empty; `gh` is not installed here, so the step log stays behind a token. What *was* decidable
+  locally: `bash scripts/build-dmg.sh` on this host produced `dist/ocoreai-0.1.14.dmg` at **27 932 392 B**
+  with codesign passing, so the script is not the defect and the red is a clean-runner premise (candidates,
+  named as inference: the MetalToolchain route, the SPM cache, the headless GUI session). Rather than leave
+  the next reader with the same wall, the step now tees its log and republishes the last 25 lines as
+  `::error::` annotations — the shape `scripts/probes/ci-step.sh:84` already uses for exactly this reason
+  (annotations reach `/check-runs/{id}/annotations` without a token; stdout does not). Editing
+  `package.yml` is also what re-triggers that lane, which only fires on packaging paths — so this push
+  either goes green with a readable tail or arrives already naming its own cause. `open-items.md` paid for
+  the item within its 15 609-byte cap by sending the comparator trio back to `comparator-repos.md` (its one
+  home) and the two corpus arms the entry did not need to `CHANGELOG.md:3882`: 15 584 bytes, green.
 
 **11-02(103) `/v1/decisions` landed as the contract plus the refusal — and the suite written for it had never compiled**
 

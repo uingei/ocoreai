@@ -112,7 +112,18 @@ jobs:
       - name: Build the DMG (the same script the release leg runs)
         run: |
           set -euo pipefail
-          bash scripts/build-dmg.sh
+          # Red since `d664f7b` and undiagnosable from outside: the annotations API answered only
+          # "Process completed with exit code 1" plus the two downstream uploads finding nothing, and the
+          # step's own log needs a token this host does not use — while `scripts/build-dmg.sh` yields a
+          # 27 932 392-byte DMG on this host (11-02), so the cause is a clean-runner premise, not the
+          # script. Annotations reach /check-runs/{id}/annotations with no token and stdout does not, so
+          # the tail is republished the way scripts/probes/ci-step.sh:84 already does: the next red on
+          # this leg names itself.
+          if ! bash scripts/build-dmg.sh 2>&1 | tee /tmp/build-dmg.log; then
+            echo "::error title=build-dmg.sh failed (clean-runner)::tail of its log follows, published as annotations"
+            tail -25 /tmp/build-dmg.log | sed 's/^/::error::  /'
+            exit 1
+          fi
           ls -l dist/
 
       - name: Judge the artefact — probe 41 (mount, serve, stop)
