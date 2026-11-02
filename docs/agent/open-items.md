@@ -44,25 +44,18 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   cross-conversation prefix sharing. `ReuseRefusalLedger` publishes both; the ledger is opportunity, not a
   capability claim.
 
-- **A turn's tool surface costs 19 points; one knob is gated, the surface is not.** The measured half, on
-  `gemma-4-e2b-it-4bit`: 6 tools against all 40 ⇒ **−18.8 pp, McNemar exact p < 0.0001**. Read it as *what a
-  turn is handed*, not "fewer tools everywhere" — two exec faces improved on the full surface while every
-  edit/fix face collapsed. Per-arm rows, the named tasks, the noise floor and the reproduce recipe have
-  one home: `scripts/eval/README.md` § the repeat recipe.
-  The open half is a product decision, not a measurement: the wire is caller-scoped
-  (`Tools/ToolRegistry.swift:135`: no `tools[]` declared ⇒ no tools) while the app's own loop hands the whole
-  registry over every turn (`UI/ViewModels/ChatViewModel.swift:1098`) — 40 declarations, 25,092 B, to a 4-bit
-  checkpoint. Every comparator refuses that shape (the three cites — codex, hermes-agent, pi — sit in
-  `comparator-repos.md`, their one home). Settled by a
-  per-turn shortlist (whose score, which shortlist, who pays for a wrong pick) plus the composer half — what
-  the GUI may offer once `/v1/models` says `template_ignores`. The one knob already gated is the pattern to
-  extend: `reasoning_effort` renders the checkpoint's own template with a sentinel at load, records
-  `honored`/`template_ignores`/`not_observed` (`ReasoningEffortLedger`), publishes it on `/v1/models`, and
-  refuses a demanded word 400 naming the knob, the evidence and both exits — codex's
-  `unsupported_code_mode_warning` shape (`core/src/session/code_mode_warning.rs:6-24`), with fail-open pinned
-  too (unmeasured is never refused); measured on this host, both tiers red-sampled
-  (`ReasoningEffortHonestyTests`(9) + probe 38).
-
+- **A turn's tool surface costs 19 points; one knob is gated, the surface is not.** Measured on
+  `gemma-4-e2b-it-4bit`: 6 tools against all 40 ⇒ **−18.8 pp, McNemar exact p < 0.0001** — read it as *what a
+  turn is handed*, not "fewer tools everywhere" (two exec faces improved full-surface, every edit/fix face
+  collapsed); per-arm rows, the noise floor and the recipe: `scripts/eval/README.md` § the repeat recipe. The
+  open half is a product call: the wire is caller-scoped (`Tools/ToolRegistry.swift:135` — no `tools[]`
+  declared ⇒ no tools), while the app hands the whole registry over every turn
+  (`UI/ViewModels/ChatViewModel.swift:1098`: 40 declarations, 25,092 B, to a 4-bit checkpoint); no comparator
+  does that (cites: `comparator-repos.md`). Wants a per-turn shortlist (whose score, who pays a wrong pick)
+  plus the composer half. The pattern to extend is the knob already gated: render the checkpoint's template
+  with a sentinel at load, record it (`ReasoningEffortLedger`), publish on `/v1/models`, refuse a demanded
+  word 400 naming the knob and both exits — codex's `code_mode_warning.rs:6-24` shape, fail-open pinned.
+  `ReasoningEffortHonestyTests`(9) + probe 38.
 - **Weight-free probes exist; only three hold a CI seat, and no checkpoint tier does.** The scripted lane
   holds 37 (wire contract), 38 §1 (a refusal) and 39 §1/§1b (the skill's markers); §2 of 38/39/40 needs
   weights, so on a runner it takes its skip branch.
@@ -168,13 +161,18 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 
 - **Memory is read by every request, written only behind `self_correction`** (SQLite/) — `ChatHandler.swift:944` reads, `addMemory` writes. Owner call: publish the flag, or gate the recall.
 
-- **The loaded-host reds rotate cast, and the pool tail beats every control term** (Tests/) — full
-  `make test` casts: 5 issues on 11-01(100), then 5 and 10 on 11-02, names rotate; mechanism +
-  magnitudes: 11-02(106). One class: wall-clock bounds bet on the single cooperative pool 615 suites
-  share. The instant+control pattern does not fence it — a wake 6 382 ms late read against a 301 ms
-  control; a waiter parked past a 5 s window while the lock freed at 355 ms — production behaviour,
-  not a test premise. The median is measurable, the tail is not: no multiplier survives, none was
-  tuned to samples. Closed: the ledger's cross-suite half (11-02(105)), out of both casts. Wanted: a
-  clock the tests control (offline `ClockToolsTests` is the model), or an uncontended lane for the
-  real-clock family — `make test-clt`'s two-process split is the precedent; whose call, CI included:
-  the owner. A gate that fires on a busy machine gets ignored the second time.
+- **The loaded-host reds rotate cast; the pool tail beats every control term** (Tests/) — casts: 5 issues on 11-01(100),
+  5 and 10 on 11-02, names rotate; mechanism: 11-02(106). One class: wall-clock
+  bounds bet on the single cooperative pool 615 suites share, and the instant+control pattern does not fence
+  it (a wake 6 382 ms late against a 301 ms control — magnitudes: 11-02(106)) — production behaviour,
+  not a test premise. The median is measurable, the tail is not. Closed: the ledger's cross-suite
+  half (11-02(105)). Wanted: a clock the tests control (`ClockToolsTests`) or an uncontended lane
+  (`make test-clt`'s split); whose call: the owner.
+- **The 11-02 compat sweep left four owner calls** (Models/, Middleware/, Router/, Wire/) — long form
+  11-02(108)–(109). ① `error.type` on the OpenAI face: vllm sends the status *phrase*, sglang mixes class names
+  with spec names, the spec documents names, we emit spec names only for 400/429 — pick one table, and the per-case arms
+  fold into one status→name map. ② Three sites build literal error bodies
+  (`RateLimitMiddleware`, `NotFoundEnvelopeMiddleware`, `ContentGuard` — lines in 11-02(109)), so a
+  middleware refusal on `/v1/messages` still answers the OpenAI envelope. ③ The references call the served
+  ceiling `max_model_len`, we call it `contextLength`. ④ Jev's answer half is read from both stacks and
+  unwritten until the answer position can be scored (probe 49); the seam and its lane are the call.

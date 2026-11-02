@@ -104,6 +104,10 @@ Measured on the scripted lane (no weights resident), so they are contract facts,
 - A bad request → `400` `{"error":{"type":"invalid_request_error","message":"Invalid request: Missing 'q'
   query parameter","code":400}}` — measured on `GET /sessions/search` without `q`.
 - Key required → `401` naming both accepted header forms; `/health` still answers `200`.
+- **The two wires use two envelopes**, decided by the path you called: `POST /v1/messages` answers
+  `{"type":"error","error":{"type":"invalid_request_error","message":…,"param":…}}` (Anthropic's shape
+  and Anthropic's `error.type` vocabulary — its SDKs dispatch on that string), everything else the
+  `{"error":{…,code}}` shape above. Same refusal, same `message`, so a client parses what it expects.
 - A failing MCP server's **stderr travels inside the refusal**, and a knob the loaded checkpoint cannot
   honour is refused with the remedy named (`ReasoningEffortHonestyTests`, probes 04/26/38) — the pattern:
   never 200 with nothing in it.

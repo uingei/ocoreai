@@ -9,6 +9,59 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-02
 
+**11-02(109) `POST /v1/messages` answers in Anthropic's envelope — one throw, two wires, each in the vocabulary its clients dispatch on**
+
+- **What improved.** The owner set the axis: OpenAI, Anthropic and Jev compatibility are judged against
+  vllm and sglang, so the surfaces were read against the two local clones rather than against our own
+  convenience (and 11-02(108) is the same sweep's first find). The clearest break was on the error
+  path: every refusal thrown out of `/v1/messages` carried this file's OpenAI-shaped body —
+  `{"error":{"message","type":"app_error","code":400}}` — and an Anthropic client has no parser for
+  that. Both references answer Anthropic's envelope there
+  (`sglang/python/sglang/srt/entrypoints/anthropic/protocol.py:25-36`,
+  `vllm/vllm/entrypoints/anthropic/protocol.py:25-30`), and vllm records *why* the inner string is not
+  ours to invent: "Anthropic SDKs dispatch on `error.type`, which must use Anthropic's own vocabulary
+  rather than vLLM's internal/Python error class names" (`protocol.py:33-34`). So `response(from:)`
+  now reads the path the request actually arrived on and picks the envelope: `{"type":"error",
+  "error":{type,message,…}}` with Anthropic's status→name table (`anthropicErrorTypeName`, reproducing
+  vllm's `protocol.py:34-53` including its two fallbacks, so a client gets one answer from either
+  stack), and the OpenAI shape everywhere else with its `code` intact; `code` is dropped on the
+  Anthropic face because their error object is exactly `{type,message}`. `param`, `error_code` and the
+  message survive both shapes — the reshape must not cost the machine-readable half
+  `invalidParameter` was added for. Second find, same family: `RateLimitMiddleware` published
+  `type: "rate_limit"` for a capacity refusal while `AppError.engineBusy` published
+  `rate_limit_error` for the same condition — two spellings of one fact depending on which layer said
+  no, so the middleware now says the spec's name.
+- **What same-session output proves it.** The two envelope assertions drive the **real router** with a
+  real body and read the JSON back (`temperature: 5` breaks Anthropic's `[0,1]` and OpenAI's `[0,2]` at
+  the handler's first line, so no Metal and no weights are involved): `/v1/messages` → top-level
+  `"type":"error"`, `error.type == "invalid_request_error"`, no `error.code`; `/v1/chat/completions` →
+  no top-level `type` at all, `error.code == 400`, `error.param == "temperature"` on both. The whole
+  affected surface is green: **179/179 in 30 suites** (`Anthropic*`, `RequestNumericDomain`,
+  `NotFoundEnvelope`, `OpenAPIContract`, `ToolCallWireContract`, `HTTPHandlerE2E`) in 0.303 s — notably
+  `RequestNumericDomainTests.expectNamed400` covers `/v1/messages` 400s and stayed green untouched, so
+  the envelope changed without moving what that client reads. `skills/ocoreai/references/wire.md` now
+  tells an agent the two wires use two envelopes.
+- **Which gate goes red.** `AnthropicErrorEnvelopeTests`(3): a path test flipped, a vocabulary
+  flattened to `app_error`, or `code` re-added to Anthropic's object each red their own assertion; the
+  table test pins every status this server can emit, including the 410 and 501 fallbacks, so a name
+  drifting away from vllm's table reds with the status named. Nothing that used to pass was relaxed to
+  make this pass — the one literal that changed (`rate_limit` → `rate_limit_error`) had no pin, which
+  is itself a finding: an unpublished spelling was free to disagree with the published one.
+- **Measured, unresolved (⇒ § Open, four items).** The **OpenAI face** could not be "aligned to vllm"
+  honestly: vllm sends the status *phrase* (`serve/exception_handling/handlers/http.py:27`), sglang
+  mixes Python class names with spec names (`openai/serving_base.py:205-213`), and OpenAI's error
+  object documents names — three authorities, and we already ship spec names for 400/429, so a 404
+  beside them is one fact with three spellings inside one server. Also open: three sites still build
+  error bodies as literals (`RateLimitMiddleware:433`, `NotFoundEnvelopeMiddleware:54`,
+  `ContentGuard:86`), so a *middleware* refusal on the Anthropic route still answers the wrong envelope
+  (that is a port of `Retry-After` + the endpoint index, not a one-liner); the references name the
+  served ceiling `max_model_len` where we name it `contextLength`; and the Jev answer half is now
+  *read* from both references (sglang `openai/protocol.py:1681-1700`, its `systemone/protocol.py:104-130`
+  which refuses our three `/v1/decisions` knobs by name, vllm
+  `generate/structured_decisions/protocol.py:22-104`) and still deliberately unwritten until the answer
+  position can be read — writing an answer DTO before a scorer exists is the invented number this axis
+  exists to refuse.
+
 **11-02(108) `/v1/models` speaks OpenAI's own field names again — `owned_by` and `created`, and the gate that pinned the deviation is turned around**
 
 - **What improved.** Compatibility on this axis is judged by what vllm and sglang put on the wire, so

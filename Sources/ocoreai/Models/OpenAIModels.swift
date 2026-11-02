@@ -2358,6 +2358,30 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         }
     }
 
+    /// Anthropic's `error.type` for this status.
+    ///
+    /// The table vllm carries, reproduced rather than approximated
+    /// (`vllm/entrypoints/anthropic/protocol.py:34-53`): 400 `invalid_request_error`, 401
+    /// `authentication_error`, 403 `permission_error`, 404 `not_found_error`, 413
+    /// `request_too_large`, 429 `rate_limit_error`, 503 `overloaded_error`, anything ≥500
+    /// `api_error`, and every other 4xx `invalid_request_error` (that last is vllm's fallback, and
+    /// it is why our 410 `sessionExpired` reads as a bad request rather than inventing a name
+    /// Anthropic has not defined). A client that branches on this string must get the same answer
+    /// from either stack — sglang's Anthropic route passes the same names explicitly
+    /// (`sglang/python/sglang/srt/entrypoints/anthropic/serving.py:209`).
+    nonisolated var anthropicErrorTypeName: String {
+        switch status.code {
+        case 400: "invalid_request_error"
+        case 401: "authentication_error"
+        case 403: "permission_error"
+        case 404: "not_found_error"
+        case 413: "request_too_large"
+        case 429: "rate_limit_error"
+        case 503: "overloaded_error"
+        default: status.code >= 500 ? "api_error" : "invalid_request_error"
+        }
+    }
+
     /// ``HTTPResponseError.response(from:context:)`` — build a JSON error response.
     nonisolated func response(
         from request: Request,
@@ -2454,7 +2478,26 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         default:
             break
         }
-        let errorBody = NSDictionary(dictionary: ["error": detail])
+        // The Anthropic face answers in Anthropic's envelope, because that is the only envelope an
+        // Anthropic client parses: `{"type":"error","error":{type,message}}`
+        // (`sglang/python/sglang/srt/entrypoints/anthropic/protocol.py:25-36`,
+        // `vllm/vllm/entrypoints/anthropic/protocol.py:25-30`), with `error.type` drawn from
+        // Anthropic's vocabulary — vllm states the reason in its own words: "Anthropic SDKs dispatch
+        // on `error.type`, which must use Anthropic's own vocabulary rather than vLLM's
+        // internal/Python error class names" (`protocol.py:33-34`). The shape is decided off the path
+        // the request actually arrived on, so one throw site cannot answer the wrong wire: until now
+        // a refusal thrown out of `/v1/messages` carried this file's OpenAI-shaped body, which an
+        // Anthropic SDK has no parser for. `code` is dropped on that face — the references' error
+        // object is exactly `{type,message}`, and the status is already the status line.
+        let errorBody: NSDictionary
+        if request.uri.path.hasPrefix("/v1/messages") {
+            let anthropicDetail = NSMutableDictionary(dictionary: detail)
+            anthropicDetail.removeObject(forKey: "code")
+            anthropicDetail["type"] = anthropicErrorTypeName
+            errorBody = NSDictionary(dictionary: ["type": "error", "error": anthropicDetail])
+        } else {
+            errorBody = NSDictionary(dictionary: ["error": detail])
+        }
         var headers: HTTPFields = [:]
         headers[.contentType] = "application/json"
         // A capacity refusal that does not say when to come back makes the client hammer the

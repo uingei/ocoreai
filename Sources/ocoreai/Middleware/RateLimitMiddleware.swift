@@ -429,9 +429,13 @@ struct RateLimitMiddleware<Context: RequestContext>: RouterMiddleware {
         // zeros while this branch was refusing traffic, because nothing on this path counted.
         await MetricsRegistry.shared.recordRateLimitRejection()
 
-        // 429 Too Many Requests
+        // 429 Too Many Requests. `rate_limit_error`, not `rate_limit`: a capacity refusal is one
+        // fact and this is its second emit site — `AppError.engineBusy` already publishes
+        // `rate_limit_error` (both specs' name for it), and an SDK that branches on `error.type`
+        // was handed two spellings for the same condition depending on which layer said no.
         let bodyData =
-            #"{"error":{"message":"Rate limit exceeded","type":"rate_limit","code":429}}"#.data(
+            #"{"error":{"message":"Rate limit exceeded","type":"rate_limit_error","code":429}}"#
+            .data(
                 using: .utf8) ?? .init()
         var headers: HTTPFields = [:]
         headers[.contentType] = "application/json"
