@@ -630,6 +630,10 @@ enum FileTools {
     ///
     /// An unknown total is named unknown. It is never rounded up to the shown count, and every bound
     /// leaves with the knob that lifts it, so the next turn has a move instead of a dead end.
+    ///
+    /// Two sibling faces carry the same pair in their own idioms, since the decoration differs per
+    /// surface while the rule does not: `DirectSearchOutcome.report` (a SERP page cut by `maxHits`)
+    /// and `PerceptionObserve.clip` (a 300-char preview).
     static func resultTally(shown: Int, kind: String, bound: ResultBound) -> String {
         switch bound {
         case .complete:

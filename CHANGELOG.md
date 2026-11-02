@@ -9,6 +9,39 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-03
 
+**11-03(4) the two caps that bound in silence name themselves — a SERP window and a perception preview**
+
+- **What improved.** The survey that closed 11-03(3) left two faces where a limit could cut and the
+  answer said nothing about it. `web_search`'s direct path printed its hit list and stayed silent about
+  hits the parser had seen and `maxHits` had dropped; now the report reads
+  `results: showing 2 of 5 organic hits on this page (3 not shown — narrow the query or raise
+  OCRE_SEARCH_MAX_HITS)` when the cut bound, and gains no line when it did not. `observe_state`'s
+  300-char preview cut with no marker at all; now `… (+700 chars not shown — preview only)`. Plumbing
+  carries the pair instead of recomputing it: `FetchOutcome.hits` gained `foundTotal` (what the parser
+  saw, not what survived), and the cut sits in one pure `DirectWebSearch.cap` so both numbers are
+  asserted off-box — `fetch` needs a live SERP, and a tally plumbed through a network call is a tally
+  nobody re-checks. `FileTools.resultTally` gained the cite to its two siblings: the decoration differs
+  per surface, the rule does not, and the rule keeps one home. Why this is a surface and not a nicety:
+  `DirectWebSearch.toolEntry()` is registered at `BuiltInTools.swift:638` and the direct SERP is its
+  default mode, so the report is bytes a model reads on every search.
+- **What same-session output proves it.** `make test` this round: **3 529 tests / 618 suites, 0
+  issues** — the rotating cast did not fire this run, and this is the first clean full suite of the
+  session, stated as what happened rather than as a property. The 4 targeted suites plus neighbours ran
+  47/47 in 11 suites. Both gates were sampled against the planted old behaviour before being trusted:
+  a `cap` that recounted its own window turned `foundTotal == 5` red *and* removed the report line, and
+  a silent `clip` turned both boundary tests red naming the missing `+700`. The only test that pinned
+  the silent cut (`overBoundaryTruncatesTo300`) was rewritten, not deleted, so the ≤300 face still
+  asserts verbatim output *and* that no marker leaks onto an uncapped preview — without that leg the
+  "marker appears" assertions could pass on a build that marks everything. Nothing outside consumed the
+  old strings: a grep for them in `scripts/probes/` and `scripts/eval/` came back empty. The third face
+  the survey named — `GET /sessions` (limit 100) and `GET /sessions/search` (limit 20) answering with
+  no bound — stays unbuilt and unrecorded in § Open, which now holds 15 605 of its 15 609 bytes; it
+  lives here until a trim makes room for it.
+- **Which gate goes red.** `DirectWebSearchTests` — `cappedSERPNamesItsBound` (real ddg fixture, the
+  product's own cut, both faces of the tally, plus a premise floor on the fixture's own hit count);
+  `PerceptionToolsTests` — `overBoundaryTruncatesTo300AndNamesTheRest`, `droppedCountIsExact`, and the
+  no-marker premise in `atBoundaryKeepsFull`.
+
 **11-03(3) `search_files` reports the scan it ran — a count the limit stopped at is no longer printed as a total**
 
 - **What improved.** The walk broke out at `maxResults` and then printed `─── total: \(matches.count) ───`,

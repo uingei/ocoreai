@@ -62,9 +62,13 @@ enum PerceptionObserve {
         return Report(channels: channels, staleCount: stale)
     }
 
-    /// 300 字符硬截断(边界精确: ≤300 原样, >300 截到 300)。
+    /// 300 字符硬截断(边界精确: ≤300 原样; >300 截到 300 并标出丢了多少 —— 一个无声的窗口
+    /// 让读它的人以为看完了整帧)。Cut count travels with the window, as in
+    /// `FileTools.resultTally` and `DirectSearchOutcome.report`.
     static func clip(_ s: String) -> String {
-        s.count <= maxPreviewChars ? s : String(s.prefix(maxPreviewChars))
+        guard s.count > maxPreviewChars else { return s }
+        return
+            "\(String(s.prefix(maxPreviewChars)))… (+\(s.count - maxPreviewChars) chars not shown — preview only)"
     }
 
     /// 渲染(离线可测; now 注入 = 新鲜度精确断言不依赖 wall clock)。

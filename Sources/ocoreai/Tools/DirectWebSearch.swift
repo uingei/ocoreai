@@ -47,6 +47,11 @@ struct DirectSearchOutcome: Sendable, Equatable {
     let engine: String
     let query: String
     let hits: [DirectSearchHit]
+    /// Organic results the parser saw before the `maxHits` cut. Equal to `hits.count` when the cap
+    /// never bound; greater when it did — which is the only case the report's tally line appears in.
+    /// Same decision as `FileTools.resultTally`, in this report's grep-stable idiom: a window that
+    /// stops somewhere says where it stopped, because a caller reads a bare list as "that was all".
+    let foundTotal: Int
     /// Engines tried before `engine` succeeded, each with a short honest reason.
     let trail: [String]
 
@@ -61,6 +66,11 @@ struct DirectSearchOutcome: Sendable, Equatable {
         lines.append("query: \(query)")
         if hits.isEmpty {
             lines.append("results: (none — query returned no organic hits)")
+        } else if foundTotal > hits.count {
+            lines.append(
+                "results: showing \(hits.count) of \(foundTotal) organic hits on this page "
+                    + "(\(foundTotal - hits.count) not shown — narrow the query or raise "
+                    + "OCRE_SEARCH_MAX_HITS):")
         } else {
             lines.append("results:")
             for h in hits {
@@ -401,9 +411,10 @@ enum DirectWebSearch {
             switch await fetch(
                 engine: engine, query: effective, maxHits: maxHits, timeoutS: timeoutS)
             {
-            case .hits(let hits):
+            case .hits(let hits, let foundTotal):
                 return DirectSearchOutcome(
-                    engine: engine.name, query: effective, hits: hits, trail: trail)
+                    engine: engine.name, query: effective, hits: hits, foundTotal: foundTotal,
+                    trail: trail)
             case .blocked(let why):
                 trail.append("\(engine.name): \(why)")
             }
@@ -413,8 +424,18 @@ enum DirectWebSearch {
     }
 
     enum FetchOutcome {
-        case hits([DirectSearchHit])
+        /// `foundTotal` is the organic count the parser saw *before* the `maxHits` cut, so a caller
+        /// can tell "the page had 6" from "the page had 40 and 32 were dropped".
+        case hits([DirectSearchHit], foundTotal: Int)
         case blocked(String)
+    }
+
+    /// The `maxHits` cut, in one place: the window is what a caller sees, `foundTotal` is what the
+    /// parser saw. Kept as a pure function so the pair is asserted off-box — `fetch` itself needs a
+    /// live SERP, and a report that claimed "showing 2 of 5" off a mis-plumbed count would be exactly
+    /// the invented total this family exists to forbid.
+    static func cap(_ hits: [DirectSearchHit], maxHits: Int) -> FetchOutcome {
+        .hits(Array(hits.prefix(maxHits)), foundTotal: hits.count)
     }
 
     /// Fetch + parse one engine. Cookie warmup first when the engine has one.
@@ -459,7 +480,7 @@ enum DirectWebSearch {
                 // top-news page served instead of organic results.
                 return .blocked("no organic results (possible soft-block)")
             }
-            return .hits(Array(hits.prefix(maxHits)))
+            return Self.cap(hits, maxHits: maxHits)
         } catch let e as URLError {
             return .blocked("\(e.code): \(e.localizedDescription)")
         } catch {

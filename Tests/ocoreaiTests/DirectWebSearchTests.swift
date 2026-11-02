@@ -103,6 +103,7 @@ struct DirectParserTests {
         let o = DirectSearchOutcome(
             engine: "bing", query: "gold",
             hits: [DirectSearchHit(title: "金价网", url: "https://j.net", snippet: "4133 USD")],
+            foundTotal: 1,
             trail: ["ddg: HTTP 000"])
         let r = o.report
         #expect(r.contains("status: completed"))
@@ -113,8 +114,57 @@ struct DirectParserTests {
         #expect(r.contains("4133 USD"))
         // Empty is surfaced as empty — never disguised.
         #expect(
-            DirectSearchOutcome(engine: "bing", query: "q", hits: [], trail: []).report
+            DirectSearchOutcome(
+                engine: "bing", query: "q", hits: [], foundTotal: 0, trail: []
+            ).report
                 .contains("results: (none"))
+    }
+
+    /// The window and the whole it was cut from travel together, so the report can say both —
+    /// a bare list is read as "the page had nothing else", which is the same lie as a capped
+    /// `total:` in `search_files`. The parse is real (a ddg SERP fixture), the cap is the product's
+    /// own, so the assertion below is about bytes a model reads, not about a stubbed count.
+    @Test("a capped SERP names how many it dropped; an uncapped one says nothing extra")
+    func cappedSERPNamesItsBound() throws {
+        let html = (1 ... 5).map { i in
+            "<a rel=\"nofollow\" class=\"result__a\" href=\"https://e.com/\(i)\">Hit \(i)</a>\n"
+                + "<a class=\"result__snippet\" href=\"#\">snippet \(i)</a>"
+        }.joined(separator: "\n")
+        let parsed = DirectSearchParser.ddg(html: html)
+        // Premise: the fixture really parses five, or the tally below proves nothing.
+        #expect(
+            parsed.count == 5, "fixture parsed \(parsed.count) — not 5, the tally would be vacuous")
+
+        guard case .hits(let shown, let foundTotal) = DirectWebSearch.cap(parsed, maxHits: 2) else {
+            Issue.record("cap must yield hits, not a block")
+            return
+        }
+        #expect(shown.count == 2)
+        #expect(foundTotal == 5, "the cut lost the parser's own count: \(foundTotal)")
+
+        let capped =
+            DirectSearchOutcome(
+                engine: "ddg", query: "gold", hits: shown, foundTotal: foundTotal, trail: []
+            )
+            .report
+        #expect(
+            capped.contains(
+                "results: showing 2 of 5 organic hits on this page (3 not shown — narrow the query "
+                    + "or raise OCRE_SEARCH_MAX_HITS):"),
+            "the capped report did not name its bound: \(capped)")
+
+        // The uncapped face gains no tally line, which is what makes the line above mean something.
+        guard case .hits(let whole, let total) = DirectWebSearch.cap(parsed, maxHits: 5) else {
+            Issue.record("cap must yield hits, not a block")
+            return
+        }
+        #expect(total == 5)
+        let uncapped =
+            DirectSearchOutcome(
+                engine: "ddg", query: "gold", hits: whole, foundTotal: total, trail: []
+            ).report
+        #expect(uncapped.contains("results:\n"), "uncapped lost its plain header: \(uncapped)")
+        #expect(!uncapped.contains("showing"), "an uncapped report invented a bound: \(uncapped)")
     }
 }
 
@@ -169,6 +219,7 @@ struct DirectSanitizeTests {
         let o = DirectSearchOutcome(
             engine: "bing", query: effective,
             hits: [DirectSearchHit(title: "t", url: "https://x.com", snippet: "")],
+            foundTotal: 1,
             trail: [note ?? ""])
         #expect(o.report.contains("query rewritten '今日金价' → '金价'"))
     }

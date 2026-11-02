@@ -4,7 +4,7 @@
 ///
 /// 覆盖:
 ///   PerceptionObserve.build  — 缺席通道不列 / 类型优先级(ocr>image>audio>text) / 通道序稳定
-///   PerceptionObserve.clip   — ≤300 原样 / 301 截到 300(边界精确)
+///   PerceptionObserve.clip   — ≤300 原样(无标记) / >300 截到 300 并标出丢弃数(边界精确)
 ///   PerceptionObserve.render — 空缓冲诚实缺席 / 新鲜度精确值 / stale 计数精确
 ///   ObserveStateClient       — 工具注册面(名称/toolset/无参 schema)/ 离线 runForTest 精确渲染
 import Foundation
@@ -91,13 +91,27 @@ struct ObserveStateClipTests {
         let s = String(repeating: "a", count: 300)
         #expect(PerceptionObserve.clip(s).count == 300)
         #expect(PerceptionObserve.clip(s) == s)
+        // Premise for the face below: at the cap nothing was dropped, so no marker may appear —
+        // otherwise "the marker shows up" would be the invariant and a silent cut would hide in it.
+        #expect(!PerceptionObserve.clip(s).contains("not shown"))
     }
 
+    /// A preview that stops must say it stopped and how much it left: a reader of a 300-char OCR
+    /// window otherwise has no way to know the screen said more. Same rule as
+    /// `FileTools.resultTally`; the wording is this surface's own.
     @Test
-    func overBoundaryTruncatesTo300() {
+    func overBoundaryTruncatesTo300AndNamesTheRest() {
         let s = String(repeating: "a", count: 301)
-        #expect(PerceptionObserve.clip(s).count == 300)
-        #expect(PerceptionObserve.clip(s) == String(repeating: "a", count: 300))
+        #expect(
+            PerceptionObserve.clip(s)
+                == String(repeating: "a", count: 300) + "… (+1 chars not shown — preview only)")
+    }
+
+    @Test("the dropped count is exact, never rounded")
+    func droppedCountIsExact() {
+        let c = PerceptionObserve.clip(String(repeating: "a", count: 1000))
+        #expect(c.hasPrefix(String(repeating: "a", count: 300)), "the window itself moved: \(c)")
+        #expect(c.contains("(+700 chars not shown"), "the count lied about what it dropped: \(c)")
     }
 
     @Test
