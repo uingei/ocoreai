@@ -58,6 +58,20 @@ heading are when the work landed (measured from git).
   promise. The 501 is build-wide: an unserved model name gets the same refusal, which the probe pins and
   which a 404 would contradict. The root's § Open carries no row for this — 8 B of budget left, and the
   pointer to the one-hop doc already exists.
+- **Surfaced by `make push-ready`, not caused by it.** The runner has been red for two pushes
+  (`d664f7b`, `6846539b`): `Build & Test (xcode-27)` fails at *Run tests (xcrun xctest)* (109 s) and
+  `DMG from a clean runner (no publish)` at *Build the DMG* (915 s), with `Package dry-run` also concluded
+  failure — while the leg `AGENTS.md` calls the authority, `Build & Test (macos-26)`, is green, as are the
+  text gates and the iOS compile-only leg. So nothing in today's verdicts moves (CI has not even seen
+  today's commit: four ahead of `origin/main`), but the DMG failure qualifies `open-items.md`'s claim that
+  the `contents: read` seat is paid — wired right, no longer green — and no cause is written down anywhere.
+  Step logs unread: they need a token this host does not use. Recorded as an open item, and it had to pay
+  its way: `open-items.md` sits at 15 598/15 609 after the entry landed, paid by trims in that file — the
+  five loaded-host suites' per-suite milliseconds (home: 11-01(100)) and the cold-run bytes (home:
+  11-01(97)/11-01(101)) deleted as restatements, nothing deleted that lacked another home. Two
+  candidates were left alone after checking: the probe-12-§6 sentence (closed-items-log.md does *not*
+  carry that closure, so it is the only record of it) and the scripted-engine entry's two anchor comments
+  (they are gates). Cap raised nowhere.
 
 **11-01(102) the docs drifted from the tree in five seams the green contract cannot see — and "made for" paid its way in**
 

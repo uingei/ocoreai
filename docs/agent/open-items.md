@@ -6,7 +6,7 @@ which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
 - **`/v1/models/:model/…` needs `%2F`** (Handlers/) — accepting a slash costs a second routing truth, so the
-  wire shape stays pinned in `Handlers/AGENTS.md`; the owner call is open here.
+  wire shape stays pinned in `Handlers/AGENTS.md`; owner call open.
 - **A stall stops MTP hard, the std lane only by consent** (Tools/, Engine/) — the ladder and
   `LoopStallTerminationTests`(6) landed; upstream `mlx-swift-lm`'s `restart:` loop (ChatSession.swift:1164) still has no
   cap, and a std-lane hard stop throws out of `toolDispatch` (:1632) reaching the wire as an error, not a
@@ -47,7 +47,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   6 tools / 4,510 B against all 40 / 25,092 B ⇒ **−18.8 pp, McNemar exact p < 0.0001**. Read it as *what a
   turn is handed*, not "fewer tools everywhere" — two exec faces improved on the full surface while every
   edit/fix face collapsed. Per-arm rows, the named tasks, the noise floor and the reproduce recipe have
-  one home: `scripts/eval/README.md` § the repeat recipe (±6 tasks single-run; ≥9 unpaired, 6 flips paired).
+  one home: `scripts/eval/README.md` § the repeat recipe.
   The open half is a product decision, not a measurement: the wire is caller-scoped
   (`Tools/ToolRegistry.swift:135`: no `tools[]` declared ⇒ no tools) while the app's own loop hands the whole
   registry over every turn (`UI/ViewModels/ChatViewModel.swift:1098`) — 40 declarations, 25,092 B, to a 4-bit
@@ -71,7 +71,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `Build & Test (macos-26)`; §2 of 38/39/40 needs weights, so on a runner it takes its skip branch.
   Open: the probes' claims are mostly about the engine and move cheap only when one turns out to be a frame
   claim. Owner call: which tier the scripted lane may run in, and whether a nightly takes the
-  checkpoint tiers (`package.yml` is this repo's first non-push seat).
+  checkpoint tiers.
 
 - **The chain ceiling, now that the drop speaks** (Skills/, docs/). The disclosure half closed
   10-28 (`closed-items-log.md`): `make docs-check` prints `deepest-chain=N/CAP` and re-derives the
@@ -103,11 +103,16 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   build jobs with no secrets and no `id-token` and publishes from a `release` environment over artefacts.
   Deliberately untouched before a first release lands: it is the one path a rehearsal cannot run.
   Owner call (who/what may publish).
-- **A cold first run is 794 s of download, at hub speed** (packaging/, Config/) — a clean cache dir here
-  fetched the default checkpoint's 3 550 670 554 B in 794 s (4.5 MB/s) while a paired `curl` of the same
-  object at the same instant got 4.37 MB/s: the hub path is the limit, so no harness change reaches the
-  5-min budget with a 3.58 GB default. Nothing is notarised, so Gatekeeper and the cask stay outside every
-  figure (diary 11-01(97), re-measured by 11-01(101)). Owner: notarisation + the first-run checkpoint.
+- **Two CI legs red since `d664f7b`** (CI/) — `make ci-status` read 11-02: xcode-27's
+  *Run tests (xcrun xctest)* and the clean-runner *Build the DMG* fail (the authority leg, macos-26, is
+  green, so no suite verdict moves; the `contents: read` seat above is wired right but no longer green).
+  Logs unread here, so no test name is claimed. Owner: read both, fix or record each red.
+
+- **A cold first run is 794 s of download, at hub speed** (packaging/, Config/) — bytes, rate, the paired
+  `curl` and the cache-path correction have one home: diary 11-01(97), re-measured by 11-01(101). The
+  surviving verdict: the hub path is the limit, so no harness change reaches the 5-min budget with a
+  3.58 GB default, and nothing is notarised, so Gatekeeper and the cask stay outside every figure.
+  Owner: notarisation + the first-run checkpoint.
 - **The request that triggers a load waits out the whole load** (Engine/, Config/) — the fetch is honest
   (4.5 MB/s, hub-limited) and nothing about it reaches the client: a waiter gets `AppError.modelLoading` at
   120 s while the *owning* request waits ~13 min, and no byte count or percent travels on the wire although
@@ -142,9 +147,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   <!-- anchor:mlx-swift-lm Libraries/MLXScriptedLM/Tokenizer/ScriptedTokenizer.swift:11 public struct ScriptedTokenizer -->
   while its library README still lists tool calls and reasoning in transcripts as *Planned*
   <!-- anchor:mlx-swift-lm Libraries/MLXScriptedLM/README.md:20 Planned -->
-  — which is exactly the half `Engine/ScriptedInference.swift` exists to decide at k=1. So today's local
-  lane is not a duplicate of delivered upstream capability. Re-open trigger: upstream delivering transcript
-  tool calls; check: the pin diff on that library at the next bump.
+  — exactly the half `Engine/ScriptedInference.swift` exists to decide at k=1, so today's lane is no
+  duplicate of delivered upstream capability. Re-open: upstream shipping transcript tool calls; check the
+  pin diff on that library at the next bump.
 
 - **No weight-free witness for MTP drafter mixing** (Engine/) — the drafter belongs to one model now
   (`Engine/LoadedModel.swift:112`, read at `Engine/EngineInference.swift:3452`); until 10-29(55) it sat
@@ -160,12 +165,11 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **Memory is read by every request, written only behind `self_correction`** (SQLite/) — 10-29's row here said the table had no API left: false (`ChatHandler.swift:944` reads, `addMemory` writes). Owner call: publish the flag, or gate the recall.
 
 - **Five gates go red on a loaded host** (Tests/) — one full `make test` here: 3 480 tests / 613 suites /
-  6 issues, and five of them are saturation or cross-suite coupling, green in isolation (the same 57 tests
-  in 10 suites pass in 3.3 s): `SleepSteerWakeTests` measured 3 284 ms against `< 2 500` and 3 031 ms
-  against `< 2 000`, `EngineBusyAdmissionTests` waited 2 494 ms against `< 1 500`,
-  `MCPTimeoutDeliveryTests` let a 3 s stub run past a 1 s budget, and
-  `ToolAttemptLedgerTests.windowCapsTheRetainedRecord` saw the process-global dispatch count advance 93
-  while it recorded 70 — ~23 calls from another suite inside its window, the lease § Concurrency requires
-  and this suite does not take. Wanted: bounds measured under saturation or a clock the test controls, and
-  a lease over the process-global counter. Gate: none of the five has one — they *are* the gates, and a
-  gate that fires on a busy machine is a gate that gets ignored the second time (diary 11-01(100)).
+  6 issues, five of them saturation or cross-suite coupling and green in isolation:
+  `SleepSteerWakeTests`, `EngineBusyAdmissionTests`, `MCPTimeoutDeliveryTests`, and
+  `ToolAttemptLedgerTests.windowCapsTheRetainedRecord`, which saw the process-global dispatch count advance
+  past its own record — calls from another suite inside its window, the lease § Concurrency requires and
+  this suite does not take. Per-suite milliseconds and the isolation control: diary 11-01(100). Wanted:
+  bounds measured under saturation or a clock the test controls, and a lease over the process-global
+  counter. Gate: none of the five has one — they *are* the gates, and a gate that fires on a busy machine
+  is a gate that gets ignored the second time.
