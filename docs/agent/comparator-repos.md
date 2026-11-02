@@ -2,7 +2,7 @@
 
 > Long form behind § *Upstream Audit Dependencies* 6. Cells are a **dated snapshot** read off the
 > local clone; re-measure the diary column:
-> `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent harness2 goose opencode pi deepseek-harness; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
+> `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent harness2 goose opencode pi deepseek-harness claude-code; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
 > — nothing re-derives these lists since 10-28 (P16 was deleted as prose-shape), so a stale cell is
 > yours to notice: `git grep -l <tree> -- Sources Tests` re-derives the coupling set in one line. A **pin**
 > is a build input (`Package.swift:43`); everything else is a comparator.
@@ -22,7 +22,7 @@ Each entry is one clone under `~/references/`: what it holds, the axis worth bor
   `entrypoints/anthropic/serving.py`
 Contains: OpenAI + Anthropic compatibility — parallel-call filtering, `finish_reason` resolution,
   OpenAI→Anthropic field mapping — plus the **intake policy** an AI-assisted PR must satisfy
-  (`AGENTS.md:8`, `:21`, `:27`, `:35`, `:39`; full text in `docs/agent/adoption-runbook.md` § The intake machine).
+  (`AGENTS.md:8,21,27,35,39`; full text: adoption-runbook § The intake machine).
 Borrow: consumed, cited by file:line (rounds 19–20); our home for the policy is `CONTRIBUTING.md`
 
 - `sglang` — Python serving stack; `srt/entrypoints/openai/{protocol,serving_chat}.py`,
@@ -43,10 +43,8 @@ Borrow: consumed — that quartet is rung 2 of `docs/agent/long-horizon-goal.md`
   invariant 2 applied to packaging
 
 - `hermes-agent` — agent-loop reference (#2 in the category: 257 756 stars, 5 714 commits in 14 d, 234 tags)
-Contains: loop shape, tool-result handling. Second axis (10-28): the ops machine behind the number — 57
-  workflow files incl. `install-e2e.yml` (per-OS) with its red-path twin, `skills-index-freshness.yml`,
-  `plugin-catalog-ci.yml`, canary vs stable publication, `osv-scanner.yml` + `lockfile-diff.yml` +
-  `blob-size-check.yml`, and `SOUL.md` — the voice a user hears is not the discipline a session follows. Its
+Contains: loop shape, tool-result handling. Second axis (10-28): the ops machine behind the number — 57 workflow
+  files (itemised in `adoption-runbook.md`) and `SOUL.md` — the voice a user hears is not the discipline a session follows. Its
   `prompt-surface-diff.yml` renders, from production code, the system prompt and `tools[]` a stock install
   sends, per surface and model family, and a stale snapshot fails a test.
 Borrow: consumed; `prompt-surface-diff` is the pattern § Documentation Map would use *if* the owner quotes the
@@ -56,7 +54,7 @@ Borrow: consumed; `prompt-surface-diff` is the pattern § Documentation Map woul
 Contains: two engine families (llama.cpp + MLX C) behind one local API, each pin versioned separately — the
   closest published analogue to our MLX + CoreAI dual path, and (audited 11-02, mirror `74686a75`) a local AR
   server shipping the Jev axis as `/v1/systemone` on an engine-internal `ScoreRequest`→`ScoreResponse{Logits}`
-  lane whose question order is load-bearing — full read with all cites: § Shape C of `systemone-decisions.md`.
+  lane whose question order is load-bearing (`systemone-decisions.md` § Shape C).
 Borrow: consumed for the lane shape (185 660 stars, api.github.com 11-02); the published-logits seam stays the
   owner call — their lane proves it possible, it does not make ours exist
 
@@ -72,9 +70,7 @@ Borrow: consumed — adopted as manifest schema 2 (`pin` + `licenseSha256` + `ve
   in `docs/agent/third-party-notices.md`
 
 - `TensorFold` — Zig engine (`metal/`, `packaging/`); `NOTICE`, `THIRD_PARTY_NOTICES.md`, `LICENSES/`, `RUNBOOK.md`
-Contains: the notice set we already ship, and a runbook/release-notes habit we already have
-  (`scripts/release-artifact-check.sh`, `scripts/verify-installed-release.sh`). Nothing left here.
-Borrow: consumed once; no second axis measured
+Contains/Borrow: the notice set and runbook habit we already ship; consumed once, nothing left.
 
 - `Strata` — local-AI product: desktop app, agent terminal, C++ engine across CUDA/HIP/SYCL/Metal, and the
   closest *product* shape to ours in growth terms — 34 577 stars in 34 days (1 016/day; 2 381 commits in 14 d)
@@ -92,13 +88,11 @@ Borrow: consumed — pricing from measurement landed as `Engine/KVCacheResidency
   off the cache, not a constant); narrow-before-refuse still has no ocoreai seam
 
 - `vllm-metal` — Metal backend for vllm
-Contains: how a Python server reaches Metal — mostly out of stack for a Swift-native engine. Where this repo
-  first found the **Jev / System 1 decision** axis named (`docs/structured_decisions.md:3` →
-  `docs/agent/systemone-decisions.md`).
-Borrow: touched
+Contains/Borrow: touched, mostly out of stack for a Swift-native engine; where the Jev axis was first
+  found named (`docs/structured_decisions.md:3` → `systemone-decisions.md`).
 
-- `openclaw` — **the #1 repo in this category on GitHub** (393 709 stars 11-02, created 2025-11-24 — the
-  launch rate 1 163/day; the *rate* record is deepseek-harness's below), TypeScript + 1,596 Swift — and not
+- `openclaw` — **the #1 repo in this category on GitHub** (393 709 stars 11-02, launched 2025-11-24 at
+  1 163/day), TypeScript + 1,596 Swift — and not
   even the only native Apple app here (mlx-serve, MTPLX, omlx ship `@main … App` shells; all four gate their
   GUI harder than we do). What its headline is made of — first-screen privacy contract, install machine,
   appcasts, channels, skills — is itemised in `docs/agent/adoption-runbook.md`; it also states the
@@ -141,11 +135,9 @@ Borrow: ACP is a new core surface (ladder rung 6) ⇒ an owner call, not an audi
 - `opencode` — TypeScript monorepo; `packages/{protocol,schema,httpapi-codegen,http-recorder,session-ui,desktop,tui}`
 Contains: contract-first wire — the HTTP API is a spec and the SDK is generated from it
   (`packages/httpapi-codegen`), which is how a server project ends up inside other people's products — and
-  **cassette replay** (`http-recorder/README.md`: record real HTTP/WS once, replay deterministic JSON), the
-  axis our harness lacks, since every `scripts/probes/` claim needs a live Metal server. Second axis (10-28;
-  222 385 stars, 1 126 commits in 14 d, 1 156 tags): install script + 5 package managers + cask + desktop app,
-  22 bot-kept README locales, bot-closed intake, `nightly-beta.yml` + `release-dry-run.yml` so a release is
-  rehearsed before it ships (cites: `adoption-runbook.md`).
+  **cassette replay** (`http-recorder/README.md`: record real HTTP once, replay it) — the axis our harness lacks. Second axis (10-28;
+  222 385 stars, 1 126 commits in 14 d, 1 156 tags): the intake and rehearsal-release machine (cites:
+  `adoption-runbook.md`).
 Borrow: consumed; replay is for harness regressions, never for capability claims
 
 - `pi` — TypeScript monorepo, 11 packages (`agent`, `coding-agent`, `codemode`, `durable`, `evals`, `mcp`,
@@ -178,6 +170,13 @@ Borrow: consumed — three of those are § Open items in `AGENTS.md` (per-turn t
 Borrow: consumed for the honesty gap in `docs/agent/open-items.md` (our injector drops the tail silently at
   `Sources/ocoreai/WorkspaceContext.swift:229`). Policy-as-data and the pairing record are named patterns, not
   tasks — the gate layer is frozen (10-28), and a new check owes the red it was sampled against.
+
+- `claude-code` — first-party CLI ledger, registered 11-02 on the owner's word (154 258 stars api.github.com,
+  ~257 release objects; its 1 130 515 B `CHANGELOG.md` is a product-behaviour diary — every Fixed line an observed defect)
+Contains: invariant-2 copy as shipped (`CHANGELOG.md:687` failed search ≠ empty search; `:272-273` rewind copy
+  over-promising), the dated-deprecation format (`:11`), stall/steer vocabulary beside our terminal-word § Open (`:36`, `:429`).
+Borrow: live tracking axis — the track/mine/verify loop and last-read marker live in CHANGELOG 11-02(112); it shows
+  field alignment, never behaviour (our gates keep that job). last-read `v2.1.316` (mirror `f0b737f`)
 
 ## How to use this file
 

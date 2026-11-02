@@ -9,6 +9,36 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-02
 
+**11-02(112) `claude-code` registered as a live tracking axis — a track/mine/verify loop with a stated ceiling, and its first mine (negative, recorded)**
+
+- **What improved.** The owner asked what the first-party ledger is good for as a *standing* source; the
+  ladder answer is no new script and no gate (the gate layer is frozen and a read earns neither): a
+  registered cell with a **last-read marker** plus this dated loop. **Track**: `git -C
+  ~/references/claude-code pull --ff-only`, read the newest-first `## ` blocks above the marker, move the
+  marker (now `v2.1.316`, mirror `f0b737f`); cadence claims only from api.github.com, since the ledger's
+  headings carry no dates and a mirror proves content, never HEAD. **Mine**: grep its `Fixed …` lines per
+  family — (a) empty-vs-failed search/scan, (b) copy that over-promises, (c) termination and steering
+  (feeds the four-terminal-word § Open call), (d) focus/announce discipline (HIG's offer-don't-hijack),
+  (e) the four-element deprecation format, against our dated `contextLength` debt. **Verify — explicit
+  ceiling**: the ledger can show *alignment* (the field converging on a convention — envelope choice,
+  error vocabulary, deprecation etiquette); it can never verify our behaviour, which stays with our gates,
+  probes and scoreboard. A round that claimed the second from the first would be a claim with no gate.
+- **What same-session output proves it.** The first mine ran now, family (a): their `CHANGELOG.md:687`
+  (Grep/Glob once answered "no matches" when the search program itself failed) against our
+  `search_files` — **already compliant**: `Sources/ocoreai/Tools/FileTools.swift:514-520` throws
+  `checkFailed` for a root the engine cannot open, its own comment stating that "0 files matching" would
+  not be an honest result. A negative harvest is still the proof the well has water: the mechanism
+  produced a re-checkable fact about our tree, not a prose promise to check someday.
+- **Which gate goes red.** No new gate, by policy and by the rule above. The registration itself
+  red-sampled the existing one: `make docs-check` caught the grown registry (15 700 > 15 609), and the
+  compressions that fixed it moved every inventory it dropped to its existing home (hermes/opencode
+  workflow lists in `adoption-runbook.md`); `AGENTS.md` root count 20→21 trees is byte-neutral (21 453
+  unchanged, the re-derived chain figures stayed green). The tree count has no gate — one home
+  (`AGENTS.md:173`), labelled signpost, not claim.
+- **Measured, unresolved (⇒ owner).** Families (c)+(d) are queued to the next stall/steering
+  terminal-word sitting; the `contextLength` open-items entry gets the (e) four-element rewrite at its
+  deletion window, not before.
+
 **11-02(111) the corpus was re-metered and ollama's open axis closed: our own axis's third reference is `/v1/systemone` on an AR lane**
 
 - **What improved.** The owner asked what `~/references` still holds that we have not used; the answer was

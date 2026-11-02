@@ -170,7 +170,7 @@ Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`, one dia
 5. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: on
    anything user-visible it is the authority; no topic covers agents ⇒
    `docs/agent/agent-interface-guidelines.md`.
-6. **Comparators** — the 20 trees in `docs/agent/comparator-repos.md`: not pins; nothing linked or
+6. **Comparators** — the 21 trees in `docs/agent/comparator-repos.md`: not pins; nothing linked or
    redistributed, and a borrowed verdict stays inference until a `file:line` says otherwise.
    Shipped order + fix cost per axis: `docs/agent/competitor-iteration-paths.md`.
 - **OpenAI / Anthropic compatibility** is judged as vllm and sglang judge it: the spec, their
