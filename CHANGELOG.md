@@ -9,6 +9,49 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-03
 
+**11-03(3) `search_files` reports the scan it ran — a count the limit stopped at is no longer printed as a total**
+
+- **What improved.** The walk broke out at `maxResults` and then printed `─── total: \(matches.count) ───`,
+  so a caller reading `total: 50` concluded the search was finished and stopped refining. The field
+  states a bound three ways that agree across trees: codex's board carries `n_chars` + `truncated` +
+  `next_offset_chars` (`message-board/src/types.rs:23-30`), deepseek-harness returns `truncated`/`total`
+  (`docs/subsystems/tools.md:623`), pi's bash executor carries `truncated: boolean`
+  (`coding-agent/src/core/bash-executor.ts:28-35`). Here it is one prose line, one enum
+  (`ResultBound.complete|capped(knownTotal:)`) and one renderer (`resultTally`): filename mode costs no
+  I/O to finish counting, so it names both numbers — `showing 2 of 5 (filename glob; 3 not shown —
+  narrow the path or raise limit)`; content mode cannot know the rest without the I/O the limit exists
+  to avoid, so it names its own ignorance — "the limit was reached and more may exist". A zero-hit
+  content line now says when the *scan budget*, not the pattern, produced the zero. Stated behaviour
+  change: the glob window is the lexicographically-first N (count all matches, then cut the window)
+  instead of the first N the walk happened to reach — deterministic, which is also what makes the tally
+  assertable at all. No probe: the answer is a pure function of a directory tree, decided off-box.
+- **What same-session output proves it.** The three new tests were run **against the pre-change file**
+  (`git checkout --`, restored after) and went red, and the red text *is* the defect:
+  `✘ Expectation failed: !capped.contains("total:")` — a capped count wearing the word total, twice.
+  6/6 after the change; 25/25 across `SearchScanHonestyTests|FileToolsTests|EditMismatchRecoveryTests`,
+  52/52 across the ten tool-surface suites; `swift-format` clean. A grep for the old wording in
+  `scripts/eval/` and probe 12 came back empty, so no board row or probe pinned `total:` text. The axis
+  was then surveyed, not assumed closed: exec/web-clip/clipboard/mismatch-hint already name the whole
+  (`ClipboardTools.swift:61` prints the total, the truncated-to and how many more remain; the mismatch
+  hint quotes "lines X–Y of N … read_file for the rest"), and two caps still bind in silence and are
+  named rather than built here — `DirectSearchOutcome.report` carries no bound when `prefix(maxHits)`
+  cuts a SERP that ignored the engine's own `count=` (`DirectWebSearch.swift:462` beside `:54-76`), and
+  `PerceptionTools.clip` cuts a 300-char preview with no marker at all (`PerceptionTools.swift:67`); the
+  wire faces (`GET /sessions` limit 100, `/sessions/search` limit 20) carry none either. § Open holds 42
+  bytes of headroom, so those three stay here. Four full `make test` runs (3 527 tests / 618 suites):
+  one lost `EditMismatchRecoveryTests` — all four content expectations failing together — and three
+  rotated to the usual clock suites. This round's diff is two hunks at 525/564 while the hint code sits
+  at 670-780, and that suite held in the filtered run and in the 52-suite run, so the run went looking
+  for a mechanism, which is what bought § Open's ②: the workspace anchor is process-global and
+  *production* writes it (`SessionWorkspace.swift:114`, `SessionManager.swift:138`), which no test lease
+  can cover and the lease scan cannot see. Stated as inference — a 1-in-4 race was not re-forced on
+  demand — and the suite is still not claimed green.
+- **Which gate goes red.** `SearchScanHonestyTests`(6) — `cappedGlobNamesTheWhole`,
+  `cappedContentNamesItsOwnIgnorance`, `everyBoundCarriesItsExit`, all three sampled against the
+  reverted file before being trusted. The uncapped faces keep the word `total` *on purpose*: the
+  boundary legs go red if the honest word disappears, so the "showing" assertions cannot pass on a
+  build that lost both spellings.
+
 **11-03(2) the refusals beside the model wear the caller's envelope — eight hand-built bodies collapse into one renderer**
 
 - **What improved.** `3d0e542` made `AppError.response` pick the envelope from the path the request

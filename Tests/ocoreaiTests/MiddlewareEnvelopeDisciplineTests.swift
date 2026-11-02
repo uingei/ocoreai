@@ -43,8 +43,8 @@ struct MiddlewareEnvelopeDisciplineTests {
     /// runs beside ~618 others on one cooperative pool: the first version drained a burst of 1 at
     /// 5 tokens/s and passed in 0.12 s alone, then went red inside `make test` — the stall between
     /// the drain and the target request let one token back, and the request was allowed. That is the
-    /// same mechanism `docs/agent/open-items.md` records as the loaded-host cast ("wall-clock bounds
-    /// bet on the single cooperative pool 615 suites share"), so the premise here no longer depends
+    /// same mechanism `docs/agent/open-items.md` records as the loaded-host cast (wall-clock bounds
+    /// betting on the one cooperative pool every suite shares), so the premise here no longer depends
     /// on wall-clock at all: two tokens, a thousand seconds to refill one.
     private static let oneShotRateLimit = RateLimitProvider.Config(
         globalRate: 0.001, globalBurst: 2,

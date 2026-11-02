@@ -162,13 +162,14 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 
 - **Memory is read by every request, written only behind `self_correction`** (SQLite/) — `ChatHandler.swift:944` reads, `addMemory` writes. Owner call: publish the flag, or gate the recall.
 
-- **The loaded-host reds rotate cast; the pool tail beats every control term** (Tests/) — casts: 5 issues on 11-01(100),
-  5 and 10 on 11-02, names rotate; mechanism: 11-02(106). One class: wall-clock
-  bounds bet on the single cooperative pool 615 suites share, and the instant+control pattern does not fence
-  it (a wake 6 382 ms late against a 301 ms control — magnitudes: 11-02(106)) — production behaviour,
-  not a test premise. The median is measurable, the tail is not. Closed: the ledger's cross-suite
-  half (11-02(105)). Wanted: a clock the tests control (`ClockToolsTests`) or an uncontended lane
-  (`make test-clt`'s split); whose call: the owner.
+- **Loaded-host reds rotate cast; wall-clock is one class, the anchor another** (Tests/) — magnitudes
+  11-02(106), 11-03(3). ① wall-clock bounds bet on the ~618-suite cooperative pool;
+  `instant+control` does not fence it — production behaviour, not a test premise; the median is
+  measurable, the tail is not. ② production writes the anchor outside every lease
+  (`SessionWorkspace.swift:114`, `SessionManager.swift:138`); 11-03(3) lost a content suite that way
+  once (inferred — the lease scan only sees test-file writes). Closed: the ledger's cross-suite half
+  (11-02(105)). Wanted: a controlled clock (`ClockToolsTests`), a quiet lane (`make test-clt`), or
+  the anchor's scope. Owner.
 - **The 11-02 compat sweep left one owner call, one dated debt and one seatless surface**
   (Middleware/, Router/, Security/) — the swept axes landed (spec-name `error.type`; `max_model_len`
   aliased one release, 11-02(110)); ① the eight hand-built error bodies render through

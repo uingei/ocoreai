@@ -525,8 +525,20 @@ enum FileTools {
         if (target ?? "files") == "content" {
             var matches: [String] = []
             var scanned = 0
+            // Which bound fired decides the wording below, so the break records it rather than
+            // leaving the tally to guess from the counts.
+            var bound: ResultBound = .complete
+            var scanBudgetHit = false
             for candidate in candidates {
-                if matches.count >= maxResults || scanned >= maxSearchFiles { break }
+                if matches.count >= maxResults {
+                    bound = .capped(knownTotal: nil)
+                    break
+                }
+                if scanned >= maxSearchFiles {
+                    bound = .capped(knownTotal: nil)
+                    scanBudgetHit = true
+                    break
+                }
                 scanned += 1
                 guard let data = try? Data(contentsOf: candidate, options: .uncached),
                     data.count <= maxSearchFileBytes
@@ -552,31 +564,86 @@ enum FileTools {
                 matches.append(candidate.path)
             }
             if matches.isEmpty {
+                // Zero over a partial scan is not "the pattern is absent" — the same claim the
+                // blocked root refuses to make, in the other direction.
+                let budgetNote =
+                    scanBudgetHit
+                    ? " — scan budget reached after \(scanned) file(s), so this was not an exhaustive scan"
+                    : ""
                 return
                     "search_files: 0 files containing '\(pattern)' under \(path) (scanned \(scanned))"
-                    + partialNote
+                    + budgetNote + partialNote
             }
             return matches.map { "  \($0)" }.joined(separator: "\n")
-                + "\n─── total: \(matches.count) (substring in file content) ───"
+                + resultTally(
+                    shown: matches.count, kind: "substring in file content", bound: bound)
                 + partialNote
         }
 
-        var matches: [String] = []
-        for candidate in candidates where matches.count < maxResults {
-            if globMatch(candidate.lastPathComponent, pattern) {
-                matches.append(candidate.path)
-            }
-        }
-        matches.sort()
-        if matches.isEmpty {
+        // Filename mode costs no I/O, so the whole set is counted and only the window is shown —
+        // the total travels with it rather than being guessed at. The window is the
+        // lexicographically-first N, which is also the first deterministic answer this face has had:
+        // before, the shown set was walk-order and only the display was sorted.
+        let allMatches =
+            candidates
+            .filter { globMatch($0.lastPathComponent, pattern) }
+            .map { $0.path }
+            .sorted()
+        if allMatches.isEmpty {
             return "search_files: 0 files matching '\(pattern)' under \(path)" + partialNote
         }
-        return matches.map { "  \($0)" }.joined(separator: "\n")
-            + "\n─── total: \(matches.count) (filename glob) ───"
+        let shown = Array(allMatches.prefix(maxResults))
+        return shown.map { "  \($0)" }.joined(separator: "\n")
+            + resultTally(
+                shown: shown.count,
+                kind: "filename glob",
+                bound: allMatches.count > shown.count
+                    ? .capped(knownTotal: allMatches.count) : .complete)
             + partialNote
     }
 
     // MARK: - Helpers
+
+    /// Why a search stopped looking, which is the only thing that decides what its count may claim.
+    enum ResultBound: Equatable {
+        /// Every candidate was examined, so the shown count *is* the total.
+        case complete
+        /// Stopped at a limit. `knownTotal` is non-nil only where counting the rest cost nothing
+        /// (in-memory matching over an already-walked list); where the rest costs the I/O the cap
+        /// exists to avoid, it is nil and says so.
+        case capped(knownTotal: Int?)
+    }
+
+    /// How a result set states its own completeness — one home, because "total" is the one word this
+    /// tool may not spend on a number it stopped counting.
+    ///
+    /// A caller reads `─── total: 50 ───` as *the search is finished* and stops refining; when the
+    /// loop broke at the cap, that line was not a total but a returned count wearing the word. Three
+    /// trees settled the same rule independently: codex's preview carries the whole length beside the
+    /// flag (`codex-rs/message-board/src/types.rs:23-30`) and its paged read carries
+    /// `next_offset_chars` — the way out, not just the bound; deepseek-harness pins `truncated`/`total`
+    /// on every capped view "so a UI never presents a partial result as complete"
+    /// (`docs/subsystems/tools.md:623`); pi's exec result carries `truncated: boolean` next to the
+    /// text (`packages/coding-agent/src/core/bash-executor.ts:28-35`). It is also the rule this file
+    /// already enforces two screens up: a blocked root is refused rather than rendered as zero
+    /// matches, because neither may report a scan that never ran.
+    ///
+    /// An unknown total is named unknown. It is never rounded up to the shown count, and every bound
+    /// leaves with the knob that lifts it, so the next turn has a move instead of a dead end.
+    static func resultTally(shown: Int, kind: String, bound: ResultBound) -> String {
+        switch bound {
+        case .complete:
+            return "\n─── total: \(shown) (\(kind)) ───"
+        case .capped(let knownTotal):
+            if let knownTotal, knownTotal > shown {
+                return
+                    "\n─── showing \(shown) of \(knownTotal) (\(kind); \(knownTotal - shown) not "
+                    + "shown — narrow the path or raise limit) ───"
+            }
+            return "\n─── showing \(shown) (\(kind); the limit was reached and more may exist — "
+                + "narrow the path or raise limit) ───"
+        }
+    }
 
     /// Where a relative path actually landed, in words the model can act on.
     ///

@@ -6,6 +6,12 @@
 /// complete-scan claim. Absorbs the codex #57186 axis (fail closed on unreadable search
 /// roots): a blocked root is a refusal naming the OS reason, and a partial walk says so.
 ///
+/// The second face of the same rule, added 11-03: a search that *stopped* — at the result limit —
+/// may not label the count it stopped at as a total. The field calls it `truncated`/`total`
+/// (deepseek-harness `docs/subsystems/tools.md:623`, codex `message-board/src/types.rs:23-30`,
+/// pi `coding-agent/src/core/bash-executor.ts:28-35`); here it is one line of prose, and the prose
+/// is what a checkpoint reads before deciding whether to narrow its query.
+///
 /// The unreadable premise is asserted, not assumed — a host that ignores mode bits would
 /// otherwise turn every expectation here into a vacuous pass.
 import Foundation
@@ -118,5 +124,90 @@ struct SearchScanHonestyTests {
         #expect(
             hit == "  \(file.path)\n─── total: 1 (filename glob) ───")
         #expect(!hit.contains("partial scan"))
+    }
+
+    // MARK: - The limit is a bound, not a total
+
+    /// Seed `n` files named `hit1…hitN`, all containing `needle`, and return them sorted so an
+    /// assertion can name the exact window the tool owes.
+    private func seedHits(_ n: Int) throws -> [String] {
+        try (1 ... n).map { i in
+            let url = root.appendingPathComponent("hit\(i).txt")
+            try "needle \(i)".write(to: url, atomically: true, encoding: .utf8)
+            return url.path
+        }.sorted()
+    }
+
+    /// Filename mode costs no I/O to finish counting, so it owes the real total beside the window —
+    /// the strongest form of the rule, and the one a client can page against.
+    @Test("a capped filename search names the window AND the whole it was cut from")
+    func cappedGlobNamesTheWhole() throws {
+        let all = try seedHits(5)
+        let capped = try FileTools.search(path: root.path, pattern: "hit*", limit: 2)
+
+        #expect(
+            capped.contains(
+                "\n─── showing 2 of 5 (filename glob; 3 not shown — narrow the path or raise limit) ───"
+            ),
+            "the capped tally did not state both numbers: \(capped)")
+        #expect(
+            !capped.contains("total:"),
+            "a count the loop stopped at was printed as a total: \(capped)")
+        // The window is deterministic (lexicographic), which is what makes the assertion above
+        // re-runnable: the third file is a fact about the tree, not about walk order.
+        #expect(capped.contains("  \(all[0])\n  \(all[1])\n"))
+        #expect(!capped.contains("  \(all[2])"), "the limit leaked a third path")
+
+        // Boundary: a limit that does not bind must still say "total", or this test would pass on
+        // a build where the honest word disappeared entirely.
+        let exact = try FileTools.search(path: root.path, pattern: "hit*", limit: 5)
+        #expect(exact.contains("─── total: 5 (filename glob) ───"), "uncapped lost its total")
+        #expect(!exact.contains("showing"))
+
+        // Boundary: limit 1 (the clamp floor) still reports the whole, not a lone "total: 1".
+        let one = try FileTools.search(path: root.path, pattern: "hit*", limit: 0)
+        #expect(
+            one.contains("showing 1 of 5"),
+            "limit 0 clamps to 1 and must still name the bound: \(one)")
+    }
+
+    /// Content mode cannot know the rest without the I/O the limit exists to avoid, so it says the
+    /// total is unknown. Naming a number it never counted is the defect this face had.
+    @Test("a capped content search says the rest is unknown, never a number")
+    func cappedContentNamesItsOwnIgnorance() throws {
+        _ = try seedHits(5)
+        let capped = try FileTools.search(
+            path: root.path, pattern: "needle", target: "content", limit: 3)
+
+        #expect(
+            capped.contains(
+                "─── showing 3 (substring in file content; the limit was reached "
+                    + "and more may exist — narrow the path or raise limit) ───"),
+            "the content tally did not name its bound: \(capped)")
+        #expect(!capped.contains("total:"), "a capped content count claimed a total: \(capped)")
+
+        // The uncapped face keeps the honest word, so the assertion above means something. Six,
+        // not five: `init` seeds `visible.txt`, which carries the same needle — the count under
+        // test is the tree's, not the helper's.
+        let whole = try FileTools.search(
+            path: root.path, pattern: "needle", target: "content", limit: 50)
+        #expect(
+            whole.contains("─── total: 6 (substring in file content) ───"),
+            "the uncapped content face lost the word it is allowed to use: \(whole)")
+    }
+
+    /// A bound without a way out is a dead end; codex's paged read carries `next_offset_chars` for
+    /// exactly this reason. Every capped answer must name the knob.
+    @Test("every capped answer leaves the caller a move")
+    func everyBoundCarriesItsExit() throws {
+        _ = try seedHits(5)
+        for face in ["files", "content"] {
+            let capped = try FileTools.search(
+                path: root.path, pattern: face == "files" ? "hit*" : "needle",
+                target: face, limit: 1)
+            #expect(
+                capped.contains("raise limit") && capped.contains("narrow the path"),
+                "the \(face) face capped without naming either exit: \(capped)")
+        }
     }
 }
