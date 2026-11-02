@@ -2187,10 +2187,17 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     case memoryExhausted(usedGB: Int, budgetGB: Int)
 
     /// Service Unavailable — model still loading / prewarming; caller should
-    /// retry (poll `state: "loading"` on ``GET /v1/models`` until it flips
-    /// to `ready`). Distinct from ``engineUnavailable`` so JSON clients can
-    /// tell "transient, retry" apart from "permanent, give up".
-    case modelLoading(String)
+    /// retry (poll `state: "loading"` on ``GET /v1/models``, which carries the same
+    /// `loadProgress` this body does, until `state` flips to `ready`). Distinct from
+    /// ``engineUnavailable`` so JSON clients can tell "transient, retry" apart from
+    /// "permanent, give up".
+    ///
+    /// The second payload is what the wait measured before it gave up — elapsed, and the bytes
+    /// if a hub transfer is in flight — because the wait window is 120 s and a cold load of the
+    /// shipping default is 794 s (11-01(101)): a refusal that says only "still loading" sends
+    /// the caller to poll an endpoint for numbers the server already had in hand. `nil` only
+    /// when the refusal comes from a path that owns no clock (see `EnginePool.loadClocks`).
+    case modelLoading(String, ModelLoadProgress?)
 
     /// Not Implemented — a Jev decision was asked for and this build cannot read one. The answer
     /// is probability mass over the answer labels at the answer position, which no engine here
@@ -2278,8 +2285,9 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
             "Request refused due to OOM protection — memory \(used) GB used of \(budget) GB budget. "
                 + "Free up memory (close other apps), switch to a smaller or more quantized model, "
                 + "or raise the memory budget, then retry."
-        case .modelLoading(let name):
+        case .modelLoading(let name, let progress):
             "Model \(name) is still loading — retry when state == \"ready\""
+                + (progress.map { " (\($0.disclosureLine))" } ?? "")
         case .decisionsUnavailable(let why):
             "Decision refused: \(why)"
         case .inferenceFailed(let msg): "Inference failed: \(msg)"
@@ -2399,6 +2407,20 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         if case .mediaLost(let reason) = self {
             detail["error_code"] = "media_lost"
             detail["remediation"] = reason
+        }
+        // The one transient refusal where the server already holds the number the caller is
+        // asking for: the wait window is 120 s and a cold fetch of the shipping default is
+        // 794 s (11-01(101)), so releasing a waiter with a bare "still loading" sent it to poll
+        // an endpoint for a measurement this response had in hand. Keys are snake_case like
+        // every other key in this envelope; the same measurement appears on `/v1/models` as
+        // `loadProgress`, camelCase like every other key in that object — shape is per-object.
+        if case .modelLoading(_, let progress) = self {
+            detail["error_code"] = "model_loading"
+            // The key spellings are the measurement type's, so this site cannot add a number
+            // the measurement never made.
+            if let progress {
+                detail.addEntries(from: progress.refusalDetailKeys)
+            }
         }
         // `unsupported` is the reference stack's own word for this exact refusal — coreai-models
         // answers a `logprobs` request on a logits-less engine with `code:"unsupported"`

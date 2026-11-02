@@ -80,6 +80,11 @@ final class OcoreaiDownloadProgress: @unchecked Sendable {
 
     private init() {}
 
+    /// Isolated instance for tests: the numbers ``ModelLoadProgress`` publishes live in
+    /// process-global state, and a suite that seeds `.shared` to test a reader races every
+    /// other suite that reads it (same reason as `StatsStorage.init(forTesting:)`).
+    internal init(forTesting: Void) {}
+
     // MARK: - Snapshot helpers (call with lock NOT held where noted)
 
     /// Recompute rolling throughput in place. Caller must hold `lock`.

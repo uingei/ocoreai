@@ -257,6 +257,15 @@ actor EnginePool {
     /// Models currently being loaded — prevents concurrent duplicate loads.
     private var loadingModels: Set<String> = []
 
+    /// When each load in flight entered the slot: engine id → instant.
+    ///
+    /// Kept apart from ``loadingModels`` on purpose: that set is also the mutex
+    /// ``unloadModel(_:)`` borrows while it drains sessions, so clocking membership in it would
+    /// put a progress read behind a teardown and make `/v1/models` promise bytes for a model on
+    /// its way out. A clock here means "a load is being paid for" — precisely what
+    /// ``ModelLoadProgress`` is allowed to say.
+    private var loadClocks: [String: ContinuousClock.Instant] = [:]
+
     /// Models currently being prewarmed at startup — distinct from
     /// `loadingModels` so that `acquire()`'s `waitForLoading` gate (which keys
     /// off `loadingModels` only) never blocks a user request behind a
@@ -522,17 +531,18 @@ actor EnginePool {
         // Fast path: already loaded and ready.
         if loadedModels[modelId] != nil { return }
 
-        // Another caller is loading this model — wait for it to finish. Uses 1s sleep (down
-        // from 200ms) to reduce mailbox wake-up frequency on longer model downloads (30s+).
-        // Actor mailbox is NOT blocked during Task.sleep — Swift actors yield at each
-        // suspend point.
-        try await waitForLoading(modelId: modelId, timeoutSeconds: 120)
+        // Another caller is loading this model — wait for it to finish. Waits
+        // `config.loadWaitSeconds`, then answers 503 with the measurement attached: the wait
+        // window is a policy, and 120 s is what it has always been (the fetch it waits out is
+        // 794 s on the shipping default — 11-01(101) — so the answer a waiter gets is designed
+        // to be pollable, not to cover the load).
+        try await waitForLoading(modelId: modelId, timeoutSeconds: config.loadWaitSeconds)
         if loadedModels[modelId] != nil { return }
 
         // Not loaded — start the load. Double-check after registering (another caller may
         // have finished between the check and the insert).
-        loadingModels.insert(modelId)
-        defer { loadingModels.remove(modelId) }
+        beginLoad(modelId)
+        defer { endLoad(modelId) }
         if loadedModels[modelId] != nil { return }
 
         // One chokepoint for both outcomes: every way a load can die (structural 404, config,
@@ -656,8 +666,10 @@ actor EnginePool {
         // Hold the loading slot so a concurrent acquire() takes the
         // waitForLoading wait path instead of starting a second heavy load.
         // (acquire() → waitForLoading() spins on loadingModels membership.)
-        loadingModels.insert(modelId)
-        defer { loadingModels.remove(modelId) }
+        // Clock it too: a prewarm IS the load a startup request is waiting behind, so
+        // `/v1/models` must be able to say how far along it is.
+        beginLoad(modelId)
+        defer { endLoad(modelId) }
         do {
             let start = ContinuousClock.now
             logger.info("Prewarming model: \((modelId))")
@@ -734,8 +746,10 @@ actor EnginePool {
             let now = ContinuousClock.now
             guard now < deadline else {
                 // Still loading past the wait window → transient: the load is
-                // in flight, not dead. Tell the client to poll, not to give up.
-                throw AppError.modelLoading(modelId)
+                // in flight, not dead. Tell the client to poll, not to give up — and say what
+                // the wait has measured, because "still loading" alone is not an answer a
+                // caller can plan around when the load is a multi-minute fetch (11-01(101)).
+                throw AppError.modelLoading(modelId, measuredLoadProgress(modelId: modelId))
             }
             let nextTick = min(deadline, now + Self.loadingPollInterval)
             try await Task.sleep(until: nextTick, clock: .continuous)
@@ -746,12 +760,56 @@ actor EnginePool {
     /// without loading anything, so the acquire-side wait gate can be exercised
     /// off-device. Production reaches this state through ``acquire(model:)``
     /// and ``prewarmDefaultModel(_:)``.
+    ///
+    /// Entering through the same ``beginLoad(_:)`` the loads use, so a test that drives the wait
+    /// gate drives the disclosure path with it — a seam that set the slot without the clock would
+    /// let the gate pass while `/v1/models` had nothing to say.
     func setLoadingForTesting(_ modelId: String, loading: Bool) {
         if loading {
-            loadingModels.insert(modelId)
+            beginLoad(modelId)
         } else {
-            loadingModels.remove(modelId)
+            endLoad(modelId)
         }
+    }
+
+    /// Take the load slot for ``modelId`` and start its clock — the only pair that may publish
+    /// ``ModelLoadProgress``, so it is the only pair a load should use.
+    private func beginLoad(_ modelId: String) {
+        loadingModels.insert(modelId)
+        if loadClocks[modelId] == nil {
+            loadClocks[modelId] = .now
+        }
+    }
+
+    /// Release the slot and drop the clock together, so no surface can read a progress number for
+    /// a load that has already ended (a stale clock keeps ticking and a rising `elapsedSeconds`
+    /// on an idle pool is a claim with nothing behind it).
+    private func endLoad(_ modelId: String) {
+        loadingModels.remove(modelId)
+        loadClocks.removeValue(forKey: modelId)
+    }
+
+    /// What the loads this process owns have measured so far, keyed by BOTH the engine's own id
+    /// and its normalized wire form — `/v1/models` strips the source prefix off the id it
+    /// publishes, and a lookup that keyed one form only answers `nil` for whichever spelling the
+    /// row carries (the same double-keying `declaredContextWindows` does, for the same reason).
+    ///
+    /// An id with no clock is absent, not zero: `unloadModel(_:)` holds the slot without loading
+    /// anything, and nothing published from here may imply bytes for a teardown.
+    func loadProgressSnapshot() -> [String: ModelLoadProgress] {
+        var out: [String: ModelLoadProgress] = [:]
+        for (id, enteredAt) in loadClocks {
+            let measured = ModelLoadProgress.measure(modelId: id, enteredAt: enteredAt)
+            out[id] = measured
+            out[ModelStore.normalizeModelId(id)] = measured
+        }
+        return out
+    }
+
+    /// One id's measurement, for the site that refuses a waiter with it.
+    private func measuredLoadProgress(modelId: String) -> ModelLoadProgress? {
+        guard let enteredAt = loadClocks[modelId] else { return nil }
+        return ModelLoadProgress.measure(modelId: modelId, enteredAt: enteredAt)
     }
 
     // MARK: - Model LRU Eviction
@@ -1567,7 +1625,10 @@ actor EnginePool {
             return false
         }
 
-        // mark as loading so concurrent acquire() won't trigger reload
+        // mark as loading so concurrent acquire() won't trigger reload.
+        // Deliberately the raw slot, not beginLoad(): this is a teardown borrowing the mutex,
+        // and a clock on it would make the load-disclosure surface report progress for bytes
+        // that are being freed, not fetched.
         loadingModels.insert(modelId)
         defer { loadingModels.remove(modelId) }
 

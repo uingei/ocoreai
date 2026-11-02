@@ -95,11 +95,21 @@ struct EnginePoolLoadingGateTests {
             try await pool.waitForLoading(modelId: modelId, timeoutSeconds: 1)
             Issue.record("expected AppError.modelLoading after the wait window")
         } catch let error as AppError {
-            guard case .modelLoading(let failedId) = error else {
+            guard case .modelLoading(let failedId, let progress) = error else {
                 Issue.record("expected .modelLoading, got \(error)")
                 return
             }
             #expect(failedId == modelId)
+            // The refusal is the caller's only answer for another ~12 min on a cold load, so it
+            // carries the wait's own measurement: the slot this test entered owns a clock
+            // (`beginLoad`), and nothing was fetched for it — bytes and ETA stay absent rather
+            // than arriving as zeros a client would read as a stalled fetch.
+            let measured = try #require(progress, "a refused waiter got no measurement")
+            #expect(measured.elapsedSeconds >= 1, "the clock started after the wait: \(measured)")
+            #expect(!measured.downloading, "no transfer was in flight for this id: \(measured)")
+            #expect(measured.bytesDownload == nil)
+            #expect(measured.bytesTotal == nil)
+            #expect(measured.secondsRemainingEstimate == nil)
         }
         let elapsed = elapsedSeconds(start)
         #expect(elapsed >= 0.9, "wait gave up after \(elapsed)s, before its 1 s window")

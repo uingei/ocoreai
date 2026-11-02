@@ -9,6 +9,46 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-02
 
+**11-02(107) The load wait now says what it measured — `loadProgress` on `/v1/models` and inside the 503**
+
+- **What improved.** A cold first run fetches the shipping default checkpoint — 3 550 670 554 B — in
+  **794 s at 4.5 MB/s**, and a `curl` of the same object at the same instant got 4.37 MB/s, so the wait
+  belongs to the hub, not to us (11-01(101)). None of it reached the client: the waiter was released at
+  the wait window with a 503 whose whole answer was `still loading — retry`, and the numbers already
+  existed one file away (`OcoreaiDownloadProgress` holds bytes and a rolling ~5 s rate per id, because
+  the GUI draws a bar from them) without ever crossing the wire. New `Engine/ModelLoadProgress.swift`
+  reads that store and adds only what only the pool knows — when the id entered the load slot — and
+  publishes it twice: `loadProgress` on `/v1/models` for the one row whose `state` is `"loading"`, and
+  as snake_case keys inside the 503 `model_loading` body, so a caller polls a measurement instead of a
+  mood. Two honesty rules decide every field: `bytesTotal` is *absent* rather than 0 when no transport
+  declared a size (the HF lane polls the cache directory and often reports no total), and
+  `secondsRemainingEstimate` is absent unless a rate AND a total are both measured — an ETA off one
+  sample is a guess wearing a number, on an axis a caller plans its wait around. `120 s` stopped being
+  a literal in `acquire` and became `EnginePoolConfig.loadWaitSeconds`, and the load slot and its clock
+  are now one pair (`beginLoad`/`endLoad`) because `unloadModel` borrows the same mutex to drain
+  sessions — a clock on a teardown would publish progress for bytes being freed. The 503's key
+  spellings moved onto the measurement type (`refusalDetailKeys`), so the emit site cannot name a
+  number the measurement never made.
+- **What same-session output proves it.** `swift build` green; the new suite is 11/11 and the two
+  touched suites are 6/6 and 5/5, all inside 1.1 s with no Metal and no weights — the wire assertion
+  boots the real router against a pool holding a load slot and reads the row back off JSON, so the
+  claim is a parsed response, not a grep. The disclosure sentence is asserted byte-exact for both
+  states (`"0s elapsed, weights on disk, no transfer in flight"` when nothing reported, and
+  `41s elapsed, 1000 of 4000 B, 100 B/s, ~30s remaining` when the store holds a transfer), and the
+  ETA is re-derived from the two numbers the measurement itself reports rather than compared to a
+  constant copied from the code under test.
+- **Which gate goes red.** `ModelLoadProgressHonestyTests`(11) — reading the store under the engine's
+  prefixed id (the downloader keys the stripped one) re-reds the spelling sweep; rounding an ETA down,
+  or producing one from a single sample, re-reds the ETA tests; leaving `loadClocks` behind when a slot
+  frees re-reds the lifetime test; and `ModelObject`'s wire shape is pinned by encode, so a
+  `loadProgress` key appearing on a ready row re-reds `dtoKeyShape`. `EnginePoolLoadingGateTests`
+  (now 5 tests in the suite, count unchanged) additionally requires the refusal itself to carry a
+  measurement with `downloading == false` and no bytes, and `AppErrorModelLoadingTests`(6) pins the
+  bare refusal's sentence byte-for-byte, so an invented `(0s elapsed)` suffix cannot slip in. Measured,
+  not claimed: `downloading` is read off the downloader's own active entry, so a load that has moved
+  on to map/specialize/warm says `weights on disk, no transfer in flight` rather than reading as
+  stalled.
+
 **11-02(106) A prompt wake lost to a late arrival — the mid-wait bound now measures the instant the steer lands**
 
 - **What improved.** The full run that corroborated 11-02(105) put a red somewhere new:

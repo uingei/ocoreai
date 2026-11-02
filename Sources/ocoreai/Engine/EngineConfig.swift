@@ -34,6 +34,16 @@ public struct EnginePoolConfig: Sendable {
     /// Prevents hung inference from permanently holding resources.
     var inferenceTimeoutSeconds: Int
 
+    /// How long a request that arrived while ANOTHER request owns this model's load blocks
+    /// before it is released with 503 `model_loading` and the measurement (``ModelLoadProgress``).
+    ///
+    /// A policy, not an engine constant: the shipping default checkpoint takes 794 s to fetch at
+    /// hub speed (11-01(101)), so no value short enough to keep a harness responsive covers a
+    /// cold first run, and the number that matters is what the refusal carries instead.
+    /// Default 120 s — the value hard-coded here before it was a field, so adopting it changes
+    /// no behaviour.
+    var loadWaitSeconds: Int
+
     /// Optional session pool configuration (nil = pooling disabled).
     /// When enabled, ChatSession instances are pooled per-conversation for KV cache reuse.
     var sessionPoolConfig: SessionPoolConfig?
@@ -61,6 +71,7 @@ public struct EnginePoolConfig: Sendable {
         defaultModelId: "mlx-community/gemma-4-e2b-it-4bit",
         warmupTokens: 4,
         inferenceTimeoutSeconds: 180,
+        loadWaitSeconds: 120,
         sessionPoolConfig: .default,
         kvCacheQuantization: .default,
         wiredMemory: .default,
@@ -107,6 +118,7 @@ public struct EnginePoolConfig: Sendable {
         }
         self.warmupTokens = 4
         self.inferenceTimeoutSeconds = 180
+        self.loadWaitSeconds = 120
         self.sessionPoolConfig = .default
         self.kvCacheQuantization = app.backend.kvCacheQuantization
         self.wiredMemory = app.backend.wiredMemory
@@ -128,6 +140,7 @@ public struct EnginePoolConfig: Sendable {
         defaultModelId: String,
         warmupTokens: Int,
         inferenceTimeoutSeconds: Int,
+        loadWaitSeconds: Int = 120,
         sessionPoolConfig: SessionPoolConfig?,
         kvCacheQuantization: KVCacheQuantizationConfig,
         wiredMemory: WiredMemoryConfig,
@@ -141,6 +154,7 @@ public struct EnginePoolConfig: Sendable {
         self.defaultModelId = defaultModelId
         self.warmupTokens = warmupTokens
         self.inferenceTimeoutSeconds = inferenceTimeoutSeconds
+        self.loadWaitSeconds = loadWaitSeconds
         self.sessionPoolConfig = sessionPoolConfig
         self.kvCacheQuantization = kvCacheQuantization
         self.wiredMemory = wiredMemory

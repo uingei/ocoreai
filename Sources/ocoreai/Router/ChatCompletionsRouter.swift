@@ -234,6 +234,10 @@ func buildRouter(
         let videoLedger = await enginePool.videoDeliverySnapshot()
         let toolLedger = await enginePool.toolCallDeliverySnapshot()
         let effortLedger = await enginePool.reasoningEffortSnapshot()
+        // Loads in flight, measured by the pool. Looked up under the raw and normalized id like
+        // the ledgers above, and attached to `"loading"` rows only — a ready row carrying
+        // progress would read as a load that never ended.
+        let loadProgress = await enginePool.loadProgressSnapshot()
         for i in objects.indices {
             let key = [objects[i].id, "hf:" + objects[i].id, "mscope:" + objects[i].id]
                 .first { videoLedger[$0] != nil }
@@ -263,6 +267,13 @@ func buildRouter(
             objects[i].reasoningEffort =
                 (effortKey.flatMap { effortLedger[$0] }
                 ?? .notObserved).wireMode
+            // Load progress, on the one row that may carry it. No clock → field stays absent,
+            // so "loading" never comes bundled with an invented byte count.
+            if objects[i].state == "loading" {
+                objects[i].loadProgress =
+                    [objects[i].id, "hf:" + objects[i].id, "mscope:" + objects[i].id]
+                    .lazy.compactMap { loadProgress[$0] }.first
+            }
         }
 
         let response = ModelListResponse(data: objects)
@@ -1244,6 +1255,14 @@ struct ModelObject: Codable {
     /// model cannot honor it). Measured by rendering at load, never read off a config key;
     /// see `ReasoningEffortLedger` and probe 38.
     var reasoningEffort: String? = nil
+    /// ocoreai extension: present ONLY on a row whose `state` is `"loading"`, and then only with
+    /// numbers this process actually measured — how long the load has been running, and the
+    /// bytes if a hub transfer is in flight (`ModelLoadProgress`). Absent on every ready row, and
+    /// absent on a loading row the pool holds no clock for, so the surface cannot imply progress
+    /// it has not seen. This is the field a caller polls while a 503 `model_loading` tells it to
+    /// wait: the cold first run fetches 3.55 GB at ~4.5 MB/s (794 s, 11-01(101)) and that number
+    /// was previously nowhere on the wire.
+    var loadProgress: ModelLoadProgress? = nil
 }
 
 // MARK: - Count Tokens Request/Response
