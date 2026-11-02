@@ -47,17 +47,14 @@ heading are when the work landed (measured from git).
   `OpenAPIContractTests` if `openapi.json` is committed stale; `docs-check` P4 (a `/v1/systemone`
   registration appears, or the decisions route vanishes), P10 (either README drops the row), P14 (probe 49
   leaves the index).
-- **Residual.** Scoring is still blocked on a published-logits seam on MLX, or on running scoring through
-  the CoreAI route — owner call, and it gates every probability this API will ever return. The per-request
-  single-token label validation and the per-model `decisions: ready|blocked|unsupported` row are deliberately
-  not written yet: neither can be measured before a checkpoint is loaded to score, and while every validated
-  request is refused a multi-token label cannot answer anything; both land with the seam
-  (`systemone-decisions.md` § the cheapest honest slice says which part went which way). Every sglang rule
-  here was *read* in `protocol.py`/`http_server.py`, never sent to a running sglang. `return_prompt_token_ids`
-  is accepted and means nothing yet — probe 49 pins that it buys nothing back, so the acceptance is not a
-  promise. The 501 is build-wide: an unserved model name gets the same refusal, which the probe pins and
-  which a 404 would contradict. The root's § Open carries no row for this — 8 B of budget left, and the
-  pointer to the one-hop doc already exists.
+
+- **Found after the commit, by the gate that had never read the files.** `make anchor-check` went red on
+  this round's own two cites: they were written `~/references/sglang/python/…`, and a home-relative path
+  resolves to nothing — the house form in a Swift comment is tree-relative with the tree as the first
+  component (`vllm/entrypoints/openai/decisions/strategies.py:902`), because `upstream-cite-check.sh`
+  resolves from the tree name down. Four cites in the two Decisions files were rewritten that way; 277/277
+  cites and 78/78 anchors now resolve. It had never been caught because the target did not build before
+  this round, so nothing had compiled — nor cite-checked — those two files.
 - **Surfaced by `make push-ready`, not caused by it.** The runner has been red for two pushes
   (`d664f7b`, `6846539b`): `Build & Test (xcode-27)` fails at *Run tests (xcrun xctest)* (109 s) and
   `DMG from a clean runner (no publish)` at *Build the DMG* (915 s), with `Package dry-run` also concluded
@@ -72,6 +69,18 @@ heading are when the work landed (measured from git).
   candidates were left alone after checking: the probe-12-§6 sentence (closed-items-log.md does *not*
   carry that closure, so it is the only record of it) and the scripted-engine entry's two anchor comments
   (they are gates). Cap raised nowhere.
+
+- **Residual.** Scoring is still blocked on a published-logits seam on MLX, or on running scoring through
+  the CoreAI route — owner call, and it gates every probability this API will ever return. The per-request
+  single-token label validation and the per-model `decisions: ready|blocked|unsupported` row are deliberately
+  not written yet: neither can be measured before a checkpoint is loaded to score, and while every validated
+  request is refused a multi-token label cannot answer anything; both land with the seam
+  (`systemone-decisions.md` § the cheapest honest slice says which part went which way). Every sglang rule
+  here was *read* in `protocol.py`/`http_server.py`, never sent to a running sglang. `return_prompt_token_ids`
+  is accepted and means nothing yet — probe 49 pins that it buys nothing back, so the acceptance is not a
+  promise. The 501 is build-wide: an unserved model name gets the same refusal, which the probe pins and
+  which a 404 would contradict. The root's § Open carries no row for this — 8 B of budget left, and the
+  pointer to the one-hop doc already exists.
 
 **11-01(102) the docs drifted from the tree in five seams the green contract cannot see — and "made for" paid its way in**
 

@@ -6,17 +6,17 @@
 /// The axis exists twice. `POST /v1/decisions` answers typed choice / score / yes-no questions
 /// by scoring single-token answer labels at the answer position and needs **no special
 /// checkpoint** — any generation model with a chat template can answer
-/// (`~/references/sglang/docs/docs/supported-models/decision_models.mdx:5`), which is our
+/// (`sglang/docs/docs/supported-models/decision_models.mdx:5`), which is our
 /// situation exactly: open checkpoints on MLX. `POST /v1/systemone` is diffusion-native and needs
 /// a served canvas plus a diffusion checkpoint
-/// (`~/references/vllm/examples/features/structured_diffusion/README.md:10-13,47`); our registry
+/// (`vllm/examples/features/structured_diffusion/README.md:10-13,47`); our registry
 /// has no diffusion architecture, so that route is not registered — a route row is a promise,
 /// since it renders onto `/v1/capabilities` and `/openapi.json`.
 ///
 /// ### What consistency is pinned to
 /// Field names, defaults, bounds, the non-blank rule, the option-name rule and the refuse-unknown-
 /// fields-by-name rule all mirror sglang's models at
-/// `~/references/sglang/python/sglang/srt/entrypoints/openai/protocol.py:1554-1700`, routed at
+/// `sglang/python/sglang/srt/entrypoints/openai/protocol.py:1554-1700`, routed at
 /// `http_server.py:2048`; each rule below cites its line. The **status** is part of the contract:
 /// sglang overrides FastAPI's default 422 to 400 on this route and keeps 422 only for
 /// `/v1/systemone` (`http_server.py:636-660`), so a schema failure here is a 400 and never a 500.

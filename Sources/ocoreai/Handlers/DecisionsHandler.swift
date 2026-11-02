@@ -4,7 +4,7 @@
 ///
 /// ### What a decision answer is, so the refusal below is checkable
 /// sglang routes this API with the words *"scoring single-token answer labels through the scoring
-/// API, without generation"* (`~/references/sglang/python/sglang/srt/entrypoints/http_server.py:2050`),
+/// API, without generation"* (`sglang/python/sglang/srt/entrypoints/http_server.py:2050`),
 /// so an answer is not generated text to parse: it is the probability of each offered label read at
 /// the answer position, then normalized. That is the same primitive as A2 loglikelihood — score a
 /// prompt against a forced continuation — which this repo already ports copy-first from
