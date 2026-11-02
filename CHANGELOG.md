@@ -9,6 +9,37 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-02
 
+**11-02(108) `/v1/models` speaks OpenAI's own field names again — `owned_by` and `created`, and the gate that pinned the deviation is turned around**
+
+- **What improved.** Compatibility on this axis is judged by what vllm and sglang put on the wire, so
+  the model row was read against theirs. Both references publish `{id, object, created, owned_by, …}`
+  (`sglang/python/sglang/srt/entrypoints/openai/protocol.py:87-95`,
+  `vllm/vllm/entrypoints/serve/engine/protocol.py:105-114`); we published `ownedBy` and **no `created`
+  at all**. `ownedBy` is not an extension renamed, it is a spec field renamed, so a client reading
+  `owned_by` sees a model with no owner, and `openai-python`'s `Model` declares `created: int`
+  required — `client.models.list()` against this server fails to parse. `owned_by` is now the wire
+  spelling (`CodingKeys` — the one key on this object whose name the spec owns; every ocoreai
+  extension stays camelCase), and `created` carries a measured instant from `ModelRowClock`: the
+  weights directory's own creation date where the row has one on disk, else the instant this process
+  first published a row. That is deliberately *not* the references' `int(time.time())` at list time —
+  a number about the poll, which makes one checkpoint look newer on every poll and breaks a client
+  that caches the field. No ocoreai extension field moved.
+- **What same-session output proves it.** 41/41 across the four suites that build a model row
+  (`ModelsWireShape`, `ReasoningEffortHonesty`, `ToolCallDeliveryDisclosure`,
+  `VideoDeliveryDisclosure`) in 0.017 s, no Metal and no weights; the new assertions read the encoded
+  keys back out of the JSON, and the `created` test stamps a real directory, re-reads it and asserts
+  the same value on the second read — stability across polls is the property the references do not
+  have. `skills/ocoreai/references/wire.md`, the row the published skill shows an agent, now lists
+  `created, owned_by` and names `loadProgress` on a `loading` row.
+- **Which gate goes red.** `ModelsWireShapeTests` (3 → 5). The old assertion
+  `body.contains(#""ownedBy":"ocoreai""#)` **pinned the deviation** — the failure mode this repo has
+  named before (a red that certifies the wrong thing is worse than no red, cf. the Anthropic
+  `delta.type` case) — so it now asserts `owned_by` and fails if `ownedBy` returns. The new
+  `modelRowCarriesEveryStoredProperty` reflects `ModelObject` and diffs the struct against the encoded
+  key set with a floor on its own hit count, so a field added without a `CodingKeys` case — which is
+  what silently deletes a promise from this object now that its keys are hand-listed — goes red naming
+  the field. `createdIsMeasuredNotListTime` reds if `created` becomes `now` at list time.
+
 **11-02(107) The load wait now says what it measured — `loadProgress` on `/v1/models` and inside the 503**
 
 - **What improved.** A cold first run fetches the shipping default checkpoint — 3 550 670 554 B — in

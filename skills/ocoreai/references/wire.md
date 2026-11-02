@@ -67,8 +67,12 @@ Measured on the scripted lane (no weights resident), so they are contract facts,
 - `GET /health` → `{"status":"ok","timestamp":…,"engineSummary":{"loadedModels":…,"activeSessions":…,
   "gpuCacheGB":…,"modelIds":[…],"specializedModels":…}}`
 - `GET /ready` → `{"status":"ready","loadedModels":…,"activeSessions":…,"timestamp":…}`
-- `GET /v1/models` → `{"object":"list","data":[{id, object, ownedBy, state, contextLength, vlm,
-  weightsDir, reasoningEffort, toolCallDelivery, videoInput}]}` — `data` is empty on a machine with no
+- `GET /v1/models` → `{"object":"list","data":[{id, object, created, owned_by, state, contextLength,
+  vlm, weightsDir, reasoningEffort, toolCallDelivery, videoInput}]}` — `created`/`owned_by` are
+  OpenAI's own keys (stable across polls: the weights directory's creation date, else the instant this
+  server came to know the row); the rest are ocoreai extensions and stay camelCase. A `state:"loading"`
+  row also carries `loadProgress` (`elapsedSeconds`, `downloading`, and the byte fields only once a hub
+  transfer measured them). `data` is empty on a machine with no
   cached checkpoint, so **assert structure here and model rows only where a model is ready** (that split
   is exactly how `scripts/probes/39-skill-contract-exec.sh` tiers its assertions).
 - `GET /v1/tools` → `{"object":"list","data":[{"type":"function","function":{name, description,

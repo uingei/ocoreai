@@ -4,6 +4,12 @@
 ///
 /// 锚定:
 ///   - `object == "list"` / `"model"`(OpenAI 客户端靠它识别模型列表)
+///   - 规范两键 `owned_by` / `created` — vllm 与 sglang 都发(sglang
+///     `srt/entrypoints/openai/protocol.py:87-95`、vllm
+///     `entrypoints/serve/engine/protocol.py:105-114`),`openai-python` 的 `Model` 读这两个名。
+///     本行 11-02 之前发的是 `ownedBy` 且**没有** `created`,而下面这条测试当年把 `ownedBy`
+///     钉成了断言——钉住偏离的门比没有门更糟(同一族见 CHANGELOG 11-01 Anthropic delta 判别符),
+///     所以现在钉的是规范名,并加了一条「struct 有字段却上不了线」的自检。
 ///   - ocreai 扩展字段 `state`/`vlm`/`weightsDir` — nil 时**不出现**
 ///     (encodeIfPresent),非 nil 时必须出现且值正确
 
@@ -40,7 +46,67 @@ struct ModelsWireShapeTests {
         #expect(!body.contains(#""vlm""#))
         #expect(!body.contains(#""weightsDir""#))
         #expect(body.contains(#""id":"only-id""#))
-        #expect(body.contains(#""ownedBy":"ocoreai""#))
+        // The spec's spelling, not this object's camelCase: `openai-python`'s `Model` reads
+        // `owned_by`, and the deviation this line used to pin is why that client saw no owner.
+        #expect(body.contains(#""owned_by":"ocoreai""#), "wire keys: \(body)")
+        #expect(!body.contains(#""ownedBy""#), "the camelCase rename came back: \(body)")
+        #expect(
+            body.contains("\"created\":"),
+            "`created` left the row — openai-python's Model requires it: \(body)")
+    }
+
+    /// One row with every stored property populated. A field added to `ModelObject` without a
+    /// `CodingKeys` case encodes as nothing at all — the row silently loses a promise, and no
+    /// per-field assertion notices unless someone thinks to write one. This reflects the struct,
+    /// so forgetting is caught by the same test that reads the wire.
+    private static func fullRow() -> ModelObject {
+        ModelObject(
+            id: "m", object: "model", created: 1_700_000_000, ownedBy: "ocoreai",
+            state: "ready", vlm: true, weightsDir: "/x", capabilities: ["embed"],
+            defaultModel: true, contextLength: 4096, videoInput: "delivered",
+            videoEvidence: "1 turn", toolCallDelivery: "parsed", toolCallEvidence: "1 call",
+            reasoningEffort: "honored",
+            loadProgress: ModelLoadProgress(
+                elapsedSeconds: 1, downloading: false, bytesDownload: nil, bytesTotal: nil,
+                bytesPerSecond: nil, secondsRemainingEstimate: nil)
+        )
+    }
+
+    @Test(
+        "every stored property of the row reaches the wire — a CodingKeys row cannot be forgotten")
+    func modelRowCarriesEveryStoredProperty() throws {
+        let full = Self.fullRow()
+        let reflected = Mirror(reflecting: full).children.compactMap(\.label)
+        // Floor on the fixture's own premise: a new field nobody populated here must be named,
+        // not silently dropped from the comparison below.
+        #expect(reflected.count == 16, "the fixture does not populate every field: \(reflected)")
+        let expected = Set(reflected.map { $0 == "ownedBy" ? "owned_by" : $0 })
+        let data = try JSONEncoder().encode(full)
+        let json = try #require(
+            try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            "the row did not encode to an object")
+        let onWire = Set(json.keys)
+        #expect(onWire == expected, "on the wire \(onWire) vs struct \(expected)")
+        #expect(onWire.contains("owned_by") && onWire.contains("created"))
+    }
+
+    @Test("`created` is measured, and the same row reads the same on the next poll")
+    func createdIsMeasuredNotListTime() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mws_\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let stamped = ModelRowClock.created(weightsDir: dir)
+        let birth = try #require(
+            (try FileManager.default.attributesOfItem(atPath: dir.path)[.creationDate]) as? Date,
+            "the test filesystem stores no creation date — the fallback is what is being measured")
+        #expect(stamped == Int(birth.timeIntervalSince1970), "not the directory's own date")
+        #expect(ModelRowClock.created(weightsDir: dir) == stamped, "created moved between polls")
+        // A row with no directory names the instant this server came to know it — never 0, which
+        // a client reads as 1970.
+        #expect(ModelRowClock.created(weightsDir: nil) == ModelRowClock.firstRowEpochSeconds)
+        #expect(ModelRowClock.firstRowEpochSeconds > 1_000_000_000)
     }
 
     @Test("vlm=true/false 都正确落 wire — 客户端据此区分 VLM")

@@ -190,6 +190,7 @@ func buildRouter(
             objects.append(
                 ModelObject(
                     id: id,
+                    created: ModelRowClock.created(weightsDir: r.weightsDir),
                     state: loadedState[id] ?? "ready",
                     vlm: r.isVlm,
                     weightsDir: r.weightsDir.path,
@@ -1204,6 +1205,18 @@ struct ModelListResponse: Codable {
 struct ModelObject: Codable {
     var id: String
     var object: String = "model"
+    /// Epoch seconds a caller may treat as stable across polls. Two sources, both measured:
+    /// the weights directory's own creation date where the row has one on disk, else the instant
+    /// this process first published a row (`ModelRowClock`). The two references stamp
+    /// `int(time.time())` at list time (`sglang/python/sglang/srt/entrypoints/openai/protocol.py:90`,
+    /// `vllm/vllm/entrypoints/serve/engine/protocol.py:108`), which makes the same model look
+    /// newer on every poll; ours is a fact about the row.
+    var created: Int = ModelRowClock.created(weightsDir: nil)
+    /// OpenAI's own key, not this object's camelCase — the one field on this row whose spelling
+    /// is the spec's: both references publish `owned_by` (cites above) and `openai-python`'s
+    /// `Model` reads that name, so a camelCase rename leaves a spec field simply absent for
+    /// that client. Every other key here stays camelCase (`weightsDir` is pinned by
+    /// `ModelsWireShapeTests`); shape is per-object, spelling of a spec field is not.
     var ownedBy: String = "ocoreai"
     var state: String? = nil
     var vlm: Bool? = nil
@@ -1263,6 +1276,43 @@ struct ModelObject: Codable {
     /// wait: the cold first run fetches 3.55 GB at ~4.5 MB/s (794 s, 11-01(101)) and that number
     /// was previously nowhere on the wire.
     var loadProgress: ModelLoadProgress? = nil
+
+    /// Written out rather than synthesized for one key: `owned_by`. Listing every field is the
+    /// hazard, and `ModelsWireShapeTests.modelRowCarriesEveryStoredProperty` closes it — that
+    /// test reflects the struct and fails if a stored property stops reaching the wire.
+    enum CodingKeys: String, CodingKey {
+        case id, object, created
+        case ownedBy = "owned_by"
+        case state, vlm, weightsDir, capabilities, defaultModel, contextLength
+        case videoInput, videoEvidence, toolCallDelivery, toolCallEvidence
+        case reasoningEffort, loadProgress
+    }
+}
+
+/// Where a `/v1/models` row's `created` comes from. Kept apart from the DTO so the DTO cannot
+/// reach for a clock of its own: `now` at list time is the reference stacks' choice and it is a
+/// number about the poll, not the model.
+enum ModelRowClock {
+    /// Fixed the first time this process publishes a row, then reused — so a client that caches
+    /// `created` is not told the model changed. Rows with no directory on disk (loaded but not
+    /// discovered by the disk scan, the embedder before its first cache) have no earlier honest
+    /// instant to name: it is when this server came to know them.
+    static let firstRowEpochSeconds = Int(Date().timeIntervalSince1970)
+
+    /// The weights directory's creation date where it exists, `firstRowEpochSeconds` otherwise.
+    /// A directory that reports no creation date (a filesystem that does not store one) falls to
+    /// the same fallback rather than to 0, which a client reads as 1970.
+    static func created(weightsDir: URL?) -> Int {
+        guard let dir = weightsDir else { return firstRowEpochSeconds }
+        let attributes = try? FileManager.default.attributesOfItem(atPath: dir.path)
+        if let created = (attributes?[.creationDate]) as? Date {
+            return Int(created.timeIntervalSince1970)
+        }
+        if let modified = (attributes?[.modificationDate]) as? Date {
+            return Int(modified.timeIntervalSince1970)
+        }
+        return firstRowEpochSeconds
+    }
 }
 
 // MARK: - Count Tokens Request/Response
