@@ -2149,6 +2149,13 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// Not Found — model does not exist or is not loaded
     case modelNotFound(String)
 
+    /// Not Found — the router's trie missed the request entirely: the *route* is not there,
+    /// which is a different fact from ``modelNotFound`` (a path that exists, an id that does not)
+    /// and reads differently to a client repairing a call. `details` names the exact miss so a
+    /// log line is enough to fix the request without re-deriving its shape; the message points
+    /// at the two discovery routes, because "what should I have called" is part of an honest 404.
+    case routeNotFound(method: String, path: String)
+
     /// Service Unavailable — the id is not resident and could not be fetched: the configured
     /// hub answered, and the fallback hub could not be asked within
     /// `HubReachability.probeTimeoutSeconds`. Distinct from `modelNotFound` on purpose: this
@@ -2232,6 +2239,16 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// Too Many Requests — single-slot engine busy (loglikelihood scoring).
     case engineBusy
 
+    /// Too Many Requests — the token bucket refused the request before it was ever routed.
+    ///
+    /// A distinct condition from ``engineBusy`` (one engine occupied vs traffic policy), so a
+    /// client can branch on `error_code`, but the *same* status and therefore the same
+    /// `error.type`: this refusal used to hand-build its body in the middleware, which is how
+    /// a capacity refusal reached an Anthropic client in OpenAI's envelope. `retryAfter` is
+    /// the measured wait until the next token; `nil` only when the refusal came from a bucket
+    /// that could not say (there is no invented number on this wire).
+    case rateLimited(retryAfter: Double?)
+
     /// Service Unavailable — on-device transcription is measured-unavailable: permission not
     /// granted, no local model for the locale, or the Speech engine probe faulted
     /// (`HearingReadiness`). Typed with `error_code` + the remedy so a client branches on the
@@ -2246,6 +2263,23 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// client "retry the service" when retrying the same bytes can never work. One typed
     /// failure, one status, on every route that hears audio.
     case transcriptionRejected(errorCode: String, reason: String)
+
+    /// Bad Request — the content guard blocked the turn (`Security/ContentGuard.swift`).
+    ///
+    /// Five handler sites used to hand-copy this body, which is how a block on the Anthropic
+    /// route answered in OpenAI's envelope. `error_code: "content_policy_violation"` carries the
+    /// condition the way every other typed refusal here does; `type` is the status table's name,
+    /// because the SDKs dispatch on that string and not on ours.
+    case contentPolicyViolation(reason: String?, categories: [String])
+
+    /// Bad Request — the prompt-injection regex (`AuthConfig`) matched the incoming messages.
+    ///
+    /// Same one-fact-three-spellings shape as the guard: two faces hand-built `type:
+    /// "prompt_injection"` while `/v1/completions` threw `invalidRequest` with the same sentence,
+    /// so the same detection read as three different error types depending on the route — and on
+    /// `/v1/messages` it was OpenAI's envelope on Anthropic's wire. The condition now travels in
+    /// `error_code`, which is where every other named condition lives.
+    case promptInjectionDetected
 
     /// Bad Request — the audio in the request could not be used (no `file`/`audio` part,
     /// undecodable bytes, over the size cap, a remote URL, or a field this engine does not
@@ -2273,6 +2307,9 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         case .contextWindowExhausted(let postTokens, let cap):
             "Context window exhausted: \(postTokens) tokens after compaction (cap \(cap)) — start a fresh conversation"
         case .modelNotFound(let name): "Model \(name) not found"
+        case .routeNotFound(let method, let path):
+            "Route \(method) \(path) does not exist. "
+                + "Enumerate models via GET /v1/models and endpoints via GET /v1/capabilities."
         case .modelUnavailable(let name, let reason):
             "Model \(name) is not available right now: \(reason)"
         case .poolExhausted(let max): "Engine pool exhausted (max: \(max))"
@@ -2299,6 +2336,12 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         case .kvCacheStatusUnsupported:
             "KV cache inspection requires an MLX-backed model"
         case .engineBusy: "Engine is busy — try again shortly"
+        case .rateLimited:
+            "Rate limit exceeded"
+        case .contentPolicyViolation(let reason, _):
+            reason ?? "Content safety violation"
+        case .promptInjectionDetected:
+            "Potential prompt injection detected"
         case .transcriptionUnavailable(_, let reason):
             "Transcription unavailable: \(reason)"
         case .transcriptionRejected(_, let reason):
@@ -2323,9 +2366,10 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// even when the error is a client error (4xx).
     var status: HTTPResponse.Status {
         switch self {
-        case .invalidRequest, .invalidParameter, .toolCallFailed, .contextWindowExhausted:
+        case .invalidRequest, .invalidParameter, .toolCallFailed, .contextWindowExhausted,
+            .contentPolicyViolation, .promptInjectionDetected:
             .badRequest
-        case .modelNotFound, .coldStoreNotFound:
+        case .modelNotFound, .coldStoreNotFound, .routeNotFound:
             .notFound
         case .poolExhausted, .queueClosed, .engineUnavailable, .memoryExhausted,
             .modelLoading,
@@ -2341,7 +2385,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
             .notImplemented
         case .kvCacheStatusUnsupported:
             .notImplemented
-        case .engineBusy:
+        case .engineBusy, .rateLimited:
             .tooManyRequests
         case .transcriptionUnavailable:
             .serviceUnavailable
@@ -2464,6 +2508,35 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
             detail["error_code"] = "media_lost"
             detail["remediation"] = reason
         }
+        // The trie miss answers from here now, not from a literal in the middleware: the body is
+        // one home, and `details` keeps the exact miss a client can repair against. It stays a
+        // distinct `error_code` from `modelNotFound` — a path that does not exist and an id that
+        // is not loaded are different repairs.
+        if case .routeNotFound(let method, let path) = self {
+            detail["error_code"] = "route_not_found"
+            detail["details"] = ["method": method, "path": path]
+        }
+        // The guard's own condition travels as `error_code` (the SDK-facing `type` is the status
+        // table's name, so an Anthropic client parses this as its own `invalid_request_error`);
+        // `categories` is the audit list, which is the only thing that distinguishes one block
+        // from another.
+        if case .contentPolicyViolation(_, let categories) = self {
+            detail["error_code"] = "content_policy_violation"
+            detail["categories"] = categories
+        }
+        if case .promptInjectionDetected = self {
+            detail["error_code"] = "prompt_injection"
+        }
+        // One number for the wait, read by both the body key and the `Retry-After` header below:
+        // the same measurement spelled twice is how the two would drift.
+        let retryAfterSeconds: Int?
+        if case .rateLimited(let retryAfter) = self {
+            detail["error_code"] = "rate_limited"
+            retryAfterSeconds = Int((retryAfter ?? 0).rounded())
+            detail["retry_after_seconds"] = retryAfterSeconds ?? 0
+        } else {
+            retryAfterSeconds = nil
+        }
         // The one transient refusal where the server already holds the number the caller is
         // asking for: the wait window is 120 s and a cold fetch of the shipping default is
         // 794 s (11-01(101)), so releasing a waiter with a bare "still loading" sent it to poll
@@ -2536,6 +2609,12 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         // exactly the window the server already spent waiting (EngineBusySignal).
         if case .engineBusy = self {
             headers[.retryAfter] = "\(EngineBusySignal.retryAfterSeconds)"
+        }
+        // The token bucket measured its own wait, so the refusal that carries it must not lose it
+        // on the way to the wire — a 429 without `Retry-After` makes the client hammer the box
+        // that just said no (the middleware used to set this header on its hand-built response).
+        if let retryAfterSeconds {
+            headers[.retryAfter] = "\(retryAfterSeconds)"
         }
         guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
             return Response(status: status)

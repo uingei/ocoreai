@@ -75,16 +75,18 @@ public struct GuardResult: Sendable, Codable {
         )
     }
 
-    /// Generate an HTTP 400 response for content safety violations.
-    public func blockResponseData() -> Data? {
-        let detail = NSDictionary(dictionary: [
-            "message": rejectionReason ?? "Content safety violation",
-            "type": "content_policy_violation",
-            "code": 400,
-            "categories": triggeredCategories.map(\.rawValue),
-        ])
-        let body = NSDictionary(dictionary: ["error": detail])
-        return try? JSONSerialization.data(withJSONObject: body, options: [])
+    /// The refusal this verdict owes.
+    ///
+    /// There used to be a `blockResponseData()` here building the JSON body — production never
+    /// called it, and each of the five handler sites re-copied the same dictionary by hand, which
+    /// is how a block on `/v1/messages` answered in OpenAI's envelope. One typed refusal now,
+    /// rendered by `AppError.response` off the path the caller arrived on.
+    /// Internal on purpose: `AppError` is this module's type, and the refusal is rendered
+    /// in-module — the public surface of the guard stays the verdict, not the wire.
+    var appError: AppError {
+        AppError.contentPolicyViolation(
+            reason: rejectionReason,
+            categories: triggeredCategories.map(\.rawValue))
     }
 }
 

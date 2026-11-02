@@ -9,6 +9,66 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-03
 
+**11-03(2) the refusals beside the model wear the caller's envelope — eight hand-built bodies collapse into one renderer**
+
+- **What improved.** `3d0e542` made `AppError.response` pick the envelope from the path the request
+  arrived on, but that decision only binds a refusal that *reaches* it, and the layers furthest from the
+  model each owned a literal copy of the body: a client speaking Anthropic's protocol to
+  `POST /v1/messages` was answered in OpenAI's envelope by the rate limiter, the router's miss and the
+  safety filter. Eight emit sites collapsed into the one renderer across four families — the 429
+  (`RateLimitMiddleware`), the trie-miss 404 (`RouteNotFoundError`, deleted), the content-guard 400
+  (five handler copies plus `GuardResult.blockResponseData()`, which production never called while every
+  handler re-typed the same dictionary) and `prompt_injection` (three sites). The § Open item named
+  three sites; **the scan written for this round found two families the list had missed** — that is what
+  a scan is for. One fact, one spelling: `error.type` is now the status table's name everywhere, so
+  `app_error` (the 404 catch-all) and `prompt_injection` (which `/v1/completions` already answered as
+  `invalid_request_error`) left the vocabulary and the condition travels in `error_code`, where every
+  other named condition already lived; the spec's enum lost the name no route can return. The 429's wait
+  is one number read by both the body key and `Retry-After`. `X-RateLimit-Limit: exceeded` was deleted
+  rather than ported: a header named for a number whose value is a word claims a measurement the bucket
+  never made — which dimension refused is not in what `check` returns.
+- **What same-session output proves it.** `scripts/probes/50-refusal-envelope-per-face.sh` **13 passed,
+  0 failed** on one live `serve`, scripted engine, no weights: the same blocked text refused 400
+  `invalid_request_error` + `error_code: prompt_injection` on `/v1/chat/completions`, `/v1/messages` and
+  `/v1/completions`, `code` present on the two OpenAI faces, absent under `/v1/messages`, which also
+  carries the top-level `"type":"error"`; both trie misses came back 404 `route_not_found`. §1's controls
+  (benign prompt answered 200 on all three faces) are what make those 400s mean their content. The
+  probe's floor leg earned its keep on the probe's *own* first run (`$2` under `set -u`, a doubled space
+  in one shape match): it reported 0 of 3 and 0 of 2 subjects instead of a quiet pass.
+  `MiddlewareEnvelopeDisciplineTests`(3) decides the same claim off-box in 0.12 s with nothing resident;
+  78/78 held across the 13 suites whose premises moved, and probe 39 re-ran **32/0 on a real checkpoint**
+  after `wire.md` was corrected (it had been publishing the `app_error` body). Two mutations were
+  sampled before trusting the new gates: a planted `NSDictionary(dictionary: ["error": …])` in
+  `Middleware/` turned the one-home scan red **naming the file**, and short-circuiting the renderer's
+  path branch turned both faces red on `type` and on the leaked `code`.
+  **The new suite then caught its own defect, which is the part worth writing down.** Version one
+  drained a burst of 1 at 5 tokens/s: green alone in 0.12 s, red inside `make test` — the stall
+  between the drain and the target request let a token back and the request was allowed. That is the
+  § *Open* loaded-host mechanism (`wall-clock bounds bet on the single cooperative pool 615 suites
+  share`) caught live in a suite written the same day, and the fix is the premise, not the assertion:
+  2 tokens at 0.001/s (a thousand seconds to refill one), so no stall can un-refuse it, and each drain
+  request now asserts *its own* admission, so a 429 cannot be a config slip either. The third run of
+  the full suite came back with the new suite absent from the red list. Full-suite cast this session,
+  for the record — run 1: `HubReachabilityTests`, `EnginePoolLoadingGateTests`,
+  `ModelLoadProgressHonestyTests`, `ProfilingTests`, `PerRequestMetricsTests`,
+  `MessageBuilderTests`(empty-message guard); run 3: `MCPStderrDiagnosisTests`,
+  `MCPTimeoutDeliveryTests`, `EnginePoolLoadingGateTests`, `SleepSteerWakeTests`×2. **The suite is not
+  green and this round does not claim it is**: the membership rotates while the mechanism (a
+  wall-clock or process bound on the one cooperative pool) does not, all of run 1's six pass in
+  isolation (66 tests, 1.0 s), and none of them is a file this round touched.
+- **Which gate goes red.** `MiddlewareEnvelopeDisciplineTests`(3) — per-face bytes plus a floored scan
+  (positive control: the renderer must match its own pattern before a zero elsewhere means anything);
+  probe 50 §2/§3/§5; `OpenAPIContractTests` #4, whose premise inverted — it used to read the same three
+  keys out of *two* files and now goes red if the middleware regains a literal or the spec lists a name
+  nothing emits; `NotFoundEnvelopeWireTests` (both 404s agree on `type`, disagree only on the repair
+  they carry); `ContentGuardTests`, where the old test asserted the body was *valid JSON* — a
+  `count > 0` in envelope form — and now asserts the reason and the category list.
+- **Boundary, recorded not glossed.** The keyword guard's own verdict has never been read off a wire:
+  `SafetyConfig` defaults `enabled: false`, so no stock boot reaches it, and giving a test one would
+  mean mutating a process-global or inventing a flag for the assertion. It is recorded as an owner call
+  (a config seat) inside the compat item in `docs/agent/open-items.md`, which is at 15 567/15 609 — this
+  round's additions fit only by folding the new surface into that item rather than giving it its own.
+
 **11-03(1) the tracking loop's first real consumption: family (c) mined for the terminal-word sitting — constraints, not the word**
 
 - **What improved.** The sitting this queue was held for arrived, so `11-02(112)`'s loop ran for real:

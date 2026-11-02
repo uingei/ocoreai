@@ -409,10 +409,14 @@ enum OpenAPIDocument {
                             (
                                 "description",
                                 .string(
-                                    "Envelope emitted by AppError.response and RouteNotFoundError: always "
-                                        + "`message`, `type`, `code`, plus the typed keys the failure earns "
+                                    "Envelope emitted by AppError.response, the one home every refusal "
+                                        + "on the OpenAI face renders through: always `message`, `type`, "
+                                        + "`code`, plus the typed keys the failure earns "
                                         + "(`error_code`, `remediation`, `param`, `value`, `details`, "
-                                        + "`retry_after_seconds`, `post_tokens`/`cap`, `used_gb`/`budget_gb`)."
+                                        + "`retry_after_seconds`, `categories`, `post_tokens`/`cap`, "
+                                        + "`used_gb`/`budget_gb`). `POST /v1/messages` answers the "
+                                        + "Anthropic envelope instead — `{\"type\":\"error\",\"error\":…}` "
+                                        + "with `code` dropped — off the same throw site."
                                 )
                             ),
                             (
@@ -466,11 +470,13 @@ enum OpenAPIDocument {
                                             // object here would call the ones a client sees invalid.
                                             ("additionalProperties", .bool(true)),
                                             // `type` is the documented table, keyed by status, not one
-                                            // constant: `AppError.openAIErrorTypeName` produces the five
-                                            // names, and `app_error` stays listed because a second site
-                                            // still emits it — `NotFoundEnvelopeMiddleware` answers the
-                                            // trie-miss 404 with a literal body (the open item naming
-                                            // exactly this second home).
+                                            // constant: `AppError.openAIErrorTypeName` produces these
+                                            // five names and nothing else emits a sixth — the catch-all
+                                            // `app_error` used to be listed because the trie-miss 404
+                                            // hand-built it in `NotFoundEnvelopeMiddleware`; that site
+                                            // now throws the same `AppError` every other refusal does,
+                                            // so listing it here would describe a name no route can
+                                            // return.
                                             (
                                                 "properties",
                                                 .object([
@@ -482,7 +488,6 @@ enum OpenAPIDocument {
                                                             (
                                                                 "enum",
                                                                 .array([
-                                                                    .string("app_error"),
                                                                     .string(
                                                                         "invalid_request_error"),
                                                                     .string("not_found_error"),

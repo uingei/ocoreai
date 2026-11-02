@@ -92,10 +92,7 @@ func completionsHandler(
         let text = prompts.joined(separator: " ")
         let result = await contentGuard.checkInput(text)
         if result.isBlocked {
-            return try completionsBlockedResponse(
-                reason: result.rejectionReason,
-                categories: result.triggeredCategories,
-            )
+            throw result.appError
         }
     }
 
@@ -105,7 +102,7 @@ func completionsHandler(
         if AuthConfig.detectPromptInjection(
             in: msgs, patterns: AuthConfig.defaultPromptInjectionRegexes)
         {
-            throw AppError.invalidRequest("Potential prompt injection detected")
+            throw AppError.promptInjectionDetected
         }
     }
 
@@ -545,32 +542,6 @@ private func completionsStream(
         status: .ok,
         headers: SSEHeaders,
         body: .init(asyncSequence: stream),
-    )
-}
-
-// MARK: - Content-guard 400 body (shared helper)
-
-/// Build the JSON 400 body for a blocked input (content-safety violation).
-private func completionsBlockedResponse(
-    reason: String?,
-    categories: [SafetyCategory],
-) throws -> Response {
-    let detail = NSDictionary(dictionary: [
-        "message": reason ?? "Content safety violation",
-        "type": "content_policy_violation",
-        "code": 400,
-        "categories": categories.map(\.rawValue),
-    ])
-    let errorBody = NSDictionary(dictionary: ["error": detail])
-    guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
-        return Response(status: .badRequest)
-    }
-    var headers: HTTPFields = [:]
-    headers[.contentType] = "application/json"
-    return Response(
-        status: .badRequest,
-        headers: headers,
-        body: .init(contentsOf: [ByteBuffer(data: data)]),
     )
 }
 

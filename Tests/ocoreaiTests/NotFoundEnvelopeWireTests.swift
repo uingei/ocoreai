@@ -97,7 +97,12 @@ struct NotFoundEnvelopeWireTests {
                 #expect(r.status == .notFound)
                 let err = try self.decodeError(r.body)
                 #expect(err["code"] as? Int == 404)
-                #expect(err["type"] as? String == "app_error")
+                // The trie-miss 404 speaks the table's name now, not a literal of its own: this
+                // assertion used to pin `app_error` *because* the middleware was the envelope's
+                // second home (see the boundary test below, which recorded the asymmetry as real).
+                // The port made the two 404s agree on `type` while keeping `error_code` distinct —
+                // which is the pair a client needs: one name to branch on, one fact to repair on.
+                #expect(err["type"] as? String == "not_found_error")
                 #expect(err["error_code"] as? String == "route_not_found")
                 let msg = err["message"] as? String ?? ""
                 #expect(msg.contains("GET /no/such/route"), "message names the miss: \(msg)")
@@ -141,10 +146,10 @@ struct NotFoundEnvelopeWireTests {
                 #expect(r.status == .notFound)
                 let err = try self.decodeError(r.body)
                 #expect(err["code"] as? Int == 404)
-                // An AppError-issued 404 speaks the documented name (`openAIErrorTypeName`), while
-                // the trie-miss 404 above still answers `app_error` from the middleware's literal —
-                // the asymmetry is real and is the § Open item about the second emit site, so the
-                // two assertions are deliberately different, not an oversight.
+                // Both 404s now speak the table's name — the asymmetry this test used to record as
+                // real closed with the port. What stays different is the fact, not the spelling: a
+                // model that is not loaded carries no `error_code`/`details`, because the repair is
+                // "pick another id", not "call a different route".
                 #expect(err["type"] as? String == "not_found_error")
                 // AppError envelope: message says "not found", NO error_code
                 // (only context-window/memory cases carry error_code), NO

@@ -101,8 +101,9 @@ Measured on the scripted lane (no weights resident), so they are contract facts,
 
 ## Errors carry their remedy
 
-- Unknown route → `404` `{"error":{"type":"app_error","code":404,"message":"Route GET /x does not exist.
-  Enumerate models via GET /v1/models and endpoints via GET /v1/capabilities","details":{method,path}}}`.
+- Unknown route → `404` `{"error":{"type":"not_found_error","code":404,"error_code":"route_not_found",
+  "message":"Route GET /x does not exist. Enumerate models via GET /v1/models and endpoints via
+  GET /v1/capabilities","details":{method,path}}}`.
 - A bad request → `400` `{"error":{"type":"invalid_request_error","message":"Invalid request: Missing 'q'
   query parameter","code":400}}` — measured on `GET /sessions/search` without `q`.
 - Key required → `401` naming both accepted header forms; `/health` still answers `200`.
@@ -110,6 +111,10 @@ Measured on the scripted lane (no weights resident), so they are contract facts,
   `{"type":"error","error":{"type":"invalid_request_error","message":…,"param":…}}` (Anthropic's shape
   and Anthropic's `error.type` vocabulary — its SDKs dispatch on that string), everything else the
   `{"error":{…,code}}` shape above. Same refusal, same `message`, so a client parses what it expects.
+  This holds for **every** refusal, not just the ones raised inside a handler: a rate-limit `429` (with
+  `Retry-After`), a router `404`, a blocked prompt (`error_code:"content_policy_violation"` or
+  `"prompt_injection"`) all take the envelope of the face you called, and the condition travels in
+  `error_code` on both — `type` is the status table's name, never a word of ours.
 - A failing MCP server's **stderr travels inside the refusal**, and a knob the loaded checkpoint cannot
   honour is refused with the remedy named (`ReasoningEffortHonestyTests`, probes 04/26/38) — the pattern:
   never 200 with nothing in it.

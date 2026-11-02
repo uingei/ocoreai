@@ -169,11 +169,11 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   not a test premise. The median is measurable, the tail is not. Closed: the ledger's cross-suite
   half (11-02(105)). Wanted: a clock the tests control (`ClockToolsTests`) or an uncontended lane
   (`make test-clt`'s split); whose call: the owner.
-- **The 11-02 compat sweep left two owner calls and one dated debt** (Middleware/, Router/) —
-  the swept axes landed (spec-name `error.type`; ceiling as `max_model_len`, aliased one
-  release, 11-02(110)). ① Three sites build literal error bodies
-  (`RateLimitMiddleware`, `NotFoundEnvelopeMiddleware`, `ContentGuard`), so a
-  middleware refusal on `/v1/messages` still answers the OpenAI envelope; porting them onto
-  `AppError.response` must carry `Retry-After`, `route_not_found`+index, `content_policy_violation`. ② Jev's answer half is read from both stacks and unwritten until the
-  answer position can be scored (probe 49; ollama's lane shape: `systemone-decisions.md` § Shape
-  C). ③ drop the `contextLength` alias (+ probe 03's clash check) the release after it landed.
+- **The 11-02 compat sweep left one owner call, one dated debt and one seatless surface**
+  (Middleware/, Router/, Security/) — the swept axes landed (spec-name `error.type`; `max_model_len`
+  aliased one release, 11-02(110)); ① the eight hand-built error bodies render through
+  `AppError.response` since 11-03 (probe 50, `MiddlewareEnvelopeDisciplineTests`), though the keyword
+  guard sharing that family reaches no wire still — `SafetyConfig` defaults `enabled: false`, so a
+  config seat is the owner's. ② Jev's answer half is read from both stacks, unwritten until the answer
+  position scores (probe 49; `systemone-decisions.md` § Shape C). ③ drop the `contextLength` alias
+  (+ probe 03's clash check) the release after it landed.

@@ -32,20 +32,30 @@ struct GuardResultTests {
         #expect(result.triggeredCategories.count == 1)
     }
 
-    @Test("blockResponseData produces valid JSON")
-    func blockResponseData() throws {
+    @Test("a blocked verdict carries the condition and the audit list into the refusal")
+    func blockedVerdictCarriesItsFacts() {
         let result = GuardResult.blocked(
             categories: [.jailbreak, .systemPromptOverride],
             reason: "Blocked content",
             confidence: 0.85,
             latencyμs: 123
         )
-        guard let data = result.blockResponseData() else {
-            Issue.record("blockResponseData returned nil for blocked result")
+        // This test used to assert that `blockResponseData()` produced *valid JSON* — a `count > 0`
+        // in envelope form: it passed whether the body said the truth or not. The verdict now
+        // travels as a typed `AppError` (the body is rendered once, by `AppError.response`, so
+        // serialising it here would be a second home), and the assertion is the facts a client
+        // branches on: the message the guard measured, the condition name, the category list.
+        let error = result.appError
+        #expect(error.status == .badRequest)
+        #expect(error.errorDescription == "Blocked content")
+        guard case .contentPolicyViolation(let reason, let categories) = error else {
+            Issue.record("a blocked verdict must be a contentPolicyViolation, got \(error)")
             return
         }
-        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
-        #expect(json["error"] is [String: Any])
+        #expect(reason == "Blocked content")
+        // The raw values are the case names (no explicit values on `SafetyCategory`), so this is
+        // the string a client actually receives — snake_case would be a different wire fact.
+        #expect(categories == ["jailbreak", "systemPromptOverride"])
     }
 }
 

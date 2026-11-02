@@ -8,8 +8,10 @@
 /// throws `HTTPError(.notFound)` with a NIL body (HTTPError.swift:56 returns
 /// a bare `Response(status:)` when body == nil) — the only endpoint class in
 /// this service whose 404 body was empty. A client receiving `404 len=0`
-/// cannot distinguish "route does not exist" from "reverse proxy died"; the
-/// OpenAI wire contract answers every error with `{"error":…}`.
+/// cannot distinguish "route does not exist" from "reverse proxy died"; both
+/// wire contracts answer every error with their own envelope, chosen by the
+/// path called (`AppError.response`), and this layer feeds that one home rather
+/// than owning a second copy of the body.
 ///
 /// The hook is structural, not a route-table patch: the router composes the
 /// notFound responder THROUGH the middleware chain
@@ -30,51 +32,17 @@
 
 import Foundation
 import Hummingbird
-import NIOCore
 
-/// 404 with the standard flat error envelope (same shape as `AppError`).
-struct RouteNotFoundError: Error, HTTPResponseError {
-    let method: String
-    let path: String
-
-    var status: HTTPResponse.Status { .notFound }
-
-    nonisolated func response(
-        from request: Request,
-        context: some RequestContext
-    ) throws -> Response {
-        // Flat envelope, identical keys to AppError.response: message/type/
-        // code. `details` names the exact miss so clients can log/repair
-        // without re-deriving the request shape; the message points at the
-        // canonical discovery routes ("what should I have called" is part of
-        // an honest 404).
-        let detail: [String: Any] = [
-            "message": "Route \(method) \(path) does not exist. "
-                + "Enumerate models via GET /v1/models and endpoints via GET /v1/capabilities.",
-            "type": "app_error",
-            "code": 404,
-            "error_code": "route_not_found",
-            "details": ["method": method, "path": path],
-        ]
-        let body =
-            (try? JSONSerialization.data(withJSONObject: ["error": detail]))
-            ?? Data("{}".utf8)
-        return Response(
-            status: .notFound,
-            headers: [.contentType: "application/json"],
-            body: .init(byteBuffer: ByteBuffer(data: body))
-        )
-    }
-}
-
-/// Emits ``RouteNotFoundError`` for every request the trie misses.
+/// Emits ``AppError/routeNotFound(method:path:)`` for every request the trie misses.
 ///
 /// Registered FIRST (before auth/rate-limit and every route): HB composes
 /// the notFound responder THROUGH the middleware chain (`Router.swift:70`),
 /// so `next()` here bottoms out at `NotFoundResponder`, whose
-/// `HTTPError(.notFound)` (nil body) is caught and rethrown as the flat
-/// envelope. Matched-route handlers throw ``AppError`` (a distinct type)
-/// which passes through untouched — verified by the boundary test.
+/// `HTTPError(.notFound)` (nil body) is caught and rethrown as
+/// ``AppError/routeNotFound(method:path:)``, which renders through the same
+/// envelope builder every other refusal uses. A 404 thrown INSIDE a matched
+/// handler (``AppError/modelNotFound(_:)``) is a different condition and keeps
+/// its own typed body — verified by the boundary test.
 struct NotFoundEnvelopeMiddleware<Context: RequestContext>: RouterMiddleware {
     func handle(
         _ request: Request,
@@ -84,7 +52,12 @@ struct NotFoundEnvelopeMiddleware<Context: RequestContext>: RouterMiddleware {
         do {
             return try await next(request, context)
         } catch let error as HTTPError where error.status == .notFound {
-            throw RouteNotFoundError(
+            // Thrown, not rendered: the envelope is decided by `AppError.response` off the path
+            // the request arrived on, so a miss under `/v1/messages` answers Anthropic's shape
+            // like every other refusal there. This file used to build its own flat body, which
+            // is how the same 404 said `app_error` while a handler-thrown 404 said
+            // `not_found_error` — one fact, two spellings, in one process.
+            throw AppError.routeNotFound(
                 method: request.method.rawValue, path: request.uri.path)
         }
     }

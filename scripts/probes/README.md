@@ -425,6 +425,20 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     against a planted nested `probabilities`/`confidence` pair before being trusted, and `prompt_token_ids`
     staying absent is the other half of what `docs/agent/systemone-decisions.md` says that key means today.
 
+- `50-refusal-envelope-per-face.sh` — do the refusals beside the model wear the caller's envelope?
+    `AppError.response` picks the envelope from the path called, and `AnthropicErrorEnvelopeTests` proves
+    that for a refusal thrown inside a handler; the layers further out each hand-built their own JSON
+    body, which is how a client speaking Anthropic's protocol to `POST /v1/messages` got OpenAI's
+    envelope from the router's miss or the injection filter. Green 11-03: **13 passed, 0 failed** on one
+    live server, scripted engine (no weights — a wire-tier verdict, nothing claimed about a checkpoint) —
+    the same blocked text came back 400 `invalid_request_error` + `error_code: prompt_injection` on
+    `/v1/chat/completions`, `/v1/messages` and `/v1/completions`, `code` present on the two OpenAI faces
+    and absent on the Anthropic one (whose body also carries the top-level `"type":"error"`), and both
+    trie misses came back 404 `route_not_found`, wrapped and codeless under `/v1/messages`. Controls both
+    ways: a benign prompt is answered 200 on all three faces, so a 400 below is about its content. Absence
+    is read off **parsed keys**, never a body substring (probe 49's lesson). The keyword content guard is
+    *not* covered: `SafetyConfig` defaults `enabled: false`, so nothing in a stock boot reaches it.
+
 - `_lib.sh` — shared harness
 Fails when: —
 

@@ -429,30 +429,17 @@ struct RateLimitMiddleware<Context: RequestContext>: RouterMiddleware {
         // zeros while this branch was refusing traffic, because nothing on this path counted.
         await MetricsRegistry.shared.recordRateLimitRejection()
 
-        // 429 Too Many Requests. `rate_limit_error`, not `rate_limit`: a capacity refusal is one
-        // fact and this is its second emit site — `AppError.engineBusy` already publishes
-        // `rate_limit_error` (both specs' name for it), and an SDK that branches on `error.type`
-        // was handed two spellings for the same condition depending on which layer said no.
-        let bodyData =
-            #"{"error":{"message":"Rate limit exceeded","type":"rate_limit_error","code":429}}"#
-            .data(
-                using: .utf8) ?? .init()
-        var headers: HTTPFields = [:]
-        headers[.contentType] = "application/json"
-        if let retryAfter = result.retryAfter {
-            if let retryName = HTTPField.Name("Retry-After") {
-                headers[retryName] = String(format: "%.0f", retryAfter)
-            }
-        }
-        if let rateLimitName = HTTPField.Name("X-RateLimit-Limit") {
-            headers[rateLimitName] = "exceeded"
-        }
-
-        return Response(
-            status: .tooManyRequests, headers: headers,
-            body: .init { writer in
-                try await writer.write(ByteBuffer(data: bodyData))
-                try await writer.finish(nil)
-            })
+        // The refusal renders through `AppError.response`, the one home that decides which
+        // envelope the caller parses: this body used to be a literal here, which is how a
+        // capacity refusal reached a `POST /v1/messages` client in OpenAI's shape — the shape an
+        // Anthropic SDK has no parser for. `rate_limit_error` stays the `error.type` (the status
+        // table's name, same as `engineBusy`: one fact, one spelling); the measured wait leaves as
+        // `Retry-After` plus `retry_after_seconds`, both off one number.
+        //
+        // `X-RateLimit-Limit: exceeded` is gone rather than ported: a header named for a number
+        // whose value is a word claims a measurement the bucket never made — which dimension
+        // refused is not in what `check` returns, so there is no honest limit to put there today.
+        return try AppError.rateLimited(retryAfter: result.retryAfter)
+            .response(from: request, context: context)
     }
 }

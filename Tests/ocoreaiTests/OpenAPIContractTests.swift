@@ -167,22 +167,30 @@ struct OpenAPIContractTests {
 
     // MARK: - 4. The error envelope is the envelope
 
-    @Test("the documented required keys are the keys both emit sites always write")
+    @Test("the documented required keys are the keys the one emit site always writes")
     func errorEnvelopeRequiredMatchesEmitSites() throws {
         let appError = try Self.repoFile("Sources/ocoreai/Models/OpenAIModels.swift")
         let notFound = try Self.repoFile(
             "Sources/ocoreai/Middleware/NotFoundEnvelopeMiddleware.swift")
 
-        // The keys are read out of the literals the emit sites build, not typed in here: a
+        // The keys are read out of the literals the emit site builds, not typed in here: a
         // required key that stopped being emitted is a validator that rejects a real response.
+        //
+        // The second half of this test's premise inverted when the trie-miss 404 was ported: this
+        // file used to read the SAME three keys out of two files, because the middleware owned a
+        // literal copy of the envelope. It throws `AppError.routeNotFound` now, so the red this
+        // assertion is sampled against is a second home *coming back* — a `"code":` literal in
+        // that middleware means the envelope has two owners again, which is the shape the spec
+        // here cannot describe (it documents one).
         let emitted = ["message", "type", "code"]
         for key in emitted {
             #expect(
                 appError.contains("\"\(key)\":"),
                 "AppError.response no longer writes a literal `\(key)` — re-derive required[]")
             #expect(
-                notFound.contains("\"\(key)\":"),
-                "RouteNotFoundError no longer writes `\(key)` — the 404 envelope changed shape")
+                !notFound.contains("\"\(key)\":"),
+                "NotFoundEnvelopeMiddleware hand-builds `\(key)` again — the envelope has two homes"
+            )
         }
 
         let schemas =
@@ -195,22 +203,28 @@ struct OpenAPIContractTests {
             Set(required) == Set(emitted),
             "spec requires \(required.sorted()); the emit sites guarantee \(emitted.sorted())")
 
-        // `type` is the status-keyed table, not one constant. The names are searched for across
-        // BOTH emit sites: `AppError` writes five of them from `openAIErrorTypeName`, and the
-        // trie-miss 404 still writes `app_error` from its own literal (the second home § Open
-        // names) — a spec that dropped it would be describing a server that does not exist yet.
+        // `type` is the status-keyed table, not one constant: the five names come from
+        // `AppError.openAIErrorTypeName`, and no route can return a sixth. `app_error` — the
+        // catch-all the trie-miss 404 used to write from its own literal — is asserted *absent*
+        // from both sides: a spec that lists a name nothing emits describes a server that does
+        // not exist, and a server that emitted it again would be a second envelope home.
         let typeSchema = (error?["properties"] as? [String: Any])?["type"] as? [String: Any]
         let types = (typeSchema?["enum"] as? [Any])?.compactMap { $0 as? String } ?? []
-        let emitSites = appError + notFound
         for variant in [
-            "app_error", "invalid_request_error", "not_found_error", "rate_limit_error",
-            "overloaded_error", "api_error",
+            "invalid_request_error", "not_found_error", "rate_limit_error", "overloaded_error",
+            "api_error",
         ] {
             #expect(
-                emitSites.contains("\"\(variant)\""),
-                "`\(variant)` is no longer a literal at either emit site — trim the spec's enum")
+                appError.contains("\"\(variant)\""),
+                "`\(variant)` is no longer a literal at the emit site — trim the spec's enum")
             #expect(types.contains(variant), "spec's error.type enum is missing \(variant)")
         }
+        #expect(
+            !types.contains("app_error"),
+            "the spec still lists `app_error`, a name no route can return")
+        #expect(
+            appError.range(of: #""app_error""#, options: .regularExpression) == nil,
+            "the emit site writes `app_error` again — one table, one home")
     }
 
     // MARK: - 5. The document does not invent a deployment
