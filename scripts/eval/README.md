@@ -108,8 +108,9 @@ Measured 10-22: one run of `repeat.sh` lost **13 consecutive tasks in 4 seconds*
 because an abandoned request kept the inference lock for ~160 s. That run scored 7/23, the aggregator averaged it
 in, and McNemar reported a **p=0.0032 "significant regression"** that was an outage, not a model.
 
-The rule now enforced in code: a row whose usage carries `finish=None`, or whose response contains `Engine busy` /
-`app_error`, is a **fault**, not a failure. `run.sh` counts faults into `faults.txt`, writes
+The rule now enforced in code: a row whose request was refused off a 2xx (the status line decides — 11-02: this
+matched the literal `app_error`, then the name of *every* refusal, and that field became a status-keyed table), or
+whose 200 carries `finish=None` in its usage cell, is a **fault**, not a failure. `run.sh` counts faults into `faults.txt`, writes
 `# invalid faults=N/<run>` into `results.tsv`, and exits 1 with `TASK SUCCESS NOT MEASURED`.
 `_repeat_stats.py` refuses to average an invalid run (retroactively, via `finish=None`, for data written before
 the marker existed) and prints the exclusion to stderr — quote it together with the number it changes.

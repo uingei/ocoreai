@@ -195,14 +195,20 @@ struct OpenAPIContractTests {
             Set(required) == Set(emitted),
             "spec requires \(required.sorted()); the emit sites guarantee \(emitted.sorted())")
 
-        // `type` is not one constant: the two SDK-named variants are what a client branches on,
-        // so a spec that pins only "app_error" hides the values that matter.
+        // `type` is the status-keyed table, not one constant. The names are searched for across
+        // BOTH emit sites: `AppError` writes five of them from `openAIErrorTypeName`, and the
+        // trie-miss 404 still writes `app_error` from its own literal (the second home § Open
+        // names) — a spec that dropped it would be describing a server that does not exist yet.
         let typeSchema = (error?["properties"] as? [String: Any])?["type"] as? [String: Any]
         let types = (typeSchema?["enum"] as? [Any])?.compactMap { $0 as? String } ?? []
-        for variant in ["app_error", "invalid_request_error", "rate_limit_error"] {
+        let emitSites = appError + notFound
+        for variant in [
+            "app_error", "invalid_request_error", "not_found_error", "rate_limit_error",
+            "overloaded_error", "api_error",
+        ] {
             #expect(
-                appError.contains("\"\(variant)\""),
-                "`\(variant)` is no longer a literal in the emit site — trim the spec's enum")
+                emitSites.contains("\"\(variant)\""),
+                "`\(variant)` is no longer a literal at either emit site — trim the spec's enum")
             #expect(types.contains(variant), "spec's error.type enum is missing \(variant)")
         }
     }

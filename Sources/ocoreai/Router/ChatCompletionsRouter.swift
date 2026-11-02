@@ -187,36 +187,35 @@ func buildRouter(
         for r in ready {
             let id = normalize(r.id)
             guard seen.insert(id).inserted else { continue }
-            objects.append(
-                ModelObject(
-                    id: id,
-                    created: ModelRowClock.created(weightsDir: r.weightsDir),
-                    state: loadedState[id] ?? "ready",
-                    vlm: r.isVlm,
-                    weightsDir: r.weightsDir.path,
-                    contextLength: r.contextLength
-                ))
+            var object = ModelObject(
+                id: id,
+                created: ModelRowClock.created(weightsDir: r.weightsDir),
+                state: loadedState[id] ?? "ready",
+                vlm: r.isVlm,
+                weightsDir: r.weightsDir.path
+            )
+            object.setContextCeiling(r.contextLength)
+            objects.append(object)
         }
         for m in loaded {
             let rawId = m["id"] ?? ""
             guard !rawId.isEmpty, seen.insert(rawId).inserted else { continue }
-            objects.append(
-                ModelObject(
-                    id: rawId, state: m["state"] ?? "ready",
-                    contextLength: Int(m["max_context_length"] ?? "")))
+            var object = ModelObject(id: rawId, state: m["state"] ?? "ready")
+            object.setContextCeiling(Int(m["max_context_length"] ?? ""))
+            objects.append(object)
         }
         // 3.5) 内嵌 embedder — /v1/embeddings 是常开路由，能力必须可发现：
         // 标准 OpenAI 客户端通过 /v1/models 探测服务器能力面，看不到 id
         // 就等于不存在。`capabilities: ["embed"]` 是显式扩展字段；
         // state 诚实区分缓存命中（离线可服务）与首次需下载。
         let embedCached = EmbeddingService.isLocallyCached
-        objects.append(
-            ModelObject(
-                id: EmbeddingService.canonicalModelId,
-                state: embedCached ? "ready" : "download_required",
-                capabilities: ["embed"],
-                contextLength: EmbeddingService.canonicalContextLength
-            ))
+        var embedderRow = ModelObject(
+            id: EmbeddingService.canonicalModelId,
+            state: embedCached ? "ready" : "download_required",
+            capabilities: ["embed"]
+        )
+        embedderRow.setContextCeiling(EmbeddingService.canonicalContextLength)
+        objects.append(embedderRow)
         // Default-model discoverability: clients must not guess who the
         // server-wide default is via trial requests — flag it directly.
         // Compare NORMALIZED ids (PATCH stores whatever form the client
@@ -1239,7 +1238,23 @@ struct ModelObject: Codable {
     /// a server-side guess; absent config → field omitted (unknown ≠ 0).
     /// Clients size prompts from this instead of trial-request probing
     /// (same discoverability contract as `capabilities` / `defaultModel`).
+    /// The references' name for the served ceiling (`max_model_len`), from the same measured value
+    /// as `contextLength`: `vllm/vllm/entrypoints/serve/engine/protocol.py:112` and
+    /// `sglang/python/sglang/srt/entrypoints/openai/protocol.py:94` both publish it under this key,
+    /// so a client that sizes a prompt from it used to see nothing. Set through
+    /// ``setContextCeiling(_:)`` so one value cannot reach two keys unequally;
+    /// `ModelsWireShapeTests` asserts the two agree and that both are present.
+    var maxModelLen: Int? = nil
+    /// Deprecated spelling of `maxModelLen`, kept one release for clients against the published
+    /// skill. New callers read `max_model_len`; the value is always the other one's.
     var contextLength: Int? = nil
+
+    /// The one place the ceiling is written: both keys, one value, or the alias becomes a second
+    /// truth about the model.
+    mutating func setContextCeiling(_ tokens: Int?) {
+        maxModelLen = tokens
+        contextLength = tokens
+    }
     /// ocoreai extension: what THIS server has measured with video, in a closed
     /// vocabulary — `delivered` (a turn carrying video parts completed against this
     /// model in this process) or `not_observed` (nothing has yet, which is NOT a
@@ -1283,7 +1298,9 @@ struct ModelObject: Codable {
     enum CodingKeys: String, CodingKey {
         case id, object, created
         case ownedBy = "owned_by"
-        case state, vlm, weightsDir, capabilities, defaultModel, contextLength
+        case state, vlm, weightsDir, capabilities, defaultModel
+        case maxModelLen = "max_model_len"
+        case contextLength
         case videoInput, videoEvidence, toolCallDelivery, toolCallEvidence
         case reasoningEffort, loadProgress
     }

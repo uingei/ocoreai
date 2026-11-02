@@ -60,16 +60,19 @@ struct ModelsWireShapeTests {
     /// per-field assertion notices unless someone thinks to write one. This reflects the struct,
     /// so forgetting is caught by the same test that reads the wire.
     private static func fullRow() -> ModelObject {
-        ModelObject(
+        var row = ModelObject(
             id: "m", object: "model", created: 1_700_000_000, ownedBy: "ocoreai",
             state: "ready", vlm: true, weightsDir: "/x", capabilities: ["embed"],
-            defaultModel: true, contextLength: 4096, videoInput: "delivered",
+            defaultModel: true, videoInput: "delivered",
             videoEvidence: "1 turn", toolCallDelivery: "parsed", toolCallEvidence: "1 call",
             reasoningEffort: "honored",
             loadProgress: ModelLoadProgress(
                 elapsedSeconds: 1, downloading: false, bytesDownload: nil, bytesTotal: nil,
                 bytesPerSecond: nil, secondsRemainingEstimate: nil)
         )
+        // Through the setter, because that is the only place the two spellings are ever written.
+        row.setContextCeiling(4096)
+        return row
     }
 
     @Test(
@@ -79,8 +82,12 @@ struct ModelsWireShapeTests {
         let reflected = Mirror(reflecting: full).children.compactMap(\.label)
         // Floor on the fixture's own premise: a new field nobody populated here must be named,
         // not silently dropped from the comparison below.
-        #expect(reflected.count == 16, "the fixture does not populate every field: \(reflected)")
-        let expected = Set(reflected.map { $0 == "ownedBy" ? "owned_by" : $0 })
+        #expect(reflected.count == 17, "the fixture does not populate every field: \(reflected)")
+        // The two keys whose spelling is not this object's camelCase. A third rename without a row
+        // here reds below (the struct's name would appear on neither side of the diff), which is
+        // the point: the mapping cannot silently lag the DTO.
+        let renamed = ["ownedBy": "owned_by", "maxModelLen": "max_model_len"]
+        let expected = Set(reflected.map { renamed[$0] ?? $0 })
         let data = try JSONEncoder().encode(full)
         let json = try #require(
             try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -88,6 +95,28 @@ struct ModelsWireShapeTests {
         let onWire = Set(json.keys)
         #expect(onWire == expected, "on the wire \(onWire) vs struct \(expected)")
         #expect(onWire.contains("owned_by") && onWire.contains("created"))
+    }
+
+    @Test("the ceiling is published under the references' name, alias carrying the same number")
+    func ceilingPublishedUnderBothNames() throws {
+        // `max_model_len` is what both stacks call it (`vllm .../engine/protocol.py:112`,
+        // `sglang .../openai/protocol.py:94`); `contextLength` is the older spelling kept one
+        // release. One value written by one setter — so the assertion is that the two AGREE, not
+        // that each is populated, which is what would drift.
+        var row = ModelObject(id: "m", state: "ready")
+        row.setContextCeiling(8192)
+        let json = try #require(
+            try JSONSerialization.jsonObject(with: JSONEncoder().encode(row)) as? [String: Any])
+        #expect(json["max_model_len"] as? Int == 8192, "the references' key is missing: \(json)")
+        #expect(json["contextLength"] as? Int == 8192, "the alias disagrees with the key: \(json)")
+
+        // A row whose ceiling is unknown omits both — never 0, which a client sizes a prompt with.
+        let unknown = try #require(
+            try JSONSerialization.jsonObject(with: JSONEncoder().encode(ModelObject(id: "m")))
+                as? [String: Any])
+        #expect(
+            unknown["max_model_len"] == nil && unknown["contextLength"] == nil,
+            "an unknown ceiling published as a number: \(unknown)")
     }
 
     @Test("`created` is measured, and the same row reads the same on the next poll")

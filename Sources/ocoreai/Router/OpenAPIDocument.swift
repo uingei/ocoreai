@@ -465,9 +465,12 @@ enum OpenAPIDocument {
                                             // named in AppError's description are conditional, and a closed
                                             // object here would call the ones a client sees invalid.
                                             ("additionalProperties", .bool(true)),
-                                            // `type` is not one constant: the emit site overwrites it with the
-                                            // SDK-named variants for the two classes a client branches on, so
-                                            // pinning "app_error" alone would hide the values that matter.
+                                            // `type` is the documented table, keyed by status, not one
+                                            // constant: `AppError.openAIErrorTypeName` produces the five
+                                            // names, and `app_error` stays listed because a second site
+                                            // still emits it — `NotFoundEnvelopeMiddleware` answers the
+                                            // trie-miss 404 with a literal body (the open item naming
+                                            // exactly this second home).
                                             (
                                                 "properties",
                                                 .object([
@@ -482,7 +485,10 @@ enum OpenAPIDocument {
                                                                     .string("app_error"),
                                                                     .string(
                                                                         "invalid_request_error"),
+                                                                    .string("not_found_error"),
                                                                     .string("rate_limit_error"),
+                                                                    .string("overloaded_error"),
+                                                                    .string("api_error"),
                                                                 ])
                                                             ),
                                                         ])

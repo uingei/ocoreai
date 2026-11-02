@@ -141,7 +141,11 @@ struct NotFoundEnvelopeWireTests {
                 #expect(r.status == .notFound)
                 let err = try self.decodeError(r.body)
                 #expect(err["code"] as? Int == 404)
-                #expect(err["type"] as? String == "app_error")
+                // An AppError-issued 404 speaks the documented name (`openAIErrorTypeName`), while
+                // the trie-miss 404 above still answers `app_error` from the middleware's literal —
+                // the asymmetry is real and is the § Open item about the second emit site, so the
+                // two assertions are deliberately different, not an oversight.
+                #expect(err["type"] as? String == "not_found_error")
                 // AppError envelope: message says "not found", NO error_code
                 // (only context-window/memory cases carry error_code), NO
                 // details key — proves the middleware did NOT rewrite it.

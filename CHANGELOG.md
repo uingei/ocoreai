@@ -9,6 +9,46 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-02
 
+**11-02(110) the sweep's two owner calls landed: `error.type` on the OpenAI face is the spec table, the ceiling ships as `max_model_len`**
+
+- **What improved.** The owner answered the two calls 11-02(109) left open. **OpenAI face:** `AppError`
+  now derives `error.type` from one status→name table (`openAIErrorTypeName`: 400
+  `invalid_request_error`, 404/410 `not_found_error`, 429 `rate_limit_error`, 503 `overloaded_error`,
+  ≥500 `api_error`, else the 4xx default), chosen against the *documented* spec names — the three
+  candidate authorities were the spec, vllm's HTTP-status phrase
+  (`serve/exception_handling/handlers/http.py:27`) and sglang's mixed Python-class names, and only the
+  first is a contract a client can code against; the per-case `detail["type"] =` arms at the emit site
+  folded into the table, and `app_error` left the AppError emit site entirely (the trie-miss 404 still
+  emits it from its middleware's literal body — § Open ①). **Ceiling key:** `/v1/models` now publishes
+  `max_model_len` — what both references call it (`vllm/vllm/entrypoints/serve/engine/protocol.py:112`,
+  `sglang/python/sglang/srt/entrypoints/openai/protocol.py:94`) — with `contextLength` kept as a
+  one-release alias written by the same setter, so the two spellings cannot disagree by construction and
+  an unknown ceiling omits **both** (never 0, which a client sizes a prompt with). Consumers of the old
+  name moved in the same change, not one release later: probe 03 reads `max_model_len` and additionally
+  fails a row whose alias disagrees with the key — a probe left pinned to the deprecated spelling would
+  silently keep passing the release that deletes it.
+- **What same-session output proves it.** **216/216 in 34 suites** (`Anthropic*`, `ModelsWireShape`,
+  `NotFoundEnvelope`, `OpenAPIContract`, `RequestNumericDomain`, `ModelLoadProgress`,
+  `V1EndpointCatalog`, `Capabilit*`) in 1.04 s. The vocabulary table asserts both faces per status in
+  one table, including where they deliberately differ (410: Anthropic's default is
+  `invalid_request_error`, OpenAI's is `not_found_error`); the live AppError 404 off the real router
+  (`/v1/models/no-such-model/sampling`) now asserts `not_found_error`, and the middleware 404 still
+  asserts `app_error` in the same suite — the asymmetry is the open item, asserted, not hidden.
+  `ceilingPublishedUnderBothNames` pins key == alias == 8192 and both-keys-absent for an unknown
+  ceiling. `openapi.json` regenerated (enum 3 → 6 names, models summary). One consumer of the changed
+  value was found by grepping, not assumed: the eval fault matcher matched the literal `app_error` to
+  mark an unreached task as a fault, which after this change would have quietly scored refusals as model
+  failures — it now decides by the HTTP status line (200-with-`finish=None` still scans the body), and
+  `scripts/eval/README.md` says so.
+- **Which gate goes red.** `AnthropicErrorEnvelopeTests` both-vocabularies table (a flattened or
+  drifted name reds naming the status), `ModelsWireShapeTests.ceilingPublishedUnderBothNames` (alias
+  drift or an unknown ceiling published as a number), the reflection floor (17 fields, rename map
+  `ownedBy`→`owned_by` + `maxModelLen`→`max_model_len` — a third rename without a row cannot hide),
+  `NotFoundEnvelopeWireTests` (the two 404 families' names are pinned *differently* on purpose),
+  `OpenAPIContractTests` (searches the names across both emit sites' sources, so the spec cannot
+  document a name nothing emits — or drop one that survives); probe 03 is the live rung for the alias
+  agreement.
+
 **11-02(109) `POST /v1/messages` answers in Anthropic's envelope — one throw, two wires, each in the vocabulary its clients dispatch on**
 
 - **What improved.** The owner set the axis: OpenAI, Anthropic and Jev compatibility are judged against

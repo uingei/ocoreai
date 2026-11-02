@@ -347,12 +347,21 @@ for id in $(python3 "$HERE/_eval.py" ids); do
 
   # No delivered turn (`finish=None`) or an engine-level refusal means this task was never
   # attempted. It stays in the file (the row count is the evidence), but it marks the run.
-  case "$usage$PROBE_BODY" in
-    *"finish=None"*|*"Engine busy"*|*"app_error"*)
-      FAULTS=$(( FAULTS + 1 ))
-      printf '%s %s\n' "$id" "$usage" >> "$OUT/faults.txt"
-      ;;
-  esac
+  # Off a 2xx the status line is the verdict: this matcher used to match the literal
+  # `app_error`, which was every refusal's `error.type`, but that field is now a status-keyed
+  # table (`api_error`, `overloaded_error`, …), so matching names would silently stop
+  # classifying faults the next time a name changes. Only a 200 needs its body read.
+  fault=""
+  [ "$PROBE_STATUS" = "200" ] || fault="refused with HTTP $PROBE_STATUS"
+  if [ -z "$fault" ]; then
+    case "$usage" in
+      *"finish=None"*) fault="200 with no delivered turn" ;;
+    esac
+  fi
+  if [ -n "$fault" ]; then
+    FAULTS=$(( FAULTS + 1 ))
+    printf '%s %s (%s)\n' "$id" "$usage" "$fault" >> "$OUT/faults.txt"
+  fi
 
   if [ "$rc" -eq 0 ]; then
     PASS=$(( PASS + 1 ))

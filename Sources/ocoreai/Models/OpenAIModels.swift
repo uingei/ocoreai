@@ -2382,6 +2382,33 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         }
     }
 
+    /// OpenAI's `error.type` for this status.
+    ///
+    /// Chosen over the two references' behaviour, deliberately and with the departure named: vllm
+    /// puts the HTTP status *phrase* here
+    /// (`vllm/entrypoints/serve/exception_handling/handlers/http.py:27` —
+    /// `type=HTTPStatus(exc.status_code).phrase`, so its 404 reads `"Not Found"`), and sglang mixes
+    /// Python class names with spec names (`openai/serving_base.py:205-213` defaults to
+    /// `err_type="BadRequestError"`, and its call sites pass `InternalServerError` and
+    /// `NotImplementedError` beside `invalid_request_error`). This server already answered 400 and
+    /// 429 with the documented names, so a 404 reading `app_error` beside them was one fact with
+    /// three spellings inside one process; the documented table is the one that keeps that server
+    /// internally consistent. Statuses this server cannot emit fall to the same two-tier default
+    /// Anthropic's table uses, rather than to a name with no cite behind it.
+    nonisolated var openAIErrorTypeName: String {
+        switch status.code {
+        case 400: "invalid_request_error"
+        // 410 (`sessionExpired`) — OpenAI has no 410 in its surface, and the session it names is
+        // not there to fetch; the documented nearest is `not_found_error`, and the message says why.
+        case 404, 410: "not_found_error"
+        case 429: "rate_limit_error"
+        // OpenAI names `overloaded_error` for its own busy answer, which is exactly what a 503 from
+        // a single-engine local server means; vllm maps 503 here on the Anthropic face too.
+        case 503: "overloaded_error"
+        default: status.code >= 500 ? "api_error" : "invalid_request_error"
+        }
+    }
+
     /// ``HTTPResponseError.response(from:context:)`` — build a JSON error response.
     nonisolated func response(
         from request: Request,
@@ -2389,7 +2416,12 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     ) throws -> Response {
         let detail = NSMutableDictionary(dictionary: [
             "message": errorDescription ?? String(describing: self),
-            "type": "app_error",
+            // The documented name for this status, not a catch-all: every refusal this file raises
+            // now answers `invalid_request_error` / `not_found_error` / `rate_limit_error` /
+            // `overloaded_error` / `api_error`, so a client branching on `error.type` gets one
+            // table to branch on. The per-case switches below keep only what a status cannot say
+            // (`param`, `value`, `retry_after_seconds`).
+            "type": openAIErrorTypeName,
             "code": status.code,
         ])
         // Typed error payload: the context-window-exhausted condition carries a
@@ -2460,17 +2492,16 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         // the reference stack for both wires here — puts the offending field next to it.
         // `app_error` is what an SDK sees for everything it has no name for, so leaving a
         // 400 there costs clients a string-parse.
+        // `type` is no longer written here: the status table above already gives these three cases
+        // the name they were hand-set to (`invalid_request_error` ×2, `rate_limit_error`), and a
+        // second place that names the same fact is where the two would drift.
         switch self {
-        case .invalidRequest:
-            detail["type"] = "invalid_request_error"
         case .engineBusy:
             // Both specs name this shape for a capacity refusal (OpenAI Errors, Anthropic
             // Errors: `rate_limit_error`), and an SDK branches on `type`, not on the string.
-            detail["type"] = "rate_limit_error"
             detail["error_code"] = "engine_busy"
             detail["retry_after_seconds"] = EngineBusySignal.retryAfterSeconds
         case .invalidParameter(let param, _, let value):
-            detail["type"] = "invalid_request_error"
             detail["param"] = param
             if let value {
                 detail["value"] = value

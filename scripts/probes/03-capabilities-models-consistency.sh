@@ -324,6 +324,24 @@ probe_section "models surface must not promise what count-tokens denies"
 probe_api GET /v1/models
 MODELS_BODY="$PROBE_BODY"   # reused below: the capability rows have to agree with these rows
 LIMIT="${OCOREAI_PROBE_MODEL_LIMIT:-2}"
+# `max_model_len` is the key vllm and sglang publish and we now publish; `contextLength` is the
+# one-release alias carrying the same number. This is the consumer-side gate for that promise:
+# a row whose two spellings disagree hands one client two budgets for one window.
+ALIAS_CLASH="$(python3 - "$PROBE_BODY" <<'PY'
+import json, sys
+try:
+    data = json.loads(sys.argv[1]).get("data", [])
+except Exception:
+    sys.exit(0)
+for m in data:
+    key, alias = m.get("max_model_len"), m.get("contextLength")
+    if key is not None and alias is not None and key != alias:
+        print("%s max_model_len=%s contextLength=%s" % (m.get("id", ""), key, alias))
+PY
+)"
+if [ -n "$ALIAS_CLASH" ]; then
+  probe_fail "one row publishes two different ceilings: $(printf '%s' "$ALIAS_CLASH" | tr '\n' ';')"
+fi
 READY_LIST="$(python3 - "$PROBE_BODY" "$LIMIT" <<'PY'
 import json, sys
 try:
@@ -333,10 +351,13 @@ except Exception:
 limit = int(sys.argv[2])
 ready = [m for m in data if str(m.get("state", "ready")) == "ready"]
 for m in ready[:limit]:
+    # Read the primary key, not the alias: a probe pinned to the deprecated name would
+    # silently keep passing the release that deletes it.
+    ctx = m.get("max_model_len")
     print("%s|%s|%s|%s" % (
         m.get("id", ""),
         m.get("vlm", ""),
-        m.get("contextLength", ""),
+        "" if ctx is None else ctx,
         ",".join(m.get("capabilities", []) or [])))
 PY
 )"
@@ -350,14 +371,14 @@ while IFS='|' read -r mid vlm ctx caps; do
   if [ -z "$vlm" ]; then
     probe_note "model $mid omits vlm (ModelObject leaves it nil rather than guess) — clients cannot tell whether it sees images"
   else
-    # `contextLength` absent is the documented honest shape (unknown ≠ 0, see
+    # `max_model_len` absent is the documented honest shape (unknown ≠ 0, see
     # ModelObject); present-but-zero would be a lie. Only fail on the lie.
     if [ -n "$ctx" ] && [ "${ctx:-0}" -le 0 ]; then
-      probe_fail "model $mid reports contextLength=$ctx — a non-positive window is not a real ceiling"
+      probe_fail "model $mid reports max_model_len=$ctx — a non-positive window is not a real ceiling"
     elif [ -z "$ctx" ]; then
-      probe_note "model $mid omits contextLength (documented as unknown ≠ 0) — clients must budget by trial"
+      probe_note "model $mid omits max_model_len (documented as unknown ≠ 0) — clients must budget by trial"
     else
-      probe_ok "model $mid states vlm=$vlm contextLength=$ctx${caps:+ caps=$caps}"
+      probe_ok "model $mid states vlm=$vlm max_model_len=$ctx${caps:+ caps=$caps}"
     fi
   fi
   probe_api POST /v1/count-tokens "{\"model\":\"$mid\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}]}"

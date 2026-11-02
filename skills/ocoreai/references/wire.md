@@ -12,7 +12,7 @@
 |---|---|---|---|
 | `GET` | `/health` | `public` | Process liveness + engine pool summary |
 | `GET` | `/ready` | `public` | Readiness: ready when no session is generating |
-| `GET` | `/v1/models` | `public` | Model inventory (vlm, contextLength, defaultModel) |
+| `GET` | `/v1/models` | `public` | Model inventory (vlm, max_model_len, defaultModel) |
 | `GET` | `/v1/tools` | `public` | Tool registry with JSON schemas |
 | `GET` | `/v1/capabilities` | `public` | Backend matrix + tokenizer + instruction budget + this index |
 | `GET` | `/v1/stats` | `public` | Structured inference counters and gauges |
@@ -67,10 +67,12 @@ Measured on the scripted lane (no weights resident), so they are contract facts,
 - `GET /health` → `{"status":"ok","timestamp":…,"engineSummary":{"loadedModels":…,"activeSessions":…,
   "gpuCacheGB":…,"modelIds":[…],"specializedModels":…}}`
 - `GET /ready` → `{"status":"ready","loadedModels":…,"activeSessions":…,"timestamp":…}`
-- `GET /v1/models` → `{"object":"list","data":[{id, object, created, owned_by, state, contextLength,
-  vlm, weightsDir, reasoningEffort, toolCallDelivery, videoInput}]}` — `created`/`owned_by` are
-  OpenAI's own keys (stable across polls: the weights directory's creation date, else the instant this
-  server came to know the row); the rest are ocoreai extensions and stay camelCase. A `state:"loading"`
+- `GET /v1/models` → `{"object":"list","data":[{id, object, created, owned_by, state, max_model_len,
+  contextLength, vlm, weightsDir, reasoningEffort, toolCallDelivery, videoInput}]}` — `created`/`owned_by`
+  are OpenAI's own keys (stable across polls: the weights directory's creation date, else the instant this
+  server came to know the row); the context ceiling is published as `max_model_len`, the name vllm and
+  sglang both use, with `contextLength` as a one-release alias carrying the same number (an unknown
+  ceiling omits **both** — never 0). The rest are ocoreai extensions and stay camelCase. A `state:"loading"`
   row also carries `loadProgress` (`elapsedSeconds`, `downloading`, and the byte fields only once a hub
   transfer measured them). `data` is empty on a machine with no
   cached checkpoint, so **assert structure here and model rows only where a model is ready** (that split

@@ -82,24 +82,43 @@ struct AnthropicErrorEnvelopeTests {
 
     // MARK: - The table
 
-    @Test("Anthropic's vocabulary, one name per status this server can emit")
-    func anthropicErrorTypeTable() {
-        // Names read off `vllm/entrypoints/anthropic/protocol.py:34-53`; the two fallbacks are that
-        // function's own, so a client gets one answer from either stack.
-        #expect(AppError.invalidRequest("x").anthropicErrorTypeName == "invalid_request_error")
-        #expect(
-            AppError.invalidParameter(param: "temperature", message: "range", value: "5")
-                .anthropicErrorTypeName == "invalid_request_error")
-        #expect(AppError.modelNotFound("org/x").anthropicErrorTypeName == "not_found_error")
-        #expect(AppError.engineBusy.anthropicErrorTypeName == "rate_limit_error")
-        #expect(AppError.modelLoading("org/x", nil).anthropicErrorTypeName == "overloaded_error")
-        #expect(AppError.engineUnavailable.anthropicErrorTypeName == "overloaded_error")
-        #expect(AppError.inferenceFailed("boom").anthropicErrorTypeName == "api_error")
-        // A 501 (the decisions refusal) is ≥500: `api_error`, not a 4xx name.
-        #expect(AppError.decisionsUnavailable("no logits").anthropicErrorTypeName == "api_error")
-        // vllm has no entry for 410 and falls through to its 4xx default; so do we — reproducing
-        // that beats inventing a name Anthropic never defined for an expired session.
-        #expect(AppError.sessionExpired("s").anthropicErrorTypeName == "invalid_request_error")
+    /// Both vocabularies, per status, in one place: a refusal's `error.type` is decided by the
+    /// table its wire documents, and a client must not have to learn which of the two a given
+    /// server happened to be speaking.
+    ///
+    /// Anthropic's column is read off `vllm/entrypoints/anthropic/protocol.py:34-53` (the fallbacks
+    /// are that function's own). OpenAI's column is the documented table — the choice, with the two
+    /// references it departs from named, is on `AppError.openAIErrorTypeName`.
+    @Test("one status, two documented names, no catch-all")
+    func bothVocabulariesPerStatus() {
+        let rows: [(AppError, String, String)] = [
+            (AppError.invalidRequest("x"), "invalid_request_error", "invalid_request_error"),
+            (
+                AppError.invalidParameter(param: "temperature", message: "range", value: "5"),
+                "invalid_request_error", "invalid_request_error",
+            ),
+            (AppError.modelNotFound("org/x"), "not_found_error", "not_found_error"),
+            (AppError.engineBusy, "rate_limit_error", "rate_limit_error"),
+            (AppError.modelLoading("org/x", nil), "overloaded_error", "overloaded_error"),
+            (AppError.engineUnavailable, "overloaded_error", "overloaded_error"),
+            (AppError.inferenceFailed("boom"), "api_error", "api_error"),
+            // A 501 (the decisions refusal) is ≥500 on both tables, so it is not a 4xx name.
+            (AppError.decisionsUnavailable("no logits"), "api_error", "api_error"),
+            // 410: vllm has no entry and falls to its 4xx default, so Anthropic says
+            // `invalid_request_error`; OpenAI has no 410 either, and the session it names is not
+            // there to fetch, so its table says `not_found_error`. Deliberately not the same word.
+            (AppError.sessionExpired("s"), "invalid_request_error", "not_found_error"),
+        ]
+        for (error, anthropic, openAI) in rows {
+            #expect(
+                error.anthropicErrorTypeName == anthropic,
+                "status \(error.status.code) → \(error.anthropicErrorTypeName), expected \(anthropic)"
+            )
+            #expect(
+                error.openAIErrorTypeName == openAI,
+                "status \(error.status.code) → \(error.openAIErrorTypeName), expected \(openAI)")
+            #expect(error.openAIErrorTypeName != "app_error", "a catch-all name survived")
+        }
     }
 
     // MARK: - The two envelopes, off a live router

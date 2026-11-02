@@ -91,7 +91,7 @@
       "parameters": [],
       "get": {
         "operationId": "get_v1_models",
-        "summary": "Model inventory (vlm, contextLength, defaultModel)",
+        "summary": "Model inventory (vlm, max_model_len, defaultModel)",
         "tags": [
           "discovery"
         ],
@@ -1760,7 +1760,10 @@
                 "enum": [
                   "app_error",
                   "invalid_request_error",
-                  "rate_limit_error"
+                  "not_found_error",
+                  "rate_limit_error",
+                  "overloaded_error",
+                  "api_error"
                 ]
               },
               "code": {

@@ -168,11 +168,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   not a test premise. The median is measurable, the tail is not. Closed: the ledger's cross-suite
   half (11-02(105)). Wanted: a clock the tests control (`ClockToolsTests`) or an uncontended lane
   (`make test-clt`'s split); whose call: the owner.
-- **The 11-02 compat sweep left four owner calls** (Models/, Middleware/, Router/, Wire/) — long form
-  11-02(108)–(109). ① `error.type` on the OpenAI face: vllm sends the status *phrase*, sglang mixes class names
-  with spec names, the spec documents names, we emit spec names only for 400/429 — pick one table, and the per-case arms
-  fold into one status→name map. ② Three sites build literal error bodies
+- **The 11-02 compat sweep left two owner calls and one dated debt** (Middleware/, Wire/, Router/) —
+  the swept axes landed (spec-name `error.type`; ceiling as `max_model_len`, old key aliased one
+  release, 11-02(110)). ① Three sites build literal error bodies
   (`RateLimitMiddleware`, `NotFoundEnvelopeMiddleware`, `ContentGuard` — lines in 11-02(109)), so a
-  middleware refusal on `/v1/messages` still answers the OpenAI envelope. ③ The references call the served
-  ceiling `max_model_len`, we call it `contextLength`. ④ Jev's answer half is read from both stacks and
-  unwritten until the answer position can be scored (probe 49); the seam and its lane are the call.
+  middleware refusal on `/v1/messages` still answers the OpenAI envelope; porting them onto
+  `AppError.response` must carry `Retry-After`, `route_not_found` + the endpoint index and
+  `content_policy_violation`. ② Jev's answer half is read from both stacks and unwritten until the
+  answer position can be scored (probe 49); the seam and its lane are the call. ③ drop the
+  `contextLength` alias (and probe 03's clash check with it) the release after it landed.

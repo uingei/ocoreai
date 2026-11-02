@@ -75,7 +75,7 @@ enum V1EndpointCatalog {
             method: "GET", path: "/ready", note: "Readiness: ready when no session is generating"),
         RouteSpec(
             method: "GET", path: "/v1/models",
-            note: "Model inventory (vlm, contextLength, defaultModel)"),
+            note: "Model inventory (vlm, max_model_len, defaultModel)"),
         RouteSpec(method: "GET", path: "/v1/tools", note: "Tool registry with JSON schemas"),
         RouteSpec(
             method: "GET", path: "/v1/capabilities",
