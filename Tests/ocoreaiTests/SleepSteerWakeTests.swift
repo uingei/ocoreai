@@ -20,7 +20,8 @@
 /// 变成空头承诺, 而运行时没有任何东西会变红 —— 那正是这类接线唯一不自证的点。
 ///
 /// 时钟纪律: 只有 `SystemSleepBackend` 那几条碰真时钟, 且上界宽松(秒级 vs 30 s 请求时长),
-/// 所以 CI 快机上不慢、慢机上不误报; 时长与报告形态本身在 `ClockToolsTests`(全离线)。
+/// 所以 CI 快机上不慢、慢机上不误报; 「途中到达」那条把界钉在转向**实际到场之后**并带本机
+/// 控制项(见该用例注释); 时长与报告形态本身在 `ClockToolsTests`(全离线)。
 
 import Foundation
 import Testing
@@ -185,17 +186,41 @@ struct SystemSleepBackendTests {
     func steerArrivingMidWaitEndsItEarly() async {
         let key = isolatedKey("real-mid-arrival")
         defer { SteerQueue.shared.discard(sessionKey: key) }
-        let arrival = Task {
+        // 到达时刻是量出来的, 不是假定的。set run 里 615 个套件共用一条协作池, 投递任务自己
+        // 那 60 ms 的睡眠能迟到几秒 —— 11-02 全量实测 `took ≥ 2500` 红在这一行, 而轮询唤醒
+        // 本身没有错。界因此钉在「转向真正到场之后」, 与 `EngineBusyAdmissionTests
+        // .queueWakesOnRelease` 同一形状: 返回时刻 + 控制项量本机此刻一次 50 ms 睡眠的代价,
+        // 慢机器上界自己放大。缺陷签名(睡到 deadline)是 30 000 ms, 仍远在一切界之上。
+        let arrival = Task<Int, Never> {
+            let t0 = DispatchTime.now().uptimeNanoseconds
             try? await Task.sleep(nanoseconds: 60_000_000)
             SteerQueue.shared.enqueue(sessionKey: key, text: "arrived mid-wait")
+            return Int((DispatchTime.now().uptimeNanoseconds - t0) / 1_000_000)
+        }
+        let control = Task<Int, Never> {
+            var worst = 0
+            for _ in 0 ..< 4 {
+                let tick = DispatchTime.now()
+                try? await Task.sleep(for: .milliseconds(50))
+                worst = max(worst, elapsedMs(tick))
+            }
+            return max(0, worst - 50)
         }
         let start = DispatchTime.now()
         let outcome = await SystemSleepBackend().sleep(
             milliseconds: 30_000, wakeCheck: SleepWake.session(key))
         let took = elapsedMs(start)
-        await arrival.value
+        let arrivedAtMs = await arrival.value
+        let controlMs = await control.value
+        let wakeSlackMs = took > arrivedAtMs ? took - arrivedAtMs : 0
         #expect(outcome == .interrupted)
-        #expect(took < 2_500, "took \(took)ms — mid-wait input must wake the poll loop")
+        let budgetMs = max(2000, 4 * controlMs)
+        #expect(
+            wakeSlackMs < budgetMs,
+            """
+            woke \(wakeSlackMs)ms after the steer actually landed at \(arrivedAtMs)ms \
+            (budget \(budgetMs)ms, whole wait \(took)ms, host clock cost \(controlMs)ms)
+            """)
     }
 
     @Test("无人打断 ⇒ 真睡满全程并报 completed")

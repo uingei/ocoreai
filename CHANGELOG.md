@@ -9,6 +9,32 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-02
 
+**11-02(106) A prompt wake lost to a late arrival — the mid-wait bound now measures the instant the steer lands**
+
+- **What improved.** The full run that corroborated 11-02(105) put a red somewhere new:
+  `SleepSteerWakeTests.steerArrivingMidWaitEndsItEarly` asked `took < 2_500` from the test's own clock,
+  but the steer arrives from a *separate Task* whose 60 ms sleep is scheduled by the same cooperative
+  pool 615 suites share — on a hot pool the arrival lands late, the poll loop then wakes inside its
+  real cadence, and the gate reds the host for a wake that was on time. The bound moved to the
+  arrival's *reported* instant plus a host control term, the shape `EngineBusyAdmissionTests
+  .queueWakesOnRelease` established for exactly this hazard; the suite's clock-discipline header names
+  it, and the defect signature (sleep-to-deadline, ~30 000 ms) stays above every budget both ends
+  produce. No bound was raised to fit a sample: the old 2 500 ms became a 2 000 ms floor measured
+  *after* arrival, with the control term widening it on slower hosts.
+- **What same-session output proves it.** The red was sampled in this session's own full run
+  (3 502/615, `:198` with `outcome == .interrupted` — the wake correct, the premise not), and the
+  rewrite is green idle (17/17) and ×3 under sustained 40-way CPU saturation. The next full run then
+  showed the new assertion firing at the right subject: the steer landed at 290 ms with the host
+  control reading 239 ms, and the wake came **3 284 ms** after it — the wake path itself parked, which
+  is what the test's name claims, where the old form could not tell that from a late arrival. The same
+  run reds `queueWakesOnRelease` itself (**6 382 ms** late against a **301 ms** control, its waiter
+  parked past a 5 s window at 6.7 s even though the lock freed at 355 ms): the control term measures
+  the pool's median and the tail that kills the bound is unbounded relative to it, so the family's
+  remaining question — a clock the tests control, or an uncontended lane — travels in § Open as an
+  owner call, disclosed rather than tuned away.
+- **Which gate goes red.** This suite, same test count. Re-pinning the bound to the test's own clock
+  re-imports the arrival premise, and the loaded-host cast of 11-02 returns. Nothing new is gated.
+
 **11-02(105) A gate that fires on a busy machine is a gate that gets ignored — one of the loaded-host five is now load-immune by ownership**
 
 - **What improved.** `ToolAttemptLedgerTests.windowCapsTheRetainedRecord` was red on the 11-01(100)
@@ -29,7 +55,10 @@ heading are when the work landed (measured from git).
 - **What same-session output proves it.** 6/6 runs of
   `ToolAttemptLedgerTests|ToolRegistryTests|FileToolsTests|ExecCommandToolTests` (62 tests / 10
   suites) green while 18 CPU spinners saturated the box, so the ledger's writers ran concurrently
-  with its reader for every run — the exact coupling the old assertions could not survive.
+  with its reader for every run — the exact coupling the old assertions could not survive. And from
+  the intended environment, twice: the next two full `make test` runs (3 502 tests / 615 suites,
+  5 and 10 issues — see 11-02(106) for the cast) left this suite out of the red list both times,
+  where 11-01(100) had had it red there.
 - **Which gate goes red.** This suite *is* the gate (10 tests, same count as before the round); the
   red was sampled once, at 11-01(100), and the fix is structural rather than tuned to that sample:
   if someone re-points the window assertions at `.shared` with a bare count, the race returns on a

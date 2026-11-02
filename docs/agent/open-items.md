@@ -168,13 +168,13 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 
 - **Memory is read by every request, written only behind `self_correction`** (SQLite/) — `ChatHandler.swift:944` reads, `addMemory` writes. Owner call: publish the flag, or gate the recall.
 
-- **Four gates go red on a loaded host** (Tests/) — one full `make test` here: 3 480 tests / 613 suites /
-  6 issues, five of them saturation or cross-suite coupling and green in isolation. The cross-suite half
-  closed 11-02(105): `ToolAttemptLedgerTests.windowCapsTheRetainedRecord` measured the process-global
-  dispatch count while other suites advanced it, and now measures a ledger instance the test owns (its
-  dispatch proof pins its own record by tool + target), so no lease over the shared counter is needed
-  and none was added. Remains: the saturation trio `SleepSteerWakeTests`, `EngineBusyAdmissionTests`,
-  `MCPTimeoutDeliveryTests`. Per-suite milliseconds and the isolation control: diary 11-01(100).
-  Wanted: bounds measured under saturation, or a clock the test controls. Gate: none of the four has
-  one — they *are* the gates, and a gate that fires on a busy machine is a gate that gets ignored the
-  second time.
+- **The loaded-host reds rotate cast, and the pool tail beats every control term** (Tests/) — full
+  `make test` casts: 5 issues on 11-01(100), then 5 and 10 on 11-02, names rotate; mechanism +
+  magnitudes: 11-02(106). One class: wall-clock bounds bet on the single cooperative pool 615 suites
+  share. The instant+control pattern does not fence it — a wake 6 382 ms late read against a 301 ms
+  control; a waiter parked past a 5 s window while the lock freed at 355 ms — production behaviour,
+  not a test premise. The median is measurable, the tail is not: no multiplier survives, none was
+  tuned to samples. Closed: the ledger's cross-suite half (11-02(105)), out of both casts. Wanted: a
+  clock the tests control (offline `ClockToolsTests` is the model), or an uncontended lane for the
+  real-clock family — `make test-clt`'s two-process split is the precedent; whose call, CI included:
+  the owner. A gate that fires on a busy machine gets ignored the second time.
