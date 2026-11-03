@@ -33,6 +33,18 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `preserve_thinking` retains "reasoning context from historical messages"
   (`../references/Qwen3.8/README.md:25`) — so a caller that retains thinking pays tokens we cannot price
   for it (inference from a README, not a measured interaction).
+- **Pin 1's pending window carries two commits on axes this repo has open** (Engine/) — `make drift` 11-04:
+  `mlx-swift-lm HEAD=ffe7647b0, +3 vs base=b8d4935ab`, and two of the three are ours-shaped: *"Add resumable
+  Qwen MTP speculative decoding to ChatSession (#581)"* (the MTP lane *and* the interrupt/stall rows, which both
+  wait on what upstream's `ChatSession` loop owns) and *"RotatingKVCache: keep the pinned prefix visible in
+  multi-token masks (#747)"* (KV/prefix accounting); the third (`#692`, EmbeddingGemma 2 image orientation) reads
+  n/a. The third pin axis is clean: `mlx-swift tag=0.33.0 pin=0.33.0`, 0 new. `coreai-models` is +1
+  (`#404`, CI-only per its subject). Owner call is § Upstream 1's bump protocol, not an audit finding — but the
+  MTP half deserves the same read as the acceptance row below, because a *resumable* drafter changes what that
+  gate would even measure. Instrument note, unrepaired: the same command printed the same verdict twice and
+  exited **10** then **2**, while `scripts/upstream-drift.sh:6` documents 0/1/10 only and the exit code is what
+  automation reads — worth five minutes, since `scripts/upstream-drift.sh:18` records this tool having already
+  bitten once on a stray exit 141.
 - **MTP acceptance is threaded, unused as a signal, and its named suite gates nothing** (Engine/, Tests/) —
   found by reading, not by a scan. ① The counters are real: `proposedDraftTokens`/`acceptedDraftTokens`
   (`EngineEvents.swift:105`) are threaded at `EngineInference.swift:3432`, `:4229` and read by

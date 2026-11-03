@@ -41,6 +41,16 @@ heading are when the work landed (measured from git).
   CoreAI-linked binary — the macOS-27 shape where R1 wants the CoreAI-free CLT 26.5 route — which is indicated
   for the runner and not proven. Rung 1 now carries the date and the command instead of a 10-29 verdict in the
   present tense; no workflow was touched.
+  **⑥ the pins were not as settled as the prose implied, and one pending window sits on our axis.** `make
+  drift`, run to check the claim rather than repeat it: `mlx-swift-lm +3 commits vs base=b8d4935ab`, two of the
+  three ours-shaped — *"Add resumable Qwen MTP speculative decoding to ChatSession (#581)"*, which touches both
+  the MTP lane and the two § Open rows waiting on what upstream's `ChatSession` owns, and *"RotatingKVCache:
+  keep the pinned prefix visible in multi-token masks (#747)"*; `coreai-models +1` (a CI-only subject);
+  `mlx-swift` clean at `tag == pin == 0.33.0`. Bumping is § Upstream 1's protocol and the owner's call, but a
+  *resumable* drafter changes what the acceptance gate would measure, so the two rows are now linked. The
+  instrument misreported under me once: the same printed verdict exited **10** then **2**, where
+  `scripts/upstream-drift.sh:6` documents only 0/1/10 and the exit code is the only thing automation reads.
+  Named, not repaired.
 - **What same-session output proves it.** The registry told readers to re-derive the coupling set with
   `git grep -l <tree> -- Sources Tests`, and had not done so itself: running its own command gave **ten**
   zero-coupling trees, not the seven it printed, with `deepseek-harness` wrongly listed and five trees wrongly
