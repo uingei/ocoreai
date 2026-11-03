@@ -9,6 +9,41 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-03
 
+**11-03(12) A cold load stopped reading as "Generation failed" — the GUI's `loading` face at the send seam**
+
+- **What improved.** The engine has answered a cold turn with `AppError.modelLoading` carrying what the
+  wait measured since 11-02(107). The GUI threw that away: the catch in `ChatViewModel.swift` separated
+  `.modelNotFound` from *everything else*, so whoever pressed send during the shipping default's 794 s
+  cold load was told **"Generation failed"** when the 120 s window closed, with Retry as the only exit —
+  `UI/AGENTS.md` owes each of the five non-happy states honest copy *and* a way out, and this state had
+  neither while `ModelView.swift:355` drew a working progress bar from the very store the 503 measured.
+  Which refusal earns which banner is now one decision — `ChatState.failureFace(for:locale:)`, locale a
+  parameter so both delivered tables are decidable with no engine — applied by `ChatState.presentFailure`,
+  which is the catch site's whole job (it also re-decides the route per failure, where a stale
+  `modelNotReady` used to be able to survive into an unrelated banner; `resetForTesting` clears it too).
+  The new face reuses the route that exists: `modelNotReady` already means "the way out is the Models
+  page", which is where the bar reads the measurement — a second affordance landing on the same tab is a
+  second home for one destination. One key in both tables (`Chat.ModelLoadingTitle`), worded so it claims
+  no transfer: `downloading` is false through the map/specialize/warm window, so "downloading" would be
+  the surface claiming a number-adjacent fact the engine had not measured.
+- **What it deliberately did not do.** No numbers in the banner. `ModelLoadProgress.disclosureLine` exists
+  precisely so no surface words the wait differently from any other, and re-spelling that sentence into two
+  locale tables is the second home the type forbids; the bytes stay on the wire and one tap away in the
+  bar that already reads them. The remaining wait asymmetry (the *triggering* request still waits out the
+  whole load) is unchanged and stays registered in `docs/agent/open-items.md`.
+- **What same-session output proves it.** `make test FILTER=ChatFailureFaceTests` → **5 tests / 1 suite,
+  0.009 s**, no Metal, no weights, no window. The neighbours the change touches — `LocaleResolutionTests`
+  (both tables cover every key; "the GUI holds no copy outside the string table"), `ChatStateSendPathTests`,
+  `ChatViewModelBehavioralTests`, `AppErrorModelLoadingTests`, `ModelLoadProgressHonestyTests` — **69 tests
+  / 12 suites in 1.02 s**. `make format-check`: zero files reformatted, formatter 603.0.0 == the CI pin.
+  `make test-ci` did not run in this session; CI is that seat.
+- **Which gate goes red.** `ChatFailureFaceTests`(5). Rendering the cold load through the generic banner
+  re-reds `coldLoadSaysTheWaitInItsOwnTable` byte-exactly, in *both* tables; wording the copy as a transfer
+  re-reds the same test on the arm where nothing is being fetched; letting the missing and loading faces
+  share a sentence re-reds `missingModelKeepsItsOwnFace`; adding a disclosure sentence to the GUI re-reds
+  `measuredWaitRendersTheSameFace`; and `presentFailureSetsTheVisibleState` re-reds on a Models route
+  bleeding into an unrelated failure, or on a half-streamed answer surviving the banner as a reply.
+
 **11-03(11) the mlx-swift-lm window is taken — `128f49f1d → b8d4935ab`, and the bump turned up cites that had drifted before it opened**
 
 - **What improved.** The one red `make drift` owed: all four commits adjudicated against the consumption

@@ -275,6 +275,41 @@ final class ChatState {
         return raw
     }
 
+    /// Which banner an engine refusal earns, and whether it gains the "Go to Models" step.
+    ///
+    /// One home for the mapping, with the locale a parameter so both faces are decidable with no
+    /// engine and no Metal (`ChatFailureFaceTests`). The two load faces must not share a sentence:
+    /// `.modelNotFound` is a dead end whose only exit is a download, while `.modelLoading` is a
+    /// wait the engine has already measured — "download one" is false advice while the weights are
+    /// landing, and "Generation failed" sends the user to retry a request that cannot yet answer.
+    internal nonisolated static func failureFace(
+        for error: Error, locale: OCALocale = .userSelected()
+    ) -> (message: String, offersModels: Bool) {
+        if let appError = error as? AppError {
+            switch appError {
+            case .modelNotFound:
+                return (StringKey.modelNotReadyTitle.localized(for: locale), true)
+            case .modelLoading:
+                return (StringKey.modelLoadingTitle.localized(for: locale), true)
+            default:
+                break
+            }
+        }
+        return (StringKey.generationFailed.localized(for: locale), false)
+    }
+
+    /// The banner a failed turn leaves on screen — the catch site's whole job, split out so the
+    /// state a user actually reads is reachable from a test. The streaming preview goes with the
+    /// failure: a half-streamed answer that never completed is not a reply (see the catch in
+    /// `chat`).
+    func presentFailure(_ error: Error) {
+        let face = Self.failureFace(for: error)
+        errorMessage = face.message
+        modelNotReady = face.offersModels
+        responseText = ""
+        currentCancellation = nil
+    }
+
     var responseTextDisplay: String {
         Self.displayText(from: responseText)
     }
@@ -283,10 +318,10 @@ final class ChatState {
     /// so the UI can render reasoning progressively instead of after completion.
     var currentReasoningText: String = ""
     var errorMessage: String?
-    /// True when the last failure was a missing model (AppError.modelNotFound) —
-    /// the error banner then gains a "Go to Models" next-step action instead of
-    /// only Retry/Dismiss. First-launch users without a model should be routed
-    /// to download, not left at an opaque "Generation failed".
+    /// True when the way out of the last failure is the Models page: a missing model
+    /// (AppError.modelNotFound — route to download) or one still loading (AppError.modelLoading —
+    /// route to the bar that already reads `OcoreaiDownloadProgress`). The banner then gains the
+    /// "Go to Models" step instead of only Retry/Dismiss.
     var modelNotReady: Bool = false
     var loading: Bool = false
     /// Live streaming throughput — estimated tokens/second. Updated per chunk.
@@ -1405,21 +1440,11 @@ final class ChatState {
             // Finalize cancellation handle
             currentCancellation = nil
         } catch {
-            // Do not surface raw localizedDescription to the user —
-            // it leaks technical details and may not match UI language.
-            // Instead, show a localized, user-facing error message.
-            if let appError = error as? AppError, case .modelNotFound = appError {
-                // First-launch without a model: route to download, not a dead end.
-                self.modelNotReady = true
-                self.errorMessage = StringKey.modelNotReadyTitle.l
-            } else {
-                self.modelNotReady = false
-                self.errorMessage = StringKey.generationFailed.l
-            }
+            // Do not surface raw localizedDescription to the user — it leaks technical details and
+            // may not match UI language. Which banner a refusal earns is one decision, in
+            // `failureFace`; a cold load gets the loading face, not a generic failure.
+            presentFailure(error)
             Self.logger.warning("Chat failed: \(error.localizedDescription)")
-            // Clear streaming preview on error — the error banner shows the message
-            responseText = ""
-            currentCancellation = nil
         }
         // Steering turn-end flush: anything the engine loop never drained
         // returns to the composer (visible, editable) — never silently lost.
@@ -1557,6 +1582,9 @@ final class ChatState {
         messages = []
         responseText = ""
         errorMessage = nil
+        // Travels with the banner: the overlay only reads it beside `errorMessage`, so a stale
+        // `true` here is a Models step offered on a turn that never refused anything.
+        modelNotReady = false
         loading = false
         _cancelledByUI = false
         // Persistence state

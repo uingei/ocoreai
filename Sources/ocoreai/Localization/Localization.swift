@@ -588,6 +588,10 @@ public enum StringKey: String, CaseIterable, Sendable {
     case clearConversationMessage = "Chat.ClearConversationMessage"
     case fileTooLarge = "Chat.FileTooLarge"
     case generationFailed = "Chat.GenerationFailed"
+    /// The `loading` face of the five non-happy states (`UI/AGENTS.md`): the engine refused with
+    /// `model_loading`, which is a wait it measured, not a failure. Says only what the refusal
+    /// proves — never "downloading", which a map/warm wait would not be.
+    case modelLoadingTitle = "Chat.ModelLoadingTitle"
     // — Composer front door: drop / paste / non-image attachments —
     case attachUnsupportedType = "Chat.AttachUnsupportedType"
     case attachTooLarge = "Chat.AttachTooLarge"
@@ -1121,6 +1125,7 @@ enum L10nTables {
             "This will delete all messages in this chat. You can undo with ⌘Z.",
         .fileTooLarge: "File too large (%@) (max 10 MB)",
         .generationFailed: "Generation failed",
+        .modelLoadingTitle: "Model is still loading",
         .contextCompactedBadge: "%d earlier message(s) compacted to fit the context window",
         .skillRegistryUnavailable: "Skill registry not available",
         .sessionCompressorUnavailable: "Session compressor not available",
@@ -1462,6 +1467,7 @@ enum L10nTables {
         .clearConversationMessage: "此操作将删除当前对话的所有消息。可使用 ⌘Z 撤销。",
         .fileTooLarge: "文件过大 (%@) (max 10 MB)",
         .generationFailed: "生成失败",
+        .modelLoadingTitle: "模型仍在加载中",
         .contextCompactedBadge: "已压缩 %d 条早期消息以适配上下文窗口",
         .skillRegistryUnavailable: "技能注册表不可用",
         .sessionCompressorUnavailable: "会话压缩器不可用",
