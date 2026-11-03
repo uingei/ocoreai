@@ -26,3 +26,6 @@ sweep `docs/agent/*.md`, so one hop out loses nothing.
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1176 templateMessages = leadingMessages -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1414 reasoning: modelConfiguration.reasoningConfig.map -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2574 reasoning: context.configuration.reasoningConfig.map -->
+<!-- anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:37 capabilities: [.guidedGeneration, .toolCalling], -->
+<!-- anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:307 capabilities: [LanguageModelCapabilities.Capability] = [.guidedGeneration] -->
+<!-- anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:675 model.capabilities.contains(.vision) -->

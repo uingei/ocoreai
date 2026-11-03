@@ -1051,8 +1051,8 @@ actor EnginePool {
             /// session with "doesn't have the capabilities needed for this
             /// operation" (0 tokens, 500 in 6ms). A capability gate, not a
             /// runtime choice.
-            /// Upstream baseline (mlx-swift-lm MLXLanguageModel.swift:313 example
-            /// `capabilities: [.guidedGeneration, .toolCalling]`, :558 default
+            /// Upstream baseline (mlx-swift-lm MLXLanguageModel.swift:37 example
+            /// `capabilities: [.guidedGeneration, .toolCalling]`, :307 default
             /// `[.guidedGeneration]`) declares `.guidedGeneration` for every model that
             /// exposes tools — capability is a request-shape contract, not a per-model
             /// knowledge the runtime has in advance.
@@ -1068,9 +1068,9 @@ actor EnginePool {
             let modelConfig = ModelConfiguration(id: modelId)
             // .vision declared unconditionally, same as .toolCalling / .reasoning
             // above (ocoreai is a generic runtime that cannot know a priori
-            // whether each loaded model supports it; cf. the L604-623 rationale
-            // and the SDK L313 example declaring .toolCalling for every model
-            // that exposes tools). Upstream MLXLanguageModel.swift:667's
+            // whether each loaded model supports it; cf. the rationale below
+            // and the SDK's own example declaring .toolCalling for every model
+            // that exposes tools). Upstream MLXLanguageModel.swift:675's
             // `.vision` gate only throws when a request carries images AND the
             // capability is absent — a no-op for plain-text requests. The
             // authoritative model-specific guard is EngineInference:1485

@@ -155,7 +155,7 @@ verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name bel
 
 ## Upstream Audit Dependencies
 Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`, one diary, one home.
-1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract, currently `128f49f1d`;
+1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract, currently `b8d4935ab`;
    `Package.swift` keeps the pin and a pointer, never a per-commit diary. Bump protocol: audit the
    consumption surface → bump `.revision` → `make audit` (both lockfiles) → `swift build` +
    `make test-ci` green → `CHANGELOG.md`. Upstream sources live under

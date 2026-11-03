@@ -56,9 +56,12 @@ comment. The ladder itself is `scripts/resolve-metallib.sh`.
 **R2 must not infer:** `metal --version` and a listing of the cryptexd mount both flip with the
 environment — the same `report` answered `metal=ok-cryptex` inside the sandbox and
 `metal=component-missing` outside it within a minute, while llbuild compiled `arg_reduce.metal`
-successfully in that unsandboxed run. The stable fact is upstream's:
-`xcodebuild -showComponent MetalToolchain` → `Status: installed` (parse `Status:`, never the exit code,
-which is 0 even when uninstalled — mlx-swift-lm `pull_request.yml:221-229`). `make toolchain-check`
+successfully in that unsandboxed run. The stable part is the component's own words:
+`xcodebuild -showComponent MetalToolchain` answers `Status: installed` / `Status: uninstalled` and exits
+**0 either way**, so a step that merely runs it proves nothing — and mlx-swift-lm's PR workflow is that
+step today (`pull_request.yml:126-128`; the step this doc cited did parse the `Status:` line, and the
+11-03 pin window dropped the parse, which is what a cite pinned to another repo's line numbers costs).
+`make toolchain-check`
 asks that question on **both** candidate routes rather than the ambient `DEVELOPER_DIR` — the old
 single-route check declared "this host cannot produce the macOS-26 shape" as fact while the CLT route
 still held a CoreAI-free SDK 26.5, and a warning that fires every run is a warning nobody reads when it
@@ -80,9 +83,8 @@ live assertion about the pair (`scripts/probes/`), not a test of the handler alo
 
 ## Anchors for the cites above (`make anchor-check`)
 
-<!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml:214-237 Infra: install MetalToolchain -->
-<!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml:221-229 Status: -->
-<!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml:250 xcodebuild build-for-testing -->
+<!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml:126-128 Infra: verify MetalToolchain installed -->
+<!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml:137 xcodebuild build-for-testing -->
 <!-- anchor:mlx-swift Source/MLX/GPU+Metal.swift:54-55 metallib load path -->
 
 ## Why the full suite once looked unrunnable here

@@ -139,6 +139,20 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   pairs each heading's en/zh block by hash in `README.i18n.yaml` so drift is machine-visible. Recorded so the
   owner prices it deliberately.
 
+- **Seven prose cites into the file the 11-03 pin window rewrote were not all re-measured** (Engine/) —
+  the bump `128f49f1d → b8d4935ab` changed `MLXFoundationModels/MLXLanguageModel.swift`, and three cites
+  into it (`EnginePool.swift` :313 / :558 / :667) turned out to have drifted *before* the bump too: the
+  referents are :37 (the doc example), :307 (the `[.guidedGeneration]` default) and :675 (the `.vision`
+  gate). Those three now read `anchor:mlx-swift-lm` markers in `docs/agent/engine-line-cites.md`, so
+  `make anchor-check` owns them (checked 77 → 80, drift 0). Sampled the rest rather than trusting them:
+  `MLXBridge.swift:188` still resolves exactly (`:130` is the `configureGPUCacheOnce` it names), while
+  `EngineInferenceSupport.swift:305` points at `:1427-1431` for a soft-nudge recipe and those lines are
+  `runSchemaGeneration` — the sentence and the line disagree today, and no gate reads either. Remaining
+  sites: `OpenAIModels.swift:1212`, `EngineInference.swift:2284`, `:2714`, `EngineInferenceSupport.swift:273`,
+  `PromptTokenAccountingTests.swift:24`, plus that one. The fix is the same marker conversion, one cite per
+  edit, in files on the hot path; owner call on spending that diff. Interim instrument at every bump that
+  touches this file: `make anchor-check` plus a grep of these seven.
+
 - **Upstream already ships a scripted engine; ours has to be re-judged when the planned half lands**
   (Engine/) — `MLXScriptedLM` is a published product at the pin, and its scripted tokenizer implements
   upstream's own `Tokenizer` protocol

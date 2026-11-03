@@ -9,6 +9,47 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-03
 
+**11-03(11) the mlx-swift-lm window is taken — `128f49f1d → b8d4935ab`, and the bump turned up cites that had drifted before it opened**
+
+- **What improved.** The one red `make drift` owed: all four commits adjudicated against the consumption
+  surface, then the pin moved (both lockfiles: `resolved-sync.sh sync` → `check` reports 34 pins in sync).
+  Verdict per commit — **#743** (CI): `pull_request.yml` `+24/−133` plus upstream's own test reshaping, nothing
+  we link, but it moved three of our anchors (below). **#715** (guided generation): `TranscriptConverter`
+  gained `schemaJSONForPrompt` / `messages(inliningSchemaJSON:)` / `promptMessages`, so a response schema now
+  rides in the system message unless `includeSchemaInPrompt == false` — behaviour we *inherit* on the
+  FoundationModels adapter lane, which is the macOS 27 path this host cannot exercise
+  (`PlatformPremise.hasMacOS27`), so it is recorded as inherited and not as verified. **#637** (MiniCPM5):
+  additive `ToolCallFormat.miniCPM5` + parser + inference signature; `Sources/` names `ToolCallFormat` zero
+  times, so no exhaustive switch of ours could break. **#729**: `EmbeddingGemma2.embed(softTokens:)` batches
+  now and drops `precondition(inputIds.dim(0) == 1)` — strictly more permissive for the MLXEmbedders lane.
+  Pin labels followed in root § Upstream 1, `ModelStore.swift` and `LoadedModelTests.swift` (both cited
+  facts re-checked at the new revision: `ModelFactory.swift:8` still holds the same three globs,
+  `shim.cc:46` still says `v0.1.30`).
+- **What the bump went and found.** `EnginePool.swift` cited that file at `:313`/`:558`/`:667`; measured at
+  *both* pins the referents are `:37` (the doc example), `:307` (the `[.guidedGeneration]` default) and
+  `:675` (the `.vision` gate) — the cites had drifted **before** this window opened and no gate reads a prose
+  cite, so they are now `anchor:mlx-swift-lm` markers in `docs/agent/engine-line-cites.md` and
+  `make anchor-check` owns them (checked 77 → 80, drift 0). The workflow anchors went red exactly as
+  designed: upstream replaced the install-and-parse-`Status:` step with a bare
+  `xcodebuild -showComponent MetalToolchain` verify (`:126-128`; `build-for-testing` now `:137`), so
+  `build-gate-reality.md` stops attributing that lesson to upstream — reading the status line instead of the
+  exit code stays *our* reasoning, and settling Metal by compiling a kernel stays the stronger answer. The
+  seven remaining cites into that file are registered with their sample in `docs/agent/open-items.md`.
+- **What same-session output proves it.** `swift build` exit 0 at the new pin; `make test` (swift-testing
+  half) = **3 534 tests / 619 suites, 8 issues**. One was `ThirdPartyNoticesTests` refusing the stale
+  `rev 128f49f1db38` label — re-running `scripts/collect-third-party-licenses.sh` is what § Build/Test/Lint
+  demands of a pin bump, and 16/16 went green after it. The other seven are wall-clock budget assertions
+  (`HubReachabilityTests:93`, `EngineBusyAdmissionTests:80`, `EnginePoolLoadingGateTests:116`,
+  `PerRequestMetricsTests:55`, `ProfilingTests:29`, `SleepSteerWakeTests:218`,
+  `MCPStderrDiagnosisTests:293`) whose suites all pass in isolation on the same tree (75 tests): the full
+  parallel run has no noise floor, which is said here rather than hidden. `make test-ci` (xcodebuild) is
+  CI's seat and did not run in this session.
+- **Which gate goes red.** Nothing was invented for this round — the reds came from gates that already
+  existed: `ThirdPartyNoticesTests`(16) for a pin moved without re-running the collector,
+  `DependencyPinStatementTests` for a manifest sentence that stops matching its pin,
+  `scripts/resolved-sync.sh check` for the two lockfiles drifting apart, and `make anchor-check` for any
+  cite into an upstream the next window moves.
+
 **11-03(10) codex is an ordinary comparator now — and the 32 KiB chain cap got its first red of our own**
 
 - **What improved.** Owner ruling, two parts. (a) `codex` leaves § *Upstream Audit Dependencies* as a
