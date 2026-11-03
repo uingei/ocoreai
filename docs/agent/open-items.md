@@ -140,8 +140,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   owner prices it deliberately.
 
 - **Seven prose cites into the file the 11-03 pin window rewrote were not all re-measured** (Engine/) —
-  the bump `128f49f1d → b8d4935ab` changed `MLXFoundationModels/MLXLanguageModel.swift`, and three cites
-  into it (`EnginePool.swift` :313 / :558 / :667) turned out to have drifted *before* the bump too: the
+  the bump `128f49f1d → b8d4935ab` changed mlx-swift-lm's `MLXFoundationModels/MLXLanguageModel.swift`,
+  and three cites into it (`EnginePool.swift` :313 / :558 / :667) had drifted *before* the bump too: the
   referents are :37 (the doc example), :307 (the `[.guidedGeneration]` default) and :675 (the `.vision`
   gate). Those three now read `anchor:mlx-swift-lm` markers in `docs/agent/engine-line-cites.md`, so
   `make anchor-check` owns them (checked 77 → 80, drift 0). Sampled the rest rather than trusting them:
