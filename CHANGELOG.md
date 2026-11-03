@@ -31,6 +31,16 @@ heading are when the work landed (measured from git).
   **④ Strata demotes a stale README instead of editing it** (`docs/README-historical.md`, labelled historical —
   `apps/host/README.md:12`), and ships a UI preview that needs no resident model (`:10`), which is the
   first-screen part we do not have (our e2e proves pixels to a runner, not to a stranger).
+  **⑤ two claims in this repo contradicted each other, and the code was the fact.** Rung 1 reads "Green 10-29
+  end to end … green, so now blocking" while `package.yml:115` reads "Red since `d664f7b`" (11-01) — and
+  `scripts/ci-status.sh` sides with the workflow: `DMG from a clean runner (no publish)=failure` for `7122ac9`,
+  the newest sha CI has judged, no `dist/*.dmg` uploaded, probe 41 and the window proof skipped. The leg
+  republishes its tail as annotations because logs need admin (`package.yml:117`), and it fired this time, but
+  the 25-line window caught compiler warnings instead of the cause, so the red still has not named itself. The
+  one red this host *can* reproduce is `scripts/release-artifact-check.sh delivery` exiting 1 on a
+  CoreAI-linked binary — the macOS-27 shape where R1 wants the CoreAI-free CLT 26.5 route — which is indicated
+  for the runner and not proven. Rung 1 now carries the date and the command instead of a 10-29 verdict in the
+  present tense; no workflow was touched.
 - **What same-session output proves it.** The registry told readers to re-derive the coupling set with
   `git grep -l <tree> -- Sources Tests`, and had not done so itself: running its own command gave **ten**
   zero-coupling trees, not the seven it printed, with `deepseek-harness` wrongly listed and five trees wrongly

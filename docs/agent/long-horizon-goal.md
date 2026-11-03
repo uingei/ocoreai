@@ -103,8 +103,16 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    DMG and probe 41 judges it under `permissions: contents: read`, so a rehearsal can't publish. Green
    10-29 end to end: metallib, DMG, probe 41's 12 assertions (a real turn from a fresh directory), the
    window proof — green, so now blocking — and a first green main run, steps at 4/3/7 s (no weights on a
-   runner, so no checkpoint tier ran there). Never run: `release`'s publish + read-back — tag-gated, and a
-   tag is a hand, not a task.
+   runner, so no checkpoint tier ran there). **That sentence is a 10-29 measurement, and the leg is red
+   again: red since `d664f7b` (11-01) by its own comment (`package.yml:115`), and `bash
+   scripts/ci-status.sh` reads `DMG from a clean runner (no publish)=failure` for `7122ac9`, the newest sha
+   CI has judged — no `dist/*.dmg` uploaded, probe 41 and the window proof skipped.** "Blocking" describes
+   the gate, not the state. The leg's re-published 25-line tail did *not* name the cause (it landed on
+   compiler warnings around `DirectInferenceClient.swift:727`), and the job log needs admin this host does
+   not have; the one red this box *can* reproduce is the shape judge — `scripts/release-artifact-check.sh
+   delivery` exits 1 on a CoreAI-linked binary ("that is the macOS-27 shape, not the delivery shape R1
+   names"), which the delivery route avoids by pinning the CLT SDK 26.5 route. Indicated, not proven for
+   the runner. Never run: `release`'s publish + read-back — tag-gated, and a tag is a hand, not a task.
 2. **Sixty seconds to first token.** Honest today: `swift build -c release` (minutes) or an ad-hoc-signed
    DMG plus the Gatekeeper right-click. Rung = notarised artefact + Homebrew cask; the metric to floor is
    *clean machine → first completion*, one command, timed. First measured point: 22.1 s from a built DMG to
