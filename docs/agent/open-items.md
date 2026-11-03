@@ -111,18 +111,22 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   Owner: notarisation + the first-run checkpoint.
 - **The request that triggers a load waits out the whole load** (Engine/, Config/, UI/) — a waiter is
   released at 120 s with `AppError.modelLoading` while the *owning* request waits out the ~13 min fetch
-  (diary 11-01(99), re-measured by (101)). Two halves have closed since that was written, so the address
-  here is only what is left: the measurement crosses the wire (`loadProgress` on the one `loading` row, the
-  same keys inside the 503 — 11-02(107); `ModelLoadProgressHonestyTests`(11) + `EnginePoolLoadingGateTests`(5)),
-  and the GUI renders the state as a wait with a route instead of "Generation failed" (11-03(12);
-  `ChatState.failureFace` + `ChatFailureFaceTests`(5)). Open: a pool-owned load task, so the caller that
-  triggered the load gets the same bounded pollable answer as every other caller. Two owner calls sit beside
-  it. ① The 503 carries no `Retry-After`, although both 429 families do — `AppError.response` sets the
-  header for `engineBusy` and for a rate-limit wait it measured, nothing else — so a client honouring the
-  header has no cadence to keep while a 794 s fetch runs. The number is a policy choice (poll cadence, not
-  the ETA), so none is guessed here. ② Whether a human caller should get the bounded answer at all:
-  hold-the-connection or refuse-and-poll on the sender's own turn is a product call, and nothing measured
-  here says which the GUI wants.
+  (diary 11-01(99), re-measured (101)). Closed since: the measurement crosses the wire (11-02(107) —
+  `loadProgress` on the one `loading` row, the same keys in the 503; `ModelLoadProgressHonestyTests`(11),
+  `EnginePoolLoadingGateTests`(5)), and the GUI renders a wait with a route instead of "Generation failed"
+  (11-03(12) — `ChatState.failureFace`, `ChatFailureFaceTests`(5)). Open: a pool-owned load task, so the
+  caller that triggered a load gets the same bounded pollable answer as every other caller. Two owner calls
+  beside it — the 503 carries no `Retry-After` though both 429 families do (`AppError.response` sets it for
+  `engineBusy` and a measured rate-limit wait only), and a poll cadence is policy, not a measurement, so
+  none is guessed here; and whether a human caller should be held or refused at all.
+- **The Models page hides a wait it did not start** (UI/, Models/) — `ModelView.swift:350` gates the ring,
+  the stats row and the button's `.disabled` on `modelManager.downloadingModelId`, which records *who* began
+  the fetch, while the bytes have one home (`OcoreaiDownloadProgress`, written by the engine hub lane too,
+  `MLXBridge.swift:591-610` — the key `ModelLoadProgress.measure` reads). During a boot prewarm, where
+  11-03(12)'s banner sends a waiting user, the page reports no wait and leaves `Download` enabled over
+  weights already landing. A second fetch of an id whose first still holds the store key is **inference**:
+  no duplicate 794 s fetch has run here, so the disk cost is unmeasured and the quote is a line reading, not
+  a probe line. Owner call: key the row on the store, and block the button or dedupe at the loader.
 - **The audit infers a write, it never reads the workspace** (Models/, Tools/) — a shell success is
   `.unobserved`; an unknown MCP tool still counts as a writer; the key is process-wide. Wanted:
   turn-scoped effect off the filesystem (codex, per turn:

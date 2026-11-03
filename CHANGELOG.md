@@ -28,9 +28,20 @@ heading are when the work landed (measured from git).
   the surface claiming a number-adjacent fact the engine had not measured.
 - **What it deliberately did not do.** No numbers in the banner. `ModelLoadProgress.disclosureLine` exists
   precisely so no surface words the wait differently from any other, and re-spelling that sentence into two
-  locale tables is the second home the type forbids; the bytes stay on the wire and one tap away in the
-  bar that already reads them. The remaining wait asymmetry (the *triggering* request still waits out the
-  whole load) is unchanged and stays registered in `docs/agent/open-items.md`.
+  locale tables is the second home the type forbids; the bytes stay on the wire. The remaining wait
+  asymmetry (the *triggering* request still waits out the whole load) is unchanged and stays registered in
+  `docs/agent/open-items.md`.
+- **What following the route turned up, before this entry was written.** Routed to the Models page on the
+  reading that its bar reads the measurement, and checked that reading: `ModelView.swift:350` gates the
+  progress ring, the stats row and `.disabled` on `modelManager.downloadingModelId`/`isDownloading` — the
+  GUI's *own* download route — while the engine's hub lane writes the same store at `MLXBridge.swift:591-610`
+  (`start`/`update`/`finish`, the key `ModelLoadProgress.measure` reads). So for the case this face exists
+  for — boot prewarm, or a hub fetch a chat turn triggered — the page shows neither wait nor bytes, and
+  `Download` stays enabled over 3.5 GB that are already landing. The double-fetch that invites is named as
+  inference, not observation: this host has run no second concurrent 794 s fetch, so the failure quoted is
+  a line reading, not a probe line. Registered as an owner call in `docs/agent/open-items.md`; the affordance
+  shipped today is still strictly more than "Generation failed", which is why it is not being retracted on a
+  finding it did not create.
 - **What same-session output proves it.** `make test FILTER=ChatFailureFaceTests` → **5 tests / 1 suite,
   0.009 s**, no Metal, no weights, no window. The neighbours the change touches — `LocaleResolutionTests`
   (both tables cover every key; "the GUI holds no copy outside the string table"), `ChatStateSendPathTests`,
