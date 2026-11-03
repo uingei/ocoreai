@@ -19,6 +19,10 @@
 ///     Constrained-generation protocol (#146) → tracked as pending on CoreAIPipelinedEngine.
 ///   Adjudicated: 7fd2063 (all 6 commits since 21dc8ad read 10-29 — #240/#248/#274 absorbed, the
 ///   rest n/a or open: docs/agent/coreai-fork-adjudication.md)
+///   Adjudicated: c1e6d56 (window 7fd2063..c1e6d56 read 11-03: #388 added exactly one protocol
+///   member, `acceptsMultimodalInput` — "an engine built from a text bundle reports false". Not
+///   taken: no CoreAI lane runs here, and a flag nothing can measure would publish an unmeasured
+///   capability. Landing site when the lane is verifiable: beside `supportsLogits` below.)
 /// EngineOptions, KVCacheStrategy, InferenceOptions, InferenceOutput redefined here
 /// to avoid importing reference repo (macOS 27 requirement). Types match reference API
 /// for compatibility.

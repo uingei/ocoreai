@@ -9,6 +9,74 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-03
 
+**11-03(7) the CoreAI fork's window is adjudicated by census — and the census found commits the ledger cannot see**
+
+- **What improved.** `make drift` was red (exit 10): five fork files carried upstream commits nobody had
+  read, and the ledger itself lagged the axis. The clone was fetched — the endpoint moved three times
+  during the read (`bc72ed5` → `972f001` → `c1e6d56` → `ac03f2b`, so the window is stated against what
+  was actually read: `7fd2063..ac03f2b`, 16 commits) — and completeness came from a **census, not from
+  the ledger**: each commit was intersected with the 304 Swift basenames in `Sources/ocoreai`. That is
+  how two of the 16 turned up which `make drift` cannot see at all, because its fork table enumerates
+  `Engine/CoreAI*.swift` by name prefix: **#374** (`6a6bb0e`) edited five `GuidedGeneration/` mirrors —
+  `DecodingStrategy`, `ConstrainedDecodingStrategy`, `PipelinedConstrainedDecodingStrategy`,
+  `ConstrainedGenerationSession`, `TokenizerInfo` — to route a scored continuation off a width-1 `main`
+  batch that aborts beside a prefill graph, and **#402** (`ac03f2b`) edited
+  `Engine/InstrumentsProfiler.swift`, which is not `CoreAI*`-named and carries no `canImport(CoreAI)`
+  at all, so it compiles on the shipping lane. The population behind that blind spot is measured, not
+  felt: **26** files in `Sources/ocoreai` carry Apple's copyright, the BSD-3 clause and an exact-name
+  counterpart in coreai-models; the ledger's scan reaches 12, and exactly one file is in both sets. The
+  blind spot's fix is the commit after this one; here it is only named, because naming it is what makes
+  the next round's "nothing to do" a measurement.
+  Each of the five touched fork files closed with an `Adjudicated: c1e6d56` header line (that commit is
+  the last one touching *their* counterparts; #402 touches none of them, so their windows are genuinely
+  empty at `ac03f2b`) plus verdict rows in the ledger doc. Nothing was ported, which is the verdict
+  rather than the excuse: **#388** folded upstream's VLM engine into
+  `CoreAISequentialEngine` (deleted 1 107 L, +792 L, plus 549 L of new vision front-end), and taking
+  that means restructuring ~1 900 L of a fork on a lane where `canImport(CoreAI)` compiles out on the
+  CLT route and the OS gate is `PlatformPremise.hasMacOS27` — a restructure nobody can run is a claim.
+  The one thing worth taking is the protocol's new `acceptsMultimodalInput` ("an engine built from a
+  text bundle reports false"), the invariant-2 fact this fork lacks: the protocol carries `isBusy` and
+  `supportsLogits` (`CoreAIEngine.swift:304-308`) and the only per-checkpoint multimodal signal in the
+  tree is config-level (`CoreAIVisionConfig.swift:49`). It is *not* added now, because a flag no
+  runnable engine can measure would publish an unmeasured capability, which is worse than today's
+  silence; the landing site is named in the header. **#386/#394** — upstream's CoreAI spec-decode family
+  (`DraftProposal`/`DraftScan`, `forwardProposal{,Greedy}` handing back the hidden states a drafter
+  seeds from) — is not a drop-in either: our MTP names the checkpoint's own layers as the drafter
+  (`ConfigStruct.swift:336-337`, Gemma4), while upstream exports a separate draft head; why the CoreAI
+  export needs one is labelled inference, since #394 does not say. Of the other 11, the census found no
+  shared basename at all — their surface is `llm-runner`, `llm-server`, `SpeculativeDecoding/`, SAM3 or
+  the export side — and #392 (runners → macOS 27.0) plus #397 stay colour for our CI lane, whose
+  authority is `make test-ci` on `macos-26`.
+- **What same-session output proves it.** The per-file table before and after: five rows went from
+  `未读 1-2` to `未读 0` (all 12 now read), `窗口终点` became `ac03f2b (src=axis)`, and the `LAGGING`
+  warning — the ledger reading fewer commits than the axis had — cleared with the fetch. The two
+  `LanguageConfig.swift`
+  hunks were located by line (`-U0`: `:530` inside `VisionTokenMerge`, `:64-90` inside
+  `LanguageOverrides`) and both symbols then grepped in `Sources/` (0 hits), so "outside the slice we
+  copy" is a measurement rather than an impression; the same grep settled `acceptsMultimodalInput`,
+  `DrafterFeatures`/`DraftProposal`/`forwardProposal` — no consumer here, which is what turns "n/a"
+  into a verdict. `adopt coreai-models` moved that axis alone; `mlx-swift-lm` (+4 vs `128f49f1d`) and
+  codex (+125) stayed reported, since only the CoreAI window was adjudicated.
+  Two gates moved, both because the round's own numbers said so. (i) The verdict rows outgrew the
+  adjudication doc's 15 609-byte cap, and the way to fit them was *not* to delete them: rows went to
+  `docs/agent/coreai-fork-window-log.md` (14 059 B) — the per-commit verdict ledger — leaving rule,
+  verdict key and priority queue in `coreai-fork-adjudication.md` (2 881 B). A cap that forces a
+  verdict's deletion is enforcing the wrong thing, and the contract's own comment agrees the number is
+  a proxy ("an area file is one hop out and is opened on purpose"). Paying for the guide's new pointer
+  was honest work instead: `Engine/AGENTS.md` lost a clause restating root's 32 KiB truncation, so the
+  deepest injected chain is **32 732/32 768**, and `comparator-repos.md`'s figure row was re-measured to
+  the live triple. (ii) `fork_verdicts_open` had been counting a *shape*, not the thing: its recipe was
+  `^| .*open\*\*`, which matches `**open** (narrow)` and silently drops a qualified verdict — so three
+  real open rows I wrote today (`open, not taken`, `open, worth taking`, `open, macOS 27`) fell out of
+  the count while it still printed a confident 8. The recipe is now `^|.*\*\*open` over the log and the
+  number is **11**, measured. `swift build` exit 0, `swift-format` clean, `make docs-check` green.
+- **Which gate goes red.** `make drift` recomputes every file's count from its header, so a header
+  claiming a window nobody read returns the same number next time the tree moves — the ledger stores
+  verdicts, not counts. `fork_verdicts_open=11` goes red if a verdict row is deleted or re-worded out of
+  the ledger's reach. What goes red for the blind spot is **nothing yet** — that is the honest answer,
+  and the next commit exists to change it. `make drift` still exits 10 by choice: the mlx-swift-lm and
+  codex windows stay open.
+
 **11-03(6) the comparator cites written today were re-read against the refreshed trees — one was wrong, and no gate covers this class**
 
 - **What improved.** All 21 comparator trees were refreshed, so every cite this session wrote into one

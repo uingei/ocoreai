@@ -3,6 +3,14 @@
 //   Absorbed: #176 5660fc6 (repetition penalty, tokenHistory overload via generationStartOffset).
 //   Adjudicated: 7fd2063 (the whole 7-commit window read 10-29; verdicts in
 //   docs/agent/coreai-fork-adjudication.md — upstream's #302 rewrote ~500 lines of this file and is NOT in our copy).
+//   Adjudicated: c1e6d56 (#386 d3382a5 + #394 1e59152 read 11-03: upstream's CoreAI spec-decode
+//   family — DraftProposal/DraftScan plus forwardProposal{,Greedy}, which hand back the hidden
+//   states a draft head seeds from. Not taken, and not a drop-in: our MTP claims the checkpoint's
+//   own MTP layers as the drafter (ConfigStruct.swift:336-337, naming Gemma4), while upstream's
+//   CoreAI path exports a separate draft head and threads its hidden states through DrafterFeatures.
+//   Why the CoreAI export needs its own drafter asset is my inference (static-shape .aimodel graphs
+//   may not carry the MTP head) — #394 does not say. So it neither unblocks the § Open stall item
+//   nor contradicts it; it is the shape a CoreAI drafter would follow, for the day the lane runs.)
 //
 /// Static-shape inference engine using Core AI chunked models (.aimodel).
 ///

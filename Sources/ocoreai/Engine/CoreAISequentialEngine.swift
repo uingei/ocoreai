@@ -5,6 +5,10 @@
 //   Absorbed: #227 27a66f9 (InputLayout name resolution — in_new_token_ids/pos_ids).
 //   Adjudicated: 7fd2063 (the whole 10-commit window read 10-29; verdicts in
 //   docs/agent/coreai-fork-adjudication.md — our fork has no batching/idempotency/ring path).
+//   Adjudicated: c1e6d56 (#388 read 11-03: upstream deleted CoreAISequentialVLMEngine.swift (1107 L)
+//   and folded VLM into this file (+792 L, adding VisionFrontEnd/InputHandler+Embeddings/VLMModelConfig).
+//   The fold is NOT taken: ~1 900 L of restructuring on a lane that cannot run here — canImport(CoreAI)
+//   compiles out on the CLT route and the OS gate is PlatformPremise.hasMacOS27.)
 //   Pending (gated): #202 4a3f8e4 (Muse Glimmer sliding-window ring cache, useCompactPositionIds) —
 //     Muse Glimmer not in ocoreai model surface (0 hits); activates when that model is added.
 //

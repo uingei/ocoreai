@@ -8,6 +8,9 @@
 //   - upstream pin: coreai-models HEAD 5716935 (#245)
 //   - Adjudicated: 7fd2063 (the 6-commit window on LanguageConfig.swift read 10-29; this file is
 //     the L184-279 slice and none of the 6 changed a line inside the sliced types — docs/agent/coreai-fork-adjudication.md)
+//   - Adjudicated: c1e6d56 (#388's one hunk is a renamed file reference at LanguageConfig.swift:530
+//     inside `VisionTokenMerge`, #394's are at :64-90 inside `LanguageOverrides`; both outside the
+//     L184-279 slice, and neither type exists in `Sources/` (0 hits) — checked, not assumed.)
 // Adapted: `VLMModelConfig.base` uses ocoreai `InternalModelConfig` (ocoreai
 // InferenceConfiguration conformance — CoreAIEngine.swift L267) instead of the
 // upstream `ModelConfig`. VisionConfig is verbatim (pure value type, no CoreAI

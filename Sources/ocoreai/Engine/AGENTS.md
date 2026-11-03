@@ -100,15 +100,14 @@ index instead of `continue`ing. Its only caller is `@available(macOS 27.0, *)`
 leave it as the open item it is; a blind edit is a claim, not a fix.
 
 ## The CoreAI fork's windows close in the header, not in chat
-`Engine/CoreAI*.swift` is a **fork**, and `make drift` counts the upstream commits each copy has not
-read. Close a window with `Adjudicated: <sha>` in the file header plus one row per commit in
-`docs/agent/coreai-fork-adjudication.md`; the count is recomputed, so a divergence nobody wrote down
-comes back as the same number.
+`Engine/CoreAI*.swift` is a **fork**; `make drift` counts each copy's unread upstream commits. Close a
+window with `Adjudicated: <sha>` in the header plus a verdict row in
+`docs/agent/coreai-fork-window-log.md` (rule + queue: `docs/agent/coreai-fork-adjudication.md`); the
+count is recomputed, so an unwritten divergence returns as the same number.
 
 ## Line cites are gated, not trusted
 Every `file:line` this area leans on is asserted by 20 markers in `docs/agent/engine-line-cites.md`,
-parked one hop out because the host truncates root+guide at 32 KiB and a marker is a byte of rule the
-model never reads. Move code, get `make anchor-check` to name the cite that drifted.
+parked one hop out: a marker is a byte of rule the model never reads. Move code, get `make anchor-check` to name the cite that drifted.
 
 ## The scripted lane — a contract verdict with no model resident
 `OCOREAI_SCRIPTED_ENGINE` (a script path) replaces the *model*, never the wire: `ScriptedInference`

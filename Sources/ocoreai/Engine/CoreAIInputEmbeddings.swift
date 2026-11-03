@@ -4,6 +4,9 @@
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 // Provenance: coreai-models (BSD-3-clause, Apple) — verbatim, absorbed.
 //   swift/Sources/CoreAILanguageModels/InferenceEngines/InputEmbeddings.swift @ HEAD 5716935
+//   Adjudicated: c1e6d56 (#388 touched this file as comments only — the scatter-merge wording was
+//   reworded and two multi-turn TODOs moved; no line of the verbatim slice changed.
+//   docs/agent/coreai-fork-adjudication.md)
 // CoreAI dependency (NDArray) — gated.
 
 #if canImport(CoreAI)

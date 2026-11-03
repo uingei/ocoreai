@@ -17,11 +17,11 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   suites now skip on this OS through `PlatformPremise.hasMacOS27` instead of reporting a red.
 - **The coreai fork's debt is 8 named verdicts, not a drift window** (Engine/) — 77a122f read all 36 commits
   behind the four engine windows: 7 absorbed, 21 n/a, **8 open**, one row each with its action in
-  `docs/agent/coreai-fork-adjudication.md` (#368 measured 10-30 by probe 12 §5b: the shipping lane damps whitespace via
+  `docs/agent/coreai-fork-window-log.md` (#368 measured 10-30 by probe 12 §5b: the shipping lane damps whitespace via
   upstream `WhitespaceTokenBias`, so its exposure is CoreAI-only, unverifiable here). `make drift` reads 0
   un-adjudicated per file today, and the axis since then has moved export-side only — the surface
   § Upstream 2 has none for.
-  <!-- claim:fork_verdicts_open=8 :: grep -c '^| .*open\*\*' docs/agent/coreai-fork-adjudication.md -->
+  <!-- claim:fork_verdicts_open=11 :: grep -c '^|.*\*\*open' docs/agent/coreai-fork-window-log.md -->
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
   and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The seam landed upstream at
   `991266ad3` (`observe(to:using:)` + `GenerationTransformer`);
