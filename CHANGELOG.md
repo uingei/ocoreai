@@ -7,7 +7,65 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-11-03
+## [Unreleased] — 2026-09-05 → 2026-11-04
+
+**11-04(1) The iteration scan runs whole-corpus for the first time — the parser had to survive a subject first, and six defect classes each got a verdict against our seams**
+
+- **What improved.** `scripts/competitor-path-scan.sh` existed since 10-22 but had only ever run on
+  codex, ollama and openclaw (the 10-22 rounds); 21 trees were never evolution-scanned. The first
+  whole-corpus run crashed at qwen-code (`ValueError: not enough values to unpack` — subjects carrying
+  embedded `|`), and the naive separator fix then *silently* dropped multi-line-subject records —
+  TensorFold reported 3,863 of 5,795 commits, MTPLX 1,342 of 2,013, omlx 2,404 of 3,606, ~33 % of
+  history invisible. NUL records (`git log -z`) fixed it: every tree scanned this round now prints a
+  count equal to `git rev-list --count HEAD`. The scan's verdicts, each checked against our code:
+  **① pressure-eviction accounting — P1.** Field: ollama's nine-month series (this doc's oldest
+  anchor), hermes-agent's KV axis 616 later / 403 fixes, vllm `#60960` (bound prefix-cache reuse by
+  the first requested prompt score), and mlx-serve shipping the inverse — cancelled requests *commit*
+  their KV (08-23). Us: `SessionPool.onMemoryPressure` (`SessionPool.swift:1044`) has exactly one
+  caller in `Sources` (`EnginePool.swift:418`) and **zero in `Tests`** — the instrument the 10-22 round
+  itself ranked #2 is un-landed after 13 days. Next act is a scenario test, not a guard: run it and
+  read the answer — a pass closes ranked-item 2 for free.
+  **② crash durability of an in-flight turn.** Field: deepseek-harness day 6 "preserve interrupted
+  turns on crash; don't truncate", plus a crash-unsafe cross-process log lock fixed in the same tree.
+  Us: the transcript diff is computed and persisted at handler level (`ChatHandler.swift:2152`),
+  `SessionTranscript` is a pure mapper (`persists(role:)` gates roles); what a process killed
+  mid-stream loses — possibly including the caller's own message — is **unmeasured**, so no guard is
+  written; the verification is a probe-31-class script (SIGKILL a serving turn, relaunch, read the
+  session back) before any claim either way.
+  **③ steering cost.** deepseek 107/28 in five months, hermes 220/160 in nine — the field keeps
+  paying on exactly the axis our § Open waits on an owner (terminal word, no-tool interrupt);
+  upstream's `restart:` loop is still uncapped at the pin (`ChatSession.swift:1164`, re-read today).
+  **④ parallel tool-result order.** omlx fixed it on both faces this week (`#4999`, `#5012` — sort
+  results by `tool_calls` order). Our lanes iterate serially (`for toolCall in iterationToolCalls`,
+  `EngineInference.swift:4133`; zero `TaskGroup`/`async let` in the file), so the class is
+  unreachable today and no gate is written for it (frozen layer; the trigger would be concurrency in
+  dispatch, and the check would then owe its red to that change).
+  **⑤ hybrid prefix boundaries.** vllm `#60533` (hybrid-Mamba prefix-cache boundaries) is prior art
+  for the exposure the 11-03 model-axis call opens; our `isTrimmable` verify-and-downgrade plus probe
+  27 are the instruments, and no guard is written before an observed red.
+  **⑥ MCP lifecycle honesty.** opencode's 2026 fix samples (invalid URL → failed, brief wait for
+  starting servers, permission reasons kept in failures) map onto probes 25/26/33/34/46 +
+  `MCPCallCacheTests` — the axis is covered, no action. Cross-corpus: **plan mode ranks in no tree's
+  top-3 churn** (goose 0, opencode 13/6, hermes 17/2; pi's 41/27 and deepseek's 62/17 are hook/policy
+  plumbing) — our unwired plan mode stays correct.
+- **What this round deliberately did not do.** No new gate (frozen; a scan earns none), no guard for
+  an unreachable class (④), no aggregate document — the verdicts went to their homes: dated numbers
+  here, the engine-family rule and the plan-mode count into
+  `docs/agent/competitor-iteration-paths.md` (whose ranked item 2 carried two drifted line numbers
+  into this file's own 10-22 entry — fixed to symbols in the same commit). Two trees scan to a floor,
+  not a verdict: `claude-code`'s seven subject hits are ledger housekeeping (a git hook, a marketplace
+  rename) because that mirror's engineering history is the `CHANGELOG.md` `Fixed`-line diary the
+  track/mine/verify loop reads — whose classes were mapped to our seams at 11-03(13) instead (the
+  time-limited partial class is unreachable: our depth-bounded walk speaks both truncations,
+  `FileTools.swift:534/593/817-822`, and no unchanged-file stub exists here); `harness2`'s 21 commits
+  are a provenance manifest, not a loop.
+- **What same-session output proves it.** The 21 scan blocks with counts matching `rev-list`; the
+  qwen-code traceback that opened the round; the two empty greps that decided ① and ② (`onMemoryPressure`
+  in `Tests/` → nothing; `SessionTranscript` funcs → four pure functions only); `ChatSession.swift:1164`
+  and the omlx commit hashes quoted above.
+- **Which gate goes red.** None new. `make docs-check` holds the doc edits; the scan's premise is the
+  re-runnable one-liner this file has always carried — tree count vs `git rev-list --count HEAD`, which
+  is exactly the check that caught the parser this round.
 
 **11-03(14) The corpus read its model axis — a 28-page report says what the board's curve cannot price**
 

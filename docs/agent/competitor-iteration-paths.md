@@ -34,6 +34,18 @@ request's KV in place of the old conversation's." Two September fixes then dealt
 pressure: evict the active conversation's own checkpoints, and keep the reused head of a cached
 edge safe from eviction (dated series: `CHANGELOG.md`).
 
+**Memory/KV is every engine tree's first and costliest axis (11-04 full scan: 21 trees, first run).**
+vllm ships memory at day 5 and KV at day 7 of 24,468 commits (KV axis: 657 later / 157 fixes); sglang's
+first axis hit is memory, opening with PR #36 "decode out of memory" (388/145); omlx's first two days
+are KV-eviction headroom and memory management (120 of its memory axis's 145 later commits are repairs);
+MTPLX, splash, TensorFold and vllm-metal reach memory/KV by day 6 of their histories. The ollama series
+above is this family's rule, not one tree's bad luck — our Scheduler lane already ships priced (admission
+gates on measured residency, probes 35/36), and the eviction accounting in item 2 below is what the family
+has never finished paying. The same scan prices the harness moat: every big harness tree's highest-churn
+axis is authority-adjacent (deepseek-harness's review-diff is a day-1 axis at 1085/689; hermes-agent's
+skills 1682/820, memory 801/431, MCP 1014/607), while plan mode ranks in no tree's top-3 churn anywhere
+(goose 0 hits; pi's 41/27 and deepseek's 62/17 are hook/policy plumbing).
+
 ## The five things ocoreai changes, ranked
 
 1. **Do not wire `KVCacheConfiguration.rewind` before the invariant is asserted for our pool:**
@@ -41,9 +53,11 @@ edge safe from eviction (dated series: `CHANGELOG.md`).
    never report a reused prefix longer than the prompt it was restored for (extend probe 01), plus
    a `SessionPool` test that a snapshot referenced by a live session is not evictable.
 2. **Pressure eviction must be per-conversation, not per-model.** Our pressure path is model-level
-   LRU (`Sources/ocoreai/Engine/EnginePool.swift:373`, `:730`), so one HardwareRouter event can
-   drop a cache active sessions are reusing. Instrument: `prefixReuse` must not zero for a session
-   still active across a pressure event.
+   LRU (`EnginePool.evictIdleModelsIfNeeded`; HardwareRouter's callback drives
+   `SessionPool.onMemoryPressure` — re-anchored 11-04, the 10-22 line numbers had drifted), so one
+   HardwareRouter event can drop a cache active sessions are reusing. Instrument: `prefixReuse` must
+   not zero for a session still active across a pressure event — **un-landed as of 11-04:
+   `onMemoryPressure` has one caller in `Sources` and zero in `Tests`.**
 3. **Cancellation has cache consequences.** A cancelled prefill must settle draft/KV state; ours is
    the `.cancelled` / `maxTokens` terminal path. Instrument: cached-token accounting after a
    cancelled turn must not claim reuse it did not earn.

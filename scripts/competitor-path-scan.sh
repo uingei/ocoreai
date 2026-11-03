@@ -36,9 +36,19 @@ for repo in repos:
     if not os.path.isdir(os.path.join(p, ".git")):
         print("\n#### %s — not cloned here (designated, unread)" % repo)
         continue
-    log = subprocess.run(["git", "-C", p, "log", "--date=short", "--format=%ad|%h|%s"],
+    # -z separates commits by NUL and %x1e the three fields: a subject may contain "|" or
+    # newlines (qwen-code crashed the "|"-split at 11-04), and the newline git puts between
+    # records then swallows nothing, since NUL cannot appear in a subject at all.
+    log = subprocess.run(["git", "-C", p, "log", "-z", "--date=short", "--format=%ad%x1e%h%x1e%s"],
                          capture_output=True, text=True).stdout
-    rows = [(d, h, s) for d, h, s in (l.split("|", 2) for l in log.split("\n") if l.strip())]
+    rows = []
+    for rec in log.split("\0"):
+        f = rec.strip("\n").split("\x1e")
+        if len(f) == 3:
+            rows.append(tuple(f))
+    if not rows:
+        print("\n#### %s — no readable log (empty clone or filter matched nothing)" % repo)
+        continue
     print("\n#### %s — %d commits, %s..%s" % (repo, len(rows), rows[-1][0], rows[0][0]))
     out = []
     for name, pat in AX:
