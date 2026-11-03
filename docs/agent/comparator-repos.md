@@ -2,7 +2,7 @@
 
 > Long form behind § *Upstream Audit Dependencies* 5. Cells are a **dated snapshot** read off the
 > local clone; re-measure the diary column:
-> `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent harness2 goose opencode pi deepseek-harness claude-code qwen-code SWE-bench OpenHands Qwen3.8-Flash-Next; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
+> `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent harness2 goose opencode pi deepseek-harness claude-code qwen-code SWE-bench OpenHands Qwen3.8-Flash-Next Qwen3.8; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
 > — nothing re-derives these lists since 10-28 (P16 was deleted as prose-shape), so a stale cell is
 > yours to notice: `git grep -l <tree> -- Sources Tests` re-derives the coupling set in one line. A **pin**
 > is a build input (`Package.swift:43`); everything else is a comparator.
@@ -58,9 +58,26 @@ Contains: two engine families (llama.cpp + MLX C) behind one local API, each pin
 Borrow: consumed for the lane shape (185 660 stars, api.github.com 11-02); the published-logits seam stays the
   owner call — their lane proves it possible, it does not make ours exist
 
-- `mlx-serve` — MLX serving project with `tests/test_*.sh`
-Contains: The convention that a behaviour claim ships as a committed shell probe (the rule behind `scripts/probes/`)
-Borrow: convention adopted; API audit open
+- `mlx-serve` — **the closest whole-product analogue to our own sentence** (audited 11-04, mirror `8d82ebe2`,
+  389 commits in 14 d; Zig engine + SwiftUI app): "chat, coding agents, images, video, music, speech and 3D.
+  One native app and one local server that speaks the OpenAI, Anthropic and Ollama APIs. It runs offline,
+  needs no Python and no account" (`README.md:5`), on five engines (`src/engines/{mlx,llama,ds4,ane,own_thread}`)
+  behind ~40 model-family plugins (`src/plugins/`) and one SDK (`src/sdk/{grammar,kv,tokenizer,quant,media}`).
+Contains: the convention that a behaviour claim ships as a committed shell probe (the rule behind
+  `scripts/probes/`); **native MTP with a runtime acceptance gate** — speculation stops mid-decode once
+  per-draft acceptance falls under break-even and stays off for the request (`docs/performance.md:15`, `:20`);
+  a **shipping ANE lane** — dense Qwen packs entirely on the Neural Engine to 64K contexts, split across an
+  Ultra's two ANEs, a model it cannot run or a load that does not fit serving "on the GPU, logged by name"
+  (`docs/cli.md:76`, `docs/reference.md:440`, `:450`); head-to-head decode numbers against LM Studio, oMLX and
+  MTPLX **on those trees' own checkpoints**, each on its shipping defaults so there is "no best-config collapse"
+  (`docs/performance.md:9`); a complete rung-2 quartet (DMG, cask, self-update, iPhone app); and contracts it
+  declares unverified for its embedded engines (`docs/known-issues.md:46`).
+Borrow: what it does *not* do is the wedge — it hosts Claude Code and Codex instead of *being* the agent
+  (`README.md:49`), takes a pasted screenshot rather than capturing the screen
+  (`../references/mlx-serve/app/Sources/MLXServe/Views/ChatView.swift:3472`; no `ScreenCaptureKit`/`SCStream`
+  symbol anywhere in its `app/Sources` — absence of symbols, not a run), and its ANE lane **refuses grammars, forced tool calls, a reasoning budget
+  and images by name** against a declared `Caps` set (`docs/reference.md:453`). The shortened list is
+  `long-horizon-goal.md` § Rung zero 4's, restated there 11-04.
 
 - `harness2` — Python agent harness: `ASSETS.json` (path→sha256), `check_provenance.py` (exit 1 on any
   changed or missing asset), `PINNED.md`
@@ -69,8 +86,19 @@ Contains: **release-asset provenance** — every redistributed file pinned by di
 Borrow: consumed — adopted as manifest schema 2 (`pin` + `licenseSha256` + `verifiedAgainstPin`, `vendored[]`)
   in `docs/agent/third-party-notices.md`
 
-- `TensorFold` — Zig engine (`metal/`, `packaging/`); `NOTICE`, `THIRD_PARTY_NOTICES.md`, `LICENSES/`, `RUNBOOK.md`
-Contains/Borrow: the notice set and runbook habit we already ship; consumed once, nothing left.
+- `TensorFold` — Zig engine, "Metal or CUDA kernels directly" (`README.md:4`; `zig/`, `app/`, HIP docs), 1 843
+  commits in 14 d, read 11-04. Its axis is **invariant 1 as a user-facing artefact**: the **receipt**, a
+  portable evidence record a measurement travels in.
+Contains: `docs/receipts/` holds 16 (MTP chain, KV pages, drafter counts, per-device), each naming its own
+  pinned commits (`README.md:221`); a receipt carries hardware and attempt rows and **never** prompt text,
+  output, machine names, serials, addresses or local paths (`docs/community-benchmarks.md:16`); a run whose
+  reply cannot qualify is still written, "with null fingerprints and exit status 1" (`docs/cache-benchmarks.md:69`);
+  draft counts stay local because the published board has no field for them, "since equal timings do not" prove
+  a drafter ran (`docs/community-benchmarks.md:16`); a claim from a stale device says "have not been reproduced
+  on the maintained tree" (`docs/WINDOWS.md:6`).
+Borrow: the shape, not the machinery — `scripts/eval/`'s run dirs are evidence but not a *portable* one, and
+  nothing here publishes one. Named pattern only: the gate layer is frozen (10-28), and a published receipt
+  needs a consumer that exists today.
 
 - `Strata` — local-AI product: desktop app, agent terminal, C++ engine across CUDA/HIP/SYCL/Metal, and the
   closest *product* shape to ours in growth terms — 34 577 stars in 34 days (1 016/day; 2 381 commits in 14 d)
@@ -178,9 +206,17 @@ Contains: invariant-2 copy as shipped (`CHANGELOG.md:687` failed search ≠ empt
 Borrow: live tracking axis — the track/mine/verify loop and last-read marker live in CHANGELOG 11-02(112); it shows
   field alignment, never behaviour (our gates keep that job). last-read `v2.1.317` (mirror `964d695`)
 
-- `qwen-code` — `Qwen-Coder/qwen-code`, TypeScript coding-agent CLI, registered 11-03 (HEAD `1f09497f45`);
-  peer of `claude-code`/`codex`/`opencode`/`goose`/`pi`
-Contains: the trust axis written down the day it landed — `Config.isExplicitlyTrustedFolder()` separates
+- `qwen-code` — `Qwen-Coder/qwen-code`, TypeScript coding-agent CLI, registered 11-03 (mirror refreshed 11-04 to
+  `35aa4b76ae`, 689 commits in 14 d); peer of `claude-code`/`codex`/`opencode`/`goose`/`pi`
+Contains: **the computer-use axis as a vendored dependency** — `packages/cua-driver` is a vendored Rust CUA
+  runtime whose MCP interface "exposes 19 Computer Use tools", plus a one-shot CLI and in-process Python/TS
+  SDKs, with the upstream snapshot in `.vendored-from` and every local difference written in
+  `.vendored-patches.md` (`packages/cua-driver/README.md:4`, `:8`, `:147`) — a *patch ledger* beside our
+  per-file-header baseline + `make drift`; the same problem, one home each. Its hottest directory is a hosted
+  control plane (`packages/managed-agent-server`, 3 357 touches in 14 d): loopback by default, and "with the
+  default `auto` mode a non-loopback address refuses to start" (`README.md:15`), the CLI fetching a server JAR
+  into "the verified versioned cache" (`:25`).
+Contains (11-03): the trust axis written down the day it landed — `Config.isExplicitlyTrustedFolder()` separates
   *folder trust* from *authorisation to run what the repository supplied*: project skill/subagent hooks,
   project skill permission grants and workspace `.lsp.json` commands need the affirmative signal, an IDE
   denial wins, disabled trust denies, a lost signal cannot leave grants alive through the legacy default,
@@ -231,6 +267,20 @@ presence, not weight presence.
 Borrow: the priced shape the board's one-checkpoint curve aims at (§ Open in `open-items.md`); what it cannot
 price is exactly what this family is: MTP acceptance, GDN cache economics, 256K tool calls. Closing it is an
 owner download decision plus an upstream QSA/N-gram port — not gate work.
+
+- `Qwen3.8` — the **series umbrella** (`QwenLM/Qwen3.8`, five tracked files: README, LICENSE, two issue forms,
+  `inactive.yml`; HEAD `2ea10dc`, 08-17, 0 commits in 14 d). Registered 11-04 because the tree has been cloned
+  here since the corpus began and no row admitted it — 26 on disk, 26 rows here, counted by the P1 scan.
+  Sibling of the row above: that one is a flagship's tech report, this one is what the family promises.
+Contains: the vendor's own acceptance framing — the series is "designed to carry complex, multi-step tasks
+  through to completion with greater reliability" (`README.md:19`), scored as "better handling of environment
+  feedback" (`:23`) — the four axes of `long-horizon-goal.md` restated by whoever trains the model our board
+  runs. Plus two **wire words** the family is trained on: `reasoning_effort`, and `preserve_thinking`, which
+  retains "reasoning context from historical messages" (`:25`).
+Borrow: `preserve_thinking` names a cost we owe and do not count — § Open's thinking-uncounted row (probe 44
+  §2, no `reasoning_tokens`) means a caller that retains thinking pays tokens we cannot price for it. Inference
+  from a README, not a measured interaction; the probe line that would settle it belongs to whoever owns
+  `reasoning_effort`'s gate (`ReasoningEffortHonestyTests`(9) + probe 38).
 
 ## How to use this file
 

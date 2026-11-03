@@ -29,7 +29,30 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **Thinking is uncounted on the tools lane** (Engine/) — probe 44 §2: 550 chars, no
   `reasoning_tokens`. Upstream counts only via the processor that also bounds the thought, and a
   bound there starves the tool call (§2b: 200→500 at 64 tokens). A count-only processor waits
-  upstream. Owner call.
+  upstream. Owner call. Datum 11-04: the model family ships a wire word for this cost —
+  `preserve_thinking` retains "reasoning context from historical messages"
+  (`../references/Qwen3.8/README.md:25`) — so a caller that retains thinking pays tokens we cannot price
+  for it (inference from a README, not a measured interaction).
+- **MTP acceptance is threaded, unused as a signal, and its named suite gates nothing** (Engine/, Tests/) —
+  found by reading, not by a scan. ① The counters are real: `proposedDraftTokens`/`acceptedDraftTokens`
+  (`EngineEvents.swift:105`) are threaded at `EngineInference.swift:3432`, `:4229` and read by
+  `ChatViewModel.swift:1189`. ② The suite that *sounds* like the gate is not one: `MTPAcceptanceRateTests.swift`
+  (14 tests in 3 suites, landed 08-05 as "behavioral tests" in `b1cfb64`) asserts arithmetic on literals declared
+  lines above
+  its own `#expect` (`:103-109` asserts a non-nil literal is non-nil), and its sibling
+  `GuidedGenerationIntegrationTests.swift` (13) asserts `!schema.isEmpty` on a schema literal it wrote and,
+  twice, asserts the literal `true` with the claim carried in the *message* —
+  `#expect(true, "GuidedGenerationLoop is a separate generation loop")` (`:137`, `:177`).
+  **27 tests read by hand; none calls production.** No doc, probe or CHANGELOG cites either name, so no claim
+  rests on them today — but they sit in the green `swift test` count the instrument's own S term reads.
+  ③ The field spends that same counter as lane *policy*, not a published number: `mlx-serve` stops speculation
+  mid-decode once per-draft acceptance falls under break-even and stays off for the request
+  (`../references/mlx-serve/docs/performance.md:20`). Owner call, two halves: delete or repair the 27, and
+  whether our MTP lane should act on acceptance at all — the scripted engine already exists
+  (`Engine/ScriptedInference.swift` + probe 37), so a real gate is one emit and one read away, not a new
+  surface. Why no scan owns this: two attempts on 11-04 failed in opposite directions (one flagged 233 tests,
+  the other zero) because `extension String` in `Sources` makes a plain `String?` annotation look like a
+  production reach — only reading, or a mutation that must go red, decides it.
 - **Rewind is landed; the reserve is a guessed constant** (Engine/) — 1024 rows measured on one checkpoint,
   not tuned to model or memory pressure, so an edit further back than the reserve still pays its full prefix.
   `SessionRewindOnDivergenceTests`(8) + probe 27 hold the wiring and the number.

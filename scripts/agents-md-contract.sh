@@ -108,7 +108,7 @@ cd "$(dirname "$0")/.."
 #   (the ocoreai row + its prose tail). A re-derivation whose anchors vanished passes vacuously, so the
 #   scan floors its own hit count instead of trusting the header it reads.
 : "${OCOREAI_FLOOR_DIARY_PAIRED:=40}"   # CHANGELOG entries whose heading was found above their first bullet
-: "${OCOREAI_AGENTS_MAX_AREA:=20502}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
+: "${OCOREAI_AGENTS_MAX_AREA:=25611}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
 #   this cap was pinned to. What binds is our chain budget (B2, 32 KiB) and the root ratchet (B1), and
@@ -124,6 +124,16 @@ cd "$(dirname "$0")/.."
 #   RAISED 11-03(2), visibly, same rule: tree 25 — the corpus's first MODEL tree (`Qwen3.8-Flash-Next`,
 #   README + tech report) — carried comparator-repos.md to 20 502 B, the largest file that exists, so the
 #   cap follows its pin. B1 and B2 again untouched; the row is cite-dense by the same argument as above.
+#   RAISED 11-04(2), visibly, same rule — and stated plainly because this is the fourth raise (10-28, 11-03,
+#   11-03(2), now) and the cap has
+#   never once forced a cut: the whole-corpus direction read corrected four rows that were wrong about their
+#   own trees (mlx-serve, TensorFold, qwen-code) and admitted a fifth cloned-but-never-registered (Qwen3.8),
+#   all cite-dense, carrying the same file to 25 611 B. The alternative was deleting the `file:line` cites
+#   that make a wedge correction checkable, which is the trade 10-28 and 11-03 both already refused. B1 (root,
+#   the only budget the injector spends) and B2 (the chain) again untouched: 21 453/21 461 and 32 753/32 768,
+#   the round's root edit byte-neutral. Owner note worth having: a per-file cap that only ever moves up is a
+#   measurement, not a limit — if it is meant to bite, the honest shape is a corpus cap on docs/agent/**,
+#   which would. Not changed here; that is an owner call, not an audit finding.
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
 : "${OCOREAI_AGENTS_FLOOR_REFS:=50}"
 : "${OCOREAI_AGENTS_FLOOR_TREES:=16}"

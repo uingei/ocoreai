@@ -30,7 +30,7 @@ claim coverage → 1.0. The product surface grows only where a gate already meas
 | B′ | tasks that can produce a cell | set size, pass/fail split, noise band: `scripts/eval/README.md` (not restated here — a figure in two homes drifts) | `_repeat_stats.py` on the base root |
 | C | cost of one verdict | minutes; the floor is inference throughput, so ≤3 min/proposal is throughput-bound, not orchestration | `stat -f %m` on the run dirs → deltas |
 | G | goal-post write surface | **0** (allow = 1 prefix, protected = 15 judgement paths) | `scripts/eval/autoloop-allow.txt` / `autoloop-protected.txt`, gated by `scripts/eval/_autoab_selftest.py` + `_autoab_mutate.py` |
-| S | claim coverage | incomplete: doc claims + probe-index reproduce; gap = MTP acceptance (0 sites); truncation disclosed, ungated | `make docs-check` + rung 3 |
+| S | claim coverage | incomplete: doc claims + probe-index reproduce; gap = MTP acceptance (counters exist, **no gate reads them** — the suite with that name asserts on its own literals, `open-items.md`); truncation disclosed, ungated | `make docs-check` + rung 3 |
 
 
 **Why B is the constraint**: stable-pass tasks give *no* upward evidence yet *can* trip the regression veto,
@@ -125,11 +125,23 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    human who defends it; `adoption-runbook.md` § The intake machine) — that is what 320 author emails in one
    14-day window costs. Our home for that policy is `CONTRIBUTING.md`, written when outside intake exists to
    apply it to.
-4. **A wedge the leaders structurally cannot copy**: offline on Apple silicon, one binary, no API key,
-   native screen/camera/speech, MTP lane plus ANE constrained decoding — no comparator tree here combines
-   them. Ceiling stated honestly: it is a *niche* wedge, and the leaders are cloud-led, which is
-   both why they do not copy it and why it caps this ceiling. "Auditable, airgapped coding agent" is the
-   framing with the larger audience.
+4. **A wedge the leaders structurally cannot copy — re-measured 11-04, and shorter than it said.** The list
+   this rung carried ("offline on Apple silicon, one binary, no API key, native screen/camera/speech, MTP lane
+   plus ANE constrained decoding — no comparator tree here combines them") is **contradicted by `mlx-serve`**:
+   offline on Apple silicon in one native app, no account (`README.md:5`), speech both in and out (`:50`, `:51`),
+   MTP on the checkpoint's own trained head behind a runtime acceptance gate (`docs/performance.md:15`, `:20`),
+   and a Neural Engine lane to 64K contexts that serves "on the GPU, logged by name" when a model will not fit
+   (`docs/reference.md:440`, `:450`) — axes: `comparator-repos.md` § `mlx-serve`. Three parts survive, each
+   checked against that tree today: **the agent and the engine in one binary** (it *hosts* Claude Code and
+   Codex — `README.md:49`); **screen as an agent input** (a pasted screenshot, no capture framework in its app);
+   **constrained decoding on the ANE** (its ANE lane refuses grammars, forced tool calls and a reasoning budget
+   *by name* against a declared `Caps` set — `docs/reference.md:453`). Camera capture went unmeasured there, so
+   it is unstated here. One asymmetry cuts against us: that ANE lane runs on macOS 26 **today**, while our ANE
+   route is CoreAI-gated on macOS 27 and unverifiable on this host (§ Open), so a hardware word is not a wedge
+   — only what we measure on the OS we ship is. Ceiling stated honestly: it is a *niche* wedge, and the leaders
+   are cloud-led, which is both why they do not copy it and why it caps this ceiling. "Auditable, airgapped
+   coding agent" is still the framing with the larger audience, and it is a claim about measured behaviour, not
+   about silicon.
 5. **Amplification, then retention.** 82 660 forks measured 10-28 against our 0 is not a code gap; it is a
    community machine, fed by issue latency and by the automation that keeps a large intake cheap
    (`adoption-runbook.md` § The intake machine) — none of it a gate on our own prose.

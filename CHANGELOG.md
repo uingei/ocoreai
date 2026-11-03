@@ -9,6 +9,53 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-04
 
+**11-04(2) The corpus read for *direction*, not history — the wedge lost three parts, one model tree had never been registered, and 27 tests named as a gate read their own literals**
+
+- **What improved.** The 11-04(1) round scanned *history* (when did each tree ship each axis). This round
+  measured *recency* — churn by directory over 14 days, convention-agnostic, because a `feat`-subject scan
+  printed nothing for **14 of 26** trees in 6 d while six of them shipped 71 → 2 049 commits in 14 d (Strata,
+  sglang, vllm, codex, splash, vllm-metal) — then read the hotspots that contradicted their registry rows.
+  Findings, each read at the line, not inferred:
+  **① the wedge.** `long-horizon-goal.md` § Rung zero 4 asserted "offline on Apple silicon, one binary, no API
+  key, native screen/camera/speech, MTP lane plus ANE constrained decoding — no comparator tree here combines
+  them." `mlx-serve` combines most of it: `README.md:5` is nearly our own identity sentence; MTP runs on the
+  checkpoint's own head behind a **runtime acceptance gate** (`docs/performance.md:15`, `:20`); the ANE lane
+  serves dense Qwen packs to 64K contexts across an Ultra's two ANEs and degrades "on the GPU, logged by name"
+  (`docs/reference.md:440`, `:450`). Three parts survive, each checked against that tree today: agent+engine
+  in one binary (it *hosts* Claude Code — `README.md:49`), screen as an agent input (pasted screenshots only),
+  and ANE *constrained decoding* — its ANE lane refuses grammars/forced tool calls/reasoning budget by name
+  against a declared `Caps` set (`docs/reference.md:453`). Camera capture went unmeasured there, so the ladder
+  now says so instead of claiming it. The asymmetry that cuts against us: their ANE lane runs on macOS 26
+  **today**, ours is CoreAI-gated on 27 and unverifiable on this host.
+  **② an unregistered tree.** `Qwen3.8` (the series umbrella, 5 tracked files) has been cloned here since the
+  corpus began with no row; the corpus is **26** trees, not the 25 the root quoted (root fixed byte-neutrally —
+  it has 8 B of headroom, so no new address could be added there this round).
+  **③ rows that understated their trees.** TensorFold read "consumed once, nothing left" while shipping 1 843
+  commits in 14 d (131/day); its axis is the **receipt**
+  (a portable evidence record naming its own pinned commits, refusing to carry prompt text or machine ids, and
+  writing a non-qualifying run "with null fingerprints and exit status 1"); qwen-code's hottest directory is a
+  hosted control plane and it vendors a **19-tool Computer Use driver** with a `.vendored-patches.md` ledger.
+  **④ the finding that matters most is about us, not them.** `MTPAcceptanceRateTests.swift` (14 tests, 3 suites) +
+  `GuidedGenerationIntegrationTests.swift` (13), landed 08-05 as "behavioral tests", assert arithmetic on
+  literals declared above their own `#expect` — `:103-109` asserts a non-nil literal is non-nil; the sibling
+  asserts `!schema.isEmpty` on a schema literal. **27 tests, none calls production.** The real counters do
+  exist and thread to the UI (`EngineEvents.swift:105` → `EngineInference.swift:3432`, `:4229` →
+  `ChatViewModel.swift:1189`), so rung 3's S term saying "MTP acceptance (0 sites)" was wrong in the direction
+  that matters: sites exist, none bites. Owner call opened (delete vs repair; whether the lane should *act* on
+  acceptance the way `mlx-serve` does) — nothing deleted unilaterally.
+- **What same-session output proves it.** `make docs-check` went red twice on this round's own edits and both
+  reds were real: **P3** resolved my `app/Sources/MLXServe/Views/ChatView.swift:3472` against *our*
+  `Sources/ocoreai/UI/Views/ChatView.swift` (1 744 lines) — a comparator path shadowing a local basename, now
+  written in the declared `../references/` form; **B2** caught the registry growing past its per-file cap.
+  Two attempts at a hollowness *scan* failed in opposite directions (one flagged 233 tests, one flagged zero)
+  because `extension String` in `Sources` makes a plain `String?` annotation look like a production reach — so
+  the 27 are reported as read-by-hand, and no corpus-wide claim is made. Neither scan is committed.
+- **Which gate goes red on regression.** `make docs-check`: P3 on every cite above (the anchor class that just
+  fired), P2/P1 attribution over the 26 trees (`OCOREAI_AGENTS_FLOOR_TREES`), B2 on the area cap this round
+  raised visibly with its reason. The wedge sentence is now cited part by part, so the next corpus change that
+  takes another part off it goes red at a *line*, not at a vibe.
+
+
 **11-04(1) The iteration scan runs whole-corpus for the first time — the parser had to survive a subject first, and six defect classes each got a verdict against our seams**
 
 - **What improved.** `scripts/competitor-path-scan.sh` existed since 10-22 but had only ever run on
