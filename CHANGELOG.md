@@ -9,6 +9,48 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-03
 
+**11-03(9) three comparator trees registered — all three confirm a mechanism we have, none yielded a change worth shipping**
+
+- **What improved.** `~/references` gained `qwen-code`, `SWE-bench` and `OpenHands`; each was read against
+  this tree before being written into `docs/agent/comparator-repos.md`, so the set the P1 scan derives
+  moved **21 → 24** and root's § Upstream 6 was re-grepped to say 24 (byte-neutral). Every axis claim
+  carries a `file:line` on both sides, per § Upstream 6 — reputation is not an entry. What came back:
+  **qwen-code** decided 11-03 that folder trust must not authorise *repository-supplied* execution
+  (`isExplicitlyTrustedFolder()`: project skill/subagent hooks, skill permission grants and workspace
+  `.lsp.json` need an affirmative signal, IDE denial wins, disabled trust denies, a lost signal cannot
+  leave grants alive, and only the loader — never the JSON — decides a config's source). Checked for a
+  home here and there isn't one: disk skills load only from the directory the caller hands over and the
+  app hands `nil` (`SkillRegistry.swift:65`, `App.swift:391`), the three skill tools are read-only
+  (`BuiltInTools.swift:73,111,142`), and an MCP command reaches a process only from an endpoint built
+  in-process (`MCPBridge.swift:941` → `MCPStdioClient.swift:247`). The entry says to re-read it the day
+  workspace-scope MCP, hooks or skills appear. **SWE-bench** states our invariant 1 in its own words:
+  `SUITE_RAN` requires a non-zero run count because karma prints `Executed 0 of 0` and an empty status map
+  would score every test resolved (`grading.py:31,142,160`), and it cross-checks the parsed verdict
+  against the runner's exit status since a patch can print its own `PASSED` (`:163`) — our equivalents
+  already bite (`run.sh:323` empty expectation is a harness fault, `:342` empty artefact snapshot fails
+  the run, and a verifier is a shell rc, so an answer cannot forge its evidence). **OpenHands** is the
+  Agent Canvas React/TS frontend; its i18n gate (generated declarations + a completeness script,
+  `AGENTS.md:8-10`) is weaker than ours (`LocaleResolutionTests.swift:31,43,55,74,92,116` — exact-once
+  key coverage per table, no blanks, real CJK, matching format arity, no copy outside the table), and its
+  `AGENTS.md:16-18` blames garbled multi-line `commit -m` bodies on the persistent shell — the same
+  incident class our `git commit -F -` habit exists for. Nothing was ported, and no gate was invented for
+  an axis we do not have a failure for. `~/references/Qwen3.8-Flash-Next` was not registered: README plus
+  a tech report, a model repo rather than a comparator.
+- **What same-session output proves it.** The contract's own derivation, before and after the entries:
+  `outside … over 21 comparator + 9 dependency trees` → `over 24 comparator`, and
+  `make round-gates` green (bare upstream cites 294 scanned / 0 missing / 0 line-past-eof, so every
+  attribution the new entries rely on resolves). The `qwen-code` verdict is a *measured* absence: the
+  four greps that would have made it a guard return nothing (`skillsDir: nil`, three read-only skill
+  tools, no model-facing MCP connect that takes a command).
+- **Which gate goes red.** Three, none new. P1 floors the derived tree count (`…FLOOR_TREES=16`) — if the
+  entry regex stopped matching a bullet the set would fall, not silently empty. P2 turns any cite into
+  `qwen-code`/`SWE-bench`/`OpenHands` red unless the paragraph names the tree, which is what
+  *registering* them buys. And B2's per-doc cap: the comparator doc grew to **18 664 B**, so
+  `OCOREAI_AGENTS_MAX_AREA` was raised to it **visibly, per the rule at the head of that script** — the
+  same shape as the 10-28 raise. The alternative was deleting measured `file:line` cites to fit a number
+  the host never charges: a `docs/agent` file is not in the injected chain, and B1 (root, 21 453/21 461)
+  and B2's chain (32 753/32 768) did not move.
+
 **11-03(8) the fork ledger decides mirrors by their header now — the prefix rule was the premise that passed vacuously**
 
 - **What improved.** `make drift`'s fork table enumerated `Sources/ocoreai/Engine/CoreAI*.swift` by name

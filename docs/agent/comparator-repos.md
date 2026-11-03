@@ -2,7 +2,7 @@
 
 > Long form behind § *Upstream Audit Dependencies* 6. Cells are a **dated snapshot** read off the
 > local clone; re-measure the diary column:
-> `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent harness2 goose opencode pi deepseek-harness claude-code; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
+> `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent harness2 goose opencode pi deepseek-harness claude-code qwen-code SWE-bench OpenHands; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
 > — nothing re-derives these lists since 10-28 (P16 was deleted as prose-shape), so a stale cell is
 > yours to notice: `git grep -l <tree> -- Sources Tests` re-derives the coupling set in one line. A **pin**
 > is a build input (`Package.swift:43`); everything else is a comparator.
@@ -177,6 +177,41 @@ Contains: invariant-2 copy as shipped (`CHANGELOG.md:687` failed search ≠ empt
   over-promising), the dated-deprecation format (`:11`), stall/steer vocabulary beside our terminal-word § Open (`:36`, `:429`).
 Borrow: live tracking axis — the track/mine/verify loop and last-read marker live in CHANGELOG 11-02(112); it shows
   field alignment, never behaviour (our gates keep that job). last-read `v2.1.316` (mirror `f0b737f`)
+
+- `qwen-code` — `Qwen-Coder/qwen-code`, TypeScript coding-agent CLI, registered 11-03 (HEAD `1f09497f45`);
+  peer of `claude-code`/`codex`/`opencode`/`goose`/`pi`
+Contains: the trust axis written down the day it landed — `Config.isExplicitlyTrustedFolder()` separates
+  *folder trust* from *authorisation to run what the repository supplied*: project skill/subagent hooks,
+  project skill permission grants and workspace `.lsp.json` commands need the affirmative signal, an IDE
+  denial wins, disabled trust denies, a lost signal cannot leave grants alive through the legacy default,
+  and only the loader — never the JSON — decides whether a config came from the workspace
+  (`docs/design/2026-11-03-project-execution-trust.md`).
+Borrow: axis, **no home here today** — measured absence: disk skills load only from the directory the
+  caller hands over and the app hands `nil` (`Skills/SkillRegistry.swift:65`, `App.swift:391`), the three
+  skill tools are read-only (`Tools/BuiltInTools.swift:73,111,142`), and an MCP command reaches a process
+  only through an endpoint built in-process (`MCP/MCPBridge.swift:941` → `MCP/MCPStdioClient.swift:247`).
+  Re-read this entry the day we add workspace-scope MCP, hooks or skills.
+
+- `SWE-bench` — `princeton-nlp/SWE-bench`, Python benchmark harness, registered 11-03 (HEAD `02e7a74`,
+  09-02); the big sibling of our own `scripts/eval/`
+Contains: a vacuity floor argued in our own words — `SUITE_RAN` (`swebench/harness/grading.py:31`) demands
+  a *non-zero* run count as evidence, because karma prints `Executed 0 of 0` and under `FAIL_ONLY` an empty
+  status map scores every test resolved; no parsed results **and** no sign of running ⇒ invalid, not a pass
+  (`:142`, `:160`), and the parsed verdict is cross-checked against the test command's exit status since a
+  patch can print its own `PASSED` lines (`:163`).
+Borrow: confirmation, nothing to take — our halves already bite: an empty `expect_cmd` is a harness fault
+  (`scripts/eval/run.sh:323`), an empty artefact snapshot fails the run (`:342`), and a verifier is a shell
+  rc rather than parsed text, so an answer cannot forge its own evidence.
+
+- `OpenHands` — the Agent Canvas React/TypeScript frontend, registered 11-03 (`AGENTS.md:5`; HEAD 11-03)
+Contains: two mechanisms this repo already gates harder. i18n: `src/i18n/translation.json` generates
+  `declaration.ts` and `scripts/check-translation-completeness.cjs` confirms locale coverage
+  (`AGENTS.md:8-10`) — ours requires each delivered table to span every `StringKey` exactly once, with no
+  orphan, no blank value, real CJK where expected and matching format-specifier arity
+  (`Tests/ocoreaiTests/LocaleResolutionTests.swift:31,43,55,74,92`) plus no copy outside the table (`:116`).
+  And a harness note that corroborates ours: "the persistent shell can garble long multi-line `commit -m`
+  bodies … use `git commit -F <file>`" (`AGENTS.md:16-18`) — the incident class our `-F -` habit exists for.
+Borrow: axis only, no new gate. No engine here, so its axes are UI state and locale, not serving.
 
 ## How to use this file
 

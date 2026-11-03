@@ -106,7 +106,7 @@ cd "$(dirname "$0")/.."
 #   (the ocoreai row + its prose tail). A re-derivation whose anchors vanished passes vacuously, so the
 #   scan floors its own hit count instead of trusting the header it reads.
 : "${OCOREAI_FLOOR_DIARY_PAIRED:=40}"   # CHANGELOG entries whose heading was found above their first bullet
-: "${OCOREAI_AGENTS_MAX_AREA:=15609}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
+: "${OCOREAI_AGENTS_MAX_AREA:=18664}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
 #   this cap was pinned to. What binds is the host's chain budget (B2, 32 KiB) and the root ratchet (B1), and
@@ -114,6 +114,11 @@ cd "$(dirname "$0")/.."
 #   docs/agent/adoption-runbook.md first, and the ladder kept a pointer per rung.
 #   build-gate-reality.md). Pinned to the largest file that exists: an area file is one hop out and
 #   read on purpose, so the host budget governs the chain, not the area file.
+#   RAISED 11-03, visibly, same rule: three comparator trees were registered (qwen-code, SWE-bench,
+#   OpenHands) and comparator-repos.md grew to 18 664 B. Its size is a function of how many trees the
+#   audit covers — 24 today, counted by the P1 scan below — so the alternative was deleting measured
+#   file:line cites to fit a number the host never charges. B1 (root) and B2 (the injected chain) did
+#   not move: a docs/agent file is not in the chain.
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
 : "${OCOREAI_AGENTS_FLOOR_REFS:=50}"
 : "${OCOREAI_AGENTS_FLOOR_TREES:=16}"
