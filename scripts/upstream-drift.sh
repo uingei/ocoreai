@@ -17,7 +17,8 @@
 #     写入端吃 SIGPIPE，pipefail 让脚本以 141 中止——退出码契约当场失效，读者只看到半张报告
 #     （10-29 实测：codex 窗口 >300 条 subject，`>/dev/null` 连三次 exit 141 而非 10）。
 #   - mlx-swift-lm = SPM pin（新 commit → bump 协议）；coreai-models = reference（逐条吸收裁决）；
-#     codex = 语义轴（对照核心域真值，非逐 commit 复制）
+#     codex = 普通 comparator（11-03 业主裁定：不再是权威）。它的窗口照常打印，但不再置 DRIFT=10，
+#     所以一个未读的 codex 窗口不会把整次 `make drift` 判红 —— 红只欠两条真消费的轴。
 #   - 本机无 references/ clone → gh api 是正确通道，不依赖 git fetch
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -355,10 +356,27 @@ if [ "$cmd" = "window-endpoint" ]; then
   exit "$rc"
 fi
 
+# 一条轴欠不欠一个红：0 = 我们真消费它（SPM pin、逐条吸收的 fork），未读窗口判红；
+# 非 0 = 普通 comparator，窗口只报告。11-03 业主裁定 codex 不再是权威（root § Upstream 5），
+# 于是它落到报告档；未登记的轴一律按欠债算 —— 新轴默认判红比默认放行便宜。
+# 测试缝：`axis-owed <name>` → "owed" | "report-only"（不碰网络）。
+axis_owed() {
+  case "${1:-}" in
+    codex) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
 # 测试缝：「哪些文件算镜像」这个口径也能在合成目录上问（同上：不碰网络、不读 ~/references）。
 if [ "$cmd" = "fork-census" ]; then
   fork_ledger_py "${2:-}" "${3:-}" "${4:-}" "${5:-census}"
   exit $?
+fi
+
+# 测试缝：裁定表本身（退出码契约的一半住在这里）。
+if [ "$cmd" = "axis-owed" ]; then
+  if axis_owed "${2:-}"; then echo "owed"; else echo "report-only"; fi
+  exit 0
 fi
 
 echo "═══ ocoreai upstream drift — baseline $(baseline_note) ═══"
@@ -400,8 +418,14 @@ for pair in $REPOS; do
       behind="$(api "repos/$repo/compare/$base_full...$head" behind 2>/dev/null || echo '?')"
     fi
     if [ "$ahead" != "?" ] && [ "$ahead" -gt 0 ] 2>/dev/null; then
-      printf "%-16s HEAD=%s  +%s commits vs base=%s  ⚠ 新窗口待裁决\n" "$name" "$short" "$ahead" "${base:0:9}"
-      DRIFT=10
+      if ! axis_owed "$name"; then
+        # 只报告、不欠债：窗口照常打印，退出码不动（裁定见 `axis_owed`）。
+        printf "%-16s HEAD=%s  +%s commits vs base=%s  · 仅报告（comparator，非权威，不判红）\n" \
+          "$name" "$short" "$ahead" "${base:0:9}"
+      else
+        printf "%-16s HEAD=%s  +%s commits vs base=%s  ⚠ 新窗口待裁决\n" "$name" "$short" "$ahead" "${base:0:9}"
+        DRIFT=10
+      fi
     elif [ "$behind" != "?" ] && [ "$behind" -gt 0 ] 2>/dev/null; then
       printf "%-16s HEAD=%s  base=%s  !! 基线在 HEAD 之后 %s 条（force-push?），人工复查\n" "$name" "$short" "${base:0:9}" "$behind"
       DRIFT=1
@@ -409,7 +433,8 @@ for pair in $REPOS; do
       printf "%-16s HEAD=%s  base=%s  ? 非线性分叉，人工复查\n" "$name" "$short" "${base:0:9}"
       DRIFT=1
     fi
-    if [ "$DRIFT" -eq 10 ]; then
+    # 窗口照旧打印：comparator 的窗口是「报告」，不是「欠债」——只是它不再决定退出码。
+    if [ "$DRIFT" -eq 10 ] || ! axis_owed "$name"; then
       if [ "$src" = clone ]; then
         window="$(local_msgs "$name" "$base_full" "$head" | sed -n '1,50p')"
       else

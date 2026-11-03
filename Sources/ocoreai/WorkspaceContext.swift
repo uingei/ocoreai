@@ -2,15 +2,16 @@
 // Licensed under MIT.
 /// WorkspaceContext — working-directory + project-instruction (AGENTS.md) discovery.
 ///
-/// Baseline: codex `core/src/agents_md.rs` (references/codex, HEAD):
-/// - `project_root_markers` default `[".git"]`, walk up from cwd; no marker →
-///   only the cwd itself is considered (agents_md.rs:1-16, `agents_md_paths`).
-/// - Collect `AGENTS.override.md` / `AGENTS.md` from the project root DOWN to
-///     the cwd (inclusive), concatenating in that order (root first).
-/// - Per level the override file wins; we read at most one doc per level.
-/// - `project_doc_max_bytes` default 32 * 1024, truncating the last doc that
-///   exceeds the remaining budget (config_toml.rs:73, agents_md.rs:138-154).
-/// - Discovered docs are model-visible instructions (agents_md.rs L74-76).
+/// Policy, not a port (owner, 11-03): the rules below are ocoreai's own — this is what we deliver, and
+/// `WorkspaceContextTests` pins each one. A codex-style loader (`core/src/agents_md.rs`) accepts the same
+/// shape, which is why the shape looks familiar; it is not the source of any rule, and its line numbers are
+/// not quoted here — nothing re-verifies them (`anchor:codex` markers: 0), so do not quote them as current.
+/// - Root markers: `.git`, walking up from the cwd; with no marker only the cwd itself is considered.
+/// - Collect `AGENTS.override.md` / `AGENTS.md` from the project root DOWN to the cwd (inclusive),
+///   concatenated in that order (root first); the override wins per level, one doc per level at most.
+/// - Budget: 32 KiB for the whole chain — the last doc that exceeds what is left is truncated, and the
+///   cut is disclosed.
+/// - Discovered docs are model-visible instructions.
 ///
 /// ocoreai alignment: the same discovery/order/budget semantics as a pure,
 /// sendable value layer under `UserDefaults.standard` key
@@ -20,13 +21,15 @@
 import Foundation
 
 enum WorkspaceContext {
-    /// codex `DEFAULT_PROJECT_DOC_MAX_BYTES` (config/src/config_toml.rs:73).
+    /// Our cap on the injected chain: 32 KiB, in three homes — here, B2's `OCOREAI_AGENTS_MAX_CHAIN` in
+    /// `scripts/agents-md-contract.sh`, and the budget sentence at the top of `AGENTS.md` — kept equal by
+    /// `InstructionBudgetSingleSourceTests`. It is a policy we chose, not a host's loan.
     static let maxDocBytes = 32 * 1024
 
-    /// codex `default_project_root_markers()` — `.git` (agents_md.rs L14-15).
+    /// Our root marker: `.git` (compat: `agents_md.rs` defaults to the same).
     static let projectRootMarkers = [".git"]
 
-    /// Per-level candidate filenames, preference order (agents_md.rs:267-281):
+    /// Per-level candidate filenames, preference order (compat: the same two names, same order):
     /// `AGENTS.override.md` then `AGENTS.md`.
     static let candidateFilenames = ["AGENTS.override.md", "AGENTS.md"]
 
@@ -78,8 +81,8 @@ enum WorkspaceContext {
     static let settingsKey = "settings.agent.workspaceDirectory"
 
     /// Project root: nearest ancestor (from cwd, inclusive) containing any
-    /// configured root marker; falls back to the cwd itself when unmarked —
-    /// mirroring codex's `find_nearest_ancestor_with_markers` policy.
+    /// configured root marker; falls back to the cwd itself when unmarked, so a
+    /// bare directory still gets a `working_directory` line.
     /// - Parameter cwd: working directory (absolute, `~` expanded by caller).
     /// - Parameter fm: injectable for tests.
     static func projectRoot(
@@ -116,7 +119,7 @@ enum WorkspaceContext {
         let startURL = URL(fileURLWithPath: start).standardizedFileURL
         let rootURL = URL(fileURLWithPath: projectRoot(cwd: start, fm: fm)).standardizedFileURL
 
-        // Chain cwd → root, then reverse to root → cwd (codex order).
+        // Chain cwd → root, then reverse: the injected order is root first, cwd last.
         var chain: [URL] = []
         var cursor = startURL
         while true {
@@ -178,10 +181,10 @@ enum WorkspaceContext {
     }
 
     /// What the injector spent of the project-instruction budget, measured off the files
-    /// it read. The disclosure itself is borrowed, not invented: deepseek-harness states
-    /// the cut inside the injected text and pins the wording as a fixture
-    /// (`snapshots/session/agent-instructions-budget/`), and codex at least logs it
-    /// (`agents_md.rs:157`, `"project doc exceeds remaining budget; truncating"` at `:164`).
+    /// it read. The disclosure itself is borrowed, not invented: deepseek-harness states the cut inside the
+    /// injected text and pins the wording as a fixture (in *that* tree, under `snapshots/session/`), and a
+    /// codex-style loader logs the same event. A cut the model cannot see is how a truncated rule starts
+    /// reading as a complete one.
     struct InstructionBudget: Encodable, Equatable, Sendable {
         /// The cap honoured for this assembly (`maxDocBytes` unless a caller passed one).
         let maxBytes: Int
@@ -284,8 +287,8 @@ enum WorkspaceContext {
     /// Assemble the model-visible workspace section for `cwd`: the working
     /// directory line, the budget notice when a doc fell off, then every
     /// discovered project instruction doc (root → cwd), byte-budgeted to
-    /// `maxBytes` across all docs (the last doc fitting the remaining budget is
-    /// truncated, codex agents_md.rs:148-153). The `working_directory` line is
+    /// `maxBytes` across all docs (the last doc that fits what is left is truncated).
+    /// The `working_directory` line is
     /// always present when `cwd` is set — it tells the model where relative paths
     /// and exec_commands land, even when no AGENTS.md exists. Empty string only
     /// for an empty `cwd`.

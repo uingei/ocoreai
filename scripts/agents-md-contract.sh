@@ -94,13 +94,15 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_FLOOR_MD_SCANNED:=15}"
 : "${OCOREAI_URL_FLOOR:=27}"      # P19: outbound URLs P19 must see (measured 10-27: 27 cited, non-loopback)
 : "${OCOREAI_FLOOR_DOC_FILES:=5}"
-: "${OCOREAI_AGENTS_MAX_CHAIN:=32768}" # NOT a measurement of us — the loader's contract. The host
-#   concatenates every AGENTS.md from the repo root down to the session's cwd and spends one byte
-#   budget on the chain: 32 KiB, DEFAULT_PROJECT_DOC_MAX_BYTES at codex codex-rs/config/src/
-#   config_toml.rs:77, decremented oldest-first at codex-rs/core/src/agents_md.rs:92 (comparator
-#   cites, § Upstream 3). The 36396 it replaced was our own largest root+doc pair, so B2 stayed green while
-#   the real loader was cutting 562 B off the tail of Sources/ocoreai/Engine/AGENTS.md — root 21935 +
-#   guide 11395 = 33330 (measured 10-27). A cap pinned to what exists is not a limit.
+: "${OCOREAI_AGENTS_MAX_CHAIN:=32768}" # OUR cap, priced 10-27 and re-adopted as policy 11-03 (owner: codex
+#   is no longer an authority). Same 32 KiB the injector spends (`WorkspaceContext.maxDocBytes`) and the
+#   same number root's head quotes — `InstructionBudgetSingleSourceTests` goes red if the three homes drift
+#   apart. A codex-style loader accepts this shape (`DEFAULT_PROJECT_DOC_MAX_BYTES`, decremented
+#   oldest-first), which is why the number is 32 KiB and not invented; its `file:line` cites were dropped
+#   11-03 because nothing re-verifies them (`anchor:codex` markers: 0, window unread). What stays is our own
+#   measurement: the 36396 this replaced was our own largest root+doc pair, so B2 stayed green while the
+#   real loader cut 562 B off the tail of Sources/ocoreai/Engine/AGENTS.md — root 21935 + guide 11395 =
+#   33330 (10-27). A cap pinned to what exists is not a limit.
 : "${OCOREAI_FLOOR_CHAIN_GUIDES:=3}"   # B2's premise: nested AGENTS.md the host can load (3 today)
 : "${OCOREAI_AGENTS_FLOOR_FIGURES:=2}" # B2's premise: figure sites the docs header must still offer
 #   (the ocoreai row + its prose tail). A re-derivation whose anchors vanished passes vacuously, so the
@@ -109,15 +111,15 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_AGENTS_MAX_AREA:=18664}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
-#   this cap was pinned to. What binds is the host's chain budget (B2, 32 KiB) and the root ratchet (B1), and
+#   this cap was pinned to. What binds is our chain budget (B2, 32 KiB) and the root ratchet (B1), and
 #   neither moved: an area file is one hop out and is opened on purpose. Most of the detail went to
 #   docs/agent/adoption-runbook.md first, and the ladder kept a pointer per rung.
 #   build-gate-reality.md). Pinned to the largest file that exists: an area file is one hop out and
-#   read on purpose, so the host budget governs the chain, not the area file.
+#   read on purpose, so the chain budget governs, not the area file.
 #   RAISED 11-03, visibly, same rule: three comparator trees were registered (qwen-code, SWE-bench,
 #   OpenHands) and comparator-repos.md grew to 18 664 B. Its size is a function of how many trees the
 #   audit covers — 24 today, counted by the P1 scan below — so the alternative was deleting measured
-#   file:line cites to fit a number the host never charges. B1 (root) and B2 (the injected chain) did
+#   file:line cites to fit a number no loader of ours charges. B1 (root) and B2 (the injected chain) did
 #   not move: a docs/agent file is not in the chain.
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
 : "${OCOREAI_AGENTS_FLOOR_REFS:=50}"
@@ -212,7 +214,7 @@ for p in guides:
     if n > env_int("OCOREAI_AGENTS_MAX_AREA"):
         fail.append("B2 %s %d bytes > per-guide cap %d" % (p, n, env_int("OCOREAI_AGENTS_MAX_AREA")))
 
-# What the host actually injects: AGENTS.md files, root down to the cwd, under one budget. A
+# What the injector actually injects: AGENTS.md files, root down to the cwd, under one budget. A
 # docs/agent file is never in that chain — a reader opens it on purpose and pays for it once — so
 # pairing the root with one is what let the real chain rot: root+Engine was 562 B over the loader's
 # 32 KiB while B2 measured root+build-gate-reality.md and called it the worst case.
@@ -227,7 +229,7 @@ for p in chain_guides:
     chain = root_size + os.path.getsize(p)
     deepest_chain = max(deepest_chain, chain)
     if chain > env_int("OCOREAI_AGENTS_MAX_CHAIN"):
-        fail.append("B2 chain AGENTS.md+%s = %d bytes > the host's %d-byte budget: %d bytes of this "
+        fail.append("B2 chain AGENTS.md+%s = %d bytes > our %d-byte chain budget: %d bytes of this "
                     "guide are never injected — move long form to docs/agent/ and leave a pointer"
                     % (p, chain, env_int("OCOREAI_AGENTS_MAX_CHAIN"),
                        chain - env_int("OCOREAI_AGENTS_MAX_CHAIN")))
@@ -295,7 +297,7 @@ SYSTEM_REFS = ("UIPasteboard.h", "arg_reduce.metal", "device.cpp", "GPU+Metal.sw
 # docs/agent/comparator-repos.md above, which is why this list is short and shrinks — 19 entr(ies)
 # left it on 10-28 once paragraph attribution landed. It rots in both directions on purpose: delete an
 # entry whose block still names no tree and its cite goes red; keep one nothing cites, or one whose
-# block has learned to name its tree, and the two checks below go red. § Upstream 6 is the policy:
+# block has learned to name its tree, and the two checks below go red. § Upstream 5 is the policy:
 # comparators are not pins, nothing here is redistributed, and a borrowed verdict stays an inference.
 COMPARATOR_REFS = (
     "PROVENANCE.md",
@@ -1051,7 +1053,7 @@ print("  corpus    bytes=%d (reported, not judged)  probe-index=%d/%d  doc-orpha
 print("  diary     entries=%d paired=%d (floor %d)  headingless=%d"
       % (len([1 for _l in read("CHANGELOG.md").split("\n") if DIARY_HEAD_RE.match(_l)]),
          diary_paired, env_int("OCOREAI_FLOOR_DIARY_PAIRED"), len(diary_orphans)))
-print("  budgets   root=%d/%d bytes guides=%d  host-chain-cap=%d  injected=%d nested AGENTS.md"
+print("  budgets   root=%d/%d bytes guides=%d  chain-cap=%d  injected=%d nested AGENTS.md"
       "  deepest-chain=%d/%d  docs-figures=%d site(s) re-derived"
       % (root_size, env_int("OCOREAI_AGENTS_MAX_ROOT"), len(guides),
          env_int("OCOREAI_AGENTS_MAX_CHAIN"), len(chain_guides),

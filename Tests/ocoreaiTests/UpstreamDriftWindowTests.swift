@@ -17,7 +17,9 @@
 /// so an upstream commit editing a mirror outside that prefix produced no row and no red. Measured
 /// 11-03 against the real mirror set (26 files carry Apple's copyright, the BSD-3 clause and a
 /// same-name counterpart upstream; the prefix scan reached 12, one file in both sets), sampled the
-/// same day by two commits that edited six such mirrors in one window.
+/// same day by two commits that edited six such mirrors in one window. The exit code is only honest if
+/// the verdict table is measured too, so which axes exist is read off `REPOS=` and which of them owe a red
+/// is asked through the `axis-owed` seam (codex reports only since the owner's 11-03 ruling, root § Upstream 5).
 
 import Foundation
 import Testing
@@ -271,5 +273,52 @@ struct UpstreamDriftWindowTests {
         #expect(
             count >= 34, "fork-licence headers in Sources/ocoreai: \(count) (floor 34, measured 40)"
         )
+    }
+
+    // MARK: - Who owes a red: the other half of the exit-code contract
+
+    private static func runAxisOwed(_ name: String) throws -> String {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/bash")
+        p.arguments = ["scripts/upstream-drift.sh", "axis-owed", name]
+        p.currentDirectoryURL = try repoRoot()
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = Pipe()
+        try p.run()
+        p.waitUntilExit()
+        return String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    @Test(
+        "an unread window reddens only the axes we consume, and the demotion is the only exception")
+    func demotedAxisReportsWhileConsumedAxesStillOweARed() throws {
+        let script = try String(
+            contentsOf: try Self.repoRoot().appendingPathComponent("scripts/upstream-drift.sh"),
+            encoding: .utf8)
+        // `REPOS=` is the axis declaration home, so the verdict table is read off it rather than
+        // restated here — a second list is how a verdict and an axis drift apart.
+        let line = try #require(
+            script.split(separator: "\n").first { $0.hasPrefix("REPOS=") },
+            "REPOS= no longer declares the axes at top level — the scan stopped matching")
+        let axes = line.split(separator: " ").compactMap { token -> String? in
+            let raw = token.split(separator: ":").first.map(String.init) ?? ""
+            let clean =
+                raw
+                .replacingOccurrences(of: "REPOS=\"", with: "")
+                .replacingOccurrences(of: "\"", with: "")
+            return clean.isEmpty ? nil : clean
+        }
+        #expect(axes.count >= 3, "axes read off REPOS: \(axes) (floor 3)")
+        var verdicts: [String: String] = [:]
+        for axis in axes { verdicts[axis] = try Self.runAxisOwed(axis) }
+        #expect(verdicts["codex"] == "report-only", "codex owes a red again: \(verdicts)")
+        for axis in axes where axis != "codex" {
+            #expect(verdicts[axis] == "owed", "\(axis) stopped owing a red: \(verdicts)")
+        }
+        // An axis nobody registered defaults to owed: defaulting the other way is how a newly added
+        // upstream silently escapes the gate that exists to catch it.
+        #expect(try Self.runAxisOwed("not-a-registered-axis") == "owed")
     }
 }

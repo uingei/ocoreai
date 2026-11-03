@@ -9,6 +9,47 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-03
 
+**11-03(10) codex is an ordinary comparator now — and the 32 KiB chain cap got its first red of our own**
+
+- **What improved.** Owner ruling, two parts. (a) `codex` leaves § *Upstream Audit Dependencies* as a
+  source: root's list went **6 items → 5** and codex folded into *Comparators*, with the rule stated where
+  a reader meets it — *its window is reported, not owed*. `make drift` implements that: the axis still
+  prints its window, but the verdict comes from a new `axis_owed` table, so an unread codex window no longer
+  sets `DRIFT=10`. Measured this session: `codex HEAD=cb2b5857c +136 commits vs base=f2ac998 · 仅报告
+  （comparator，非权威，不判红）`, while `mlx-swift-lm +4` still prints `⚠ 新窗口待裁决` and the run still
+  exits 10 — the red stayed on the two upstreams we actually consume. (b) The instruction-chain semantics
+  in `WorkspaceContext` are **ocoreai policy, not a port** (`WorkspaceContext.swift:5-8`), so
+  `WorkspaceContextTests` (retitled *"our instruction-chain contract"*, 15 tests) is the evidence and no
+  codex checkout is consulted by anything.
+- **Why the compatibility cites left the code.** They were unverifiable *and* already inconsistent: at HEAD
+  this gate's own comment cited the constant at `config_toml.rs:77` while `WorkspaceContext`'s header cited
+  it at `:73` — one decision, two homes, two source lines, nothing red, because the marker convention is
+  `anchor:<repo> <path>:<line> <token>` and a repo-wide grep for `anchor:codex` returns only the two
+  sentences that say the count is zero. A cite nobody can re-check is faith wearing a line number, so the
+  nine numbered cites in that file (seven into `agents_md.rs`, two into its `config_toml.rs`, counted off
+  `git show HEAD`) are gone and what remains is one compatibility sentence.
+- **What the number now has.** 32 KiB lives in three hand-copied homes — `WorkspaceContext.maxDocBytes`,
+  B2's `OCOREAI_AGENTS_MAX_CHAIN`, and the budget sentence at root's head — and until today the only
+  cross-check between them was prose. `InstructionBudgetSingleSourceTests`(1) reads all three off disk
+  (each read is `#require`d, so a renamed pin or a reworded head fails instead of vacuating) and compares
+  them to the loader's own constant. Sampled both ways: root's sentence 32 → 24 KiB failed
+  `stated == maxDocBytes` (`:76`), and B2's pin 32768 → 32769 failed `pin == maxDocBytes` (`:75`).
+  The gate's own framing followed: B2 says *"our N-byte chain budget"*, the budgets line prints
+  `chain-cap=` (grep: no consumer of the old `host-chain-cap=` label).
+- **Byte accounting, since this file's growth is the cost.** Root reached 21 506 B against the 21 461 B
+  shrink-only ratchet and was paid back inside it by tightening the two sentences this round added — no
+  verdict moved to `docs/agent/` to buy the number. `make docs-check` is green at `root=21453/21461`,
+  `deepest-chain=32753/32768`, 24 comparator trees still derived by P1, and the figure row in
+  `docs/agent/comparator-repos.md` re-derived to that live pair (its codex entry no longer says § Upstream 3).
+  Re-grepping the item also caught a count the previous round claimed to have moved: root still read
+  **21 trees** at HEAD while the doc it points at holds 24 (`git show HEAD:AGENTS.md`), so entry (9)'s
+  "byte-neutral re-grep" had not landed — nothing greps that sentence, which is why it now reads 24.
+- **Which gate goes red.** `InstructionBudgetSingleSourceTests`(1) names the home that drifted;
+  `UpstreamDriftWindowTests`(8) now also reads the axes off `REPOS=` (floor 3) and asks the seam who owes
+  a red, so re-promoting codex, adding an axis or deleting the table all fail there — sampled by flipping
+  `codex) return 1` to `return 0`, which failed `verdicts["codex"] == "report-only"`
+  (`UpstreamDriftWindowTests.swift:316`). A registered-but-unlisted axis defaults to **owed**, not free.
+
 **11-03(9) three comparator trees registered — all three confirm a mechanism we have, none yielded a change worth shipping**
 
 - **What improved.** `~/references` gained `qwen-code`, `SWE-bench` and `OpenHands`; each was read against

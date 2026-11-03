@@ -1,17 +1,18 @@
 import Foundation
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// WorkspaceContextTests — workspace + AGENTS.md discovery contract gate.
+/// WorkspaceContextTests — the instruction-chain contract we ship, gated on our own behaviour.
 ///
-/// Aligned with the codex `core/src/agents_md.rs` baseline (references/codex,
-/// HEAD): root discovery (`.git` marker, no-marker → cwd only), root→cwd
-/// ordering, per-level `AGENTS.override.md` preference, byte-budget
-/// truncation (codex DEFAULT_PROJECT_DOC_MAX_BYTES = 32 * 1024).
+/// What is pinned is ours: root discovery (`.git` marker, no-marker → cwd only), root→cwd ordering,
+/// per-level `AGENTS.override.md` preference, byte-budget truncation with an exact-byte disclosure. The
+/// semantics were originally ported from a codex-style loader; since 11-03 they are ocoreai policy
+/// (`WorkspaceContext`'s header), so this suite is the evidence — no codex checkout is needed to run it,
+/// and none is consulted.
 import Testing
 
 @testable import ocoreai
 
-@Suite("WorkspaceContext — codex agents_md alignment")
+@Suite("WorkspaceContext — our instruction-chain contract")
 struct WorkspaceContextTests {
 
     // Unique temp sandbox per test run.

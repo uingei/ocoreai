@@ -1,6 +1,6 @@
 # Comparator repositories — who is good at what
 
-> Long form behind § *Upstream Audit Dependencies* 6. Cells are a **dated snapshot** read off the
+> Long form behind § *Upstream Audit Dependencies* 5. Cells are a **dated snapshot** read off the
 > local clone; re-measure the diary column:
 > `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent harness2 goose opencode pi deepseek-harness claude-code qwen-code SWE-bench OpenHands; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
 > — nothing re-derives these lists since 10-28 (P16 was deleted as prose-shape), so a stale cell is
@@ -12,9 +12,9 @@
 > openclaw 19 374 / 113 906 / 34 186 (104 %), **ocoreai 21 453 / 47 484 / 32 753 (100 %, 15 B of headroom)**,
 > vllm 6 358 / 48 844 / 31 675, hermes-agent 11 952 / 159 599 / 30 192, pi 8 845, codex 0 / 3 441, ollama 358.
 > Re-measure: walk the tree for `AGENTS.md`, sum each file's ancestors up to the root, divide by 32 768 — the
-> semantics codex `agents_md.rs:68-92` and our `Sources/ocoreai/WorkspaceContext.swift:221-229` both
-> implement. Four trees read a ruleset their own loader truncates and three never say so; ours is 15 B from
-> that line and names what it drops.
+> semantics our loader implements (`Sources/ocoreai/WorkspaceContext.swift:224-233`). Four trees read a
+> ruleset their own loader truncates and three never say so; ours is 15 B from that line and names what it
+> drops.
 
 Each entry is one clone under `~/references/`: what it holds, the axis worth borrowing, how far the audit got.
 
@@ -108,11 +108,11 @@ Contains: the usage identity a client sums — `count == input + cache_read` (`:
   leave absent when it measured no creation.
 Borrow: consumed (`AnthropicCacheUsageTests` + probe 22)
 
-- `codex` — § Upstream 3 (semantic axis, Rust), and the second thing worth copying: how a first-party agent
-  documents itself — 131 273 stars on an **81-line README**, because the surface lives in `docs/`
-  (`agents_md.md`, `skills.md`, `execpolicy.md`, `sandbox.md`, `slash_commands.md`, `install.md`), with
-  install by script, npm and cask (`README.md:19`, `:47`) and 3 441 B of guides in total against our
-  21 446 B root.
+- `codex` — comparator, not authority (owner's ruling 11-03; the policy is root § Upstream 5), Rust. Worth
+  copying: how a first-party agent documents itself — 131 273 stars on an **81-line README**, because the
+  surface lives in `docs/` (`agents_md.md`, `skills.md`, `execpolicy.md`, `sandbox.md`, `slash_commands.md`,
+  `install.md`), with install by script, npm and cask (`README.md:19`, `:47`) and 3 441 B of guides against
+  our 21 453 B root.
 Borrow: the README is a signpost, not a manual; ours is a manual, and the context-economy line at the top of
   this file is that finding measured on ourselves
 

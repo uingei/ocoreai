@@ -5,9 +5,9 @@
 > `CHANGELOG.md` or `docs/agent/`; nothing enforces that split but the byte cap. If this file
 > and the code disagree, the code is the fact: fix whichever is wrong.
 >
-> **Why there is a budget:** the host injects this file plus every `AGENTS.md` below it to the cwd as ONE
-> concatenation truncated at 32 KiB — past the cap a rule is not deferred, it is never read. B2 prices
-> root+guide against it (rationale: the head of `scripts/agents-md-contract.sh`).
+> **Why there is a budget:** *our* cap, not a host's loan: the injector spends at most 32 KiB on the
+> chain (this file + every `AGENTS.md` to the cwd), so past it a rule is not deferred, it is never read.
+> Three homes, one number, one test (`maxDocBytes`, B2's pin, this sentence).
 
 ## Identity
 - An agent made for open models, natively local on Apple silicon: it sees, hears, speaks and codes, in one binary.
@@ -164,14 +164,14 @@ Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`, one dia
 2. **`coreai-models`** — Apple's reference tree, consumed as a fork of `Engine/CoreAI*` (BSD-3; types
    redefined locally — upstream demands macOS 27). Each file's header carries its upstream baseline;
    `make drift` reports the un-adjudicated window. Python/export-side commits: no export surface here.
-3. **`codex`** — semantic axis reference (Rust; nothing linked, redistributed, or copied per commit).
-4. **Apple Developer Documentation** — DocC for intent and semantics, the SDK's
+3. **Apple Developer Documentation** — DocC for intent and semantics, the SDK's
    `.swiftinterface` for exact signatures and `@available` gates, live execution for behaviour.
-5. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: on
+4. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: on
    anything user-visible it is the authority; no topic covers agents ⇒
    `docs/agent/agent-interface-guidelines.md`.
-6. **Comparators** — the 21 trees in `docs/agent/comparator-repos.md`: not pins; nothing linked or
-   redistributed, and a borrowed verdict stays inference until a `file:line` says otherwise.
+5. **Comparators** — the 24 trees in `docs/agent/comparator-repos.md`: not pins; nothing linked or
+   redistributed, and a borrowed verdict stays inference until a `file:line` says otherwise. `codex` is one
+   since 11-03 (owner: no longer an authority; window reported, not owed; loader semantics ours).
    Shipped order + fix cost per axis: `docs/agent/competitor-iteration-paths.md`.
 - **OpenAI / Anthropic compatibility** is judged as vllm and sglang judge it: the spec, their
   implementation, real requests, observed behaviour — not our convenience.
