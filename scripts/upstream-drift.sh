@@ -218,6 +218,107 @@ elif m=="messages":
   fi
 }
 
+# 台账的口径:哪些 .swift 算「我们的镜像」。此前的口径是目录 + 名字前缀
+# (Sources/ocoreai/Engine 下的 CoreAI*.swift),于是 #374 改的五个 GuidedGeneration/ 文件和
+# #402 改的 Engine/InstrumentsProfiler.swift 根本不进表 —— 11-03 实测:带 Apple 版权 + BSD-3
+# 头、且上游存在同名文件的 .swift 共 26 个,前缀扫描只够到 12 个,两个集合的交是 1 个。
+# 新口径读文件自己的头(点了 coreai-models,或带着 fork 的许可证头),用 walk 而非名字。
+# 每轮都把候选数打出来:walk 坏掉时那是一个看得见的数,不是一次通过(invariant 1)。
+fork_ledger_py() { # fork_ledger_py <clone> <ref> <ours-root> <table|census>
+  python3 - "$1" "$2" "$3" "$4" <<'LEDGER_PY'
+import os, re, subprocess, sys
+up, ref, ours, mode = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+PATH_RE = re.compile(r"((?:swift/Sources/)?[A-Za-z0-9_/+.{}-]*[A-Za-z0-9_+]\.swift)")
+SHA_RE = re.compile(r"(?:HEAD|absorbed|Absorbed: #\d+)\s+([0-9a-f]{7,40})")
+# `Adjudicated: <sha>` = 这条窗口读到这儿了(逐条裁决记在 docs/agent/coreai-fork-window-log.md)。
+# 它只移动窗口的起点,不假装代码进来了:open 的裁决仍在那份文档里,不在这里消失。
+ADJ_RE = re.compile(r"Adjudicated:\s+([0-9a-f]{7,40})")
+BSD = ("Apple Inc.", "BSD-3-clause")
+def git(*a):
+    try:
+        return subprocess.run(("git",) + a, cwd=up, capture_output=True, text=True, timeout=60).stdout.strip()
+    except Exception:
+        return ""
+def resolve(name):
+    if name.startswith("swift/") and os.path.exists(os.path.join(up, name)):
+        return name
+    hits = [h for h in git("ls-files", "*" + name).split("\n") if h.strip()]
+    return hits[0] if hits else ""
+def head_of(path):
+    try:
+        return "".join(open(path, errors="ignore").readlines()[:45])
+    except OSError:
+        return ""
+cands = []
+for dirpath, _sub, files in os.walk(ours):
+    for f in sorted(files):
+        if not f.endswith(".swift"):
+            continue
+        path = os.path.join(dirpath, f)
+        head = head_of(path)
+        # 什么算镜像:带 fork 的许可证头(Apple 版权 + BSD-3 条款,这类文件是被搬进来的),
+        # 或者头里点了 coreai-models 并指名了一个 .swift 来处。只在注释里引用上游的 MIT
+        # 文件不算 —— 它们是引用,混进镜像表会让 40 个数读起来像 40 个没读的 fork。
+        fork_licence = all(k in head for k in BSD)
+        names_a_path = "coreai-models" in head and any(
+            "{" not in x for x in PATH_RE.findall(head))
+        if fork_licence or names_a_path:
+            cands.append((path, head))
+rows, glue, nobase = [], 0, []
+for path, head in cands:
+    name = os.path.basename(path)
+    rel = os.path.relpath(path, ours)
+    # 1:1 镜像优先:同名上游文件就是来处;否则才读 header 指名的路径,因为 header 会提到
+    # 兄弟文件(我们的 VLM 头部就点了 Pipelined)。
+    cands2 = [name] + [x for x in PATH_RE.findall(head) if "{" not in x]
+    src = next((r for q in cands2 if (r := resolve(q))), "")
+    shas = SHA_RE.findall(head)
+    base = shas[-1] if shas else ""
+    adj = ADJ_RE.findall(head)
+    read_to = adj[-1] if adj else ""
+    window = read_to or base
+    if not src:
+        if base:
+            rows.append(("unnamed", rel, base[:9], "", ""))
+        else:
+            glue += 1
+        continue
+    if not window:
+        nobase.append((rel, git("rev-list", "--count", ref, "--", src) or "?"))
+        continue
+    n = git("rev-list", "--count", "%s..%s" % (window, ref), "--", src)
+    new = git("log", "-1", "--format=%h %s", "%s..%s" % (window, ref), "--", src)
+    start = ("已读至 " + read_to[:9]) if read_to else ("基线 " + base[:9])
+    rows.append(("window", rel, start, n if n != "0" else "0",
+                 src.split("/")[-1] + " | " + (new or "无")[:70]))
+if mode == "census":
+    # 测试缝:一行一个事实,断言不必猜排版。
+    print("#cand %d" % len(cands))
+    print("#glue %d" % glue)
+    for kind, rel, a, b, c in rows:
+        print("#row %s %s %s %s %s" % (kind, rel, a, b, c))
+    for rel, ever in nobase:
+        print("#nobase %s %s" % (rel, ever))
+else:
+    for kind, rel, a, b, c in rows:
+        if kind == "unnamed":
+            print("  %-36s 基线 %s | 上游文件未指名 — 逐条裁决时补路径" % (rel, a))
+        else:
+            print("  %-36s %s | 上游 %s" % (rel, a, (b + " 个 | " + c) if b else c))
+    if not rows:
+        print("  (无 fork 台账条目)")
+    if nobase:
+        print("  无基线镜像 %d 个 —— 上游同名文件确实存在,但头里没有台账读得懂的"
+              " `Absorbed: #N <sha>` 或 `Adjudicated: <sha>`(括号里是上游该文件的历史 commit 数):"
+              % len(nobase))
+        for i in range(0, len(nobase), 3):
+            print("    " + "  ".join("%s(%s)" % (r, e) for r, e in nobase[i:i + 3]))
+    print("  台账口径 walk %s ⇒ 候选 %d(带 Apple+BSD-3 头,或点了 coreai-models 并指名来处),"
+          "成行 %d,无基线 %d,胶合/引用 %d"
+          % (ours, len(cands), len(rows), len(nobase), glue))
+LEDGER_PY
+}
+
 coreai_fork_ledger() {
   # coreai fork 台账:唯一的吸收记录是源码头里的 `Absorbed: #N <sha>`,而上面的轴只看 HEAD
   # 窗口,看不到"我们 fork 的那几个引擎各自吸收到哪"。这一段把那个数变成一条命令能问出来的
@@ -234,59 +335,7 @@ coreai_fork_ledger() {
     echo "  coreai fork 台账   SKIP — $(printf '%s' "$res" | sed 's/^endpoint=[^ ]* //')"
     return 0
   fi
-  python3 - "$d" "$upref" <<'LEDGER_PY'
-import os, re, subprocess, sys
-up, ref = sys.argv[1], sys.argv[2]
-ours = os.path.join("Sources", "ocoreai", "Engine")
-PATH_RE = re.compile(r"((?:swift/Sources/)?[A-Za-z0-9_/+.{}-]*[A-Za-z0-9_+]\.swift)")
-SHA_RE = re.compile(r"(?:HEAD|absorbed|Absorbed: #\d+)\s+([0-9a-f]{7,40})")
-# `Adjudicated: <sha>` = 这条窗口读到这儿了(逐条裁决记在 docs/agent/coreai-fork-adjudication.md)。
-# 它只移动窗口的起点,不假装代码进来了:open 的裁决仍在那份文档里,不在这里消失。
-ADJ_RE = re.compile(r"Adjudicated:\s+([0-9a-f]{7,40})")
-def git(*a):
-    try:
-        return subprocess.run(("git",) + a, cwd=up, capture_output=True, text=True, timeout=60).stdout.strip()
-    except Exception:
-        return ""
-def resolve(name):
-    if name.startswith("swift/") and os.path.exists(os.path.join(up, name)):
-        return name
-    hits = [h for h in git("ls-files", "*%s" % name).split("\n") if h.strip()]
-    return hits[0] if hits else ""
-rows, glue = [], 0
-for f in sorted(os.listdir(ours)):
-    if not (f.startswith("CoreAI") and f.endswith(".swift")):
-        continue
-    head = "".join(open(os.path.join(ours, f), errors="ignore").readlines()[:45])
-    if "coreai-models" not in head:
-        continue
-    # 1:1 fork 优先:同名上游文件就是它的来处(四个引擎与 VLM 都是这种);否则才读 header 里
-    # 指名的路径,因为 header 会提到兄弟文件(我们的 VLM 头部就点了 Pipelined)。
-    cand = [f] + [p for p in PATH_RE.findall(head) if "{" not in p]
-    src = next((r for p in cand if (r := resolve(p))), "")
-    shas = SHA_RE.findall(head)
-    base = shas[-1] if shas else ""
-    adj = ADJ_RE.findall(head)
-    read_to = adj[-1] if adj else ""
-    window = read_to or base
-    if not src and not base:
-        glue += 1
-        continue
-    if not src:
-        rows.append("  %-31s 基线 %s | 上游文件未指名 — 逐条裁决时补路径" % (f, base[:9]))
-        continue
-    if not window:
-        ever = git("rev-list", "--count", ref, "--", src)
-        rows.append("  %-31s 无基线 | 上游 %s(该文件历史 %s 个 commit)— 窗口不可测" % (f, src.split("/")[-1], ever))
-        continue
-    n = git("rev-list", "--count", "%s..%s" % (window, ref), "--", src)
-    new = git("log", "-1", "--format=%h %s", "%s..%s" % (window, ref), "--", src)
-    start = ("已读至 %s" % read_to[:9]) if read_to else ("基线 %s" % base[:9])
-    rows.append("  %-31s %s | 上游 %s 未读 %s 个 | %s"
-                % (f, start, src.split("/")[-1], n if n != "0" else "0", (new or "无")[:78]))
-print("\n".join(rows) if rows else "  (无 fork 台账条目)")
-print("  另有 %d 个 CoreAI* 是 ocoreai 自己的胶合层(头里既不指名上游文件也无基线)" % glue)
-LEDGER_PY
+  fork_ledger_py "$d" "$upref" "$(pwd)/Sources/ocoreai" table
   local srcline
   srcline="$(printf '%s\n' "$res" | sed -n 's/^endpoint=[^ ]* \(src=[a-z]*\).*/\1/p')"
   printf '  窗口终点 = %s（%s；镜像不是 GitHub 权威）\n' "$upref" "$srcline"
@@ -304,6 +353,12 @@ if [ "$cmd" = "window-endpoint" ]; then
   rc=0
   window_endpoint "${2:-}" "${3:-}" || rc=$?
   exit "$rc"
+fi
+
+# 测试缝：「哪些文件算镜像」这个口径也能在合成目录上问（同上：不碰网络、不读 ~/references）。
+if [ "$cmd" = "fork-census" ]; then
+  fork_ledger_py "${2:-}" "${3:-}" "${4:-}" "${5:-census}"
+  exit $?
 fi
 
 echo "═══ ocoreai upstream drift — baseline $(baseline_note) ═══"

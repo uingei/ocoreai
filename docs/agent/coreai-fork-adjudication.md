@@ -1,9 +1,13 @@
 # coreai-models fork — window adjudication
 
-The ledger enumerates `Engine/CoreAI*.swift`: 12 files carry Apple's BSD-3 header plus a provenance
-line. A window closes with `Adjudicated: <sha>` in the file header plus one row in the window log — one verdict, one
-piece of evidence from **our** tree. Unfinished verdicts stay in the § Open list, never an implicit
-"nothing to do".
+A mirror is decided by its own header — Apple's copyright plus the BSD-3 clause, or a named
+coreai-models origin — and `make drift` walks `Sources/ocoreai` for them. Measured 11-03: **40** files
+carry the fork licence and **26** of those also have a same-name counterpart upstream; the
+`Engine/CoreAI*.swift` prefix that used to be the scan reached 12, and the two sets shared exactly one
+file, which is how a window over six edited mirrors produced no row and no red. A window closes with
+`Adjudicated: <sha>` in the file header plus one row in the window log — one verdict, one piece of
+evidence from **our** tree. Unfinished verdicts stay in the § Open list, never an implicit "nothing to
+do".
 
 Verdict key — **absorbed**: already in our copy, with the line that proves it. **n/a**: the surface it
 changes does not exist here, with the grep that proves it. **open**: it touches something we ship and
@@ -37,6 +41,10 @@ window log (and in the file that row cites), so nothing is re-typed here.
    `main` fix — all three settle with one macOS 27 run over the bundles we advertise. Owner-side: a host
    that can import CoreAI.
 6. **`7fd2063` includeLogits two-axis shape** — cheap now, expensive after ten more call sites.
+7. **40 mirrors have no machine-readable baseline** — their window is unmeasurable until each header
+   carries `Absorbed: #N <sha>` or `Adjudicated: <sha>`; `make drift` prints all 40 every round, so the
+   debt is an inventory now rather than an assumption. Some do record a sha in prose the ledger cannot
+   read (`ThinkTagParser.swift:10`, `StreamingWindow.swift:3`), which is a header edit, not a decision.
 
 ## Caveat that outlives any one pass
 

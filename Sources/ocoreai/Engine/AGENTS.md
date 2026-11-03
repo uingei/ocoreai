@@ -100,10 +100,11 @@ index instead of `continue`ing. Its only caller is `@available(macOS 27.0, *)`
 leave it as the open item it is; a blind edit is a claim, not a fix.
 
 ## The CoreAI fork's windows close in the header, not in chat
-`Engine/CoreAI*.swift` is a **fork**; `make drift` counts each copy's unread upstream commits. Close a
-window with `Adjudicated: <sha>` in the header plus a verdict row in
+`Engine/CoreAI*.swift` is a **fork**, and the mirror surface is wider: `make drift` enumerates mirrors
+by header, not name, and counts each copy's unread commits. Close a window with `Adjudicated: <sha>`
+in the header plus a row in
 `docs/agent/coreai-fork-window-log.md` (rule + queue: `docs/agent/coreai-fork-adjudication.md`); the
-count is recomputed, so an unwritten divergence returns as the same number.
+count is recomputed from the header.
 
 ## Line cites are gated, not trusted
 Every `file:line` this area leans on is asserted by 20 markers in `docs/agent/engine-line-cites.md`,

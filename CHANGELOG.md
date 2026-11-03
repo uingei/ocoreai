@@ -9,6 +9,44 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-03
 
+**11-03(8) the fork ledger decides mirrors by their header now — the prefix rule was the premise that passed vacuously**
+
+- **What improved.** `make drift`'s fork table enumerated `Sources/ocoreai/Engine/CoreAI*.swift` by name
+  prefix, so an upstream commit editing a mirror outside that prefix produced no row, no count and no
+  red, while the table's own closer — "另有 0 个 CoreAI* 是 ocoreai 自己的胶合层" — read as a census.
+  The population is now measured and stated: **40** files in `Sources/ocoreai` carry Apple's copyright
+  plus the BSD-3 clause in their first 45 lines, **26** of those have a same-name counterpart in
+  coreai-models, the prefix scan reached **12**, and the two sets shared **exactly one** file. The scan
+  walks `Sources/ocoreai` and asks each file's own header — fork licence, or a named
+  `coreai-models` origin — so `GuidedGeneration/`, `Video/`, `Profiling/`, `Parsers/` and
+  `Engine/InstrumentsProfiler.swift` are in it. One enumeration, one home: the printed table and the
+  new `fork-census` seam both call `fork_ledger_py`, because two resolvers is the defect
+  `UpstreamDriftWindowTests` already owns one floor up. Exit semantics unchanged — the table reports,
+  the axis decides. What the widened table showed on the first run: two measurable windows nobody was
+  counting (`Engine/InferenceOutputSequence.swift`, `Engine/StateHandler.swift`, both baselined at
+  `a5ece33`) and **40 mirrors with no machine-readable baseline**, each named, whose window is
+  unmeasurable until the header carries `Absorbed: #N <sha>` or `Adjudicated: <sha>`. That is queue
+  item 7 in `coreai-fork-adjudication.md`; no header was normalised in this commit, because choosing a
+  file's baseline is 40 judgements, not one.
+- **What same-session output proves it.** The new scan over the real tree: 56 candidates, 14 rows with a
+  measurable window, 40 named without a baseline, 2 glue/citation — printed as its own premise line
+  (`台账口径 walk … ⇒ 候选 56`), so a walk that silently finds nothing is a visible number. The
+  enumeration was then **sampled against the defect it owns**: the predicate was reverted to
+  `Engine/CoreAI*.swift` and the new test failed with 3 issues (`#nobase`, `#row window`, `#cand 2`),
+  restored, `bash -n` clean. `make test FILTER=UpstreamDrift` → 7 tests in 1 suite passed; the seam was
+  also driven directly against the real mirror set to confirm the restored file still reports
+  `#cand 56` / 40 `#nobase`. The suite gained a real-tree floor (`forkLicencePopulationIsFloored`,
+  floor 34 against the measured 40) and `ledgerUsesTheResolver` now asserts the *table* calls
+  `fork_ledger_py`, so a second enumeration cannot come back quietly. `Engine/AGENTS.md` and the fork
+  docs now say what the mirror surface is instead of implying it is `Engine/CoreAI*`.
+- **Which gate goes red.** `mirrorOutsideThePrefixIsEnumerated` — sampled red today against the old
+  prefix rule — goes red if a BSD-3 mirror in a subdirectory stops reaching the table, or if the
+  candidate count stops agreeing with the walk. `forkLicencePopulationIsFloored` goes red if the
+  fork-licence headers vanish from `Sources/ocoreai` (which would be a licence problem, not a drift
+  one). `ledgerUsesTheResolver` goes red if the table and the seam stop sharing one enumeration. The
+  40 no-baseline mirrors print every round and gate nothing: a count, not a verdict — what they now
+  have is an inventory and a queue item.
+
 **11-03(7) the CoreAI fork's window is adjudicated by census — and the census found commits the ledger cannot see**
 
 - **What improved.** `make drift` was red (exit 10): five fork files carried upstream commits nobody had
