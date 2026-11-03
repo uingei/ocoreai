@@ -2,7 +2,7 @@
 
 > Long form behind § *Upstream Audit Dependencies* 5. Cells are a **dated snapshot** read off the
 > local clone; re-measure the diary column:
-> `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent harness2 goose opencode pi deepseek-harness claude-code qwen-code SWE-bench OpenHands; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
+> `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent harness2 goose opencode pi deepseek-harness claude-code qwen-code SWE-bench OpenHands Qwen3.8-Flash-Next; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
 > — nothing re-derives these lists since 10-28 (P16 was deleted as prose-shape), so a stale cell is
 > yours to notice: `git grep -l <tree> -- Sources Tests` re-derives the coupling set in one line. A **pin**
 > is a build input (`Package.swift:43`); everything else is a comparator.
@@ -212,6 +212,25 @@ Contains: two mechanisms this repo already gates harder. i18n: `src/i18n/transla
   And a harness note that corroborates ours: "the persistent shell can garble long multi-line `commit -m`
   bodies … use `git commit -F <file>`" (`AGENTS.md:16-18`) — the incident class our `-F -` habit exists for.
 Borrow: axis only, no new gate. No engine here, so its axes are UI state and locale, not serving.
+
+- `Qwen3.8-Flash-Next` — `QwenLM` README + 28-page tech report, registered 11-03 (HEAD `6988587`, 08-27);
+  the corpus's first **model** tree — the other 24 are engines, harnesses and products, and nothing read the
+  axis of what the next twelve months will run on.
+Contains: 125B-A6B MoE, a 3×Gated DeltaNet + 1 full-attention layer schedule (QSA from CPT on) — 7.6× prefill
+/ 4.9× decode at 1M kernel level, RULER >512K 90.08 → 93.00 — plus a **native MTP module** reusing QSA
+top-k indices across draft steps (mean accepted length **4.06** at four steps, Tab. 4: the number our lane owes
+at rung 3's acceptance gap); +51B N-gram embedding tables prefetched from host memory — the capacity route
+unified memory is built for, rung 4's wedge made concrete; 256K native (`../references/Qwen3.8-Flash-Next/README.md:115`);
+and a NoPE ablation whose post-training endless-generation rate jumps (§2.1.1) — the field's stalls are
+trained-in, one more datum on the terminal-word call. At pin `b8d4935ab`: `Libraries/MLXVLM/VLMModelFactory.swift:95-98`
+registers `qwen3_5|qwen3_5_moe|qwen3_8|qwen3_8_moe` onto `Qwen35` (`GatedDeltaNet`, `HybridAttentionSchedule`)
+and `Qwen35MTP` (`Libraries/MLXVLM/Models/Qwen35MTP.swift:99`); QSA and N-gram appear **zero** times pin-wide
+⇒ the flagship will not load there (inference by absence, not run); dense `Qwen3.8-27B-4bit` does
+(`VLMModelFactory.swift:286`); the on-disk `Jundot` `…-mtp` cache entries are 12 KB README stubs — entry
+presence, not weight presence.
+Borrow: the priced shape the board's one-checkpoint curve aims at (§ Open in `open-items.md`); what it cannot
+price is exactly what this family is: MTP acceptance, GDN cache economics, 256K tool calls. Closing it is an
+owner download decision plus an upstream QSA/N-gram port — not gate work.
 
 ## How to use this file
 

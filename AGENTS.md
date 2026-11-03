@@ -169,7 +169,7 @@ Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`, one dia
 4. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: on
    anything user-visible it is the authority; no topic covers agents ⇒
    `docs/agent/agent-interface-guidelines.md`.
-5. **Comparators** — the 24 trees in `docs/agent/comparator-repos.md`: not pins; nothing linked or
+5. **Comparators** — the 25 trees in `docs/agent/comparator-repos.md`: not pins; nothing linked or
    redistributed, and a borrowed verdict stays inference until a `file:line` says otherwise. `codex` is one
    since 11-03 (owner: no longer an authority; window reported, not owed; loader semantics ours).
    Shipped order + fix cost per axis: `docs/agent/competitor-iteration-paths.md`.

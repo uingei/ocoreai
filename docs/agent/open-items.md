@@ -76,7 +76,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   is not resolvable at this n. Unanswered, in spending order: does capacity buy context tolerance (needs a
   default-model knob — `EngineConfig.defaultModelId` is hard-defaulted, no `OCOREAI_*` override), and does a
   short per-turn corpus beat a long one on the faces that collapsed? Owner call either way — gate injection
-  by capacity, or move the doc behind the base prompt (`MessageBuilder`).
+  by capacity, or move the doc behind the base prompt (`MessageBuilder`). The direction this curve widens
+  toward is measured (11-03, the model axis: `comparator-repos.md` — hybrid-GDN + native-MTP + 256K; the
+  prerequisite is an owner download decision, not gate work).
 
 - **The gate layer is frozen; the tag is not.** Measured before cutting: 329 of 1415 commits went to
   docs/CI/gates against `git tag` = empty (the counts and the deleted family: CHANGELOG

@@ -108,7 +108,7 @@ cd "$(dirname "$0")/.."
 #   (the ocoreai row + its prose tail). A re-derivation whose anchors vanished passes vacuously, so the
 #   scan floors its own hit count instead of trusting the header it reads.
 : "${OCOREAI_FLOOR_DIARY_PAIRED:=40}"   # CHANGELOG entries whose heading was found above their first bullet
-: "${OCOREAI_AGENTS_MAX_AREA:=18664}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
+: "${OCOREAI_AGENTS_MAX_AREA:=20502}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
 #   this cap was pinned to. What binds is our chain budget (B2, 32 KiB) and the root ratchet (B1), and
@@ -121,6 +121,9 @@ cd "$(dirname "$0")/.."
 #   audit covers — 24 today, counted by the P1 scan below — so the alternative was deleting measured
 #   file:line cites to fit a number no loader of ours charges. B1 (root) and B2 (the injected chain) did
 #   not move: a docs/agent file is not in the chain.
+#   RAISED 11-03(2), visibly, same rule: tree 25 — the corpus's first MODEL tree (`Qwen3.8-Flash-Next`,
+#   README + tech report) — carried comparator-repos.md to 20 502 B, the largest file that exists, so the
+#   cap follows its pin. B1 and B2 again untouched; the row is cite-dense by the same argument as above.
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
 : "${OCOREAI_AGENTS_FLOOR_REFS:=50}"
 : "${OCOREAI_AGENTS_FLOOR_TREES:=16}"

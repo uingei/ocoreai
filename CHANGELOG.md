@@ -9,6 +9,44 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-03
 
+**11-03(14) The corpus read its model axis — a 28-page report says what the board's curve cannot price**
+
+- **What improved.** Twenty-four comparator trees read engines, harnesses and product shapes; none read what
+  the next twelve months of models *are*. `~/references/Qwen3.8-Flash-Next` (README + 28-page tech report,
+  extracted with macOS PDFKit — no poppler on this host) was audited as tree 25, cross-checked at pin
+  `b8d4935ab` for what our Swift stack can actually express today. Extracted (all re-greppable at the PDF): a
+  3×GDN + 1 full-attention layer schedule with QSA from CPT on — 7.6× prefill / 4.9× decode at 1M kernel level,
+  RULER >512K 90.08 → 93.00 — and a **native MTP module** reusing QSA top-k indices across draft steps at mean
+  accepted length **4.06** at four steps (Tab. 4), the number our lane will owe when rung 3's acceptance gap
+  closes; +51B N-gram embedding tables prefetched from host memory — a capacity route unified memory is built
+  for, rung 4's wedge made concrete; 256K native context (`README.md:115`); and a NoPE ablation whose
+  post-training endless-generation rate jumps (§2.1.1) — the field's stalls are trained-in, one more datum on
+  the terminal-word owner call. The pin cross-check is content, not filenames: `VLMModelFactory.swift:95-98`
+  registers `qwen3_5|qwen3_5_moe|qwen3_8|qwen3_8_moe` onto `Qwen35` (`GatedDeltaNet`, `HybridAttentionSchedule`)
+  and the `Qwen35MTP` drafter keyed by config `modelType` (`Qwen35MTP.swift:99`); MLXLLM registers only
+  `qwen3_moe`/`qwen3_next` among qwen types; QSA and N-gram appear **zero times** pin-wide ⇒ the flagship quant
+  will not load at today's pin (inference by absence — no load was attempted), while the dense
+  `Qwen3.8-27B-4bit` is registered (`VLMModelFactory.swift:286`). Registered as a `comparator-repos.md` row
+  (root § Upstream 5: 24 → 25 trees, byte-neutral) with pointers on both open rows that the reading prices.
+- **What this round deliberately did not do.** It did not claim bytes: `du -sh` on the three `Jundot` HF-cache
+  entries, `…Flash-Next-oQ4e-mtp` included, returns 12 KB README stubs — the round's own premise that "the
+  family sits on this disk" died on that line before it could become a claim, which is the rule that a
+  directory listing proves entries, not weights, caught in the act. No second model loaded either: this
+  128 GB box already hosts a resident serving engine with swap 59 % used, so a ~16 GB cold load is the owner's
+  resource call, not an agent default. No new gate (frozen; a read earns none), and no QSA/N-gram port — the
+  route is upstream's own by precedent (`Qwen3Next.swift:5` *is* a port of mlx-lm's), and the ladder says consume.
+- **What same-session output proves it.** The greps in this paragraph: the pin's registry keys and their line
+  numbers, the zero-hit QSA/N-gram scans, `du` over the cache dirs, and the report numbers re-read from the
+  PDF text. A candidate fix died on sight too: "wire the measured KV price into admission" — `3cbcb9b` already
+  did it (`SchedulerActor.swift:259` prices off `KVCachePriceLedger`; the 1024 B/token constant is the
+  documented floor for *unpriced* models and the decision says `fallback`). `make docs-check` and
+  `make anchor-check` ran green after the edits.
+- **Which gate goes red.** None new. `make anchor-check` owns the three new pin cites and the README line —
+  they must resolve in the checkouts at the pinned revisions; `make docs-check` keeps the outside-cite
+  declaration honest, since a cite into the model tree is declared only while the row in
+  `comparator-repos.md` exists. This round's claims are prose plus cites, and a stale pin cite is exactly what
+  those two instruments catch.
+
 **11-03(13) The tracking loop eats a whole window — three comparator-class defects checked against our own tree, two field precedents registered, nothing ported**
 
 - **What improved.** The track/mine/verify loop (11-02(112)) ran on a window that actually moved: the mirror
