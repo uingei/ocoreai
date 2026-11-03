@@ -134,6 +134,10 @@ read `GET /v1/capabilities`, invariant 2 cuts both ways):
   line 10, then installs in one line at `:19` (`brew install --cask codex` at `:47`); pi `README.md:21` lists
   interactive / print-JSON / RPC / SDK; omlx `README.md:23-28` anchors Install · Quickstart · Features ·
   Models · Benchmarks. Ours has no anchor nav and no install one-liner.
+- **Show it working before it loads**: Strata ships the built UI and `npm run preview:ui` renders it on isolated
+  simulated data, so a stranger sees the product with **no model resident** (`../references/Strata/apps/host/README.md:10`).
+  Our nearest equivalent is CI-only (`scripts/e2e-gui-app.sh`, `GUI_REQUIRE_PIXELS`) — it proves pixels to a
+  runner, not to a stranger. Named pattern, no task assigned: a first screen is rung 2's to floor.
 - **The policy line is a feature**: pi `README.md:11` says new-contributor issues and PRs are auto-closed and
   maintainers review them daily, and `:19` that Pi "skips features like sub-agents and plan mode. Ask Pi to
   build what you want". A promise about answering, and a named non-scope, both read as finished.

@@ -22,7 +22,10 @@ Each entry is one clone under `~/references/`: what it holds, the axis worth bor
   `entrypoints/anthropic/serving.py`
 Contains: OpenAI + Anthropic compatibility — parallel-call filtering, `finish_reason` resolution,
   OpenAI→Anthropic field mapping — plus the **intake policy** an AI-assisted PR must satisfy
-  (`AGENTS.md:8,21,27,35,39`; full text: adoption-runbook § The intake machine).
+  (`AGENTS.md:8,21,27,35,39`; full text: adoption-runbook § The intake machine). And since 11-04, in-tree: a Rust
+  front-end whose goal is "to rebuild the northbound serving layer in Rust while still talking to the core
+  Python vLLM engine process(es) via ZMQ over the existing engine boundary", self-labelled experimental and not
+  feature-complete (`rust/README.md:3`, `:5`) — 596 file-touches in 14 d.
 Borrow: consumed, cited by file:line (rounds 19–20); our home for the policy is `CONTRIBUTING.md`
 
 - `sglang` — Python serving stack; `srt/entrypoints/openai/{protocol,serving_chat}.py`,
@@ -31,7 +34,10 @@ Contains: the same compat axis, second opinion — discriminated `delta.type` un
   vocabularies, `/v1/decisions` (the AR route to typed yes/no・choice・score reads —
   `docs/agent/systemone-decisions.md`), and "upgrade the word only if a call landed **and** it stopped
   naturally". Second axis: **permissions as data** — 123 workflow files driven by
-  `.github/CI_PERMISSIONS.json` + `.github/MAINTAINER.md` (cites in `adoption-runbook.md`).
+  `.github/CI_PERMISSIONS.json` + `.github/MAINTAINER.md` (cites in `adoption-runbook.md`). Third (11-04): the
+  same move vllm made — `sglang-server` "Sglang server in rust" shipped as a PyO3 extension
+  (`rust/sglang-server/Cargo.toml:3`) — and a **generated API** (`rust/sglang-api-codegen`, `sglang-api-types`),
+  which makes two serving trees generating their HTTP contract beside opencode's codegen package.
 Borrow: consumed, cited by file:line; permission-as-data is the honest shape for CI rights at scale
 
 - `omlx` — MLX serving project, 23 108 stars — the closest published *distribution* analogue to us: a Python
@@ -61,23 +67,23 @@ Borrow: consumed for the lane shape (185 660 stars, api.github.com 11-02); the p
 - `mlx-serve` — **the closest whole-product analogue to our own sentence** (audited 11-04, mirror `8d82ebe2`,
   389 commits in 14 d; Zig engine + SwiftUI app): "chat, coding agents, images, video, music, speech and 3D.
   One native app and one local server that speaks the OpenAI, Anthropic and Ollama APIs. It runs offline,
-  needs no Python and no account" (`README.md:5`), on five engines (`src/engines/{mlx,llama,ds4,ane,own_thread}`)
-  behind ~40 model-family plugins (`src/plugins/`) and one SDK (`src/sdk/{grammar,kv,tokenizer,quant,media}`).
+  needs no Python and no account" (`README.md:5`), on five engines (`src/engines/*`, ane among them) behind ~40
+  model-family plugins (`src/plugins/`) and one SDK (`src/sdk/`).
 Contains: the convention that a behaviour claim ships as a committed shell probe (the rule behind
   `scripts/probes/`); **native MTP with a runtime acceptance gate** — speculation stops mid-decode once
   per-draft acceptance falls under break-even and stays off for the request (`docs/performance.md:15`, `:20`);
-  a **shipping ANE lane** — dense Qwen packs entirely on the Neural Engine to 64K contexts, split across an
-  Ultra's two ANEs, a model it cannot run or a load that does not fit serving "on the GPU, logged by name"
-  (`docs/cli.md:76`, `docs/reference.md:440`, `:450`); head-to-head decode numbers against LM Studio, oMLX and
-  MTPLX **on those trees' own checkpoints**, each on its shipping defaults so there is "no best-config collapse"
-  (`docs/performance.md:9`); a complete rung-2 quartet (DMG, cask, self-update, iPhone app); and contracts it
-  declares unverified for its embedded engines (`docs/known-issues.md:46`).
-Borrow: what it does *not* do is the wedge — it hosts Claude Code and Codex instead of *being* the agent
-  (`README.md:49`), takes a pasted screenshot rather than capturing the screen
+  a **shipping ANE lane** — dense Qwen packs entirely on the Neural Engine to 64K contexts across an Ultra's two
+  ANEs, a model it cannot run or a load that does not fit serving "on the GPU, logged by name" (`docs/cli.md:76`,
+  `docs/reference.md:440`, `:450`); head-to-head decode numbers against LM Studio, oMLX and MTPLX **on those
+  trees' own checkpoints**, each on its shipping defaults, so there is "no best-config collapse"
+  (`docs/performance.md:9`); and contracts it declares unverified for its embedded engines
+  (`docs/known-issues.md:46`).
+Borrow: what it does *not* do is the surviving wedge — it hosts Claude Code and Codex rather than *being* the
+  agent (`README.md:49`), pastes a screenshot instead of capturing the screen
   (`../references/mlx-serve/app/Sources/MLXServe/Views/ChatView.swift:3472`; no `ScreenCaptureKit`/`SCStream`
-  symbol anywhere in its `app/Sources` — absence of symbols, not a run), and its ANE lane **refuses grammars, forced tool calls, a reasoning budget
-  and images by name** against a declared `Caps` set (`docs/reference.md:453`). The shortened list is
-  `long-horizon-goal.md` § Rung zero 4's, restated there 11-04.
+  symbol in its `app/Sources` — absence of symbols, not a run), and its ANE lane **refuses grammars and forced
+  tool calls by name** (`docs/reference.md:453`). The part-by-part verdict is `long-horizon-goal.md` § Rung
+  zero 4's — one home; this row holds the axes.
 
 - `harness2` — Python agent harness: `ASSETS.json` (path→sha256), `check_provenance.py` (exit 1 on any
   changed or missing asset), `PINNED.md`
@@ -104,7 +110,12 @@ Borrow: the shape, not the machinery — `scripts/eval/`'s run dirs are evidence
   closest *product* shape to ours in growth terms — 34 577 stars in 34 days (1 016/day; 2 381 commits in 14 d)
 Contains: `launch --plan` prints a multi-GB mutation before doing it, then exits untouched
   (`docs/TERMINAL_LAUNCH.md:110`); engine packages carry a manifest `engine_component.py` checks before start
-  (`packaging/ENGINE-COMPONENT.md`); installers fetch the engine for the GPU present.
+  (`packaging/ENGINE-COMPONENT.md`); installers fetch the engine for the GPU present. Read again 11-04
+  (2 049 commits in 14 d, 71 tags): "No account needed" (`README.md:25`), and it **hosts** the harnesses rather
+  than being one — "Claude Code · Codex CLI · OpenCode · oh-my-pi · pi.dev · Hermes Agent · OpenClaw" behind
+  `strata connect` (`README.md:168`); the built UI ships with an isolated **simulated-data preview** a stranger
+  can open with no model resident (`apps/host/README.md:10`); and a README whose status claims went stale was
+  *demoted*, not edited — kept as `docs/README-historical.md`, labelled historical (`apps/host/README.md:12`).
 Borrow: consumed for the dry-run (`Models/ModelDownloadDTO.swift` `DownloadPlan` + probe 36); integrity
   checking of runtime-fetched artefacts is still open.
 
@@ -141,8 +152,15 @@ Borrow: consumed (`AnthropicCacheUsageTests` + probe 22)
   surface lives in `docs/` (`agents_md.md`, `skills.md`, `execpolicy.md`, `sandbox.md`, `slash_commands.md`,
   `install.md`), with install by script, npm and cask (`README.md:19`, `:47`) and 3 441 B of guides against
   our 21 453 B root.
+Contains (11-04): an axis the 81-line README cannot show — `codex-rs/guardian-context`, "shared context sections
+  for synchronous Guardian review and asynchronous scoring", where **a contributor that fails aborts collection
+  rather than returning partial context** (`src/lib.rs:5`), contributors declare their scope once, and hosts own
+  admission/compaction/lifecycle; the section set carries authorization truth (`RootConversationSection`,
+  `TrustedUserAnswersSection`) and its own budget module. Fail-closed context assembly is invariant 2 applied to
+  the prompt, and it is the one part of this tree worth reading again.
 Borrow: the README is a signpost, not a manual; ours is a manual, and the context-economy line at the top of
-  this file is that finding measured on ourselves
+  this file is that finding measured on ourselves. Owner ruled codex an ordinary comparator on 11-03 (§
+  Upstream 5), so this is a registered axis, not a debt.
 
 - `mlx-swift-lm` (pin 1) and `coreai-models` (pin 2) — engineering consumption is § Upstream 1–2; the practice
   axis is in both and missing here: **the repo ships the skill that teaches an outside agent its API** —
@@ -277,16 +295,17 @@ Contains: the vendor's own acceptance framing — the series is "designed to car
   feedback" (`:23`) — the four axes of `long-horizon-goal.md` restated by whoever trains the model our board
   runs. Plus two **wire words** the family is trained on: `reasoning_effort`, and `preserve_thinking`, which
   retains "reasoning context from historical messages" (`:25`).
-Borrow: `preserve_thinking` names a cost we owe and do not count — § Open's thinking-uncounted row (probe 44
-  §2, no `reasoning_tokens`) means a caller that retains thinking pays tokens we cannot price for it. Inference
-  from a README, not a measured interaction; the probe line that would settle it belongs to whoever owns
-  `reasoning_effort`'s gate (`ReasoningEffortHonestyTests`(9) + probe 38).
+Borrow: `preserve_thinking` is the vendor's name for the cost § Open's thinking-uncounted row already owes;
+  the consequence and its owner live there, not twice.
 
 ## How to use this file
 
 1. Where a tree has the answer, cite `file:line` rather than authoring a local variant, and land the change
    with its upstream line, our line, and the gate that goes red on regression.
 2. Refresh with the one-liner above, and re-derive the coupling set by hand (`git grep -l <tree> -- Sources
-   Tests`): seven trees have zero *tree* coupling — MTPLX, TensorFold, Strata, mlx-serve, opencode, harness2,
-   deepseek-harness — so a row left "named, unused" is decoration: use it or drop the name. `make drift`
-   checks every bare upstream cite resolves, which is the half a reader acts on.
+   Tests`): **ten** trees had zero *tree* coupling on 11-04 — MTPLX, TensorFold, Strata, harness2, opencode,
+   claude-code, qwen-code, SWE-bench, OpenHands, Qwen3.8-Flash-Next — so a row left "named, unused" is
+   decoration *unless* the row itself says "axis only, no home here today" (five of the ten do). The list read
+   *seven* and named `deepseek-harness` while missing five others until this round ran its own command, which is
+   why the number is dated and the command sits beside it. `make drift` checks every bare upstream cite
+   resolves — that is the half a reader acts on.

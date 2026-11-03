@@ -156,6 +156,14 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    skill, finds it and finishes a task. `scripts/probes/40-stranger-agent-skill-task.sh` is that instrument — a seeded note whose
    VALUE is reachable only by a live call chain, plus a negative control that must reject a wrong deliverable.
    Probe 39 executes the artefact; probe 40 is read by it.
+   Measured 11-04 across the corpus, this rung has a shape the four engine-side trees all converged on and we
+   lack: a **command that hands a configured harness to the caller** — `mlx-serve launch claude`
+   (`../references/mlx-serve/README.md:49`), `strata connect` printing per-tool setup (`../references/Strata/README.md:168`),
+   ollama tuning model output limits *for Claude Code specifically* (`f9323416`), openclaw's plugin-swap line.
+   Ours is a documented copy-step (`README.md:152`, `:156` — `cp -R skills/ocoreai ~/.codex/skills/`), which is
+   honest and current but asks the reader to wire the env themselves. A CLI verb is a new core surface ⇒ owner
+   call, though the consumer exists today (any Claude Code/Codex install), so this is the ladder's cheapest
+   unpaid rung-6 part.
 7. **Editors as clients (ACP)** — the rung `docs/agent/open-items.md` already cites: goose ships
    `agent-client-protocol` 2.2.0 and hermes-agent an `acp_adapter`; a third surface is a new core
    surface, so it waits on the owner.

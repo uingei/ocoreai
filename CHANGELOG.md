@@ -9,6 +9,38 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-04
 
+**11-04(3) The rest of the corpus, and the registry's own coupling list failed its own command**
+
+- **What improved.** 11-04(2) deep-read four trees; this covers the rest — all 26 got churn-by-directory and
+  recent-subject scans, and five more got read at the line: Strata (2 049 commits in 14 d, 71 tags), codex,
+  vllm, sglang, OpenHands. Rows patched accordingly. Four findings:
+  **① the engine-side trees converged on one affordance we lack.** `mlx-serve launch claude`
+  (`../references/mlx-serve/README.md:49`), `strata connect` (`../references/Strata/README.md:168`), ollama
+  tuning model output limits *for Claude Code specifically* (`f9323416`), openclaw's plugin-swap line — each
+  ships a **command that hands over a configured harness**, while ours is a documented copy-step
+  (`README.md:152`, `:156`). Now named as rung 6's cheapest unpaid part in `long-horizon-goal.md`; a CLI verb is
+  a new core surface, so it stays an owner call.
+  **② both Python serving stacks are paying to compile their northbound layer** — vllm rebuilds it in Rust and
+  keeps the engine in Python behind ZMQ (`rust/README.md:3`, `:5`, 596 file-touches in 14 d), sglang ships
+  `sglang-server` as a PyO3 extension (`rust/sglang-server/Cargo.toml:3`) plus a **generated API**
+  (`rust/sglang-api-codegen`), the second codegen tree beside opencode's. Confirmation, not a to-do: the
+  single-binary boundary we start in is what they are spending to reach.
+  **③ `codex-rs/guardian-context` fails closed**: "Contributor failures abort collection without returning
+  partial context" (`src/lib.rs:5`), with authorization sections and a budget module — invariant 2 applied to
+  the prompt. Registered as an axis; the owner ruled codex an ordinary comparator on 11-03, so it is not debt.
+  **④ Strata demotes a stale README instead of editing it** (`docs/README-historical.md`, labelled historical —
+  `apps/host/README.md:12`), and ships a UI preview that needs no resident model (`:10`), which is the
+  first-screen part we do not have (our e2e proves pixels to a runner, not to a stranger).
+- **What same-session output proves it.** The registry told readers to re-derive the coupling set with
+  `git grep -l <tree> -- Sources Tests`, and had not done so itself: running its own command gave **ten**
+  zero-coupling trees, not the seven it printed, with `deepseek-harness` wrongly listed and five trees wrongly
+  omitted. The corrected list is dated and sits beside its command. The area cap also bit for the first time in
+  five raises: the first 520 B cut was deleting *second homes* — the mlx-serve row restating the wedge verdict
+  § Rung zero 4 owns and the Qwen3.8 row restating § Open's thinking row — before any raise was considered.
+- **Which gate goes red on regression.** `make docs-check`: P2/P3 on the new cites (attribution is what makes a
+  `~/references` cite legal in a doc), B2 on the raised cap, and the ladder's rung-6 text now carries the
+  `file:line` for each of the four commands, so a mirror refresh that contradicts it goes red at a line.
+
 **11-04(2) The corpus read for *direction*, not history — the wedge lost three parts, one model tree had never been registered, and 27 tests named as a gate read their own literals**
 
 - **What improved.** The 11-04(1) round scanned *history* (when did each tree ship each axis). This round
