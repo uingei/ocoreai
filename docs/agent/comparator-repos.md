@@ -176,7 +176,7 @@ Borrow: consumed for the honesty gap in `docs/agent/open-items.md` (our injector
 Contains: invariant-2 copy as shipped (`CHANGELOG.md:687` failed search ≠ empty search; `:272-273` rewind copy
   over-promising), the dated-deprecation format (`:11`), stall/steer vocabulary beside our terminal-word § Open (`:36`, `:429`).
 Borrow: live tracking axis — the track/mine/verify loop and last-read marker live in CHANGELOG 11-02(112); it shows
-  field alignment, never behaviour (our gates keep that job). last-read `v2.1.316` (mirror `f0b737f`)
+  field alignment, never behaviour (our gates keep that job). last-read `v2.1.317` (mirror `964d695`)
 
 - `qwen-code` — `Qwen-Coder/qwen-code`, TypeScript coding-agent CLI, registered 11-03 (HEAD `1f09497f45`);
   peer of `claude-code`/`codex`/`opencode`/`goose`/`pi`

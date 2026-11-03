@@ -9,6 +9,45 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-03
 
+**11-03(13) The tracking loop eats a whole window — three comparator-class defects checked against our own tree, two field precedents registered, nothing ported**
+
+- **What improved.** The track/mine/verify loop (11-02(112)) ran on a window that actually moved: the mirror
+  stands at `964d695` (`v2.1.317`) and its 90 new `Fixed …` lines were read above the marker, so the marker
+  moves (comparator-repos.md). Family (c) — termination/steering, queued yesterday toward the terminal-word
+  sitting — yields stop-*scope* discipline (Ctrl+C at the prompt must not stop running background agents; a
+  Stop must not kill a title mid-generation), and **no new convention on the streamed terminal word**: the
+  sitting stays un-scheduled by field evidence, per its stated ceiling. Family (d) yields one line — stop
+  announcing a live counter on every change — a face we do not ship. (a) re-checked our `search_files`
+  against their fix for *partial results over a time limit*: no home here, because our walk has no time limit
+  to betray it — depth-bounded DFS whose two real truncations both speak: unreadable sub-trees through
+  `partialNote` (`Tools/FileTools.swift:817-822`, appended to the zero-match answer too at `:593`) and the
+  count cap through `bound = .capped` (`:534`); their same-window removal of the Read unchanged-file stub
+  transfers neither (0 such stubs here). An 11-02→11-03 subject sweep over the other 21 trees turned three
+  hits chased to our code instead of quoted: sglang #45466 (a grammar-poll **timeout** cached as an *invalid
+  grammar* poisons the cache) — our constrained lane caches only session handles, and a failed generation
+  **drops** the handle rather than returns it to the slot (`GuidedGeneration/ConstrainedDecodingStrategy
+  .swift:329`); qwen-code `71119c6` — an exact-id list of checkpoints rejecting forced tool selection, with
+  tightened schema-emphasising instructions for those ⇒ a **third shape** for the demanded-`required` owner
+  call (report / constrain à la sglang / instruct-fallback keyed by id), registered to that § Open row;
+  Strata `434c6221` — checks the disk before fetching and corrects the stated download total ⇒ prior art for
+  the Models-page row's loader half, registered as *installed-file* dedupe, which is not our concurrent race.
+  One rule confirmed shipped independently by others: v2.1.317 moves subagent effort level to **model** scope
+  ("that model's saved effort level … instead of the session's") — § *scope in the key*.
+- **What this round deliberately did not do.** Nothing ported; the Footprint ladder had no consumer that
+  exists today in any of it. vllm #65271 (a prefix-cache hit ending **inside a multimodal item**) names a
+  boundary our rewind could in principle produce, but no trim mid-media-block has been observed, determinism
+  keeps the answer correct regardless, and per *no guard for a failure nobody observed* none is written — if
+  a media-bearing rewind ever misreports reuse, probe 27's assertion is where it surfaces. The sweep's
+  colour rows (codex sandbox-review breadth, TensorFold drafter-keyed cache layout, openclaw wait-cancel
+  hygiene) are read-and-filed, not registered: no open item to attach to.
+- **What same-session output proves it.** The three no-home findings are the greps in this paragraph, each
+  resolved to lines in our tree (`FileTools.swift:534/593/817-822`; `ConstrainedDecodingStrategy.swift:329`;
+  zero unchanged-file stubs); both registered cites were re-read at their diffs before landing in
+  `docs/agent/open-items.md`, per the standing rule that a subject line is not a verdict.
+- **Which gate goes red.** No new gate (the gate layer stays frozen and a read earns none). `make docs-check`
+  ran green after the marker move and the two open-items sentences; the claims above are re-checkable from
+  the named commits and named lines.
+
 **11-03(12) A cold load stopped reading as "Generation failed" — the GUI's `loading` face at the send seam**
 
 - **What improved.** The engine has answered a cold turn with `AppError.modelLoading` carrying what the

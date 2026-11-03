@@ -126,7 +126,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   11-03(12)'s banner sends a waiting user, the page reports no wait and leaves `Download` enabled over
   weights already landing. A second fetch of an id whose first still holds the store key is **inference**:
   no duplicate 794 s fetch has run here, so the disk cost is unmeasured and the quote is a line reading, not
-  a probe line. Owner call: key the row on the store, and block the button or dedupe at the loader.
+  a probe line. Owner call: key the row on the store, and block the button or dedupe at the loader;
+  prior art: Strata checks the disk before fetching (`434c6221`) — installed-file dedupe, not this
+  row's concurrent race.
 - **The audit infers a write, it never reads the workspace** (Models/, Tools/) — a shell success is
   `.unobserved`; an unknown MCP tool still counts as a writer; the key is process-wide. Wanted:
   turn-scoped effect off the filesystem (codex, per turn:
@@ -134,7 +136,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **A demanded tool call is reported, not forced** (Engine/, Handlers/) — the unmet demand now rides in
   the result at all four sites; the engine still answers `required` with zero tokens, where sglang
   constrains it to a call
-  (`../references/sglang/python/sglang/srt/entrypoints/openai/serving_chat.py:1937-1945`).
+  (`../references/sglang/python/sglang/srt/entrypoints/openai/serving_chat.py:1937-1945`); qwen-code's
+  exact-id face (`71119c6`, cell in `comparator-repos.md`) is the third.
 - **A measured gallery is the one adoption surface we can win outright** (README/, Handlers/) — the leaders
   advertise model support as adjectives while `/v1/models` already publishes per-checkpoint measured verdicts
   (`vlm`, `contextLength`, `toolCallDelivery`, `reasoningEffort`, `videoInput`) and `scripts/eval/` scores a
