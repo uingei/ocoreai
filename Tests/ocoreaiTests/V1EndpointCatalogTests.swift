@@ -110,8 +110,8 @@ struct V1EndpointCatalogTests {
     }
 
     /// A route that stops at a `limit` may not publish a note that reads as a complete list. The
-    /// field draws the line the same way everywhere (codex `message-board/src/types.rs:23-30`,
-    /// deepseek-harness `docs/subsystems/tools.md:623`, pi `bash-executor.ts:28-35`); here the
+    /// field draws the line the same way everywhere (codex `message-board/src/types.rs:23-39`,
+    /// deepseek-harness `docs/subsystems/tools.md:623`, pi `bash-executor.ts:26-37`); here the
     /// note is what reaches a stranger's agent — through `/v1/capabilities` `endpoints[]` and
     /// `/openapi.json` — and "List stored sessions" promised every stored session while the SQL
     /// said `ORDER BY updated_at DESC LIMIT ?` (`SessionCompressor.swift:227`).

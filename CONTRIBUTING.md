@@ -74,6 +74,13 @@ floor. Write a claim together with its instrument, on the same line: `>=` for a 
 shrink (attribution, endpoint rows), `<=` for a ceiling that must not grow (`print`, `try!`, `TODO`),
 and `=` only for facts that move when the doc itself is edited (a pin, a budget).
 
+A cite into a comparator tree is a weaker promise than an `anchor:` marker, and the tools say so in
+opposite voices: markers resolve only for the pinned trees (`mlx-swift-lm`, `mlx-swift`, this repo),
+because a mirror's HEAD moves by design and a runner has no checkout of it, while
+`scripts/upstream-cite-check.sh` greets every bare comparator cite as resolved once the *line exists*.
+So `make anchor-check` green covers none of those cites — re-read the window before repeating one, and
+write the struct or function beside its range so a line that moved is catchable by eye.
+
 **Red is for a claim someone acts on; a warning is for everything else.** The test is not "can this be
 checked" but "who is misled when it breaks": a wire field, a tool result, a README sentence, an injected
 line a model obeys ⇒ red; volume and shape in a file nobody is obliged to read ⇒ a printed number. The

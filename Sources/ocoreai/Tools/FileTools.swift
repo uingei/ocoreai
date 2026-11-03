@@ -620,11 +620,12 @@ enum FileTools {
     /// A caller reads `─── total: 50 ───` as *the search is finished* and stops refining; when the
     /// loop broke at the cap, that line was not a total but a returned count wearing the word. Three
     /// trees settled the same rule independently: codex's preview carries the whole length beside the
-    /// flag (`codex-rs/message-board/src/types.rs:23-30`) and its paged read carries
-    /// `next_offset_chars` — the way out, not just the bound; deepseek-harness pins `truncated`/`total`
-    /// on every capped view "so a UI never presents a partial result as complete"
-    /// (`docs/subsystems/tools.md:623`); pi's exec result carries `truncated: boolean` next to the
-    /// text (`packages/coding-agent/src/core/bash-executor.ts:28-35`). It is also the rule this file
+    /// flag (`PostPreview`, `codex-rs/message-board/src/types.rs:23-30`) and its paged read carries
+    /// `next_offset_chars` (`PostContent`, same file `:33-39`) — the way out, not just the bound;
+    /// deepseek-harness pins `truncated`/`total` on every capped view "so a UI never presents a
+    /// partial result as complete" (`docs/subsystems/tools.md:623`); pi's exec result carries
+    /// `truncated: boolean` beside the text and `fullOutputPath` where the whole output went
+    /// (`packages/coding-agent/src/core/bash-executor.ts:26-37`). It is also the rule this file
     /// already enforces two screens up: a blocked root is refused rather than rendered as zero
     /// matches, because neither may report a scan that never ran.
     ///

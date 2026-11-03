@@ -9,6 +9,34 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-03
 
+**11-03(6) the comparator cites written today were re-read against the refreshed trees — one was wrong, and no gate covers this class**
+
+- **What improved.** All 21 comparator trees were refreshed, so every cite this session wrote into one
+  got re-read instead of trusted. `codex-rs/message-board/src/types.rs` has not moved since 10-21, which
+  makes the defect mine rather than upstream's: `PostPreview` (`n_chars`, `truncated`) is 23–30 and
+  `next_offset_chars` sits in the *next* struct, `PostContent` at 33–39 — while three source comments and
+  this session's diary entry cited `:23-30` for all three fields, sending a reader to a struct that does
+  not contain the third. Every one of them now names the struct beside its range; pi's window widened to
+  26–37 so `fullOutputPath` — pi's way out, carried as the path the full output went to — sits inside the
+  range cited for it; deepseek-harness `docs/subsystems/tools.md:623` was re-read and still carries the
+  sentence quoted. CONTRIBUTING § Evidence Is Required gained the asymmetry the incident exposed: an
+  `anchor:` marker verifies content for the pinned trees only, while the bare-cite check proves a
+  comparator line *exists*, so `anchor-check` green has never said anything about a comparator cite.
+- **What same-session output proves it.** A token-window check of the four claims against the four trees
+  printed four OKs with an empty missing-token list (`PostPreview`/`n_chars`/`truncated` in 23–30,
+  `PostContent`/`next_offset_chars` in 33–39, `truncated`+`total`+"partial result as complete" at 623,
+  `truncated: boolean`+`fullOutputPath` in 26–37). `make round-gates` green over the change: docs
+  contract, `anchors: checked=78 (local=29, upstream=49) drift=0 skip=0`, every bare upstream cite
+  resolving, audits and spell. The other half of the evidence is that my wrong range had *already*
+  passed all of those gates earlier today — green was never about these cites.
+- **Which gate goes red.** None, and saying so is the point rather than an omission. An `anchor:` marker
+  would catch it, since its token must appear inside the cited window, but a comparator tree resolves as
+  `UNPINNED` at the mirror's HEAD: the red would fire here every time an unrelated upstream commit moved
+  a line, and every runner would report it `SKIP`. A check the owner has to wave past teaches them to
+  wave reds past, which CONTRIBUTING's asymmetry rule forbids. The instrument that would settle it: let
+  an anchor carry the mirror sha the cite was read at, so drift is a red with a named cause instead of
+  noise — a change to the marker grammar, so: the owner's call.
+
 **11-03(5) the two capped HTTP endpoints publish their bound — the note is contract text**
 
 - **What improved.** `GET /sessions` and `GET /sessions/search` answered with at most 100 and 20 rows
@@ -76,10 +104,11 @@ heading are when the work landed (measured from git).
 
 - **What improved.** The walk broke out at `maxResults` and then printed `─── total: \(matches.count) ───`,
   so a caller reading `total: 50` concluded the search was finished and stopped refining. The field
-  states a bound three ways that agree across trees: codex's board carries `n_chars` + `truncated` +
-  `next_offset_chars` (`message-board/src/types.rs:23-30`), deepseek-harness returns `truncated`/`total`
+  states a bound three ways that agree across trees: codex's board carries `n_chars` + `truncated`
+  (`PostPreview`, `message-board/src/types.rs:23-30`) and `next_offset_chars` (`PostContent`, same file
+  `:33-39`), deepseek-harness returns `truncated`/`total`
   (`docs/subsystems/tools.md:623`), pi's bash executor carries `truncated: boolean`
-  (`coding-agent/src/core/bash-executor.ts:28-35`). Here it is one prose line, one enum
+  (`coding-agent/src/core/bash-executor.ts:26-37`). Here it is one prose line, one enum
   (`ResultBound.complete|capped(knownTotal:)`) and one renderer (`resultTally`): filename mode costs no
   I/O to finish counting, so it names both numbers — `showing 2 of 5 (filename glob; 3 not shown —
   narrow the path or raise limit)`; content mode cannot know the rest without the I/O the limit exists

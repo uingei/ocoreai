@@ -8,8 +8,9 @@
 ///
 /// The second face of the same rule, added 11-03: a search that *stopped* — at the result limit —
 /// may not label the count it stopped at as a total. The field calls it `truncated`/`total`
-/// (deepseek-harness `docs/subsystems/tools.md:623`, codex `message-board/src/types.rs:23-30`,
-/// pi `coding-agent/src/core/bash-executor.ts:28-35`); here it is one line of prose, and the prose
+/// (deepseek-harness `docs/subsystems/tools.md:623`, codex `PostPreview` at
+/// `message-board/src/types.rs:23-30` and `PostContent` at `:33-39`, pi
+/// `coding-agent/src/core/bash-executor.ts:26-37`); here it is one line of prose, and the prose
 /// is what a checkpoint reads before deciding whether to narrow its query.
 ///
 /// The unreadable premise is asserted, not assumed — a host that ignores mode bits would
