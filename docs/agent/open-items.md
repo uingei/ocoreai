@@ -277,7 +277,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   spawn spec itself carries `sandboxed: true|false` (`TensorFold/app/electron/agent/mcp-process.ts:173-186`);
   Rapid-MLX declines to *grade* an agent it cannot confine
   (`Rapid-MLX/scripts/benchmark_glm53_real_tasks.py:226-228`); and deepseek-harness is the one that treats it as a
-  product surface — four `packages/sandbox/*` packages (92 tracked files) confining a subprocess to a
+  product surface — four `packages/sandbox/*` packages (95 tracked files today) confining a subprocess to a
   **file-effect** policy of `read-only` / `workspace-write` / `danger-full-access` with per-platform backends, where
   a denied call "can retry through a user-approved one-time escalation" and the same paragraph states the limit
   instead of hiding it: *"Confinement is same-world only: it shares the host kernel and filesystem"*

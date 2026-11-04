@@ -43,11 +43,13 @@ Read for consensus, the corpus first failed to agree with its own inventory. Fiv
 
 ## The consensus, ranked by how unanimous
 
-Counts are in-segment (`serve` = 7 trees that expose an inference/API server; `agent` = 14 harnesses a person
-drives; `shippable` = 24 trees that ship something a stranger installs — everything but the two model READMEs,
-the two pins and the SWE-bench harness, plus us). Segments are declared in the script as data, so a denominator
-can be argued with. Re-measured 11-04 against 29 mirrors; the numbers moved because `Rapid-MLX` joined, not
-because the earlier reading was wrong, except where the ledger below says otherwise.
+Counts are in-segment (`serve` = **12** trees that answer a chat-completion POST themselves; `agent` = 14
+harnesses a person drives; `shippable` = 24 trees that ship something a stranger installs — everything but the
+two model READMEs, the two pins and the SWE-bench harness, plus us). Segments are declared in the script as
+data, so a denominator can be argued with — and one of them *has* to be: `serve` had been hand-typed at 7
+while five serving trees sat unlisted, so every serve row below was a field divided by a subset of itself
+(the five, each with its route line, and the two adjudicated non-members: `comparator-innovation.md` § What
+this costs). Re-measured 11-04 against 29 mirrors.
 
 | Practice | Segment | Trees | Ours |
 |---|---|---|---|
@@ -61,18 +63,19 @@ because the earlier reading was wrong, except where the ledger below says otherw
 | Live probe / smoke scripts committed | shippable | 23/24 | yes (58) |
 | Session rewind / fork / compaction | agent | 14/14 | yes (`Reasoning/ConversationCompaction.swift`) |
 | Turn/stall bound in code | agent | 14/14 | yes (`LoopStallTerminationTests`) |
-| Verifies bytes in a download module | serve | 7/7 | yes on the route we fetch (`ModelScopeDownloader.swift:1136-1144`) |
-| `reasoning_effort`-class knob | serve | 7/7 | yes, and gated (probe 38) |
+| Verifies bytes in a download module | serve | 12/12 | yes on the route we fetch (`ModelScopeDownloader.swift:1136-1144`) |
+| `reasoning_effort`-class knob | serve | 12/12 | yes, and gated (probe 38) |
 | Evals or benchmark tree | shippable | 19/24 | yes (26) |
 | Third-party notice manifest | shippable | 17/24 | yes (43) |
 | Screen capture / computer use in code | agent | 12/14 | yes (17) |
 | Deferred / filtered tool surface | agent | 12/14 | **no** (§ The ledger: our 2 hits are noise) |
 | `SKILL.md` files published | agent | 11/14, median **14** | **1** (`skills/ocoreai/`) |
 | Release tags | shippable | 23/24, median **245** | **1** (v0.1.14) |
-| **Wires a third-party coding agent to itself** | serve | **6/7** | **no** (§ The harness side) |
+| **Wires a third-party coding agent to itself** | serve | **11/12** | **no — we are the twelfth** (§ The harness side) |
+| **Speaks ACP (the editor↔agent protocol)** | agent | **8/14, and 8/8 editing now** | **no** (§ Direction 8) |
 | **OS confinement profile for the child process** | agent | 6/14, honest read 5 | **no** (§ Where the field confines) |
-| Committed machine-readable HTTP contract | serve | **2/7** | yes (`openapi.json`, generated) |
-| Published client *package* | serve | **1/7** (`sglang`) | no |
+| Committed machine-readable HTTP contract | serve | **2/12** | yes (`openapi.json`, generated) |
+| Published client *package* | serve | **2/12** (`openclaw`, `sglang`) | no |
 
 Three numbers are the whole calibration, so read them twice. **Median tags 245, ours 1.** Of the 23 installable
 comparators, **21 minted at least one tag in the last 30 days**; we minted one in the last 120 (§ The field's own
@@ -81,13 +84,13 @@ route 21/24) is the one root already calls the open item — now measured instea
 
 ## Where the field disagrees
 
-Agreement is the headline; the useful signal often sits where the trees split. Four divergences worth a
+Agreement is the headline; the useful signal often sits where the trees split. Seven divergences worth a
 direction, each with its own evidence (the rest are pointers to sections that already hold them, because a
 second home for a decision is the thing this corpus keeps catching):
 
-- **How long a warm prefix is allowed to live** — the axis is 7/7 present and 7/7 being edited, so everyone
-  agrees on reuse and disagrees on its lifetime. `omlx` runs a cold tier on disk (`PagedSSDCacheManager`,
-  `../references/omlx/README.md:402`, safetensors); `Rapid-MLX` writes its radix cache on shutdown and re-imports
+- **How long a warm prefix is allowed to live** — the axis is 12/12 present and 12/12 being edited, so
+  everyone agrees on reuse and disagrees on its lifetime. `omlx` runs a cold tier on disk
+  (`PagedSSDCacheManager`, `../references/omlx/README.md:410`, safetensors); `Rapid-MLX` writes its radix cache on shutdown and re-imports
   it at startup, guarding the swap so a torn snapshot cannot replace an importable one
   (`../references/Rapid-MLX/rapid_mlx/routes/cache.py:583-592`, its own claim at `README.md:78`); `mlx-serve`
   names a process-lifetime prefix cache and caps it on RAM-tight Macs
@@ -102,27 +105,56 @@ second home for a decision is the thing this corpus keeps catching):
   `openapi_url=None`, sglang keeps an env switch, we generate and commit the file. The split decides whether a
   generated client is a bet or a catch-up.
 - **Whether the child gets confined** — § Where the field confines a child: it tracks whose code the child runs,
-  not how careful the authors are.
+  not how careful the authors are. And the split is finer than that section knew when it was written: the trees that
+  spend on this divide between **OS confinement** (TensorFold's profile, `deepseek-harness`'s four
+  `packages/sandbox/*`) and **review/approval machinery** (`codex`'s `guardian/`) — `comparator-evolution.md` now
+  measures them as two axes, because one bucket covering both said the wrong thing about both.
+- **Whether language is a product surface or an afterthought** — `hermes-agent` carries nine locales
+  (`ar de en es fr ja ru zh zh-hant`) behind `catalog-completeness.test.ts` and an `overlay-gaps.json` that names
+  what is *not* translated, and locale tables are among the hottest files in `opencode`, `qwen-code` and
+  `OpenHands`; `claude-code` records locale **twice in 436 releases, first at #429**. Both ship to large
+  installs, so this is a real disagreement about whether the user's language is part of the product. We sit on the first half (two complete 463-key
+  tables, `availableLocales` restricted to exactly those) — § Direction item 7.
+- **Whether measurement is a product or a private harness** — `harness2` is benchmarks and nothing else (its churn
+  is 27 % measurement, its hottest files are `benchmarks/jobbench.py` and `core/proposer.py`); `Strata` prices every
+  harness it runs in tokens; `openclaw`'s single most-edited file is a **shrink-only debt ratchet** whose header
+  reads "Ratchet: counts may only shrink", owned by `check-assertion-safety-ratchet.test.ts`. Against that, the most
+  installed agent in the corpus records tests/evals in **29 of 436 releases, first at #118** — its ledger is almost
+  silent about its own harness, which is expected of a user-facing changelog and is exactly why a ledger cannot be
+  read as an effort report. Our half: 26 eval files, a scoreboard that verifies the workspace, and the standing
+  disclosure that the board scores 6 of the 40 advertised tools.
+- **Whether you owe a stranger a ledger** — 14 of 29 trees track no changelog anywhere; 3 use a verb a machine can
+  count; and among those 3 the fix:add ratio tracks the tree's *age* (0.4 : 1 at 16 versions, 2.7 : 1 at 85, 5.7 : 1
+  at 436), not its diligence. So the disagreement is over whether release prose is for users at all — and our
+  `CHANGELOG.md`, the most-edited file in this repo, answers "it is for the next engineer here", pointing a person
+  deciding what to install at the release note instead (`CHANGELOG.md` header). That is a defensible position and it
+  is also the position of 14 other trees, so it is not the field's default.
 
 ## The harness side is already built, on their side
 
-Re-derive: the axis `wires a third-party coding agent to itself (code)`, serve segment, or
+Re-derive: the axis `wires a third-party coding agent to itself (code)`, serve segment (its in-segment list is
+the twelve; the loop names the eight whose hits this section reads; `OC_AXES="wires a third-party"` re-runs it
+alone).
 
 ```
 for t in vllm sglang ollama omlx mlx-serve splash Rapid-MLX; do git -C ~/references/$t grep -l -I -i -E \
   -e 'ANTHROPIC_BASE_URL|OPENAI_BASE_URL|OPENAI_API_BASE|CLAUDE_CODE_|claude[-_]code|codex[-_](config|app[-_]server)' -- '*.py' '*.ts' '*.go' '*.rs' '*.swift'; done
 ```
 
-**Six of the seven serving trees score; five ship it in product code** — `ollama` has a `Runner` per
+**Eleven of the twelve serving trees score — we are the twelfth** (the axis printed 6/7 until the segment was
+corrected today; § What this costs in `comparator-innovation.md` for the five trees that had been unlisted).
+**Five of them were traced to product code this round** (the rest score on the pattern, and `OC_EVIDENCE=1`
+prints one matched line per tree so any of them can be traced in one re-run) — `ollama` has a `Runner` per
 (`cmd/launch/claude.go:15` "Claude implements Runner for Claude Code integration"); `mlx-serve` detects installed
 agents on `PATH` through a *login* zsh so nvm/asdf/pyenv resolve the way the user's terminal sees them
 (`app/Sources/MLXServe/Services/CLILauncher.swift:4-10`); `omlx` ships an `IntegrationsScreen`
 (`apps/omlx-mac/Sources/AppView/Screens/IntegrationsScreen.swift:224`); `splash` writes client configs from its
 installer (`install/clients.py`); `Rapid-MLX` renders its Launch page off a decoded registry whose kinds are
-`config_writer` and `adapter_profile` (`apps/rapid-mac/Sources/Rapid/Server/IntegrationCatalog.swift:3-12`). The
-two that do not are vllm, whose only hit is an example webserver script, and sglang, whose only hit is a unit
-test. **We score nothing**: `/v1/capabilities` and `openapi.json` describe us to a client that has to configure
-itself.
+`config_writer` and `adapter_profile` (`apps/rapid-mac/Sources/Rapid/Server/IntegrationCatalog.swift:3-12`).
+Two of the eleven score only on non-product code — vllm's hit is an example webserver script, sglang's a unit
+test. The remaining four (`MTPLX`, `Strata`, `TensorFold`, `openclaw`) joined the segment today and have not
+been read line by line. **We score nothing**: `/v1/capabilities` and `openapi.json` describe us to a client
+that has to configure itself.
 
 Why this is the round's real finding: root § Adoption says to spend on "a harness consuming us", and this says the
 harness side is not an open research question in this field — it is a config file plus a detection routine that
@@ -178,11 +210,14 @@ window, and concept heat over `OC_TREND_DAYS=60`).
   went from 827 commits/30 d to **0** — the MTP-for-MLX comparator has been quiet for a month, so our MTP lane now
   has no active sibling to read) and `harness2` (a 21-commit research drop).
 - **Concept heat says nothing in this corpus is dormant, so heat ranks nothing.** Every axis printed
-  present = edited-now (14/14 rules-file readers editing their rules files, 7/7 serving trees editing KV
-  machinery, 12/12 deferred-tool trees editing it). The useful reading is therefore the *minority* axes: the ones
-  where few trees hold the mechanism and all of them are editing it — confinement (5/14, 5/5 editing) and the
-  harness-wiring seam (6/7, 6/7 editing). A practice that is both minority and unanimous-actively-worked is a
-  direction; a practice at 14/14 is table stakes and further spending there buys a claim, not a user.
+  present = edited-now (14/14 rules-file readers editing their rules files, 12/12 serving trees editing KV
+  machinery, 12/12 deferred-tool trees editing it, **8/8 ACP speakers editing ACP**). The useful reading is
+  therefore the *minority* axes: the ones where few trees hold the mechanism and all of them are editing it —
+  confinement is the only one left (6/14 scored, honest read 5, 5/5 editing). **The harness-wiring seam left
+  this class when the segment was corrected**: it is 11/12, so it is not a minority practice we are early on,
+  it is a near-consensus practice we alone skip (§ Direction 3). A practice that is both minority and
+  unanimous-actively-worked is a direction; a practice at 14/14 is table stakes and further spending there
+  buys a claim, not a user.
   **Corrected twice within a day — full account in `comparator-evolution.md`:** the reading above is
   presence-weighted, so a file touched once and one touched 200× both count 1, and that part still holds (heat
   cannot rank a saturated axis). But the touch-weighted cut that replaced it *under*-reads this axis rather than
@@ -195,13 +230,13 @@ window, and concept heat over `OC_TREND_DAYS=60`).
 ## What the field is evolving into, and what its ledgers say
 
 Both cuts moved out to `comparator-evolution.md` — churn by concept (touch-weighted, 13 agent trees) and the
-release-ledger ladder — because putting them here carried this file 5 278 B past its own per-file cap, and the
-alternative was deleting measured evidence to fit a number no loader charges. The headline numbers, so a reader
+release-ledger ladder — because putting them here put this file 5 278 B past its per-file cap; the
+alternative was deleting evidence to fit a number no loader charges. The headline numbers, so a reader
 can decide whether to open it: **surface is >= 10 % of own churn in 11 of 13 trees, measurement in 9, the agent
 loop in 3**; authority is invisible to churn in *both* directions, so nothing about it may be concluded from
 churn; and **14 of 29 trees publish no changelog at all**, while the deepest one — 436 versions, 8 668 bullets
 — runs 5.7 : 1 fix-to-add, is 66 % Fixed, and recorded approval as its second-ever entry and language at #429.
-That file also carries the two claims this one had to take back, each with the mechanism that produced it.
+It also carries the two claims this file took back, with the mechanism of each.
 
 ## The injected ruleset
 
@@ -242,7 +277,8 @@ honesty gate). **Owner call; nothing here changed model behaviour.**
   `references/vllm/vllm/entrypoints/launchers/dp_supervisor.py:220` — the middle one was written here without its
   `vllm/entrypoints/` prefix, which resolves to nothing; re-pinned 11-04); sglang reserves a switch
   (`references/sglang/python/sglang/srt/entrypoints/http_server.py:501` — `/openapi.json` unless
-  `DISABLE_OPENAPI_DOC`); only ollama commits a spec file besides us, and a published client package is 1/7. So a
+  `DISABLE_OPENAPI_DOC`); only ollama commits a spec file besides us (2/12), and a published client package is
+  2/12 (`sglang`, and `openclaw`, which joined the segment today). So a
   **generated client is our bet, not a field expectation** — the evidence behind the owner's standing caution that
   "a public contract is a promise" (root § Adoption).
 - **Depth we already exceed:** notices (43 files vs 17/24 having any manifest), probes (58 of the 23/24 that ship
@@ -279,7 +315,7 @@ yet a task.
    no npm. omlx's quartet (DMG, auto-update, `~/.omlx/bin` shim, self-serve tap whose optional-kernel flag
    *degrades instead of failing*) remains the concrete shape; it is one `Formula/` file plus a publish leg CI
    already rehearses.
-3. **Ship the harness side** (§ The harness side): five of seven serving trees do it, one owns the merge-safety
+3. **Ship the harness side** (§ The harness side): **11 of 12 serving trees do it and we are the twelfth**; one owns the merge-safety
    problem in writing, and it is the rung root § Adoption says to spend on. Cheapest honest slice: the
    `launch <agent>`-equivalent for one harness, reversible, with the non-destructive-merge rule copied from the
    docstring above.
@@ -292,7 +328,7 @@ yet a task.
    that with the ledger's other half, or the framing misleads: whatever boundary we ship, the *approval* surface
    around it is a permanent ~15 % of the work, not a thing that lands once — 196 of 436 releases, recorded in
    `comparator-evolution.md`. It stays an owner call, not a task.
-6. **Do not chase the contract-client pairing as "standard practice"** (contract 2/7, client package 1/7), and do
+6. **Do not chase the contract-client pairing as "standard practice"** (contract 2/12, client package 2/12), and do
    not chase depth: § Where we are ahead. One honest carve-out: a contract can be load-bearing *internally* without
    ever shipping as a package — `opencode`'s own CLI fetches `/openapi.json`
    (`../references/opencode/packages/cli/src/commands/handlers/api.ts:72`) and its smoke test asserts the unauthenticated
@@ -305,6 +341,14 @@ yet a task.
    tables and advertise exactly those two, which sits us in the first half without pretending to nine. Filling
    `ja/ko/fr/es` is enumerable work with no observed request from anyone who asked, so: recorded as a gap, **not**
    scheduled, and `availableLocales` stays restricted to what has a table, which is what keeps it a gap and not a lie.
+8. **ACP is a measured majority we sit outside** — 8/14 agent trees speak it, 8/8 of those are editing it, and its
+   arrivals here are dated 03-14 → 10-13, so the spread is open (§ The protocol that spread in
+   `comparator-innovation.md`). It stays an owner call: an inbound wire is ladder rung 6, and the
+   consumer-with-a-name test is **not** met on this box — no editor ran us, and the client lists are comparator
+   claims (§ Upstream 5). What the round changes is the shape of the ask: ACP's `session/request_permission`
+   primitive is an *external consumer of the destructive truth we already keep in one home*
+   (`ToolEntry.isDestructive` → `securityPrecheck`), so the cheapest honest slice is an adapter over that gate,
+   never a second approval mechanism.
 
 ## The ledger: false positives that would have become claims
 
@@ -325,7 +369,7 @@ now prints one matched line per tree so the next one is caught by a reader, not 
   accident; with `-w` the number is **twelve of 28**. The measure is pinned to `-w` in the registry now.
 - **Our own `Client/` directory is not a published SDK.** "codegen or published client" once scored us on
   `Sources/ocoreai/Client/DirectInferenceClient.swift`, an in-process lane. The axis now requires a *package*, and
-  the honest count is 1/7.
+  the honest count is 2/12.
 - **We have no deferred-tool mechanism.** Our 2 hits are a static allowlist test name
   (`Tests/ocoreaiTests/CheckToolsTests.swift:44`) and a comment *describing codex* (`scripts/eval/_eval.py:214`).
 - **"Installs in one command" was once matched by the word `.dmg` anywhere in a README**, which scored our
@@ -370,10 +414,23 @@ now prints one matched line per tree so the next one is caught by a reader, not 
   registry sentence disagreeing with its own command twice. It is bullet 5 above, not a second home; it is listed
   here only because a reader skimming the ledger should not miss that the instrument's *denominators* were the
   likeliest lies in this file.
+- **The likeliest lie was a denominator that was also a hand-typed list.** `serve` declared 7 members while five
+  serving trees sat on the disk, so 6/7 meant 11/12 and a § Direction item was under-priced for the life of this
+  file; the account (five trees, five route lines, two adjudicated non-members) is `comparator-innovation.md`
+  § What this costs, and `SEGMENT-AUDIT` now prints the candidates so the next clone cannot be missed the same way.
+- **`sqrt_acp` — three ACP patterns, three wrong answers.** `[^a-z0-9]` treated `_` as a non-word character
+  and scored `Rapid-MLX` off a diffusion sampler's `sqrt_acp`; treating `_` as identifier material fixed that
+  and dropped OpenHands' real `acp_server: "claude-code"`; widening to `acp.`/`RequestPermission` then scored
+  `codex`, `Strata` and `mlx-serve` on their *own* permission code, which is not the protocol. A three-letter
+  token in a polyglot corpus has no decidable boundary, so the axis now asks the question a reader can check:
+  does the tree name the protocol or import its package. Every broken version printed the same 8/14 —
+  `OC_EVIDENCE=1` is the only thing on this box that could see the difference.
 
 ## Pointers
 
 - Per-tree axes and what to borrow: `comparator-repos.md` (28 rows, one per tree on this box).
+- Who holds a mechanism alone, and did it spread: `docs/agent/comparator-innovation.md` (the DIFFUSION cut,
+  the dated arrivals, the per-tree signature table, the serve-segment account).
 - The time axis, with the three instruments that disagree: `docs/agent/comparator-evolution.md` — churn by concept
   and the release-ledger ladder, plus the two claims this file had to take back.
 - The ladder these numbers feed: `long-horizon-goal.md` § Rung zero; the install machine's four parts:

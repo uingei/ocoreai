@@ -9,6 +9,63 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-04
 
+**11-04(9) The fourth question had no home, and the denominator we divided the field by was a hand-typed list**
+
+- **What improved.** Asked to read all 28 `~/references` trees for 演进 / 共识 / 分歧 / 创新, three of the four had
+  homes and 创新 had none — nothing answered *who holds this alone, and did it spread*. That question is now homed
+  in `docs/agent/comparator-innovation.md` (the diffusion ladder, dated arrivals, a 28-tree signature table whose
+  cites were each opened today, four cases where a mechanism was seen to move) and instrumented in
+  `scripts/comparator-consensus.sh`: a **DIFFUSION** block (every axis classified by share of its own segment,
+  plus the `ours-alone` and `segment-majority-we-score-zero` lines — reuses the sweep's matched sets, so it costs
+  no extra scan) and a **SEGMENT-AUDIT** block (serving trees on disk the declared segment omits).
+- **The instrument had been dividing a field by a subset of itself.** `serve` declared 7 members while **five
+  serving trees sat unlisted on the same disk** — `Rapid-MLX` (`rapid_mlx/routes/chat.py:2`), `MTPLX`
+  (`mtplx/server/openai.py:37679`), `Strata` (`serve/server.py:6`, naming the Anthropic route in the same
+  sentence), `openclaw` (the endpoint is a knob defaulting off, `src/config/schema.help.runtime.ts:287`) and
+  `TensorFold` (`README.md:3`). So `wires a third-party coding agent to itself` had printed **6/7** where the disk
+  says **11/12 — we are the twelfth**, `committed HTTP contract` 2/7 → 2/12, published client 1/7 → 2/12, and the
+  four serve axes that read 7/7 now read 12/12. Segment membership is adjudicated per tree with its route line in
+  the script comment, and `SEGMENT-AUDIT` printed two loose candidates after the fix, both adjudicated
+  non-members on a read (`coreai-models` is a pin whose own `llm-server` does serve —
+  `swift/Sources/Tools/llm-server/ChatHandler.swift:45`; `hermes-agent`'s 23 registration-shaped lines are an eval
+  probe it starts to test a client against).
+- **The new axis caught the field's newest consensus, and we are outside it.** `speaks ACP` scores **8/14 agent
+  trees with 8/8 editing it now**, and the arrivals are datable from file-add commits: `hermes-agent`
+  `acp_adapter/__init__.py` 03-14 → `goose` `crates/goose/src/acp/server.rs` 04-21 → `cline` 06-03 → `openclaw`
+  06-06 → `qwen-code` 06-12 → `deepseek-harness`'s own dated note 06-14 → `opencode` 09-17 → `TensorFold` 10-13,
+  so the spread is **open, not finished**. Its approval primitive `session/request_permission` is what carries tool
+  approval in four trees (read in `TensorFold`, `qwen-code`, `goose`, `hermes-agent`), which makes an ACP adapter a
+  second *consumer* of the destructive truth we already keep in one home (`ToolEntry.isDestructive` →
+  `securityPrecheck`) rather than a second home — § Direction 8. It stays an owner call at ladder rung 6: the
+  consumer-with-a-name test is **not** met on this box, no editor ran us, and the client lists are comparator
+  claims (§ Upstream 5).
+- **Two numbers about us that are worth reading twice.** `ours-alone: none` on all 31 axes — there is no mechanism
+  we hold that our segment lacks, so the claim about us is combination-and-disclosure, and disclosure is the only
+  surface a stranger can observe. And the block's `ours: yes` cells are candidates, not verdicts: `deferred /
+  filtered tool surface 12/14 ours:yes` is still scored on `Tests/ocoreaiTests/CheckToolsTests.swift:44`
+  (`func toolFilterExact()`) plus a comment *about codex* at `scripts/eval/_eval.py:214`.
+- **Three errors of this round, each caught by opening a file.** (i) The ACP axis needed three patterns to get
+  right, and **all three printed 8/14**: `[^a-z0-9]` scored `Rapid-MLX` off a diffusion sampler's `sqrt_acp`;
+  treating `_` as identifier material fixed that and dropped OpenHands' real `acp_server: "claude-code"`;
+  widening to `acp.`/`RequestPermission` scored `codex`, `Strata` and `mlx-serve` on their *own* permission code.
+  A three-letter token in a polyglot corpus has no decidable boundary, so the axis now asks the question a reader
+  can check — does the tree name the protocol or import its package — 8/14 again, this time for the right reason,
+  and `OC_EVIDENCE=1` is the only thing that saw each failure. (ii) I
+  compared `docs/receipts/`'s **943 files** against the registry's **16** and wrote that the row was 60× stale — 16
+  is *bundles*, the tree still has 16, and the registry was right; the claim died before it shipped. (iii) Two live
+  cites had drifted: `omlx`'s SSD tier moved `README.md:402 → :410`, and `deepseek-harness`'s sandbox count is 95
+  tracked files where three docs said 92. All four are filed once, in `comparator-consensus.md` § The ledger.
+- **Which gate goes red.** None of this is a gate — no runner has `~/references`, and a printed count carries no
+  verdict (§ *Working here*); the cross-tree cut is a direction input. What does bite: `make docs-check` (dead
+  pointers into the new file, the B2 figure anchors, P14's file floors, and the pinned per-file caps), the script's
+  ERE lint and its `INSTRUMENT-DEAD` / `SMALL-N` floors, and `bash scripts/comparator-consensus.sh`, which
+  reproduces every number above off the mirrors in one run.
+- **Budget stated, not glossed.** `comparator-consensus.md` sits at 38 880 / 38 945 B and `comparator-repos.md` is
+  at its pinned 38 945 B (a ratchet: it only shrinks), so the next round that adds to either must first move a
+  section out — the candidate is § *What the corpus did not know about itself*, a past round's self-audit, with the
+  caveat that `comparator-repos.md` § *How to use* 2 points at its bullet 5.
+
+
 **11-04(8) Asked whether the CHANGELOGs had been read — they had not; the deepest one refuted two claims from the round before it**
 
 - **What improved.** Asked point-blank whether `~/references/claude-code/CHANGELOG.md` had been studied for 演进, the

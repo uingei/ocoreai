@@ -5,8 +5,9 @@ other question — **what is it becoming** — and that needs a time axis, which
 instrument: each one below sees a different face of the same corpus, and each one has already contradicted a claim
 made here.
 
-> **Re-derive:** `bash scripts/comparator-consensus.sh` prints all of it — the axes (presence), TREND and concept
-> heat, the churn block, and the ledger block (`OC_TREND_DAYS=60` sets the window). Premise, because it decides
+> **Re-derive:** `bash scripts/comparator-consensus.sh` prints all of it — the axes (presence), the DIFFUSION and
+> SEGMENT-AUDIT blocks (whose cut `comparator-innovation.md` reads), TREND and concept heat, the churn block, and
+> the ledger block (`OC_TREND_DAYS=60` sets the window). Premise, because it decides
 > every number: this box's mirrors at their 11-04 HEADs. No runner has `~/references`, so none of this is a gate; a
 > cross-tree count is a direction input and a printed count carries no verdict. The blocks floor themselves rather
 > than passing silently: `INSTRUMENT-DEAD` when a bucket matches zero files corpus-wide, `SMALL-N` when fewer than
@@ -62,7 +63,7 @@ touches, not one) and cutting them by what the path says the file is for.
 - **Authority is invisible to churn in both directions, so nothing about it may be concluded from churn.** With the
   bucket split (see below) `approval` scores ≥ 10 % of own churn in **0 of 13** — high-water `codex` at 2 % — and
   `confinement` in **0 of 13**, with `deepseek-harness` at 0 % despite shipping the machinery: four
-  `packages/sandbox/*` packages, 92 tracked files delivering "the confinement seam, per-platform backends, the
+  `packages/sandbox/*` packages, 95 tracked files delivering "the confinement seam, per-platform backends, the
   shared policy resolver, and the Windows write-restriction rung", confining a subprocess to `read-only`,
   `workspace-write` or `danger-full-access` and naming its own ceiling in the same paragraph: *"Confinement is
   same-world only: it shares the host kernel and filesystem"*

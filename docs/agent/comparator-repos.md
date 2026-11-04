@@ -129,8 +129,8 @@ Contains: (1) **the harness side, built** — 17 configs in `rapid_mlx/agents/pr
   "Deterministic approval heuristics, **not an OS sandbox**" (`:3`). Served on the wire by `routes/agents.py`;
   tool calls are grammar-constrained from `tools` + `tool_choice` — "STRUCTURALLY GUARANTEES" the name exists and
   the schema holds, "only the FORM of a call, never the decision" (`api/tool_grammar.py:1-8`).
-Borrow: **no home here today** on four axes — the reversible harness profile (five of seven serving trees ship
-  theirs: § *The harness side is already built, on their side*), a machine-readable eval record with an immutable
+Borrow: **no home here today** on four axes — the reversible harness profile (11 of 12 serving trees ship
+  theirs: § *The harness side…*), a machine-readable eval record with an immutable
   protocol (`scripts/eval/` has neither), confinement at the child boundary, and risk-classed context debit.
   Against `long-horizon-goal.md` § Rung zero 4 this is the corpus's hardest read — agent, screen input, speech
   both ways, image, video, MCP, constrained tool calling — and two of that rung's three parts do not survive it;
@@ -409,7 +409,7 @@ Borrow: `preserve_thinking` is the vendor's name for the cost § Open's thinking
 ## How to use this file
 
 1. Where a tree has the answer, cite `file:line` rather than authoring a local variant, and land the change
-   with its upstream line, our line, and the gate that goes red on regression.
+   with its upstream line, our line, and the gate that goes red.
 2. Re-derive coupling both ways (§ header) **from the disk's tree list**, with `-w` on the name measure — bare
    `pi` matches `Float.pi` (458 files) and bare `cline` matches "decline" (7), so the count is wrong in both
    directions without it. The dated counts, the trees that score zero, and why this instruction has twice
@@ -421,5 +421,5 @@ Borrow: `preserve_thinking` is the vendor's name for the cost § Open's thinking
    than a second scanner: `competitor-iteration-paths.md` § What that gate does not see.
 4. **This file answers "what does tree X hold". A claim that the *field* does Y is a different question with a
    different denominator**, so it does not live here: `scripts/comparator-consensus.sh` measures it off the
-   same mirrors and `comparator-consensus.md` holds the verdicts. Adding a tree? Add it to the disk, not to a
-   typed list, and both instruments pick it up.
+   same mirrors, `comparator-consensus.md` holds the verdicts and `comparator-innovation.md` who holds one
+   alone. Adding a tree? Add it to the disk, not to a typed list, and the instruments pick it up.

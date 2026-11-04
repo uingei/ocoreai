@@ -2,8 +2,12 @@
 # comparator-consensus.sh — what the field agrees on, counted off the local mirrors; plus where it is
 # moving.
 #
-# Prints, per axis, the trees that show the mechanism and the count, then a trend block (cadence, tags
-# minted, and which concepts the field is editing *this quarter* rather than merely carrying). It is
+# Prints, per axis, the trees that show the mechanism and the count; then DIFFUSION (each axis classified
+# by its share of its own segment, plus the ours-alone and segment-majority-zeros lines — the cut
+# docs/agent/comparator-innovation.md reads); then SEGMENT-AUDIT (serving trees on disk that the declared
+# `serve` segment omits, loose by design, for a human to adjudicate); then the release-ledger block; then a
+# trend block (cadence, tags minted, and which concepts the field is editing *this quarter* rather than
+# merely carrying) and the touch-weighted churn block. It is
 # ADVISORY: it exits 0 and judges nothing, because a cross-tree count is a direction input, not a
 # verdict about us (root § Working here: "counts printed carry no verdict"). What it does floor is
 # itself — an axis whose column is all zeros prints DEAD, and a pattern that the regex engine cannot
@@ -63,7 +67,19 @@ if "ocoreai" not in trees:
 # Shape segments, declared as data because a denominator is a claim. A row that is not in a segment is
 # still measured; it just never owes that axis's denominator.
 SEG = {
-    "serve": ["vllm", "sglang", "ollama", "omlx", "mlx-serve", "splash", "ocoreai"],
+    # serve = answers a chat-completion POST itself. This list was hand-typed while five serving trees sat
+    # unlisted on the same disk: `Rapid-MLX` (`rapid_mlx/routes/chat.py:2`), `MTPLX`
+    # (`mtplx/server/openai.py:37679`), `Strata` (`serve/server.py:6`, which names the Anthropic route in
+    # the same sentence), `openclaw` (the endpoint is a knob, default off:
+    # `src/config/schema.help.runtime.ts:287`) and `TensorFold` ("TensorFold serves language models from a
+    # Zig binary", `README.md:3`, whose own tests drive it with raw HTTP framing cases). So every `n/7`
+    # this file printed was a field divided by a subset of itself, and the subset was chosen before three
+    # of the five trees existed here. `vllm-metal` stays out on a read, not a hunch: its one /v1 hit is a
+    # *client* POST (`args.endpoint + "/v1/chat/completions"`), and a backend that rides vllm's server is
+    # not itself a server. The SEGMENT-AUDIT block now prints loose candidates, so the next arrival is
+    # visible without waiting for someone to notice the prose and the data disagree.
+    "serve": ["vllm", "sglang", "ollama", "omlx", "mlx-serve", "splash", "ocoreai",
+              "Rapid-MLX", "MTPLX", "Strata", "openclaw", "TensorFold"],
     "agent": ["hermes-agent", "openclaw", "codex", "claude-code", "qwen-code", "opencode",
               "goose", "pi", "cline", "deepseek-harness", "harness2", "Strata", "OpenHands", "ocoreai"],
     # Ships something a stranger installs or runs: everything except the trees that are a model's
@@ -72,6 +88,9 @@ SEG = {
                   {"Qwen3.8", "Qwen3.8-Flash-Next", "SWE-bench", "mlx-swift-lm", "coreai-models"}],
 }
 CODE = r"\.(py|ts|tsx|js|jsx|go|rs|swift|kt|java|zig|c|cpp|hpp|m|mm|rb|dart|scala)$"
+# SRC = CODE plus the build/prose-tooling layer. A mechanism that lives in a shell script or a Makefile is
+# invisible to CODE, and "our repo has none" is then an artifact of the pathset, not of the repo.
+SRC = r"\.(py|ts|tsx|js|jsx|go|rs|swift|kt|java|zig|c|cpp|hpp|m|mm|rb|dart|scala|sh|bash|mk)$|Makefile"
 ROOT_README = r"^README\.(md|rst|markdown)$"
 DL = (r"(^|/)(download|models?|blob|cache|weights?|image|hub|installer|snapshot|artifact)(s)?(/|$)"
       r"|download[-_a-z0-9]*\.(py|ts|go|rs|swift)|model[-_a-z0-9]*\.(py|go|rs|ts|swift)|images\.go"
@@ -118,6 +137,32 @@ AXES = [
      r"ASSETS\.json|checksums?\.(txt|json|sha256)$|SHA256SUMS|\.sha256$|lockfiles?/|\.lock$|CARGO\.LOCK|Package\.resolved", None, False),
     ("live-probe / smoke scripts",      "PATH",   "shippable", r"(^|/)(probes?|smoke)(/|-)|probe[0-9_]|smoke[-_]", None, False),
     ("SKILL.md files (count)",          "COUNT",  "agent",     r"(^|/)skills?/.*SKILL\.md$", None, False),
+    # Two mechanisms that surfaced in the churn block's hottest-file column (11-04) and had no axis at
+    # all, which is how a spreading practice stays invisible: goose's `src/acp/server.rs` (25 touches)
+    # and qwen-code's `acp-integration/session/Session.ts` (112) are one protocol; deepseek-harness's
+    # generated-and-verified-fresh config catalog is another.
+    # Scored on the protocol's NAME, because three attempts to score it by shape each produced a fresh
+    # false positive and one false negative, all of them plausible: (i) `[^a-z0-9]` boundaries scored
+    # `Rapid-MLX` off `sqrt_acp`/`acp_prev` (the alpha-cumulative-product pair of a diffusion sampler);
+    # (ii) treating `_` as an identifier character — which it is, and ERE has no `\b` for the lint below to
+    # refuse — fixed that and dropped OpenHands' real `acp_server: "claude-code"`; (iii) widening to
+    # protocol-ish vocabulary (`acp\\.`, `RequestPermission`) then scored `Rapid-MLX`'s `acp.max()`, and
+    # scored `codex`, `Strata` and `mlx-serve` on their *own* permission code, which is not the protocol at
+    # all. A token this short in a corpus this polyglot has no decidable boundary, so the axis asks the
+    # question a reader can actually check: does the tree name the protocol or import its package. Same
+    # in-segment count (8/14) as the broken versions had, which is exactly why the shape versions read fine
+    # and were wrong.
+    ("speaks ACP (agent client protocol)", "CODE", "agent",
+     r"agent[-_.]client[-_.]protocol|agentclientprotocol", CODE, True),
+    # Scored on SRC (CODE's extensions plus `.sh`/`Makefile`), because a generator can live in a shell
+    # script and the pathset must not be what hides it. Measured today the widening changes nothing here
+    # (2/24 either way), which is the useful result: the binding constraint is the *vocabulary*
+    # (`doc-sync`, `generate-docs`, `verify-config-catalog`), not the file type — our own
+    # `make docs-check` re-derives figures into prose under a name this pattern does not know, so `ours:
+    # no` means "we do not use their words", not "we have nothing".
+    ("generates docs from source (code)",  "SRC",  "shippable",
+     r"gen[-_]config[-_]catalog|verify[-_]config[-_]catalog|doc[-_]sync|docs?[-_]generator|generate[-_]docs?",
+     SRC, True),
     ("evals / benchmark tree",          "PATH",   "shippable", r"(^|/)(evals?|benchmarks?|scripts/eval)(/|$)", None, False),
     ("reads a project rules file (code)","CODE",  "agent",     r"AGENTS\.md|CLAUDE\.md|\.cursorrules|\.clinerules|GEMINI\.md|QWEN\.md", CODE, True),
     ("names AGENTS.md specifically",    "CODE",   "agent",     r"AGENTS\.md", CODE, True),
@@ -220,6 +265,9 @@ PRUNE = {
     "CODE": ["*.py", "*.ts", "*.tsx", "*.js", "*.jsx", "*.go", "*.rs", "*.swift", "*.kt", "*.java",
              "*.zig", "*.c", "*.cpp", "*.hpp", "*.m", "*.mm", "*.rb", "*.dart", "*.scala"],
 }
+# SRC's superset must match SRC's regex the same way CODE's does, or pruning would drop hits the
+# filter would have kept — the invariant the comment above this block states.
+PRUNE["SRC"] = PRUNE["CODE"] + ["*.sh", "*.bash", "*.mk", "*Makefile", "*makefile"]
 _LISTED = {}
 
 
@@ -236,10 +284,10 @@ def sel(tree, kind, pat, filt):
         return {t for t in sh(d, ["tag"]).split("\n") if t.strip()}
     if kind in ("PATH", "COUNT"):
         return {f for f in listed(tree) if re.search(pat, f, re.I)}
-    out = sh(d, ["grep", "-l" if kind == "CODE" else "-n", "-I", "-i", "-E", "-e", pat, "--"]
+    out = sh(d, ["grep", "-l" if kind in ("CODE", "SRC") else "-n", "-I", "-i", "-E", "-e", pat, "--"]
              + PRUNE.get(kind, []))
     lines = out.split("\n")
-    if kind == "CODE":
+    if kind in ("CODE", "SRC"):
         hits = {f for f in lines if f}
         return {f for f in hits if re.search(filt, f)} if filt else hits
     hits = set()
@@ -259,7 +307,7 @@ def evidence(tree, kind, pat, filt):
     """One matched line, so a count can be looked at instead of trusted. Deliberately the first hit,
     not a sample: the question is 'is this the mechanism or a comment about it', and one line answers
     it for the price of one git grep."""
-    if kind not in ("CODE", "README"):
+    if kind not in ("CODE", "SRC", "README"):
         return ""
     out = sh(where(tree), ["grep", "-n", "-I", "-i", "-E", "-e", pat, "--"] + PRUNE.get(kind, []))
     for line in out.split("\n"):
@@ -341,6 +389,76 @@ for name, kind, seg, pat, filt, trended in AXES:
         if os.environ.get("OC_EVIDENCE") == "1":
             for t in sorted(in_seg + (["ocoreai"] if per.get("ocoreai") else [])):
                 print("      %-18s %s" % (t, evidence(t, kind, pat, filt)[:150]))
+
+# ── the diffusion cut — how far each practice spread inside its own segment ────────────────────────
+# The consensus table is sorted by agreement, which buries the two rows a direction comes from: the
+# practice exactly ONE tree in a segment holds (a bet nobody has been exposed to yet — not a lead, not an
+# error), and the practice we hold while the segment does not. Shares are taken against each axis's own
+# declared segment, because "2/7" and "2/24" are different facts. Reuses `present` from the sweep above,
+# so it costs no extra scan.
+STATE = [(1.0, "CONSENSUS"), (0.8, "NEAR-CONSENSUS"), (0.5, "MAJORITY"),
+         (0.15, "MINORITY"), (0.02, "RARE"), (0.0, "SINGLETON"), (-1.0, "ABSENT")]
+
+
+def state_of(n, d):
+    if n == 0:
+        return "ABSENT"
+    share = float(n) / d if d else 0.0
+    for floor, label in STATE:
+        if share >= floor:
+            return label
+    return "SINGLETON"
+
+
+print("\n── diffusion — how far each practice spread (share of its own segment) ──")
+diff_rows = []
+for name, kind, seg, pat, filt, trended in AXES:
+    if kind == "GIT":
+        continue
+    denom = SEG.get(seg, trees)
+    per = present[name]
+    in_seg = [t for t in denom if per.get(t)]
+    diff_rows.append((float(len(in_seg)) / max(1, len(denom)), name, seg, len(in_seg), len(denom),
+                      sorted(in_seg), bool(per["ocoreai"])))
+if not diff_rows:
+    print("   <<INSTRUMENT-DEAD: no axis scored>>")
+for share, name, seg, n, d, who, ours in sorted(diff_rows, key=lambda r: (r[0], r[1])):
+    print("   %-14s %-42s %2d/%-3d  ours:%s" % (state_of(n, d), name[:42], n, d,
+                                                "yes" if ours else "NO"))
+    if n <= 2 and who:
+        print("   %-14s   who: %s" % ("", ", ".join(who)))
+# "Ours alone" is the row that prices a bet: the segment's denominator excludes us being counted twice,
+# so n == 1 with ours=True means nobody else in the segment holds the mechanism at all.
+alone = [r[1] for r in diff_rows if r[6] and r[3] <= 1]
+behind = [(r[1], r[3], r[4]) for r in diff_rows if not r[6] and r[3] >= max(2, int(0.5 * r[4]))]
+print("   ours-alone (we score; no other in-segment tree does): %s"
+      % (", ".join(alone) if alone else "— none; every practice we hold is held by others —"))
+print("   segment-majority we score zero on: %s"
+      % (", ".join("%s %d/%d" % b for b in behind) if behind else "— none —"))
+
+# ── SEGMENT-AUDIT: does the declared segment match the disk? ───────────────────────────────────────
+# Segments are hand-typed data, and hand-typed data goes stale the day a tree is cloned: `serve` had
+# seven members while five serving trees sat unlisted, so every serve denominator silently divided by a
+# subset. This cannot be a verdict — "mentions a chat route" is true of every harness that CALLS one, and
+# a regex cannot tell a server from a client across eight stacks (that judgement is what the header
+# comment on SEG is for) — so it prints loose candidates with one matched line each, for a human to
+# adjudicate, and names the pattern's bias so nobody reads it as a count.
+ROUTE = re.compile(r"/v1/(chat/completions|completions|messages)\b")
+REGISTER = re.compile(r"(@\w+\.(post|api_route|route|get)\(|\b(app|router|api|server|e)\.(post|route|"
+                      r"add_route|add_post|handle|handleFunc)\(|\.route\(\s*[\"']|Router\(on:\s*[\"']|"
+                      r"Endpoints?:|serve language models)")
+print("\n── SEGMENT-AUDIT — serve candidates on disk the declared segment omits (LOOSE: "
+      "a client that POSTs the route also matches; adjudicate by reading the line) ──")
+for t in trees:
+    if t in SEG["serve"]:
+        continue
+    out = sh(where(t), ["grep", "-n", "-I", "-E", "-e", r"/v1/(chat/completions|completions|messages)",
+                        "--"] + PRUNE["CODE"])
+    hits = [l for l in out.split("\n") if ROUTE.search(l)]
+    reg = [l for l in hits if REGISTER.search(l)]
+    if reg:
+        print("   %-18s %4d route line(s), %d registration-shaped — %s"
+              % (t, len(hits), len(reg), reg[0][:110].strip()))
 
 # ── what the field's own release ledgers say ─────────────────────────────────────────────────────
 # Churn says where effort is going NOW; a per-version ledger is a tree's own statement of what it
