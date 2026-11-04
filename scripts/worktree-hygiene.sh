@@ -98,14 +98,27 @@ if [ -n "$pushset" ]; then
 else
   # H4 — the patterns must be proven alive against history, or this script passes vacuously.
   floor=0
+  behaviour_commits=0
   for c in $(git rev-list -n 10 HEAD); do
     n="$(git show --pretty=format: --name-only "$c" | grep -v '^$' | grep -cE "$behaviours" || true)"
-    if [ "${n:-0}" -gt 0 ] && git show --pretty=format: --name-only "$c" | grep -qx 'CHANGELOG.md'; then
-      floor=$(( floor + 1 ))
+    if [ "${n:-0}" -gt 0 ]; then
+      behaviour_commits=$(( behaviour_commits + 1 ))
+      if git show --pretty=format: --name-only "$c" | grep -qx 'CHANGELOG.md'; then
+        floor=$(( floor + 1 ))
+      fi
     fi
   done
   if [ "$floor" -ge 1 ]; then
     ok "nothing to push; pairing patterns proven alive in $floor/10 recent commits"
+  elif [ "$behaviour_commits" = "0" ]; then
+    # The third case the original message did not allow for, and the one that actually happened on
+    # 11-04: ten commits, zero of them touching Sources/, scripts/probes/ or scripts/eval/ (a corpus
+    # reading stretch). The pairing patterns are then *untested*, not proven dead — so stay red (the
+    # floor exists to catch a vacuous pass and a code-free stretch is exactly that), but say which
+    # diagnosis the evidence supports: "either the patterns died or the convention died" is a false
+    # dichotomy when there is simply no code commit in the window to pair.
+    bad "no commit in the last 10 touches behaviour at all, so the pairing patterns are untested"
+    bad "  (not vacuous-by-convention): the floor stays red until a code commit lands to prove alive"
   else
     bad "no commit in the last 10 pairs behaviour with CHANGELOG.md — either the patterns died"
     bad "  or the convention died; either way this gate is now vacuous"
