@@ -271,13 +271,18 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   with no approval concept in its path. Precedent, same defect class: harness2 `742d48f` — "Every launcher
   except the improver passed the whole host environment to agent subprocesses, keys included" — fixed by
   scrubbing at every launcher with per-launcher exceptions named in the message and in `docs/SETUP.md`.
-  Two shipped precedents for the same boundary, read off the mirrors 11-04 (§ *Where the field confines a child*
+  Three shipped precedents for the same boundary, read off the mirrors 11-04 (§ *Where the field confines a child*
   in `comparator-consensus.md` holds the axis): TensorFold spawns the MCP child under `/usr/bin/sandbox-exec -p
   <profile>` with per-config read roots and **refuses** when no profile can be built, naming the way out, while the
   spawn spec itself carries `sandboxed: true|false` (`TensorFold/app/electron/agent/mcp-process.ts:173-186`);
   Rapid-MLX declines to *grade* an agent it cannot confine
-  (`Rapid-MLX/scripts/benchmark_glm53_real_tasks.py:226-228`). Neither is a scrubber, so neither answers the
-  handover alone — they are what the answer's shape looks like.
+  (`Rapid-MLX/scripts/benchmark_glm53_real_tasks.py:226-228`); and deepseek-harness is the one that treats it as a
+  product surface — four `packages/sandbox/*` packages (92 tracked files) confining a subprocess to a
+  **file-effect** policy of `read-only` / `workspace-write` / `danger-full-access` with per-platform backends, where
+  a denied call "can retry through a user-approved one-time escalation" and the same paragraph states the limit
+  instead of hiding it: *"Confinement is same-world only: it shares the host kernel and filesystem"*
+  (`../references/deepseek-harness/packages/sandbox/README.md:12`). None is a scrubber, so none answers the
+  handover alone — the third one is the shape of the boundary, the first two are the shape of the refusal.
   Owner call (§ Working here: a security edge names mode, likelihood and cost first, and no guard gets written
   on an unobserved failure): mode = a user registers an MCP server the way READMEs tell them to; likelihood =
   deterministic, not a race — the child receives the env at exec; cost = one scrub policy at the launchers that

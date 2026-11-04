@@ -183,6 +183,78 @@ window, and concept heat over `OC_TREND_DAYS=60`).
   where few trees hold the mechanism and all of them are editing it — confinement (5/14, 5/5 editing) and the
   harness-wiring seam (6/7, 6/7 editing). A practice that is both minority and unanimous-actively-worked is a
   direction; a practice at 14/14 is table stakes and further spending there buys a claim, not a user.
+  **Corrected by § What the field is evolving into, one round later:** "edited in the window" is presence-weighted,
+  and a file touched once and a file touched 200× both count 1 there. On the touch-weighted cut, confinement is the
+  *least*-worked axis in the agent segment (0/13 above 10 % of own churn, high-water `codex` 8 %), so "a direction"
+  was heat over-reading. It is still a real minority practice with shipped precedents — it is just not where the
+  field's effort is going, and § Direction ranks it accordingly.
+
+## What the field is evolving into — where the last 60 days of effort went
+
+Cadence says a field is alive; heat says a mechanism is moving. Neither answers the question this file exists to
+answer, because both count *trees*. The churn block answers it by counting *touches* (a file edited 200× is 200
+touches, not one) and cutting them by what the path says the file is for.
+
+> **Re-derive:** the churn block after TREND, `OC_TREND_DAYS=60` over the 13 comparator agent trees (us printed
+> separately). Three properties a reader needs before trusting any number here: buckets are **non-exclusive**, so
+> shares do not sum to 100 % (`codex-rs/core/src/guardian/tests.rs` is authority *and* measurement); `unmatched` is
+> printed per tree rather than hidden, and runs 12–59 %, mean 30 %, so every share below is a **floor**, not a
+> total; and a path regex is a proxy for intent — which is why each tree's three hottest files print beside the
+> shares, since those can be audited without trusting a pattern.
+
+- **The surface is where the effort goes: ≥ 10 % of own churn in 11 of 13 trees, 19–57 %.** `cline` 57, `opencode`
+  38, `deepseek-harness` 32, `hermes-agent` 31, `OpenHands`/`goose` 29, `codex` 28. Only `pi` (8 %) and `harness2`
+  (0 %) are not surface trees right now.
+- **Inside the surface, the hottest file is often a locale table.** `../references/hermes-agent/apps/desktop/src/i18n/en.ts`
+  377 touches, `../references/qwen-code/packages/web-shell/client/i18n.tsx` 199, `../references/opencode/packages/app/src/runtime/i18n/en.ts`
+  161, `../references/OpenHands/src/i18n/translation.json` 112. Localization is non-zero in 9 of 13 trees (≥ 10 % in
+  two). `hermes-agent` carries nine locales on disk — `ar de en es fr ja ru zh zh-hant` — with their own completeness
+  gate (`../references/hermes-agent/apps/desktop/src/i18n/catalog-completeness.test.ts`, plus an `overlay-gaps.json`
+  that names what is *not* translated). Language coverage is a distribution surface, and the field is spending on it.
+- **Measurement is the second universal — 9 of 13 — and it is productized, not internal.** `pi` 36 %, `hermes-agent`
+  29 %, `harness2` 27 % (nothing else), `claude-code` 26 %, `Strata` 25 %. The single most-edited file in the largest
+  tree in this corpus is `../references/openclaw/config/assertion-safety-baseline.txt` — 1 623 touches, 2 381 lines,
+  header: *"Per-file counts of production type assertions without a `// SAFETY: invariant`. Ratchet: counts may only
+  shrink."*, read by `../references/openclaw/test/scripts/check-assertion-safety-ratchet.test.ts`. That is our own
+  B1 shrink-only-ratchet shape (`scripts/agents-md-contract.sh`) turned on a code property: the debt is a number, the
+  number may only fall, and a test owns the direction.
+- **The loop is a minority of effort now.** `loop/context` — context compaction, memory, sessions, rewind, budget —
+  clears 10 % in **3 of 13**: `deepseek-harness` 14, `opencode` 12, `openclaw` 11. Not dead: `codex` sits at 9 % and
+  its hottest source file is still the loop, `../references/codex/codex-rs/core/src/session/mod.rs` (193 touches).
+  But 23–57 % goes to the surface while 6–14 % goes to the loop, and that ratio is the evolution: the loop has
+  converged enough that the race moved around it.
+- **Authority is the settled axis — 0 of 13 above 10 %, high-water `codex` at 8 %.** This is *not* the absence it
+  first printed as; see § The ledger for how that misread happened and what fixed it. The files match, and they are
+  *shipped*, not drafted: `codex` runs a whole `guardian` module (`../references/codex/codex-rs/core/src/guardian/review_session.rs`,
+  `prompt.rs`, `../references/codex/codex-rs/guardian-context/src/lib.rs`), and `deepseek-harness` ships four
+  `packages/sandbox/*` packages — 92 tracked files delivering "the confinement seam, per-platform backends, the
+  shared policy resolver, and the Windows write-restriction rung", confining a subprocess to `read-only`,
+  `workspace-write` or `danger-full-access` and naming its own limit in the same paragraph: *"Confinement is
+  same-world only: it shares the host kernel and filesystem"*
+  (`../references/deepseek-harness/packages/sandbox/README.md:12`). The field has an approval model, it is shipped,
+  and it is not being rewritten this quarter. That is the opposite of the reading that governance is the current
+  frontier, and it is a number, not a vibe.
+- **Docs are a generated product surface, not a prose tax.** `deepseek-harness` spends 30 % of churn on docs/spec;
+  its hottest docs files are `docs/config-catalog.md` (579) and `docs/config-catalog.zh.md` (566), both *generated
+  from source* and — in the file's own words — "verified fresh by `pnpm run verify-config-catalog` (part of
+  `doc-sync`)", where the generator cross-checks the runtime schema against the pasted declaration "so the paste
+  cannot hide a loader-accepted field"
+  (`../references/deepseek-harness/docs/config-catalog.md:8`). That is invariant 2 implemented as a doc build: the
+  catalog cannot claim a knob the runtime refuses. Bilingual, generated, verified-fresh — our `make docs-check`
+  re-derives figures in prose but does not generate a surface from code.
+
+**The mirror, because the instrument scores us too:** ours is 3 579 touches across 783 files — `meas` 23 %, `engi`
+17 %, `docs` 11 %, `deps` 10 %, `surf` 9 %, `tool` 8 %, `loop` 2 %. Our three hottest files over 60 days are
+**`CHANGELOG.md` (376), `AGENTS.md` (137), `EngineInference.swift` (78)**. In twelve of the thirteen comparators the
+most-edited file is something a stranger could click; in ours it is the diary and the rules file — and this round is
+more of the same, which is the honest way to end this section. Our `meas` share (23 %) already matches the field's
+second bucket, so no new spending is owed there.
+
+Where this axis does *not* put us behind: `Sources/ocoreai/Localization/Localization.swift` holds 463 typed keys with
+463 base and 463 zh entries, and `availableLocales` is `[.en, .zhHans]` with the rule "Adding ja/ko/fr/es requires a
+full table entry before adding it here" (`:66-70`) — the picker offers only what has a table, and
+`LocaleResolutionTests` proves coverage in both directions. Two locales against `hermes-agent`'s nine is a narrow
+surface; it is not a false one. The field's advantage here is quantity, which is a translation task, not a design gap.
 
 ## The injected ruleset
 
@@ -267,9 +339,20 @@ yet a task.
 4. **Skills and deferred tool loading are the same economy** (median 14 SKILL.md against our 1; 12/14 agent trees
    defer or filter the tool surface) and we hold the problem — 40 advertised, 6 scored — without the mechanism.
 5. **Put the child boundary on the owner's table with its precedents** (§ Where the field confines): TensorFold's
-   refuse-and-name-the-exit with the flag in the result, Rapid-MLX's no-grade-without-confinement.
+   refuse-and-name-the-exit with the flag in the result, Rapid-MLX's no-grade-without-confinement. The churn cut
+   sharpens *how* to present it: the field ships confinement and then stops editing it (0/13 above 10 % of churn),
+   so this is a settled property to acquire, not a frontier to out-build — and it stays an owner call, not a task.
 6. **Do not chase the contract-client pairing as "standard practice"** (contract 2/7, client package 1/7), and do
-   not chase depth: § Where we are ahead.
+   not chase depth: § Where we are ahead. One honest carve-out: a contract can be load-bearing *internally* without
+   ever shipping as a package — `opencode`'s own CLI fetches `/openapi.json`
+   (`../references/opencode/packages/cli/src/commands/handlers/api.ts:72`) and its smoke test asserts the unauthenticated
+   route refuses (`../references/opencode/packages/cli/script/service-smoke.ts:53,67`). "No published client" does not
+   mean "nobody consumes the spec"; ours is rendered and unconsumed, which is the half worth noting.
+7. **Language coverage is the one measured adoption gap that is a translation task, not a design gap** (§ What the
+   field is evolving into): `hermes-agent` ships nine locales behind a completeness gate; we ship two complete
+   tables and advertise exactly those two. Filling `ja/ko/fr/es` is enumerable work with no observed request, so it is
+   recorded here as a priced gap and **not** scheduled — the discipline that keeps `availableLocales` honest is the
+   reason it is a gap and not a lie.
 
 ## The ledger: false positives that would have become claims
 
@@ -299,6 +382,27 @@ now prints one matched line per tree so the next one is caught by a reader, not 
 - **A "tightened" pattern using `\b` matched nothing at all** — POSIX ERE leaves it undefined — so `rewind`
   reported 0/28 including the trees that ship rewind. It would have read as "the field does not do session
   recovery". The un-anchored form says 26/29.
+- **A *significance* floor used as a *liveness* floor printed a dead axis that was alive.** The churn block first
+  demanded ≥ 10 % of a tree's own churn before a bucket counted, and `authority` scored **0 of 13** — reported
+  internally as `INSTRUMENT-DEAD`, and one sentence from becoming "the field does not work on governance". The
+  evidence flag showed the bucket had been matching the whole time: 33 distinct paths under
+  `codex-rs/core/src/guardian/` were edited in the same window (against 27 files there on disk now), and
+  deepseek-harness's four `packages/sandbox/*`. Shares were being squashed by denominators of 100 k–490 k touches, which is a statement
+  about effort, not about existence. The floor now splits in two: the tally may use a share, the vacuity check uses a
+  **file count of zero**. Two questions, two numbers — a threshold on magnitude can never certify presence.
+- **Two axes were missing because nobody thought to pattern them, and the residual column is what caught it.** The
+  first cut had no bucket for localization or for lockfile/release churn, and `unmatched` came back at 12–59 % per
+  tree. Reading the actual hottest files then showed locale tables as the single most-edited file in four trees. An
+  axis nobody writes a pattern for is indistinguishable from an axis nobody works on — so `unmatched` is now printed
+  per tree rather than absorbed into the totals, and it is the number to watch before believing any share.
+- **The worst error in this round was a cite I invented, and the only reason it died is that I went to look.** I
+  wrote "`openclaw` ships seven `packages/sandbox/*`" — wrong tree (it is `deepseek-harness`) and wrong count (four
+  packages, 92 tracked files). Neither number was obtainable from what I had: the evidence dump aggregates paths
+  across trees without labelling the owner, so the count was a guess dressed as a measurement, and no gate in this
+  repo could have caught it — `upstream-cite-check.sh` proves a cited line exists, not that it belongs to the tree I
+  named. `git ls-files | grep -c` in the named tree is 200 ms and settled it. Comparator cites are
+  content-unverified-by-construction; this is the second time that distinction has saved a false claim here.
+
 - **The measure of coupling drifted the same way as the counts** — bare-name greps matching substrings, a
   registry sentence disagreeing with its own command twice. It is bullet 5 above, not a second home; it is listed
   here only because a reader skimming the ledger should not miss that the instrument's *denominators* were the

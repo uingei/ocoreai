@@ -63,7 +63,8 @@ public enum OCALocale: String, CaseIterable, Sendable {
         Locale(identifier: bcp47Tag).language.languageCode?.identifier ?? "en"
     }
 
-    /// Locales with a complete translation table (en = base fallback, zh = 404/405 keys).
+    /// Locales with a complete translation table: every `StringKey` resolves in both tables, which
+    /// `LocaleResolutionTests` proves in each direction — so no key count is restated here.
     /// Single source of truth for UI pickers — never hardcode a language list,
     /// derive it from what `resolve()` actually has. Adding ja/ko/fr/es requires
     /// a full table entry before adding it here.

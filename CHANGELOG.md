@@ -9,6 +9,45 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-04
 
+**11-04(7) What coding agents are evolving into, counted by touches instead of by trees — and the mirror says our two hottest files are the diary and the rules file**
+
+- **What improved.** Asked for the *evolution* consensus rather than the practice consensus, heat could not answer
+  it: heat counts trees, so a file touched once and a file touched 1 624× both score 1. The instrument now counts
+  **touches** and cuts them by what the path says a file is for, over the 13 comparator agent trees at 60 d, and
+  prints each tree's three hottest files beside the shares so a reader can audit it without trusting a pattern
+  (`scripts/comparator-consensus.sh`, new `changed_touches()` + churn block). Verdict in four numbers: the surface
+  is ≥ 10 % of own churn in **11/13** (19–57 %), measurement in **9/13**, the agent loop itself in **3/13**, and
+  authority in **0/13** (high-water `codex` 8 %). The loop has converged enough that the race moved around it — into
+  packaging, locales, and eval machinery; locale tables are the single most-edited file in four trees. New § *What
+  the field is evolving into* carries it, with `file:line` for every claim.
+- **What it cost us, stated plainly.** Our own row: 3 579 touches, and the two hottest files are **`CHANGELOG.md`
+  (376)** and **`AGENTS.md` (137)**, third `EngineInference.swift` (78). Twelve of thirteen comparators' most-edited
+  file is something a stranger could click. Our `meas` share (23 %) already matches the field's second bucket, so the
+  gap is not effort-allocation, it is publication — which puts the standing owner question ("stop analysing, land a
+  tag?") on a measured footing rather than a impatient one.
+- **Three corrections, all this round's own.** (1) An axis was *reported dead* because a significance floor was
+  wired to a liveness check: `authority 0/13` printed while 33 distinct paths under `codex-rs/core/src/guardian/`
+  were being edited in the same window — the floor now splits (share for the tally, **file count zero** for vacuity).
+  (2) Two axes had no pattern at all (localization, lockfile/release churn) and were invisible until `unmatched`
+  came back at 12–59 %; the residual is printed per tree now, since an unpattened axis is indistinguishable from an
+  inactive one. (3) I wrote "`openclaw` ships seven `packages/sandbox/*`" — wrong tree and wrong count, guessed from
+  an owner-blind aggregate; the real thing is **deepseek-harness**, four packages, 92 tracked files, confining a child
+  to a `read-only`/`workspace-write`/`danger-full-access` **file-effect** policy and stating its own ceiling in the
+  next sentence. All three are in § The ledger with the mechanism that caught each.
+- **Also landed.** § The field's own trend's "confinement is a direction" bullet is corrected against the new cut
+  (it was heat over-reading: a real minority practice, not where effort goes); § Direction gains the opencode
+  carve-out (a contract can be load-bearing internally with no published client — its own CLI fetches
+  `/openapi.json`, and its smoke test throws if that route returns anything but 401) and item 7 (language coverage as
+  a priced translation gap, explicitly not scheduled); `open-items.md`'s child-environment item gains its third and
+  strongest precedent; and `Localization.swift`'s `availableLocales` comment stopped asserting "zh = 404/405 keys"
+  when both tables hold 463 — the count `LocaleResolutionTests` already proves, so restating it only created a way
+  to be wrong.
+- **Which gate goes red.** No new gate, deliberately: a cross-tree count is a direction input and no runner has
+  `~/references`. The self-checks are inside the instrument — `INSTRUMENT-DEAD` on a bucket that matches zero files
+  corpus-wide, the per-tree `unmatched` residual, and `OC_EVIDENCE=1` for one matched line per tree. The claim that
+  *does* have a gate is the localization one, and it had one before this round: `LocaleResolutionTests` (en/zh cover
+  every `StringKey`, no orphans), which is why the 463/463 figure could be written down at all.
+
 **11-04(6) A wedge sentence written an hour earlier falsified by the next check: the nearest neighbour runs its own coding agent, and the ladder loses two of its three parts**
 
 - **What improved.** The entry above ended its new tree row with "it hosts the harness rather than *being* the

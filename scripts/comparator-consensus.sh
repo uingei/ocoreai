@@ -49,6 +49,7 @@ export OC_EVIDENCE="${OC_EVIDENCE:-}"
 # running instrument looked dead, and a reader who cannot watch an instrument either kills it or
 # starts a second one.
 python3 -u - <<'PY'
+import collections
 import os, re, subprocess, time
 
 parent, repo = os.environ["OC_PARENT"], os.environ["OC_REPO"]
@@ -282,6 +283,16 @@ def changed(tree, days):
     return {l.strip() for l in out.split("\n") if l.strip()}
 
 
+def changed_touches(tree, days):
+    """The same log as `changed`, kept as a per-file COUNT instead of a set: how many times a file was
+    edited is the effort signal, which files were edited at all is the breadth signal. The churn block
+    needs the first and prints the second, because they disagree — openclaw touches one baseline file
+    1 624 times and that is invisible to a set."""
+    out = sh(where(tree), ["log", "--since=%d.days" % days, "--name-only", "--no-renames",
+                           "--no-merges", "--pretty=format:"])
+    return collections.Counter(l.strip() for l in out.split("\n") if l.strip())
+
+
 def cadence(tree, days=30, windows=4):
     """Commits per window, newest first. `rev-list --count` with both bounds, so a mirror cloned a
     month ago reports a quiet last month rather than a false zero-due-to-HEAD."""
@@ -366,4 +377,81 @@ for name, kind, seg, pat, filt, trended in AXES:
           % ("", "yes" if per["ocoreai"] else "no",
              "yes (%d files)" % len(per["ocoreai"] & chg["ocoreai"])
              if per["ocoreai"] & chg["ocoreai"] else "no"))
+
+# ── where the agent trees' attention actually goes ───────────────────────────────────────────────
+# Concept heat above answers "is this mechanism being touched"; it cannot answer "what is this tree's
+# attention going INTO", because it counts trees, not effort. This block re-cuts the same window by what
+# the PATH says a file is for, touch-weighted (a file edited 200× is 200 touches, not 1), so a
+# 19 835-commit month and a 150-commit month compare as shapes rather than magnitudes.
+# Three limits, stated because this file's own ledger is a list of path proxies that lied: buckets are
+# NON-EXCLUSIVE (`codex-rs/core/src/guardian/tests.rs` is authority *and* measurement) so shares do not
+# sum to 100 % and `unmatched` is printed, not hidden; a directory named `review` may be code review; and
+# a tree that keeps its loop in `src/lib/` scores under whatever that dir is called. The hottest-files
+# column is the part a reader can audit without trusting any regex — which is why it is here.
+BUCKET = [
+    ("loop/context",    r"(^|/)(context|compact|summar|memory|session|rewind|fork|history|token|budget|prompt)"),
+    ("tools/skills",    r"(^|/)(tool|function|parser|skill|mcp|extension|plugin)"),
+    ("authority",       r"(^|/)(permission|approval|approv|sandbox|guard|polic|security|consent|trust|review)"),
+    ("orchestration",   r"(^|/)(subagent|sub_agent|orchestrat|swarm|team|task|delegat|routing|plan)"),
+    ("meas/tests",      r"(^|/)(eval|bench|scorecard|probe|metrics|trace|judge|test)"),
+    ("surface",         r"(^|/)(ui|app|web|chat|view|screen|channel|integrat|desktop|front|components|page)"),
+    ("engine",          r"(^|/)(model|engine|infer|kv|specul|cache|kernel|serve|api|routes|server)"),
+    # The two the buckets missed on 11-04, and missed loudly: `i18n` tables were hermes-agent's,
+    # opencode's, OpenHands's and qwen-code's hottest files, and lockfile churn is a large part of the
+    # `unmatched` column. An axis nobody thought to ask about reads as "not happening".
+    ("localization",    r"(^|/)(i18n|l10n|locale|localiz|lang|language|translation|messages/)"),
+    ("docs/spec",       r"(^|/)(docs?/|readme|architecture|openapi|protocol|schema|decisions|details)"),
+    ("deps/release",    r"(^|/)(package-lock|pnpm-lock|bun\.lock|cargo\.lock|package\.json|setup\.py|cmakelists|changlog|changelog|feed\.xml|version|manifest)"),
+]
+# A share floor is not a liveness floor. Demanding >= 10 % of own churn before a bucket counts went red
+# on `authority` for every tree — while codex's whole `guardian` module and openclaw's seven
+# `packages/sandbox/*` were matching it the whole time. Big denominators squash shares; they do not
+# mean absence. So the tally may use a share, and the vacuity check uses a FILE COUNT of zero.
+FLOOR_SHARE = 10
+seg_agent = [t for t in SEG["agent"] if t != "ocoreai"]
+print("\n── agent-tree churn — %d d, touch-weighted, buckets non-exclusive ──" % trend_days)
+print("%-17s %-7s %-6s %s" % ("tree", "touch", "files", "top dirs | every bucket share | unmatched"))
+shape = {b[0]: [] for b in BUCKET}
+corpus_files = {b[0]: 0 for b in BUCKET}
+for t in sorted(seg_agent, key=lambda x: -len(chg[x])):
+    uniq = chg.get(t)
+    if not uniq:
+        print("%-17s %-7s %-6s (quiet in window)" % (t, "—", "—"))
+        continue
+    tc = changed_touches(t, trend_days)
+    tot = sum(tc.values())
+    dirstat = collections.Counter(
+        "/".join(p.split("/")[:2]) if "/" in p else p for p in tc.elements()).most_common(3)
+    # One regex pass per (file, bucket), cached: the shares and the unmatched residual must come from
+    # the same matrix or the column lies about how much of the tree it did not classify.
+    files = sorted(tc)
+    flags = {f: [bool(re.search(rx, f.lower())) for _, rx in BUCKET] for f in files}
+    hit = []
+    for bi, (name, _rx) in enumerate(BUCKET):
+        n = sum(tc[f] for f in files if flags[f][bi])
+        corpus_files[name] += sum(1 for f in files if flags[f][bi])
+        hit.append((name, 100.0 * n / tot))
+        if n * 100.0 / tot >= FLOOR_SHARE:
+            shape[name].append(t)
+    unmatched = sum(tc[f] for f in files if not any(flags[f]))
+    tops = " ".join("%s:%d%%" % (d, 100 * c // tot) for d, c in dirstat)
+    bs = " ".join("%s=%d%%" % (k[:4], int(v)) for k, v in sorted(hit, key=lambda x: -x[1]))
+    print("%-17s %-7d %-6d %s" % (t, tot, len(uniq), tops[:34]))
+    print("%-17s %-7s %-6s %s  unmatched=%d%%" % ("", "", "", bs, 100 * unmatched // tot))
+    for p, n in tc.most_common(3):
+        print("%-17s %-7s     hottest: %-4d %s" % ("", "", n, p[:70]))
+print("\n  >= %d%% of own churn, in N of %d agent trees:" % (FLOOR_SHARE, len(seg_agent)))
+for name, _ in BUCKET:
+    n = sorted(shape[name])
+    dead = "  <<INSTRUMENT-DEAD: zero files matched corpus-wide>>" if corpus_files[name] == 0 else ""
+    print("    %-14s %2d/%d  %s%s" % (name, len(n), len(seg_agent), ", ".join(n), dead))
+ours_u, ours_t = chg.get("ocoreai"), changed_touches("ocoreai", trend_days)
+if ours_t:
+    o_tot = sum(ours_t.values())
+    o_hit = [(name, 100.0 * sum(v for k, v in ours_t.items() if re.search(rx, k.lower())) / o_tot)
+             for name, rx in BUCKET]
+    print("    ours  %d touches / %d files  %s" % (o_tot, len(ours_u or ()), " ".join(
+        "%s=%d%%" % (n[:4], int(v)) for n, v in sorted(o_hit, key=lambda x: -x[1]))))
+    for p, n in ours_t.most_common(3):
+        print("    ours  hottest: %-4d %s" % (n, p[:74]))
 PY
