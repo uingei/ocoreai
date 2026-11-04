@@ -139,11 +139,11 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    offline on Apple silicon in one native app, no account (`README.md:5`), speech both in and out (`:50`, `:51`),
    MTP on the checkpoint's own trained head behind a runtime acceptance gate (`docs/performance.md:15`, `:20`),
    and a Neural Engine lane to 64K contexts that serves "on the GPU, logged by name" when a model will not fit
-   (`docs/reference.md:440`, `:450`) — axes: `comparator-repos.md` § `mlx-serve`. Three parts survive, each
+   (`docs/reference.md:441`, `:451`, re-anchored 11-04 at mirror `6b39f8b8`) — axes: `comparator-repos.md` § `mlx-serve`. Three parts survive, each
    checked against that tree today: **the agent and the engine in one binary** (it *hosts* Claude Code and
    Codex — `README.md:49`); **screen as an agent input** (a pasted screenshot, no capture framework in its app);
    **constrained decoding on the ANE** (its ANE lane refuses grammars, forced tool calls and a reasoning budget
-   *by name* against a declared `Caps` set — `docs/reference.md:453`). Camera capture went unmeasured there, so
+   *by name* against a declared `Caps` set — `docs/reference.md:454`). Camera capture went unmeasured there, so
    it is unstated here. One asymmetry cuts against us: that ANE lane runs on macOS 26 **today**, while our ANE
    route is CoreAI-gated on macOS 27 and unverifiable on this host (§ Open), so a hardware word is not a wedge
    — only what we measure on the OS we ship is. Ceiling stated honestly: it is a *niche* wedge, and the leaders

@@ -4,8 +4,11 @@
 > local clone; re-measure the diary column:
 > `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent harness2 goose opencode pi deepseek-harness claude-code qwen-code SWE-bench OpenHands Qwen3.8-Flash-Next Qwen3.8; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
 > — nothing re-derives these lists since 10-28 (P16 was deleted as prose-shape), so a stale cell is
-> yours to notice: `git grep -l <tree> -- Sources Tests` re-derives the coupling set in one line. A **pin**
-> is a build input (`Package.swift:43`); everything else is a comparator.
+> yours to notice. Coupling re-derives two ways and both are printed, because they answer different questions:
+> `` git grep -lE '`<tree>`|references/<tree>' -- Sources Tests `` counts **cite coupling** (a backticked name
+> or a path into its clone); the looser `git grep -l <tree> -- Sources Tests` counts **name mentions** and is
+> substring-naive — 11-04: bare `pi` reports **458** files, all of them `api` and `Float.pi`, and `-w` fixes
+> `api` but not `let pi`. A **pin** is a build input (`Package.swift:43`); everything else is a comparator.
 > Context economy, ours 10-29/field 10-28, over each tree's own `AGENTS.md` set — root bytes / corpus bytes / **deepest
 > root→cwd chain against the 32 768 B the loader injects**: mlx-serve 26 486 / 269 381 / 69 273 (211 % of the
 > cap), deepseek-harness 19 113 / 96 369 / 55 362 (169 %), opencode 15 102 / 86 866 / 37 627 (115 %),
@@ -50,22 +53,35 @@ Borrow: consumed — that quartet is rung 2 of `docs/agent/long-horizon-goal.md`
 
 - `hermes-agent` — agent-loop reference (#2 in the category: 257 756 stars, 5 714 commits in 14 d, 234 tags)
 Contains: loop shape, tool-result handling. Second axis (10-28): the ops machine behind the number — 57 workflow
-  files (itemised in `adoption-runbook.md`) and `SOUL.md` — the voice a user hears is not the discipline a session follows. Its
+  files (itemised in `adoption-runbook.md`) and `SOUL.md` (the voice a user hears is not the discipline a
+  session follows). Its
   `prompt-surface-diff.yml` renders, from production code, the system prompt and `tools[]` a stock install
-  sends, per surface and model family, and a stale snapshot fails a test.
+  sends, per surface and model family, and a stale snapshot fails a test. Third axis, re-read 11-04 at mirror
+  `9302ba9e21`: a **skills tier** — 44 under `skills/`
+  against **142** under `optional-skills/`, which "are not copied to `~/.hermes/skills/` during setup" and are
+  reached by `hermes skills browse|search|install` (`optional-skills/DESCRIPTION.md`; the consequence is §
+  Open's tool-surface row, not restated here). And a capability face that carries its own
+  refusal boundary in frontmatter: `unbroker` removes a person's data from broker sites and states what it
+  will not do — "does **not** defeat anti-bot systems, does **not** act on anyone without recorded consent,
+  does **not** remove public records" (`optional-skills/security/unbroker/SKILL.md:23-24`).
 Borrow: consumed; `prompt-surface-diff` is the pattern § Documentation Map would use *if* the owner quotes the
-  red it must catch — the gate layer is frozen, so it is a named pattern, not a task
+  red it must catch — the gate layer is frozen, so it is a named pattern, not a task. The tier is an axis with
+  a consumer today (our one published skill, `skills/ocoreai/`), the refusal block is invariant 2 as shipped
+  product copy rather than a guardrail.
 
-- `ollama` — Go server; `LLAMA_CPP_VERSION=b11669`, `MLX_C_VERSION=a341b492…`, a 358 B `AGENTS.md`
+- `ollama` — Go server; the root pin files `LLAMA_CPP_VERSION=b11963`, `MLX_C_VERSION=57731b00e8…`, both
+  changed since the 11-02 read while this row still quoted the old values (see § How to use 3)
 Contains: two engine families (llama.cpp + MLX C) behind one local API, each pin versioned separately — the
-  closest published analogue to our MLX + CoreAI dual path, and (audited 11-02, mirror `74686a75`) a local AR
-  server shipping the Jev axis as `/v1/systemone` on an engine-internal `ScoreRequest`→`ScoreResponse{Logits}`
-  lane whose question order is load-bearing (`systemone-decisions.md` § Shape C).
-Borrow: consumed for the lane shape (185 660 stars, api.github.com 11-02); the published-logits seam stays the
+  closest published analogue to our MLX + CoreAI dual path, and (mirror `e9fde36d`, re-read 11-04) a local AR
+  server shipping the Jev axis as `/v1/systemone` (`api/client.go:449`) on an engine-internal
+  `ScoreRequest`→`ScoreResponse{Logits}` lane whose question order is load-bearing (`systemone-decisions.md`
+  § Shape C).
+Borrow: consumed for the lane shape (stars: the runbook's leaderboard); the published-logits seam stays the
   owner call — their lane proves it possible, it does not make ours exist
 
-- `mlx-serve` — **the closest whole-product analogue to our own sentence** (audited 11-04, mirror `8d82ebe2`,
-  389 commits in 14 d; Zig engine + SwiftUI app): "chat, coding agents, images, video, music, speech and 3D.
+- `mlx-serve` — **the closest whole-product analogue to our own sentence** (audited 11-04 at `8d82ebe2`,
+  re-read at `6b39f8b8` the same day — three `docs/reference.md` numbers moved +1, no claim did; 388 commits
+  in 14 d; Zig engine + SwiftUI app): "chat, coding agents, images, video, music, speech and 3D.
   One native app and one local server that speaks the OpenAI, Anthropic and Ollama APIs. It runs offline,
   needs no Python and no account" (`README.md:5`), on five engines (`src/engines/*`, ane among them) behind ~40
   model-family plugins (`src/plugins/`) and one SDK (`src/sdk/`).
@@ -74,7 +90,7 @@ Contains: the convention that a behaviour claim ships as a committed shell probe
   per-draft acceptance falls under break-even and stays off for the request (`docs/performance.md:15`, `:20`);
   a **shipping ANE lane** — dense Qwen packs entirely on the Neural Engine to 64K contexts across an Ultra's two
   ANEs, a model it cannot run or a load that does not fit serving "on the GPU, logged by name" (`docs/cli.md:76`,
-  `docs/reference.md:440`, `:450`); head-to-head decode numbers against LM Studio, oMLX and MTPLX **on those
+  `docs/reference.md:441`, `:451`); head-to-head decode numbers against LM Studio, oMLX and MTPLX **on those
   trees' own checkpoints**, each on its shipping defaults, so there is "no best-config collapse"
   (`docs/performance.md:9`); and contracts it declares unverified for its embedded engines
   (`docs/known-issues.md:46`).
@@ -82,15 +98,28 @@ Borrow: what it does *not* do is the surviving wedge — it hosts Claude Code an
   agent (`README.md:49`), pastes a screenshot instead of capturing the screen
   (`../references/mlx-serve/app/Sources/MLXServe/Views/ChatView.swift:3472`; no `ScreenCaptureKit`/`SCStream`
   symbol in its `app/Sources` — absence of symbols, not a run), and its ANE lane **refuses grammars and forced
-  tool calls by name** (`docs/reference.md:453`). The part-by-part verdict is `long-horizon-goal.md` § Rung
+  tool calls by name** (`docs/reference.md:454`). The part-by-part verdict is `long-horizon-goal.md` § Rung
   zero 4's — one home; this row holds the axes.
 
-- `harness2` — Python agent harness: `ASSETS.json` (path→sha256), `check_provenance.py` (exit 1 on any
-  changed or missing asset), `PINNED.md`
+- `harness2` — `google-research/harness2`, Python agent harness (`dependencies/ASSETS.json` path→sha256,
+  `scripts/check_provenance.py` exit 1 on any changed or missing asset, `dependencies/PINNED.md`); 21 commits,
+  17 of them on 11-01 — re-read at mirror `6868817`
 Contains: **release-asset provenance** — every redistributed file pinned by digest in a committed map, with a
-  checker that fails on drift.
+  checker that fails on drift. Second axis, new since 10-20: **a day spent making grades unforgeable** —
+  incomplete judge output stays *unscored*, not failed (`1f8e95e`); two fenced verdicts in one reply are
+  rejected, not first-parsed (`591554d`); a judge exception leaves the grade ungraded (`0865e63`); a runner
+  that kept any attempt with a non-empty output dir let "the improver, composer and reflection … read a run
+  that looked as if the agent chose to stop" (`6868817` — it appends one error event, and records exit 124 as
+  the time limit, `-9`/`137` as SIGKILL). `0a40ff8`: nothing recorded *which task* a cached rollout answered,
+  so editing a task's instructions under the same id let resume pass the old answer off as a completed result.
 Borrow: consumed — adopted as manifest schema 2 (`pin` + `licenseSha256` + `verifiedAgainstPin`, `vendored[]`)
-  in `docs/agent/third-party-notices.md`
+  in `docs/agent/third-party-notices.md`. The second axis reads as **two confirmations and one gap**: our board
+  digests the task bytes and the tool declarations into its conditions line and refuses to compare across a
+  difference (`scripts/eval/_conditions.py:46-57`), writes the wire's own `finish` word beside every task
+  (`scripts/eval/_eval.py:349`), and never resumes a scored run, so `0a40ff8`'s class cannot arise here. The
+  gap is `742d48f`, whose subject is the finding: "Every launcher except the improver passed the whole host
+  environment to agent subprocesses, keys included" — we do that at six `Process()` sites; proof, scope and
+  the owner call are in `open-items.md`.
 
 - `TensorFold` — Zig engine, "Metal or CUDA kernels directly" (`README.md:4`; `zig/`, `app/`, HIP docs), 1 843
   commits in 14 d, read 11-04. Its axis is **invariant 1 as a user-facing artefact**: the **receipt**, a
@@ -158,9 +187,9 @@ Contains (11-04): an axis the 81-line README cannot show — `codex-rs/guardian-
   admission/compaction/lifecycle; the section set carries authorization truth (`RootConversationSection`,
   `TrustedUserAnswersSection`) and its own budget module. Fail-closed context assembly is invariant 2 applied to
   the prompt, and it is the one part of this tree worth reading again.
-Borrow: the README is a signpost, not a manual; ours is a manual, and the context-economy line at the top of
-  this file is that finding measured on ourselves. Owner ruled codex an ordinary comparator on 11-03 (§
-  Upstream 5), so this is a registered axis, not a debt.
+Borrow: the README is a signpost, not a manual; ours is a manual, and this file's header is that finding
+  measured on ourselves. Owner ruled codex an ordinary comparator on 11-03 (§ Upstream 5), so this is a
+  registered axis, not a debt.
 
 - `mlx-swift-lm` (pin 1) and `coreai-models` (pin 2) — engineering consumption is § Upstream 1–2; the practice
   axis is in both and missing here: **the repo ships the skill that teaches an outside agent its API** —
@@ -175,8 +204,19 @@ Borrow: a published skill for `/v1` is rung 6 of `docs/agent/long-horizon-goal.m
   `ui/{desktop,goose-acp}`, `agent-client-protocol = 2.2.0` (`Cargo.toml:23`)
 Contains: ACP as a third surface (editors as clients); compaction as its own crate
   (`context-management/lib.rs:49`). Downloads are *not* a gap — `Models/ModelScopeDownloader.swift` resumes
-  on Range + If-Range identity.
-Borrow: ACP is a new core surface (ladder rung 6) ⇒ an owner call, not an audit
+  on Range + If-Range identity. Third axis, read 11-04 at mirror `461285bbf`, unregistered until now:
+  **`crates/goose-local-inference`** — our dual-engine pool in another stack, with three decisions we have not
+  made. `llamacpp` and `mlx` sit behind one trait whose contract includes `available_memory_bytes()`
+  (`backend.rs:33`, `:49`), so memory truth belongs to the backend that owns the allocator, not to a router
+  reading OS counters; `compact_tools_json` hands a prompt **name + description and no parameter schema**
+  (`tool_parsing.rs:4`); and a model without native tool calling gets an emulator path whose fences include
+  on-demand discovery (`list_functions`/`get_function_details`, `tool_emulation.rs:5`, `:62`), so the schema
+  arrives for the tool asked about rather than all 40 up front. Its honesty is written at the seam: history
+  entries the emulator syntax cannot represent are "silently dropped" (`lib.rs:613`).
+Borrow: ACP is a new core surface (ladder rung 6) ⇒ an owner call, not an audit. The three are **axes, not
+  debt**: no `BackendProtocol` here by decision (root § Architecture), `tools[]` carry schemas because the wire
+  promises them (`ToolCallWireContractTests`), and deferred tools already have one home (`pi`'s `tool_search`,
+  § Open's tool-surface row.
 
 - `opencode` — TypeScript monorepo; `packages/{protocol,schema,httpapi-codegen,http-recorder,session-ui,desktop,tui}`
 Contains: contract-first wire — the HTTP API is a spec and the SDK is generated from it
@@ -208,7 +248,8 @@ Borrow: consumed — three of those are § Open items in `AGENTS.md` (per-turn t
   corpus is a tested surface** — `snapshots/session/agent-instructions-budget*/` pin sessions whose
   system prompt states its own budget (fixture text quoted 10-28; `pin: true`), so what a budget
   drops is a fixture a reviewer diffs and the model is told; (2) **oversize is
-  refused, never truncated** (`docs/config-catalog.md:359`) and every result view carries `truncated`/`total`
+  refused, never truncated** (`docs/config-catalog.md:378`, re-anchored 11-04 — it was `:359` at last read) and
+  every result view carries `truncated`/`total`
   "so a UI never presents a partial result as complete" (`docs/subsystems/tools.md:623`); (3) **a translation
   mirror is a record** — `README.i18n.yaml` pairs each heading's en/zh block by hash outside code blocks and
   re-records with one command, while our P18 mandates one zh mirror and pairs nothing; (4) the first screen
@@ -302,10 +343,17 @@ Borrow: `preserve_thinking` is the vendor's name for the cost § Open's thinking
 
 1. Where a tree has the answer, cite `file:line` rather than authoring a local variant, and land the change
    with its upstream line, our line, and the gate that goes red on regression.
-2. Refresh with the one-liner above, and re-derive the coupling set by hand (`git grep -l <tree> -- Sources
-   Tests`): **ten** trees had zero *tree* coupling on 11-04 — MTPLX, TensorFold, Strata, harness2, opencode,
+2. Refresh with the one-liner above, and re-derive the coupling set by hand, both ways (§ header): **ten** of
+   the 24 comparator trees had zero *name* coupling on 11-04 — MTPLX, TensorFold, Strata, harness2, opencode,
    claude-code, qwen-code, SWE-bench, OpenHands, Qwen3.8-Flash-Next — so a row left "named, unused" is
-   decoration *unless* the row itself says "axis only, no home here today" (five of the ten do). The list read
-   *seven* and named `deepseek-harness` while missing five others until this round ran its own command, which is
-   why the number is dated and the command sits beside it. `make drift` checks every bare upstream cite
-   resolves — that is the half a reader acts on.
+   decoration *unless* the row itself says "axis only, no home here today" (five of the ten do). Under the
+   stricter **cite** measure, 19 of 24 are zero and only `vllm`, `sglang`, `omlx`, `deepseek-harness` and
+   `codex` carry one — `mlx-serve` is in the 19 while carrying the wedge of `long-horizon-goal.md` § Rung zero
+   4, because a row can be load-bearing in `docs/` and still unmentioned in `Sources/`. (The list once read
+   *seven* while its own command said ten — `CHANGELOG.md` 11-04(3); the durable lesson is in
+   `competitor-iteration-paths.md` § What that gate does not see.)
+3. **A resolved cite is not a verified claim.** 11-04 read 64 cites here and in
+   `competitor-iteration-paths.md` off their current mirrors: no claim about what a tree does was false, five
+   positions were stale, and one had become a blank line every gate passed. Which instrument sees which half,
+   and why the answer is an inline quote rather than a second scanner: `competitor-iteration-paths.md` § What
+   that gate does not see.

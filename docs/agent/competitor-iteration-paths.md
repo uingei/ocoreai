@@ -74,6 +74,23 @@ The gate is `scripts/upstream-cite-check.sh` (in `make anchor-check`): floor 120
 cite resolves in a clone/checkout/`.upstream-external-cites.json`, line numbers fit, and an out-of-set
 cite carries the sha it was verified at.
 
+**What that gate does not see.** Measured 11-04 on our own registry: 36 cited lines in
+`comparator-repos.md` and its neighbours were read off the mirrors they now sit at (64 in all): **not one
+claim about what a tree does was false, and five positions were stale** (`mlx-serve` `docs/reference.md`
+440/450/453 → 441/451/454 after the mirror moved `8d82ebe2` → `6b39f8b8`; `deepseek-harness`
+`docs/config-catalog.md` 359 → 378; and `ollama`'s quoted pin values, `b11669` → `b11963` and
+`a341b492…` → `57731b00e8…`), one of them a *blank* line.
+Every gate stayed green on that blank line, because each one checks a different half: `make drift` reads the
+HEAD window, `anchor-check` checks the line-number range and prints its own blind spot
+(`prose cites (no marker, content unverifiable): 515 across 328 scanned file(s)`), and the bare-cite scanner
+scans `Sources/`, never `docs/`. So a mirror refresh can move a sentence and the file keeps citing it at a
+line that says something else. The fix is not a second scanner — an `anchor:` marker carries the quoted
+sentence and goes red when the sentence moves, which is why a cite a reader acts on must quote its sentence
+inline; the prose cites stay prose, and the round that reads them by hand is what says so. Same round, same
+file, the cheaper lesson: the registry told readers to re-derive its coupling set with `git grep -l <tree>`,
+and bare `pi` reports **458** files because it matches `api` and `Float.pi` (`-w` fixes `api`, not `let pi`) —
+a scan whose premises are its own substrings certifies nothing.
+
 ## openclaw — 116,620 commits, 2025-11-24 → 2026-10-21
 
 The only rival here that is also a native Apple product: 1,591 Swift files,

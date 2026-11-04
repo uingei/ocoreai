@@ -9,6 +9,79 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-04
 
+**11-04(4) The corpus read end to end: one child-process finding proved on this box, one tree's second axis registered, four registry cites re-anchored**
+
+- **What improved.** All 26 mirrors inventoried (HEAD, 14-day churn), the trees whose rows were thin read at the
+  line, and every cite a reader acts on content-checked at the mirror it now sits at. Four things came out of
+  it, one of them about us rather than about them:
+  **① a child process inherits the server's whole environment, keys included.** No launcher sets
+  `proc.environment` — six sites leave it unset (`Tools/ExecTools.swift:191`, `Tools/ExecSessions.swift:278`,
+  `Tools/PostWriteSyntax.swift:123`, `SQLite/SessionWorkspace.swift:209`, `App.swift:677`,
+  `MCP/MCPStdioClient.swift:246`) and the seventh builds its env *from* the parent's
+  (`Multimodal/HearingEngineProbe.swift:170-172`). The premise was not assumed: a Foundation `Process` was
+  launched here with a sentinel exported, and the child's `env` carried it. So an MCP server registered the way
+  a README tells you to (`MCP/MCPBridge.swift:931`, reached at `:286`, no approval concept in its path) holds
+  this server's own bearer keys (`Middleware/AuthMiddleware.swift:48-49`) from its first instruction. The
+  return path is already gated — every tool result is redacted at `Tools/ToolRegistry.swift:697` by
+  `Security/SecretRedactor.swift` (a codex port) — and redaction is the wrong tool for the *handover*, since
+  third-party code holds the bytes before any result text exists. Filed with its proof and its cost in
+  `open-items.md`; **no guard written** — § Working here requires the owner's buy-in for a security edge, and
+  the shell faces are approval-gated (`ExecTools.swift:26`), so this is a scope question, not a live leak.
+  **② `harness2` has a second axis, three weeks old.** Its 11-01 window is one continuous argument about
+  grades: incomplete judge output stays *unscored* (`1f8e95e`), two fenced verdicts in one reply are rejected
+  rather than first-parsed (`591554d`), a judge exception leaves the grade ungraded (`0865e63`), a non-empty
+  output directory is not a finished run (`6868817` — "the improver, composer and reflection then read a run
+  that looked as if the agent chose to stop"), and a cached rollout must be identified by *what it was asked*
+  (`0a40ff8`). Row rewritten with the commit shas; two of the five are confirmations of what `scripts/eval/`
+  already does (`_conditions.py:46-57` digests the task bytes and the tool declarations, `_eval.py:349` writes
+  the wire's own `finish` word), one class cannot arise here because the board never resumes a scored run, and
+  the fifth is ①.
+  **③ `goose` had a local-inference crate nobody had registered.** `crates/goose-local-inference` puts
+  `llamacpp` and `mlx` behind one trait whose contract includes `available_memory_bytes()` (`backend.rs:33`,
+  `:49`) — memory truth owned by the backend that owns the allocator; it hands a prompt **name + description
+  and no parameter schema** (`tool_parsing.rs:4`); and for a model without native tool calling its emulator
+  fences include on-demand discovery, `list_functions`/`get_function_details` (`tool_emulation.rs:5`, `:62`).
+  Registered as axes, not debt: our pool has no `BackendProtocol` by decision, and deferred tools already have
+  one home (§ Open's tool-surface row, `pi`'s `tool_search`). **③b the same economics show up as a catalogue.**
+  `hermes-agent` ships 44 skills under `skills/` and **142** under `optional-skills/`, which "are not copied to
+  `~/.hermes/skills/` during setup" and arrive through `hermes skills browse|search|install`
+  (`optional-skills/DESCRIPTION.md`, mirror `9302ba9e21`) — breadth that costs a fetch instead of a resident
+  surface, which is the −18.8 pp problem answered one level above the shortlist. The § Open row now carries the
+  convergence (hermes' tier, goose's discovery fences, `pi`'s BM25 `tool_search`) and the owner question with
+  it: not "what shortlist" but "what is installed, and who pays for the fetch". Its `unbroker` skill was read
+  because it is the safety axis as *product copy*: a capability face that prints its own refusals in
+  frontmatter — "does **not** defeat anti-bot systems, does **not** act on anyone without recorded consent,
+  does **not** remove public records" (`optional-skills/security/unbroker/SKILL.md:23-24`).
+  **④ the registry's cites were content-checked for the first time, and the failure mode was the quiet kind.**
+  64 cites read off the mirrors they now sit at: **not one claim about what a tree does was false, and five
+  positions were stale** — `mlx-serve` `docs/reference.md` 440/450/453 → 441/451/454 (the mirror moved
+  `8d82ebe2` → `6b39f8b8` and the file gained a line), `deepseek-harness` `docs/config-catalog.md` 359 → 378,
+  and `ollama`'s two pin values, which the row quotes as literals (`b11669`/`a341b492…`) and the tree now
+  prints as `b11963`/`57731b00e8…`. `reference.md:440` had become a *blank* line, and every gate stayed green
+  on it: past-EOF is the only line test any of them runs, `anchor-check` prints its own blind spot (`prose
+  cites … content unverifiable: 515`), the bare-cite scanner reads `Sources/`, not `docs/`, and a quoted
+  *value* in a file nothing cites by line is invisible to all three. New § How to use 3 says which instrument sees which half. The same
+  round found the registry's own coupling command substring-naive — bare `pi` reports **458** files (it matches
+  `api` and `Float.pi`; `-w` fixes `api` and not `let pi`) — so both measures are now printed with what each
+  means: 10 of 24 trees have zero *name* coupling, 19 have zero *cite* coupling, and `mlx-serve` is in the 19
+  while carrying the wedge.
+- **What same-session output proves it.** The sentinel run printed `1`. The coupling numbers in this entry are
+  the output of the commands printed beside them, not of the command the file used to recommend. Four docs
+  lines changed number, not claim: the wedge's three ANE cites and the ladder's, all re-read at
+  `6b39f8b8` (mlx-serve) and `8bd073392e` (deepseek-harness) before being written down. And a check that failed was corrected rather than
+  repeated: `harness2`'s provenance trio was reported missing on first look, which was my own path — the files
+  are `dependencies/ASSETS.json` and `dependencies/PINNED.md`, and the row now carries those paths.
+- **Which gate goes red on regression.** `make docs-check`: P2/P3 on every new cite (a `~/references` cite is
+  only legal with its tree declared), the diary pairing, and **B2 — whose area cap this round had to raise,
+  visibly, 27 484 → 32 341** (`scripts/agents-md-contract.sh:111`). The cut came first, as the rule asks: the
+  round's instrument lesson was written into `comparator-repos.md` and then *moved* to
+  `competitor-iteration-paths.md` § The meta-lesson, which already owns "keeping the claims true", rather than
+  stated twice; what remained was 4.9 KB of new `file:line` cites over the same 26 trees, whose alternative was
+  deleting them. Per-tree bytes 1 057 → 1 244; B1 and B2's chain numbers untouched (a `docs/agent` file is not
+  injected). Nothing else goes red, and that is the honest answer — the gate layer is frozen, so ① ships as an
+  owner call with a named cost, not a scanner, and the four re-anchored numbers are held only by the sentences
+  quoted beside them, the one mechanism here that goes red when a *sentence* moves rather than a file.
+
 **11-04(3) The rest of the corpus, and the registry's own coupling list failed its own command**
 
 - **What improved.** 11-04(2) deep-read four trees; this covers the rest — all 26 got churn-by-directory and

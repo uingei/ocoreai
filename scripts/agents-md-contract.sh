@@ -108,7 +108,7 @@ cd "$(dirname "$0")/.."
 #   (the ocoreai row + its prose tail). A re-derivation whose anchors vanished passes vacuously, so the
 #   scan floors its own hit count instead of trusting the header it reads.
 : "${OCOREAI_FLOOR_DIARY_PAIRED:=40}"   # CHANGELOG entries whose heading was found above their first bullet
-: "${OCOREAI_AGENTS_MAX_AREA:=27484}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
+: "${OCOREAI_AGENTS_MAX_AREA:=32341}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
 #   this cap was pinned to. What binds is our chain budget (B2, 32 KiB) and the root ratchet (B1), and
@@ -131,7 +131,18 @@ cd "$(dirname "$0")/.."
 #   → 27 484 B. The alternative both times was deleting the `file:line` cites that make a claim checkable, the
 #   trade 10-28 and 11-03 already refused. B1 (root, the only budget the injector spends) and B2 (the chain)
 #   untouched across all five: 21 453/21 461 and 32 753/32 768.
-#   What the cap did NOT do, and now should: it has forced exactly one cut in five raises (11-04(3), where the
+#   RAISED 11-04(4), visibly, same rule — the sixth raise, and the first where the cut came first: the round
+#   that content-checked this file's own cites wrote its instrument lesson into comparator-repos.md, then moved
+#   it to competitor-iteration-paths.md § The meta-lesson, which already owns "keeping the claims true" (~0.8 KB
+#   of second home deleted, not restated). What is left new is four rows getting their first real read —
+#   harness2's second axis (five commits on grades), goose's unregistered `goose-local-inference` crate,
+#   hermes-agent's two-tier skill catalogue with its consent boundary, and the corpus's one finding about us
+#   (the env-inheritance open item's precedent) — over the same 26 trees, so
+#   per-tree bytes move 1 057 → 1 244 and the curve is 15 609 → 18 664 → 20 502 → 25 611 → 27 484 → 32 341.
+#   Wider did not beat deeper this round; it went red at 4.9 KB and the owner is the one who decides whether
+#   that curve is the shape they want. B1 and B2 untouched again (21 453/21 461, 32 753/32 768): this file is
+#   not in the injected chain.
+#   What the cap did NOT do, and now should: through its first five raises it forced exactly one cut (11-04(3), where the
 #   mlx-serve and Qwen3.8 rows were restating verdicts § Rung zero 4 and § Open already own — 520 B of second
 #   homes deleted before any raise was considered). The number worth reading at a glance is per-tree, not
 #   per-file: 27 484 / 26 trees = ~1 057 B each, and the cap itself has been carried 15 609 → 18 664 → 20 502 →

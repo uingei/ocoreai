@@ -59,7 +59,11 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   rests on them today — but they sit in the green `swift test` count the instrument's own S term reads.
   ③ The field spends that same counter as lane *policy*, not a published number: `mlx-serve` stops speculation
   mid-decode once per-draft acceptance falls under break-even and stays off for the request
-  (`../references/mlx-serve/docs/performance.md:20`). Owner call, two halves: delete or repair the 27, and
+  (`../references/mlx-serve/docs/performance.md:20`). Nobody else is moving on it: `MTPLX` — the tree our own
+  lane is measured against, and the only comparator here whose HEAD was asked of the remote rather than the
+  clone (`git ls-remote`, 11-04) — sits at `9882703f`, dated **10-03**, 32 d quiet with 0 commits in 14 d, so
+  its row is current rather than stale and no new drafter behaviour is pending there. The movement is on our
+  own side of the boundary: pin 1's `#581` resumable Qwen MTP, one row above. Owner call, two halves: delete or repair the 27, and
   whether our MTP lane should act on acceptance at all — the scripted engine already exists
   (`Engine/ScriptedInference.swift` + probe 37), so a real gate is one emit and one read away, not a new
   surface. Why no scan owns this: two attempts on 11-04 failed in opposite directions (one flagged 233 tests,
@@ -87,8 +91,15 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   open half is a product call: the wire is caller-scoped (`Tools/ToolRegistry.swift:135` — no `tools[]`
   declared ⇒ no tools), while the app hands the whole registry over every turn
   (`UI/ViewModels/ChatViewModel.swift:1098`: 40 declarations, 25,092 B, to a 4-bit checkpoint); no comparator
-  does that (cites: `comparator-repos.md`). Wants a per-turn shortlist (whose score, who pays a wrong pick)
-  plus the composer half. The pattern to extend is the knob already gated: render the checkpoint's template
+  does that (cites: `comparator-repos.md`). The field's answer, read 11-04, is not a smarter shortlist but a
+  surface that is **reachable rather than resident**, and three trees reached for it independently: hermes
+  ships 142 skills in `optional-skills/` that "are not copied to `~/.hermes/skills/` during setup" and are
+  installed by a `hermes skills install` verb
+  (`../references/hermes-agent/optional-skills/DESCRIPTION.md`; row: `comparator-repos.md`),
+  goose's emulator asks for one schema at a time (`tool_emulation.rs:62`), `pi` ranks deferred tools with BM25
+  and keeps them offered across compaction. Three trees, one shape — which changes the owner question from
+  "what shortlist" to "what is installed, and who pays for the fetch". Wants a per-turn shortlist (whose
+  score, who pays a wrong pick) plus the composer half. The pattern to extend is the knob already gated: render the checkpoint's template
   with a sentinel at load, record it (`ReasoningEffortLedger`), publish on `/v1/models`, refuse a demanded
   word 400 naming the knob and both exits — codex's `code_mode_warning.rs:6-24` shape, fail-open pinned.
   `ReasoningEffortHonestyTests`(9) + probe 38.
@@ -244,3 +255,25 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   config seat is the owner's. ② Jev's answer half is read from both stacks, unwritten until the answer
   position scores (probe 49; `systemone-decisions.md` § Shape C). ③ drop the `contextLength` alias
   (+ probe 03's clash check) the release after it landed.
+- **A child process inherits the server's whole environment, keys included** (Tools/, MCP/, Security/) —
+  found by reading the seven `Process()` sites, and the premise proved by running it: a Foundation `Process`
+  whose `environment` is never set hands the parent's env to the child (sentinel set here, `env | grep -c` in
+  the child printed 1). Six sites leave it unset — `Tools/ExecTools.swift:191`, `Tools/ExecSessions.swift:278`,
+  `Tools/PostWriteSyntax.swift:123`, `SQLite/SessionWorkspace.swift:209`, `App.swift:677`,
+  `MCP/MCPStdioClient.swift:246` — and the seventh starts *from* the full parent env and adds a marker
+  (`Multimodal/HearingEngineProbe.swift:170-172`). In reach: this server's own bearer keys
+  (`OCOREAI_API_KEYS`/`OCOREAI_ADMIN_KEYS`, `Middleware/AuthMiddleware.swift:48-49`) and whatever the launching
+  shell exported. What is already held: the shell faces are approval-gated (`ExecTools.swift:26` →
+  ApprovalBroker) and every tool result is redacted on the **return** path (`Security/SecretRedactor.swift`,
+  applied at `Tools/ToolRegistry.swift:697`, gated by `SecretRedactorTests` + `ToolResultWireDeliveryTests`).
+  Redaction cannot cover the **handover**: an MCP server is third-party code that holds the bytes the moment it
+  starts, from a command handed to `MCPBridge.connectEndpoint` (`MCP/MCPBridge.swift:931`, reached at `:286`)
+  with no approval concept in its path. Precedent, same defect class: harness2 `742d48f` — "Every launcher
+  except the improver passed the whole host environment to agent subprocesses, keys included" — fixed by
+  scrubbing at every launcher with per-launcher exceptions named in the message and in `docs/SETUP.md`.
+  Owner call (§ Working here: a security edge names mode, likelihood and cost first, and no guard gets written
+  on an unobserved failure): mode = a user registers an MCP server the way READMEs tell them to; likelihood =
+  deterministic, not a race — the child receives the env at exec; cost = one scrub policy at the launchers that
+  own a value plus the exception each needs (the probe needs its marker, the syntax checker needs `PATH`).
+  Not claimed: that any checkpoint here has been observed reading a key — the finding is the code path and the
+  proved premise, not an incident. No root § Open line: the cap has 8 B of headroom, so the address stays here.
