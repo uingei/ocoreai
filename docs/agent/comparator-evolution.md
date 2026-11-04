@@ -29,8 +29,9 @@ Cadence says a field is alive; heat says a mechanism is moving. Neither answers 
 answer, because both count *trees*. The churn block answers it by counting *touches* (a file edited 200× is 200
 touches, not one) and cutting them by what the path says the file is for.
 
-> **Re-derive:** the churn block after TREND, `OC_TREND_DAYS=60` over the 13 comparator agent trees (us printed
-> separately). Three properties a reader needs before trusting any number here: buckets are **non-exclusive**, so
+> **Re-derive:** the churn block after TREND, `OC_TREND_DAYS=60`, now over **both** segments — the 13 comparator
+> agent trees and the 11 comparator serve trees, us printed once at the end with the same `unmatched` residual the
+> comparator rows carry. Three properties a reader needs before trusting any number here: buckets are **non-exclusive**, so
 > shares do not sum to 100 % (`codex-rs/core/src/guardian/tests.rs` is authority *and* measurement); `unmatched` is
 > printed per tree rather than hidden, and runs 12–59 %, mean 30 %, so every share below is a **floor**, not a
 > total; and a path regex is a proxy for intent — which is why each tree's three hottest files print beside the
@@ -86,16 +87,55 @@ touches, not one) and cutting them by what the path says the file is for.
 
 **The mirror, because the instrument scores us too:** ours is 3 579 touches across 783 files — `meas` 23 %, `engi`
 17 %, `docs` 11 %, `deps` 10 %, `surf` 9 %, `tool` 8 %, `loop` 2 %. Our three hottest files over 60 days are
-**`CHANGELOG.md` (376), `AGENTS.md` (137), `EngineInference.swift` (78)**. In twelve of the thirteen comparators the
-most-edited file is something a stranger could click; in ours it is the diary and the rules file — and this round is
-more of the same, which is the honest way to end this section. Our `meas` share (23 %) already matches the field's
-second bucket, so no new spending is owed there.
+**`CHANGELOG.md` (376), `AGENTS.md` (137), `EngineInference.swift` (78)**. In twelve of the thirteen agent
+comparators the most-edited file is something a stranger could click; in ours it is the diary and the rules file. The
+serve cut below shows that sentence was about harnesses, not about the field — § What our own segment spends on. Our
+`meas` share (23 %) already matches the field's second bucket, so no new spending is owed there.
 
 Where this axis does *not* put us behind: `Sources/ocoreai/Localization/Localization.swift` holds 463 typed keys with
 463 base and 463 zh entries, and `availableLocales` is `[.en, .zhHans]` with the rule "Adding ja/ko/fr/es requires a
 full table entry before adding it here" (`:66-70`) — the picker offers only what has a table, and
 `LocaleResolutionTests` proves coverage in both directions. Two locales against `hermes-agent`'s nine is a narrow
 surface; it is not a false one. The field's advantage here is quantity, which is a translation task, not a design gap.
+
+## What our own segment spends on — the serve cut, which inverts the headline above
+
+The section above counts 13 harnesses and concludes the surface is where the field is going. This file's own premise
+says a claim is worth the reading that goes red when it breaks, and the segment that carries **our** sentence — a
+local model server on Apple silicon — had never been churned at all. Same buckets, same 60-day window, same code:
+
+- **The two segments are near-mirrors.** `engine` clears 10 % of own churn in **10 of 11 serve trees** and in **1 of
+  13 agent trees** (`Strata`, alone); `surface` in **7 of 11** serve against 11 of 13 agent; `meas` in 9 of each. So
+  "the surface is where the effort goes" was an agent-segment sentence wearing a field-wide hat. It also says the
+  buckets are not broken: a pattern that scores 10/11 here and 1/13 there is measuring a real shape difference
+  between servers and harnesses, not a vocabulary accident.
+- **Where the engine effort sits, per tree:** `splash` 69 %, `vllm` 47, `sglang` 34, `ollama` 32, `mlx-serve` 28,
+  `TensorFold` 22, `Strata` 22, `MTPLX` 18, `Rapid-MLX` 18, **ours 17**, `omlx` 16, `openclaw` 7.
+- **We clear our segment's floor and sit low in its distribution — and the distribution is not decidable yet.**
+  17 % ≥ 10 %, so we belong to the 10/11 (the tally excludes us by construction); the eleven's median is ~22 %.
+  Before that reads as a deficit, read the pattern: `model|engine|infer|kv|cache|kernel|serve|api|routes|server`. A
+  Swift layout names those things otherwise, and `Sources/ocoreai/Handlers` (3.7 % of our churn), `Router` (1.5),
+  `Multimodal` (1.0) and `Scheduler` (0.6) are wire-and-engine work the bucket cannot see — 6.8 % of our touches, on
+  top of the 25 % `unmatched` our row now prints like every comparator's. Count those dirs as engine and we are near
+  24 %, i.e. at the median. The honest statement is that we clear the floor and the **ranking** waits for a bucket
+  that can read a Swift tree; the blindness is the same class this file documents elsewhere, met in our own row.
+- **The one bucket where we lead the segment is the diary.** `deps/release` clears 10 % in **0 of 11** comparators
+  and 10 % of ours, and that bucket's nouns are `changelog|version|manifest|*-lock`: our hottest file is
+  `CHANGELOG.md`, 379 of 3 590 touches (10.6 %) — more of our churn in one prose file than any serve tree spends on
+  the whole bucket. `docs/spec` at 11 % ties us with `Rapid-MLX` and `ollama` for the segment lead. (The row above
+  reads 3 579 touches / 783 files and this one 3 590 / 785 because the 60-day window slid between the two runs an
+  hour apart — stated because a reader who spots the difference should not have to wonder.)
+- **Authority reads 0/11 here too, and in this segment that is partly absence, not blindness.** A server has no
+  approval surface to edit; `openclaw` — the tree in both segments, and the one that resolves `sandbox-exec` in its
+  macOS app — still scores 0 %. That is consistent with the ledger's ~15 % rather than contradicting it: governance
+  work lives in the harness that asks, not in the server that answers.
+
+**Consequence, stated as a retraction rather than a task.** "The field spends on the surface and we are behind on
+it" is no longer available: 7 of 11 serving trees do, we sit at 9 % and our segment's majority bucket is the engine,
+which we clear. This cut therefore licenses neither surface spending nor engine spending. What it does say is that in
+our segment the field's touches are on the engine (10/11), that our row's only outlier is prose, and that `Strata`
+and `openclaw` — members of both segments — vote twice with different denominators, which is what an honest segment
+costs.
 
 ## What the field's own ledgers say — the only source here that carries sequence
 

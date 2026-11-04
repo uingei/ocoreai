@@ -44,22 +44,26 @@ Share of each axis's own declared segment, ascending; the class is the block's, 
 | Class | Axes (n/segment) | Read |
 |---|---|---|
 | RARE | generates docs from source 2/24 · store route 2/24 | one-off machinery; nobody has died without it |
-| MINORITY | committed HTTP contract 2/12 · published client package 2/12 · OS confinement of the child 6/14 | a bet, per tree, with named reasons |
+| MINORITY | committed HTTP contract 2/12 · published client package 2/12 · OS confinement of the child 6/14 · **the host's own devices behind a route 3/12** | a bet, per tree, with named reasons |
 | MAJORITY | **speaks ACP 8/14** · typed install command 16/24 · artefact route 17/24 · notices 17/24 · SKILL.md 11/14 · digest provenance 19/24 · evals tree 19/24 | spreading, and this is where a gap starts to cost |
 | NEAR-CONSENSUS | deferred/filtered tools 12/14 · screen capture 12/14 · any install route 21/24 · auto-update 21/24 · empty-suite refusal 21/24 · cancellation 22/24 · **wires a harness to itself 11/12** · live probes 23/24 | table stakes |
 | CONSENSUS (11 axes) | MCP 14/14 · reads a rules file 14/14 · names `AGENTS.md` 14/14 · KV/prefix reuse 12/12 · `reasoning_effort` 12/12 · download verification 12/12 · rewind/fork/compaction 14/14 · spec decode/MTP 12/12 · turn/stall bound 14/14 · subagents 14/14 · tool/hook events 14/14 | spending here buys a claim, not a user |
 
 Three lines of that output are the calibration, and one of them is about us in the least comfortable way:
 
-- **`ours-alone … — none; every practice we hold is held by others —`.** On all 31 measured axes there is no
+- **`ours-alone … — none; every practice we hold is held by others —`.** On all 32 measured axes there is no
   mechanism that we hold and the segment lacks. Whatever makes ocoreai different is a *combination* (two
   engines on one Apple-silicon box, vision+voice+code in one binary, an honesty gate on each claim), and no
   axis in this corpus measures a combination. Consequence: the differentiator has to be legible on a surface
   a stranger or a harness reads — which is § Adoption's problem restated by an instrument rather than by me.
+  **One axis qualifies the line without breaking it:** the 32nd, added today, scores 3/12 and only one of its three
+  holders owns a live input device — § The wire that points the box at the world.
 - **The zeros at MAJORITY-and-above: typed install 16/24, ACP 8/14, harness-wiring 11/12.** Two of those three
   were already direction items; the third is new to this corpus today and is § The protocol that spread.
-- **Confinement is the only MINORITY mechanism with a user-safety payload** (6/14, and per § *Where the field
-  confines a child* it tracks whose code the child runs). Everything else at MINORITY is a business bet.
+- **Confinement was the only MINORITY mechanism with a user-safety payload; the device route is the second** (6/14
+  for confinement, and per § *Where the field confines a child* it tracks whose code the child runs; 3/12 for a route
+  that points the host's screen or camera at a caller, 1/12 for a live input, § The wire that points the box at the
+  world — and that 1/12 is **ours**, which makes the payload ours too). Everything else at MINORITY is a business bet.
 
 **The denominator this cut had been getting wrong.** `serve` was hand-typed at 7 members while five serving
 trees sat unlisted on the same disk (`Rapid-MLX` `rapid_mlx/routes/chat.py:2` "Chat completion endpoints —
@@ -128,6 +132,104 @@ destructive truth we already keep (`ToolEntry.isDestructive` → `securityPreche
 a *second consumer of one home*, not a second home. The consumer-with-a-name test the ladder demands still
 hasn't been met on this box.
 
+## The wire that points the box at the world — a new axis, one false negative, and one device class nobody else has
+
+Thirty-two axes measure MCP-to-screen-capture and until today none asked the question root's own identity sentence
+answers —
+*"sees, hears, speaks and codes, in one binary"*. An axis nobody patterns is indistinguishable from an axis nobody
+works on, which is this file's own failure mode (§ What this costs), so the question got two decidable forms.
+
+**Q1 — does the served wire carry media at all? Table stakes, and we are in it.** A media route registered by the
+server itself (not called by its UI) scores in **8 of the 12 serve trees**: `vllm`
+(`vllm/entrypoints/speech_to_text/transcription/api_router.py:31-32`, `@router.post(` over
+`"/v1/audio/transcriptions"`),
+`sglang` (`python/sglang/srt/entrypoints/http_server.py:1940`), `ollama` (`server/routes.go:2444-2446`, transcriptions
++ translations + speech), `omlx` (`omlx/api/audio_routes.py:512,1528`), `mlx-serve`
+(`src/host/http/router.zig:110-113`, whose table at `:119-120,166` also carries `/v1/images/…`, `/v1/video/` and
+`/v1/3d/`), `Rapid-MLX` (`rapid_mlx/routes/audio.py:2641,3512`), `TensorFold`
+(`zig/src/server/routes.zig:115` dispatches `/v1/audio/speech`; its own ledger records it at `## 1.1.0`) and us
+(`/v1/audio/transcriptions`). `openclaw` offers the same paths through its router extension
+(`extensions/clawrouter/capability-offers.ts:34-35`) — a proxy row, not a model it runs. `splash` and `MTPLX` carry
+none; `Strata`'s `serve/images.py` was not read far enough to call. Consequence: no spending is owed here, and
+`mlx-serve` serving `/v1/video/` is the comparator our own video row should be read against.
+
+**Q2 — does the wire carry the host's own devices? Three of twelve; the live ones are one.** New axis
+`captures the host's own devices behind a route`, serve segment, `OC_EVIDENCE=1` prints all three hits, each a
+different device class:
+
+- **`Rapid-MLX`** — `@router.post("/observations")` mounted at `/v1/cua` (`rapid_mlx/routes/cua.py:62,913`) returns a
+  PNG of a window **on the machine running the server**, taken through CoreGraphics
+  (`rapid_mlx/computer_use/ax_driver.py:388-389` `CGWindowListCopyWindowInfo`). It is also the disciplined one: a
+  requested app identity that disagrees with the target process is `app_mismatch` → 409, a stale window is
+  `window_stale`, a missing frame is `screenshot_failed`, a 4 MiB frame is `screenshot_too_large` → 413
+  (`routes/cua.py:426,474,480,969,983,988`), and permission state sits *on* the surface
+  (`GET /v1/cua/permissions`, `POST /v1/cua/permissions/request` at `:559,574`).
+- **us** — `routes.post("/v1/multimodal/capture")` (`Sources/ocoreai/Router/ChatCompletionsRouter.swift:895`), whose
+  request type is `enum CaptureType { case camera, microphone, screen }`
+  (`Sources/ocoreai/Handlers/MultimodalHandler.swift:24-28`): an HTTP caller points *this machine's* camera, mic or
+  screen. `/v1/multimodal/speak` drives this machine's output. It is not in `AuthRoutePolicy.publicPaths`
+  (`Sources/ocoreai/Middleware/AuthMiddleware.swift:146-154`), so it is keyed wherever auth is on.
+- **`openclaw`** — `app.post("/screenshot")` (`extensions/browser/src/browser/routes/agent.snapshot.ts:236`) and
+  `/screencast` (`routes/index.ts:45`), served by the browser extension's own local server: a **tab**, captured
+  through the browser, not the OS camera or microphone. Same shape, different ownership.
+
+**Heat puts it in the class this corpus calls a direction:** `present 3/12 · edited now 3/3` — a minority that every
+holder is working on right now, which is the same test that made confinement a direction (§ The field's own trend in
+`comparator-consensus.md`).
+
+**Split by device class, because the count alone hides the finding.** A host **screen or window** behind a route is
+held by three trees; a live **camera or microphone** behind a route by **one**, and it is ours — `Rapid-MLX` takes a
+window, `openclaw` takes a tab, and both are screen-class. The trees that come nearest to live audio all put that
+sensor on the caller: `pi` registers `web.get("/listen", listen)` and decodes samples **pushed up the websocket**
+(`apps/p2/voice-server/server.py:355-357,368`), then answers `/speak` with a WAV **body** rather than a room
+(`:188-195`), and `hermes-agent` registers `/api/audio/voice-live/session`, which opens a **WebRTC** session
+(`hermes_cli/web_routers/audio.py:190-198`) while its desktop app records the mic in the **renderer** —
+`navigator.mediaDevices.getUserMedia` inside a React hook (`apps/desktop/src/app/chat/composer/hooks/use-mic-recorder.ts:290,310`).
+So the field's convention is **client-owned
+sensors** — bytes up, or a session the client's browser holds — and the inverted wire is the singular thing here.
+
+**The instrument was wrong once before it was right, and the fix is in the noun list.** The axis first required the
+bound path to say `capture|screenshot|camera|microphone` and printed **2/12**, missing `Rapid-MLX` outright: its route
+is `/observations`, and it surfaced only because the Q1 media enumeration walked the same directory and found a PNG
+being assembled there (`rapid_mlx/routes/cua.py:978`). Adding `observation|cua|/screen` turned a false 2 into a true
+3. What was tried and deliberately left out is `voice|listen|speak|talk` — binding those *is* the client-owned
+convention, and scoring it here would count the convention as its own exception. The binding is doing all the work
+either way: a bare `capture|screenshot|camera|microphone` word probe hits 27 of 29 trees, almost all of it capturing
+stdout, closures and config keys (`config.get("camera_layout")`, mlx-serve's diffusion-sampler `noise_camera`
+tensors), and requiring an HTTP-verb call whose first argument is a `/`-led path literal is what turns 27 into 3 —
+the same correction the ACP row below records: in this corpus a word is not a mechanism, a binding is.
+
+**What that means for `ours-alone: none`.** The DIFFUSION block still prints it, correctly — three in-segment trees
+score the axis. What survives is narrower than a singleton and still stronger than the old line: **the screen-class
+route is 3 of 12, the live-input one is 1 of 12**, and both halves are disclosed on every agent-readable surface we
+have — `GET /v1/capabilities` (`V1EndpointCatalog.swift:155-165`, whose note states the two-phase mic),
+`GET /openapi.json` (4 media paths of 34) and the README's endpoint table (`README.md:121, 126-127`) — so this is the
+one differentiator a stranger's client can observe today without reading our source.
+
+**The two trees that hold the mechanism converged on the same posture, and the comparator is the stricter on three
+counts.** Both are **off until someone says otherwise** and both refuse by name rather than returning an empty
+success: ours is a user-facing toggle that starts `false` (`UI/Models/MultimodalState.swift:42,51`) and a capture leg
+that answers from the *measured* permission instead of opening a modal nobody on a headless box can click
+(`Sources/ocoreai/Handlers/MultimodalHandler.swift:275-295`), with `success` derived from bytes actually coming back
+(`:8-13`); theirs is a server-side env opt-in — *"Screenshots are sensitive and require an explicit server opt-in"*
+over `env_truthy("RAPID_MLX_CUA_EXPOSE_SCREENSHOTS")` (`rapid_mlx/routes/cua.py:429-431`) — answering
+`screenshot_disabled` 403 with a `recovery` array when it is off (`:925-936`), and a named `permission_denied` before
+a frame is ever attempted (`:938-948`). Then it does three things we do not: **caps** one frame at 4 MiB and answers
+413 (`:426,988`), stamps the response `Cache-Control: no-store` + `Pragma: no-cache` (`:918-919`, and our capture path
+sets no cache header anywhere), and its `POST /v1/cua/permissions/request` **refuses a non-loopback client** —
+`local_request_required`, 403, behind a config flag that must be on first (`:574-600`). Our own answer to that last
+danger sits one rung earlier: `ServerAuthGate` refuses a keyless server any non-loopback **bind**
+(`Sources/ocoreai/Middleware/ServerAuthGate.swift:9-35`) — stronger for the server, weaker for this route, because
+once a key exists a caller on the LAN and a harness on this box are the same caller to us. And one rung *below* it:
+`captureGate` consults the measured OS permission and nothing else (`MultimodalHandler.swift:160-176,275-295`), so the
+user's own off-toggle is not on the wire path — the finding and its cost are filed in `open-items.md`, not fixed here.
+
+**The limit, before anyone celebrates.** No caller has ever invoked it: the consumer-with-a-name test (§ *Working
+here*, and item 3 above) is unmet on this box exactly as it is for ACP, and an un-copied mechanism is a posture until
+a consumer exists. The action this axis points at is therefore not more multimodal machinery — it is the § Direction
+item 3 harness work, since a harness that writes our base URL into its config is also the thing that would learn the
+capture route exists.
+
 ## The table — the mechanism this corpus has no second instance of
 
 One row per mirror. Verified today by opening the cited line (`show HEAD:<file> | sed -n <N>p`), the layer
@@ -163,7 +265,7 @@ that catches a drifted cite; where a number moved since the last read it is stat
 | `SWE-bench` | A vacuity floor argued in prose and enforced by a regex | `swebench/harness/grading.py:31` `SUITE_RAN = re.compile(` | confirmation, not an axis |
 | `Qwen3.8` | The trainer's own wire words | `../references/Qwen3.8/README.md:25` "Reasoning depth can be tuned with `reasoning_effort`, and reasoning context from historical messa…" | the vendor's, not ours |
 | `Qwen3.8-Flash-Next` | A native MTP module + N-gram embedding tables in the checkpoint | README serve line now reads `--context-length 262144 --reasoning-…` (the row's other numbers are in `comparator-repos.md`) | the model, not the harness |
-| **ocoreai** | — | `ours-alone: none` (DIFFUSION block, 11-04) | a combination, not a mechanism |
+| **ocoreai** | The one wire in the corpus whose capture happens on the box behind the address, not in the caller | `Sources/ocoreai/Router/ChatCompletionsRouter.swift:895` + `Handlers/MultimodalHandler.swift:24-28`; `ours-alone: none` still prints (3/12) | live input behind a route: 1 of 12; a combination otherwise |
 
 ## Diffusion observed — four cases where I could see the mechanism move
 
@@ -178,7 +280,14 @@ that catches a drifted cite; where a number moved since the last read it is stat
    (`capability.py:4`). Our own closest comparator is thus *shipping* a different comparator's technique as a
    data row — which is the strongest available evidence that an idea has spread: it stopped being code and
    became a row someone configures.
-4. **The shrink-only ratchet, twice, independently.** `openclaw` runs it over production type assertions
+5. **Refusal-shaped device exposure, twice, independently.** The two trees that put the host behind a wire route
+   both answered the same way without consulting each other: name every refusal, never return an empty success, and
+   publish the permission state beside the capability (`Rapid-MLX` `rapid_mlx/routes/cua.py:474-480,559-574` against
+   our `MultimodalHandler.swift:275-295` and the `success`-from-bytes rule at `:8-13`). The delta runs one way and is
+   worth acquiring: it caps what a capture may cost (4 MiB → 413, `:426,988`) and refuses to let a **non-loopback**
+   client trigger a permission prompt (`:574-600`), where our rule is about the bind, not the caller
+   (`ServerAuthGate.swift:9-35`). Filed against the existing authority owner call, not opened as a task.
+6. **The shrink-only ratchet, twice, independently.** `openclaw` runs it over production type assertions
    (`config/assertion-safety-baseline.txt`, 1 619 touches in 60 d) and over mock factories; we run it over
    the injected-byte budget (`scripts/agents-md-contract.sh:76` — `make docs-budget` "lower[s] the pinned
    root cap … (refuses to raise it)"). Same shape, different property, and the shape came from the same
@@ -228,7 +337,15 @@ number that moved:
    per-harness token pricing, `openclaw`'s LLM-refreshed locale catalogs — are each a standing cost with no
    observed imitator. Reading that honestly: an un-copied mechanism is a *posture* until a consumer exists,
    which is exactly the test our own footprint ladder already applies (§ *Working here*).
-4. **`ours-alone: none` is the number to argue with.** If someone finds a mechanism we hold alone, it belongs
-   in this table with a gate; if nobody does, the honest claim about us is combination-and-disclosure, and
-   disclosure is the only surface where a stranger can observe it (§ Adoption; § the ledger's note that our
-   most-edited file is the diary).
+4. **`ours-alone: none` has its first qualified answer, and it changes no spend.** The device route (§ The wire that
+   points the box at the world) is 3/12 by pattern and 1 of 12 on the live-input class, and it is already disclosed on
+   `/v1/capabilities`, `openapi.json` and the README — so the disclosure half of the old claim is done for this
+   mechanism and the *consumer* half is not. It reads as one more reason behind direction item 3, not as an item: a
+   harness wired to us is the only thing that would make the route more than a posture here.
+5. **The device split cuts against the intuition, so name it plainly.** Every near-miss in this corpus puts the mic
+   and camera on the caller (uploaded bytes, a websocket the client feeds, a WebRTC session the browser holds) and
+   returns media as a response body. Ours is the inverted wire. That is a bet with two tails: a harness that wants
+   audio *bytes* back has no route to ask for them (we speak through the host), and a caller that would use our
+   camera has to trust an authenticated route onto someone's hardware, which is the same owner's question the
+   unconfined child process is (§ *Where the field confines a child*) and is not answered by anything in this corpus.
+   Both tails are owner calls, not tasks; what was missing was the measurement, and now it exists.

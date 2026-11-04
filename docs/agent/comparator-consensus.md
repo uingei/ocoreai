@@ -25,12 +25,11 @@ Read for consensus, the corpus first failed to agree with its own inventory. Fiv
 - **The command written to catch a stale cell was the stalest thing in the file:** the diary one-liner hand-typed
   24 tree names while 27 sat in the directory. It derives from the disk now, so a tree that arrives without a row
   is visible on the next run.
-- **The next tree arrived the same day, and this time the instrument caught it.** `Rapid-MLX` was cloned at 12:26
-  and the very next sweep printed `mirrors: 29` — while the registry still had 27 rows, because nothing scans the
-  disk for *rows*. That asymmetry is the durable finding: moving the premise to the disk made the count self-
-  updating and left the prose as the half that still needs a human. None of the first three could go red; a scan
-  that reads its own declaration instead of the world agrees with itself forever, which is what root's first
-  invariant names.
+- **The instrument caught the next tree the same day; the prose did not.** `Rapid-MLX` arrived at 12:26 and the
+  sweep printed `mirrors: 29` while the registry still had 27 rows — nothing scans the disk for *rows*. The
+  durable half: a count derived from the disk updates itself, prose does not, and a scan that reads its own
+  declaration instead of the world agrees with itself forever (root's first invariant; the dated round is in the
+  diary).
 - **The registry's own coupling counts were off, in both directions.** Re-derived 11-04 over 28 trees with `git
   grep -l -w`: **twelve** carry zero *name* coupling (MTPLX, OpenHands, Qwen3.8-Flash-Next, Rapid-MLX, SWE-bench,
   Strata, TensorFold, claude-code, cline, harness2, opencode, qwen-code — four of which say so themselves: "no
@@ -84,7 +83,7 @@ route 21/24) is the one root already calls the open item — now measured instea
 
 ## Where the field disagrees
 
-Agreement is the headline; the useful signal often sits where the trees split. Seven divergences worth a
+Agreement is the headline; the useful signal often sits where the trees split. Eight divergences worth a
 direction, each with its own evidence (the rest are pointers to sections that already hold them, because a
 second home for a decision is the thing this corpus keeps catching):
 
@@ -123,6 +122,10 @@ second home for a decision is the thing this corpus keeps catching):
   silent about its own harness, which is expected of a user-facing changelog and is exactly why a ledger cannot be
   read as an effort report. Our half: 26 eval files, a scoreboard that verifies the workspace, and the standing
   disclosure that the board scores 6 of the 40 advertised tools.
+- **Who owns the sensor the model sees through** — the field's convention is client-owned (bytes up; a websocket the
+  client feeds); ours inverts it — a route points *this box's* camera, mic or screen at the caller. 3 of 12 bind
+  such a route, 1 of 12 a live-input one, plain media is 8 of 12: the modality is table stakes, the ownership is
+  the split (§ The wire that points the box at the world in `comparator-innovation.md`).
 - **Whether you owe a stranger a ledger** — 14 of 29 trees track no changelog anywhere; 3 use a verb a machine can
   count; and among those 3 the fix:add ratio tracks the tree's *age* (0.4 : 1 at 16 versions, 2.7 : 1 at 85, 5.7 : 1
   at 436), not its diligence. So the disagreement is over whether release prose is for users at all — and our
@@ -210,33 +213,31 @@ window, and concept heat over `OC_TREND_DAYS=60`).
   went from 827 commits/30 d to **0** — the MTP-for-MLX comparator has been quiet for a month, so our MTP lane now
   has no active sibling to read) and `harness2` (a 21-commit research drop).
 - **Concept heat says nothing in this corpus is dormant, so heat ranks nothing.** Every axis printed
-  present = edited-now (14/14 rules-file readers editing their rules files, 12/12 serving trees editing KV
-  machinery, 12/12 deferred-tool trees editing it, **8/8 ACP speakers editing ACP**). The useful reading is
-  therefore the *minority* axes: the ones where few trees hold the mechanism and all of them are editing it —
-  confinement is the only one left (6/14 scored, honest read 5, 5/5 editing). **The harness-wiring seam left
+  present = edited-now (14/14 rules readers, 12/12 serving trees on KV, 12/12 deferred-tool trees, **8/8 ACP
+  speakers**). The useful reading is therefore the *minority* axes: the ones where few trees hold the mechanism and
+  all of them are editing it — confinement (6/14 scored, honest read 5, 5/5 editing) and, as of today, the
+  host-device route (3/12, 3/3 editing, § Where the field disagrees). **The harness-wiring seam left
   this class when the segment was corrected**: it is 11/12, so it is not a minority practice we are early on,
   it is a near-consensus practice we alone skip (§ Direction 3). A practice that is both minority and
   unanimous-actively-worked is a direction; a practice at 14/14 is table stakes and further spending there
   buys a claim, not a user.
-  **Corrected twice within a day — full account in `comparator-evolution.md`:** the reading above is
-  presence-weighted, so a file touched once and one touched 200× both count 1, and that part still holds (heat
-  cannot rank a saturated axis). But the touch-weighted cut that replaced it *under*-reads this axis rather than
-  over-reading it: once approval and confinement are split, both score 0/13 above 10 % of own churn — high-water
-  `codex` at 2 % — while the release ledgers put approval at ~15 % of everything the deepest tree has ever shipped.
-  So the surviving statement is narrow and both instruments are demoted on this axis: **confinement** really is
-  quiet (shipped by a few, edited by none), and **approval** is invisible to any path pattern, which is a fact about
-  the instruments, not about the field.
+  **Corrected twice within a day — full account in `comparator-evolution.md`:** this reading is presence-weighted
+  (a file touched once and one touched 200× both count 1), and that part holds — heat cannot rank a saturated axis.
+  The surviving statement is narrow and both instruments are demoted on the authority axis: **confinement** really is
+  quiet (shipped by a few, edited by none), and **approval** is invisible to any path pattern (0/13 by churn, ~15 %
+  of every bullet the deepest ledger has carried), which is a fact about the instruments, not about the field.
 
 ## What the field is evolving into, and what its ledgers say
 
 Both cuts moved out to `comparator-evolution.md` — churn by concept (touch-weighted, 13 agent trees) and the
 release-ledger ladder — because putting them here put this file 5 278 B past its per-file cap; the
 alternative was deleting evidence to fit a number no loader charges. The headline numbers, so a reader
-can decide whether to open it: **surface is >= 10 % of own churn in 11 of 13 trees, measurement in 9, the agent
-loop in 3**; authority is invisible to churn in *both* directions, so nothing about it may be concluded from
-churn; and **14 of 29 trees publish no changelog at all**, while the deepest one — 436 versions, 8 668 bullets
-— runs 5.7 : 1 fix-to-add, is 66 % Fixed, and recorded approval as its second-ever entry and language at #429.
-It also carries the two claims this file took back, with the mechanism of each.
+can decide whether to open it: in the agent segment **surface is >= 10 % of own churn in 11 of 13 trees, measurement
+in 9, the agent loop in 3**, and the serve segment **inverts** it — `engine` in 10 of 11, surface in 7, ours clearing
+that floor at 17 % while its 10 % `deps` share (one file: the diary) is the segment's only one. Authority is invisible
+to churn in *both* segments, so nothing about it may be concluded from churn; and **14 of 29 trees publish no
+changelog at all**, while the deepest one — 436 versions, 8 668 bullets — runs 5.7 : 1 fix-to-add, is 66 % Fixed, and
+recorded approval as its second-ever entry and language at #429.
 
 ## The injected ruleset
 
@@ -410,10 +411,8 @@ now prints one matched line per tree so the next one is caught by a reader, not 
   opposite mechanism from the one the prose then claimed. All three die the same way: carry label and data in one
   tuple, print the premise beside the number, and open one file before quoting a bucket. None of the three would have
   been caught by a green run — every one of them exited 0.
-- **The measure of coupling drifted the same way as the counts** — bare-name greps matching substrings, a
-  registry sentence disagreeing with its own command twice. It is bullet 5 above, not a second home; it is listed
-  here only because a reader skimming the ledger should not miss that the instrument's *denominators* were the
-  likeliest lies in this file.
+- **The instrument's *denominators* were the likeliest lies in this file** — bullet 5 above, once for the measure
+  and once for the counts.
 - **The likeliest lie was a denominator that was also a hand-typed list.** `serve` declared 7 members while five
   serving trees sat on the disk, so 6/7 meant 11/12 and a § Direction item was under-priced for the life of this
   file; the account (five trees, five route lines, two adjudicated non-members) is `comparator-innovation.md`

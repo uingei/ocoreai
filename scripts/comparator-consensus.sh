@@ -221,6 +221,22 @@ AXES = [
      r"vacuous|no tests ran|zero tests|ran 0 tests|empty suite|SUITE_RAN|runcount", None, False),
     ("screen capture (code)",           "CODE",   "agent",
      r"ScreenCaptureKit|CGWindowList|CGDisplayStream|computer[-_ ]use|cua-driver|screen[-_ ]capture", CODE, True),
+    # Who lets a REMOTE caller point the machine the server runs on at something? A different question
+    # from the row above (that one asks whether the tree can capture at all; this one asks whether the
+    # capture is behind the wire) and the answer is not the same set.
+    # Scored on a ROUTE BINDING — an HTTP verb call whose first argument is a path literal — because the
+    # word alone is worthless here: a bare `capture|screenshot|camera` probe hit 27 of 29 trees, almost
+    # all of it capturing stdout, closures and dict keys (`snapshot.get("screenshot_png")`,
+    # `config.get("camera_layout")`). The nouns still need reading, and one was found by reading:
+    # Rapid-MLX captures a host WINDOW at `@router.post("/observations")`, so `observation` had to join
+    # the list, while `voice|listen|speak` were tried and deliberately left out — the trees binding
+    # those (`pi`, `hermes-agent`) feed the mic from the CLIENT, which is the opposite of this axis.
+    # `openclaw`'s two hits are a browser tab through the extension's own local server, not the OS.
+    ("captures the host's own devices behind a route (code)", "CODE", "serve",
+     r"\.(post|get|put|handle|handleFunc|route|any|add_api_route|addRoute"
+     r"|Post|Get|Put|Handle|HandleFunc|Route)\([[:space:]]*[\"']/[^\"']*"
+     r"(capture|screenshot|screencast|camera|microphone|cua|observation|/screen)",
+     CODE, True),
 ]
 
 # ── the lint described in the header: refuse a pattern git grep's engine cannot honour ──────────
@@ -303,13 +319,19 @@ def sel(tree, kind, pat, filt):
     return hits
 
 
+TESTISH = r"(^|/)(tests?|spec|__tests__|fixtures?|mocks?)(/)|[._-](test|spec)\.[a-z]+$"
+
+
 def evidence(tree, kind, pat, filt):
-    """One matched line, so a count can be looked at instead of trusted. Deliberately the first hit,
-    not a sample: the question is 'is this the mechanism or a comment about it', and one line answers
-    it for the price of one git grep."""
+    """One matched line, so a count can be looked at instead of trusted. The first hit that is NOT in a
+    test or fixture, falling back to the first hit at all — still one `git grep`, and a fixture is
+    precisely the "comment about the mechanism" this function exists to catch: `openclaw`'s first
+    capture-route hit is `postHandlers.get("/screencast")` inside a test, i.e. a fake handler asserted
+    about, while the real `app.post("/screenshot")` sits in a file next to it."""
     if kind not in ("CODE", "SRC", "README"):
         return ""
     out = sh(where(tree), ["grep", "-n", "-I", "-i", "-E", "-e", pat, "--"] + PRUNE.get(kind, []))
+    first = ""
     for line in out.split("\n"):
         parts = line.split(":", 2)
         if len(parts) < 3:
@@ -319,8 +341,12 @@ def evidence(tree, kind, pat, filt):
             continue
         if kind == "README" and not re.search(pat, content, re.I):
             continue
-        return "%s:%s  %s" % (path, ln, content[:100])
-    return "<<< counted, nothing readable >>>"
+        cand = "%s:%s  %s" % (path, ln, content[:100])
+        if not first:
+            first = cand
+        if not re.search(TESTISH, path, re.I):
+            return cand
+    return first or "<<< counted, nothing readable >>>"
 
 
 def changed(tree, days):
@@ -387,7 +413,9 @@ for name, kind, seg, pat, filt, trended in AXES:
         print("   ours: %s" % ("YES (%d files)" % len(per["ocoreai"]) if per["ocoreai"] else "no"))
         print("   %s" % ", ".join(sorted(in_seg)))
         if os.environ.get("OC_EVIDENCE") == "1":
-            for t in sorted(in_seg + (["ocoreai"] if per.get("ocoreai") else [])):
+            # A set, not a concatenation: `ocoreai` is a member of two of the three segments, so the old
+            # "in-segment trees plus us" form printed our own evidence row twice.
+            for t in sorted(set(in_seg) | ({"ocoreai"} if per.get("ocoreai") else set())):
                 print("      %-18s %s" % (t, evidence(t, kind, pat, filt)[:150]))
 
 # ── the diffusion cut — how far each practice spread inside its own segment ────────────────────────
@@ -621,21 +649,24 @@ FLOOR_SHARE = 10
 SRC_EXT = (".swift", ".py", ".ts", ".tsx", ".js", ".mjs", ".cjs", ".go", ".rs", ".c", ".cc", ".cpp",
            ".h", ".hpp", ".java", ".kt", ".rb", ".php", ".cs", ".scala", ".sh", ".m", ".mm")
 seg_agent = [t for t in SEG["agent"] if t != "ocoreai"]
-print("\n── agent-tree churn — %d d, touch-weighted, buckets non-exclusive ──" % trend_days)
-print("%-17s %-7s %-6s %s" % ("tree", "touch", "files", "top dirs | every bucket share | unmatched"))
-shape = {b[0]: [] for b in BUCKET}
-corpus_files = {b[0]: 0 for b in BUCKET}
-for t in sorted(seg_agent, key=lambda x: -len(chg[x])):
+# Run the same cut over the serving trees too. It used to be agent-only, which quietly made "where is the
+# field's effort going" a question about half the corpus: the serve segment carries our own sentence (a
+# local model server on Apple silicon) and had never been churned. The buckets were written for harnesses,
+# so read the serve tally as shape-comparison between servers, not as a verdict about engines.
+seg_serve = [t for t in SEG["serve"] if t != "ocoreai"]
+def churn_tree(t, shape, corpus_files):
+    """One tree's churn row, printed; the group's tallies accumulate in the passed dicts (no globals: a
+    bucket that leaked between groups is how one segment's vacuity would be hidden by another's hits)."""
     uniq = chg.get(t)
     if not uniq:
         print("%-17s %-7s %-6s (quiet in window)" % (t, "—", "—"))
-        continue
+        return
     tc = changed_touches(t, trend_days)
     tot = sum(tc.values())
     # Churn presumes the mirror HOLDS THE IMPLEMENTATION. `claude-code` does not: 1 383 of its 1 473
     # tracked files are mods, so its churn measures docs and plugins while its CHANGELOG describes an
     # engine nobody here can read. Flag the premise rather than letting a docs mirror vote on effort.
-    tracked = [f for f in sh(where(t), ["ls-files", "-c"]).split("\n") if f.strip()]
+    tracked = [f for f in sh(where(t), ["ls-files", "-c"]).splitlines() if f.strip()]
     src = sum(1 for f in tracked if f.lower().endswith(SRC_EXT))
     src_pct = (100.0 * src / len(tracked)) if tracked else 0.0
     flag = "" if src_pct >= 25 else "  <<docs mirror: %d%% source — churn cannot see its engine>>" % src_pct
@@ -659,18 +690,40 @@ for t in sorted(seg_agent, key=lambda x: -len(chg[x])):
     print("%-17s %-7s %-6s %s  unmatched=%d%%" % ("", "", "", bs, 100 * unmatched // tot))
     for p, n in tc.most_common(3):
         print("%-17s %-7s     hottest: %-4d %s" % ("", "", n, p[:70]))
-print("\n  >= %d%% of own churn, in N of %d agent trees:" % (FLOOR_SHARE, len(seg_agent)))
-for name, _ in BUCKET:
-    n = sorted(shape[name])
-    dead = "  <<INSTRUMENT-DEAD: zero files matched corpus-wide>>" if corpus_files[name] == 0 else ""
-    print("    %-14s %2d/%d  %s%s" % (name, len(n), len(seg_agent), ", ".join(n), dead))
+
+
+def churn_group(seg, label):
+    """The same cut over one segment, with its OWN tallies: `Strata` and `openclaw` sit in both segments
+    and are printed twice — identical rows, different denominators, which is what an honest segment
+    costs."""
+    shape = {b[0]: [] for b in BUCKET}
+    corpus_files = {b[0]: 0 for b in BUCKET}
+    print("\n── %s churn — %d d, touch-weighted, buckets non-exclusive ──" % (label, trend_days))
+    print("%-17s %-7s %-6s %s" % ("tree", "touch", "files", "top dirs | every bucket share | unmatched"))
+    for t in sorted(seg, key=lambda x: -len(chg.get(x) or ())):
+        churn_tree(t, shape, corpus_files)
+    print("\n  >= %d%% of own churn, in N of %d %s trees:" % (FLOOR_SHARE, len(seg), label))
+    for name, _ in BUCKET:
+        n = sorted(shape[name])
+        dead = "  <<INSTRUMENT-DEAD: zero files matched corpus-wide>>" if corpus_files[name] == 0 else ""
+        print("    %-14s %2d/%d  %s%s" % (name, len(n), len(seg), ", ".join(n), dead))
+
+
+churn_group(seg_agent, "agent-tree")
+churn_group(seg_serve, "serve-tree")
+
 ours_u, ours_t = chg.get("ocoreai"), changed_touches("ocoreai", trend_days)
 if ours_t:
     o_tot = sum(ours_t.values())
     o_hit = [(name, 100.0 * sum(v for k, v in ours_t.items() if re.search(rx, k.lower())) / o_tot)
              for name, rx in BUCKET]
-    print("    ours  %d touches / %d files  %s" % (o_tot, len(ours_u or ()), " ".join(
-        "%s=%d%%" % (n[:4], int(v)) for n, v in sorted(o_hit, key=lambda x: -x[1]))))
+    # The mirror row owes the same residual every comparator row prints. Ours is the only row a reader
+    # cannot otherwise discount, and it is the one whose shares get quoted at us.
+    o_un = sum(v for k, v in ours_t.items() if not any(re.search(rx, k.lower()) for _, rx in BUCKET))
+    print("    ours  %d touches / %d files  %s  unmatched=%d%%" % (
+        o_tot, len(ours_u or ()), " ".join(
+            "%s=%d%%" % (n[:4], int(v)) for n, v in sorted(o_hit, key=lambda x: -x[1])),
+        100 * o_un // o_tot))
     for p, n in ours_t.most_common(3):
         print("    ours  hottest: %-4d %s" % (n, p[:74]))
 PY

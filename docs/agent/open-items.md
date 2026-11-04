@@ -289,3 +289,28 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   own a value plus the exception each needs (the probe needs its marker, the syntax checker needs `PATH`).
   Not claimed: that any checkpoint here has been observed reading a key — the finding is the code path and the
   proved premise, not an incident. No root § Open line: the cap has 8 B of headroom, so the address stays here.
+- **A wire route can point this box's camera, microphone and screen at a caller** (Handlers/, Multimodal/,
+  Security/) — the same authority question as the bullet above, inbound instead of outbound. `POST
+  /v1/multimodal/capture` takes `camera | microphone | screen` (`Handlers/MultimodalHandler.swift:24-28`), is keyed
+  rather than public (`Middleware/AuthMiddleware.swift:146-154`), and is held by 3 of 12 serving trees in the mirrors
+  with all three editing it now — 1 of 12 for the live-input half — so it is a direction by this corpus's own test,
+  not an eccentricity (§ *The wire that points the box at the world* in `comparator-innovation.md`, which carries
+  every comparator cite). Three faces, read off our own code paths, none of them observed as an incident:
+  **(a) caller identity stops at the bind** — `ServerAuthGate` refuses a keyless server any non-loopback bind
+  (`Middleware/ServerAuthGate.swift:9-35`), so once a key exists a caller on the LAN and a harness on this box are
+  the same caller; `Rapid-MLX` discriminates **per request** where we discriminate at boot, 403ing a non-loopback
+  client on `POST /v1/cua/permissions/request` behind a config flag
+  (`../references/Rapid-MLX/rapid_mlx/routes/cua.py:574-600`). **(b) the user's own off-toggle is not on the wire
+  path** — the toggles start `false` (`UI/Models/MultimodalState.swift:42,51`) and gate the perception engine, while
+  `captureGate` asks only what TCC measured (`MultimodalHandler.swift:160-176,275-295`) and the camera leg will
+  `startCapture()` for the caller (`:177-179`); the comparator's equivalent is a server-side default-off flag whose
+  refusal names itself and carries a `recovery` array (`rapid_mlx/routes/cua.py:429-431,925-936`). **(c) a frame has
+  no ceiling and no cache directive** — it caps one observation at 4 MiB and answers a named 413 (`:426,988`) and
+  stamps `Cache-Control: no-store` on the frame and on the error alike (`:510,918-919`), where our capture response
+  sets no cache header anywhere (the only `no-cache` in `Sources/**` is `SSEHelpers.swift:74`).
+  Owner call, not a task (§ Working here: a speculative edge names mode, likelihood and cost before anything is
+  written): mode = a caller holding a key asks for `screen` or `microphone` from another machine, or the person at the
+  box has toggled that channel off; likelihood = deterministic once the key exists, not a race; cost = three small
+  decisions at one gate (`captureGate` plus the response builder), each with a shipped shape above and none of them a
+  new subsystem. Not claimed: that any caller has done this — no consumer has a name here, which is why this is an
+  address and not a diff.

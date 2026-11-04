@@ -7,7 +7,52 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-11-04
+## [Unreleased] — 2026-09-05 → 2026-11-05
+
+**11-05 Our own segment had never been churned, and the identity sentence had no axis**
+
+- **What improved.** Two holes in one instrument. (i) The churn block cut the 13 harness trees and concluded the
+  field is buying surface; the segment that carries *our* sentence — a local model server on Apple silicon — had
+  never been churned. It is now, and the two segments are near-mirrors: `engine` clears 10 % of own churn in
+  **10 of 11 serve trees and 1 of 13 agent trees** (`Strata`, alone), `surface` in 7 of 11 against 11 of 13.
+  Filed in `docs/agent/comparator-evolution.md` § What our own segment spends on. (ii) Thirty-one axes measured
+  MCP-to-screen-capture and none asked root's own identity sentence — *sees, hears, speaks* — so the corpus could
+  not say whether that claim was standard, rare or absent. Axis 32 now answers it in two decidable halves, filed
+  in `docs/agent/comparator-innovation.md` § The wire that points the box at the world.
+- **What same-session output proves it.** `OC_AXES="captures the host" OC_EVIDENCE=1` prints **3/12** with a
+  readable line each: `Rapid-MLX` `@router.post("/observations")` at `/v1/cua` (`rapid_mlx/routes/cua.py:62,913`,
+  a window PNG taken off the host through CoreGraphics), our `/v1/multimodal/capture`, and `openclaw`'s browser-tab
+  `/screenshot` — so a host *screen* behind a route is three trees and a live **camera or microphone** behind one
+  is **one**, while the nearest wires (`pi` `/listen`, `hermes-agent` voice-live) both put the sensor on the caller.
+  Media on the wire is the opposite result: **8 of 12 serve trees register a media route of their own** (cites in
+  the new section), so parity there costs nothing and `mlx-serve` even carries `/v1/video/`
+  (`src/host/http/router.zig:166`). On our own churn: `engi=17 %` clears our segment's floor, the four dirs the
+  JS-shaped bucket cannot see (`Handlers` `Router` `Multimodal` `Scheduler`) are 6.8 % of our touches — counted as
+  engine we sit at ~24 %, the segment median — and the single bucket where we lead the segment is `deps/release`
+  at 10 %, whose nouns are `changelog|version|manifest` and whose content is `CHANGELOG.md`, 379 of 3 590 touches.
+- **Three instrument faults this round, each caught by reading a line.** (i) The new axis first printed **2/12**
+  and missed `Rapid-MLX` outright, because its route is `/observations`; the enumeration for the *other* question
+  walked the same directory and found the PNG. `observation|cua|/screen` joined the nouns and `voice|listen|speak`
+  were tried and left out — binding those is what the client-owned convention looks like. (ii) I read
+  `mlx-serve`'s audio as client-only from its Swift call sites; its own Zig server serves `/v1/audio/*`
+  (`src/host/http/router.zig:110-113`). (iii) `OC_EVIDENCE` printed our row twice (we are in two segments, and the
+  loop concatenated rather than unioned) and showed `openclaw`'s *test* file instead of its real binding; both are
+  fixed, and the mirror row now carries the same `unmatched=25 %` residual every comparator row prints.
+- **A precedent acquired for an open owner call, not a task opened.** The two trees that expose the host refuse by
+  name and publish permission state beside the capability — and `Rapid-MLX` goes two further than we do: a 4 MiB
+  frame ceiling answering 413 (`rapid_mlx/routes/cua.py:426,988`) and `POST /v1/cua/permissions/request`, which
+  **403s a non-loopback client** unless a config flag is on first (`:574-600`). Our rule is about the bind, not the
+  caller (`ServerAuthGate.swift:9-35`), so once a key exists a remote caller and this box's own harness look the
+  same to us. That belongs to the existing authority owner call (`open-items.md`), with the shipped shape cited.
+- **Which gate goes red.** None of it — no runner has `~/references`, and a printed count carries no verdict
+  (§ *Working here*). What bites: `make docs-check` (per-file caps, dead pointers, P20 headings, P18's zero CJK on
+  English docs) and `bash scripts/comparator-consensus.sh`, which reproduces every number above off the mirrors.
+- **Budget stated, not glossed.** `comparator-consensus.md` is at **38 912 / 38 945 B**: this round paid for its
+  two sentences by collapsing a bullet that declared itself a duplicate, and added nothing else — the new findings
+  are homed in the two files with headroom (`-evolution` 18 495 B, `-innovation` 35 134 B) rather than squeezed in.
+  `comparator-repos.md` remains at its pinned cap.
+
+
 
 **11-04(9) The fourth question had no home, and the denominator we divided the field by was a hand-typed list**
 
