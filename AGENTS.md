@@ -35,7 +35,7 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 
 ## Adoption — the surface a stranger ranks
 - **A release is a cadence, not a green suite or one tag:** the eight installable trees publish 34 → 1 254
-  releases, newest ≤8 d old (`scripts/audit-facts.sh`); ours is 1 (`v0.1.14`) — cadence is the open item. The
+  releases, newest ≤8 d old (`scripts/audit-facts.sh`); ours is 1 — cadence is the open item. The
   tag *is* the version (`scripts/version.sh` prints it), so no doc re-types one. `Core/UpdateCheck.swift` only
   *notifies*; build/publish must split. Ladder: `long-horizon-goal.md` § Rung zero.
 <!-- claim:tags_published>=1 :: git ls-remote --refs --tags origin | grep -c 'refs/tags/v' -->
@@ -169,10 +169,10 @@ Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`, one dia
 4. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: on
    anything user-visible it is the authority; no topic covers agents ⇒
    `docs/agent/agent-interface-guidelines.md`.
-5. **Comparators** — the 26 trees in `docs/agent/comparator-repos.md`: not pins; nothing linked or
-   redistributed, and a borrowed verdict stays inference until a `file:line` says otherwise. `codex` is one
-   since 11-03 (owner: no longer an authority; window reported, not owed; loader semantics ours).
-   Shipped order + fix cost per axis: `docs/agent/competitor-iteration-paths.md`.
+5. **Comparators** — the 28 trees in `docs/agent/comparator-repos.md`, counts in
+   `docs/agent/comparator-consensus.md`: nothing linked or redistributed; a borrowed verdict stays inference
+   until a `file:line` says otherwise. `codex` is one since 11-03 (owner: no longer an authority; window
+   reported, not owed). Shipped order + fix cost: `docs/agent/competitor-iteration-paths.md`.
 - **OpenAI / Anthropic compatibility** is judged as vllm and sglang judge it: the spec, their
   implementation, real requests, observed behaviour — not our convenience.
 - **A mirror proves content, never HEAD.** `api.github.com` is authoritative for HEAD and compare windows.

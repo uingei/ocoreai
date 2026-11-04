@@ -108,7 +108,7 @@ cd "$(dirname "$0")/.."
 #   (the ocoreai row + its prose tail). A re-derivation whose anchors vanished passes vacuously, so the
 #   scan floors its own hit count instead of trusting the header it reads.
 : "${OCOREAI_FLOOR_DIARY_PAIRED:=40}"   # CHANGELOG entries whose heading was found above their first bullet
-: "${OCOREAI_AGENTS_MAX_AREA:=32341}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
+: "${OCOREAI_AGENTS_MAX_AREA:=37892}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
 #   this cap was pinned to. What binds is our chain budget (B2, 32 KiB) and the root ratchet (B1), and
@@ -139,6 +139,22 @@ cd "$(dirname "$0")/.."
 #   hermes-agent's two-tier skill catalogue with its consent boundary, and the corpus's one finding about us
 #   (the env-inheritance open item's precedent) — over the same 26 trees, so
 #   per-tree bytes move 1 057 → 1 244 and the curve is 15 609 → 18 664 → 20 502 → 25 611 → 27 484 → 32 341.
+#   RAISED 11-04(5), visibly, the seventh raise, and the cut came first again: the round that read the corpus for
+#   cross-tree CONSENSUS put its matrix and verdicts in a new `comparator-consensus.md` + `scripts/comparator-
+#   consensus.sh` rather than in this file (~10 KB never landed here), and what did land is one row the corpus was
+#   missing (`cline`: 71 277 stars, 855 tags, the tree this file's completeness sentence denied) plus two claims
+#   corrected against the code instead of restated (this file's "26 on disk… counted by the P1 scan", which named
+#   an instrument that never reads the disk, and Strata's flat "integrity still open", which is true of the `hf:`
+#   route and false of the one we fetch ourselves). 27 trees now, so per-tree is 36 221 / 27 = ~1 341 B and the
+#   curve is 15 609 → 18 664 → 20 502 → 25 611 → 27 484 → 32 341 → 36 221. B1 and B2 untouched (21 453/21 461,
+#   32 753/32 768): this file is not in the injected chain.
+#   RAISED 11-04(6), visibly, the eighth raise, cut first again and by more than any round before it: the corpus
+#   gained its 28th tree (Rapid-MLX — the one that ships our own sentence, so the row is cite-dense on purpose),
+#   and three field-level measurements left comparator-repos.md for comparator-consensus.md where their
+#   denominators live (the AGENTS.md context-economy table, the coupling counts, the P1-completeness story) —
+#   ~2.3 KB of second home deleted or moved, not restated. Net +1 671 B for a tree with 17 verified file:line
+#   cites, so per-tree is 37 892 / 28 = ~1 353 B and the curve is 15 609 → 18 664 → 20 502 → 25 611 → 27 484 →
+#   32 341 → 36 221 → 37 892. B1 and B2 untouched (21 453/21 461, 32 753/32 768): still not in the chain.
 #   Wider did not beat deeper this round; it went red at 4.9 KB and the owner is the one who decides whether
 #   that curve is the shape they want. B1 and B2 untouched again (21 453/21 461, 32 753/32 768): this file is
 #   not in the injected chain.
@@ -262,11 +278,14 @@ for p in chain_guides:
                     % (p, chain, env_int("OCOREAI_AGENTS_MAX_CHAIN"),
                        chain - env_int("OCOREAI_AGENTS_MAX_CHAIN")))
 
-# The one place a chain figure is written down for a human is the context-economy header of
-# docs/agent/comparator-repos.md. Twice on 10-28 a doc restated the number and drifted off the tree, and
-# the header disagreed with itself (a 32 037 row beside a 723 B tail), so the row is re-derived here
-# rather than trusted: the reader who acts on a stale figure is the one writing the next root rule.
-FIG_DOC = "docs/agent/comparator-repos.md"
+# The one place a chain figure is written down for a human is the context-economy table, homed in
+# docs/agent/comparator-consensus.md since 11-04 (it is a cross-tree count with a denominator, which is
+# that file's question and not comparator-repos.md's — see that file's § How to use 4; the check follows
+# the decision's home, not the other way round). Twice on 10-28 a doc restated the number and drifted off
+# the tree, and the header disagreed with itself (a 32 037 row beside a 723 B tail), so the row is
+# re-derived here rather than trusted: the reader who acts on a stale figure is the one writing the next
+# root rule.
+FIG_DOC = "docs/agent/comparator-consensus.md"
 FIG_ROW = re.compile(r"ocoreai ([\d ]+) / ([\d ]+) / ([\d ]+) \((\d+) %, ([\d ]+) B of headroom\)")
 FIG_TAIL = re.compile(r"ours is ([\d ]+) B from")
 

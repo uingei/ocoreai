@@ -1,23 +1,19 @@
 # Comparator repositories — who is good at what
 
 > Long form behind § *Upstream Audit Dependencies* 5. Cells are a **dated snapshot** read off the
-> local clone; re-measure the diary column:
-> `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent harness2 goose opencode pi deepseek-harness claude-code qwen-code SWE-bench OpenHands Qwen3.8-Flash-Next Qwen3.8; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
+> local clone; re-measure the diary column **from the disk**, so the command cannot itself go stale — the
+> hand-typed list it used to carry named 24 trees while 27 sat in `~/references`, i.e. the instrument that
+> exists to catch a stale cell was the stalest thing in the file (11-04):
+> `for r in $(ls "$HOME/references"); do printf "%s=%s\n" "$r" "$(grep -c -- "$r" CHANGELOG.md)"; done`
 > — nothing re-derives these lists since 10-28 (P16 was deleted as prose-shape), so a stale cell is
 > yours to notice. Coupling re-derives two ways and both are printed, because they answer different questions:
 > `` git grep -lE '`<tree>`|references/<tree>' -- Sources Tests `` counts **cite coupling** (a backticked name
 > or a path into its clone); the looser `git grep -l <tree> -- Sources Tests` counts **name mentions** and is
 > substring-naive — 11-04: bare `pi` reports **458** files, all of them `api` and `Float.pi`, and `-w` fixes
 > `api` but not `let pi`. A **pin** is a build input (`Package.swift:43`); everything else is a comparator.
-> Context economy, ours 10-29/field 10-28, over each tree's own `AGENTS.md` set — root bytes / corpus bytes / **deepest
-> root→cwd chain against the 32 768 B the loader injects**: mlx-serve 26 486 / 269 381 / 69 273 (211 % of the
-> cap), deepseek-harness 19 113 / 96 369 / 55 362 (169 %), opencode 15 102 / 86 866 / 37 627 (115 %),
-> openclaw 19 374 / 113 906 / 34 186 (104 %), **ocoreai 21 453 / 47 484 / 32 753 (100 %, 15 B of headroom)**,
-> vllm 6 358 / 48 844 / 31 675, hermes-agent 11 952 / 159 599 / 30 192, pi 8 845, codex 0 / 3 441, ollama 358.
-> Re-measure: walk the tree for `AGENTS.md`, sum each file's ancestors up to the root, divide by 32 768 — the
-> semantics our loader implements (`Sources/ocoreai/WorkspaceContext.swift:224-233`). Four trees read a
-> ruleset their own loader truncates and three never say so; ours is 15 B from that line and names what it
-> drops.
+> Context economy across the field — each tree's own `AGENTS.md` set against the 32 768 B our loader injects
+> at — is a cross-tree claim with a denominator, so per § *How to use* 4 it is not homed here: the table and
+> the re-derive command are in `comparator-consensus.md` § The injected ruleset.
 
 Each entry is one clone under `~/references/`: what it holds, the axis worth borrowing, how far the audit got.
 
@@ -101,6 +97,38 @@ Borrow: what it does *not* do is the surviving wedge — it hosts Claude Code an
   tool calls by name** (`docs/reference.md:454`). The part-by-part verdict is `long-horizon-goal.md` § Rung
   zero 4's — one home; this row holds the axes.
 
+- `Rapid-MLX` — **the 28th tree, and the one that ships our own sentence** (`raullenchai/Rapid-MLX`, Apache-2.0,
+  Python engine + a 332-file SwiftUI app; 4 097 stars api.github.com 11-04, created 02-25, HEAD `8178a75`
+  11-03, 405 commits in 14 d, **290 tags**). Registered the day it was cloned, mid-round. Its first screen is
+  an agent launch, not a model: "Run Codex, Claude Code, OpenCode, Pi, Hermes, Crush or Goose with a local
+  model on Mac: `rapid-mlx launch <agent>`" (`README.md:7`), over "OpenAI- and Anthropic-compatible LLM
+  inference server for Apple Silicon, built on MLX, focused on reliable tool calling for coding agents"
+  (`README.md:13`).
+Contains: (1) **the harness side, built** — `rapid_mlx/agents/profiles/` holds 17 harness configs, **ten of
+  them trees this file tracks**, `isolated.py:23` names the nine it can isolate, `--remove` undoes it, and
+  `config_merge.py:1-15` documents the two ways a naive merge deletes the *user's* entries (pi's id-keyed
+  `models` list, dsh's `cordis.patch.yml` layers). (2) 29 tool-parser modules with an auto-detect fallback
+  (`rapid_mlx/tool_parsers/`) against our `Parsers/*`. (3) spec decode as data —
+  `spec_decode/{capability,registry,report}.py` over `mtp/`, `dspark/` and `speculative/{native_mtp,dflash,
+  ddtree,suffix_decoding}`, plus a `tensorfold_*` family: this tree *consumes* a tree that is a comparator to
+  us. Its rule: "Registry flags are recommendation evidence. They are not permission checks… runtime preflight
+  owns compatibility" (`spec_decode/capability.py:4-6`). (4) **a benchmark as a contract** — an immutable
+  versioned protocol file per measurement, one JSON-Schema record, runs archived locally and nothing leaves
+  the Mac until `share` (`proto/community-benchmark/v1/`), unobserved settings recorded `unknown`, "never
+  guessed" (`community-benchmarks/README.md:54`), an explicit never-sent list (`:59`), and the decode formula
+  reconciled with llama.cpp `tg` / vLLM TPOT while its own pre-0.13.4 discontinuity is disclosed (`:46`).
+  (5) it will not *grade* what it cannot confine: no `sandbox-exec` →
+  `Grade(False, 0.0, "coding grader requires macOS sandbox-exec")`
+  (`scripts/benchmark_glm53_real_tasks.py:226-228`). (6) an `AGENTS.md` that is an **org chart, not a
+  rulebook**: six persistent roles, each with host, worktree prefix, escalation target and definition of done,
+  19 438 B in a single root file — 59 % of the 32 768 B our own loader injects at.
+Borrow: three axes, **no home here today** — the reversible harness profile (five of the seven serving trees
+  ship theirs: `comparator-consensus.md` § The harness side is already built, on their side), a machine-readable
+  eval record with an immutable protocol (`scripts/eval/` has neither), and confinement at the child boundary
+  (same file, § Where the field confines a child). What it does *not* do is the point: it hosts the harness
+  rather than *being* the agent, so the wedge of `long-horizon-goal.md` § Rung zero 4 survives a second tree's
+  evidence.
+
 - `harness2` — `google-research/harness2`, Python agent harness (`dependencies/ASSETS.json` path→sha256,
   `scripts/check_provenance.py` exit 1 on any changed or missing asset, `dependencies/PINNED.md`); 21 commits,
   17 of them on 11-01 — re-read at mirror `6868817`
@@ -145,8 +173,15 @@ Contains: `launch --plan` prints a multi-GB mutation before doing it, then exits
   `strata connect` (`README.md:168`); the built UI ships with an isolated **simulated-data preview** a stranger
   can open with no model resident (`apps/host/README.md:10`); and a README whose status claims went stale was
   *demoted*, not edited — kept as `docs/README-historical.md`, labelled historical (`apps/host/README.md:12`).
-Borrow: consumed for the dry-run (`Models/ModelDownloadDTO.swift` `DownloadPlan` + probe 36); integrity
-  checking of runtime-fetched artefacts is still open.
+Borrow: consumed for the dry-run (`Models/ModelDownloadDTO.swift` `DownloadPlan` + probe 36). This row's other
+  half — "integrity checking of runtime-fetched artefacts is still open" — was stale as written; the honest
+  shape is **route-named**. Bytes we fetch ourselves are re-hashed against the digest the hub declared (size
+  compare when it declares none; a cache hit is trusted as found, the trade ollama takes), pinned by
+  `DownloadIntegrityTests`(10) + probe 43 — `Models/ModelScopeDownloader.swift:1136-1144`, compare at `:1165`.
+  What is genuinely open is the `hf:` route, where the bytes arrive through upstream `HubClient`
+  (`Engine/MLXBridge.swift:33-34`), whose file record carries an ETag for caching and no weight digest
+  (`.build/checkouts/swift-huggingface/Sources/HuggingFace/Hub/File.swift:11`) — § Upstream's to carry, not a
+  second local hasher.
 
 - `MTPLX` — MTP speculative decoding for MLX
 Contains: MTP drafter/acceptance behaviour against our `_runInferenceWithMessages` →
@@ -161,8 +196,9 @@ Contains/Borrow: touched, mostly out of stack for a Swift-native engine; where t
 
 - `openclaw` — **the #1 repo in this category on GitHub** (393 709 stars 11-02, launched 2025-11-24 at
   1 163/day), TypeScript + 1,596 Swift — and not
-  even the only native Apple app here (mlx-serve, MTPLX, omlx ship `@main … App` shells; all four gate their
-  GUI harder than we do). What its headline is made of — first-screen privacy contract, install machine,
+  even the only native Apple app here (mlx-serve, MTPLX, omlx ship `@main … App` shells and all four gate their
+  GUI harder than we do; `Rapid-MLX` ships a fifth behind an explicit `main.swift`
+  (`apps/rapid-mac/Sources/Rapid/main.swift:7`) — a hand-typed list, so read it as a floor, not a census). What its headline is made of — first-screen privacy contract, install machine,
   appcasts, channels, skills — is itemised in `docs/agent/adoption-runbook.md`; it also states the
   load-bearing line for our wedge: local models are **plugins it swaps**, not a rival it builds. Two of its
   120 workflows have no analogue here: `maturity-scorecard.yml` publishes a maturity score generated from
@@ -287,6 +323,27 @@ Borrow: axis, **no home here today** — measured absence: disk skills load only
   only through an endpoint built in-process (`MCP/MCPBridge.swift:941` → `MCP/MCPStdioClient.swift:247`).
   Re-read this entry the day we add workspace-scope MCP, hooks or skills.
 
+- `cline` — **the 27th tree: cloned here since the corpus began, never registered until 11-04** (the row that
+  falsifies this file's last completeness claim — § *How to use* 2). TypeScript monorepo, 71 277 stars,
+  82 commits in 14 d against **855 tags**, four publish legs (`cli-`/`desktop-`/`sdk-publish.yml`,
+  `ext-vscode-publish.yml`), install by npm, VS Marketplace and JetBrains (`README.md:51`, `:80`, `:92`),
+  13 per-provider config pages under `docs/provider-config/`; tracker open with 1 757 issues.
+Contains: (1) **the agent published as an SDK** — `sdk/packages/{shared,llms,agents,core,sdk,ui}` carrying its
+  own `AGENTS.md`, `ARCHITECTURE.md`, `CHANGELOG.md` and a publish leg, so another product embeds the engine
+  instead of hosting it: opencode's codegen rung reached from the other end. (2) **an eval board that says it is
+  half-off** — "Smoke tests (Layer 2) are partially disabled while the eval framework is repointed at the new
+  SDK CLI", the scenarios kept and the command still run against whatever `cline` is on `$PATH`, the regression
+  workflow left off until someone wires the build (`evals/README.md:5`) — invariant 2 applied to a scoreboard,
+  which is the failure our board's `tools[]` row is about. (3) **known-reds named inside the injected ruleset**:
+  two tests whose failure is a cloud-env artefact are written into `AGENTS.md:14-15` with the cause and the
+  instruction not to chase them; ours lives one hop out in `docs/agent/build-gate-reality.md` instead of in the
+  model's context. (4) **intake defended against agents** — `repo-strip-agent-badges.yml` and
+  `repo-delete-agent-promo-comments.yml` are the only workflows in this corpus that treat AI-generated noise on
+  the issue tracker as the surface it is.
+Borrow: axis, **no home here today** — we ship no SDK, no package-manager or marketplace route (a DMG and a
+  source build: `README.md:23`, `:35`), and nothing machine-defends our intake. Re-read the day we publish a
+  client or open intake; (3) already has a home.
+
 - `SWE-bench` — `princeton-nlp/SWE-bench`, Python benchmark harness, registered 11-03 (HEAD `02e7a74`,
   09-02); the big sibling of our own `scripts/eval/`
 Contains: a vacuity floor argued in our own words — `SUITE_RAN` (`swebench/harness/grading.py:31`) demands
@@ -329,8 +386,10 @@ owner download decision plus an upstream QSA/N-gram port — not gate work.
 
 - `Qwen3.8` — the **series umbrella** (`QwenLM/Qwen3.8`, five tracked files: README, LICENSE, two issue forms,
   `inactive.yml`; HEAD `2ea10dc`, 08-17, 0 commits in 14 d). Registered 11-04 because the tree has been cloned
-  here since the corpus began and no row admitted it — 26 on disk, 26 rows here, counted by the P1 scan.
-  Sibling of the row above: that one is a flagship's tech report, this one is what the family promises.
+  here since the corpus began and no row admitted it. The completeness sentence it wrote, and why the scan it
+  cited could not see a missing row, live once in `comparator-consensus.md` § What the corpus did not know
+  about itself (one home). Sibling of the row above: that one is a flagship's tech report, this one is what the
+  family promises.
 Contains: the vendor's own acceptance framing — the series is "designed to carry complex, multi-step tasks
   through to completion with greater reliability" (`README.md:19`), scored as "better handling of environment
   feedback" (`:23`) — the four axes of `long-horizon-goal.md` restated by whoever trains the model our board
@@ -343,17 +402,16 @@ Borrow: `preserve_thinking` is the vendor's name for the cost § Open's thinking
 
 1. Where a tree has the answer, cite `file:line` rather than authoring a local variant, and land the change
    with its upstream line, our line, and the gate that goes red on regression.
-2. Refresh with the one-liner above, and re-derive the coupling set by hand, both ways (§ header): **ten** of
-   the 24 comparator trees had zero *name* coupling on 11-04 — MTPLX, TensorFold, Strata, harness2, opencode,
-   claude-code, qwen-code, SWE-bench, OpenHands, Qwen3.8-Flash-Next — so a row left "named, unused" is
-   decoration *unless* the row itself says "axis only, no home here today" (five of the ten do). Under the
-   stricter **cite** measure, 19 of 24 are zero and only `vllm`, `sglang`, `omlx`, `deepseek-harness` and
-   `codex` carry one — `mlx-serve` is in the 19 while carrying the wedge of `long-horizon-goal.md` § Rung zero
-   4, because a row can be load-bearing in `docs/` and still unmentioned in `Sources/`. (The list once read
-   *seven* while its own command said ten — `CHANGELOG.md` 11-04(3); the durable lesson is in
-   `competitor-iteration-paths.md` § What that gate does not see.)
-3. **A resolved cite is not a verified claim.** 11-04 read 64 cites here and in
-   `competitor-iteration-paths.md` off their current mirrors: no claim about what a tree does was false, five
-   positions were stale, and one had become a blank line every gate passed. Which instrument sees which half,
-   and why the answer is an inline quote rather than a second scanner: `competitor-iteration-paths.md` § What
-   that gate does not see.
+2. Re-derive coupling both ways (§ header) **from the disk's tree list**, with `-w` on the name measure — bare
+   `pi` matches `Float.pi` (458 files) and bare `cline` matches "decline" (7), so the count is wrong in both
+   directions without it. The dated counts, the trees that score zero, and why this instruction has twice
+   disagreed with its own command are a self-measurement with a denominator, so they live once in
+   `comparator-consensus.md` § What the corpus did not know about itself (bullet 5).
+3. **A resolved cite is not a verified claim.** 11-04 read 64 cites here and in `competitor-iteration-paths.md`
+   off their mirrors: no claim about what a tree does was false, five positions were stale, and one had become a
+   blank line every gate passed. Which instrument sees which half, and why the answer is an inline quote rather
+   than a second scanner: `competitor-iteration-paths.md` § What that gate does not see.
+4. **This file answers "what does tree X hold". A claim that the *field* does Y is a different question with a
+   different denominator**, so it does not live here: `scripts/comparator-consensus.sh` measures it off the
+   same mirrors and `comparator-consensus.md` holds the verdicts. Adding a tree? Add it to the disk, not to a
+   typed list, and both instruments pick it up.

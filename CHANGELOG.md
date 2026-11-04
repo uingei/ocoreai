@@ -9,6 +9,58 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-04
 
+**11-04(5) The corpus read for consensus: a 28th tree that ships our own sentence, three counts that were counting the right word in the wrong role, and the harness side already built — on their side**
+
+- **What improved.** The round read all 28 mirrors for what the *field* agrees on, which is a different question
+  from "what does tree X hold" and so got its own instrument and its own file: `scripts/comparator-consensus.sh`
+  scores 29 mirrors (the 28 plus us) by one set of patterns, and `docs/agent/comparator-consensus.md` holds the
+  matrix and the verdicts while `comparator-repos.md` keeps per-tree detail (one home per question, and the
+  question decides the home). Five findings:
+  **① `Rapid-MLX` is the 28th tree and the nearest neighbour we have**: an Apache-2.0 MLX server for Apple
+  silicon, OpenAI + Anthropic wire, "focused on reliable tool calling for coding agents" (`README.md:13`), first
+  screen `rapid-mlx launch <agent>` (`README.md:7`), 4 097 stars since 02-25, 290 tags, and a 332-file SwiftUI
+  app bundling the engine as a sidecar. It also *consumes* two trees that are comparators to us (TensorFold in
+  `rapid_mlx/speculative/`, and 10 of the 28 trees we track ship as configs in its `agents/profiles/`).
+  **② cadence is a decision, not a capacity limit**: against it we run 523·241 commits to its 771·535 and
+  **1·0 tags to its 29·22**, and 21 of the 23 installable comparators minted a tag in the last 30 days — the
+  field's own number, printed next to ours by one command. **③ the harness side is already built**: 6 of the 7
+  serving trees wire a third-party coding agent to themselves, 5 in product code (`ollama` has a `Runner` per
+  agent, `cmd/launch/claude.go:15`; `mlx-serve` scans `PATH` through a *login* zsh so nvm/asdf resolve as the
+  user's terminal sees them, `CLILauncher.swift:4-10`; `omlx` ships an integrations screen; `splash` writes
+  client configs from its installer; `Rapid-MLX` renders its Launch page off a decoded registry,
+  `IntegrationCatalog.swift:3-12`). We score nothing on that axis. **④ confinement**: the axis first printed 8/14
+  agent trees sandboxing and `OC_EVIDENCE` showed the right word in the wrong role — goose's hit is
+  `CreateJobObjectW`/`KILL_ON_JOB_CLOSE`, killing a tree is not confining it
+  (`shell_process.rs:100`), pi's/vllm's/sglang's are comments about someone else's seccomp policy; the honest
+  count is 5/14, and where it exists it is at the boundary that runs *other people's* code — TensorFold spawns
+  the MCP child under `/usr/bin/sandbox-exec -p <profile>`, **refuses** when no profile can be built while
+  naming the way out, and carries `sandboxed: true|false` in the spec
+  (`app/electron/agent/mcp-process.ts:173-186`); Rapid-MLX declines to grade an agent it cannot confine
+  (`scripts/benchmark_glm53_real_tasks.py:226-228`). Filed as two precedents on the child-environment open item;
+  **no guard written**. **⑤ heat ranks nothing**: every axis printed present = edited-now, so the trend reading
+  that matters is the minority-and-unanimously-worked pair (confinement 5/14 with 5/5 editing, harness wiring 6/7
+  with 6/7), plus one dormancy — `MTPLX` fell 827 → 0 commits, so our MTP lane has no active sibling to read.
+- **What same-session output proves it.** The sweep header (`mirrors: 29`), the tag count from
+  `git for-each-ref refs/tags --format=%(creatordate:unix)` per tree, and `-w`-pinned re-derivation: **twelve**
+  trees zero name coupling, **21 of 28** zero cite coupling (`cline` scored 7 without `-w`, from "decline", so the
+  registry's own sentence was right only by accident). `OC_EVIDENCE=1` is what caught ④ and is now in the script
+  for the next one, along with `-u` — a minutes-long instrument that block-buffers stdout looks dead, and a
+  reader who cannot watch it either kills it or starts a second. One stale cite died: the vLLM OpenAPI-off site
+  written as `cli/preload.py:74` resolves to nothing (it is `vllm/entrypoints/cli/preload.py:74`).
+- **Which gate goes red on regression.** `make docs-check`, and it was **red on arrival with 4 violations, two of
+  them inherited from the uncommitted half of this work** (a doc naming `AGENTS.override.md`, which is a loader
+  constant and not a file, and a new guide with no root routing row) — a suite nobody ran is not green, which is
+  the rule this entry is supposed to be an example of. Now green: B2's figure table moved with its decision to
+  the consensus file and went red on the numbers *my own root cut* changed (chain 32 753 → 32 743, headroom
+  15 B → 25 B), so the row was re-measured rather than re-asserted; P2 on the phantom path; P7/P9 for the new
+  guide (named in root § Upstream 5, tracked); P12 on a `§` ref whose heading carried a comma. Area cap raised
+  **36 221 → 37 892**, the eighth, cut first by ~2.3 KB — the context-economy table, the coupling counts and the
+  P1-completeness story left `comparator-repos.md` for the file that owns their denominators. B1: root
+  21 443/21 461 after paying for the routing token and taking more back, including root's own `v0.1.14`, which
+  its next sentence forbids re-typing. The two raises this lands are the script's `RAISED 11-04(5)` and
+  `RAISED 11-04(6)`; the diary files them as one entry because the first half never got committed, so never got
+  one. No file under `Sources/` or `Tests/` changed, so nothing here builds or tests: no code claim is made.
+
 **11-04(4) The corpus read end to end: one child-process finding proved on this box, one tree's second axis registered, four registry cites re-anchored**
 
 - **What improved.** All 26 mirrors inventoried (HEAD, 14-day churn), the trees whose rows were thin read at the
