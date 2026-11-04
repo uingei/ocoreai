@@ -1,7 +1,7 @@
 # Who stood alone, who copied whom — the field's innovations, counted by diffusion
 
 Long form beside `comparator-consensus.md` (**does the field agree on Y**) and `comparator-evolution.md`
-(**where is its effort going now**). This file answers the fourth of those questions — 创新 — and neither of
+(**where is its effort going now**). This file answers the fourth of them — **innovation** — and neither of
 those two can: **what does a tree do that nobody else does, and did it spread.** Agreement and effort both count
 trees; an innovation is a mechanism that starts in one tree and either dies there or becomes the consensus
 row. A field-wide table cannot see that shape at all, which is why it needs its own instrument and its own
