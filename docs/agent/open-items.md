@@ -313,4 +313,10 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   box has toggled that channel off; likelihood = deterministic once the key exists, not a race; cost = three small
   decisions at one gate (`captureGate` plus the response builder), each with a shipped shape above and none of them a
   new subsystem. Not claimed: that any caller has done this — no consumer has a name here, which is why this is an
-  address and not a diff.
+  address and not a diff.- **The per-guide byte cap does not reach the two largest docs in the repo** (scripts/eval/, scripts/probes/) —
+  `scripts/agents-md-contract.sh:258-261` builds the capped set from four globs (`Sources/**` + `Tests/**` +
+  `docs/**` AGENTS.md, plus `docs/agent/*.md`) at 38 945 B, so `scripts/eval/README.md` (77 077 B) and `scripts/probes/README.md` (54 644 B) are uncapped and are
+  3–8× the peer norm for a dev-tooling README (~9–26 KB across the 14 peers that have one; one 385 KB outlier).
+  Both stayed on the 11-05 deletion pass, and for the invariant-1 reason: they are the declared single home of the
+  noise band, set size and paired-flip floor. Owner call: extend the cap to tooling READMEs, or record that it
+  deliberately does not reach them — the silence is what makes the two numbers unreadable as either normal or not.
