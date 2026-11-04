@@ -79,6 +79,31 @@ comparators, **21 minted at least one tag in the last 30 days**; we minted one i
 trend). And the practice we are behind on that the field holds near-unanimously (auto-update 21/24, an install
 route 21/24) is the one root already calls the open item — now measured instead of asserted.
 
+## Where the field disagrees
+
+Agreement is the headline; the useful signal often sits where the trees split. Four divergences worth a
+direction, each with its own evidence (the rest are pointers to sections that already hold them, because a
+second home for a decision is the thing this corpus keeps catching):
+
+- **How long a warm prefix is allowed to live** — the axis is 7/7 present and 7/7 being edited, so everyone
+  agrees on reuse and disagrees on its lifetime. `omlx` runs a cold tier on disk (`PagedSSDCacheManager`,
+  `../references/omlx/README.md:402`, safetensors); `Rapid-MLX` writes its radix cache on shutdown and re-imports
+  it at startup, guarding the swap so a torn snapshot cannot replace an importable one
+  (`../references/Rapid-MLX/rapid_mlx/routes/cache.py:583-592`, its own claim at `README.md:78`); `mlx-serve`
+  names a process-lifetime prefix cache and caps it on RAM-tight Macs
+  (`../references/mlx-serve/docs/performance.md:65`); we persist per
+  *session* — written on eviction, re-read on a cold pool miss (`Engine/SessionPool.swift:1179`, `:1253`, the
+  rule stated at `:20`) — so a session that was never evicted has no snapshot and its warm prefix dies with the
+  process, and no reuse crosses a session or a model. Nobody here is measured to be right;
+  the divergence is the honest state of the art, and our choice is the one that matches a per-session product.
+- **Whether the ruleset is a chain or an org chart** — § The injected ruleset: four trees load a ruleset bigger
+  than their own loader's cap, and `Rapid-MLX` sidesteps the ladder entirely with one 19 438 B role roster.
+- **Whether a served contract is a feature** — § Where we are ahead: vLLM builds its app with
+  `openapi_url=None`, sglang keeps an env switch, we generate and commit the file. The split decides whether a
+  generated client is a bet or a catch-up.
+- **Whether the child gets confined** — § Where the field confines a child: it tracks whose code the child runs,
+  not how careful the authors are.
+
 ## The harness side is already built, on their side
 
 Re-derive: the axis `wires a third-party coding agent to itself (code)`, serve segment, or

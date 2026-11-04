@@ -27,7 +27,13 @@ heading are when the work landed (measured from git).
   ANE pairing, so "codes" is now stated as table stakes rather than as a wedge; **rung 6**'s harness-launch shape
   is re-counted from four trees named by hand to **five of the seven serving trees in product code**, with
   Rapid-MLX as the fullest instance (17 profiles, reversible private profile, a merge whose docstring names the
-  two ways a naive merge destroys the user's own entries).
+  two ways a naive merge destroys the user's own entries). Same sitting, the brief's last dimension: the
+  consensus file gained **§ Where the field disagrees**, whose sharpest split is on our hottest axis — every
+  serving tree reuses a prefix and they disagree on how long it lives (omlx's SSD cold tier `README.md:402`,
+  Rapid-MLX's save-on-shutdown with a torn-snapshot guard at `rapid_mlx/routes/cache.py:583-592`, mlx-serve's
+  process-lifetime cache `docs/performance.md:65`, ours written on eviction and re-read on a cold pool miss,
+  `Engine/SessionPool.swift:1179`, `:1253`). Ours is the per-session choice; it matches a per-session product
+  and is stated as a choice, not a win.
 - **What same-session output proves it.** The three greps that turned "no edit, no shell, no repo tool anywhere"
   into `:314 from .action_tools import execute_code, patch, terminal, write_file`; `grep -c ToolSpec(` → 12; the
   `REGISTRY` span read at `:318-331` line by line; `Policy(risk=…, reason="Workspace file change with an undo
