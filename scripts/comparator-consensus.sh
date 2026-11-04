@@ -342,6 +342,91 @@ for name, kind, seg, pat, filt, trended in AXES:
             for t in sorted(in_seg + (["ocoreai"] if per.get("ocoreai") else [])):
                 print("      %-18s %s" % (t, evidence(t, kind, pat, filt)[:150]))
 
+# ── what the field's own release ledgers say ─────────────────────────────────────────────────────
+# Churn says where effort is going NOW; a per-version ledger is a tree's own statement of what it
+# shipped and in WHICH ORDER — the only source in this corpus that carries sequence, and the only one
+# written for a stranger to read before installing. Two facts about it are the finding, not the verb
+# mix: most trees publish none, and where one exists the ledger is mostly a list of things that broke.
+VER_HEAD = re.compile(r"^#{1,3} +v?(?:0|[1-9]\d*)\.\d+(?:\.\d+)?\b", re.M)
+VERB = re.compile(r"^(Added|Fixed|Improved|Changed|Removed|Reduced|Updated|Deprecated|Breaking)\b")
+BULLET = re.compile(r"^\s*[-*] +(.+)$", re.M)
+# Ordered by when the most-installed coding agent first wrote them down (§ The field's own ledgers).
+LEDGER_AXES = [
+    ("permissions / approval", r"permission|approv|consent|trust"),
+    ("MCP / connectors", r"\bmcp\b|connector"),
+    ("model / effort / thinking", r"effort|thinking|reasoning|opus|sonnet|haiku"),
+    ("compaction / memory", r"compact|memory|summar"),
+    ("context / token budget", r"context window|token budget|context usage|overflow"),
+    ("tests / evals", r"\btest\b|\beval|\bbenchmark"),
+    ("update / install", r"\bupdate\b|install|brew|npm"),
+    ("headless / SDK", r"headless|agent sdk|\bsdk\b"),
+    ("plan mode", r"plan mode"),
+    ("hooks / mods", r"\bhook\b|\bmod\b|\bmods\b"),
+    ("subagents / background", r"subagent|background|workflow"),
+    ("plugins / marketplace", r"plugin|marketplace"),
+    ("sandbox / confinement", r"sandbox|seatbelt|confine"),
+    ("skills", r"\bskill"),
+    ("remote / cloud sessions", r"remote|cloud session|self-hosted"),
+    ("localization", r"i18n|locale|translat|localiz"),
+]
+print("\n── release ledgers — what each tree tells a stranger it shipped ──")
+labelled, no_ledger = [], []
+for t in sorted(trees):
+    # `ls-files` has no --ignore-case and `-i` there means --ignored (it errors on a bare pattern),
+    # so case-insensitivity comes from grep-equivalent filtering in Python, not from a git flag.
+    paths = [l.strip() for l in sh(where(t), ["ls-files", "-c"]).split("\n")
+             if "changelog" in l.lower() and l.strip().lower().endswith(".md")]
+    if not paths:
+        no_ledger.append(t)
+        continue
+    body, best = "", ""
+    for rel in paths:
+        try:
+            txt = open(os.path.join(where(t), rel), encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        if len(VER_HEAD.findall(txt)) > len(VER_HEAD.findall(body)):
+            body, best = txt, rel
+    nv, bl = len(VER_HEAD.findall(body)), [m.group(1) for m in BULLET.finditer(body)]
+    mix = collections.Counter(m.group(1) for x in bl for m in [VERB.match(x)] if m)
+    if sum(mix.values()) < 40:
+        print("   %-17s %-22s %3d versions  %5d bullets  (free-form: %d verb-labelled)"
+              % (t, best[:22], nv, len(bl), sum(mix.values())))
+        continue
+    labelled.append((t, best, nv, bl, mix, body))
+    n = sum(mix.values())
+    print("   %-17s %-22s %3d versions  %5d bullets  Fixed=%d%% Added=%d%% Improved=%d%%  fix:add=%s"
+          % (t, best[:22], nv, len(bl), 100 * mix["Fixed"] // n, 100 * mix["Added"] // n,
+             100 * mix["Improved"] // n,
+             ("%.1f:1" % (mix["Fixed"] / mix["Added"])) if mix["Added"] else "no Adds"))
+print("   trees publishing NO changelog: %d/%d — %s" % (len(no_ledger), len(trees), ", ".join(no_ledger)))
+SMALL_N = 4
+if len(labelled) < SMALL_N:
+    print("   <<SMALL-N: only %d verb-labelled ledgers exist, so any share below reads one big tree"
+          " plus two — it is NOT a field consensus>>" % len(labelled))
+big = max(labelled, key=lambda r: r[2]) if labelled else None
+if big:
+    t, best, nv, bl, mix, body = big
+    heads = [m.start() for m in VER_HEAD.finditer(body)] + [len(body)]
+    # A ledger is written NEWEST-first, so the segment list is reversed before anyone is told which
+    # release came "first" — the first port of this block skipped that and reported the newest release
+    # as release #1, which made every axis look like it shipped on day one.
+    segs = []
+    for i in range(len(heads) - 1):
+        segs.append([m.group(1) for m in BULLET.finditer(body[heads[i]:heads[i + 1]])])
+    segs.reverse()
+    print("   first release to record each axis, in %s (%d releases, oldest first):" % (t, len(segs)))
+    seq = []
+    for name, rx in LEDGER_AXES:
+        pat = re.compile(rx)
+        pos = next((i for i, s in enumerate(segs) if any(pat.search(x) for x in s)), None)
+        rel = sum(1 for s in segs if any(pat.search(x) for x in s))
+        nb = sum(1 for s in segs for x in s if pat.search(x))
+        seq.append((pos if pos is not None else 10 ** 6, name, rel, nb))
+    for pos, name, rel, nb in sorted(seq):
+        print("      %-26s %s %-5s then %3d/%d releases, %4d bullets"
+              % (name, "at #%d" % (pos + 1) if pos < 10 ** 6 else "never  ", "", rel, len(segs), nb))
+
 if os.environ.get("OC_NO_TREND") == "1":
     raise SystemExit(0)
 
@@ -391,7 +476,14 @@ for name, kind, seg, pat, filt, trended in AXES:
 BUCKET = [
     ("loop/context",    r"(^|/)(context|compact|summar|memory|session|rewind|fork|history|token|budget|prompt)"),
     ("tools/skills",    r"(^|/)(tool|function|parser|skill|mcp|extension|plugin)"),
-    ("authority",       r"(^|/)(permission|approval|approv|sandbox|guard|polic|security|consent|trust|review)"),
+    # Split 11-04: one "authority" bucket conflated two mechanisms with opposite verdicts — approval
+    # (a shipping agent's most-edited axis, per the ledgers) and OS confinement (shipped, quiet). A
+    # pattern that answers two questions prints one number and invites the wrong reading of both.
+    ("approval",        r"(^|/)(permission|approval|approv|consent|trust|review)"),
+    # `guard` is deliberately NOT here: codex's `core/src/guardian/` is its APPROVAL subsystem
+    # (approval_request.rs, permissions.rs, decision.rs, score_authorization.rs), so matching it under
+    # confinement moved 7 % of the hottest tree's churn onto the wrong mechanism.
+    ("confinement",     r"(^|/)(sandbox|seatbelt|jail|landlock|seccomp)"),
     ("orchestration",   r"(^|/)(subagent|sub_agent|orchestrat|swarm|team|task|delegat|routing|plan)"),
     ("meas/tests",      r"(^|/)(eval|bench|scorecard|probe|metrics|trace|judge|test)"),
     ("surface",         r"(^|/)(ui|app|web|chat|view|screen|channel|integrat|desktop|front|components|page)"),
@@ -408,6 +500,8 @@ BUCKET = [
 # `packages/sandbox/*` were matching it the whole time. Big denominators squash shares; they do not
 # mean absence. So the tally may use a share, and the vacuity check uses a FILE COUNT of zero.
 FLOOR_SHARE = 10
+SRC_EXT = (".swift", ".py", ".ts", ".tsx", ".js", ".mjs", ".cjs", ".go", ".rs", ".c", ".cc", ".cpp",
+           ".h", ".hpp", ".java", ".kt", ".rb", ".php", ".cs", ".scala", ".sh", ".m", ".mm")
 seg_agent = [t for t in SEG["agent"] if t != "ocoreai"]
 print("\n── agent-tree churn — %d d, touch-weighted, buckets non-exclusive ──" % trend_days)
 print("%-17s %-7s %-6s %s" % ("tree", "touch", "files", "top dirs | every bucket share | unmatched"))
@@ -420,6 +514,13 @@ for t in sorted(seg_agent, key=lambda x: -len(chg[x])):
         continue
     tc = changed_touches(t, trend_days)
     tot = sum(tc.values())
+    # Churn presumes the mirror HOLDS THE IMPLEMENTATION. `claude-code` does not: 1 383 of its 1 473
+    # tracked files are mods, so its churn measures docs and plugins while its CHANGELOG describes an
+    # engine nobody here can read. Flag the premise rather than letting a docs mirror vote on effort.
+    tracked = [f for f in sh(where(t), ["ls-files", "-c"]).split("\n") if f.strip()]
+    src = sum(1 for f in tracked if f.lower().endswith(SRC_EXT))
+    src_pct = (100.0 * src / len(tracked)) if tracked else 0.0
+    flag = "" if src_pct >= 25 else "  <<docs mirror: %d%% source — churn cannot see its engine>>" % src_pct
     dirstat = collections.Counter(
         "/".join(p.split("/")[:2]) if "/" in p else p for p in tc.elements()).most_common(3)
     # One regex pass per (file, bucket), cached: the shares and the unmatched residual must come from
@@ -436,7 +537,7 @@ for t in sorted(seg_agent, key=lambda x: -len(chg[x])):
     unmatched = sum(tc[f] for f in files if not any(flags[f]))
     tops = " ".join("%s:%d%%" % (d, 100 * c // tot) for d, c in dirstat)
     bs = " ".join("%s=%d%%" % (k[:4], int(v)) for k, v in sorted(hit, key=lambda x: -x[1]))
-    print("%-17s %-7d %-6d %s" % (t, tot, len(uniq), tops[:34]))
+    print("%-17s %-7d %-6d %s%s" % (t, tot, len(uniq), tops[:34], flag))
     print("%-17s %-7s %-6s %s  unmatched=%d%%" % ("", "", "", bs, 100 * unmatched // tot))
     for p, n in tc.most_common(3):
         print("%-17s %-7s     hottest: %-4d %s" % ("", "", n, p[:70]))

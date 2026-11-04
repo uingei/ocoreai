@@ -9,6 +9,43 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-04
 
+**11-04(8) Asked whether the CHANGELOGs had been read — they had not; the deepest one refuted two claims from the round before it**
+
+- **What improved.** Asked point-blank whether `~/references/claude-code/CHANGELOG.md` had been studied for 演进, the
+  honest answer was no: the round before counted how often that file was *edited* (54 touches, its tree's hottest)
+  and never read what it says. It is now read, measured and instrumented — **436 versions, 8 668 bullets, 1.15 MB**,
+  and the only source in this corpus carrying *sequence* rather than a 60-day slice. New ledger block in
+  `scripts/comparator-consensus.sh` (walks each tree's tracked `*CHANGELOG*`, splits the largest into releases,
+  prints verb mix, a `SMALL-N` warning, and the count of trees publishing nothing), and a new home for the time axis:
+  `docs/agent/comparator-evolution.md`, split out because both cuts pushed `comparator-consensus.md` 5 278 B past its
+  per-file cap and the alternative was deleting measured evidence to fit a number no loader charges.
+- **What the ledger says, and what it cost me.** Fix:ad 5.7 : 1 over all 8 668 bullets (`cline` 2.7 : 1, `opencode`
+  0.4 : 1 — the ratio tracks age, not diligence; 3 verb-labelled ledgers in 29 trees, so it is not a consensus and
+  the script prints `SMALL-N`). First-recorded order over 436 releases: **approval #2**, MCP #4, compaction #11,
+  context budget #30, install #42, hooks #67, subagents #75, plugins #127, **sandbox and skills together at #136**,
+  remote #179, **locale #429**. Two claims from an hour earlier died on that: "language coverage is where the field
+  is spending" (this tree records locale twice, first at #429 — it is a *split*, now § Direction 7) and "authority is
+  the settled axis" (approval is 1 314 of 8 668 bullets = 15 %, and **16 % of the newest 625**: flat across the whole
+  life of the product).
+- **Why churn said the opposite — the reusable part.** A path share can only see a mechanism whose *filename*
+  carries it. `codex` proves the limit rather than escaping it: the one tree that gave its approval subsystem its own
+  directory (`core/src/guardian/` — `approval_request.rs`, `permissions.rs`, `score_authorization.rs`) spends that
+  churn in the directory's `tests.rs`/`mod.rs`/`runtime.rs`, so the bucket reads 2 % against a lifetime 15 %. So the
+  bucket is split (`approval` / `confinement`), `guard` came out of the confinement pattern (it was matching
+  `guardian/`, moving approval work onto the *opposite* mechanism), and the surviving statement is narrow:
+  confinement is quiet, approval is invisible to paths — a fact about the instruments, not about the field.
+- **Three porting bugs, every one of which exited 0.** A changelog is written newest-first and the port forgot
+  `segs.reverse()`, so "first release to record each axis" reported the newest release as #1 and made 15 axes look
+  like day-one features; the largest-ledger loop leaked `body` into the ladder and printed claude-code's name over a
+  2-release file; and `git ls-files -ci` is `--ignored`, not `--ignore-case`, so the scan silently found nothing.
+  Filed in § The ledger with the fix for each: carry label and data in one tuple, print the premise beside the
+  number, and open one file before quoting a bucket.
+- **Which gate goes red.** No new gate — a cross-tree count is a direction input and no runner has `~/references`.
+  The self-checks are the printed ones: `SMALL-N`, `INSTRUMENT-DEAD`, the per-tree `unmatched` residual, and the new
+  docs-mirror flag (< 25 % source; `claude-code` *passes* it on 1 353 `.ts` files under `mods/`, so the real limit
+  stays in prose — that mirror is the mod SDK and the issue surface, not the engine). `make docs-check` +
+  `make anchor-check` green after the split; 5 278 B moved, nothing deleted.
+
 **11-04(7) What coding agents are evolving into, counted by touches instead of by trees — and the mirror says our two hottest files are the diary and the rules file**
 
 - **What improved.** Asked for the *evolution* consensus rather than the practice consensus, heat could not answer
