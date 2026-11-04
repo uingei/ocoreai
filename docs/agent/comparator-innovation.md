@@ -211,7 +211,8 @@ counts.** Both are **off until someone says otherwise** and both refuse by name 
 success: ours is a user-facing toggle that starts `false` (`UI/Models/MultimodalState.swift:42,51`) and a capture leg
 that answers from the *measured* permission instead of opening a modal nobody on a headless box can click
 (`Sources/ocoreai/Handlers/MultimodalHandler.swift:275-295`), with `success` derived from bytes actually coming back
-(`:8-13`); theirs is a server-side env opt-in — *"Screenshots are sensitive and require an explicit server opt-in"*
+(`:8-13`); `Rapid-MLX`'s is a server-side env opt-in — *"Screenshots are sensitive and require an explicit server
+opt-in"*
 over `env_truthy("RAPID_MLX_CUA_EXPOSE_SCREENSHOTS")` (`rapid_mlx/routes/cua.py:429-431`) — answering
 `screenshot_disabled` 403 with a `recovery` array when it is off (`:925-936`), and a named `permission_denied` before
 a frame is ever attempted (`:938-948`). Then it does three things we do not: **caps** one frame at 4 MiB and answers

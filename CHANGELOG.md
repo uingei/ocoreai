@@ -9,25 +9,36 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-05
 
-**11-05 The spell gate had been red on `main` since yesterday, and its four hits were two different kinds**
+**11-05 Two push-path gates had been red on `main` since `e0ebbcc`, because the round that landed never ran them**
 
-- **What improved.** `make round-gates` — the set this repo runs every round — was red on `main` before this
-  session touched anything: `e0ebbcc` added regex stems to `scripts/comparator-consensus.sh` and `make spell`
-  never ran, so the per-round gate carried a red that read as noise. Two kinds among the four hits, and only
-  one kind is a word. `summar` and `integrat` are churn stems that must match summary/summarization and
-  integrate/integration — the class `.codespellrc` already registers for the KV axis's `cach`, one home, same
-  reason: spelling a stem out narrows what the instrument can see. `changlog` was a typo *inside* a pattern
-  (`…|cmakelists|changlog|changelog|…`), matching nothing. Stems got their reason written down; the dead
-  alternative got deleted, because registering a typo is how a typo becomes a rule.
-- **What same-session output proves it.** `find ~/references -iname '*changlog*'` across all 28 comparator
-  mirrors returns nothing, so that alternation was provably dead and deleting it cannot move a bucket count.
-  `make spell` → `clean (codespell 2.4.3 over 793 tracked files + the root docs)`; `make links` green in the
-  same pass (30 outbound, 0 dead, 1 unanswered host).
-- **Which gate goes red if it regresses.** `make spell` is the gate, and it is the thing that was red — no new
-  one, since a registered stem is inert once a pattern stops using it. Said plainly rather than gated:
-  nothing re-checks that `summar` is still a stem anyone wants, so the narrowed-instrument failure lands on
-  the next comparator round that re-runs `scripts/comparator-consensus.sh`, not on a runner.
-- **Cost.** Two lines in a regex and a `.codespellrc` line; the round it unblocks is every future one.
+- **What improved.** Both reds are one finding twice: a gate that exists off the path taken. (i)
+  `make round-gates` was red before this session touched anything — `e0ebbcc` added regex stems to
+  `scripts/comparator-consensus.sh` and `make spell` never ran. Two kinds among its four hits, one kind a
+  word: `summar` and `integrat` are churn stems that must match summary/summarization and
+  integrate/integration, the class `.codespellrc` already registers for the KV axis's `cach` (one home, same
+  reason — spelling a stem out narrows what the instrument can see), while `changlog` was a typo *inside* a
+  pattern (`…|cmakelists|changlog|changelog|…`) matching nothing. Stems got their reason written down, the
+  dead alternative got deleted: registering a typo is how a typo becomes a rule. (ii) `make push-ready` runs
+  the docs contract under `OCOREAI_AGENTS_NO_HOST_REFS=1`, the runner's premise, and it named a cite from the
+  same commit: `docs/agent/comparator-innovation.md` holds a paragraph that calls its comparator "theirs" and
+  never writes the tree's name, so `rapid_mlx/routes/cua.py:429-431` resolves on this host, where
+  `~/references` exists, and is a dead pointer on a runner, where it does not. The rule is per-paragraph on
+  purpose (`scripts/agents-md-contract.sh:533-534` — "honest as long as EACH bullet says which tree it means,
+  and dishonest the moment one of them stays silent"), so the fix was the name in the paragraph, not another
+  allowlist entry: an exemption bought to avoid a word is how the gate becomes a habit of not looking.
+- **What same-session output proves it.** `find ~/references -iname '*changlog*'` across all 28 mirrors returns
+  nothing, so that alternation was provably dead and deleting it cannot move a bucket count. Runner-mode
+  before: 2 violations, both naming that one path, `make push-ready` Error 1 — while host-mode `make
+  docs-check` printed ✅ two minutes earlier, which is exactly the gap the mode exists to close. After: the
+  contract holds in both modes, `make spell` → `clean (codespell 2.4.3 over 793 tracked files + the root
+  docs)`, `make links` green (30 outbound, 0 dead, 1 unanswered host).
+- **Which gate goes red if it regresses.** The two that were red: `make spell`, and P2 of the docs contract in
+  runner mode, which is what found (ii) — CI runs the same mode, so this never reaches a runner as a new red.
+  No new gate: a registered stem is inert once a pattern stops using it, and nothing re-checks that `summar`
+  is still a stem anyone wants — that failure lands on the next comparator round that re-runs
+  `scripts/comparator-consensus.sh`, not on a runner, and saying so is the honest half.
+- **Cost.** Two lines in a regex, a `.codespellrc` line, one tree's name in one paragraph; the rounds they
+  unblock are every future one.
 
 **11-05 The drift contract was never broken — `make` was translating it, and the trap that closes the hole named a second one**
 
