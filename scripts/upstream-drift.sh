@@ -4,6 +4,9 @@
 # 用法：
 #   bash scripts/upstream-drift.sh          # 只读检查（不改文件）
 #                                            exit 0 = 基线以来 0 新 commit；exit 10 = 有新 commit 待裁决
+#                                            exit 1 = 检查没跑完（含被 trap 归一的中止）—— 不是「无漂移」
+#     只有这三个数。`make drift` 传不出它们：make 把任何失败配方改写成自己的 2（11-05 实测
+#     同一份判定：脚本 10，make 2），所以读码的自动化调本脚本，走 make 就读 stdout 的 `drift-exit=N`。
 #   bash scripts/upstream-drift.sh adopt                  # 把三源当前 HEAD 采纳为新基线（只改 state 文件）
 #   bash scripts/upstream-drift.sh adopt coreai-models    # 只采纳这一条轴，其余轴的窗口如实留着
 #     轴名写错直接 exit 1 —— 静默采纳 0 条轴看起来像「全部办完」，正是这类工具最贵的错。
@@ -20,8 +23,28 @@
 #     codex = 普通 comparator（11-03 业主裁定：不再是权威）。它的窗口照常打印，但不再置 DRIFT=10，
 #     所以一个未读的 codex 窗口不会把整次 `make drift` 判红 —— 红只欠两条真消费的轴。
 #   - 本机无 references/ clone → gh api 是正确通道，不依赖 git fetch
+#   - 退出码契约由 trap 执行，不由注释执行：见下面的 on_abnormal_exit。
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# 计划外的中止一律归一成 1（「检查未完成」），并打出现场。为什么必须有这条：
+# `set -e` 让脚本中途死掉时*带的是那条命令自己的数字*——python 崩是 2、SIGPIPE 是 141、
+# 命令找不到是 127——而本文只登记 0/1/10，读退出码的自动化就会把「没跑完」读成契约里的
+# 某个数（10-29 的 141 就是这么骗过每日自检的）。
+#
+# 不带 `-E`，且这是量出来的（11-05，bash 3.2.57 = macOS 自带的那个）：加了 -E 之后 trap 会
+# 继承进函数与命令替换，而 3.2 对「`&&` 左侧失败不算中止」这条例外做得不严——回落路径
+# `local_dir() { [ -d … ] && printf … ; }` 里那个假的 `[ -d ]` 也触发 trap，于是三条*被
+# `|| …` 咽下去、脚本照常跑完*的回落各自打出一行「计划外中止」。一行说反话的诊断比没有诊断
+# 更贵。顶层不加 -E 也照样归一：函数与 `$(…)` 的非零返回终归要在顶层那条命令上失败，那条
+# 命令正是 trap 看着的地方——代价只是现场打的是调用方那一行，不是里面那一行。
+on_abnormal_exit() {
+  local rc=$?
+  printf '!! 计划外中止 line %s：`%s` 退出 %s —— 不在契约（0/1/10）内，归一化为 exit 1\n' \
+    "${BASH_LINENO[0]:-?}" "${BASH_COMMAND:-?}" "$rc" >&2
+  exit 1
+}
+trap on_abnormal_exit ERR
 
 STATE=".upstream-baseline.json"
 NOW_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -356,6 +379,17 @@ if [ "$cmd" = "window-endpoint" ]; then
   exit "$rc"
 fi
 
+# 一条真实的顶层命令，以指定的数字失败——契约的另一半（未登记的码不得外流）只能在
+# 真命令上问，不能在注释里问。
+fail_with() { return "${1:-1}"; }
+
+# 测试缝：`abort-code <n>` 让上面那条以 n 失败，走的是主路径同一个 trap。
+# 期望恒为 1（而非 n）：trap 被删，这里就漏出 2/141/127 —— 已实测（删掉 trap 那行同一命令返回 2）。
+if [ "$cmd" = "abort-code" ]; then
+  fail_with "${2:-2}"
+  exit 0  # 不可达：trap 必须先接管，否则这条 exit 才是被测的面
+fi
+
 # 一条轴欠不欠一个红：0 = 我们真消费它（SPM pin、逐条吸收的 fork），未读窗口判红；
 # 非 0 = 普通 comparator，窗口只报告。11-03 业主裁定 codex 不再是权威（root § Upstream 5），
 # 于是它落到报告档；未登记的轴一律按欠债算 —— 新轴默认判红比默认放行便宜。
@@ -376,6 +410,38 @@ fi
 # 测试缝：裁定表本身（退出码契约的一半住在这里）。
 if [ "$cmd" = "axis-owed" ]; then
   if axis_owed "${2:-}"; then echo "owed"; else echo "report-only"; fi
+  exit 0
+fi
+
+# 一次轴的 subject 窗口 = 轴词粗筛的输入，是提示，不是判定：走到这里时 HEAD 与 ahead 都已读到，
+# 「⚠ 新窗口待裁决」那行已经落纸。11-05 实测一次 compare 读失败（api 限流）：那次中止由 trap 打出来
+# （`window="$(api ...)"` 在 `set -e` 下带走整个进程），10 被改写成 1，剩下两条轴一行没打 ——
+# 读码的自动化于是把「一条提示没读到」读成「检查没跑完」，而真正的待裁决窗口反而看不见。
+# 规矩同 resolve 的阶梯：失败的*读*自己认账并往下走，只有失败的*判定*才配改退出码。
+axis_window() { # axis_window <name> <repo> <src:api|clone> <base> <head>
+  local name="$1" repo="$2" src="$3" base="$4" head="$5" window="" rc=0 hits n
+  if [ "$src" = clone ]; then
+    window="$(local_msgs "$name" "$base" "$head" | sed -n '1,50p')" || rc=$?
+  else
+    window="$(api "repos/$repo/compare/$base...$head?per_page=50" messages 2>/dev/null \
+      | sed 's/\(.\{110\}\).*/\1.../' | sed -n '1,50p')" || rc=$?
+  fi
+  if [ "$rc" -ne 0 ]; then
+    printf '         窗口列表未读到（%s 通道的 subject 读退出 %s）—— 上面的判定不受影响；重跑，或先 fetch %s 再读\n' \
+      "$src" "$rc" "$name"
+    return 0
+  fi
+  n="$(printf '%s\n' "$window" | grep -c . || true)"
+  hits="$(printf '%s\n' "$window" | grep -icE 'approv|update.?plan|plan tool|hook|mcp|reasoning|tool.?call|sampling|kv|chunk|grammar' || true)"
+  echo "         轴词粗筛(提示,非权威): $hits / $n 条"
+  printf '%s\n' "$window" | sed -n '1,14s/^/           /p'
+  return 0
+}
+
+# 测试缝：让上面那条走一次*真失败*的读，不碰网络——把 clone 根指到一个空目录，
+# `local_msgs` 就以 1 失败，被测的是「点名并返回 0」而不是「提示失败不许改判定」这句注释。
+if [ "$cmd" = "window-read" ]; then
+  axis_window "${2:-no-such-axis}" "${3:-none/none}" clone "${4:-deadbeef}" "${5:-deadbeef}"
   exit 0
 fi
 
@@ -435,15 +501,7 @@ for pair in $REPOS; do
     fi
     # 窗口照旧打印：comparator 的窗口是「报告」，不是「欠债」——只是它不再决定退出码。
     if [ "$DRIFT" -eq 10 ] || ! axis_owed "$name"; then
-      if [ "$src" = clone ]; then
-        window="$(local_msgs "$name" "$base_full" "$head" | sed -n '1,50p')"
-      else
-        window="$(api "repos/$repo/compare/$base_full...$head?per_page=50" messages 2>/dev/null | sed 's/\(.\{110\}\).*/\1.../' | sed -n '1,50p')"
-      fi
-      n_commits="$(printf '%s\n' "$window" | grep -c . || true)"
-      hits="$(printf '%s\n' "$window" | grep -icE 'approv|update.?plan|plan tool|hook|mcp|reasoning|tool.?call|sampling|kv|chunk|grammar' || true)"
-      echo "         轴词粗筛(提示,非权威): $hits / $n_commits 条"
-      printf '%s\n' "$window" | sed -n '1,14s/^/           /p'
+      axis_window "$name" "$repo" "$src" "$base_full" "$head"
     fi
   fi
 done

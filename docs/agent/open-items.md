@@ -41,10 +41,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   n/a. The third pin axis is clean: `mlx-swift tag=0.33.0 pin=0.33.0`, 0 new. `coreai-models` is +1
   (`#404`, CI-only per its subject). Owner call is § Upstream 1's bump protocol, not an audit finding — but the
   MTP half deserves the same read as the acceptance row below, because a *resumable* drafter changes what that
-  gate would even measure. Instrument note, unrepaired: the same command printed the same verdict twice and
-  exited **10** then **2**, while `scripts/upstream-drift.sh:6` documents 0/1/10 only and the exit code is what
-  automation reads — worth five minutes, since `scripts/upstream-drift.sh:18` records this tool having already
-  bitten once on a stray exit 141.
+  gate would even measure. (The instrument note this row carried — one verdict, exit **10** then **2** — is
+  closed: `closed-items-log.md`.)
 - **MTP acceptance is threaded, unused as a signal, and its named suite gates nothing** (Engine/, Tests/) —
   found by reading, not by a scan. ① The counters are real: `proposedDraftTokens`/`acceptedDraftTokens`
   (`EngineEvents.swift:105`) are threaded at `EngineInference.swift:3432`, `:4229` and read by

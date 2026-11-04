@@ -20,6 +20,12 @@
 /// same day by two commits that edited six such mirrors in one window. The exit code is only honest if
 /// the verdict table is measured too, so which axes exist is read off `REPOS=` and which of them owe a red
 /// is asked through the `axis-owed` seam (codex reports only since the owner's 11-03 ruling, root § Upstream 5).
+///
+/// The third premise is the code set itself. A contract of three numbers is worth whatever stops a
+/// fourth from leaving: `set -e` hands out the *failing command's* number, and `make` hands out its
+/// own 2 for every failed recipe, so both layers had to be asked — the script through the
+/// `abort-code` seam, the target through `make -n` (11-05: one verdict, exit 10 from the script and
+/// exit 2 from `make drift`, read as a broken contract).
 
 import Foundation
 import Testing
@@ -289,6 +295,129 @@ struct UpstreamDriftWindowTests {
         p.waitUntilExit()
         return String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // MARK: - The exit-code contract is executed, not documented
+
+    /// Both streams, because the normalization is reported on stderr and a bare code cannot tell
+    /// a trap from a coincidence. Streams are drained before `waitUntilExit`, so a chatty run
+    /// cannot fill a pipe and park the test.
+    private static func run(
+        _ args: [String], exe: String = "/bin/bash"
+    ) throws -> (code: Int32, out: String, err: String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: exe)
+        p.arguments = args
+        p.currentDirectoryURL = try repoRoot()
+        let out = Pipe()
+        let err = Pipe()
+        p.standardOutput = out
+        p.standardError = err
+        try p.run()
+        let outData = out.fileHandleForReading.readDataToEndOfFile()
+        let errData = err.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return (
+            p.terminationStatus,
+            String(decoding: outData, as: UTF8.self),
+            String(decoding: errData, as: UTF8.self)
+        )
+    }
+
+    @Test("an unregistered exit code cannot leave the script — 2/141/127 all arrive as 1")
+    func abnormalCodesNormalizeToOne() throws {
+        // The script documents 0/1/10 and nothing else, yet `set -e` alone lets a mid-script death
+        // out with *the failing command's* number: a python traceback is 2, the SIGPIPE the header
+        // records on 10-29 is 141, a missing tool is 127. A reader that was told "1 = a check could
+        // not complete" then reads a coincidence as a verdict. The trap is the contract, so it gets
+        // asked against a command that really fails, on the same top-level path the check uses.
+        for raw in [2, 141, 127] {
+            let r = try Self.run(["scripts/upstream-drift.sh", "abort-code", "\(raw)"])
+            #expect(r.code == 1, "raw \(raw) left the script as \(r.code): \(r.err)")
+            #expect(
+                r.err.contains("退出 \(raw)"),
+                "the report must name the code it replaced, not silently swap it: \(r.err)")
+        }
+        // The trap must also stay off the success path: an ERR trap that fires where none belongs
+        // would turn a clean window red, which is the expensive direction for an instrument.
+        let ok = try Self.run(["scripts/upstream-drift.sh", "abort-code", "0"])
+        #expect(ok.code == 0, "a passing seam must still pass: \(ok.err)")
+    }
+
+    @Test("`make drift` prints the script's number, because make re-signals every failure as 2")
+    func makeDriftCarriesTheScriptNumber() throws {
+        // GNU make's own status is 2 for any failed recipe, whatever the recipe returned — measured
+        // 11-05, the script exited 10 on a verdict and this target exited 2 on the same one, which
+        // is how a reader came to file the contract as broken when it was the layer. The number
+        // therefore has one surviving channel through make: stdout. `make -n` asks where it lives
+        // without touching the network.
+        let expanded = try Self.run(["-c", "make -n drift"])
+        #expect(expanded.code == 0, "make -n must expand without running: \(expanded.err)")
+        #expect(
+            expanded.out.contains("scripts/upstream-drift.sh"),
+            """
+            the drift target no longer runs the script, so this test has stopped \
+            meaning anything: \(expanded.out)
+            """
+        )
+        #expect(
+            expanded.out.contains("drift-exit="),
+            """
+            `make drift` no longer prints the script's exit code — a reader of its \
+            status can only ever see make's 2: \(expanded.out)
+            """
+        )
+    }
+
+    // MARK: - A hint that fails to read must not become a verdict
+
+    @Test("a failed window read names itself and keeps the verdict it was printed under")
+    func failedHintReadIsNamedNotFatal() throws {
+        // Measured 11-05 with the trap in place: a rate-limited `compare` read killed the process
+        // mid-report — `window="$(api …)"` under `set -e` — so the exit went 10 → 1, the two axes
+        // below never printed, and an automation reading the code saw "a check could not complete"
+        // where the truth was "two windows need adjudication". A subject list is the keyword
+        // screen's input, a hint; only a failed *verdict* may move the code. The seam points the
+        // clone root at an empty directory, so the read fails for real, offline.
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/bash")
+        p.arguments = ["scripts/upstream-drift.sh", "window-read"]
+        p.currentDirectoryURL = try Self.repoRoot()
+        let empty = FileManager.default.temporaryDirectory
+            .appendingPathComponent("drift-norefs-\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: empty) }
+        p.environment = [
+            "OCOREAI_REFERENCES_DIR": empty.path,
+            "PATH": ProcessInfo.processInfo.environment["PATH"] ?? "",
+        ]
+        let out = Pipe()
+        let err = Pipe()
+        p.standardOutput = out
+        p.standardError = err
+        try p.run()
+        let outData = out.fileHandleForReading.readDataToEndOfFile()
+        let errData = err.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        let text = String(decoding: outData, as: UTF8.self)
+        #expect(
+            p.terminationStatus == 0, "a hint read that failed must not decide the exit: \(text)")
+        #expect(
+            text.contains("窗口列表未读到"),
+            "the report must say the list is missing, not print an empty one: \(text)")
+        // And a report that continues must not claim an abort happened: the -E variant of the trap
+        // printed three of these for reads its own `||` had already swallowed.
+        #expect(
+            !String(decoding: errData, as: UTF8.self).contains("计划外中止"),
+            "a path the script continues past cannot be reported as an abort: \(text)")
+        // The seam is only evidence while the loop answers through the same function.
+        let script = try String(
+            contentsOf: try Self.repoRoot().appendingPathComponent("scripts/upstream-drift.sh"),
+            encoding: .utf8)
+        #expect(
+            script.contains("axis_window \"$name\" \"$repo\" \"$src\" \"$base_full\" \"$head\""),
+            "the axis loop prints its window somewhere else again — the seam tests a path nobody runs"
+        )
     }
 
     @Test(

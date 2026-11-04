@@ -3,6 +3,30 @@
 > Material `AGENTS.md` § *Open* used to carry prose for although it was resolved, retracted or
 > judged a phantom gap. An open item is one that can still change a decision; a verdict is
 > history, and history kept in the injected layer costs every session.
+- **One verdict, two exit codes: the contract was intact, the layer was not (11-05).** `make drift` printed
+  the same report twice and exited **10** then **2**, which read as
+  `scripts/upstream-drift.sh:6`'s documented 0/1/10 having rotted. It had not: the script answers 10 on that
+  report and `make drift` answers 2 on the same one — GNU make re-signals *any* failed recipe as its own 2,
+  so the codes that target's own comment documented were unreachable through the entry point sitting under
+  them, and the reader who finds that files the instrument, not the makefile. Both halves that were actually
+  wrong are fixed: the target now prints `drift-exit=N` (the number's only surviving channel through make, and
+  the thing a reader acts on since `CLAUDE.md` § Upstream 2 sends people to `make drift`), and the script's
+  `set -e` let a mid-script death leave with *the failing command's* number — a python traceback is 2, the
+  SIGPIPE its own header records on 10-29 is 141, a missing tool is 127 — so an ERR trap now normalizes any
+  unregistered code to 1 and prints the line, the command and the raw code it replaced. That trap's first live
+  run named the row's unnoticed neighbour: a rate-limited subject-list read died inside a command substitution
+  and took the process down *after* the verdict had printed, rewriting **10 → 1** and skipping the axes under
+  it; a hint read now names itself and falls through (`axis_window`), because only a failed *verdict* moves
+  the code (the line it prints is in that file's own Chinese, so grep the function, not the phrase). Measured on the way in, and the reason the trap stays top-level: `set -E` on bash 3.2.57 fires ERR for
+  a false `[ -d … ]` sitting on the left of an `&&`, so three fallbacks the script's own `|| …` had already
+  swallowed printed lines claiming an abort — a diagnostic that says the opposite of what happened is worse
+  than none. Gate: `UpstreamDriftWindowTests`(11), which asks a real top-level command to fail for real through
+  the new `abort-code` seam, asserts the success path is untouched, asks `make -n drift` where the number
+  lives, and asks `window-read` that a failed hint read neither moves the code nor reports an abort.
+  Reproduce: `bash scripts/upstream-drift.sh abort-code 141; echo $?` prints `1`,
+  `bash scripts/upstream-drift.sh window-read; echo $?` prints `0` with its named-miss line, and
+  `make drift 2>&1 | grep drift-exit=` prints the script's code.
+
 - **A stale release row that said we ship — resolved by shipping (10-29).** Measured 10-28:
   `api.github.com` `/releases/latest` served `v0.1.13` (published 10-11, asset `ocoreai-0.1.13.dmg`
   25 472 769 B) while `git tag -l`, `/tags`, `/releases` and the Releases page reported none and that asset

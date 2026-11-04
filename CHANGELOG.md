@@ -9,6 +9,53 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-05
 
+**11-05 The drift contract was never broken — `make` was translating it, and the trap that closes the hole named a second one**
+
+- **What improved.** The open row reading "`make drift` printed the same verdict twice and exited **10** then
+  **2**, while the script documents 0/1/10" was filed against the wrong suspect, and closing it took two
+  layers. Reproduced at the top of the round: the script exits **10** on a 66-line report, `make drift` exits
+  **2** on that same report — GNU make re-signals *any* failed recipe as its own 2, so the codes the `drift:`
+  target's own comment documented were unreachable through the entry point printed under them, and
+  `CLAUDE.md` § Upstream 2 is what sends readers there. A comment cannot be fixed into a number make cannot
+  emit, so the number now travels on stdout as `drift-exit=N` and the comment says which layer owns which set.
+  The half that *was* broken is one line: `set -e` lets a mid-script death leave with the *failing command's*
+  code — python 2, the SIGPIPE the header records on 10-29 as 141, a missing tool 127 — so an automation
+  reading a contract of three numbers reads a coincidence; an ERR trap now normalizes any unregistered code to
+  1 and prints line, command and raw code. **That trap's first live run named a second defect**: a
+  rate-limited `compare` read died inside `window="$(api …)"` and took the process with it — the verdict line
+  had printed, the two axes under it had not, and the exit went **10 → 1**, "a check could not complete" where
+  the truth was "two windows need adjudication". A subject list is the keyword screen's input, a *hint*, and the
+  ladder this file already states says a failed *read* names itself and falls through while only a failed
+  *verdict* moves the code: the read moved into `axis_window`, prints `窗口列表未读到`, returns 0. One toolchain
+  finding came with it — `set -E` (inherit the trap into functions and `$(…)`, which is what the header first
+  claimed) is **wrong on bash 3.2.57**, the macOS one: 3.2 fires ERR for a false `[ -d … ]` sitting on the left
+  of an `&&`, so three fallbacks the script's own `|| …` had already swallowed each printed a line saying
+  "计划外中止". A diagnostic that asserts the opposite of what happened costs more than none, so -E is out, and
+  normalization survives it because a function's or substitution's non-zero return must still fail a
+  top-level command — which is exactly where the trap looks.
+- **What same-session output proves it.** `bash scripts/upstream-drift.sh abort-code {2,141,127}` → exit **1**
+  each, naming the code it replaced on stderr; `abort-code 0` → **0**, so the trap stays off the success path.
+  The mutation was run, not argued: delete the trap line and that same command returns **2**.
+  `window-read` against an empty clone root → exit **0**, named miss, nothing on stderr. A completing run's
+  report is unchanged by the trap (66 lines, exit 10, 0 B of stderr); the only deltas against the pre-change
+  log were a concurrent `git fetch` in `~/references/coreai-models` at 03:09 (the fork ledger's endpoint now
+  resolves `src=axis`, so its LAGGING row is gone) and make's own three wrapper lines — one of which is the
+  finding in six tokens: `make: *** [drift] Error 10`, i.e. make read the recipe's 10, printed it, and exited
+  2. The second defect needs no fixture to reproduce: the session's last check had every axis fall back to
+  `src=local clone` under GitHub rate limiting, the exact state that aborted mid-report before the guard, and
+  it completed at exit 10 with all three keyword-screen rows printed. `make -n drift` expands to
+  `bash scripts/upstream-drift.sh; rc=$?; echo "drift-exit=$rc"; exit $rc`.
+- **Which gate goes red if it regresses.** `UpstreamDriftWindowTests`(11), three new. Delete the trap →
+  `abort-code 2` exits 2, and the test names the code it expected to see replaced, so it cannot pass by
+  accident. Delete `drift-exit=` from the recipe → the `make -n drift` test goes red, and its premise
+  (`scripts/upstream-drift.sh` still in the expansion) is asserted first, so a renamed target reads as "the
+  scan stopped matching" instead of green. Delete the guard in `axis_window` → `window-read` exits non-zero;
+  the same test pins that the loop calls `axis_window "$name" "$repo" "$src" "$base_full" "$head"`, so a seam
+  nobody runs cannot hold the claim up.
+- **Cost.** ~90 lines across a script, a recipe and a suite, in one commit — the second half is the first
+  one's own output naming it, so splitting them would hide the causal link. No product surface moved, and no
+  exit code changed meaning.
+
 **11-05 该删的删 — the field's consensus was used as a budget, and it licensed three deletions, not forty**
 
 - **What improved.** The over-engineering question was answered by measurement instead of by my taste, and the
