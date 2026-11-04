@@ -218,8 +218,12 @@ connect` sets `limit.input`; without it OpenCode never compacts its conversation
 (`strata_cli/launch/harness.py:165-176`). `mlx-serve` carries an `AgentBudget` module
 (`app/Sources/MLXServe/Services/AgentBudget.swift`). That is our § Open injection row — "injected bytes cost a
 2B checkpoint double-digit pp" — measured from the *other* side: the cost of a caller's own prompt+tools, per
-caller, published. We advertise 40 tools and price 6 on the board; nobody here can say what a harness costs us or
-what we cost it. That is an axis, not yet a task.
+caller, published. The third instance prices it *per tool*: `Rapid-MLX` gives every registered tool a risk class
+and debits the context budget only for the non-read classes (`bounded_result(…, debit_context=spec.risk not in
+{"read_only","read"})`, `rapid_mlx/chat_runtime/tools/__init__.py:70-81,318-331`), so the cost of handing the turn
+a capability is charged where the capability is declared rather than measured afterwards in aggregate. We advertise
+40 tools, score 6 on the board, and price bytes per row — never per risk, never per caller. That is an axis, not
+yet a task.
 
 ## Direction — ranked by what the consensus actually says
 

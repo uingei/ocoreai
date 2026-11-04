@@ -108,7 +108,7 @@ cd "$(dirname "$0")/.."
 #   (the ocoreai row + its prose tail). A re-derivation whose anchors vanished passes vacuously, so the
 #   scan floors its own hit count instead of trusting the header it reads.
 : "${OCOREAI_FLOOR_DIARY_PAIRED:=40}"   # CHANGELOG entries whose heading was found above their first bullet
-: "${OCOREAI_AGENTS_MAX_AREA:=37892}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
+: "${OCOREAI_AGENTS_MAX_AREA:=38945}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
 #   this cap was pinned to. What binds is our chain budget (B2, 32 KiB) and the root ratchet (B1), and
@@ -155,6 +155,17 @@ cd "$(dirname "$0")/.."
 #   ~2.3 KB of second home deleted or moved, not restated. Net +1 671 B for a tree with 17 verified file:line
 #   cites, so per-tree is 37 892 / 28 = ~1 353 B and the curve is 15 609 → 18 664 → 20 502 → 25 611 → 27 484 →
 #   32 341 → 36 221 → 37 892. B1 and B2 untouched (21 453/21 461, 32 753/32 768): still not in the chain.
+#   RAISED 11-04(7) the SAME DAY — the ninth, and the second for one and the same row, which is worth writing
+#   down rather than glossing. Between the two numbers that row was read deeper: its tree turns out to ship its
+#   own agent (12 registered tools, `write_file`/`patch`/`terminal`/`execute_code` among them, each with a risk
+#   class that debits its own context cost), which falsified a wedge sentence already committed and moved two
+#   rungs of the ladder. A row about the nearest neighbour in the corpus is simply more expensive to describe
+#   than one about a distant tree: 4.3 KB of the 38 945 is `Rapid-MLX`, 4 232 files and 24 verified file:line
+#   cites. Cut first twice (~3.3 KB moved out or deleted today), refused the alternative (deleting cites), and
+#   the structural exit is an owner call, not a silent one: give the two or three nearest trees their own read-doc
+#   and let the registry be an index — which costs a routing row each, and root has 18 bytes of B1 headroom, so
+#   it cannot absorb the pointers without a cut. Per-tree now 38 945 / 28 = ~1 391 B; curve … → 37 892 → 38 945.
+#   B1 and B2 untouched (21 443/21 461, 32 743/32 768).
 #   Wider did not beat deeper this round; it went red at 4.9 KB and the owner is the one who decides whether
 #   that curve is the shape they want. B1 and B2 untouched again (21 453/21 461, 32 753/32 768): this file is
 #   not in the injected chain.

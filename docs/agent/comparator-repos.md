@@ -104,48 +104,38 @@ Borrow: what it does *not* do is the surviving wedge — it hosts Claude Code an
   model on Mac: `rapid-mlx launch <agent>`" (`README.md:7`), over "OpenAI- and Anthropic-compatible LLM
   inference server for Apple Silicon, built on MLX, focused on reliable tool calling for coding agents"
   (`README.md:13`).
-Contains: (1) **the harness side, built** — `rapid_mlx/agents/profiles/` holds 17 harness configs, **ten of
-  them trees this file tracks**, `isolated.py:23` names the nine it can isolate, `--remove` undoes it, and
-  `config_merge.py:1-15` documents the two ways a naive merge deletes the *user's* entries (pi's id-keyed
-  `models` list, dsh's `cordis.patch.yml` layers). (2) 29 tool-parser modules with an auto-detect fallback
-  (`rapid_mlx/tool_parsers/`) against our `Parsers/*`. (3) spec decode as data —
-  `spec_decode/{capability,registry,report}.py` over `mtp/`, `dspark/` and `speculative/{native_mtp,dflash,
-  ddtree,suffix_decoding}`, plus a `tensorfold_*` family: this tree *consumes* a tree that is a comparator to
-  us. Its rule: "Registry flags are recommendation evidence. They are not permission checks… runtime preflight
-  owns compatibility" (`spec_decode/capability.py:4-6`). (4) **a benchmark as a contract** — an immutable
-  versioned protocol file per measurement, one JSON-Schema record, runs archived locally and nothing leaves
-  the Mac until `share` (`proto/community-benchmark/v1/`), unobserved settings recorded `unknown`, "never
-  guessed" (`community-benchmarks/README.md:54`), an explicit never-sent list (`:59`), and the decode formula
-  reconciled with llama.cpp `tg` / vLLM TPOT while its own pre-0.13.4 discontinuity is disclosed (`:46`).
-  (5) it will not *grade* what it cannot confine: no `sandbox-exec` →
-  `Grade(False, 0.0, "coding grader requires macOS sandbox-exec")`
-  (`scripts/benchmark_glm53_real_tasks.py:226-228`). (6) an `AGENTS.md` that is an **org chart, not a
-  rulebook**: six persistent roles, each with host, worktree prefix, escalation target and definition of done,
-  19 438 B in a single root file — 59 % of the 32 768 B our own loader injects at.
+Contains: (1) **the harness side, built** — 17 configs in `rapid_mlx/agents/profiles/`, **ten of them trees this
+  file tracks**, nine isolable and reversible (`isolated.py:23`, `--remove`), merge-safety rule in
+  `config_merge.py:1-15`. (2) 29 tool-parser modules with an auto-detect fallback (`rapid_mlx/tool_parsers/`)
+  against our `Parsers/*`. (3) spec decode as data — `spec_decode/{capability,registry,report}.py` over `mtp/`,
+  `dspark/`, `speculative/{native_mtp,dflash,ddtree,suffix_decoding}` and a `tensorfold_*` family, so it
+  *consumes* a comparator of ours; "Registry flags are recommendation evidence… runtime preflight owns
+  compatibility" (`spec_decode/capability.py:4-6`). (4) **a benchmark as a contract** — immutable versioned
+  protocol files, one JSON-Schema record, runs kept local until an explicit `share`, unobserved settings
+  recorded `unknown` and "never guessed" (`community-benchmarks/README.md:54`), never-sent list (`:59`), its own
+  pre-0.13.4 formula break disclosed (`:46`). (5) it will not grade what it cannot confine
+  (`scripts/benchmark_glm53_real_tasks.py:226-228`; axis: § *Where the field confines a child*). (6) an
+  `AGENTS.md` that is an **org chart, not a rulebook** — six persistent roles and no per-directory guide in 4 232
+  files (the shape and its byte count: `comparator-consensus.md` § The injected ruleset).
   (7) a computer-use lane, and it is not a demo: `rapid_mlx/computer_use/{perception,ax_driver,backend}.py`
   behind `routes/cua.py`, where every element gets a session ref bound to the live AX element (`CFEqual`) and an
   action naming a ref from a stale observation **is refused**, one run at a time because the AX/CGEvent computer
   is a shared resource, with an explicit approval endpoint (`docs/engineering/decisions/
   2026-10-02-cua-hands-background-input.md`: hands that drive a window without taking the user's cursor).
-  (7) **its own agent, with hands.** `rapid_mlx/chat_runtime/tools/__init__.py:318-331` registers 12 tools —
-  `read_file`/`grep`/`glob`, then `write_file`, `patch`, `terminal`, `execute_code`, `delegate_task`, plus web
-  and weather — each carrying a risk class, and the result wrapper debits the context budget for every non-read
-  class (`bounded_result`, `:70,81`). They are **on by default**
-  (`action_policy.py:26-30`) and the module's own docstring draws the line: "Deterministic approval heuristics,
-  **not an OS sandbox**" (`:3`), with the file policy's reason string naming its undo checkpoint. On the wire
-  the same runtime is served by `routes/agents.py`, and tool calls are grammar-constrained end to end: an
-  llguidance grammar built from `tools` + `tool_choice` "STRUCTURALLY GUARANTEES" the call names a real tool and
-  satisfies its schema, while constraining "only the FORM of a call, never the decision"
-  (`api/tool_grammar.py:1-8`). Its computer-use lane is item (7) above.
-Borrow: four axes, **no home here today** — the reversible harness profile (five of the seven serving trees ship
-  theirs: `comparator-consensus.md` § The harness side is already built, on their side), a machine-readable eval
-  record with an immutable protocol (`scripts/eval/` has neither), confinement at the child boundary (same file,
-  § Where the field confines a child), and a **risk class per tool that prices its own context debit** (ours
-  scores 6 of 40 tools and prices bytes per row, never per risk). Against `long-horizon-goal.md` § Rung zero 4
-  this tree is the corpus's hardest read: it holds an agent, screen input, speech both ways, image and video,
-  MCP and constrained tool calling, so two of the rung's three parts do not survive it — the verdict is the
-  rung's (§ Rung zero 4, re-measured 11-04), not this row's. What it does not hold is the *shape*: an app
-  bundling a Python sidecar rather than one binary, and no ANE lane anywhere in the tree.
+  (8) **its own agent, with hands** — 12 tools at `chat_runtime/tools/__init__.py:318-331`: `read_file`/`grep`/
+  `glob`, then `write_file`, `patch`, `terminal`, `execute_code`, `delegate_task`, web and weather, each with a
+  risk class that debits the context budget (`bounded_result`, `:70,81`; the axis is § *One more thing the field
+  measures that we do not*), **on by default** (`action_policy.py:26-30`), whose docstring draws its own line:
+  "Deterministic approval heuristics, **not an OS sandbox**" (`:3`). Served on the wire by `routes/agents.py`;
+  tool calls are grammar-constrained from `tools` + `tool_choice` — "STRUCTURALLY GUARANTEES" the name exists and
+  the schema holds, "only the FORM of a call, never the decision" (`api/tool_grammar.py:1-8`).
+Borrow: **no home here today** on four axes — the reversible harness profile (five of seven serving trees ship
+  theirs: § *The harness side is already built, on their side*), a machine-readable eval record with an immutable
+  protocol (`scripts/eval/` has neither), confinement at the child boundary, and risk-classed context debit.
+  Against `long-horizon-goal.md` § Rung zero 4 this is the corpus's hardest read — agent, screen input, speech
+  both ways, image, video, MCP, constrained tool calling — and two of that rung's three parts do not survive it;
+  the verdict is the rung's (re-measured 11-04), not this row's. What it does not hold is the *shape*: an app
+  bundling a Python sidecar is not one binary, and no ANE lane exists in the tree.
 
 - `harness2` — `google-research/harness2`, Python agent harness (`dependencies/ASSETS.json` path→sha256,
   `scripts/check_provenance.py` exit 1 on any changed or missing asset, `dependencies/PINNED.md`); 21 commits,
