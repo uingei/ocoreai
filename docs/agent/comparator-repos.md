@@ -122,12 +122,30 @@ Contains: (1) **the harness side, built** — `rapid_mlx/agents/profiles/` holds
   (`scripts/benchmark_glm53_real_tasks.py:226-228`). (6) an `AGENTS.md` that is an **org chart, not a
   rulebook**: six persistent roles, each with host, worktree prefix, escalation target and definition of done,
   19 438 B in a single root file — 59 % of the 32 768 B our own loader injects at.
-Borrow: three axes, **no home here today** — the reversible harness profile (five of the seven serving trees
-  ship theirs: `comparator-consensus.md` § The harness side is already built, on their side), a machine-readable
-  eval record with an immutable protocol (`scripts/eval/` has neither), and confinement at the child boundary
-  (same file, § Where the field confines a child). What it does *not* do is the point: it hosts the harness
-  rather than *being* the agent, so the wedge of `long-horizon-goal.md` § Rung zero 4 survives a second tree's
-  evidence.
+  (7) a computer-use lane, and it is not a demo: `rapid_mlx/computer_use/{perception,ax_driver,backend}.py`
+  behind `routes/cua.py`, where every element gets a session ref bound to the live AX element (`CFEqual`) and an
+  action naming a ref from a stale observation **is refused**, one run at a time because the AX/CGEvent computer
+  is a shared resource, with an explicit approval endpoint (`docs/engineering/decisions/
+  2026-10-02-cua-hands-background-input.md`: hands that drive a window without taking the user's cursor).
+  (7) **its own agent, with hands.** `rapid_mlx/chat_runtime/tools/__init__.py:318-331` registers 12 tools —
+  `read_file`/`grep`/`glob`, then `write_file`, `patch`, `terminal`, `execute_code`, `delegate_task`, plus web
+  and weather — each carrying a risk class, and the result wrapper debits the context budget for every non-read
+  class (`bounded_result`, `:70,81`). They are **on by default**
+  (`action_policy.py:26-30`) and the module's own docstring draws the line: "Deterministic approval heuristics,
+  **not an OS sandbox**" (`:3`), with the file policy's reason string naming its undo checkpoint. On the wire
+  the same runtime is served by `routes/agents.py`, and tool calls are grammar-constrained end to end: an
+  llguidance grammar built from `tools` + `tool_choice` "STRUCTURALLY GUARANTEES" the call names a real tool and
+  satisfies its schema, while constraining "only the FORM of a call, never the decision"
+  (`api/tool_grammar.py:1-8`). Its computer-use lane is item (7) above.
+Borrow: four axes, **no home here today** — the reversible harness profile (five of the seven serving trees ship
+  theirs: `comparator-consensus.md` § The harness side is already built, on their side), a machine-readable eval
+  record with an immutable protocol (`scripts/eval/` has neither), confinement at the child boundary (same file,
+  § Where the field confines a child), and a **risk class per tool that prices its own context debit** (ours
+  scores 6 of 40 tools and prices bytes per row, never per risk). Against `long-horizon-goal.md` § Rung zero 4
+  this tree is the corpus's hardest read: it holds an agent, screen input, speech both ways, image and video,
+  MCP and constrained tool calling, so two of the rung's three parts do not survive it — the verdict is the
+  rung's (§ Rung zero 4, re-measured 11-04), not this row's. What it does not hold is the *shape*: an app
+  bundling a Python sidecar rather than one binary, and no ANE lane anywhere in the tree.
 
 - `harness2` — `google-research/harness2`, Python agent harness (`dependencies/ASSETS.json` path→sha256,
   `scripts/check_provenance.py` exit 1 on any changed or missing asset, `dependencies/PINNED.md`); 21 commits,

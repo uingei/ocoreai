@@ -9,6 +9,38 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-04
 
+**11-04(6) A wedge sentence written an hour earlier falsified by the next check: the nearest neighbour runs its own coding agent, and the ladder loses two of its three parts**
+
+- **What improved.** The entry above ended its new tree row with "it hosts the harness rather than *being* the
+  agent, so the wedge … survives a second tree's evidence". That was written from its README and the agent-launch
+  directory, and it was **wrong**: `rapid_mlx/chat_runtime/tools/__init__.py:318-331` registers twelve tools
+  including `write_file`, `patch`, `terminal`, `execute_code` and `delegate_task`, on **by default**
+  (`action_policy.py:26-30`), and `routes/agents.py` serves that runtime over the wire; on top of it tool calls
+  are grammar-constrained from `tools` + `tool_choice` ("STRUCTURALLY GUARANTEES … names a tool that actually
+  exists", `api/tool_grammar.py:1-8`), and a computer-use lane feeds it the screen
+  (`rapid_mlx/computer_use/{perception,ax_driver}.py`, where an action naming a ref from a stale observation is
+  refused). The row now carries that reading, plus a borrow axis it hands us for the tool-surface open item: a
+  **risk class per tool that prices its own context debit** (`bounded_result(…, debit_context=…)`, `:70,81`) —
+  we score 6 of 40 tools and price bytes per board row, never per risk. Two ladders changed, which is the point
+  of reading the corpus at all: **rung 4** loses *being the agent* and *screen as an agent input* to this tree and
+  keeps only the packaging (an app bundling a Python sidecar is not one binary) and the constrained-decoding-plus-
+  ANE pairing, so "codes" is now stated as table stakes rather than as a wedge; **rung 6**'s harness-launch shape
+  is re-counted from four trees named by hand to **five of the seven serving trees in product code**, with
+  Rapid-MLX as the fullest instance (17 profiles, reversible private profile, a merge whose docstring names the
+  two ways a naive merge destroys the user's own entries).
+- **What same-session output proves it.** The three greps that turned "no edit, no shell, no repo tool anywhere"
+  into `:314 from .action_tools import execute_code, patch, terminal, write_file`; `grep -c ToolSpec(` → 12; the
+  `REGISTRY` span read at `:318-331` line by line; `Policy(risk=…, reason="Workspace file change with an undo
+  checkpoint.")` and the module docstring that draws its own line — "Deterministic approval heuristics, not an OS
+  sandbox" — which is the same self-naming limit § *Where the field confines a child* praised in TensorFold.
+  Nothing about the tree got worse; the claim about it did, and the claim was ours.
+- **Which gate goes red on regression.** None, and saying so is the gate: no `Sources/` or `Tests/` file changed,
+  so no build and no suite is claimed. `make docs-check` and `make anchor-check` cover the new cites (the corpus
+  cites are the content-unverified class, so each was opened at the mirror before being written — the one that
+  was skimped is the one that produced this entry). The durable cost is the lesson, already stated at root
+  § Working here: read the *code* before writing what a tree "does not do", and a README is not that read.
+
+
 **11-04(5) The corpus read for consensus: a 28th tree that ships our own sentence, three counts that were counting the right word in the wrong role, and the harness side already built — on their side**
 
 - **What improved.** The round read all 28 mirrors for what the *field* agrees on, which is a different question

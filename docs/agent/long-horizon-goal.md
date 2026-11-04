@@ -144,7 +144,16 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    Codex — `README.md:49`); **screen as an agent input** (a pasted screenshot, no capture framework in its app);
    **constrained decoding on the ANE** (its ANE lane refuses grammars, forced tool calls and a reasoning budget
    *by name* against a declared `Caps` set — `docs/reference.md:454`). Camera capture went unmeasured there, so
-   it is unstated here. One asymmetry cuts against us: that ANE lane runs on macOS 26 **today**, while our ANE
+   it is unstated here. **Re-measured the same day against a second tree, two of the three are gone**:
+   `Rapid-MLX` ships a computer-use lane (`rapid_mlx/computer_use/{perception,ax_driver}.py`, an action naming a
+   stale observation is refused) and its own agent with `write_file`/`patch`/`terminal`/`execute_code` **on by
+   default** (`chat_runtime/tools/__init__.py:318-331`, `action_policy.py:26-30`, whose docstring says its own
+   limit: "Deterministic approval heuristics, not an OS sandbox"). So *being* the agent and *seeing* the screen
+   are no longer distinguishing; what survives is the packaging — an app bundling a Python sidecar is not one
+   binary — and the pairing of grammar-constrained tool calling (`api/tool_grammar.py:1-8`, form only, never the
+   decision) with an ANE lane, which nothing here combines. Consequence for the identity sentence: **"codes" is
+   table stakes, not a wedge**, and a hardware word never was one (next sentence). Axes: `comparator-repos.md`
+   § `Rapid-MLX`. One asymmetry cuts against us: that ANE lane runs on macOS 26 **today**, while our ANE
    route is CoreAI-gated on macOS 27 and unverifiable on this host (§ Open), so a hardware word is not a wedge
    — only what we measure on the OS we ship is. Ceiling stated honestly: it is a *niche* wedge, and the leaders
    are cloud-led, which is both why they do not copy it and why it caps this ceiling. "Auditable, airgapped
@@ -164,10 +173,15 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    skill, finds it and finishes a task. `scripts/probes/40-stranger-agent-skill-task.sh` is that instrument — a seeded note whose
    VALUE is reachable only by a live call chain, plus a negative control that must reject a wrong deliverable.
    Probe 39 executes the artefact; probe 40 is read by it.
-   Measured 11-04 across the corpus, this rung has a shape the four engine-side trees all converged on and we
-   lack: a **command that hands a configured harness to the caller** — `mlx-serve launch claude`
+   Measured twice on 11-04, and the second count is the honest one: **five of the seven serving trees ship it in
+   product code** (`comparator-consensus.md` § The harness side is already built, on their side — vllm's only hit
+   is an example script, sglang's a unit test). The shape is a **command that hands a configured harness to the
+   caller** — `mlx-serve launch claude`
    (`../references/mlx-serve/README.md:49`), `strata connect` printing per-tool setup (`../references/Strata/README.md:168`),
-   ollama tuning model output limits *for Claude Code specifically* (`f9323416`), openclaw's plugin-swap line.
+   ollama tuning model output limits *for Claude Code specifically* (`f9323416`) and a `Runner` per agent
+   (`cmd/launch/claude.go:15`), Rapid-MLX's `launch <agent>` over 17 profiles with a reversible private profile
+   and a merge that documents how it avoids deleting the user's own entries (`rapid_mlx/agents/isolated.py:23`,
+   `config_merge.py:1-15`), openclaw's plugin-swap line.
    Ours is a documented copy-step (`README.md:152`, `:156` — `cp -R skills/ocoreai ~/.codex/skills/`), which is
    honest and current but asks the reader to wire the env themselves. A CLI verb is a new core surface ⇒ owner
    call, though the consumer exists today (any Claude Code/Codex install), so this is the ladder's cheapest
