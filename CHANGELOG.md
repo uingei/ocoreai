@@ -60,15 +60,25 @@ heading are when the work landed (measured from git).
   prints as `b11963`/`57731b00e8…`. `reference.md:440` had become a *blank* line, and every gate stayed green
   on it: past-EOF is the only line test any of them runs, `anchor-check` prints its own blind spot (`prose
   cites … content unverifiable: 515`), the bare-cite scanner reads `Sources/`, not `docs/`, and a quoted
-  *value* in a file nothing cites by line is invisible to all three. New § How to use 3 says which instrument sees which half. The same
-  round found the registry's own coupling command substring-naive — bare `pi` reports **458** files (it matches
-  `api` and `Float.pi`; `-w` fixes `api` and not `let pi`) — so both measures are now printed with what each
-  means: 10 of 24 trees have zero *name* coupling, 19 have zero *cite* coupling, and `mlx-serve` is in the 19
-  while carrying the wedge.
+  *value* in a file nothing cites by line is invisible to all three. Which instrument sees which half went to
+  `competitor-iteration-paths.md` § What that gate does not see — the registry keeps a pointer, not a second
+  statement. The same round found the registry's own coupling command substring-naive — bare `pi` reports
+  **458** files (it matches `api` and `Float.pi`; `-w` fixes `api` and not `let pi`) — so both measures are now
+  printed with what each means: 10 of 24 trees have zero *name* coupling, 19 have zero *cite* coupling, and
+  `mlx-serve` is in the 19 while carrying the wedge.
+  **⑤ the category's #1 now spends its authority budget on a screen.** Of openclaw's 9 314 commits in 14 d, the
+  hottest directory across its whole 125 k commits is `ui/src/pages` — 10 432 file-touches, 47 pages, among them
+  `approval`, `approvals`, `custodian` and `memory-import`, with 1 020 entries in `ui/src/e2e` naming
+  `approval-flow`, `approval-page`, `approvals-grants`, `custodian-auto-setup`. "Authority ships first and never
+  finishes" (§ What the order says) has a second half as of today: it ships *as UI*, tested in a browser — the
+  axis our one SwiftUI approval surface plus `scripts/e2e-gui-app.sh` has never been priced against. Landed
+  beside the codex chronology in `competitor-iteration-paths.md`; no claim in this repo yet depends on a page
+  count, so it is an axis and not a to-do.
 - **What same-session output proves it.** The sentinel run printed `1`. The coupling numbers in this entry are
-  the output of the commands printed beside them, not of the command the file used to recommend. Four docs
-  lines changed number, not claim: the wedge's three ANE cites and the ladder's, all re-read at
-  `6b39f8b8` (mlx-serve) and `8bd073392e` (deepseek-harness) before being written down. And a check that failed was corrected rather than
+  the output of the commands printed beside them, not of the command the file used to recommend. Nothing in the
+  five corrections changed a *claim*: the wedge's three ANE cites and the ladder's were re-read at `6b39f8b8`
+  (mlx-serve) and `8bd073392e` (deepseek-harness) before being written down, and ollama's pin files were `cat`
+  rather than trusted from the row. And a check that failed was corrected rather than
   repeated: `harness2`'s provenance trio was reported missing on first look, which was my own path — the files
   are `dependencies/ASSETS.json` and `dependencies/PINNED.md`, and the row now carries those paths.
 - **Which gate goes red on regression.** `make docs-check`: P2/P3 on every new cite (a `~/references` cite is

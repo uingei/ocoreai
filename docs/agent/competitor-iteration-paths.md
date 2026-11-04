@@ -17,7 +17,15 @@
 completion-notification and approval configuration inside its first 72 hours (open-sourced
 2025-04-16); those four are still the most-trafficked surfaces of its 12,490 commits, while the
 behavior-quality axes arrived 3–10 months later and cost far less each. Full dated chronology and
-the per-axis fix proxy: `CHANGELOG.md`, the 10-22 round’s comparator-iteration-order entry.
+the per-axis fix proxy: `CHANGELOG.md`, the 10-22 round’s comparator-iteration-order entry. Where that
+authority layer is *spent* now, measured 11-04 over openclaw's 9 314 commits in 14 d: the hottest
+directory in the whole 125 k-commit tree is `ui/src/pages` (10 432 file-touches), 47 pages deep and including
+`approval`, `approvals`, `custodian` and `memory-import`, against 1 020 entries in `ui/src/e2e`
+(`approval-{bootstrap,flow,page}`, `approvals-grants`, `custodian-auto-setup`, …) — the
+authority surface the first 72 h established is now mostly something a person looks at and clicks, gated by
+browser tests rather than by a Rust policy engine. Our equivalent is one SwiftUI surface plus
+`scripts/e2e-gui-app.sh` proving pixels to a runner; the axis to read off this tree is not the engine, it is
+what an approval screen has to show to survive a year of adversarial use.
 Consequence: the polish
 ocoreai keeps investing in — steering, compaction, tool-wire correctness, resume — sits in the
 cheap cluster. That is the ticket to play, not the moat; the moat is an authority layer that
