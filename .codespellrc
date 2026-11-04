@@ -9,8 +9,10 @@
 # The last two are test payloads, not vocabulary, and correcting either one silently disarms a gate:
 # `temprature` is the near-miss field name DecisionsContractTests and probe 49 must refuse *by name*
 # (spelled right it becomes the real `temperature` and nothing is refused), and `probabilit` is the stem
-# probe 49 scans refusal bodies with, so it has to stay a stem.
-ignore-words-list = ane,caf,nd,ans,inout,unparseable,uptodate,ontext,allready,optionall,reuseable,alloc,datas,checkin,numer,re-declaring,temprature,probabilit
+# probe 49 scans refusal bodies with, so it has to stay a stem. `cach` is the same case one layer down:
+# a regex stem in scripts/comparator-consensus.sh's KV axis that has to match cache|caching|cached, so
+# spelling it out would narrow what the instrument can see.
+ignore-words-list = ane,caf,nd,ans,inout,unparseable,uptodate,ontext,allready,optionall,reuseable,alloc,datas,checkin,numer,re-declaring,temprature,probabilit,cach
 # Vendored and generated surfaces are not ours to reword: CXGrammar + dlpack are upstream C,
 # THIRD-PARTY-LICENSES is collected verbatim, and .build is a resolved dependency cache. The diary
 # is skipped for a different reason: it quotes the misspellings it recorded, as evidence, and

@@ -195,8 +195,8 @@ honesty gate). **Owner call; nothing here changed model behaviour.**
 - **Publishing the contract is not the consensus — vLLM turns it off.** Three serving sites build
   `FastAPI(openapi_url=None, docs_url=None, redoc_url=None)`
   (`references/vllm/vllm/entrypoints/launchers/app.py:36`, `references/vllm/vllm/entrypoints/cli/preload.py:74`,
-  `references/vllm/vllm/entrypoints/launchers/dp_supervisor.py:220` — the second cite read `cli/preload.py` here,
-  which resolves to nothing; re-pinned 11-04); sglang reserves a switch
+  `references/vllm/vllm/entrypoints/launchers/dp_supervisor.py:220` — the middle one was written here without its
+  `vllm/entrypoints/` prefix, which resolves to nothing; re-pinned 11-04); sglang reserves a switch
   (`references/sglang/python/sglang/srt/entrypoints/http_server.py:501` — `/openapi.json` unless
   `DISABLE_OPENAPI_DOC`); only ollama commits a spec file besides us, and a published client package is 1/7. So a
   **generated client is our bet, not a field expectation** — the evidence behind the owner's standing caution that
