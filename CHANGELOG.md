@@ -9,6 +9,51 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-05
 
+**11-05 该删的删 — the field's consensus was used as a budget, and it licensed three deletions, not forty**
+
+- **What improved.** The over-engineering question was answered by measurement instead of by my taste, and the
+  answer mostly refuted me. Deleting is cheap to propose and expensive to undo, so every cut had to name the
+  counted consensus behind it. Three did; the rest of the candidate list died on the numbers, and that is the
+  finding. Deleted: `make test-verbose` and `make test-coverage` (zero consumers anywhere in the repo, and both
+  called bare `swift test` — i.e. each one walked into the documented MLX trap that `Makefile` `test` names the
+  metallib to avoid, so they were not merely unused but *wrong*: anyone who ran one got a suite that dies 4k lines
+  in with no summary), and `scripts/coverage_report.py` (5.9 KB, no consumer in Makefile, CI, another script, a
+  test or a doc; CI never collects coverage). Fixed a shipped instruction that could not run:
+  `.pre-commit-config.yaml:11` told the reader `make hooks`, a target that does not exist and cannot — the
+  Makefile's own comment at `install-hooks` records that a directory shadows that name. Targets 32 → 30.
+- **What same-session output proves it.** All numbers from `~/references`, 28 mirrors, this session. (i) Our prose
+  is 47.0 % of source bytes against a field median 5.28 % — which looks damning until the diary is excluded, and
+  `scripts/agents-md-contract.sh:66-67` excludes it by an owner decision (*"the owner's own log, and a ratchet
+  that blocks them writing it"*): without `CHANGELOG.md` we are at **7.9 %, between the median and p75 (13.7 %)**.
+  Our biggest non-diary doc is 77 KB (`scripts/eval/README.md`) against a field median *biggest-doc* of **122 KB**.
+  So the comparator corpus I proposed to compress 132 KB → 40 KB is field-normal, and I left it alone. The two
+  files that *are* over the peer norm for a dev-tooling README (`scripts/eval/README.md` 77 KB, probes 55 KB,
+  against ~9–26 KB across 14 peers, one 385 KB outlier) also stayed, and for the invariant-1 reason: they are the
+  declared single home for the noise band, set size and paired-flip floor, and a number whose home you delete
+  becomes a claim somewhere else. Both sit outside the per-guide 38 945 B cap, which binds `docs/agent/*.md` and
+  `Sources/**/AGENTS.md` — if the cap is ever meant to cover tooling READMEs, that is an owner call, not a
+  deletion I make from under it. (ii) Test files: **343 against a
+  field median of 697** — we are under the field, not over it. (iii) Dead-surface scan over every declaration:
+  no file among **312 in `Sources`** declares only symbols that nothing else — production, test or doc — names;
+  **0 of 20 tool `name:`s** and
+  **0 of 26 `OCOREAI_*` knobs** are unconsumed (the knob scan's first answer was 1 — `OCOREAI_HEARING_PROBE` —
+  and it was a false positive: the parent probe sets it at `HearingEngineProbe.swift:171` and
+  `HearingHonestyTests` asserts it). **1 of 115 scripts** was dead, and it is the one deleted. (iv) The hooks
+  layer stayed: 7 of 28 peers ship `.pre-commit-config.yaml`, 5 more run husky/lint-staged. (v) What the field
+  *does* condemn is cadence, not code: peers who keep a changelog average **0.47–2.30 headings per tag**, we hold
+  23 headings against **1 tag**, and our 30 make targets still exceed the largest field Makefile (22, `splash`).
+  Both are already the logged open item; neither is deleted by me.
+- **Which gate goes red if it regresses.** None, and saying so is the honest part: the scan is a throwaway, not
+  an artefact, because a script whose only consumer is the person who wrote it is exactly what I deleted this
+  round (`coverage_report.py`). Re-derive it with
+  `git ls-files | xargs grep -l <name>` per declared target and `git ls-files 'scripts/*'` minus what the
+  Makefile, CI and docs name. The deletions themselves need no gate — a deleted file cannot regrow. Existing
+  coverage that must stay green: `makefile-parse-check.sh` (30 recipes, floor 20) and `make audit` (all classes
+  Clean), `make docs-check`.
+- **Cost.** 12 KB of script and two recipes; nothing user-facing moved. The budget that *was* spent: this round
+  re-measured a claim root had never priced, and the honest headline is that the repo is not carrying dead
+  surface — it is carrying one tag.
+
 **11-05 Our own segment had never been churned, and the identity sentence had no axis**
 
 - **What improved.** Two holes in one instrument. (i) The churn block cut the 13 harness trees and concluded the

@@ -8,7 +8,8 @@
 # this hook rather than a scanner job, so a credential stops where it is typed, at zero CI minutes
 # (why the old gitleaks job was deleted: CHANGELOG.md, `secret-gate-never-green`).
 #
-# Opt in:  make hooks        Run all:  pre-commit run --all-files
+# Opt in:  make install-hooks   (not `make hooks`: a directory shadows that name — Makefile)
+# Run all:  pre-commit run --all-files
 # CI:      the ubuntu governance job runs `pre-commit run --all-files` (verifies this file and its
 #          clean state without spending an arm64 minute).
 repos:

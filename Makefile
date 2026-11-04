@@ -2,7 +2,7 @@
 # Usage: make [target]
 #
 # Build:      build, release
-# Test:       test, test-verbose, test-coverage
+# Test:       test, test-ci, test-clt
 # Quality:    format, format-check, audit
 # Dev:        clean, metallib, help
 # CI:         ci-local (full local pipeline)
@@ -25,7 +25,7 @@ else
   endif
 endif
 
-.PHONY: all build release release-mac27 app dmg test test-verbose test-coverage test-ci probes format format-check audit docs-check anchor-check round-gates clean metallib help ci-local push-ready ci-status spell links install-hooks openapi
+.PHONY: all build release release-mac27 app dmg test test-ci test-clt probes format format-check audit docs-check anchor-check round-gates clean metallib help ci-local push-ready ci-status spell links install-hooks openapi
 
 all: build
 
@@ -237,20 +237,6 @@ test:
 	    grep -E '✘|Expectation failed|^ *↳' "$$LOG" | head -40; \
 	  fi; \
 	  exit "$$T"
-
-test-verbose:
-	@echo "🧪 Running tests (verbose)..."
-	swift test --enable-test-discovery -Xswiftc -Xfrontend -Xswiftc -enable-private-import
-
-test-coverage:
-	@echo "🧪 Running tests with coverage..."
-	@rm -rf .build/coverage.dat
-	swift test --enable-code-coverage
-	@echo ""
-	@echo "📊 Coverage report:"
-	@swift test --show-codecov-path 2>/dev/null && \
-		echo "→ Open the above path for detailed report" || \
-		echo "→ Coverage data in .build/"
 
 # Full test gate — CI-identical path (xcodebuild build-for-testing → xcrun xctest).
 # NOTE (2026-10-05): on macOS < 27 hosts with Xcode 27 installed (SDK 27 only),
@@ -533,9 +519,9 @@ help:
 	@echo "  make release        Build release target"
 	@echo ""
 	@echo "Test:"
-	@echo "  make test           Run test suite"
-	@echo "  make test-verbose   Run tests with verbose output"
-	@echo "  make test-coverage  Run tests with code coverage"
+	@echo "  make test           Run test suite (names the metallib first — CLAUDE.md says why)"
+	@echo "  make test-ci        The CI route, as CI runs it"
+	@echo "  make test-clt       Command-line-tools route, serial"
 	@echo ""
 	@echo "Quality:"
 	@echo "  make format         Format all Swift files"
