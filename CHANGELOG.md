@@ -9,6 +9,26 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-05
 
+**11-05 The spell gate had been red on `main` since yesterday, and its four hits were two different kinds**
+
+- **What improved.** `make round-gates` — the set this repo runs every round — was red on `main` before this
+  session touched anything: `e0ebbcc` added regex stems to `scripts/comparator-consensus.sh` and `make spell`
+  never ran, so the per-round gate carried a red that read as noise. Two kinds among the four hits, and only
+  one kind is a word. `summar` and `integrat` are churn stems that must match summary/summarization and
+  integrate/integration — the class `.codespellrc` already registers for the KV axis's `cach`, one home, same
+  reason: spelling a stem out narrows what the instrument can see. `changlog` was a typo *inside* a pattern
+  (`…|cmakelists|changlog|changelog|…`), matching nothing. Stems got their reason written down; the dead
+  alternative got deleted, because registering a typo is how a typo becomes a rule.
+- **What same-session output proves it.** `find ~/references -iname '*changlog*'` across all 28 comparator
+  mirrors returns nothing, so that alternation was provably dead and deleting it cannot move a bucket count.
+  `make spell` → `clean (codespell 2.4.3 over 793 tracked files + the root docs)`; `make links` green in the
+  same pass (30 outbound, 0 dead, 1 unanswered host).
+- **Which gate goes red if it regresses.** `make spell` is the gate, and it is the thing that was red — no new
+  one, since a registered stem is inert once a pattern stops using it. Said plainly rather than gated:
+  nothing re-checks that `summar` is still a stem anyone wants, so the narrowed-instrument failure lands on
+  the next comparator round that re-runs `scripts/comparator-consensus.sh`, not on a runner.
+- **Cost.** Two lines in a regex and a `.codespellrc` line; the round it unblocks is every future one.
+
 **11-05 The drift contract was never broken — `make` was translating it, and the trap that closes the hole named a second one**
 
 - **What improved.** The open row reading "`make drift` printed the same verdict twice and exited **10** then

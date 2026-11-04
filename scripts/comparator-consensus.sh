@@ -639,7 +639,7 @@ BUCKET = [
     # `unmatched` column. An axis nobody thought to ask about reads as "not happening".
     ("localization",    r"(^|/)(i18n|l10n|locale|localiz|lang|language|translation|messages/)"),
     ("docs/spec",       r"(^|/)(docs?/|readme|architecture|openapi|protocol|schema|decisions|details)"),
-    ("deps/release",    r"(^|/)(package-lock|pnpm-lock|bun\.lock|cargo\.lock|package\.json|setup\.py|cmakelists|changlog|changelog|feed\.xml|version|manifest)"),
+    ("deps/release",    r"(^|/)(package-lock|pnpm-lock|bun\.lock|cargo\.lock|package\.json|setup\.py|cmakelists|changelog|feed\.xml|version|manifest)"),
 ]
 # A share floor is not a liveness floor. Demanding >= 10 % of own churn before a bucket counts went red
 # on `authority` for every tree — while codex's whole `guardian` module and openclaw's seven

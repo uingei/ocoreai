@@ -11,8 +11,13 @@
 # (spelled right it becomes the real `temperature` and nothing is refused), and `probabilit` is the stem
 # probe 49 scans refusal bodies with, so it has to stay a stem. `cach` is the same case one layer down:
 # a regex stem in scripts/comparator-consensus.sh's KV axis that has to match cache|caching|cached, so
-# spelling it out would narrow what the instrument can see.
-ignore-words-list = ane,caf,nd,ans,inout,unparseable,uptodate,ontext,allready,optionall,reuseable,alloc,datas,checkin,numer,re-declaring,temprature,probabilit,cach
+# spelling it out would narrow what the instrument can see. `summar` and `integrat` are that same file's
+# churn buckets (must match summary/summarization, integrate/integration); they arrived with the 11-04
+# bucket split and the gate stayed red until 11-05 because nobody ran `make spell` that round.
+# Dead alternatives are deleted, not registered: `changlog` sat in the deps/release alternation and
+# matched nothing — no path in any of the 28 comparator trees is spelled that way (`find ~/references
+# -iname '*changlog*'` = empty), so it was a typo in a regex, not a stem with a purpose.
+ignore-words-list = ane,caf,nd,ans,inout,unparseable,uptodate,ontext,allready,optionall,reuseable,alloc,datas,checkin,numer,re-declaring,temprature,probabilit,cach,summar,integrat
 # Vendored and generated surfaces are not ours to reword: CXGrammar + dlpack are upstream C,
 # THIRD-PARTY-LICENSES is collected verbatim, and .build is a resolved dependency cache. The diary
 # is skipped for a different reason: it quotes the misspellings it recorded, as evidence, and
