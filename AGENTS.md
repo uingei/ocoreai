@@ -161,7 +161,7 @@ Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`, one dia
    `make test-ci` green → `CHANGELOG.md`. Upstream sources live under
    `Libraries/`, not `Sources/`; clone-vs-pin is `git merge-base --is-ancestor`, and the built checkout's
    cleanliness is asserted by `scripts/probes/_lib.sh`, not by prose.
-2. **`coreai-models`** — Apple's reference tree, consumed as a fork of `Engine/CoreAI*` (BSD-3; types
+2. **`coreai-models`** — Apple's reference tree, consumed as header-stamped forks (BSD-3; types
    redefined locally — upstream demands macOS 27). Each file's header carries its upstream baseline;
    `make drift` reports the un-adjudicated window. Python/export-side commits: no export surface here.
 3. **Apple Developer Documentation** — DocC for intent and semantics, the SDK's

@@ -31,6 +31,29 @@ heading are when the work landed (measured from git).
 - **Cost.** +77/−23 script, +109 tests (`git diff --numstat`). Read honestly: the read-failure face prints
   only under a rate limit, so it is evidenced by the quoted 0/60 response and the mutation, not by a green run.
 
+**11-05 The coreai-models window read and closed — 8 commits, 0 mirrored files, and the root sentence that under-named the fork**
+
+- **What improved.** `ac03f2b..f333cf5` (+8) adjudicated row by row in `coreai-fork-window-log.md`; that axis
+  adopted, the other two left open as they are. Completeness is a census, not an impression: **0/8** commits
+  share a Swift basename with the **304** in `Sources/ocoreai`, and the per-file ledger reads 0 on all 14
+  baselined rows — so the two Swift commits in the window (#410 `DraftScan`, #409 single-token
+  `--stop-tokens`) are follow-ups to a `SpeculativeDecoding/` subsystem this tree does not mirror
+  (`Engine/LoadedModel.swift:223` marks speculative decoding MLX-only). Root § Upstream 2 meanwhile said the
+  fork is `Engine/CoreAI*`; the walk finds **56** header-stamped candidates across `Engine/`, `Video/`,
+  `Parsers/`, `Profiling/`, `Handlers/`, and the drift script's own header records that narrow scope as the
+  reason #374 and #402 produced no rows on 11-03. The sentence now names the mechanism (header-stamped
+  forks) and cost 6 fewer bytes. Two stale prose cites moved (`LoadedModel.swift:220` → `:223`, twice), and
+  the previous `adopt_provenance` named `#328` at `KVCache+CoreAI.swift:618`: no `fp8` remains anywhere in
+  `Sources/`, so that claim is dropped as unverifiable here rather than re-asserted as closed.
+- **What same-session output proves it.** `make drift`: coreai-models `0 new ✓ 与基线同点` while
+  `mlx-swift-lm` still prints its `+6` and codex its `+240` — closing one window did not quiet the others.
+  Provenance stated where it is uneven: 7 commits read in the clone at `b3376e2` (`git fetch` failed twice,
+  curl 28), `#415` read from the API's file list — one workflow file — not from a diff.
+- **Which gate goes red if it regresses.** None added; `make drift` is the gate and it goes red the moment a
+  window is stamped unread. What this round did *not* close stays printed every round by design: 候选 56 /
+  成行 14 / **无基线 40** — forty mirrors with no read-point, so drift cannot see them yet. That is the real
+  remaining hole in the ledger, and it is a queue, not a surprise.
+- **Cost.** +23/−1 doc, +3/−3 state, +1/−1 root.
 **11-05 Four dead cache-check functions went, and the three comments that still voted for them**
 
 - **What improved.** `MLXBridge` carried a cache-check chain nothing called: `isModelCached` ×2 and
