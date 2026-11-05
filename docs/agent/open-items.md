@@ -159,13 +159,33 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   build jobs with no secrets and no `id-token` and publishes from a `release` environment over artefacts.
   Deliberately untouched before a first release lands: it is the one path a rehearsal cannot run.
   Owner call (who/what may publish).
-- **One CI leg red since `d664f7b`, and it is now made to name itself** (CI/) — xcode-27 went green on 11-02
-  once the grammar suite asserted what was measured (11-02(104)); both stop-token suites ran there for the
-  first time. The *Build the DMG* leg's public annotation says only exit-1 with both artefacts missing, and
-  its log needs a token this host has not, while `build-dmg.sh` yields a 27 932 392-byte DMG here (11-02) — a
-  clean-runner premise, candidates inferred: the metal route, the SPM cache, the headless GUI. The step now
-  tees its log and republishes the tail as annotations (`ci-step.sh:84`'s shape), and touching package.yml
-  re-triggers that lane.
+- **The packaging leg has been red since 10-31 and the cause is still an inference — 11-06 fixed the
+  instrument before guessing at the cause** (CI/, packaging/) — the blame this row and `package.yml:115`
+  carried in this row and in `package.yml`'s own step comment (`d664f7b`, 11-01) is **retracted**: the
+  `git`-identical `a64e79da` went green as run 11 (10-30 18:20,
+  push) and red as run 12 (10-31 15:29, schedule), and the step dies at 1 168 s, after a whole compile, so
+  the image under the build moved. Why nobody could read the red: the leg published `tail -25` as
+  annotations, and seven runs (15–20, 22) returned the same **nine** compiler warnings from that window and
+  never its last lines — a workflow command carrying a raw `%` or a CR dies in GitHub's parser, silently.
+  Since 11-06: one publisher (`scripts/ci-annotate.sh` — escapes, chooses cause, falls back to the last
+  `phase=` line, which `build-dmg.sh` now prints, so a silent `hdiutil` red names its stage), the leg's
+  premises published *before* it builds (route, SDK version, CoreAI-in-SDK, metal on PATH, free bytes, and
+  `resolve-metallib.sh`'s own answer), and that ladder searches each tree instead of globbing three
+  remembered products layouts (five payloads live under this repo's `.build` across three layouts, and
+  `build-app.sh`'s duplicate four-glob copy is gone — one home). Gate: `ci-annotate --selftest` (9,
+  `make audit` + the ubuntu text-gate step); the payload half needs no new gate — probe 41 §1 already reds
+  on a bundle whose shader library is missing or too small. **Still open:** the cause. Two hypotheses the
+  pre-build line separates on the next run — the delivery SDK moved to one carrying CoreAI (then
+  `release-artifact-check.sh delivery` reds at build-app.sh 1b) against this route compiling no `.metal`
+  (then there is nothing to ship at 3b). Weight against the second, measured here: the CLT route **does**
+  compile `.metal` even though `xcrun -f metal` fails under it — a synthetic one-kernel package built with
+  `DEVELOPER_DIR=/Library/Developer/CommandLineTools SDKROOT=MacOSX26.5.sdk` produced
+  `MP_MP.bundle/Contents/Resources/default.metallib` (11-06), so SwiftPM reaches the cryptex MetalToolchain
+  without any PATH rung, and the step's own title ("the CLT route has no metal compiler") describes xcrun's
+  lookup, not the build's ability. The green appStore leg's notice `no usable MLX shader payload` is then
+  colour for what the *old* globs could see, not proof that nothing was compiled. Not reproducible on this host: a clean SPM
+  re-resolve is blocked here (git-over-https fails, curl 28), so a cold `--scratch-path` build stalls
+  computing versions (measured 11-06) and the runner is the only place the answer exists.
 - **A caller's one-token `stop` can starve a constrained turn** (Engine/, Handlers/) — naming a stop id
   takes it out of xgrammar's alphabet (`TokenizerInfo.swift`, at the create call), so a `stop` the schema
   needs empties the mask where it was needed and `nextTokenBitmask()` reads empty as finished: truncated

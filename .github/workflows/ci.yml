@@ -151,6 +151,15 @@ jobs:
           bash scripts/makefile-parse-check.sh \
             || { echo "::error::failed step: makefile parse"; exit 1; }
 
+      # Every red leg is diagnosed through /check-runs/{id}/annotations, because the log needs a
+      # token this host does not use — so the publisher of those annotations is a gate's transport and
+      # gets judged: a raw `%` ate lines, and a tail publishes position instead of cause. Byte-exact,
+      # no build, ubuntu-legal.
+      - name: The CI annotation publisher escapes and chooses cause
+        run: |
+          bash scripts/ci-annotate.sh --selftest \
+            || { echo "::error::failed step: ci-annotate selftest"; exit 1; }
+
       # No secret scanner in CI, and that is a measurement, not a preference. It was imported from
       # `references/zeroclaw` — a project not in references and never in this repo's history — and
       # 0 of the 20 reference projects run one in CI. Its own record: never green (it trips our

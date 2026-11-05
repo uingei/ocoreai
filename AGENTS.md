@@ -147,8 +147,8 @@ verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name bel
 - **The board scores 6 of the 40 advertised tools; full-surface is `OCOREAI_EVAL_TOOLS=all`** (scripts/eval/)
   — every row prices its `tools[]` bytes; judging the two surfaces waits on the owner.
 - **The tool surface is still ungated against the loaded model** (UI/, Engine/) — owner call; `reasoning_effort`'s gate (`ReasoningEffortHonestyTests`(9) + probe 38) is the pattern to extend.
-- **Only the publish half has never run** (CI/) — `package.yml` is green on a runner (DMG, probe 41, window
-  proof); `release`'s publish + read-back stay tag-gated: a tag is a hand.
+- **Rehearsal leg red, publish never run** (CI/) — `package.yml`'s DMG leg: red since 10-31, one sha green
+  then red (the image moved); `release`'s publish + read-back stay tag-gated: a tag is a hand.
 - **A corpus costs injection; the tail is disclosed, not gated** — injected bytes cost a 2B checkpoint
   double-digit pp; the fall-off is named to the model and on `/v1/capabilities` (`make docs-check` prints
   `deepest-chain=`). Owner: gate by capacity — cites: `docs/agent/open-items.md`.

@@ -10,6 +10,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Which stage the script was in when it died, on stdout, greppable. Two of the four stages below
+# send their tool's stdout to /dev/null (hdiutil), so with `set -e` a red here historically printed
+# nothing of its own and the log's last words were somebody else's compiler warnings — the reason
+# the packaging leg has been undiagnosable since 10-31. A phase line costs one echo and names the stage even
+# when the command inside it is silent; scripts/ci-annotate.sh publishes the last one as the
+# fallback when a log carries no error line at all.
+phase() { printf 'phase=%s\n' "$1"; }
+
 DIST="${DIST:-dist}"
 VERSION="$(bash scripts/version.sh)"
 DST="$DIST/ocoreai-$VERSION.dmg"
@@ -17,16 +25,19 @@ DST="$DIST/ocoreai-$VERSION.dmg"
 export OCOREAI_VERSION="$VERSION"
 
 # 1. .app (复用 build-app.sh: release build + metallib + icon + plist)
+phase app-bundle
 bash scripts/build-app.sh
 
 APP="build/ocoreai.app"
 [ -d "$APP" ] || { echo "❌ $APP missing"; exit 1; }
 
 # 2. 版本对齐 (以 OCOREAI_VERSION 为准, 默认 0.1.0)
+phase plist-version
 PLISTB=/usr/libexec/PlistBuddy
 "$PLISTB" -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
 "$PLISTB" -c "Set :CFBundleVersion $VERSION" "$APP/Contents/Info.plist"
 
+phase codesign
 # 3. 代码签名: CI 上开发者证书 → ad-hoc。两者都让 App 可本地运行。
 IDENTITY="${OCOREAI_SIGN_IDENTITY:-}"
 if [ -n "$IDENTITY" ]; then
@@ -37,6 +48,7 @@ else
   echo "⚠️ ad-hoc signed (no OCOREAI_SIGN_IDENTITY set) — 本地可用, 分发需正式证书"
 fi
 
+phase dmg-volume
 # 4. DMG 卷: [ocoreai.app] [→ Applications 软链]
 STAGING="$(mktemp -d)/dmg"
 mkdir -p "$STAGING"
@@ -49,6 +61,7 @@ rm -f "$DST"
 hdiutil create -volname "$VOLUME" -srcfolder "$STAGING" -ov -format UDZO -fs HFS+ \
   -size 512m "$DST" >/dev/null
 
+phase dmg-verify
 # 自验: 能挂载 + App 可执行位完整
 MNT="$(mktemp -d)/mnt"
 mkdir -p "$MNT"

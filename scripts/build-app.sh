@@ -51,18 +51,20 @@ cp .build/release/ocoreai "$APP_DIR/Contents/MacOS/"
 # — path ① for the binary-in-place case and path ③ for the
 # NSBundle.allBundles case.
 METALLIB_BUNDLE="mlx-swift_Cmlx.bundle"
-METALLIB_SRC=""
-for cand in \
-    ".build/out/Products/Release/${METALLIB_BUNDLE}/Contents/Resources/default.metallib" \
-    ".build/out/Products/Debug/${METALLIB_BUNDLE}/Contents/Resources/default.metallib" \
-    ".build/arm64-apple-macosx/release/${METALLIB_BUNDLE}/Contents/Resources/default.metallib" \
-    ".build/arm64-apple-macosx/debug/${METALLIB_BUNDLE}/Contents/Resources/default.metallib"; do
-    if [ -f "$cand" ]; then METALLIB_SRC="$cand"; break; fi
-done
-if [ -z "$METALLIB_SRC" ]; then
-    echo "❌ mlx-swift_Cmlx default.metallib not found — run 'swift build' once (any config) so SPM materializes the Cmlx bundle. On CI this means the delivery route resolved no metal compiler (scripts/toolchain-contract.sh; the runner installs the MetalToolchain component)."
-    exit 1
+# The ladder has one home (scripts/resolve-metallib.sh — § Working here, "one resolver, one ladder",
+# and the inline four-glob copy here was its second home). Two reasons this belongs to the ladder and
+# not to a glob list in the bundling script: a layout the globs do not name does not fail, it falls
+# back to whatever older payload a stale scratch tree happens to hold, and the .app a stranger
+# installs then carries shader bytes that its own build never compiled; and the ladder prints WHICH
+# RUNG WON, so the artifact's provenance is in the build log rather than inferred afterwards.
+LADDER_LOG="$(mktemp)"
+if ! METALLIB_SRC="$(bash "$(dirname "$0")/resolve-metallib.sh" .build 2>"$LADDER_LOG")"; then
+  sed 's/^/   /' "$LADDER_LOG"; rm -f "$LADDER_LOG"
+  echo "❌ no MLX shader payload to ship — the .app would die at the first Metal allocation" \
+       "(engine cannot start on MLX models). Remedy is the ladder's, above."
+  exit 1
 fi
+sed 's/^/   /' "$LADDER_LOG"; rm -f "$LADDER_LOG"
 echo "   metallib: $METALLIB_SRC"
 # Path ① — colocated with the binary (covers 'Contents/MacOS' search)
 cp "$METALLIB_SRC" "$APP_DIR/Contents/MacOS/mlx.metallib"

@@ -9,6 +9,56 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-06
 
+**11-06 the packaging leg stayed red, and what was provable was that its diagnosis channel was broken — not why it died**
+
+- **What improved.** `DMG from a clean runner` has been red since 10-31, and for five of those days this repo
+  was wrong about why: `d664f7b` was blamed in three places (`package.yml`'s step comment, `open-items.md`,
+  `long-horizon-goal.md` § Rung zero) and that blame is **retracted** — `a64e79da` went green as run 11
+  (10-30 18:20, push) and red as run 12 (10-31 15:29, schedule), one sha and two verdicts, and the step dies
+  at 1 168 s, after a whole compile, so what moved is the image under the build. What *was* provable, from the
+  annotations API that needs no token: the leg published `tail -25`, and seven runs (15–20, 22) returned the
+  same nine `DirectInferenceClient.swift` warnings and never the window's last lines — the channel reported
+  position as though it were cause, and GitHub drops a workflow command carrying a raw `%` or a CR silently.
+  Three changes, none of them a guess at the cause. One publisher, `scripts/ci-annotate.sh`: percent-encodes,
+  dedupes in order, prefers the log's own cause lines over its tail, falls back to the last `phase=` marker,
+  and says so when the log is missing rather than inventing a cause. `build-dmg.sh` prints `phase=` at each of
+  its five stages, two of which had been dying with their tool's stdout sent to `/dev/null`. The leg now
+  publishes its **premises** before it builds — resolved route, SDK version, whether that SDK carries CoreAI,
+  metal on PATH, free bytes, and the shader ladder's own answer — so the next run names the premise that moved
+  rather than confirming a hypothesis chosen in the dark, and if a runner that has just built prints a ladder
+  rung, the "this route compiled no `.metal`" half dies on the spot. Same round, the payload decision got one
+  home: `build-app.sh` carried a fourth copy of the ladder's glob list next to `resolve-metallib.sh`, and that
+  shape cannot see two of the three products layouts this repo's own `.build` holds today (five payload files
+  across three layouts, counted 11-06) — a glob that misses the newest payload does not fail, it ships an older
+  one. The ladder searches each tree by bundle name, prints `scanned N` so "the route compiled nothing" and
+  "four exist, the freshest won" are different sentences, and the bundling script asks it instead of globbing.
+- **What same-session output proves it.** The run/job/annotation triple from `api.github.com`: 22 runs with 11
+  green then 12 red on one sha; nine identical failure messages per run; the failing step's own 1 168 s; and
+  the *green* appStore leg's notice `payload after the appStore build: ❌ no usable MLX shader payload`, which
+  is colour for one hypothesis and not proof of it. `resolve-metallib.sh` before and after the same edit: same
+  winning path (`.build/out/Products/Release/…`, 4 716 496 bytes), and a miss now reaches DerivedData in 1.3 s
+  with the walk bounded to this project's trees — 7.8 GB of DerivedData is why the bound is there. Second
+  datum, against one of the two hypotheses: the CLT route compiles `.metal` even where `xcrun -f metal`
+  fails — a synthetic one-kernel package built under `DEVELOPER_DIR=CLT SDKROOT=MacOSX26.5.sdk` produced its
+  own `…_MP.bundle/Contents/Resources/default.metallib`, so SwiftPM reaches the cryptex MetalToolchain on its
+  own and the packaging step's title ("the CLT route has no metal compiler") is about xcrun's lookup, not the
+  build's ability. Attempted
+  and abandoned as un-runnable here: a cold `--scratch-path` build of the delivery route, the local analogue of
+  a clean runner, stalled at `Computing version for …swift-jinja` because git-over-https fails on this host
+  (curl 28) — so the runner is the only place this leg's cause exists, and that is stated as the limit rather
+  than worked around. The claim in root that "`package.yml` is green on a runner" was false for five days and
+  is corrected where the invariant says it must be; it cost 19 of root's 28 bytes of headroom, so the next root
+  rule pays by trimming, and B2 re-derived the consensus row from 21 440/47 471/32 740/28 B to
+  21 459/47 490/32 759/9 B on this tree.
+- **Which gate goes red.** `bash scripts/ci-annotate.sh --selftest` — nine byte-exact assertions: a `%` inside
+  a diagnostic must arrive escaped, a cause line 40 lines above the tail must outrank the tail, a CR must be
+  stripped rather than split the line, a repeated cause must publish once, and a missing log must publish
+  "no evidence" instead of a plausible cause. It runs inside `make audit` and as its own step on the ubuntu
+  text-gate leg (no build, no Metal, ubuntu-legal), and it is red against the exact failure sampled here, not a
+  mutation invented for it. No gate for the payload ladder: probe 41 §1 already reds on a bundle whose shipped
+  shader library is missing or too small, so this round removed a second home, not a missing check.
+  `make audit` (incl. the new selftest) and `make docs-check` are green on this edit.
+
 **11-06 the doc set was read against the instruments that own its numbers, and five figures had drifted**
 
 - **What improved.** The gates were green before this and are green after — `docs-check`, `anchor-check`

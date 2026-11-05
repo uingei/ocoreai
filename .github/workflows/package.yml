@@ -112,18 +112,55 @@ jobs:
       - name: Build the DMG (the same script the release leg runs)
         run: |
           set -euo pipefail
-          # Red since `d664f7b` and undiagnosable from outside: the annotations API answered only
-          # "Process completed with exit code 1" plus the two downstream uploads finding nothing, and the
-          # step's own log needs a token this host does not use — while `scripts/build-dmg.sh` yields a
-          # 27 932 392-byte DMG on this host (11-02), so the cause is a clean-runner premise, not the
-          # script. Annotations reach /check-runs/{id}/annotations with no token and stdout does not, so
-          # the tail is republished the way scripts/probes/ci-step.sh:84 already does: the next red on
-          # this leg names itself.
+          # Red on every run since 10-31 (run 12) and undiagnosable from outside: the annotations API
+          # answered only "Process completed with exit code 1" plus the two downstream uploads finding
+          # nothing, and the step's own log needs a token this host does not use — while
+          # `scripts/build-dmg.sh` yields a 27 932 392-byte DMG on this host (11-02), so the cause is a
+          # clean-runner premise, not the script. And it is NOT `d664f7b`, which this file and two docs
+          # blamed for 5 d: `a64e79da` went green as run 11 (10-30 18:20, push) and red as run 12 (10-31
+          # 15:29, schedule) — one sha, two verdicts, so what moved is the image under the build. The
+          # step's 1 168 s say the same: the failure is late, after a whole compile.
+          # What this leg publishes, and when. BEFORE the build, one line naming the premises the
+          # verdict rests on: resolved route, SDK version, whether that SDK carries CoreAI, metal on
+          # PATH, free bytes. Those four separate the two live hypotheses — the delivery SDK moved to
+          # one that carries CoreAI (then the shape judge at build-app.sh 1b reds) against this route
+          # compiling no `.metal` (then 3b has nothing to ship) — and every field is readable through
+          # /check-runs/{id}/annotations with no token, which the step's stdout is not. The route is
+          # asked in a subshell so the build still resolves its own: that resolution (SDKROOT unset) is
+          # part of what this leg judges, and pinning it here would rehearse a different build.
+          #
+          # AFTER the build, on both branches, the shader ladder's own answer — asked after, not before,
+          # because a clean runner legitimately holds no payload until the build runs, so a pre-build
+          # scan can only print "nothing" and that sentence means two different things. Same reason the
+          # appStore leg words its notice "payload after the appStore build".
+          #
+          # ON A RED, the log's cause lines through the shared publisher. The `tail -25` this step used
+          # to publish chose position over cause: seven runs (15–20, 22) returned the same nine compiler
+          # warnings from the window's first half and never its last lines.
+          publish_ladder() {
+            local ans
+            ans="$(bash scripts/resolve-metallib.sh .build 2>&1 | tr '\r\n' '  ' | head -c 150 || true)"
+            echo "::notice::shader payload after $1: ${ans:-the ladder printed nothing}"
+          }
+          (
+            eval "$(bash scripts/toolchain-contract.sh print-delivery-env 2>/dev/null || true)"
+            # Both SDK fields describe the SDK the build will actually use: `--sdk macosx` answers for
+            # the host's default, which on a delivery host is a different SDK from the pinned one (this
+            # host: default 27.0, pinned 26.5), and a premises line whose two fields disagree about
+            # which SDK they name is worse than one that prints nothing.
+            SDK_VER="$(xcrun --sdk "${SDKROOT:-macosx}" --show-sdk-version 2>/dev/null || echo unknown)"
+            COREAI=absent
+            if [ -d "${SDKROOT:-}/System/Library/Frameworks/CoreAI.framework" ]; then COREAI=in-sdk; fi
+            FREE_GB="$(df -g . | awk 'NR==2{print $4}')"
+            echo "::notice::dmg premises: dev=${DEVELOPER_DIR:-unset} sdk=$(basename "${SDKROOT:-unset}" .sdk)/${SDK_VER} coreai=${COREAI} metal=$(command -v metal || echo ABSENT) diskfree_gb=${FREE_GB}"
+          )
           if ! bash scripts/build-dmg.sh 2>&1 | tee /tmp/build-dmg.log; then
-            echo "::error title=build-dmg.sh failed (clean-runner)::tail of its log follows, published as annotations"
-            tail -25 /tmp/build-dmg.log | sed 's/^/::error::  /'
+            publish_ladder "the failed build"
+            echo "::error title=build-dmg.sh failed (clean-runner)::cause lines from its log follow"
+            bash scripts/ci-annotate.sh --level error /tmp/build-dmg.log
             exit 1
           fi
+          publish_ladder "the green build"
           ls -l dist/
 
       - name: Judge the artefact — probe 41 (mount, serve, stop)

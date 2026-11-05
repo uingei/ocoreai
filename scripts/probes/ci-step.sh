@@ -81,7 +81,10 @@ if [ "$RC" -eq 0 ]; then
   exit 0
 fi
 
-tail -25 "$LOG" | sed 's/^/::error::  /'
+# The probe's own words, chosen for cause rather than position, escaped for the workflow-command
+# parser (a raw `%` makes GitHub drop the line, which is how a tail became a trustworthy looking
+# excerpt of warnings on the packaging leg). One publisher for both CI call sites.
+bash scripts/ci-annotate.sh --level error "$LOG"
 { echo "### probe $NO failed (exit $RC) after ${ELAPSED}s"; echo '```'
   grep -E "FAIL|NOTE  bridge|server exited|refusing to start|never answered|Fatal error" "$LOG" | tail -20
   echo '```'; } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"

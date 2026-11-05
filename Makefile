@@ -366,6 +366,11 @@ audit:
 	@# A dead type name in the architecture docs teaches an architecture that does not exist:
 	@# ARCHITECTURE.md diagrammed BackendProtocol.swift for weeks after 2123143 deleted it.
 	bash scripts/docs-type-existence.sh
+	@# The CI diagnosis channel is code too: a workflow command carrying a raw `%` is dropped by
+	@# GitHub's parser, and a leg that publishes only a tail publishes the wrong part of its own log.
+	@# Sampled against every red packaging run since 10-31, seven of which reported nine compiler warnings
+	@# and never the line they died on; the reader is whoever diagnoses a leg without a token.
+	bash scripts/ci-annotate.sh --selftest
 
 ## Two passes, one command. anchor-check.sh verifies the cites that carry an `anchor:` marker;
 ## upstream-cite-check.sh verifies the *bare* `path.ext:NN` cites in Sources/ comments (173 on
