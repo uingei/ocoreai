@@ -159,43 +159,36 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   build jobs with no secrets and no `id-token` and publishes from a `release` environment over artefacts.
   Deliberately untouched before a first release lands: it is the one path a rehearsal cannot run.
   Owner call (who/what may publish).
-- **The packaging leg has been red since 10-31 and the cause is still an inference — 11-06 fixed the
-  instrument before guessing at the cause** (CI/, packaging/) — the blame this row and `package.yml:115`
-  carried in this row and in `package.yml`'s own step comment (`d664f7b`, 11-01) is **retracted**: the
-  `git`-identical `a64e79da` went green as run 11 (10-30 18:20,
-  push) and red as run 12 (10-31 15:29, schedule), and the step dies at 1 168 s, after a whole compile, so
-  the image under the build moved. Why nobody could read the red: the leg published `tail -25` as
-  annotations, and seven runs (15–20, 22) returned the same **nine** compiler warnings from that window and
-  never its last lines — a workflow command carrying a raw `%` or a CR dies in GitHub's parser, silently.
-  Since 11-06: one publisher (`scripts/ci-annotate.sh` — escapes, chooses cause, falls back to the last
-  `phase=` line, which `build-dmg.sh` now prints, so a silent `hdiutil` red names its stage), the leg's
-  premises published *before* it builds (route, SDK version, CoreAI-in-SDK, metal on PATH, free bytes, and
-  `resolve-metallib.sh`'s own answer), and that ladder searches each tree instead of globbing three
-  remembered products layouts (five payloads live under this repo's `.build` across three layouts, and
-  `build-app.sh`'s duplicate four-glob copy is gone — one home). Gate: `ci-annotate --selftest` (9,
-  `make audit` + the ubuntu text-gate step); the payload half needs no new gate — probe 41 §1 already reds
-  on a bundle whose shader library is missing or too small. **Still open:** the cause. Two hypotheses the
-  pre-build line separates on the next run — the delivery SDK moved to one carrying CoreAI (then
-  `release-artifact-check.sh delivery` reds at build-app.sh 1b) against this route compiling no `.metal`
-  (then there is nothing to ship at 3b). Weight against the second, measured here: the CLT route **does**
-  compile `.metal` even though `xcrun -f metal` fails under it — a synthetic one-kernel package built with
-  `DEVELOPER_DIR=/Library/Developer/CommandLineTools SDKROOT=MacOSX26.5.sdk` produced
-  `MP_MP.bundle/Contents/Resources/default.metallib` (11-06), so SwiftPM reaches the cryptex MetalToolchain
-  without any PATH rung, and the step's own title ("the CLT route has no metal compiler") describes xcrun's
-  lookup, not the build's ability. The green appStore leg's notice `no usable MLX shader payload` is then
-  colour for what the *old* globs could see, not proof that nothing was compiled. The comparator that ships
-  the same artefact answers the route question the other way (`mlx-serve` refuses the CLT route for the
-  shipping build and pins full Xcode, because its Metal compiler must come from the toolchain it builds with:
-  `app/build.sh:83-91`, and it fetches the component when `xcrun -sdk macosx metal --version` fails:
-  `app/build.sh:97-99`; static guards on the *staged* payload in the release leg, since a cache-miss rebuild
-  there is what ships: `.github/workflows/release.yml:220-224`) — an owner call about the route, not a fix to
-  land blind here, because our route exists to keep CoreAI out of the artefact. Its payload guard was tried
-  and does not transfer: grepping the shipped metallib for kernel names catches `arg_reduce` (24 hits) and
-  `rms_norm` (6) but reports zero for `quantize_mm`, `steel_gemm_splitk` and `add_scaled` (measured 11-06 on
-  the 4 716 496-byte payload), so a name-coverage floor as simple as their `_nax` check would red on a good
-  payload. Not reproducible on this host: a clean SPM
-  re-resolve is blocked here (git-over-https fails, curl 28), so a cold `--scratch-path` build stalls
-  computing versions (measured 11-06) and the runner is the only place the answer exists.
+- **The packaging leg has been red since 10-31; run 23 named the premise, and the route's PATH hole is now the
+  proven mechanism** (CI/, packaging/) — the blame this row carried (`d664f7b`) is **retracted**: `a64e79da`
+  went green as run 11 (10-30 18:20, push) and red as run 12 (10-31 15:29, schedule), one sha two verdicts, so
+  the image moved under the build, and the step dies at 1 049–1 168 s, after a whole compile. Run 23
+  (`3d0631f9`) is the first legible red, and its two notices kill three of the four hypotheses in one line
+  each: `dmg premises: dev=/Library/Developer/CommandLineTools sdk=MacOSX/26.5 coreai=absent metal=ABSENT
+  diskfree_gb=95` (the delivery SDK did not move to a CoreAI one; disk is not it) and `shader payload after the
+  failed build: rung: swiftpm-product · nothing usable (scanned 0)` — the ladder now *searches* each tree, so
+  "a layout the old globs cannot see" is dead too. What survives is a mechanism, not a guess: on that route
+  `metal` is unreachable **by name**, and the resolver that owns the route answered "no value" because its
+  printer tested the verdict (`METAL != ok`) while its consumer needs PATH reachability — `xcrun -f metal`
+  resolves a compiler *inside* a toolchain without putting it on PATH. Reproduced on this host 11-06 with an
+  `xcrun` shim in exactly that shape: `print-delivery-env` emitted no `export PATH=`, `command -v metal` read
+  `ABSENT` after the eval, and the leg's own preflight still returned rc=0, because
+  `check --require-metal --probe-metal` *executes a named binary* (it printed `compiled a probe kernel with
+  /tmp/fakeclt/metal`) and so cannot see a PATH hole — run 23's step 4 green and step 5 red is the same shape.
+  Fixed one home up: `print-metal-bin` decides on `metal_path_ok` (spawned by name; the stub's wording is read
+  through the same helper as the verdict, so the two questions cannot disagree), `report` gained
+  `metal_on_path=yes|no`, and a resolve-but-cannot-spawn route now exports the cryptex mount's `usr/bin`, whose
+  only other tools are `metal*`/`air*`. **Not claimed:** that this is the runner's whole cause — this host
+  compiles `.metal` with no PATH rung at all (a synthetic one-kernel package under `DEVELOPER_DIR=CLT` produced
+  its own `default.metallib`), and a cold SPM re-resolve is blocked here (git-over-https, curl 28), so run 24
+  decides, and it now publishes `metal_on_path`, the count of build-log lines naming metal, a workspace-wide
+  payload `find`, and the component status + mount list on a red. Gate: the nightly leg, whose failures go
+  through `scripts/ci-annotate.sh` (`--selftest`, 9, `make audit` + the ubuntu text gate), and probe 41 §1,
+  which already reds on a bundle whose shader library is missing or too small; no text grep of this rule —
+  prose-shape checks are deleted, not added. Still an owner call: `mlx-serve` ships the same artefact from a
+  pinned full Xcode instead (`app/build.sh:83-91`, `:97-99`) and static-guards the staged payload
+  (`.github/workflows/release.yml:220-224`), while our CLT route exists to keep CoreAI out of the artefact; its
+  `_nax` name-coverage guard was tried and does not transfer (CHANGELOG 11-06).
 - **A caller's one-token `stop` can starve a constrained turn** (Engine/, Handlers/) — naming a stop id
   takes it out of xgrammar's alphabet (`TokenizerInfo.swift`, at the create call), so a `stop` the schema
   needs empties the mask where it was needed and `nextTokenBitmask()` reads empty as finished: truncated

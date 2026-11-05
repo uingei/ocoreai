@@ -120,6 +120,30 @@ metal_component_status() {
     | awk -F': *' '/^Status:/ { print tolower($2); exit }'
 }
 
+# Does this binary answer as a compiler, or refuse as a stub? The stub's own wording is the only
+# reliable tell (`xcodebuild -showComponent` and a toolchain symlink both exist while the mobile
+# asset is unmounted), so the verdict and the PATH test read it through here — two homes for that
+# vocabulary is how one question says `ok` and the other says dead.
+metal_answers() {
+  local out
+  out="$("$1" --version 2>&1 || true)"
+  case "$out" in
+    *"missing Metal Toolchain"*) return 1 ;;  # stub present, asset not mounted on this route
+    "") return 1 ;;                          # nothing runnable here
+    *) return 0 ;;
+  esac
+}
+
+# Spawned BY NAME — the only form SwiftPM's CompileMetalFile can use ("unable to spawn process
+# 'metal'"). `xcrun -f metal` resolving a path says the toolchain KNOWS a compiler, not that PATH
+# reaches it, and a route can be true on the first and false on the second at the same time — which
+# is what let a delivery route read `metal=ok` while the build inside it could not spawn a compiler.
+metal_path_ok() {
+  local bin
+  bin="$(command -v metal 2>/dev/null || true)"
+  [ -n "$bin" ] && metal_answers "$bin"
+}
+
 # Verdict vocabulary:
 #   ok                        this route spawns `metal` and it answers
 #   ok-cryptex              the route's stub refused, but the asset is mounted and
@@ -130,18 +154,11 @@ metal_component_status() {
 #   component-<status>      authoritative status says it is not installed
 #   absent                  nothing to spawn and no status to quote
 metal_probe() {
-  local bin out
+  local bin
   bin="$(xcrun -f metal 2>/dev/null || true)"
   [ -n "$bin" ] || bin="$(command -v metal 2>/dev/null || true)"
 
-  if [ -n "$bin" ]; then
-    out="$("$bin" --version 2>&1 || true)"
-    case "$out" in
-      *"missing Metal Toolchain"*) ;;  # stub present, asset not mounted on this route
-      "") ;;                         # nothing runnable here
-      *) echo "ok"; return 0 ;;
-    esac
-  fi
+  if [ -n "$bin" ] && metal_answers "$bin"; then echo "ok"; return 0; fi
 
   # The asset may be mounted and runnable even where this route's stub refuses
   # (measured 10-14: `metal --version` from the cryptexd mount answers fine). Upstream's
@@ -290,6 +307,8 @@ report() {
   echo "sdk_default_coreai=$( { has_coreai "$CURRENT_SDK" && echo yes; } || echo no)"
   echo "sdk_no_coreai=${PINNED_SDK:-none-found}"
   echo "metal=$METAL"
+  # The consumer's question, judged the way the consumer judges it: PATH, not `xcrun`.
+  if metal_path_ok; then echo "metal_on_path=yes"; else echo "metal_on_path=no"; fi
   echo "metal_component_status=${METAL_STATUS:-unknown}"
   echo "metal_cryptex_bin=${METAL_BIN:-none}"
   echo "metal_probe=$PROBE${PROBED_BIN:+ ($PROBED_BIN)}"
@@ -305,12 +324,14 @@ if [ "$MODE" = "print-sdk-root" ]; then
 fi
 if [ "$MODE" = "print-metal-bin" ]; then
   # Contract consumer (Makefile): prepend this dir to PATH and `metal` spawns.
-  # The `!= ok` half is not an inversion: METAL=ok means a `metal` already spawns by name on this
-  # route, so the PATH rung would buy nothing and the printer's answer is "no value" (R4's shape).
-  # What this line must never do is call the route fine while the resolver sees a mount and stdout
-  # stays empty for a consumer that cannot spawn metal — that is the 10-28 delivery-leg failure, and
-  # it is fixed one function up, in cryptex_metal_bin (see entry 10-28(20)).
-  if [ -n "$METAL_BIN" ] && [ "$METAL" != "ok" ]; then echo "$METAL_BIN"; exit 0; fi
+  # The question this printer answers is PATH reachability, because that is the only form its
+  # consumer can use. It must not answer it through the verdict: `METAL=ok` also covers a compiler
+  # reachable only via `xcrun`, which read as "no rung needed" while the delivery build died at
+  # CompileMetalFile with nothing to ship (measured 11-06, package.yml run 23 — the leg's own
+  # `check --require-metal --probe-metal` step went green, because a probe executes a NAMED binary,
+  # and the build step's own premises line then read `metal=ABSENT` for the route it compiled with).
+  # R4 is unchanged: no value exists ⇒ fall silent and exit non-zero.
+  if [ -n "$METAL_BIN" ] && ! metal_path_ok; then echo "$METAL_BIN"; exit 0; fi
   exit 1
 fi
 
@@ -334,8 +355,10 @@ if [ "$MODE" = "print-delivery-env" ]; then
   # the printer returned no value by contract, no PATH rung was exported, and the CLT build the leg
   # then ran died at CompileMetalFile with `unable to spawn process 'metal'` — while the leg's own
   # preflight, asking as CLT, named the mount seconds later and read `metal=ABSENT` for the route.
-  # Asked here, METAL=ok means metal spawns by name on the route that ships and no rung is needed;
-  # anything else prints the cryptex dir, which is the rung.
+  # Asked here, and answered the way the build that evals this consumes it: a `metal` already
+  # reachable by name needs no rung, anything else prints the cryptex dir — the same compiler the
+  # toolchain resolves internally, in a directory whose only other tools are `metal*`/`air*`, so
+  # prepending it shadows nothing else the build runs.
   DELIVERY_METAL_BIN=$(DEVELOPER_DIR="$CLT_ROOT" bash "$0" print-metal-bin 2>/dev/null) || DELIVERY_METAL_BIN=""
   CLT_FRAMEWORKS=$CLT_ROOT/Library/Developer/Frameworks
   CLT_USR_LIB=$CLT_ROOT/Library/Developer/usr/lib

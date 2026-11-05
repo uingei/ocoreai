@@ -9,6 +9,50 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-06
 
+**11-06 run 23 read the packaging leg's red for the first time, and what it named is a PATH hole in the delivery route**
+
+- **What improved.** `scripts/toolchain-contract.sh` answered two different questions with one word. Its
+  verdict asks whether a Metal compiler *answers* — `xcrun -f metal`, then PATH — while its printer
+  `print-metal-bin` answers a question its consumers (Makefile:103, `make release`, `scripts/build-app.sh:17`)
+  can only use: is `metal` reachable **by name**, because SwiftPM's `CompileMetalFile` spawns it through PATH
+  lookup ("unable to spawn process 'metal'"). The printer tested the verdict (`METAL != ok`), so a route whose
+  compiler resolves inside the toolchain and never lands on PATH read "already fine, no value", the delivery
+  env exported no `export PATH=`, and the build died with nothing to ship. Now the printer decides on
+  `metal_path_ok` — spawned by name, with the stub's "missing Metal Toolchain" wording read through the same
+  helper (`metal_answers`) as the verdict, so the two questions cannot drift apart — `report` gained
+  `metal_on_path=yes|no`, and a resolve-but-cannot-spawn route exports the cryptex mount's `usr/bin`, a thin
+  directory whose only other tools are `metal*`/`air*`, so the prepend shadows nothing else the build runs.
+  Same leg, the red's diagnosis went from cause-lines-only to four measured premises: a workspace-wide payload
+  `find`, the count of build-log lines naming metal, the component status, and the mount list.
+- **What same-session output proves it.** Run 23 (`3d0631f9`, read through `/check-runs/{id}/annotations`, no
+  token): its notices read `dmg premises: dev=/Library/Developer/CommandLineTools sdk=MacOSX/26.5
+  coreai=absent metal=ABSENT diskfree_gb=95` and `shader payload after the failed build: rung:
+  swiftpm-product · nothing usable (scanned 0)`, its step table reads step 4 (`Install MetalToolchain` →
+  eval the route → `check --require-metal --probe-metal`) **success**, step 5 **failure**, probe 41 skipped —
+  and that combination killed three hypotheses (moved SDK carrying CoreAI, disk space, "a payload layout the
+  old globs could not see") in one pass. Then the mechanism, reproduced on this host with an `xcrun` shim that
+  resolves a working `metal` while PATH holds none — the runner's shape: old code emitted no `export PATH=`,
+  `command -v metal` read `ABSENT` after the eval, and the leg's own preflight still returned rc=0 while
+  printing `compiled a probe kernel with /tmp/fakeclt/metal` (a probe EXECUTES a named binary, so it cannot
+  see a PATH hole); new code exports `…/Metal.xctoolchain/usr/bin`, `metal --version` answers `Apple metal
+  version 32023.921 (metalfe-32023.921.6)`, and the contract still holds on both real routes (CLT and Xcode
+  print the identical value before and after — only the runner's shape changed). **Not claimed:** that this is
+  the runner's whole cause. This host compiles `.metal` with no PATH rung at all (a synthetic one-kernel
+  package under `DEVELOPER_DIR=CLT` produced its own `default.metallib`, 11-06), a cold SPM re-resolve is
+  blocked here (git-over-https, curl 28), and the log itself still needs a token this host does not use — so
+  the four new premises on the next red are what decide, not this commit message.
+- **Which gate goes red.** The nightly leg is the gate, deliberately un-duplicated: on a regression here the
+  build reaches `build-app.sh` 3b and reds with "no MLX shader payload to ship", and probe 41 §1 reds on a
+  bundle whose shipped shader library is missing or too small; no text grep of this rule was added, because a
+  check on the shape of this sentence is the family this repo deletes rather than downgrades. What is
+  re-derived without a build: `scripts/audit-facts.sh` runs `toolchain-contract.sh report`, which now carries
+  `metal_on_path` next to `metal=`, so a route whose verdict and PATH disagree is visible on any `make audit`;
+  the R4 printer check still reds if a printer ever writes a diagnostic to stdout (both branches measured:
+  `DEVELOPER_DIR=/nonexistent` → silence, rc=1). Docs moved with the verdict: this row's neighbours —
+  `open-items.md`'s packaging row (−581 B, the falsified hypotheses replaced by the measured ones) and
+  `long-horizon-goal.md` § Rung zero (−452 B) — and root's Adoption row went untouched at 9 B of headroom,
+  because it is not yet false; the next root rule pays for itself by trimming.
+
 **11-06 the packaging leg stayed red, and what was provable was that its diagnosis channel was broken — not why it died**
 
 - **What improved.** `DMG from a clean runner` has been red since 10-31, and for five of those days this repo

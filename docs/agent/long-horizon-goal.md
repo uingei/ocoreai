@@ -106,22 +106,18 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    DMG and probe 41 judges it under `permissions: contents: read`, so a rehearsal can't publish. Green
    10-29 end to end: metallib, DMG, probe 41's 12 assertions (a real turn from a fresh directory), the
    window proof — green, so now blocking — and a first green main run, steps at 4/3/7 s (no weights on a
-   runner, so no checkpoint tier ran there). **That sentence is a 10-29 measurement, and the leg is red
-   again, and the blame in this file and in `package.yml`'s step comment was wrong: **red on every run since 10-31 (run
-   12), whose sha `a64e79da` was also the last green (run 11, 10-30 18:20)** — one sha, two verdicts, so the
-   image moved under the build, not the build. `bash scripts/ci-status.sh` reads
-   `DMG from a clean runner (no publish)=failure` — no `dist/*.dmg` uploaded, probe 41 and the window proof
-   skipped.** "Blocking" describes the gate, not the state. The leg's re-published 25-line tail did *not*
-   name the cause and could not have: seven runs published the same nine compiler warnings
-   (`DirectInferenceClient.swift:727`) and never the window's last lines, which is how a workflow command
-   containing a raw `%` dies in GitHub's parser; the job log needs a token this host does not have. Since
-   11-06 the leg publishes its premises (resolved route, SDK version, CoreAI-in-SDK, metal on PATH, free
-   bytes, and the shader-payload ladder's own answer) *before* it builds, through the annotations API that
-   needs no token, and its failures go through `scripts/ci-annotate.sh` (cause chosen over position,
-   `--selftest` gated) — so the next run names the premise that moved. The one red this box *can* reproduce
-   is the shape judge — `scripts/release-artifact-check.sh delivery` exits 1 on a CoreAI-linked binary ("that
-   is the macOS-27 shape, not the delivery shape R1 names"), which the delivery route avoids by pinning the
-   CLT SDK 26.5 route. Indicated, not proven for the runner. Never run: `release`'s publish + read-back — tag-gated, and a tag is a hand, not a task.
+   runner, so no checkpoint tier ran there). **That sentence is a 10-29 measurement: the leg has been red on
+   every run since 10-31 (run 12), whose sha `a64e79da` was also the last green (run 11, 10-30 18:20)** — one
+   sha, two verdicts, so the image moved under the build and not the build, and `bash scripts/ci-status.sh`
+   reads `DMG from a clean runner (no publish)=failure`; "blocking" describes the gate, not the state. The
+   blame this file carried (`d664f7b`) is retracted, and so is the inference that replaced it: run 23
+   (`3d0631f9`) published its premises through the token-free annotation channel and answered
+   `sdk=MacOSX/26.5 coreai=absent · metal=ABSENT · payload … (scanned 0)`, which kills the moved-SDK,
+   disk-space and payload-layout hypotheses and leaves one mechanism standing — the route resolved a Metal
+   compiler through `xcrun` and never put it on PATH, so the build had nothing to spawn and the bundle had no
+   shader bytes to ship. Fixed in the resolver that owns the route (reproduction and limits: `open-items.md`).
+   What rung 1 waits on is unchanged: a run whose DMG, probe 41 and window proof are green, then the owner's
+   hand on a tag — `release`'s publish + read-back has never run, and a tag is a hand, not a task.
 2. **Sixty seconds to first token.** Honest today: `swift build -c release` (minutes) or an ad-hoc-signed
    DMG plus the Gatekeeper right-click. Rung = notarised artefact + Homebrew cask; the metric to floor is
    *clean machine → first completion*, one command, timed. First measured point: 22.1 s from a built DMG to

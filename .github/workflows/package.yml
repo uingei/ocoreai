@@ -120,14 +120,18 @@ jobs:
           # blamed for 5 d: `a64e79da` went green as run 11 (10-30 18:20, push) and red as run 12 (10-31
           # 15:29, schedule) — one sha, two verdicts, so what moved is the image under the build. The
           # step's 1 168 s say the same: the failure is late, after a whole compile.
-          # What this leg publishes, and when. BEFORE the build, one line naming the premises the
-          # verdict rests on: resolved route, SDK version, whether that SDK carries CoreAI, metal on
-          # PATH, free bytes. Those four separate the two live hypotheses — the delivery SDK moved to
-          # one that carries CoreAI (then the shape judge at build-app.sh 1b reds) against this route
-          # compiling no `.metal` (then 3b has nothing to ship) — and every field is readable through
-          # /check-runs/{id}/annotations with no token, which the step's stdout is not. The route is
-          # asked in a subshell so the build still resolves its own: that resolution (SDKROOT unset) is
-          # part of what this leg judges, and pinning it here would rehearse a different build.
+          # What this leg publishes, and when. BEFORE the build, the premises the verdict rests on:
+          # resolved route, SDK version, whether that SDK carries CoreAI, whether a `metal` is reachable
+          # BY NAME, free bytes, then the contract's own metal lines. Every field is readable through
+          # /check-runs/{id}/annotations with no token, which the step's stdout is not. Run 23 settled
+          # the argument this line was written to settle in one pass: `coreai=absent` (the SDK did not
+          # move) and `metal=ABSENT` while step 4 — the component download plus
+          # `check --require-metal --probe-metal` on the same route — went green. Both are true at once
+          # because a probe EXECUTES a named binary and llbuild spawns by PATH; the route is fixed in
+          # scripts/toolchain-contract.sh, and `metal_on_path` there is the field that keeps this claim
+          # honest. The route is asked in a subshell so the build still resolves its own: that resolution
+          # (SDKROOT unset) is part of what this leg judges, and pinning it here would rehearse a
+          # different build.
           #
           # AFTER the build, on both branches, the shader ladder's own answer — asked after, not before,
           # because a clean runner legitimately holds no payload until the build runs, so a pre-build
@@ -137,31 +141,55 @@ jobs:
           # ON A RED, the log's cause lines through the shared publisher. The `tail -25` this step used
           # to publish chose position over cause: seven runs (15–20, 22) returned the same nine compiler
           # warnings from the window's first half and never its last lines.
+          publish() {  # publish <file-of-lines> <level> — the publisher escapes, so a path or a
+            # diagnostic containing a `%` cannot vanish (that is how seven runs lost their tail).
+            bash scripts/ci-annotate.sh --level "$2" --pattern '.' --max 8 "$1"
+          }
           publish_ladder() {
             local ans
-            ans="$(bash scripts/resolve-metallib.sh .build 2>&1 | tr '\r\n' '  ' | head -c 150 || true)"
+            bash scripts/resolve-metallib.sh .build > /tmp/ladder.out 2> /tmp/ladder.err || true
+            ans="$(tr '\r\n' '  ' < /tmp/ladder.err | head -c 150)"
             echo "::notice::shader payload after $1: ${ans:-the ladder printed nothing}"
           }
+          # BEFORE the build, on the route the build will use. This block is why the 10-31 red became
+          # legible on its first run: it killed the moved-SDK and disk-space hypotheses in seconds,
+          # where six days of inference had not.
           (
             eval "$(bash scripts/toolchain-contract.sh print-delivery-env 2>/dev/null || true)"
-            # Both SDK fields describe the SDK the build will actually use: `--sdk macosx` answers for
-            # the host's default, which on a delivery host is a different SDK from the pinned one (this
-            # host: default 27.0, pinned 26.5), and a premises line whose two fields disagree about
-            # which SDK they name is worse than one that prints nothing.
             SDK_VER="$(xcrun --sdk "${SDKROOT:-macosx}" --show-sdk-version 2>/dev/null || echo unknown)"
             COREAI=absent
             if [ -d "${SDKROOT:-}/System/Library/Frameworks/CoreAI.framework" ]; then COREAI=in-sdk; fi
-            FREE_GB="$(df -g . | awk 'NR==2{print $4}')"
-            echo "::notice::dmg premises: dev=${DEVELOPER_DIR:-unset} sdk=$(basename "${SDKROOT:-unset}" .sdk)/${SDK_VER} coreai=${COREAI} metal=$(command -v metal || echo ABSENT) diskfree_gb=${FREE_GB}"
+            { printf 'dmg premises: dev=%s sdk=%s/%s coreai=%s metal=%s diskfree_gb=%s\n' \
+                "${DEVELOPER_DIR:-unset}" "$(basename "${SDKROOT:-unset}" .sdk)" "$SDK_VER" "$COREAI" \
+                "$(command -v metal || echo ABSENT)" "$(df -g . | awk 'NR==2{print $4}')"
+              bash scripts/toolchain-contract.sh report 2>&1 | grep -E '^metal|^sdk_no_coreai|^developer_dir'
+            } > /tmp/dmg-premises.txt || true
+            publish /tmp/dmg-premises.txt notice
           )
           if ! bash scripts/build-dmg.sh 2>&1 | tee /tmp/build-dmg.log; then
             publish_ladder "the failed build"
+            # Where are the shader bytes, if the build made any anywhere? A ladder scoped to `.build`
+            # cannot answer "it landed elsewhere" — run 23's answer was `scanned 0`, which is the same
+            # sentence for "nothing was compiled" and "it compiled into a tree this scan cannot see", so
+            # the workspace-wide find is what separates them, and the log-line count says whether the
+            # compiler was named at all. The component status and mount list name the premise one level
+            # up: an asset cryptexd never mounted leaves no PATH rung to export, and that is a different
+            # remedy from a mount the route cannot reach.
+            { printf 'payload files in the workspace after the failed build: %s\n' \
+                "$(find . -maxdepth 10 \( -name default.metallib -o -name mlx.metallib \) 2>/dev/null | head -4 | tr '\n' ' ' | cut -c1-160 || true)"
+              printf 'build-log lines naming metal: %s of %s\n' \
+                "$(grep -icE 'metal' /tmp/build-dmg.log || true)" "$(wc -l < /tmp/build-dmg.log | tr -d ' ')"
+              printf 'component (ambient xcodebuild): %s\n' \
+                "$(xcodebuild -showComponent MetalToolchain 2>&1 | tr '\r\n' '  ' | cut -c1-150 || true)"
+              printf 'cryptex mounts visible now: %s\n' \
+                "$(ls -d /private/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v*/Metal.xctoolchain 2>/dev/null | tr '\n' ' ' | cut -c1-150 || true)"
+            } > /tmp/dmg-diagnosis.txt || true
+            publish /tmp/dmg-diagnosis.txt error
             echo "::error title=build-dmg.sh failed (clean-runner)::cause lines from its log follow"
             bash scripts/ci-annotate.sh --level error /tmp/build-dmg.log
             exit 1
           fi
           publish_ladder "the green build"
-          ls -l dist/
 
       - name: Judge the artefact — probe 41 (mount, serve, stop)
         timeout-minutes: 15
