@@ -17,10 +17,13 @@
 # (compiled against the pinned mlx), then an Xcode product for this project, then a pip wheel
 # (a different release entirely — last resort, and said out loud when it wins).
 #
-# Rung 1 is the upstream approach, not a local invention: SwiftPM compiles .metal itself once the
-# Metal Toolchain component is installed and stages no payload — mlx-swift-lm
-# .github/workflows/pull_request.yml:216-237 asserts `Status: installed` and downloads the
-# component otherwise. The freshest bundle wins, because a scratch tree keeps stale layouts from
+# Rung 1 is where a route that compiles `.metal` itself puts the payload — upstream's route does
+# (mlx-swift-lm .github/workflows/pull_request.yml:216-237 asserts `Status: installed` and downloads the
+# component otherwise), and this host's SwiftPM 6.4 does too (38 `.air` intermediates, 4 716 496 bytes).
+# A macos-26 runner has NOT done it since 10-31 even with a compiler it can spawn, so the packaging lanes
+# produce and stage the payload explicitly (scripts/ci-materialize-metallib.sh) and rung 1 then hits on the
+# staged file — which is why the rung is a path contract, not a promise about who compiled the bytes.
+# The freshest bundle wins, because a scratch tree keeps stale layouts from
 # earlier toolchains, and the path printed is absolute: the runner's cwd is not the repo root.
 #
 # Each tree is SEARCHED for the bundle by name, not globbed at a remembered depth (11-06). This is

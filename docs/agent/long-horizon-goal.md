@@ -113,9 +113,11 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    blame this file carried (`d664f7b`) is retracted, and so is the inference that replaced it: run 23
    (`3d0631f9`) published its premises through the token-free annotation channel and answered
    `sdk=MacOSX/26.5 coreai=absent · metal=ABSENT · payload … (scanned 0)`, which kills the moved-SDK,
-   disk-space and payload-layout hypotheses and leaves one mechanism standing — the route resolved a Metal
-   compiler through `xcrun` and never put it on PATH, so the build had nothing to spawn and the bundle had no
-   shader bytes to ship. Fixed in the resolver that owns the route (reproduction and limits: `open-items.md`).
+   disk-space and payload-layout hypotheses and leaves two mechanisms, both since measured on a runner: the
+   route resolved a Metal compiler through `xcrun` and never put it on PATH (fixed in the resolver that owns
+   it), and — which falsified that as the whole cause one run later — this image's SwiftPM emits no shader
+   payload even with a compiler it can spawn, so the lanes produce the payload explicitly again (reproduction
+   and limits: `open-items.md`).
    What rung 1 waits on is unchanged: a run whose DMG, probe 41 and window proof are green, then the owner's
    hand on a tag — `release`'s publish + read-back has never run, and a tag is a hand, not a task.
 2. **Sixty seconds to first token.** Honest today: `swift build -c release` (minutes) or an ad-hoc-signed

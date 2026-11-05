@@ -101,14 +101,34 @@ jobs:
           eval "$ROUTE"
           bash scripts/toolchain-contract.sh check --require-metal --probe-metal
 
-        # No metallib step in this lane, and that is a measurement rather than an oversight: on 10-29 the
-        # appStore leg printed `rung: swiftpm-product · 2 389 928 bytes` at the SwiftPM product path with no
-        # xcodebuild anywhere in the job and nothing metallib in the cache paths, so SwiftPM does compile
-        # `.metal` once a metal compiler exists — which build-app.sh arranges itself by evaluating
-        # `toolchain-contract.sh print-delivery-env` when SDKROOT is unset. What catches a regression is not
-        # a hope: build-app.sh exits 1 when no candidate carries the payload, and probe 41 §1 reds on a
-        # bundle whose shipped library is missing or too small. The release leg still runs the script, and
-        # stops when this lane has gone green without it — the minutes are the reason to rehearse here.
+      # The shader payload's producer, restored 11-06 by two runs of this lane.
+      # It was deleted 10-29 because a macos-26 runner had just measured `swift build -c release --traits
+      # appStore` staging a 2 389 928 B `default.metallib` at the SwiftPM product path with no xcodebuild
+      # anywhere in the job. That measurement no longer reproduces: run 23 had no `metal` reachable by name
+      # at all, and run 24 — after the route began exporting the PATH rung — reported `metal=ok`,
+      # `metal_on_path=yes` and a compile-probed kernel, built green, and still emitted no payload: the
+      # workspace-wide find matched zero files and the ladder scanned zero trees. The appStore leg, same
+      # image, prints the same `scanned 0` after its own green build. An artefact a stranger installs
+      # cannot depend on a toolchain capability this leg cannot see, so the bytes are produced explicitly;
+      # scripts/resolve-metallib.sh stays the only way to FIND them (one ladder, and it names the rung that
+      # won). Whether SwiftPM compiles `.metal` on this image is still worth knowing — that is what the
+      # ~10 min here would buy back — so the appStore leg keeps printing that answer as a notice, not a
+      # gate, and deleting this step again is legitimate the day it prints a payload.
+      - name: Materialize the shader payload (xcodebuild — the producer the release leg needs too)
+        timeout-minutes: 30
+        # The script's own answer — which rung won, how many bytes, from where — goes through the
+        # publisher, because that is the channel a reader with no token can see, and this step's whole
+        # purpose is to say whether the payload exists before a 17-minute build finds out the hard way.
+        run: |
+          set -euo pipefail
+          if ! bash scripts/ci-materialize-metallib.sh > /tmp/producer.log 2>&1; then
+            bash scripts/ci-annotate.sh --level error --pattern '.' --max 6 /tmp/producer.log
+            exit 1
+          fi
+          bash scripts/ci-annotate.sh --level notice --pattern '.' --max 4 /tmp/producer.log
+
+      # What catches a regression in the payload is not a hope: build-app.sh exits 1 when no candidate
+      # carries it, and probe 41 §1 reds on a bundle whose shipped library is missing or too small.
       - name: Build the DMG (the same script the release leg runs)
         run: |
           set -euo pipefail
@@ -162,23 +182,29 @@ jobs:
             { printf 'dmg premises: dev=%s sdk=%s/%s coreai=%s metal=%s diskfree_gb=%s\n' \
                 "${DEVELOPER_DIR:-unset}" "$(basename "${SDKROOT:-unset}" .sdk)" "$SDK_VER" "$COREAI" \
                 "$(command -v metal || echo ABSENT)" "$(df -g . | awk 'NR==2{print $4}')"
-              bash scripts/toolchain-contract.sh report 2>&1 | grep -E '^metal|^sdk_no_coreai|^developer_dir'
+              bash scripts/toolchain-contract.sh report 2>&1 | grep -E '^metal|^sdk_no_coreai|^developer_dir|^swift'
             } > /tmp/dmg-premises.txt || true
             publish /tmp/dmg-premises.txt notice
           )
           if ! bash scripts/build-dmg.sh 2>&1 | tee /tmp/build-dmg.log; then
             publish_ladder "the failed build"
             # Where are the shader bytes, if the build made any anywhere? A ladder scoped to `.build`
-            # cannot answer "it landed elsewhere" — run 23's answer was `scanned 0`, which is the same
-            # sentence for "nothing was compiled" and "it compiled into a tree this scan cannot see", so
-            # the workspace-wide find is what separates them, and the log-line count says whether the
-            # compiler was named at all. The component status and mount list name the premise one level
-            # up: an asset cryptexd never mounted leaves no PATH rung to export, and that is a different
-            # remedy from a mount the route cannot reach.
+            # cannot answer "it landed elsewhere" — run 24's answer was `scanned 0` with an empty
+            # workspace-wide find, so the producer now runs first and this block says which of the three
+            # states a red is in: no payload and no `.air` (nothing compiled `.metal`), `.air` but no
+            # payload (the compile ran and the link/stage did not), or a payload the ladder could not
+            # reach (a layout problem, not a build problem). The `.air` count is the same evidence this
+            # host's own scratch tree carries for a compiling route (38 of them under
+            # `.build/out/Intermediates.noindex/…/Metal/`, 11-06), and the log count is CR-tolerant:
+            # `swift build` progress lines end in `\r`, so a newline-counted grep under-reads it.
             { printf 'payload files in the workspace after the failed build: %s\n' \
                 "$(find . -maxdepth 10 \( -name default.metallib -o -name mlx.metallib \) 2>/dev/null | head -4 | tr '\n' ' ' | cut -c1-160 || true)"
+              printf 'compiled metal objects (.air): %s · Cmlx bundles: %s\n' \
+                "$(find .build -name '*.air' 2>/dev/null | wc -l | tr -d ' ')" \
+                "$(find .build -maxdepth 8 -name 'mlx-swift_Cmlx.bundle' 2>/dev/null | head -2 | tr '\n' ' ' | cut -c1-120 || true)"
               printf 'build-log lines naming metal: %s of %s\n' \
-                "$(grep -icE 'metal' /tmp/build-dmg.log || true)" "$(wc -l < /tmp/build-dmg.log | tr -d ' ')"
+                "$(tr '\r' '\n' < /tmp/build-dmg.log | grep -icE 'metal' || true)" \
+                "$(tr '\r' '\n' < /tmp/build-dmg.log | wc -l | tr -d ' ')"
               printf 'component (ambient xcodebuild): %s\n' \
                 "$(xcodebuild -showComponent MetalToolchain 2>&1 | tr '\r\n' '  ' | cut -c1-150 || true)"
               printf 'cryptex mounts visible now: %s\n' \

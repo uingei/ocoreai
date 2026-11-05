@@ -9,6 +9,54 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-06
 
+**11-06 run 24 confirmed the PATH fix, falsified it as the whole cause, and the restored producer could not fail**
+
+- **What improved.** Run 24 (`e0e6b7f2`) answered the question the last entry left open, both ways. The
+  resolver fix works on the runner — the premises line now reads
+  `metal=/private/var/run/…/Metal.xctoolchain/usr/bin/metal · metal=ok · metal_on_path=yes` where run 23 read
+  `metal=ABSENT` — and that was not the cause: green preflight, green build, still `scanned 0`, and the new
+  workspace-wide `find` matched no payload file anywhere. So this image's `swift build -c release --traits
+  appStore` emits no shader payload even holding a compiler it can spawn, and the artefact a stranger installs
+  cannot depend on a capability the leg cannot see. The producer that used to guarantee it —
+  `scripts/ci-materialize-metallib.sh`, an xcodebuild pass deleted 10-29 because a runner had staged a
+  2 389 928 B payload that day — is restored and called by both packaging lanes (the rehearsal and the
+  tag-gated `release` job, which since 10-29 had no producer either and would have met this on tag day).
+  Restoring it found a defect of exactly the kind invariant 1 is about: its failure path read the *negated*
+  status (`if ! xcodebuild …; then RC=$?`), printed `xcodebuild failed (exit 0)` and exited 0 — a producer
+  whose failure cannot go red, so the caller would stage nothing and only `build-app.sh` 3b would notice,
+  naming the wrong subject. It is now `|| RC=$?`, its diagnostics go to stderr (stdout is the staged path and
+  nothing else), and a red names the premise it depends on. Diagnosis got three-way instead of one: the leg
+  publishes the `.air` count and the Cmlx bundle list next to the workspace-wide find, so
+  nothing-compiled / compiled-but-unlinked / linked-but-unreachable name different remedies; the log-line
+  count is CR-tolerant (the version pushed an hour ago under-read `swift build`, whose progress lines end in
+  `\r`); `report`'s `swift=` is in the premises; and the producer's winning rung is published through the same
+  token-free channel as everything else.
+- **What same-session output proves it.** Run 24's annotations, verbatim: `metal=ok`, `metal_on_path=yes`,
+  `cryptex mounts visible now: …MetalToolchain-v17.6.109.0.wrnZ7O/Metal.xctoolchain`, `payload files in the
+  workspace after the failed build:` (empty), `build-log lines naming metal: 9 of 661`, step 4 green and step
+  5 red — plus the appStore leg on the same image, whose own notice reads
+  `payload after the appStore build: rung: swiftpm-product · nothing usable (scanned 0)` after a green build
+  whose route notice names a spawnable compiler, so this is not the rehearsal's quirk. Two of the round's
+  claims died by measurement rather than by argument: **"the image moved" is retracted** (`api.github.com`
+  lists no `macos-26-arm64` image between 20261026 and 20261102, which spans green run 11 and first-red run
+  12), and it left a better lead in its place — running the producer *here* showed the Metal Toolchain
+  component is **per-developer-dir**: with `metal_component_status=uninstalled` on the Xcode route,
+  xcodebuild refused 13 `.metal` files with `cannot execute tool 'metal' due to missing Metal Toolchain` while
+  the same report said `metal=ok-cryptex` and `metal_cryptex_bin=` a mount holding a working compiler.
+  xcodebuild states that loudly; a build that only skips the task states it by producing nothing, which is the
+  shape runs 23/24 had. The exit-code fix is measured, not asserted: the same failing run that exited 0
+  before now exits 65 with the component status named on stderr and stdout empty. Limit, stated rather than
+  worked around: the producer's green path is not reproducible on this host without installing a component the
+  box does not currently carry, so its success executes on the lane tonight — its shape is the same scheme two
+  green legs run today, and `bash -n`, the ladder and the staging paths were checked here.
+- **Which gate goes red.** `build-app.sh` 3b and probe 41 §1 remain the payload gate (a bundle without its
+  shader library reds, and did); what changed is that the producer can now *lose* visibly — its exit code is
+  real, and package.yml publishes its log through `scripts/ci-annotate.sh` (`--selftest`, 9, `make audit` +
+  the ubuntu text gate) on both branches. The appStore leg's `Did the SwiftPM route materialize the shader
+  payload?` notice stays a measurement, and it is the tripwire that lets the producer be deleted again the day
+  a runner prints a payload — with evidence, as its comment has always demanded. Root's `Open` row lost the
+  unsupported clause rather than gaining one (21 441 B, 27 B of headroom, consensus row re-derived).
+
 **11-06 run 23 read the packaging leg's red for the first time, and what it named is a PATH hole in the delivery route**
 
 - **What improved.** `scripts/toolchain-contract.sh` answered two different questions with one word. Its

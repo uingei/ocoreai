@@ -412,12 +412,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The producer this step used to run (an xcodebuild pass whose only job was the shader payload) is
-      # gone: measured on 10-29, `swift build -c release --traits appStore` compiles the `.metal` sources
-      # itself and stages `default.metallib` where build-app.sh looks, provided a metal compiler exists —
-      # which is what this step buys, for seconds instead of the 633 s the producer cost. `package.yml` ran
-      # this exact shape green the same night (DMG 1 111 s, probe 41 12 assertions), so the release leg and
-      # its rehearsal now differ by one thing: the credential this job holds and that lane does not.
+      # The component first, the producer second, and the producer is back (11-06). Its deletion on 10-29
+      # rested on a runner measurement — `swift build -c release --traits appStore` staging a 2 389 928 B
+      # `default.metallib` with no xcodebuild in the job — that no longer reproduces: the rehearsal lane's
+      # runs 23 and 24 built with a spawnable `metal` (`metal=ok`, `metal_on_path=yes`, kernel compiled)
+      # and produced no payload anywhere in the workspace, and the appStore leg on this image prints the
+      # same `scanned 0`. Tag day is the wrong day to learn that again, which is the sentence this step's
+      # comment has carried since 10-28 and now means again. The component install stays: xcodebuild's
+      # MetalLink needs the asset too, and the route probe below is what proves the next step's build can
+      # spawn a compiler at all (a download is a request, not a fact — measured 10-28: this step green,
+      # CompileMetalFile dead, because the component landed on a route the job never evals).
       - name: Install MetalToolchain (SwiftPM needs a metal compiler, the CLT route has none)
         run: |
           set -euo pipefail
@@ -431,6 +435,12 @@ jobs:
           ROUTE="$(bash scripts/toolchain-contract.sh print-delivery-env)"
           eval "$ROUTE"
           bash scripts/toolchain-contract.sh check --require-metal --probe-metal
+
+      - name: Materialize the shader payload (xcodebuild)
+        timeout-minutes: 40
+        run: |
+          set -euo pipefail
+          bash scripts/ci-materialize-metallib.sh
 
       - name: Build DMG (appStore trait — App Store 审核面)
         run: |
@@ -684,13 +694,16 @@ jobs:
           fi
           tail -4 appstore-delivery.log
 
-      # A measurement, not a verdict: does this route compile .metal itself? resolve-metallib.sh's rung 1
-      # says SwiftPM does once the Metal Toolchain component is installed (the remedy mlx-swift-lm runs in
-      # pull_request.yml:216-237), and if a runner agrees, the ~15-minute xcodebuild that produces the
-      # payload for the release leg is waste somebody can delete — with evidence instead of a guess. The
-      # ladder is asked, not re-implemented here, because the ladder prints WHICH RUNG WON and a glob
-      # would read a pip wheel as a SwiftPM hit. Nothing is asserted: a notice is readable with no token,
-      # and the question this answers is about cost, not correctness.
+      # A measurement, not a verdict: does this route compile .metal itself? A runner has now answered
+      # NO on the current image — this step's own notice reads `rung: swiftpm-product · nothing usable
+      # (scanned 0)` after a green `swift build -c release --traits appStore` whose route had a compiler
+      # it could spawn (`metal=…/Metal.xctoolchain/usr/bin/metal`, 11-06) — which is what brought the
+      # xcodebuild producer back to both packaging lanes. It stays a notice and not an assertion, for the
+      # reason it was written: the question is what the producer COSTS, not whether the artefact is right
+      # (build-app.sh 3b and probe 41 §1 assert that), and the day this notice prints a payload the
+      # producer can be deleted again with evidence instead of a guess. The ladder is asked, not
+      # re-implemented here, because the ladder prints WHICH RUNG WON and a glob would read a pip wheel
+      # as a SwiftPM hit.
       - name: Did the SwiftPM route materialize the shader payload?
         run: |
           set -uo pipefail
