@@ -1296,22 +1296,11 @@ actor EmbeddingService {
         return (datas, tokenCounts)
     }
 
-    /// Cosine similarity between two already-embedded vectors.
-    static func cosineSimilarity(_ a: Data, _ b: Data) -> Float {
-        guard a.count == b.count else { return 0 }
-        let count = a.count / MemoryLayout<Float>.size
-        var result: Float = 0
-        withUnsafeBytes(of: a) { bufA in
-            guard let ptrA = bufA.bindMemory(to: Float.self).baseAddress else { return }
-            withUnsafeBytes(of: b) { bufB in
-                guard let ptrB = bufB.bindMemory(to: Float.self).baseAddress else { return }
-                for i in 0 ..< count {
-                    result += ptrA[i] * ptrB[i]
-                }
-            }
-        }
-        return result
-    }
+    // Cosine similarity is deliberately NOT a member of this service. A `Data`-typed version here
+    // walked the `Data` struct's own bytes instead of its elements (`withUnsafeBytes(of:)`, not
+    // `a.withUnsafeBytes`), so an isolated repro scored identical and orthogonal vectors alike at
+    // 4.000001 and returned NaN for a 1024-dim input — kilobytes read past a 16-byte struct. No
+    // caller existed in `Sources/` or `Tests/`; the ranking that ships has its home in `SemanticSearch`.
 
     // MARK: - Model loading
 

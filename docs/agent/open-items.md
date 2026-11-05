@@ -212,6 +212,28 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `../references/pi/.github/workflows/publish-model-catalog.yml:1-14`). Owner call: publishing a catalog is
   promising it stays true, and the refresh probe going red on a stale row is the instrument.
 
+- **`/v1/embeddings` is an advertised promise no probe has read** (Handlers/, Engine/) — measured
+  11-05 against the cached canonical embedder with real weights, on a live server. What is sound:
+  1024-dim, l2 norm 1.000183 (the pooler normalizes before its layer norm, so exactly-1 was never the
+  promise), `usage.prompt_tokens` are the embedder tokenizer's own counts (3 for "hello world", 1 202
+  for a sentence repeated 120 times, and the batch total is their sum), batch `index`es and the summed
+  `usage` are exact, and the three refusals
+  name themselves (empty array, empty string, token-id array). What is open, none of it observed as an
+  incident: ① the request's `model` is never consulted — `text-embedding-3-small` *and* a resident
+  chat id both answer 200 with the canonical embedder's vectors, while the mirror case (a chat turn
+  naming an embedder) refuses with an actionable 400 at `Handlers/ChatHandler.swift:219`; the response
+  does name the model that ran, and this server has exactly one embedder, so no vector store can
+  silently mix two spaces — the owner call is whether a named-but-unavailable model owes a 400.
+  ② `encoding_format:"base64"` is ignored (floats always) and an unknown field is accepted where
+  OpenAI answers "Unsupported parameter" — root § Upstream judges compat by the spec and their
+  implementation, not by our convenience. ③ batch composition moves a vector: the identical string
+  reads max-component-diff 1.7e-3 (cos 0.99987) beside a 3-short batch and 1.5e-3 (cos 0.99990) beside
+  a 1 202-token sibling — the deviation does not grow with pad length, so it is reduction order in the padded
+  batched 4-bit matmul, not pooling over pads; negligible for ranking, named because the query path
+  embeds alone while the index embeds in batches. ④ `/ready` shares the unread seat (advertised on
+  `/v1/capabilities`, in `openapi.json`, never probed); `/v1/stats` got its seat on 11-05 in probe 37
+  §10. A probe here needs the embedder's weights, so it waits on the tier question below.
+
 - **`OCOREAI_AGENTS_MAX_AREA` and P18 were both priced against the wrong enemy** (docs/) — P18 keeps docs
   English by default with exactly one Chinese file (the owner's rule, and why this tree has no translation
   drift), but opencode ships 22 README locales (`../references/opencode/README.md:17-32`) and hermes-agent 3
