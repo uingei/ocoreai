@@ -1229,8 +1229,10 @@ actor EmbeddingService {
         return now.timeIntervalSince(lastFailure) < cooldown
     }
 
-    /// Current embedding dimension (1024 for LFM2.5 models).
-    var embeddingDim: Int { 1024 }
+    /// The instance face of `embeddingDimension` (its one consumer is the load-failure log below);
+    /// the number itself has one home, because `/v1/embeddings` prices `dimensions` against it and
+    /// the SQLite BLOB stores it.
+    var embeddingDim: Int { Self.embeddingDimension }
 
     // MARK: - Public API
 
@@ -1374,6 +1376,13 @@ actor EmbeddingService {
     /// response.model) — the FIRST candidate of `configs`, i.e. what
     /// actually runs when HF/cache is healthy.
     static let canonicalModelId = "mlx-community/LFM2.5-Embedding-350M-4bit"
+
+    /// The canonical embedder's vector width — the one home for the number the
+    /// SQLite `embed_vector` BLOB stores and the number `/v1/embeddings` prices a
+    /// requested `dimensions` against (the embedder cannot truncate: the spec
+    /// supports `dimensions` only on text-embedding-3+, and cutting the measured
+    /// post-layer-norm vector would trade a real cosine for an unmeasured one).
+    static let embeddingDimension = 1024
 
     /// All ids that resolve to embedding-only models (no generation head).
     /// The chat route rejects these with an actionable 400 instead of

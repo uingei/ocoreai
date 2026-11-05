@@ -23,7 +23,9 @@ actor SemanticSearch {
     private let store: SQLiteStore
     private let embeddingService: EmbeddingService
 
-    private static let vectorDim = 1024
+    // The BLOB's width IS the embedder's output width — one home (§ one decision,
+    // one owner): EmbeddingService owns the number the vectors were produced with.
+    private static let vectorDim = EmbeddingService.embeddingDimension
     private static let defaultLimit = 20
     private static let minScore = 0.6
 

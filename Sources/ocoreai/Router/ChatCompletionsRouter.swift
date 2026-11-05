@@ -735,7 +735,7 @@ func buildRouter(
     // MARK: - Embeddings (OpenAI-compatible wire)
 
     /// POST /v1/embeddings — the app's local embedding capability
-    /// (LFM2.5-Embedding-350M, 1024-dim) exposed to standard clients
+    /// (LFM2.5-Embedding-350M, width `EmbeddingService.embeddingDimension`) exposed to standard clients
     /// (RAG tools, vector DBs, langchain). Convergence with the P0
     /// truth-set principle: the SAME EmbeddingService actor behind both the
     /// GUI fire-and-forget path and this wire surface — one circuit breaker,
@@ -1508,11 +1508,61 @@ func countPromptTokens(
 struct EmbeddingsRequest: Codable {
     let model: String?
     let input: EmbeddingsInput
+    /// OpenAI spec enum `float | base64` (default `float`). Parsed because a request field the
+    /// wire accepts but reinterprets is the surface claiming more than the engine delivered.
+    let encodingFormat: String?
+    /// Spec: supported "only on text-embedding-3 and later models". This embedder is not one,
+    /// and a request for a narrower vector is refused (`embeddingsWireEncoding`), never truncated.
+    let dimensions: Int?
     let user: String?
 
     enum CodingKeys: String, CodingKey {
-        case model, input, user
+        case model, input
+        case encodingFormat = "encoding_format"
+        case dimensions
+        case user
     }
+}
+
+/// Which wire shape the `data[].embedding` field carries: a float array, or base64 of the
+/// contiguous little-endian float32 bytes (the OpenAI spec's second shape —
+/// `Embedding.embedding` is `anyOf: [array<float>, string(base64)]` in `openai/openai-openapi`).
+enum EmbeddingsEncoding: Equatable, Sendable {
+    case float
+    case base64
+}
+
+/// Pure so both refusals are decidable without the embedder's weights. Absent or `"float"` keeps
+/// today's float array; `"base64"` gets the spec's base64 string; any other word is a named 400.
+/// A `dimensions` this embedder cannot answer is refused the same way rather than silently
+/// reinterpreted — the shape every comparator that implements these fields ships (ollama
+/// refuses an unknown format in `middleware/openai.go:409-410`, sglang in
+/// `serving_embedding.py:46-49`), Rapid-MLX truncates then re-normalizes
+/// (`routes/embeddings.py:303-321`) — we refuse instead, since nothing measured here says this
+/// embedder's cosine tolerates truncation).
+func embeddingsWireEncoding(
+    encodingFormat: String?,
+    dimensions: Int?,
+    nativeDimension: Int,
+    modelName: String
+) throws -> EmbeddingsEncoding {
+    let format = encodingFormat ?? "float"
+    guard format == "float" || format == "base64" else {
+        throw AppError.invalidRequest(
+            "encoding_format must be 'float' or 'base64' (got '\(format)')")
+    }
+    if let dimensions {
+        guard dimensions >= 1 else {
+            throw AppError.invalidRequest(
+                "dimensions must be an integer >= 1 (got \(dimensions))")
+        }
+        guard dimensions == nativeDimension else {
+            throw AppError.invalidRequest(
+                "dimensions=\(dimensions) is not supported by \(modelName): its embeddings are "
+                    + "\(nativeDimension)-dim. Omit 'dimensions' for the full vector.")
+        }
+    }
+    return format == "base64" ? .base64 : .float
 }
 
 /// Polymorphic input field: single string or array of strings. Decodes
@@ -1552,10 +1602,74 @@ enum EmbeddingsInput: Codable {
     }
 }
 
-struct EmbeddingDatum: Codable {
+/// One `data[]` element. The base64 shape rides the SAME `embedding` key as a string, not a
+/// `b64_json` field: that is what the fetched spec says (`Embedding.embedding` =
+/// `anyOf: [array<float>, string(base64)]`, `openai/openai-openapi openapi.yaml` ~:51627), and
+/// every comparator that implements `encoding_format` puts the string there — ollama
+/// `openai/openai.go:533-549`, vllm `pooling/embed/protocol.py:206-209` (its own example decodes
+/// `data["embedding"]`, `embedding_requests_base64_online.py:56`), sglang `EmbeddingObject`,
+/// Rapid-MLX `EmbeddingData`. (`b64_json` exists in the spec, but only on images.)
+struct EmbeddingDatum: Codable, Equatable {
     let object: String  // "embedding"
     let index: Int
-    let embedding: [Float]
+
+    enum Payload: Equatable, Sendable {
+        case floats([Float])
+        case base64(String)
+    }
+    let payload: Payload
+
+    init(object: String, index: Int, embedding: [Float]) {
+        self.object = object
+        self.index = index
+        payload = .floats(embedding)
+    }
+
+    init(object: String, index: Int, base64: String) {
+        self.object = object
+        self.index = index
+        payload = .base64(base64)
+    }
+
+    /// base64 of the contiguous LITTLE-ENDIAN float32 bytes — the spec's base64 shape. Packed from
+    /// each value's `bitPattern` rather than re-emitting the resident blob, so the wire never
+    /// inherits the host's byte order (sglang's explicit `<Nf` pack, `serving_embedding.py:275-279`).
+    /// `bitPattern.littleEndian` over `Float.littleEndian`: the byte-swap property on a floating
+    /// type is newer than the CLT compiler this repo also builds against, and a wire format must
+    /// not depend on which toolchain produced it.
+    static func base64Embedding(of floats: [Float]) -> String {
+        var bytes = Data(capacity: floats.count * MemoryLayout<Float>.size)
+        for value in floats {
+            var littleEndianBits = value.bitPattern.littleEndian
+            withUnsafeBytes(of: &littleEndianBits) { bytes.append(contentsOf: $0) }
+        }
+        return bytes.base64EncodedString()
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case object, index, embedding
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(object, forKey: .object)
+        try c.encode(index, forKey: .index)
+        switch payload {
+        case .floats(let floats): try c.encode(floats, forKey: .embedding)
+        case .base64(let string): try c.encode(string, forKey: .embedding)
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        object = try c.decode(String.self, forKey: .object)
+        index = try c.decode(Int.self, forKey: .index)
+        if let floats = try? c.decode([Float].self, forKey: .embedding) {
+            payload = .floats(floats)
+        } else {
+            payload = .base64(try c.decode(String.self, forKey: .embedding))
+        }
+    }
 }
 
 struct EmbeddingsUsage: Codable {
@@ -1585,6 +1699,12 @@ func embeddingsHandler(
     request: EmbeddingsRequest,
     semanticSearch: SemanticSearch,
 ) async throws -> EmbeddingsResponse {
+    let encoding = try embeddingsWireEncoding(
+        encodingFormat: request.encodingFormat,
+        dimensions: request.dimensions,
+        nativeDimension: EmbeddingService.embeddingDimension,
+        modelName: EmbeddingService.canonicalModelId)
+
     let texts = request.input.texts
     guard !texts.isEmpty else {
         throw AppError.invalidRequest("input must not be empty")
@@ -1605,11 +1725,19 @@ func embeddingsHandler(
     }
 
     let data = datas.enumerated().map { (i, d) -> EmbeddingDatum in
-        // float32 LE blobs → [Double] JSON (OpenAI wire shape)
+        // The embedder's float32 blobs, read in the shape the caller asked for: float array,
+        // or base64 of the same values packed little-endian (OpenAI wire shapes).
         let floats = d.withUnsafeBytes { buf in
             [Float](buf.bindMemory(to: Float.self))
         }
-        return EmbeddingDatum(object: "embedding", index: i, embedding: floats)
+        switch encoding {
+        case .float:
+            return EmbeddingDatum(object: "embedding", index: i, embedding: floats)
+        case .base64:
+            return EmbeddingDatum(
+                object: "embedding", index: i,
+                base64: EmbeddingDatum.base64Embedding(of: floats))
+        }
     }
     let total = tokenCounts.reduce(0, +)
     return EmbeddingsResponse(

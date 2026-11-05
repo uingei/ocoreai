@@ -212,8 +212,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `../references/pi/.github/workflows/publish-model-catalog.yml:1-14`). Owner call: publishing a catalog is
   promising it stays true, and the refresh probe going red on a stale row is the instrument.
 
-- **`/v1/embeddings` is an advertised promise no probe has read** (Handlers/, Engine/) — measured
-  11-05 against the cached canonical embedder with real weights, on a live server. What is sound:
+- **`/v1/embeddings` had no probe seat; its declared fields have one now** (Handlers/, Engine/) —
+  measured 11-05 against the cached canonical embedder with real weights, on a live server. What is sound:
   1024-dim, l2 norm 1.000183 (the pooler normalizes before its layer norm, so exactly-1 was never the
   promise), `usage.prompt_tokens` are the embedder tokenizer's own counts (3 for "hello world", 1 202
   for a sentence repeated 120 times, and the batch total is their sum), batch `index`es and the summed
@@ -224,15 +224,26 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   naming an embedder) refuses with an actionable 400 at `Handlers/ChatHandler.swift:219`; the response
   does name the model that ran, and this server has exactly one embedder, so no vector store can
   silently mix two spaces — the owner call is whether a named-but-unavailable model owes a 400.
-  ② `encoding_format:"base64"` is ignored (floats always) and an unknown field is accepted where
-  OpenAI answers "Unsupported parameter" — root § Upstream judges compat by the spec and their
-  implementation, not by our convenience. ③ batch composition moves a vector: the identical string
+  ② **closed for the two fields 11-06 named, open for the third face**: `encoding_format` is honored
+  and `dimensions` is refused by name (`embeddingsWireEncoding`; gates `EmbeddingsWireTests`(13) + probe
+  51), with the base64 string riding `embedding` — the fetched spec says `Embedding.embedding` is
+  `anyOf: [array<float>, string(base64)]` (`openai/openai-openapi` ~:51627, read through
+  `api.github.com` because platform.openai.com is unreachable from this host) and all four comparators
+  that implement the parameter agree (ollama `openai/openai.go:533-549`, vllm
+  `pooling/embed/protocol.py:206-209` + its own example, sglang `serving_embedding.py:270-279`,
+  Rapid-MLX `routes/embeddings.py:323-336`); `b64_json` exists in that spec only on images. What stays
+  open: an *unknown* top-level field is still accepted where OpenAI answers "Unsupported parameter" —
+  sglang's own `EmbeddingRequest` ignores extras too, so the yardstick itself diverges from the spec
+  here and root § Upstream's "spec, their implementation, real requests, observed behaviour" has no
+  majority to read off. ③ batch composition moves a vector: the identical string
   reads max-component-diff 1.7e-3 (cos 0.99987) beside a 3-short batch and 1.5e-3 (cos 0.99990) beside
   a 1 202-token sibling — the deviation does not grow with pad length, so it is reduction order in the padded
   batched 4-bit matmul, not pooling over pads; negligible for ranking, named because the query path
   embeds alone while the index embeds in batches. ④ `/ready` shares the unread seat (advertised on
   `/v1/capabilities`, in `openapi.json`, never probed); `/v1/stats` got its seat on 11-05 in probe 37
-  §10. A probe here needs the embedder's weights, so it waits on the tier question below.
+  §10. Probe 51's §1-§2 run weight-free (a scripted boot answers them at the request boundary); only
+  its §3 needs the embedder's weights, so that leg waits on the tier question below and prints that it
+  skipped when they are absent.
 
 - **`OCOREAI_AGENTS_MAX_AREA` and P18 were both priced against the wrong enemy** (docs/) — P18 keeps docs
   English by default with exactly one Chinese file (the owner's rule, and why this tree has no translation

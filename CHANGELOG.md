@@ -7,7 +7,53 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-11-05
+## [Unreleased] — 2026-09-05 → 2026-11-06
+
+**11-06 `/v1/embeddings` accepted two declared fields and answered neither**
+
+- **What improved.** The 11-05 read of this endpoint (`docs/agent/open-items.md`) found the request
+  parser holding only `model`, `input` and `user`: a caller asking `"encoding_format": "base64"` was
+  answered with float arrays, and one asking `"dimensions": 256` was answered with the full 1024-dim
+  vector — the wire taking a parameter it never kept (invariant 2). Both are answered now
+  (`embeddingsWireEncoding`, `Router/ChatCompletionsRouter.swift`): `float`/absent keeps today's array,
+  `base64` gets the spec's base64 string, and any other word is a 400 naming the field, the bad value
+  and both accepted words (ollama's sentence shape, `middleware/openai.go:409-410`; sglang's
+  `serving_embedding.py:46-49`). `dimensions` is **refused, not truncated** — the spec supports it "only
+  on text-embedding-3 and later models", and nothing measured here says this embedder's cosine survives
+  cutting the post-layer-norm vector its 1.000183 norm was measured on, so the refusal names the value,
+  the 1024, and `Omit 'dimensions'` as the way out. Which key carries the base64 string was *not*
+  assumed: `b64_json` is what one expects from the image endpoints, and it is wrong here — the fetched
+  spec makes `Embedding.embedding` `anyOf: [array<float>, string(base64)]`
+  (`openai/openai-openapi openapi.yaml` ~:51627, read through `api.github.com` with `Accept: …raw`
+  because platform.openai.com is unreachable from this host), and all four comparators that implement
+  the parameter put the string under `embedding` (ollama `openai/openai.go:533-549`, vllm
+  `pooling/embed/protocol.py:206-209` with its own example decoding `data["embedding"]`, sglang
+  `serving_embedding.py:270-279`, Rapid-MLX `routes/embeddings.py:323-336`). Two smaller things the same
+  route touched: the embedder's width gained one home (`EmbeddingService.embeddingDimension`, which
+  `SemanticSearch.vectorDim` now reads instead of re-typing 1024), and the pack is
+  `bitPattern.littleEndian` because **`Float.littleEndian` compiles on the Xcode route and fails on the
+  CLT compiler** — the second toolchain this repo builds against, which `make test-clt` caught and
+  `swift build` did not.
+- **What same-session output proves it.** Probe 51 (new) on one live server, scripted boot: **10 passed,
+  0 failed** — §2's three refusals are weight-free (an unknown format, `dimensions:256`, `dimensions:0`
+  each 400 naming itself), and §3 with the cached weights asked the same two texts both ways and got
+  **2 vectors × 1024 dim carrying the same float32 bits in either encoding**, `usage` agreeing at 9
+  tokens, `dimensions:1024` accepted as the no-op it is. Two legs earned their keep before the run was
+  green: the probe's first run resolved the *pre-fix* binary and read the 11-05 behaviour straight back
+  (floats for a base64 request), and its float-vs-base64 comparison first failed at **max diff 2.5e-9**
+  — half-ULP of float32, not a defect, because a JSON decimal only has to round-trip to the same
+  float32; the arm requantizes before comparing now, since a comparison that cannot tell ULP from bug
+  reports a bug it did not find. `EmbeddingsWireTests`(13) green on the CLT route (`make` exit 0),
+  pinning the whole float datum (`"embedding":[0.5,-0.25,1]` — the encoder prints `1`, a wire fact) and
+  the base64 one (`AACAPwAAAEA=`, from `struct.pack('<2f', 1.0, 2.0)`) plus both shapes decoding.
+- **Which gate goes red.** `EmbeddingsWireTests`(13) is the pure half and runs with no embedder resident;
+  probe 51 §2 is the caller-visible envelope. Re-ignoring `encoding_format` turns §2's first arm and
+  §3's string check red; answering a `dimensions` the embedder cannot honor turns §2's second arm red;
+  moving the base64 string to a `b64_json` key or packing host-order bytes reds §3 and the exact-value
+  test. **Still open, and not closed by this round**: an *unknown* top-level field is accepted where
+  OpenAI answers "Unsupported parameter" (sglang's own `EmbeddingRequest` ignores extras too, so the
+  yardstick diverges from the spec and there is no majority to read off), and the 11-05 row's ① (`model`
+  never consulted) and ④ (`/ready` unread) stay owner calls.
 
 **11-05 the TTFB histogram had two producers, and the dashboard divided it by the wrong count**
 

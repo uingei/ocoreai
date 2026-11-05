@@ -446,6 +446,25 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     is read off **parsed keys**, never a body substring (probe 49's lesson). The keyword content guard is
     *not* covered: `SafetyConfig` defaults `enabled: false`, so nothing in a stock boot reaches it.
 
+- `51-embeddings-encoding-format.sh` — does `/v1/embeddings` answer the fields it accepts?
+    11-05 measured the route parsing only `model`/`input`/`user`: a caller asking `"encoding_format":
+    "base64"` got float arrays and one asking `"dimensions": 256` got the full 1024-dim vector — two
+    declared words accepted and silently reinterpreted. Green 11-06: **10 passed, 0 failed** on one live
+    server, scripted engine — §1 a token-id `input` still gets its 400 (the control that makes every 400
+    below mean its own field), §2 the weight-free refusals: `encoding_format:"msgpack"` → 400 naming the
+    field, the value and both accepted words, `dimensions:256` → 400 naming `dimensions=256`, the 1024 it
+    cannot truncate to and `Omit 'dimensions'`, `dimensions:0` → 400 (spec `minimum: 1`); §3 with the
+    embedder's cached weights asked the same two texts both ways and got **2 vectors × 1024 dim carrying
+    the same float32 bits** in either encoding, `usage` agreeing (9 tokens), `dimensions:1024` accepted as
+    the no-op it is — without the weights §3 prints its reason and is not counted. Two legs earned their
+    keep on the way: the probe's first run resolved the *pre-fix* binary and reported the 11-05 behaviour
+    back (floats for a base64 request), and its float-vs-base64 comparison first failed at
+    **max diff 2.5e-9**, which is half-ULP of float32, not a defect — a JSON decimal only has to round-trip
+    to the same float32, so the arm now requantizes before comparing (a comparison that cannot tell ULP
+    from bug reports a bug it did not find).
+    `dimensions` is refused rather than truncated: the spec supports the field only "on text-embedding-3
+    and later models", and nothing measured here says this embedder's cosine survives cutting the
+    post-layer-norm vector its 1.000183 norm was measured on.
 - `_lib.sh` — shared harness
 Fails when: —
 
