@@ -30,6 +30,18 @@ heading are when the work landed (measured from git).
   silenced; an in-repo basename cite past end still reds through the fallback; an absent tree-file cite
   takes the counted-skip branch (`tree absent here=1`), never a misbind. Real repo: `make docs-check`
   green, `anchors=172 (tree absent here=0)`.
+- **Same family, second face (landed with the fix).** A verified-anchor marker's own cite
+  (`anchor:omlx README.md:410 …`) carries its tree in `anchor:<tree>`, which P3 cannot resolve — bound
+  by basename it is our README.md again, and the paired test shows the 5th misbind appear the moment a
+  comparator cite takes marker form. P3 now skips cites inside foreign markers (they print as
+  `marker-owned`, anchor-check owns content-at-line and reads the real file), and the one comparator
+  cite whose row quotes the file's words — the `omlx` SSD-tier row in `comparator-innovation.md` — is
+  marker-converted: `anchor-check` now verifies its content at that tree's HEAD (81 checked, drift 0),
+  which is the instrument the 402 → 410 move should have rung. Two other candidates were tried and
+  dropped: both paid the per-guide byte cap they had 2 B and 87 B of headroom against, and the
+  `mlx-serve` one anchored a *presence* cite while its row's claim is symbol *absence* — an anchor
+  verifies neither, so the prose stands. The honest scale stays printed: **672** unmarked prose cites,
+  content unverifiable by any gate here.
 - **Which gate goes red if it regresses.** The CI leg itself is the gate: this push makes `Text gates
   (ubuntu)` re-judge four cites whose truth is content-verified here (omlx `:410` is the
   `PagedSSDCacheManager` line; mlx-serve `:3472` the pasted-screenshot comment). If the basename fallback

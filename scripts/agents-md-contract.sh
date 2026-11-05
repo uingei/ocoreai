@@ -329,6 +329,9 @@ for got in fig_tails:
 NAME = r"(?:~?/?[A-Za-z0-9_+.\-]+/)*[A-Za-z0-9_+.\-]*[A-Za-z0-9_+\-]"
 FILE_RE = re.compile(r"(?<![\w/])(" + NAME + r"\.(?:swift|md|sh|yml|yaml|toml|json|h|hpp|metal|py|plist|txt|entitlements|xcprivacy|resolved))(?![\w.])")
 ANCHOR_RE = re.compile(r"(?<![\w/])(" + NAME + r"\.(?:swift|md|sh|yml|yaml|json|h|py))(?::|#L?)(\d{1,5})")
+# A verified-anchor marker (`anchor:omlx README.md:410 PagedSSDCacheManager`): its own cite carries
+# the tree in `anchor:<tree>`, which P3 cannot resolve — bound by basename it is our README.md again.
+ANCHOR_MARK = re.compile(r"anchor:([A-Za-z0-9._+-]+)\s+([^\s:]+):(\d{1,6})")
 CLAIM_RE = re.compile(r"<!--\s*claim:([a-z0-9_]+)\s*(<=|>=|=)\s*(\d+)\s*::\s*(.+?)\s*-->")
 MAKE_RE = re.compile(r"`make\s+([a-z][a-z0-9-]+)")
 SUITE_RE = re.compile(r"\b([A-Z][A-Za-z0-9]*Tests)\b")
@@ -455,6 +458,7 @@ def tree_before(para, cite):
         start = at + len(cite)
 
 refs, anchors, claims, suites, make_targets, routing = set(), set(), set(), set(), set(), set()
+marker_cites = set()  # (path, line) inside a foreign `anchor:<tree>` marker — anchor-check's, not P3's
 suite_counts = set()
 cite_where = {}   # path -> {(doc, paragraph id)} for every cite that is not declared absent
 for src, text in docs.items():
@@ -470,6 +474,9 @@ for src, text in docs.items():
                 cite_where.setdefault(m.group(1), set()).add((src, pid))
         for m in ANCHOR_RE.finditer(line):
             anchors.add((src, m.group(1), int(m.group(2))))
+        for m in ANCHOR_MARK.finditer(line):
+            if m.group(1) != ".":  # `anchor:.` cites the working tree, which resolves-here can judge
+                marker_cites.add((m.group(2), int(m.group(3))))
         for m in CLAIM_RE.finditer(line):
             claims.add((src, m.group(1), m.group(2), int(m.group(3)), m.group(4)))
         suites.update((src, s) for s in SUITE_RE.findall(line))
@@ -602,7 +609,14 @@ if unused_cites:
 # and prints how many it stayed silent about, so a scan that went quiet stays visible.
 bad_anchors = []
 silent_tree = 0
+marker_owned = 0
 for src, f, ln in sorted(anchors):
+    if (f, ln) in marker_cites:
+        # A marker's cite carries its tree in `anchor:<tree>`, which P3 cannot resolve — bound by
+        # basename a marker's `README.md:410` is our README.md again (same credit-borrow rule as
+        # above). `make anchor-check` reads the real file at that tree, so EOF rides with content.
+        marker_owned += 1
+        continue
     form = OUTSIDE_FORM.match(f)
     if form and form.group(1) in TREE_AT:
         tail = re.sub(r"^(?:\.\./|~/?)", "", f)
@@ -1119,8 +1133,9 @@ if diary_paired < env_int("OCOREAI_FLOOR_DIARY_PAIRED"):
 
 # ── report ───────────────────────────────────────────────────────────────────
 print("AGENTS.md contract (%s)" % mode)
-print("  xrefs     §-refs=%d (floor %d)  anchors=%d (tree absent here=%d)  dangling=%d"
-      % (len(refs), env_int("OCOREAI_AGENTS_FLOOR_XREFS"), len(anchors), silent_tree, len(dead_refs)))
+print("  xrefs     §-refs=%d (floor %d)  anchors=%d (tree absent here=%d, marker-owned=%d)  dangling=%d"
+      % (len(refs), env_int("OCOREAI_AGENTS_FLOOR_XREFS"), len(anchors), silent_tree, marker_owned,
+         len(dead_refs)))
 corpus_bytes = sum(os.path.getsize(q) for q in sorted(set(
     ["AGENTS.md", "ARCHITECTURE.md", "CONTRIBUTING.md", "scripts/probes/README.md"]
     + guides + doc_files)) if os.path.exists(q))
