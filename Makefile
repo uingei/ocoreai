@@ -384,15 +384,12 @@ anchor-check:
 ## Four upstream axes, one command. Three HEAD axes (mlx-swift-lm revision pin, coreai-models
 ## and codex reference axes) against .upstream-baseline.json, plus the mlx-swift *tag* axis —
 ## that one is judged against the newest release tag, because `exact:` means unreleased commits
-## on main are not something any Swift consumer can take. The script's exit codes are 0 = nothing
-## pending, 10 = a window needs adjudication (then `bash scripts/upstream-drift.sh adopt` after the
-## verdicts are written to CHANGELOG.md), 1 = a check could not complete — and any other code is
-## normalized to 1 by the trap at the head of that script. **`make drift` cannot carry those numbers**:
-## a failed recipe is make's own exit 2 whatever the recipe returned (measured 11-05: the script said
-## 10, this target said 2, the report identical — which is how a reader came to doubt the contract
-## rather than the layer). So the number travels on stdout as `drift-exit=N`; anything that reads a
-## code calls `bash scripts/upstream-drift.sh`. Needs network via git/gh or the ~/references clones;
-## it never mutates the repo except through `adopt`.
+## on main are not something any Swift consumer can take. The exit codes and the trap that enforces
+## them have one home: the header of `scripts/upstream-drift.sh` (0 = nothing pending, 10 = a window
+## needs adjudication — write the verdicts to CHANGELOG.md, then `… adopt`; 1 = a check could not
+## complete). This target cannot carry those numbers, so it prints `drift-exit=N`; anything that reads
+## a code calls the script. Needs network via git/gh or the ~/references clones; it never mutates the
+## repo except through `adopt`.
 drift:
 	@echo "🛰 Checking upstream drift (3 HEAD axes + mlx-swift tag axis)..."
 	@bash scripts/upstream-drift.sh; rc=$$?; echo "drift-exit=$$rc"; exit $$rc

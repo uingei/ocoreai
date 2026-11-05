@@ -9,6 +9,30 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-05
 
+**11-05 YAGNI/KISS/DRY turned on this session's own census: three findings deleted, two sentences fixed, one boundary measured**
+
+- **What improved.** A comparator census returned five "the field has it, we don't" gaps. Three were this
+  repo's own refusal list wearing a percentage — dependabot 10/28, SBOM 5/28, updater 11/28, config file
+  13/28 — every one with no quoted failure and no consumer today: deleted, not deferred. The two survivors
+  are truths, not surface. `IntegrityDigest.swift:5-7` asserted that the digest "runs on bytes that just
+  arrived from the hub" while its only product caller is the ModelScope lane
+  (`ModelScopeDownloader.swift:1166`); the false half is deleted, not rewritten in place, because the true
+  fact already has a home (`MLXBridge.swift:245-247`) and a second home is the next thing to fix. And the
+  `drift:` block restated the exit-code contract the script header owns, so it is a pointer now.
+  `fail_with()` was next on the cut list and is the one thing that stayed, because the cut was measured
+  first rather than assumed: `(exit N)` as the seam's failing command exits **N**, not 1.
+- **What same-session output proves it.** bash 3.2.57, four probes pasted in after the trap: simple command
+  → 1, function → 1, `x="$(exit 141)"` → 1, `(exit 141)` → **141** (same inside an `if` body). The header now
+  states the coverage it has and names its one bypass; `grep` counts 0 top-level subshells in the file, so
+  that is a boundary and not a defect — documented, unguarded, untested, since a fixture for a construct the
+  file does not contain is exactly what these three rules refuse. Suite re-run 11/11, `format-check` clean,
+  30 recipes parse.
+- **Which gate goes red if it regresses.** None added: nothing here is new surface.
+  `UpstreamDriftWindowTests`(11) still pins both seams and the `make -n` channel.
+- **Cost.** **+1 line** across three files, from `git diff --stat` rather than from feel — the Makefile and
+  the false sentence shrank and the header grew by the boundary. The entry below says the trap normalizes
+  "any unregistered code"; read it as "any a top-level command or function can produce".
+
 **11-05 Two push-path gates had been red on `main` since `e0ebbcc`, because the round that landed never ran them**
 
 - **What improved.** Both reds are one finding twice: a gate that exists off the path taken. (i)

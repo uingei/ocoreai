@@ -5,8 +5,11 @@
 #   bash scripts/upstream-drift.sh          # 只读检查（不改文件）
 #                                            exit 0 = 基线以来 0 新 commit；exit 10 = 有新 commit 待裁决
 #                                            exit 1 = 检查没跑完（含被 trap 归一的中止）—— 不是「无漂移」
-#     只有这三个数。`make drift` 传不出它们：make 把任何失败配方改写成自己的 2（11-05 实测
-#     同一份判定：脚本 10，make 2），所以读码的自动化调本脚本，走 make 就读 stdout 的 `drift-exit=N`。
+#     契约只有这三个数，trap 的覆盖面是量出来的（bash 3.2.57）：顶层简单命令、函数、`x="$(…)"`
+#     赋值的非零返回都归一成 1；唯一绕过它的是裸子 shell —— `(exit 141)` 原样退出 141（实测，放在
+#     `if` 体里也一样）。本文今天 0 个顶层子 shell（grep 过），所以这是条边界而不是缺陷；哪天写进
+#     一个，它就在契约外面。`make drift` 传不出这三个数（make 把任何失败配方改写成自己的 2），
+#     所以读码的自动化调本脚本；走 make 就读 stdout 的 `drift-exit=N`。
 #   bash scripts/upstream-drift.sh adopt                  # 把三源当前 HEAD 采纳为新基线（只改 state 文件）
 #   bash scripts/upstream-drift.sh adopt coreai-models    # 只采纳这一条轴，其余轴的窗口如实留着
 #     轴名写错直接 exit 1 —— 静默采纳 0 条轴看起来像「全部办完」，正是这类工具最贵的错。

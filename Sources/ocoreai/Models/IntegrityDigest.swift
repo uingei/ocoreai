@@ -2,8 +2,9 @@
 // Licensed under MIT.
 // IntegrityDigest.swift — streaming SHA-256 over a file on disk.
 //
-// One pass, 64 KiB at a time: a 5.3 GB shard costs about 3.6 s (1.4 GB/s here). That price is
-// why the check runs on bytes that just arrived from the hub and never on a cache hit.
+// One pass, 64 KiB at a time: a 5.3 GB shard costs about 3.6 s (1.4 GB/s here). Which callers pay
+// that price is a fact about them, not about this file — grep the symbol; a comment here once
+// claimed a lane that never called it.
 
 import CryptoKit
 import Foundation
