@@ -9,6 +9,52 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-06
 
+**11-06 the doc set was read against the instruments that own its numbers, and five figures had drifted**
+
+- **What improved.** The gates were green before this and are green after — `docs-check`, `anchor-check`
+  81/0, the pattern audit, spell — and that is exactly the hole: what none of them reads is a **figure in
+  prose** (`anchor-check` itself reports 681 cites with no marker, "content unverifiable"). Six living
+  claims were checked against the thing that owns each number, and five were wrong or mispriced:
+  ① root § Architecture sent a reader to `ARCHITECTURE.md` for "the measured sizes" — that file deleted
+  its per-file line counts on 10-22 and its own header says why (every count was wrong, and it had
+  diagrammed `BackendProtocol.swift`, already deleted); the pointer now says what the file holds.
+  ② root's cadence pair "publish **34 → 1 254** releases, newest **≤8 d** old" — `scripts/audit-facts.sh`
+  re-measured today: **37 → 1 267**, and goose's newest release is **9** days old, so the ceiling sentence
+  was false on the day anyone read it. ③ `endpoints[]` was described as **35 rows**;
+  `V1EndpointCatalog.routes.count` is **36** (the *set* has been gated by `V1EndpointCatalogTests`
+  set-equality since it landed — the prose count never was). ④ rung 2's open half was stated as "whether
+  **43 declarations** suit a 4-bit checkpoint, priced at −18.8 pp", but the priced arm was the advertised
+  **40 / 25 092 B**; `scripts/eval/README.md` is the home that reconciles 43 declared vs 40 advertised, and
+  the sentence now cites it. ⑤ the noise floor — "±6 tasks (15.5 pp)" — was introduced as the floor "for
+  the board this rung judges by" while the board had grown **39 → 45** (`_eval.py count` prints 45, and
+  both this file and `README.md` say so): the eval README's floor paragraph now prices the board it was
+  actually measured on, states that **the 45-task band is unmeasured**, and names the command that
+  re-derives both floors; nothing is asserted to carry over, since ±6 is a width in n and 15.5 pp is that
+  width divided by 39. Same class, same round: the chain-ceiling figure "98 % of the loader's 32 768 B"
+  became the printed pair (**32 740/32 768**, `make docs-check`), and `docs/agent/open-items.md`'s
+  "the **24 anchor markers** that point into **the two files** #581 rewrote" — #581 touched **13** files
+  (`api.github.com` pulls/581) and our markers into the two its cites reach number **27 + 9**, so the
+  reproducible count now sits beside the instrument instead of a remembered one.
+- **What same-session output proves it.** Every corrected number is the instrument's own output from this
+  session: `audit-facts.sh` (37 → 1 267, goose 2026-10-28 = 9 d), `_eval.py count` (45), the catalog's
+  `path:` entries (36), `git grep` for the BSD-3 notices (**49** files, **35** naming `coreai-models` — both
+  still exact, one class that did *not* drift), `anchor-check` (81 checked / 0 drift after repointing).
+  And B2 earned its keep on this very edit: spending 3 bytes of root's 24-byte headroom turned
+  `comparator-consensus.md`'s re-derived row red on the same run — which is the only reason that row's
+  figures can be trusted; it was re-measured to 21 440 / 47 471 / 32 740, 28 B of headroom.
+- **Which gate goes red.** None was added (the gate layer is frozen, and a figure with no named reader does
+  not get a check): each corrected figure now **names the command that re-derives it**, which is this
+  repo's older answer to the same defect — ①/③ by the `ARCHITECTURE.md` header and the catalog's
+  set-equality test, ② by `audit-facts.sh`, ⑤ by `_eval.py count` + `repeat.sh`/`_repeat_stats.py`, and the
+  byte figures by B2 inside `make docs-check`, which went red and stayed honest.
+- **Found accurate, so a reader need not re-check it:** root's "1 tag" (`git tag` = `v0.1.14`), the
+  `b8d4935ab` pin, the `appStore` trait, "there is no `BackendProtocol`" (absent in `Sources/`), zero
+  `try!`/`as!`/`fatalError`/`assert` in `Sources/` (the one `as!` string is inside a string literal), 52
+  `@unchecked Sendable` declarations each carrying a comment, the six CI legs named in `README.md`, the
+  6-tool default board surface (`scripts/eval/run.sh:33`), `make release`'s CoreAI-free artifact assertion,
+  and README's "**45-task** scoreboard … all run here". Not re-checked here, and unchanged in status: the
+  comparator-tree cites, whose line numbers only mean something where the tree exists on this host.
+
 **11-06 `/v1/embeddings` accepted two declared fields and answered neither**
 
 - **What improved.** The 11-05 read of this endpoint (`docs/agent/open-items.md`) found the request

@@ -38,7 +38,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `strategy` + `rewind` only, and `Capacity.init` is the sole route to `keep > 0`, defaulting to 4, so
   setting a capacity silently pins 4 tokens. Upstream's `restart:` tool loop is still uncapped
   (`ChatSession.swift:1226`), so the stall item above keeps its premise. Instrument: `make drift` prints
-  the axis; `make anchor-check` re-points the 24 anchor markers that point into the two files #581 rewrote.
+  the axis; `make anchor-check` re-points the markers into the files #581 touched — 13 of them per
+  `api.github.com` pulls/581, of which our cites reach two: 27 markers into `ChatSession.swift`, 9 into
+  `Evaluate.swift` (re-grepped 11-06; anchor-check prints the set).
   Blocked: the bump owes `make test-ci`, whose Metal Toolchain component this host reports `uninstalled`,
   and git-over-https to github fails here (curl 28) while `api.github.com` answers — so an SPM re-resolve
   is not safe to attempt blind. Owner call: the bump is a hand, not a gate.

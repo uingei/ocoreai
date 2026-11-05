@@ -252,11 +252,11 @@ over its defaults (`:104`). `goose` does what we do, one name (`crates/goose/src
 Context economy, ours 11-05 / field 10-28 plus 11-04, over each tree's own `AGENTS.md` set — **root bytes / corpus
 bytes / deepest root→cwd chain against the 32 768 B our loader injects at**: mlx-serve 26 486 / 269 381 / **69 273
 (211 %)**, deepseek-harness 19 113 / 96 369 / 55 362 (169 %), opencode 15 102 / 86 866 / 37 627 (115 %), openclaw
-19 374 / 113 906 / 34 186 (104 %), **ocoreai 21 437 / 47 468 / 32 737 (100 %, 31 B of headroom)**, vllm 6 358 /
+19 374 / 113 906 / 34 186 (104 %), **ocoreai 21 440 / 47 471 / 32 740 (100 %, 28 B of headroom)**, vllm 6 358 /
 48 844 / 31 675, hermes-agent 11 952 / 159 599 / 30 192, Rapid-MLX 19 438 / 19 438 / 19 438 (59 %), pi 8 845,
 codex 0 / 3 441, ollama 358. Re-measure: walk the tree for `AGENTS.md`, sum each file's ancestors up to the root,
 divide by 32 768 — the semantics our loader implements (`Sources/ocoreai/WorkspaceContext.swift:224-233`). Four
-trees read a ruleset their own loader truncates and three never say so; ours is 31 B from that line and names what
+trees read a ruleset their own loader truncates and three never say so; ours is 28 B from that line and names what
 it drops.
 
 Two shapes, not one: everyone else chains per-directory guides, and `Rapid-MLX` puts **an org chart** in a single

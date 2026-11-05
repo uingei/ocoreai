@@ -56,7 +56,9 @@ conservative, it is invisible.
    cannot name its measurement site survives a review cycle → the review, not the code, is broken.
 4. **Anti-self-deception** — the mutation set only grows; each cycle re-proves the judges catch a real
    defect, not just a fabricated board. *Failure signal*: a mutation escapes. Measured floor for the board this
-   rung judges by (10-27(22), k=3 over 39 tasks): one run is **±6 tasks (15.5 pp)**, so an unpaired Δ under
+   rung judges by (10-27(22), k=3 over the then-39-task board — the set is 45 today (`_eval.py count`), and
+   **the 45-task band is unmeasured**, so re-run `scripts/eval/repeat.sh` before pricing a new arm on it):
+   one run is **±6 tasks (15.5 pp)**, so an unpaired Δ under
    9 tasks and a paired one under 6 clean flips are not evidence — which retroactively disqualifies several
    earlier rounds whose single-run deltas were read as improvement. It shows up across sessions too — the
    `docs=none` arm read 22.67 / 24.67 / 25.00 on 10-27 under byte-identical `tasks=`/`tools=` digests — so
@@ -68,8 +70,9 @@ conservative, it is invisible.
    proved the doc reached all 39 turns — per-turn instructions cost a small checkpoint roughly what handing it
    every tool costs, and the traces say why: the doc gets *edited* as if it were the task's file, and the tool
    call arrives as narration. The next slice is
-   *selection* on both axes, not *registration* (curve, replicates, distillate: `docs/agent/open-items.md`). *Budget* (10-28, paid 10-29): the cap was hidden — the deepest chain sits at **98 % of the loader's
-   32 768 B** (`make docs-check` prints `deepest-chain=`) and the injector cut the tail without a word; the cut
+   *selection* on both axes, not *registration* (curve, replicates, distillate: `docs/agent/open-items.md`). *Budget* (10-28, paid 10-29; re-read 11-06): the cap was hidden — the deepest chain sits at **32 737
+   of the loader's 32 768 B, 99.9 %** (`make docs-check` prints `deepest-chain=`) and the injector cut the
+   tail without a word; the cut
    is now named to the model and served on `/v1/capabilities` as `instructionBudget` (probe 03 judges it). *Failure signal*: a capability row that cannot name its measurement site
    survives a review cycle.
 
@@ -165,7 +168,8 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
 6. **Agents as clients — take this before any of the others.** The leader does not compete with a local
    engine, it *consumes* one: "Models and agent harnesses (Claude, Codex, local models) are plugins you can
    swap" (`../references/openclaw/README.md:20`), and ocoreai is the only tree here that is model *and*
-   harness on one die, offline, no key. `/v1/capabilities` serves `endpoints[]` (35 rows,
+   harness on one die, offline, no key. `/v1/capabilities` serves `endpoints[]` (36 rows —
+   `V1EndpointCatalog.routes.count`, set-equality-gated by
    `V1EndpointCatalogTests`) and `skills/ocoreai/` is published, probe 39 executing every marker against a live
    `serve` and a real checkpoint. Landed 10-29: `GET /openapi.json`, rendered off that index and committed by
    `make openapi`, so a stale copy cannot survive `OpenAPIContractTests`. A generated client is the owner call
@@ -196,7 +200,9 @@ order of spending, because the objective's noun is the product, not the instrume
 **The gate layer is frozen (10-28).** Measured, then cut (counts: CHANGELOG `gate-deletion-10-28`): one gate
 commit per three product commits while `git tag` stayed empty. A new check names the red it was sampled
 against and the reader whose action it changes, or nobody writes it. Freed attention has three addresses —
-rung 1 (a tag-per-merge policy), rung 2's open half (whether 43 declarations suit a 4-bit checkpoint, priced
+rung 1 (a tag-per-merge policy), rung 2's open half (whether the advertised 40 — what `GET /v1/tools`
+returns today; the source declares 43 typed entries, the gap is opt-in, per `scripts/eval/README.md` —
+suit a 4-bit checkpoint, priced
 at −18.8 pp, owner call), and the measured gallery a first screen needs (§ The first screen).
 
 ## Kill criteria (checked, not felt)

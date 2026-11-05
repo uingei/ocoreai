@@ -264,8 +264,14 @@ OCOREAI_BIN=$B OCOREAI_EVAL_REPEAT_ROOT=/tmp/board40 OCOREAI_EVAL_REPEATS=3 \
 python3 scripts/eval/_repeat_stats.py --a /tmp/board6 --b /tmp/board40
 ```
 
-**The floor, because it prices every number in this file.** One run of 39 tasks carries a 95% CI
-half-width of **±6 tasks (15.5 pp)**: identical configurations spread 24/21/23. So an unpaired A/B needs
+**The floor, because it prices every number in this file.** One run of the **39-task** board these A/Bs
+were measured on (10-27) carries a 95% CI half-width of **±6 tasks (15.5 pp)**: identical configurations
+spread 24/21/23. **The set is 45 today** (`_eval.py count`, and `Task set:` at the bottom of this file),
+and no k=3 spread has been run on that board yet — so the pp figures below are the 39-board's, and a new
+arm quoted against 45 re-measures first: `OCOREAI_EVAL_TOOLS=… bash scripts/eval/repeat.sh`, then
+`python3 scripts/eval/_repeat_stats.py --a <armA> --b <armB>`, which prints both floors for the set it is
+handed. Nothing here is asserted to carry over: the ±6 is a CI width in n, and 15.5 pp is that width
+divided by 39 — the same spread on 45 tasks is a different percentage. An unpaired A/B needs
 **≥9 tasks** to clear 95% on one run each, and a paired one **6 clean flips** at this discordance.
 Sign test pairs runs, not tasks, which is why `--a/--b` is the honest route when both arms exist —
 `_conditions.py` treats `tools` as a surface field, so the paired output labels the verdict

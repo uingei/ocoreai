@@ -34,8 +34,8 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 - If upstream already has the answer, consume it or cite `file:line` — do not author a local variant.
 
 ## Adoption — the surface a stranger ranks
-- **A release is a cadence, not a green suite or one tag:** the eight installable trees publish 34 → 1 254
-  releases, newest ≤8 d old (`scripts/audit-facts.sh`); ours is 1 — cadence is the open item. The
+- **A release is a cadence, not a green suite or one tag:** the eight installable trees publish 37 → 1 267
+  releases, newest ≤9 d old (`scripts/audit-facts.sh`, 11-06); ours is 1 — cadence is the open item. The
   tag *is* the version (`scripts/version.sh` prints it), so no doc re-types one. `Core/UpdateCheck.swift` only
   *notifies*; build/publish must split. Ladder: `long-horizon-goal.md` § Rung zero.
 <!-- claim:tags_published>=1 :: git ls-remote --refs --tags origin | grep -c 'refs/tags/v' -->
@@ -51,7 +51,7 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 ## Architecture
 HTTP/Handlers → Router/Middleware · Engine: `EnginePool`(actor) → `EngineInference` → MLX | CoreAI ·
 Scheduler: SchedulerActor, AdmissionGate, MemoryTracker, OOMGuard · SwiftUI: ChatViewModel,
-SessionManager(SQLite). The file per layer and the measured sizes: `ARCHITECTURE.md`.
+SessionManager(SQLite). The file per layer and the invariants: `ARCHITECTURE.md`.
 - `EnginePool` gates backends with inline `#if canImport(CoreAI)`; there is no `BackendProtocol`.
 - The two lanes reach the wire by different routes (MLX through upstream `ChatSession`, MTP around it);
   where each line lives is `Sources/ocoreai/Engine/AGENTS.md`.
