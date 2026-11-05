@@ -9,6 +9,35 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-05
 
+**11-05 The `+6` mlx-swift-lm window read ahead of the bump, and one open item's premise proved stale**
+
+- **What improved.** The bump itself waits on a Metal-capable runner, so the audit half of the protocol was
+  run instead of queued: all 6 commits read in the local clone at `c8dabc6` against our consumption surface.
+  Three verdicts. (i) `GenerateCompletionInfo` gains `speculativeDecodingFallbackReason`
+  (`Evaluate.swift:3083` at HEAD) naming the five reasons a session configured for speculation ran plain
+  generation — we already read that struct's siblings (`EngineEvents.swift:88` reads `passthroughReason` and
+  `speculativeDecodingTelemetry`), so the traditional-SDC lane's silent fallback is the last face we cannot
+  name, and it becomes a read, not a re-implementation, on the bump. (ii) #747's `RotatingKVCache` mask fix
+  is inert here while `keep == 0`, which is every path we reach: `makeKVCacheConfiguration`
+  (`MLXBridge.swift:896`) passes `strategy` + `rewind` only, and `Capacity.init` — the sole route to
+  `keep > 0` — defaults `preservedPrefixTokens` to 4, so the day someone sets a capacity, four tokens are
+  pinned without anyone typing it. (iii) The uncapped `restart:` tool loop our stall item names is still
+  uncapped upstream (`ChatSession.swift:1226`), so that item keeps its premise rather than borrowing a fix
+  that did not arrive. The embedding-API reshaping (#692/#763: `Modality`/`Task`/`Input` → `Embedding*`)
+  touches 0 symbols in `Sources/`.
+- **What same-session output proves it.** The audit moved a sentence that had gone false: § Open claimed the
+  coreai-models axis had "moved export-side only" since its last read, and the window closed an hour ago
+  contained two Swift commits in `CoreAILanguageModels/SpeculativeDecoding/`. The clause now says what the
+  window was, with rows in the fork log. Counts quoted here were counted, not remembered: 24 anchor markers
+  point into the two files #581 rewrote (3 665/−205 across 28 files), and 0 of the embedding API's renamed
+  symbols occur in `Sources/`.
+- **Which gate goes red if it regresses.** None added. `make drift` owns the axis and `make anchor-check`
+  owns the 24 markers the moment the pin moves; that is why this entry carries no table of new line numbers
+  — a hand-copied second copy of what a gate derives is the next thing to fix.
+- **Cost.** +15/−2 in `docs/agent/open-items.md`. No pin moved: `swift build` on the Xcode route cannot run
+  here (Metal Toolchain `uninstalled`) and git-over-https to github fails on this host while
+  `api.github.com` answers, so an SPM re-resolve would have been a blind write to `Package.resolved`.
+
 **11-05 The drift report called an exhausted API quota a rewritten git history, and let a limitation erase a fact**
 
 - **What improved.** Two faces of one shape: a chain of `elif`s whose last arm asks only `base ≠ HEAD`.

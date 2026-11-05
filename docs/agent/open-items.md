@@ -19,9 +19,24 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   behind the four engine windows: 7 absorbed, 21 n/a, **8 open**, one row each with its action in
   `docs/agent/coreai-fork-window-log.md` (#368 measured 10-30 by probe 12 §5b: the shipping lane damps whitespace via
   upstream `WhitespaceTokenBias`, so its exposure is CoreAI-only, unverifiable here). `make drift` reads 0
-  un-adjudicated per file today, and the axis since then has moved export-side only — the surface
-  § Upstream 2 has none for.
+  un-adjudicated per file today. The axis since has moved export-side **and** through two Swift commits in
+  `CoreAILanguageModels/SpeculativeDecoding/` — a target this tree mirrors nothing of (rows: that log's
+  § Window read 11-05), so § Upstream 2 still has no surface for it.
   <!-- claim:fork_verdicts_open=11 :: grep -c '^|.*\*\*open' docs/agent/coreai-fork-window-log.md -->
+- **The `+6` mlx-swift-lm window hands us a truth we cannot read until the bump** (Engine/) — read 11-05 in
+  a local clone at `c8dabc6`: `GenerateCompletionInfo` gains `speculativeDecodingFallbackReason`
+  (`Evaluate.swift:3083`) naming the five reasons a session with speculation configured ran plain
+  generation. We already consume that struct's siblings (`passthroughReason`,
+  `speculativeDecodingTelemetry` → `EngineEvents.swift:88`), so the traditional-SDC lane's silent fallback
+  is the one face still unnamed. Same window: #747's `RotatingKVCache` mask fix is **inert here** while
+  `keep == 0`, which is every path we reach — `makeKVCacheConfiguration` (`MLXBridge.swift:896`) passes
+  `strategy` + `rewind` only, and `Capacity.init` is the sole route to `keep > 0`, defaulting to 4, so
+  setting a capacity silently pins 4 tokens. Upstream's `restart:` tool loop is still uncapped
+  (`ChatSession.swift:1226`), so the stall item above keeps its premise. Instrument: `make drift` prints
+  the axis; `make anchor-check` re-points the 24 anchor markers that point into the two files #581 rewrote.
+  Blocked: the bump owes `make test-ci`, whose Metal Toolchain component this host reports `uninstalled`,
+  and git-over-https to github fails here (curl 28) while `api.github.com` answers — so an SPM re-resolve
+  is not safe to attempt blind. Owner call: the bump is a hand, not a gate.
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
   and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The seam landed upstream at
   `991266ad3` (`observe(to:using:)` + `GenerationTransformer`);
