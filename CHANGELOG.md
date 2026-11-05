@@ -9,6 +9,35 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-05
 
+**11-05 docs-gate P3 judged a comparator cite by basename: four valid cites went red against our own files**
+
+- **What improved.** `Text gates (ubuntu)` went red on `f449a062` with "P3 4 anchor(s) past end of file:
+  `../references/omlx/README.md:410` (README.md has 274 lines)" — and `../references/omlx/README.md` has
+  **486** lines here. On a runner there is no `../references`, so P3 fell through to the basename index and
+  measured **our** `README.md` (274 lines) against **omlx's** line number, and our `ChatView.swift` (1 744)
+  against mlx-serve's (`:3472`, real file 7 195). P2 already states the rule the same script's P3 broke —
+  "a path that carries its tree … is matched BEFORE resolves-here so a comparator file cannot borrow the
+  credit of a same-named local one" — and the red only surfaced because the 11-05 read moved the omlx cite
+  402 → 410 past our README's end. The vacuous direction was worse: had our README simply grown past 410,
+  a genuinely stale comparator cite would have passed P3 green forever. P3 now follows P2's ordering: a
+  tree-carrying cite is checked against the real tree where it exists (repo-sibling, `~/`, or `$HOME` —
+  the script's own `HOMES` premise), and where the tree is absent it stays silent and **prints how many it
+  stayed silent about** (`tree absent here=`), since the runner-side line truth is `make anchor-check`'s.
+- **What same-session output proves it.** Faithful clone of HEAD at `/tmp` (the runner premise, no
+  comparators): old script reproduces the CI annotation exactly (4 anchors); new script green. Mutations
+  against the shipped script: an `omlx:410 → :9999` stale cite goes red naming the **real** file
+  (`/Users/uingei/references/omlx/README.md has 486 lines`) — the check is stronger than before, not
+  silenced; an in-repo basename cite past end still reds through the fallback; an absent tree-file cite
+  takes the counted-skip branch (`tree absent here=1`), never a misbind. Real repo: `make docs-check`
+  green, `anchors=172 (tree absent here=0)`.
+- **Which gate goes red if it regresses.** The CI leg itself is the gate: this push makes `Text gates
+  (ubuntu)` re-judge four cites whose truth is content-verified here (omlx `:410` is the
+  `PagedSSDCacheManager` line; mlx-serve `:3472` the pasted-screenshot comment). If the basename fallback
+  returns, the same four valid cites red on the next push; if the tree-check is deleted, M1's shape (a
+  stale present-tree cite naming the real file) stops going red on this host — the visible tell is the
+  count line. No new gate: this family is where the freeze says a red must name an acted-on falsehood,
+  and it does.
+
 **11-05 `git ls-files "*X.swift"` is a suffix match: four mirrors were being read against a neighbour**
 
 - **What improved.** The census premise was written down on 11-03 — "the .swift files that have an

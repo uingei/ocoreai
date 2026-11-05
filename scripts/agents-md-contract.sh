@@ -593,9 +593,27 @@ if unused_cites:
                 % (len(unused_cites), ", ".join(unused_cites)))
 
 # ── P3 anchors in range ──────────────────────────────────────────────────────
+# A cite that carries a known tree (`../references/omlx/README.md:410`) follows P2's rule — judged
+# before resolves-here, never by basename, or it borrows the credit of a same-named local file. On a
+# runner without the clone the basename fallback measured OUR README.md against THEIR line count:
+# red on a valid cite (11-05 CI: omlx:410 against our README's 274 lines) and vacuous on a stale one
+# the day ours grows past it. Where the tree exists the line is checked against the real file; where
+# it does not, resolvability is P2's and the line truth is `make anchor-check`'s — P3 says nothing,
+# and prints how many it stayed silent about, so a scan that went quiet stays visible.
 bad_anchors = []
+silent_tree = 0
 for src, f, ln in sorted(anchors):
-    cand = f if (os.path.exists(f) or f in tracked) else (by_base.get(os.path.basename(f)) or [None])[0]
+    form = OUTSIDE_FORM.match(f)
+    if form and form.group(1) in TREE_AT:
+        tail = re.sub(r"^(?:\.\./|~/?)", "", f)
+        cand = next((c for c in [f, os.path.expanduser(f)]
+                     + [os.path.join(h, tail) for h in HOMES] if os.path.isfile(c)), None)
+        if cand is None:
+            silent_tree += 1
+            continue
+    else:
+        cand = (f if (os.path.exists(f) or f in tracked)
+                else (by_base.get(os.path.basename(f)) or [None])[0])
     if not cand:
         continue  # P2 already decided resolvability for this basename
     try:
@@ -1101,8 +1119,8 @@ if diary_paired < env_int("OCOREAI_FLOOR_DIARY_PAIRED"):
 
 # ── report ───────────────────────────────────────────────────────────────────
 print("AGENTS.md contract (%s)" % mode)
-print("  xrefs     §-refs=%d (floor %d)  anchors=%d  dangling=%d"
-      % (len(refs), env_int("OCOREAI_AGENTS_FLOOR_XREFS"), len(anchors), len(dead_refs)))
+print("  xrefs     §-refs=%d (floor %d)  anchors=%d (tree absent here=%d)  dangling=%d"
+      % (len(refs), env_int("OCOREAI_AGENTS_FLOOR_XREFS"), len(anchors), silent_tree, len(dead_refs)))
 corpus_bytes = sum(os.path.getsize(q) for q in sorted(set(
     ["AGENTS.md", "ARCHITECTURE.md", "CONTRIBUTING.md", "scripts/probes/README.md"]
     + guides + doc_files)) if os.path.exists(q))
