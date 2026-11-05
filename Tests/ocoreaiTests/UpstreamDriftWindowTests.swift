@@ -297,6 +297,115 @@ struct UpstreamDriftWindowTests {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    // MARK: - What a failed compare read is allowed to say
+
+    @Test("a compare read that failed is reported as a failed read, not as a rewritten history")
+    func rateLimitedReadNamesItself() throws {
+        // Measured 11-05: api.github.com sat at 0/60, both compare numbers came back "?", and the
+        // loop's last `elif` — which only asks whether base ≠ HEAD — printed "? 非线性分叉" for codex.
+        // A reader told "the history is non-linear, review by hand" goes looking for a force-push;
+        // the truth was a quota. The verdict's *shape* is untouched (still 1, still human review);
+        // only the named cause moved, and the two window faces print exactly what they used to.
+        let r = try Self.run(
+            [
+                "scripts/upstream-drift.sh", "axis-verdict", "codex", "abc123456", "def456789", "?",
+                "?", "1",
+            ])
+        #expect(
+            r.out.contains("compare 未读到"), "a read that returned nothing must say so: \(r.out)")
+        #expect(!r.out.contains("非线性"), "an exhausted quota is not a branch history: \(r.out)")
+        #expect(r.out.contains("AXIS_DRIFT=1"), "and it still owes a human: \(r.out)")
+    }
+
+    @Test("a compare that answered 0/0 on a different sha is still the non-linear face")
+    func zeroZeroStillNonLinear() throws {
+        // The new branch must not swallow the case the old message existed for: the read worked,
+        // ahead and behind are both 0, and the shas differ. That is a real divergence and stays red.
+        let r = try Self.run(
+            [
+                "scripts/upstream-drift.sh", "axis-verdict", "codex", "abc123456", "def456789", "0",
+                "0", "1",
+            ])
+        #expect(
+            r.out.contains("非线性"), "0/0 across two shas is the divergence face: \(r.out)")
+        #expect(!r.out.contains("未读到"), "the read worked, so it may not claim otherwise: \(r.out)")
+        #expect(r.out.contains("AXIS_DRIFT=1"))
+    }
+
+    @Test("the two window faces kept their words and their codes through the extraction")
+    func verdictFacesUnchanged() throws {
+        let owed = try Self.run(
+            [
+                "scripts/upstream-drift.sh", "axis-verdict", "mlx-swift-lm", "abc123456",
+                "def456789", "6", "0", "1",
+            ])
+        #expect(owed.out.contains("+6 commits"), "the count still prints: \(owed.out)")
+        #expect(owed.out.contains("新窗口待裁决"), "an owed axis still calls it a window: \(owed.out)")
+        #expect(owed.out.contains("AXIS_DRIFT=10"), "and still asks for 10: \(owed.out)")
+        let free = try Self.run(
+            [
+                "scripts/upstream-drift.sh", "axis-verdict", "codex", "abc123456", "def456789", "6",
+                "0", "0",
+            ])
+        #expect(free.out.contains("仅报告"), "a comparator still reports without judging: \(free.out)")
+        #expect(free.out.contains("AXIS_DRIFT=0"), "and moves no code: \(free.out)")
+        // The seam is evidence only while the loop answers through the same function.
+        let script = try String(
+            contentsOf: try Self.repoRoot().appendingPathComponent("scripts/upstream-drift.sh"),
+            encoding: .utf8)
+        #expect(
+            script.contains(
+                "axis_verdict \"$name\" \"$short\" \"${base:0:9}\" \"$ahead\" \"$behind\" \"$owed\""
+            ),
+            "the axis loop decides its verdict somewhere else again — the seam tests a path nobody runs"
+        )
+    }
+
+    // MARK: - How two axes' verdicts merge into one exit code
+
+    @Test(
+        "a limitation cannot erase a fact — an owed window outranks an axis that could not be read")
+    func owedOutranksIncomplete() throws {
+        // Measured 11-05 with the quota at 0/60: `mlx-swift-lm` printed "+6 commits ⚠ 新窗口待裁决"
+        // and codex's compare then read as "?", so the second axis wrote 1 over the first axis's 10
+        // and the run exited 1 under "检查没跑完". An automation was told nothing had been decided,
+        // when one consumed axis had already concluded there is work. 10 is a fact, 1 is the report's
+        // own limit; the order they arrive in may not decide which one the reader gets.
+        func tally(_ start: String, _ rest: [String]) throws -> String {
+            let r = try Self.run(
+                ["scripts/upstream-drift.sh", "tally", start] + rest)
+            return r.out.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        #expect(try tally("0", ["10", "1"]) == "DRIFT=10", "fact then limit keeps the fact")
+        #expect(try tally("0", ["1", "10"]) == "DRIFT=10", "and the other order keeps it too")
+        #expect(try tally("0", ["1", "1"]) == "DRIFT=1", "two limits still owe a re-run")
+        #expect(try tally("0", ["0", "0"]) == "DRIFT=0", "and nothing printed stays clean")
+    }
+
+    @Test("the merge has one home — no axis may fold a verdict into DRIFT by hand again")
+    func mergeHasOneHome() throws {
+        // The masking was possible from eight places, so fixing the one that fired would leave seven
+        // of them free to do it again. The scan floors itself: exactly one indented write is allowed,
+        // the one inside `tally_drift`; a second is the rule finding a second home.
+        let script = try String(
+            contentsOf: try Self.repoRoot().appendingPathComponent("scripts/upstream-drift.sh"),
+            encoding: .utf8)
+        let writes =
+            script
+            .split(separator: "\n")
+            .filter { $0.range(of: #"^\s+DRIFT=[0-9]"#, options: .regularExpression) != nil }
+        #expect(
+            writes.count == 1,
+            "only tally_drift may write the verdict directly, found \(writes.count): \(writes)")
+        #expect(
+            writes.first?.contains("DRIFT=10") == true,
+            "the one write must be the sticky one inside the merge: \(writes)")
+        #expect(
+            script.contains("tally_drift \"$AXIS_DRIFT\""),
+            "the axis loop folds its verdict somewhere else again — the seam tests a path nobody runs"
+        )
+    }
+
     // MARK: - The exit-code contract is executed, not documented
 
     /// Both streams, because the normalization is reported on stderr and a bare code cannot tell

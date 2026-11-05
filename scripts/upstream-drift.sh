@@ -5,6 +5,8 @@
 #   bash scripts/upstream-drift.sh          # 只读检查（不改文件）
 #                                            exit 0 = 基线以来 0 新 commit；exit 10 = 有新 commit 待裁决
 #                                            exit 1 = 检查没跑完（含被 trap 归一的中止）—— 不是「无漂移」
+#     多轴同时给出判定时由 `tally_drift` 合并（唯一的写入处）：10 粘住，1 只填还没有 10 的表 ——
+#     一条轴的「待裁决」是事实，另一条轴的「读不到」是这份报告的局限，局限不擦事实（11-05 实测）。
 #     契约只有这三个数，trap 的覆盖面是量出来的（bash 3.2.57）：顶层简单命令、函数、`x="$(…)"`
 #     赋值的非零返回都归一成 1；唯一绕过它的是裸子 shell —— `(exit 141)` 原样退出 141（实测，放在
 #     `if` 体里也一样）。本文今天 0 个顶层子 shell（grep 过），所以这是条边界而不是缺陷；哪天写进
@@ -56,6 +58,19 @@ REPOS="mlx-swift-lm:ml-explore/mlx-swift-lm coreai-models:apple/coreai-models co
 MLX_REPO="ml-explore/mlx-swift"
 cmd="${1:-check}"
 DRIFT=0
+# 判定合并只有一条规则：10（有待裁决窗口）是事实，1（这一轮没读全）是局限，局限不擦事实。
+# 11-05 实测两条同时成立：mlx-swift-lm 打印「+6 commits ⚠ 新窗口待裁决」，随后 codex 的 compare
+# 因 api 限流（0/60）读不到，脚本以 1 退出并把结论印成「检查没跑完」——读码的自动化于是被告知
+# 「什么都还没定」，而真相是「一条已消费的轴欠一次裁决」。直接赋值一律只留 DRIFT=0 那一处。
+tally_drift() { # tally_drift <0|1|10> —— 10 粘住；1 只填还没有事实的表
+  local new="${1:-0}"
+  if [ "$new" = 10 ]; then
+    DRIFT=10
+  elif [ "$new" -ne 0 ] && [ "$DRIFT" = 0 ]; then
+    DRIFT="$new"
+  fi
+  return 0
+}
 
 # 本地镜像回落：无 DNS 的机器上 api() 必失败，三源会静默 skip（10-13 实测
 # `scripts/upstream-drift.sh check` = 三行 "api 失败，跳过"，每日自检空转）。
@@ -137,7 +152,7 @@ mlx_axis() {
   done
   if [ -z "$spm" ]; then
     echo "!!  mlx-swift: 无 SPM checkout（$MLX_REPO 未 resolve），tag 轴未检查"
-    DRIFT=1
+    tally_drift 1
     return
   fi
   spec="$(python3 -c '
@@ -153,7 +168,7 @@ for p in d.get("pins", []):
   pin_rev="${spec##* }"
   if [ -z "$pin_ver" ]; then
     echo "!!  mlx-swift: Package.resolved 里没有 version pin（exact tag 未解析），tag 轴未检查"
-    DRIFT=1
+    tally_drift 1
     return
   fi
   newest="$(git -C "$spm" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=45 ls-remote --tags origin \
@@ -173,7 +188,7 @@ for p in d.get("pins", []):
   fi
   if [ -z "$newest" ]; then
     echo "!!  mlx-swift: tag 解析失败（ls-remote 与本地 tag 均空），tag 轴未检查"
-    DRIFT=1
+    tally_drift 1
     return
   fi
   if [ "$newest" = "$pin_ver" ]; then
@@ -182,11 +197,11 @@ for p in d.get("pins", []):
   elif [ "$(printf '%s\n%s\n' "$newest" "$pin_ver" | sort -V | tail -1)" = "$newest" ]; then
     printf "%-16s tag=%s pin=%s  ⚠ 已发布漂移：上游有更新的 tag，按 bump 协议逐条裁决\n" \
       "mlx-swift" "$newest" "$pin_ver"
-    DRIFT=10
+    tally_drift 10
   else
     printf "%-16s tag=%s pin=%s  !! pin 比最新 tag 还新（pin 落在 tag 之后？），人工复查\n" \
       "mlx-swift" "$newest" "$pin_ver"
-    DRIFT=1
+    tally_drift 1
   fi
   main="$(git -C "$spm" rev-parse --verify -q origin/main || true)"
   [ "$pin_rev" = "$main" ] && return
@@ -368,7 +383,7 @@ coreai_fork_ledger() {
   printf '  窗口终点 = %s（%s；镜像不是 GitHub 权威）\n' "$upref" "$srcline"
   case "$res" in
     *LAGGING*)
-      DRIFT=10
+      tally_drift 10
       printf '  ⚠ 台账落后于轴：%s — 逐文件「未读」只数到该 clone 上次 fetch，先 fetch 再读这张表\n' \
         "$(printf '%s' "$res" | sed 's/^endpoint=[^ ]* src=[a-z]* //')"
       ;;
@@ -441,10 +456,61 @@ axis_window() { # axis_window <name> <repo> <src:api|clone> <base> <head>
   return 0
 }
 
+# 一条轴的判定文案与它欠的退出码，从 compare 读到的两个数里选出来。此前这两件事写在主循环里，
+# 于是「读不到」与「读到了 0/0」共用同一条 elif：11-05 实测 api.github.com 剩余额度 0/60 时，
+# codex 打印的是「? 非线性分叉，人工复查」——把配额报成了分支历史。判定形状与退出码都不许变
+# (0=不动,10=待裁决,1=人工复查)，变的只有一句点名。AXIS_DRIFT 而不是 return：ERR trap 对函数
+# 返回非零会接管并归一，见文件头的覆盖边界。
+axis_verdict() { # axis_verdict <name> <short> <base9> <ahead> <behind> <owed:1|0>
+  local name="$1" short="$2" base="$3" ahead="$4" behind="$5" owed="$6"
+  AXIS_DRIFT=0
+  if [ "$ahead" != "?" ] && [ "$ahead" -gt 0 ] 2>/dev/null; then
+    if [ "$owed" = 0 ]; then
+      # 只报告、不欠债：窗口照常打印，退出码不动（裁定见 `axis_owed`）。
+      printf "%-16s HEAD=%s  +%s commits vs base=%s  · 仅报告（comparator，非权威，不判红）\n" \
+        "$name" "$short" "$ahead" "$base"
+    else
+      printf "%-16s HEAD=%s  +%s commits vs base=%s  ⚠ 新窗口待裁决\n" \
+        "$name" "$short" "$ahead" "$base"
+      AXIS_DRIFT=10
+    fi
+  elif [ "$behind" != "?" ] && [ "$behind" -gt 0 ] 2>/dev/null; then
+    printf "%-16s HEAD=%s  base=%s  !! 基线在 HEAD 之后 %s 条（force-push?），人工复查\n" \
+      "$name" "$short" "$base" "$behind"
+    AXIS_DRIFT=1
+  elif [ "$ahead" = "?" ] || [ "$behind" = "?" ]; then
+    printf "%-16s HEAD=%s  base=%s  !! compare 未读到（api 失败或限流）—— 窗口未知，不是历史异常\n" \
+      "$name" "$short" "$base"
+    AXIS_DRIFT=1
+  elif [ "$base" != "$short" ]; then
+    printf "%-16s HEAD=%s  base=%s  ? 非线性分叉，人工复查\n" "$name" "$short" "$base"
+    AXIS_DRIFT=1
+  fi
+  return 0
+}
+
 # 测试缝：让上面那条走一次*真失败*的读，不碰网络——把 clone 根指到一个空目录，
 # `local_msgs` 就以 1 失败，被测的是「点名并返回 0」而不是「提示失败不许改判定」这句注释。
 if [ "$cmd" = "window-read" ]; then
   axis_window "${2:-no-such-axis}" "${3:-none/none}" clone "${4:-deadbeef}" "${5:-deadbeef}"
+  exit 0
+fi
+
+# 测试缝：判定文案可以直接喂数问，不必让一条测试去耗尽 api 额度。最后一个参数决定这条轴欠不欠红
+# (与 `axis-owed` 同一个裁定的两个入参)。
+# 测试缝：合并规则可以在三个数上问完，不必让一条测试去凑齐一次真限流。
+if [ "$cmd" = "tally" ]; then
+  DRIFT="${2:-0}"
+  for want in "${@:3}"; do
+    tally_drift "$want"
+  done
+  printf 'DRIFT=%s\n' "$DRIFT"
+  exit 0
+fi
+
+if [ "$cmd" = "axis-verdict" ]; then
+  axis_verdict "${2:-axis}" "${3:-aaaaaaaaa}" "${4:-bbbbbbbbb}" "${5:-?}" "${6:-?}" "${7:-1}"
+  printf 'AXIS_DRIFT=%s\n' "$AXIS_DRIFT"
   exit 0
 fi
 
@@ -461,7 +527,7 @@ for pair in $REPOS; do
   [ -n "$head" ] || src=""
   if [ -z "$head" ]; then
     echo "!!  $name: api 失败且无本地 clone（$REFS/${name}），跳过"
-    DRIFT=1
+    tally_drift 1
     continue
   fi
   [ "$src" = clone ] && echo "     · $name src=local clone（$REFS/${name}，非 GitHub 权威；HEAD 截至该 clone 的 fetch 时刻）"
@@ -486,22 +552,10 @@ for pair in $REPOS; do
       ahead="$(api "repos/$repo/compare/$base_full...$head" ahead 2>/dev/null || echo '?')"
       behind="$(api "repos/$repo/compare/$base_full...$head" behind 2>/dev/null || echo '?')"
     fi
-    if [ "$ahead" != "?" ] && [ "$ahead" -gt 0 ] 2>/dev/null; then
-      if ! axis_owed "$name"; then
-        # 只报告、不欠债：窗口照常打印，退出码不动（裁定见 `axis_owed`）。
-        printf "%-16s HEAD=%s  +%s commits vs base=%s  · 仅报告（comparator，非权威，不判红）\n" \
-          "$name" "$short" "$ahead" "${base:0:9}"
-      else
-        printf "%-16s HEAD=%s  +%s commits vs base=%s  ⚠ 新窗口待裁决\n" "$name" "$short" "$ahead" "${base:0:9}"
-        DRIFT=10
-      fi
-    elif [ "$behind" != "?" ] && [ "$behind" -gt 0 ] 2>/dev/null; then
-      printf "%-16s HEAD=%s  base=%s  !! 基线在 HEAD 之后 %s 条（force-push?），人工复查\n" "$name" "$short" "${base:0:9}" "$behind"
-      DRIFT=1
-    elif [ "${base:0:9}" != "$short" ]; then
-      printf "%-16s HEAD=%s  base=%s  ? 非线性分叉，人工复查\n" "$name" "$short" "${base:0:9}"
-      DRIFT=1
-    fi
+    owed=0
+    if axis_owed "$name"; then owed=1; fi
+    axis_verdict "$name" "$short" "${base:0:9}" "$ahead" "$behind" "$owed"
+    if [ "$AXIS_DRIFT" -ne 0 ]; then tally_drift "$AXIS_DRIFT"; fi
     # 窗口照旧打印：comparator 的窗口是「报告」，不是「欠债」——只是它不再决定退出码。
     if [ "$DRIFT" -eq 10 ] || ! axis_owed "$name"; then
       axis_window "$name" "$repo" "$src" "$base_full" "$head"

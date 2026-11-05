@@ -9,6 +9,28 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-05
 
+**11-05 The drift report called an exhausted API quota a rewritten git history, and let a limitation erase a fact**
+
+- **What improved.** Two faces of one shape: a chain of `elif`s whose last arm asks only `base ≠ HEAD`.
+  Measured with `api.github.com` at **0/60**, `compare` returned `?` for both numbers, no arm matched, and
+  codex printed `? 非线性分叉，人工复查` — a quota reported as branch history, sending the reader to look
+  for a force-push. The same chain's eight direct `DRIFT=` writes let the *next* axis overwrite the previous
+  one: `mlx-swift-lm` had already printed `+6 commits ⚠ 新窗口待裁决` (10) when codex's failed read wrote 1,
+  so the run exited **1** under "检查没跑完" and an automation was told nothing had been decided. One home
+  each now: `axis_verdict` chooses the wording (extracted so numbers can be fed to it offline), `tally_drift`
+  merges the verdicts (10 sticks, 1 fills only a slate with no fact yet). No exit code changed meaning; the
+  header's three-number contract gained the merge rule it had never stated.
+- **What same-session output proves it.** The live pair, same tree: before — exit 1, codex `非线性分叉`;
+  after the quota reset — exit **10**, codex `+240 commits · 仅报告`, coreai-models `0 new`. Six seam shapes
+  printed (read-failure names the read; `0/0` across two shas is still the divergence face; `+6` keeps both
+  window wordings and both codes). Mutation, not belief: deleting the read-failure branch puts `非线性分叉`
+  back, which is exactly the assertion that then fails.
+- **Which gate goes red if it regresses.** `UpstreamDriftWindowTests` **11 → 16**: the three verdict shapes,
+  the merge order both ways, and a scan flooring direct `DRIFT=` writes at **exactly 1** (the one inside
+  `tally_drift`) — eight free writes were the defect, so fixing only the one that fired would have kept seven.
+- **Cost.** +77/−23 script, +109 tests (`git diff --numstat`). Read honestly: the read-failure face prints
+  only under a rate limit, so it is evidenced by the quoted 0/60 response and the mutation, not by a green run.
+
 **11-05 Four dead cache-check functions went, and the three comments that still voted for them**
 
 - **What improved.** `MLXBridge` carried a cache-check chain nothing called: `isModelCached` ×2 and
