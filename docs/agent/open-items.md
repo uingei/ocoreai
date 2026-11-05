@@ -159,45 +159,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   build jobs with no secrets and no `id-token` and publishes from a `release` environment over artefacts.
   Deliberately untouched before a first release lands: it is the one path a rehearsal cannot run.
   Owner call (who/what may publish).
-- **The packaging leg had two defects, not one: a route that resolved `metal` but could not spawn it (fixed),
-  and a runner that compiles no `.metal` at all (producer restored)** (CI/, packaging/) — run 23
-  (`3d0631f9`) made the red legible and killed three hypotheses in one line each: `dmg premises:
-  dev=…CommandLineTools sdk=MacOSX/26.5 coreai=absent metal=ABSENT diskfree_gb=95` (the delivery SDK did not
-  move to a CoreAI one; disk is not it) and `shader payload after the failed build: rung: swiftpm-product ·
-  nothing usable (scanned 0)` (the ladder now *searches*, so "a layout the old globs cannot see" is dead
-  too). Defect one was real and is fixed one home up: `print-metal-bin` tested the verdict (`METAL != ok`)
-  where its consumer needs PATH reachability — `xcrun -f metal` resolves a compiler *inside* a toolchain
-  without putting it on PATH — so the route answered "no value", exported no rung, and llbuild had nothing to
-  spawn. Reproduced on this host with an `xcrun` shim in that shape: no `export PATH=`, `command -v metal`
-  read `ABSENT` after the eval, and the leg's own `check --require-metal --probe-metal` still returned rc=0,
-  because a probe *executes a named binary* and cannot see a PATH hole. Run 24 (`e0e6b7f2`) confirms that fix
-  (`metal=ok · metal_on_path=yes`, at the cryptex mount) **and falsifies its sufficiency**: green preflight,
-  green `swift build`, still `scanned 0`, and the new workspace-wide `find` matched no payload file at all.
-  So on this image a SwiftPM route holding a spawnable compiler emits no shader payload, and the thing that
-  used to *produce* one — `scripts/ci-materialize-metallib.sh`, an xcodebuild pass deleted 10-29 because a
-  runner had staged a 2 389 928 B payload that day — is back in both packaging lanes. The appStore leg says
-  the same on its own (`payload after the appStore build: … (scanned 0)` after a green
-  `swift build -c release --traits appStore` whose own notice names a spawnable compiler), so what SwiftPM's
-  `.metal` support is worth stays a notice there — the day it prints a payload the producer leaves with
-  evidence — and `resolve-metallib.sh` now says its rung 1 is a path contract, not a promise about who
-  compiled the bytes. **"The image moved" is retracted too:** `api.github.com` lists no `macos-26-arm64`
-  image between 20261026 and 20261102, which spans green run 11 (10-30) and first-red run 12 (10-31), so what
-  moved on the runner is unmeasured — and the leg no longer needs that answer to ship. The strongest lead
-  for the silence, measured on this host the same day: the Metal Toolchain component is
-  **per-developer-dir**, and a route whose component reads `uninstalled` refuses to compile `.metal` even
-  while a working compiler sits on a cryptex mount (`cannot execute tool 'metal' due to missing Metal
-  Toolchain` from xcodebuild, `metal_component_status=uninstalled`, `metal=ok-cryptex` in the same report) —
-  xcodebuild says that loudly, and this image's SwiftPM says it by producing nothing, which is the exact
-  shape runs 23/24 showed. A CLT route cannot ask the question at all (no `xcodebuild`), so the asymmetry
-  stays inference for the runner. Gate: `build-app.sh` 3b
-  and probe 41 §1 already red a payload-free bundle; the leg now also publishes, token-free, the `.air` count
-  and the Cmlx bundle list (nothing-compiled / compiled-but-unlinked / linked-but-unreachable name different
-  remedies) and the producer's winning rung, through `scripts/ci-annotate.sh` (`--selftest`, 9). Not run
-  locally: the producer's full xcodebuild (its scheme is the one two green legs use today, its ladder and
-  staging paths match this host's tree, `bash -n` clean — the lane is where it executes). Still an owner call:
-  `mlx-serve` ships the same artefact from a pinned full Xcode (`app/build.sh:83-91`, `:97-99`) plus a
-  static guard on the staged payload (`.github/workflows/release.yml:220-224`), while our CLT route exists to
-  keep CoreAI out of the artefact.
+- **A caller's one-token `stop` can starve a constrained turn** (Engine/, Handlers/) — naming a stop id
   takes it out of xgrammar's alphabet (`TokenizerInfo.swift`, at the create call), so a `stop` the schema
   needs empties the mask where it was needed and `nextTokenBitmask()` reads empty as finished: truncated
   JSON, no error, CoreAI lane only. Measured at the C layer (11-02(104)), Swift face read not run.

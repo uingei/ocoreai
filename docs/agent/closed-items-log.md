@@ -3,6 +3,26 @@
 > Material `AGENTS.md` § *Open* used to carry prose for although it was resolved, retracted or
 > judged a phantom gap. An open item is one that can still change a decision; a verdict is
 > history, and history kept in the injected layer costs every session.
+- **Two packaging defects, one of them named by a version line (11-06).** The rehearsal leg's six-day red was
+  not one bug. `scripts/toolchain-contract.sh`'s `print-metal-bin` tested the verdict (`METAL != ok`) where its
+  consumer needs PATH reachability — `xcrun -f metal` resolves a compiler *inside* a toolchain without putting
+  it on PATH — so the delivery route printed "no value", exported no PATH rung, and its own
+  `check --require-metal --probe-metal` preflight still passed, because a probe EXECUTES a named binary and
+  cannot see a PATH hole. Under that: the macos-26 CLT is `swift=6.3.3`, and native `.metal` compilation is a
+  SwiftPM 6.4 capability, so that route builds green, compiles no shader bytes and says nothing (this host on
+  6.4: 38 `.air`, a 4 716 496-byte payload) — a missing capability is silent in SwiftPM and loud in
+  xcodebuild. Verdict, and it is the durable one: **a build's exit code is not evidence that shader bytes
+  exist**, so the shipping payload comes from a producer this repo runs
+  (`scripts/ci-materialize-metallib.sh`, whose 10-29 deletion was justified by a 6.4-era measurement the image
+  no longer offers), and `build-app.sh` 3b + probe 41 §1 keep judging the artefact. Run 24 (`e0e6b7f2`) proved
+  the PATH fix (`metal=ok · metal_on_path=yes`) and falsified it as sufficient; run 25 (`90956d46`) is green
+  end to end — producer 999 s, `rung: xcode-derived-data · 4 695 872 bytes` staged into the SwiftPM product
+  path, `shader payload after the green build: rung: swiftpm-product · 4 695 872 bytes · scanned 1`, probe 41
+  `12 passed, 0 failed, 8 measured`, window proof green. Closed as *not* the cause: the moved SDK, disk space,
+  a payload layout the old globs could not see, and the 11-01 blame on `d664f7b` (one sha, green then red —
+  retracted); "the image moved" is retracted too, since `api.github.com` lists no `macos-26-arm64` image
+  between 20261026 and 20261102 across that boundary.
+
 - **One verdict, two exit codes: the contract was intact, the layer was not (11-05).** `make drift` printed
   the same report twice and exited **10** then **2**, which read as
   `scripts/upstream-drift.sh:6`'s documented 0/1/10 having rotted. It had not: the script answers 10 on that

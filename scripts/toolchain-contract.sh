@@ -14,6 +14,13 @@
 #   2. CLT swiftc went 6.3.3 -> 6.4 (captured from a swift-frontend crash log at
 #      06:2x the same morning), and SwiftPM 6.4 compiles `.metal` sources natively,
 #      so `mlx-swift_Cmlx` now needs a shader compiler during `swift build`.
+#      The version is the whole difference, and the direction matters: measured 11-06 on the
+#      macos-26 runner (`swift=6.3.3`), `swift build -c release --traits appStore` compiled no
+#      `.metal` at all and said NOTHING — a green build, no default.metallib, no error — while this
+#      host on 6.4 emits 38 `.air` and the payload. A missing capability is silent in SwiftPM and
+#      loud in xcodebuild, so a build's exit code is not evidence that the shader bytes exist:
+#      that is why the packaging lanes produce the payload explicitly
+#      (scripts/ci-materialize-metallib.sh) and build-app.sh 3b judges the artefact.
 #   3. That compiler is gone: `metal` is absent from CLT, and Xcode's `metal` answers
 #      "cannot execute tool 'metal' due to missing Metal Toolchain; use:
 #      xcodebuild -downloadComponent MetalToolchain".

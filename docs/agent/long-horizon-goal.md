@@ -106,20 +106,19 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    DMG and probe 41 judges it under `permissions: contents: read`, so a rehearsal can't publish. Green
    10-29 end to end: metallib, DMG, probe 41's 12 assertions (a real turn from a fresh directory), the
    window proof — green, so now blocking — and a first green main run, steps at 4/3/7 s (no weights on a
-   runner, so no checkpoint tier ran there). **That sentence is a 10-29 measurement: the leg has been red on
-   every run since 10-31 (run 12), whose sha `a64e79da` was also the last green (run 11, 10-30 18:20)** — one
-   sha, two verdicts, so the image moved under the build and not the build, and `bash scripts/ci-status.sh`
-   reads `DMG from a clean runner (no publish)=failure`; "blocking" describes the gate, not the state. The
-   blame this file carried (`d664f7b`) is retracted, and so is the inference that replaced it: run 23
-   (`3d0631f9`) published its premises through the token-free annotation channel and answered
-   `sdk=MacOSX/26.5 coreai=absent · metal=ABSENT · payload … (scanned 0)`, which kills the moved-SDK,
-   disk-space and payload-layout hypotheses and leaves two mechanisms, both since measured on a runner: the
-   route resolved a Metal compiler through `xcrun` and never put it on PATH (fixed in the resolver that owns
-   it), and — which falsified that as the whole cause one run later — this image's SwiftPM emits no shader
-   payload even with a compiler it can spawn, so the lanes produce the payload explicitly again (reproduction
-   and limits: `open-items.md`).
-   What rung 1 waits on is unchanged: a run whose DMG, probe 41 and window proof are green, then the owner's
-   hand on a tag — `release`'s publish + read-back has never run, and a tag is a hand, not a task.
+   runner, so no checkpoint tier ran there). **The leg then went red on every run from 10-31 (run 12) and is
+   green again as of run 25 (`90956d46`): DMG built, probe 41 `12 passed, 0 failed, 8 measured`, window proof
+   green**, so `bash scripts/ci-status.sh` reads `DMG from a clean runner (no publish)=success` and
+   "blocking" describes the gate and the state together. What was wrong took five runs and two instruments to
+   see, and neither guess this file carried was among them: `d664f7b` was blamed for 5 d, and the inference
+   that replaced it — "the image moved", from one sha (`a64e79da`) going green as run 11 and red as run 12 —
+   is retracted, because `api.github.com` lists no `macos-26-arm64` image across that boundary. Two defects,
+   each measured on a runner: the delivery route resolved a Metal compiler through `xcrun` and never put it on
+   PATH (fixed in the resolver that owns the route), and the runner's CLT is `swift=6.3.3` where compiling
+   `.metal` is a SwiftPM 6.4 capability — a green build, no shader payload, and not one sentence said about
+   it — so the payload comes from a producer this repo runs rather than from a hope. Rung 1 now waits on one
+   act: the owner's hand on a tag. `release`'s publish + read-back has never run, and a tag is a hand, not a
+   task.
 2. **Sixty seconds to first token.** Honest today: `swift build -c release` (minutes) or an ad-hoc-signed
    DMG plus the Gatekeeper right-click. Rung = notarised artefact + Homebrew cask; the metric to floor is
    *clean machine → first completion*, one command, timed. First measured point: 22.1 s from a built DMG to

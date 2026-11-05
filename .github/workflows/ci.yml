@@ -694,16 +694,17 @@ jobs:
           fi
           tail -4 appstore-delivery.log
 
-      # A measurement, not a verdict: does this route compile .metal itself? A runner has now answered
-      # NO on the current image — this step's own notice reads `rung: swiftpm-product · nothing usable
-      # (scanned 0)` after a green `swift build -c release --traits appStore` whose route had a compiler
-      # it could spawn (`metal=…/Metal.xctoolchain/usr/bin/metal`, 11-06) — which is what brought the
-      # xcodebuild producer back to both packaging lanes. It stays a notice and not an assertion, for the
-      # reason it was written: the question is what the producer COSTS, not whether the artefact is right
-      # (build-app.sh 3b and probe 41 §1 assert that), and the day this notice prints a payload the
-      # producer can be deleted again with evidence instead of a guess. The ladder is asked, not
-      # re-implemented here, because the ladder prints WHICH RUNG WON and a glob would read a pip wheel
-      # as a SwiftPM hit.
+      # A measurement, not a verdict: does this route compile .metal itself? It now has an answer WITH a
+      # cause, and the cause is the version printed on the next line: native `.metal` compilation is a
+      # SwiftPM 6.4 capability, the macos-26 CLT is 6.3.3, and so this route builds green, compiles no
+      # `.metal`, and prints `rung: swiftpm-product · nothing usable (scanned 0)` even while holding a
+      # compiler it can spawn — silent, where xcodebuild would have said `cannot execute tool 'metal'`.
+      # On this image the producer is therefore required, not expensive. The step stays a notice and not an
+      # assertion (the reason it was written: the question is what the producer COSTS; build-app.sh 3b and
+      # probe 41 §1 assert correctness), and it becomes interesting again the day the image ships a 6.4
+      # CLT — that is the day the producer can be deleted with evidence instead of a guess. The ladder is
+      # asked, not re-implemented here, because the ladder prints WHICH RUNG WON and a glob would read a
+      # pip wheel as a SwiftPM hit.
       - name: Did the SwiftPM route materialize the shader payload?
         run: |
           set -uo pipefail
@@ -717,6 +718,11 @@ jobs:
           # step that declares itself a measurement killed the job it was measuring the cost of.
           RESOLVED="$(bash scripts/resolve-metallib.sh .build 2>&1 | tr '\r\n' '  ' | cut -c1-200 || true)"
           echo "::notice::payload after the appStore build: ${RESOLVED:-the ladder printed nothing}"
+          # The premise the answer rests on, published beside it: a rung-1 miss means something different
+          # on a 6.3 route than on a 6.4 one, and the two remedies (wait for the image / delete the
+          # producer) point opposite ways. One field, same channel, no token needed to read it.
+          SWIFT_V="$(swift build --version 2>&1 | tr '\r\n' '  ' | cut -c1-160 || true)"
+          echo "::notice::the route's SwiftPM: ${SWIFT_V:-unknown}"
 
   ## ── iOS compile-validation (independent job — no matrix sharing) ──
   # ocoreai declares .iOS(.v17) first-class; the #if os(iOS) branches had no CI

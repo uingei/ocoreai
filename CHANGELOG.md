@@ -9,6 +9,49 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-06
 
+**11-06 run 25 is green, and the version line names what six days of red were: `.metal` compilation is a SwiftPM 6.4 capability and the runner has 6.3.3**
+
+- **What improved.** The rehearsal lane built, shipped and judged its own artefact again — DMG, probe 41
+  `12 passed, 0 failed, 8 measured`, window proof — for the first time since 10-30, and the reason is now a
+  measured fact rather than a category. Run 24's premises line carried a field this repo had never published:
+  `swift=6.3.3`. Native `.metal` compilation arrived in SwiftPM 6.4 (this host: 38 `.air` intermediates, a
+  4 716 496-byte payload; the contract's own header says the 6.3.3→6.4 jump is what made Cmlx need a shader
+  compiler), so the macos-26 CLT compiles no `.metal` at all and — the part that cost six days — says nothing
+  while doing it: a green `swift build`, `rung: swiftpm-product · nothing usable (scanned 0)`, no error line
+  anywhere. A missing capability is silent in SwiftPM and loud in xcodebuild (`cannot execute tool 'metal' due
+  to missing Metal Toolchain`, measured on this host's Xcode route with `metal_component_status=uninstalled`),
+  which is why the artefact's shader bytes now come from a producer this repo runs and from the artefact's own
+  judge, never from a build's exit code. The knowledge landed where it will be read: contract header entry 2
+  carries the version corollary, `resolve-metallib.sh` names rung 1 a path contract with the version that
+  earns it, and the appStore leg now publishes the route's SwiftPM version beside the notice that asks the
+  question, because a rung-1 miss means "wait for the image" on 6.3 and "delete the producer" on 6.4 —
+  opposite remedies, one field apart.
+- **What same-session output proves it.** Run 25's own annotations, in order: `rung: swiftpm-product ·
+  nothing usable (scanned 0)` (SwiftPM emitted nothing) → `rung: xcode-derived-data · 4 695 872 bytes ·
+  scanned 1` (xcodebuild compiled it) → `staged .build/out/Products/Release/…/default.metallib (4 695 872
+  bytes)` → `shader payload after the green build: rung: swiftpm-product · 4 695 872 bytes · scanned 1` →
+  probe 41 green. The staged-file contract was tested here before the run, not after: the ladder asked about a
+  scratch holding only the producer's destination path answered `rung: swiftpm-product · 4 716 496 bytes ·
+  scanned 1`, and an empty scratch answers `scanned 0` — the two sentences the leg had been unable to
+  distinguish. Producer cost on a clean runner: 999 s, inside the 30-minute step ceiling with the job well
+  inside its 75 — and inside this step's own recorded band (777 s, 973 s, then 633 s), where `actions/cache`
+  still will not publish hit-or-miss without a token, so no direction is claimed from two samples.
+  Bookkeeping the two rounds owed: the packaging row left `open-items.md` for `closed-items-log.md`
+  (−3 922 B, counted by `wc -c` on both trees rather than re-typed), and root's `Open` row flipped to the act
+  that remains — 2 B shorter, so root 21 439/21 461 and the deepest chain 32 739/32 768, 29 B from the cap,
+  consensus row re-derived by the check that owns it, and this file now
+  records the retraction of "the image moved" beside the retraction of `d664f7b`. One of my own errors is in
+  the record because it is a fact about the instrument: while rewriting the open-items row I cut its
+  neighbour's leading bullet line and committed the orphan (`90956d46`) — repaired here, and `make docs-check`
+  never saw it, because it checks budgets, refs, claims and routing, not whether every bullet still starts
+  with one; a reader who trusts a row's presence over its wholeness is exactly who that gap costs.
+- **Which gate goes red.** Nothing new was added, deliberately: the payload gate is `build-app.sh` 3b plus
+  probe 41 §1 and both just went green on a real artefact; the producer's exit code became real in the previous
+  commit and is what makes the producer a gate rather than a rumour; `ci-annotate --selftest` (9) still runs in
+  `make audit` and on ubuntu. What the appStore leg's notice now says — `the route's SwiftPM: …6.3.3` — is the
+  standing tripwire: the day the image ships a 6.4 CLT and rung 1 fills itself in, that is the evidence to
+  delete the producer, and the comment that says so is in the same step.
+
 **11-06 run 24 confirmed the PATH fix, falsified it as the whole cause, and the restored producer could not fail**
 
 - **What improved.** Run 24 (`e0e6b7f2`) answered the question the last entry left open, both ways. The
