@@ -9,6 +9,42 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-05
 
+**11-05 `git ls-files "*X.swift"` is a suffix match: four mirrors were being read against a neighbour**
+
+- **What improved.** The census premise was written down on 11-03 — "the .swift files that have an
+  exact-name counterpart in coreai-models" — and the code implemented something else. `resolve()` asked
+  `git ls-files "*<basename>"`, which matches *suffixes* and answers in path order, then took `hits[0]`.
+  Upstream `DecodingStrategies/` answers `*DecodingStrategy.swift` with four files, `Constrained…` first, so
+  our `Engine/GuidedGeneration/DecodingStrategy.swift` was bound to a file we mirror *separately*, and four
+  mirrors shared the defect — three of them while their exact-named counterpart sat in the same tree. Two
+  printed numbers were simply another file's: `DecodingStrategy.swift` printed 10 (its neighbour's history,
+  its own is **6**) and `Engine/GuidedGeneration/Input.swift` printed **1** where its header-named source
+  has **7**. Same-name wins; below it, only a path the header itself names, because that is a person's
+  assertion and a glob is not; a bare basename gets no guess. The 18 baselined rows read 0 unread before
+  and after, so no green had been false *yet* — what was coming is visible in the table in the fork log: the
+  first person to stamp `DecodingStrategy.swift` would have pinned a permanent 0 against the wrong file.
+- **What same-session output proves it.** The seam on the live tree, same ref: the two printed counts move
+  10 → 6 and 1 → 7, and four entries change which upstream file they name. The same read found the second
+  face: of the **36** mirrors printed as unread, **11 headers carry a sha** the reader refuses —
+  `Absorbed from coreai-models 27a66f9 (#227, fix #212)`, `Upstream pin: coreai-models 7359dbc`,
+  `… CompletionHandler.swift (b11ac19):` and six more — so the report was selling "the tool cannot read
+  this sentence" as "nobody has read this file", the mirror image of yesterday's defect and the same one I
+  wrote into that log an hour ago when I called all 36 sha-less. The report now splits them (`*` in the
+  table, `sha`/`none` on the seam): 25 unread, 11 needing a canonical stamp. Nine dialects were *not* added
+  to the parser, because two of the eleven would be read wrong by a guess — `Parsers/TokenParsers/ThinkTagParser.swift`'s
+  sha names a commit *ahead* of us and `Handlers/DecisionsHandler.swift` quotes another file's provenance.
+  A guessed arm there buys a quieter report and a false green; the fix for those eleven is a human writing
+  one canonical read-point each, which is now a list rather than a rumour.
+- **Which gate goes red if it regresses.** `UpstreamDriftWindowTests` **17 → 20**, all on synthetic pairs.
+  The same-name test asserts `… 已读至 <base> 2 ` *and* the source field ` 2 DecodingStrategy.swift`; the
+  suffix test asserts `#glue 1` with no `#nobase` for a name that only ends like an upstream file; the
+  split test asserts `#nobase … 2 sha` against `#nobase … 2 none` and that an unparsed sha opens no row.
+  Mutants, both run: with the old resolver four issues fire (and the sha test stays green, so the mutation
+  is specific); forcing the flag off fires exactly one.
+- **Cost.** +24/−8 script, +160 tests, +63/−5 across the fork log and § Open. The residue is worse than it
+  was by design: two mirrors now owe *more* reading than the report used to claim (6 and 7 commits, not 10
+  and 1), and nobody has read them yet.
+
 **11-05 Four mirrors the ledger called unread — the blind spot was a spelling, not a file**
 
 - **What improved.** `make drift` prints its census every round, and yesterday it said **40** of our CoreAI

@@ -23,8 +23,10 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   un-adjudicated per file today. The axis since has moved export-side **and** through two Swift commits in
   `CoreAILanguageModels/SpeculativeDecoding/` — a target this tree mirrors nothing of (rows: that log's
   § Window read 11-05), so § Upstream 2 still has no surface for it. The ledger's other face is the bigger
-  half: of 56 candidates it calls **36** mirrors with no read-point in *any* spelling, so their window is not
-  empty, it is unmeasurable until someone stamps one — `make drift` prints that count every round.
+  half: of 56 candidates it calls **36** mirrors unread — **25** carry no sha at all, **11** carry one in
+  prose the reader will not guess at (two of those would be read *wrong*), so their window is not empty, it
+  is unmeasurable until someone writes the canonical read-point; `make drift` prints both counts every
+  round, and the eleven are listed with their sentences in that log's § Window read 11-05 (b).
   <!-- claim:fork_verdicts_open=14 :: grep -c '^|.*\*\*open' docs/agent/coreai-fork-window-log.md -->
 - **The `+6` mlx-swift-lm window hands us a truth we cannot read until the bump** (Engine/) — read 11-05 in
   a local clone at `c8dabc6`: `GenerateCompletionInfo` gains `speculativeDecodingFallbackReason`

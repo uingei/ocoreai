@@ -308,6 +308,166 @@ struct UpstreamDriftWindowTests {
         #expect(!r.out.contains("#nobase Engine/Thing.swift"), "and reports no hole: \(r.out)")
     }
 
+    /// Upstream where two committed files answer to one glob — `DecodingStrategy.swift` and
+    /// `ConstrainedDecodingStrategy.swift` both match `*DecodingStrategy.swift`, and git lists the
+    /// `Constrained…` one first — with the post-baseline commits landing on the **exact-named** file
+    /// only. `ours` holds a BSD-3 mirror of the exact-named file carrying a read-point, and a BSD-3
+    /// file whose name is only a *suffix* of an upstream one (`Writer.swift` / `StreamingWriter.swift`).
+    private static func makeSuffixAmbiguousPair() throws -> (
+        clone: URL, ours: URL, ref: String, base: String
+    ) {
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("drift-suffix-\(UUID().uuidString.prefix(8))")
+        let up = base.appendingPathComponent("up")
+        let clone = base.appendingPathComponent("clone")
+        let exactFile = "swift/Sources/Dec/DecodingStrategy.swift"
+        try Self.write(
+            "// upstream\n",
+            to: up.appendingPathComponent(
+                "swift/Sources/Dec/ConstrainedDecodingStrategy.swift"))
+        try Self.write("// upstream\n", to: up.appendingPathComponent(exactFile))
+        try Self.write(
+            "// upstream\n",
+            to: up.appendingPathComponent(
+                "swift/Sources/Vid/StreamingWriter.swift"))
+        try Self.git(["init", "-q", "-b", "main", "."], in: up)
+        try Self.git(["config", "user.email", "t@t"], in: up)
+        try Self.git(["config", "user.name", "t"], in: up)
+        try Self.git(["add", "-A"], in: up)
+        try Self.git(["commit", "-qm", "c1"], in: up)
+        let base9 = try Self.git(["rev-parse", "--short", "HEAD"], in: up)
+        try Self.git(["clone", "-q", up.path, clone.path], in: base)
+        for i in 2 ... 3 {
+            try "line \(i)\n".write(
+                to: up.appendingPathComponent(exactFile), atomically: true,
+                encoding: .utf8)
+            try Self.git(["commit", "-qam", "c\(i)"], in: up)
+        }
+        let ref = try Self.git(["rev-parse", "--short", "HEAD"], in: up)
+        try Self.git(["-C", clone.path, "fetch", "-q", "origin"], in: base)
+        let ours = base.appendingPathComponent("ours")
+        try Self.write(
+            """
+            // Copyright 2026 Apple Inc.
+            // Use of this source code is governed by a BSD-3-clause license.
+            // Adjudicated: \(base9)
+
+            import Foundation
+
+            """,
+            to: ours.appendingPathComponent("Engine/GuidedGeneration/DecodingStrategy.swift"))
+        try Self.write(
+            """
+            // Copyright 2026 Apple Inc.
+            // Use of this source code is governed by a BSD-3-clause license.
+
+            import Foundation
+
+            """,
+            to: ours.appendingPathComponent("Video/Writer.swift"))
+        return (clone, ours, ref, base9)
+    }
+
+    @Test(
+        "the source of a mirror is the same-named upstream file, never the neighbour a glob listed first"
+    )
+    func exactBasenameWinsTheGlob() throws {
+        let (clone, ours, ref, base) = try Self.makeSuffixAmbiguousPair()
+        defer { try? FileManager.default.removeItem(at: ours.deletingLastPathComponent()) }
+        let r = try Self.runCensus(clone: clone, ref: ref, ours: ours)
+        // `git ls-files "*DecodingStrategy.swift"` is a SUFFIX match and answers in alphabetical
+        // order, so `hits[0]` was `ConstrainedDecodingStrategy.swift` — a file we mirror separately.
+        // Measured 11-05 on the live tree: five mirrors were bound this way, three of them while an
+        // exact-named upstream file sat right there. The dangerous direction is the quiet one: the
+        // neighbour had no commits since the baseline, so the window reads "0 个" and goes green.
+        let row = "#row window Engine/GuidedGeneration/DecodingStrategy.swift 已读至 \(base)"
+        #expect(r.code == 0, "the census runs on the pair: \(r.out)")
+        #expect(r.out.contains(row + " 2 "), "the window counts its OWN file: \(r.out)")
+        #expect(
+            r.out.contains(" 2 DecodingStrategy.swift"),
+            "and names it, not the Constrained-prefixed neighbour: \(r.out)")
+    }
+
+    @Test("a mirror whose name only *ends like* an upstream file is not bound to it")
+    func suffixAloneIsNotProvenance() throws {
+        let (clone, ours, ref, _) = try Self.makeSuffixAmbiguousPair()
+        defer { try? FileManager.default.removeItem(at: ours.deletingLastPathComponent()) }
+        let r = try Self.runCensus(clone: clone, ref: ref, ours: ours)
+        // Ours `Writer.swift` vs upstream `StreamingWriter.swift`: no same-named file, and the header
+        // claims nothing. A suffix hit would hand it a 来处 and a history count it never had; the
+        // honest face is "no source named", which is what the glue bucket means.
+        #expect(r.code == 0, "the census runs on the pair: \(r.out)")
+        #expect(
+            !r.out.contains("#nobase Video/Writer.swift"),
+            "a guessed neighbour is not a source: \(r.out)")
+        #expect(r.out.contains("#glue 1"), "and it is counted as unnamed, visibly: \(r.out)")
+        #expect(r.out.contains("#cand 2"), "both files are still candidates: \(r.out)")
+    }
+
+    @Test(
+        "a mirror holding an unreadable sha is named apart from one holding nothing — 11 vs 25, live 11-05"
+    )
+    func unreadableShaIsNotCalledUnread() throws {
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("drift-tag-\(UUID().uuidString.prefix(8))")
+        let up = base.appendingPathComponent("up")
+        let clone = base.appendingPathComponent("clone")
+        try Self.write(
+            "// upstream\n", to: up.appendingPathComponent("swift/Sources/Up/Note.swift"))
+        try Self.write(
+            "// upstream\n", to: up.appendingPathComponent("swift/Sources/Up/Blank.swift"))
+        try Self.git(["init", "-q", "-b", "main", "."], in: up)
+        try Self.git(["config", "user.email", "t@t"], in: up)
+        try Self.git(["config", "user.name", "t"], in: up)
+        try Self.git(["add", "-A"], in: up)
+        try Self.git(["commit", "-qm", "c1"], in: up)
+        try Self.git(["clone", "-q", up.path, clone.path], in: base)
+        try "line\n".write(
+            to: up.appendingPathComponent("swift/Sources/Up/Note.swift"),
+            atomically: true, encoding: .utf8)
+        try "line\n".write(
+            to: up.appendingPathComponent("swift/Sources/Up/Blank.swift"),
+            atomically: true, encoding: .utf8)
+        try Self.git(["commit", "-qam", "c2"], in: up)
+        let ref = try Self.git(["rev-parse", "--short", "HEAD"], in: up)
+        try Self.git(["-C", clone.path, "fetch", "-q", "origin"], in: base)
+        let ours = base.appendingPathComponent("ours")
+        // The live shape, quoted from `Engine/InputLayout.swift`: the sha of the commit it came in at,
+        // in prose no reader parses. `Parsers/TokenParsers/ThinkTagParser.swift` carries one that means
+        // the opposite — `#182 637cc63: agentic Format (upstream ahead)` — which is why the ledger must
+        // not start guessing at what a bare sha means, and must not call the two cases one number.
+        try Self.write(
+            """
+            // Copyright 2026 Apple Inc.
+            // Use of this source code is governed by a BSD-3-clause license.
+            // Absorbed from coreai-models 27a66f9 (#227, fix #212).
+
+            import Foundation
+
+            """,
+            to: ours.appendingPathComponent("Engine/Note.swift"))
+        try Self.write(
+            """
+            // Copyright 2026 Apple Inc.
+            // Use of this source code is governed by a BSD-3-clause license.
+
+            import Foundation
+
+            """,
+            to: ours.appendingPathComponent("Engine/Blank.swift"))
+        let r = try Self.runCensus(clone: clone, ref: ref, ours: ours)
+        #expect(r.code == 0, "the census runs on the pair: \(r.out)")
+        #expect(
+            r.out.contains("#nobase Engine/Note.swift 2 sha"),
+            "a header carrying a sha is reported as unreadable, not unread: \(r.out)")
+        #expect(
+            r.out.contains("#nobase Engine/Blank.swift 2 none"),
+            "and one carrying nothing keeps its own face: \(r.out)")
+        #expect(
+            !r.out.contains("#row window Engine/Note.swift"),
+            "an unparsed sha must not open a window: \(r.out)")
+    }
+
     @Test("the fork-licence population in our own tree is floored, not trusted")
     func forkLicencePopulationIsFloored() throws {
         let root = try Self.repoRoot().appendingPathComponent("Sources/ocoreai")

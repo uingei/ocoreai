@@ -287,10 +287,18 @@ def git(*a):
     except Exception:
         return ""
 def resolve(name):
+    # `git ls-files "*X.swift"` 是后缀匹配,不是同名匹配:上游 `DecodingStrategies/` 里
+    # `*DecodingStrategy.swift` 命中四个文件,原先取 hits[0] 就把 `ConstrainedDecodingStrategy.swift`
+    # 当成了我们 `DecodingStrategy.swift` 的来处 —— 而这两个都是我们的镜像。同名优先;读不到同名时
+    # 只认 header 自己指名的路径(那是人的断言),裸文件名不做后缀猜测。11-05 实测 5 个镜像被这样
+    # 张冠李戴,其中 3 个上游确有同名文件;危险方向是反向的假绿:窗口按别人的历史数,读出 0 个。
     if name.startswith("swift/") and os.path.exists(os.path.join(up, name)):
         return name
     hits = [h for h in git("ls-files", "*" + name).split("\n") if h.strip()]
-    return hits[0] if hits else ""
+    exact = [h for h in hits if os.path.basename(h) == name]
+    if exact:
+        return exact[0]
+    return hits[0] if ("/" in name and hits) else ""
 def head_of(path):
     try:
         return "".join(open(path, errors="ignore").readlines()[:45])
@@ -331,7 +339,12 @@ for path, head in cands:
             glue += 1
         continue
     if not window:
-        nobase.append((rel, git("rev-list", "--count", ref, "--", src) or "?"))
+        # 11-05 实测:36 个"无基线"里 11 个头上就写着一个 sha —— `Absorbed from coreai-models
+        # 27a66f9 (#227, fix #212)`、`(coreai-models #252, ebb3e54)`、`Upstream pin: … 7359dbc`。
+        # 台账不猜那些写法是什么意思 —— 有一行明写着 `(upstream ahead)`,把它当基线就是一次假绿 ——
+        # 但它也不能把"读不懂"和"没人读过"报成同一个数,所以分开点名,判断交给人。
+        tagged = bool(re.search(r"\b[0-9a-f]{7,40}\b", head))
+        nobase.append((rel, git("rev-list", "--count", ref, "--", src) or "?", tagged))
         continue
     n = git("rev-list", "--count", "%s..%s" % (window, ref), "--", src)
     new = git("log", "-1", "--format=%h %s", "%s..%s" % (window, ref), "--", src)
@@ -344,8 +357,8 @@ if mode == "census":
     print("#glue %d" % glue)
     for kind, rel, a, b, c in rows:
         print("#row %s %s %s %s %s" % (kind, rel, a, b, c))
-    for rel, ever in nobase:
-        print("#nobase %s %s" % (rel, ever))
+    for rel, ever, tagged in nobase:
+        print("#nobase %s %s %s" % (rel, ever, "sha" if tagged else "none"))
 else:
     for kind, rel, a, b, c in rows:
         if kind == "unnamed":
@@ -355,11 +368,14 @@ else:
     if not rows:
         print("  (无 fork 台账条目)")
     if nobase:
-        print("  无基线镜像 %d 个 —— 上游同名文件确实存在,但头里三种读点写法一种都没有:"
-              " `Absorbed: #N <sha>`、`Adjudicated: <sha>`、`Provenance: … @ <sha>`"
-              "(括号里是上游该文件的历史 commit 数):" % len(nobase))
+        tagged = sum(1 for _r, _e, t in nobase if t)
+        print("  无基线镜像 %d 个 —— 来处已定,但头里没有可判读的读点(`Absorbed: #N <sha>`、"
+              "`Adjudicated: <sha>`、`Provenance: … @ <sha>`);括号里是上游该文件的历史 commit 数,"
+              "带 * 的 %d 个头里其实写着一个 sha,只是那种写法台账不敢认(认错了就是一次假绿):"
+              % (len(nobase), tagged))
         for i in range(0, len(nobase), 3):
-            print("    " + "  ".join("%s(%s)" % (r, e) for r, e in nobase[i:i + 3]))
+            print("    " + "  ".join(
+                "%s%s(%s)" % (r, "*" if t else "", e) for r, e, t in nobase[i:i + 3]))
     print("  台账口径 walk %s ⇒ 候选 %d(带 Apple+BSD-3 头,或点了 coreai-models 并指名来处),"
           "成行 %d,无基线 %d,胶合/引用 %d"
           % (ours, len(cands), len(rows), len(nobase), glue))

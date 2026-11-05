@@ -103,6 +103,62 @@ only the verdicts.
 | `09e7125` #356 — 8-bit KV states: take the element width from the scalar type; describe the state kinds the runtime has | **open** | the element-width half is already here (`Engine/KVCache+CoreAI.swift:601` returns 1 for the fp8 types); what is missing is the `uint8`/`float8e8m0fn` → `.uInt8` mapping (inside the pre-fix block above) and the doc correction — our `StateKind` (`Engine/StateHandler.swift:25-29`) still carries the pre-#356 reading in which `kv_cache` always grows and a sliding ring is freely truncatable, while upstream now records that a KV cache may export at fixed capacity and a ring rewinds only until it wraps |
 | `156cdb6` #204 — export a `prompt` graph with no LM head and prefill through it | **open**, needs an asset + a macOS 27 host | the mirror half is the output-less encode `#204` appends to `StateHandler+Encode.swift`; this lane has no `prompt` entrypoint to call it with, and producing one is the export side § Upstream 2 has no surface for. What it buys upstream is prefill that stops paying for the LM head on every prompt token — the reason it stays a row instead of an `n/a` |
 
-The remaining 36 carry no sha in any spelling (`Provenance: coreai-models … — absorbed.` with no sha, or a
-type name instead of a path, or nothing at all); that count prints every round with the file list, so the
-debt is a queue rather than a blind spot.
+Of the remaining 36, **25** carry no sha at all — `Provenance: coreai-models … — absorbed.` with no sha, a
+type name where a path belongs, or nothing — and that is the queue. The other **11 do carry a sha**; the
+ledger will not parse the sentence it sits in, and the paragraph above this one, written an hour earlier
+calling all 36 sha-less, was the same error one level up: it trusted the tool's bucket instead of the
+headers. See the next section.
+
+## Window read 11-05 (b) — the ledger bound five mirrors to the wrong file, and called 11 read files unread
+
+Two faces of one shape: **a scan that reads its own premise out of a tool that does not enforce it.**
+
+`resolve()` asked `git ls-files "*<basename>"` and took `hits[0]`. That glob is a **suffix** match, not a
+basename match, and it answers in path order: upstream `DecodingStrategies/` answers
+`*DecodingStrategy.swift` with four files and `ConstrainedDecodingStrategy.swift` comes first. **Four** of
+our mirrors were bound to a file they are not — measured by running both resolvers over the tree at
+`f333cf5` and diffing the answer per file — and three of the four have an exact-named counterpart sitting in
+the same upstream directory:
+
+| our file | bound to (wrong coreai-models file) | its own coreai-models file | history count: printed → true |
+|---|---|---|---|
+| `Engine/GuidedGeneration/DecodingStrategy.swift` | `ConstrainedDecodingStrategy.swift` | `DecodingStrategies/DecodingStrategy.swift` | 10 → **6** |
+| `Engine/GuidedGeneration/Input.swift` | `VideoInput.swift` | header-named `TextGeneration/TextGenerator.swift` | 1 → **7** |
+| `Video/RandomSource.swift` | `NumPyRandomSource.swift` | `RNG/RandomSource.swift` | 2 → 2 (another file's count, coincidentally equal) |
+| `Video/VideoWriter.swift` | `StreamingVideoWriter.swift` | `Video/VideoWriter.swift` | 1 → 1 (same) |
+
+A header that names its coreai-models path keeps that route — `Engine/VLMBundleDetector.swift`
+reads `CoreAIShared/Bundle/ModelBundle.swift` in coreai-models because a person wrote the path down,
+and prints the same 10 commits before and after. What changed is narrower: a bare basename no longer borrows a neighbour's history.
+
+The 18 baselined rows were unaffected — each still reads 0 unread, before and after — so no green was ever
+false *yet*. The damage was waiting: stamping a read-point into
+`Engine/GuidedGeneration/DecodingStrategy.swift` would have pinned it against a neighbour that has no
+commits, which is a permanent green on the wrong file. The rule now is same-name first, then a path the
+header itself names — a person's assertion — and a bare basename gets no suffix guess.
+
+The other face is the number itself. Of the 36 the ledger prints in its no-baseline list, **11
+headers carry a sha** and
+the reader refuses them:
+
+| our file | the line the reader will not parse |
+|---|---|
+| `Engine/InputLayout.swift` | `Absorbed from coreai-models 27a66f9 (#227, fix #212).` |
+| `Engine/PrefillGraph.swift` | `Absorbed from coreai-models 156cdb6 (#204) shared/PrefillGraph.swift` |
+| `Engine/SequentialIterator.swift` | `Absorbed: coreai-models #251 (89ba0d4) — shared iterator helpers` |
+| `Multimodal/StreamingWindow.swift` | `Absorbed from coreai-models (de31ba5) swift/Sources/CoreAISpeech/StreamingWindow.swift` |
+| `Engine/LogProbabilities.swift` | `…/TextGeneration/LogProbabilities.swift (8cec4f8).` |
+| `Engine/EngineLogprobs.swift` | `swift/Sources/Tools/llm-server/CompletionHandler.swift (b11ac19):` |
+| `Engine/VLMBundleDetector.swift` | `Upstream pin: coreai-models 7359dbc` |
+| `Video/CoreAIDiffusionModelFunction.swift` | `Fail fast on a missing asset (coreai-models #252, ebb3e54).` |
+| `Engine/SeededRandomNumberGenerator.swift` | `coreai-models #265 (6441c8c) — "Add reproducible generation…"` |
+| `Parsers/TokenParsers/ThinkTagParser.swift` | `#182 637cc63: agentic Format (upstream ahead), while keeping` |
+| `Handlers/DecisionsHandler.swift` | a cite of where `EngineLogprobs.swift` came from, not this file's own |
+
+Nine spellings, one fact each — and two of the eleven would be **wrongly** read by a parser that guessed:
+`ThinkTagParser`'s sha names a commit that is *ahead* of us, and `DecisionsHandler` quotes another file's
+provenance. That is why the ledger marks these entries with a `*` in that list instead of learning
+nine dialects: the
+fix is one canonical read-point per file, written by whoever reads that window, not a wider regex. No
+verdict is recorded here for these eleven — reading eleven windows is the queue, and this section only
+establishes that eleven of them have already been read once.
