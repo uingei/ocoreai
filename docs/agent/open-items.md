@@ -15,14 +15,17 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — three `@available(macOS 27.0, *)` or
   SDK-gated sites (detail: `docs/agent/build-gate-reality.md`) ⇒ no blind fix and no claim of one; their
   suites now skip on this OS through `PlatformPremise.hasMacOS27` instead of reporting a red.
-- **The coreai fork's debt is 8 named verdicts, not a drift window** (Engine/) — 77a122f read all 36 commits
-  behind the four engine windows: 7 absorbed, 21 n/a, **8 open**, one row each with its action in
+- **The coreai fork's debt is 14 named open verdicts, not a drift window** (Engine/) — 8 of them from
+  77a122f reading all 36 commits behind the four engine windows (7 absorbed, 21 n/a), 3 from the #388/#374
+  read, 3 added by the 11-05 window read; one row each with its action in
   `docs/agent/coreai-fork-window-log.md` (#368 measured 10-30 by probe 12 §5b: the shipping lane damps whitespace via
   upstream `WhitespaceTokenBias`, so its exposure is CoreAI-only, unverifiable here). `make drift` reads 0
   un-adjudicated per file today. The axis since has moved export-side **and** through two Swift commits in
   `CoreAILanguageModels/SpeculativeDecoding/` — a target this tree mirrors nothing of (rows: that log's
-  § Window read 11-05), so § Upstream 2 still has no surface for it.
-  <!-- claim:fork_verdicts_open=11 :: grep -c '^|.*\*\*open' docs/agent/coreai-fork-window-log.md -->
+  § Window read 11-05), so § Upstream 2 still has no surface for it. The ledger's other face is the bigger
+  half: of 56 candidates it calls **36** mirrors with no read-point in *any* spelling, so their window is not
+  empty, it is unmeasurable until someone stamps one — `make drift` prints that count every round.
+  <!-- claim:fork_verdicts_open=14 :: grep -c '^|.*\*\*open' docs/agent/coreai-fork-window-log.md -->
 - **The `+6` mlx-swift-lm window hands us a truth we cannot read until the bump** (Engine/) — read 11-05 in
   a local clone at `c8dabc6`: `GenerateCompletionInfo` gains `speculativeDecodingFallbackReason`
   (`Evaluate.swift:3083`) naming the five reasons a session with speculation configured ran plain

@@ -266,12 +266,17 @@ elif m=="messages":
 # 头、且上游存在同名文件的 .swift 共 26 个,前缀扫描只够到 12 个,两个集合的交是 1 个。
 # 新口径读文件自己的头(点了 coreai-models,或带着 fork 的许可证头),用 walk 而非名字。
 # 每轮都把候选数打出来:walk 坏掉时那是一个看得见的数,不是一次通过(invariant 1)。
+# 读点的拼写有两种,都得认:`Absorbed: #N <sha>` / `Adjudicated: <sha>`,以及早期头里的
+# `Provenance: aligned with … @ <sha>`。11-05 实测:表把 40 个文件报成「无基线」,而其中
+# 至少 `Engine/KVCache+CoreAI.swift` 与 `Engine/TensorStorage+CoreAI.swift` 的头就写着
+# `@ <sha>` —— 那不是没人读过,那是台账读不懂那种写法;同一文件的头还写着
+# 「0 commits changed 78413ae..HEAD」,而此后上游又动了它两次,正是没人再 grep 的那类断言。
 fork_ledger_py() { # fork_ledger_py <clone> <ref> <ours-root> <table|census>
   python3 - "$1" "$2" "$3" "$4" <<'LEDGER_PY'
 import os, re, subprocess, sys
 up, ref, ours, mode = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 PATH_RE = re.compile(r"((?:swift/Sources/)?[A-Za-z0-9_/+.{}-]*[A-Za-z0-9_+]\.swift)")
-SHA_RE = re.compile(r"(?:HEAD|absorbed|Absorbed: #\d+)\s+([0-9a-f]{7,40})")
+SHA_RE = re.compile(r"(?:HEAD|absorbed|Absorbed: #\d+|Provenance:[^\n]*@)\s+([0-9a-f]{7,40})")
 # `Adjudicated: <sha>` = 这条窗口读到这儿了(逐条裁决记在 docs/agent/coreai-fork-window-log.md)。
 # 它只移动窗口的起点,不假装代码进来了:open 的裁决仍在那份文档里,不在这里消失。
 ADJ_RE = re.compile(r"Adjudicated:\s+([0-9a-f]{7,40})")
@@ -350,9 +355,9 @@ else:
     if not rows:
         print("  (无 fork 台账条目)")
     if nobase:
-        print("  无基线镜像 %d 个 —— 上游同名文件确实存在,但头里没有台账读得懂的"
-              " `Absorbed: #N <sha>` 或 `Adjudicated: <sha>`(括号里是上游该文件的历史 commit 数):"
-              % len(nobase))
+        print("  无基线镜像 %d 个 —— 上游同名文件确实存在,但头里三种读点写法一种都没有:"
+              " `Absorbed: #N <sha>`、`Adjudicated: <sha>`、`Provenance: … @ <sha>`"
+              "(括号里是上游该文件的历史 commit 数):" % len(nobase))
         for i in range(0, len(nobase), 3):
             print("    " + "  ".join("%s(%s)" % (r, e) for r, e in nobase[i:i + 3]))
     print("  台账口径 walk %s ⇒ 候选 %d(带 Apple+BSD-3 头,或点了 coreai-models 并指名来处),"

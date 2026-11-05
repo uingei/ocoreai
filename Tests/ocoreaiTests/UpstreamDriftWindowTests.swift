@@ -261,6 +261,53 @@ struct UpstreamDriftWindowTests {
         #expect(r.out.contains("#cand 2"), "the candidate count is the scan's premise: \(r.out)")
     }
 
+    @Test(
+        "a header's other read-point spelling is read — `Provenance: … @ <sha>` is a baseline too")
+    func provenanceAtShaIsABaseline() throws {
+        // Measured 11-05: the table said 40 mirrors had "no baseline" while four of them carried
+        // `Provenance: aligned with … @ <sha>` in line 5. The ledger knew two spellings, the headers
+        // used a third, and the file that proved it costliest also asserted "(0 commits changed
+        // … — anchor current)" when upstream had since edited it twice — so the blind spot was not
+        // unread files, it was a reader that could not parse being read.
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("drift-prov-\(UUID().uuidString.prefix(8))")
+        let up = base.appendingPathComponent("up")
+        let clone = base.appendingPathComponent("clone")
+        try Self.write(
+            "// upstream\n", to: up.appendingPathComponent("swift/Sources/Up/Thing.swift"))
+        try Self.git(["init", "-q", "-b", "main", "."], in: up)
+        try Self.git(["config", "user.email", "t@t"], in: up)
+        try Self.git(["config", "user.name", "t"], in: up)
+        try Self.git(["add", "-A"], in: up)
+        try Self.git(["commit", "-qm", "c1"], in: up)
+        let baseline = try Self.git(["rev-parse", "--short", "HEAD"], in: up)
+        try Self.git(["clone", "-q", up.path, clone.path], in: base)
+        try "line\n".write(
+            to: up.appendingPathComponent("swift/Sources/Up/Thing.swift"), atomically: true,
+            encoding: .utf8)
+        try Self.git(["commit", "-qam", "c2"], in: up)
+        let ref = try Self.git(["rev-parse", "--short", "HEAD"], in: up)
+        try Self.git(["-C", clone.path, "fetch", "-q", "origin"], in: base)
+        let ours = base.appendingPathComponent("ours")
+        try Self.write(
+            """
+            // Copyright 2026 Apple Inc.
+            // Use of this source code is governed by a BSD-3-clause license that can
+            // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
+            // Provenance: aligned with coreai-models Up/Thing.swift @ \(baseline) (0 commits changed \(baseline)..HEAD — anchor current).
+
+            import Foundation
+
+            """,
+            to: ours.appendingPathComponent("Engine/Thing.swift"))
+        let r = try Self.runCensus(clone: clone, ref: ref, ours: ours)
+        let rowStart = "#row window Engine/Thing.swift 基线 \(baseline)"
+        #expect(r.code == 0, "the census runs on the pair: \(r.out)")
+        #expect(r.out.contains(rowStart), "the @-sha spelling opens a window: \(r.out)")
+        #expect(r.out.contains(rowStart + " 1 "), "with the real unread count: \(r.out)")
+        #expect(!r.out.contains("#nobase Engine/Thing.swift"), "and reports no hole: \(r.out)")
+    }
+
     @Test("the fork-licence population in our own tree is floored, not trusted")
     func forkLicencePopulationIsFloored() throws {
         let root = try Self.repoRoot().appendingPathComponent("Sources/ocoreai")

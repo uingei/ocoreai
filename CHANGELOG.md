@@ -9,6 +9,40 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-05
 
+**11-05 Four mirrors the ledger called unread — the blind spot was a spelling, not a file**
+
+- **What improved.** `make drift` prints its census every round, and yesterday it said **40** of our CoreAI
+  mirrors have no read-point, so their upstream window is not empty but unmeasurable. Four of those 40 *did*
+  have one: it is spelled `// Provenance: aligned with coreai-models Up/Thing.swift @ <sha>`, and the reader
+  knew only `Absorbed: #N <sha>` and `Adjudicated: <sha>`. So the blind spot was not unread files — it was a
+  reader that could not parse being read, and the report printed a limitation as a backlog. One regex arm in
+  one home (`SHA_RE`), nothing else touched. The four then came into window and three unread upstream commits
+  appeared inside them: #328 (map the fp8 KV types to their real MPS types — our copy is pre-fix), #356 (take
+  the element width from the scalar type; its half landed, the state-kind description did not), #204 (a
+  `prompt` graph with no LM head — our lane has no such graph to call it with). All three judged **open**,
+  none edited: this is the macOS 27 lane the standing item says no blind fix belongs on. Two of the four had
+  read-points that were *false* rather than absent — `Engine/KVCache+CoreAI.swift` still asserted
+  "0 commits changed … anchor current" after this morning's window had falsified it; both headers now name
+  what upstream actually touched and end with a real `Adjudicated:`. Stated as my error, not the tree's: an
+  hour ago I wrote #328 off as unverifiable on a `grep -i fp8` over `Sources/` — the code spells the type
+  `.float8e4m3fn`, so the claim had held. That is the same class of defect the previous entry fixed in the
+  report, made here by hand and caught by re-running the read instead of trusting the grep.
+- **What same-session output proves it.** Same tree, before and after: the two headers went from 1 and 2
+  unread upstream commits to `上游 0 个`, and the census moved 候选 56 / **成行 14 → 18** / **无基线 40 → 36** /
+  胶合 2. Then the claim contract did its job: adding the three `open` rows put `docs-check` red on
+  `fork_verdicts_open = 11: command returns 14` — the number reproduced, which is the only reason the drift
+  was visible — and the § Open prose that still re-typed "8 open" (already stale at 11) was corrected in the
+  same pass rather than left as a second, quieter home for the figure.
+- **Which gate goes red if it regresses.** `UpstreamDriftWindowTests` **16 → 17**:
+  `provenanceAtShaIsABaseline` writes its fixture header in the *third* spelling and asserts the file lands
+  as a row with the right baseline and no `#nobase` — delete the regex arm and that assertion is exactly the
+  report that hid three commits for a window. `fork_verdicts_open=14` stays re-derived at its one home
+  (`docs/agent/open-items.md`), so a verdict row added or re-worded out of the shape is a red, not a drift.
+- **Cost.** +9/−4 script, +47 tests, +10/−3 across the two Engine headers, +24/−1 fork log, +7/−4 open items.
+  Read the residue honestly: **36** mirrors still carry no read-point in any spelling and `make drift` prints
+  that every round; and what these two views prove is that four mirrors are visible now, not that no fourth
+  spelling exists.
+
 **11-05 The `+6` mlx-swift-lm window read ahead of the bump, and one open item's premise proved stale**
 
 - **What improved.** The bump itself waits on a Metal-capable runner, so the audit half of the protocol was
@@ -72,8 +106,10 @@ heading are when the work landed (measured from git).
   `Parsers/`, `Profiling/`, `Handlers/`, and the drift script's own header records that narrow scope as the
   reason #374 and #402 produced no rows on 11-03. The sentence now names the mechanism (header-stamped
   forks) and cost 6 fewer bytes. Two stale prose cites moved (`LoadedModel.swift:220` → `:223`, twice), and
-  the previous `adopt_provenance` named `#328` at `KVCache+CoreAI.swift:618`: no `fp8` remains anywhere in
-  `Sources/`, so that claim is dropped as unverifiable here rather than re-asserted as closed.
+  the previous `adopt_provenance` named `#328` at `KVCache+CoreAI.swift` — and the sentence written here an
+  hour later calling that claim unverifiable was itself the error: it rested on `grep -i fp8`, while the
+  code spells the type `.float8e4m3fn`. The claim had held: `Engine/KVCache+CoreAI.swift:623-624` is
+  pre-fix, and it now has a verdict row in `coreai-fork-window-log.md` plus a read-point in its own header.
 - **What same-session output proves it.** `make drift`: coreai-models `0 new ✓ 与基线同点` while
   `mlx-swift-lm` still prints its `+6` and codex its `+240` — closing one window did not quiet the others.
   Provenance stated where it is uneven: 7 commits read in the clone at `b3376e2` (`git fetch` failed twice,

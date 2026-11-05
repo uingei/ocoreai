@@ -15,7 +15,7 @@ recomputes the counts from each file's header, so nothing here carries a number 
 | `257008b` | #250 | async request queue in `llm-server` | n/a | CLI queue over their runner; ocoreai's admission path is `Scheduler/` (`SchedulerActor`, `AdmissionGate`) in front of the `EnginePool` actor — the engine-file edits are the protocol ripple |
 | `b11ac19` | #188 | `StaticInputHandler` protocol for zero-allocation input filling | n/a | 0 hits for `StaticInputHandler` in `Sources/ocoreai` — our static-shape copy fills inputs on its own path |
 | `6441c8c` | #265 | reproducible generation: `seed` + `system_fingerprint` | n/a | 0 hits for `systemFingerprint` under `Engine/`; the wire `seed` surface is served by the MLX lane (`Handlers/CompletionsHandler.swift`, `Handlers/ChatHandler.swift`) |
-| `82c3488` | #354 | KV-state handling: static caches out of the sliding path, ring read-before-write, `additionalStates` on the constrained encode | n/a | 0 hits for `slidingRingCapacity`/`checkWriteFirstStep` — our fork never took the ring path, so the mis-classification has no home here; and the constrained-encode half is structurally already correct: every CoreAI encode routes through `Engine/StateHandler+Encode.swift:30,57`, which binds `additionalStates` |
+| `82c3488` | #354 | KV-state handling: static caches out of the sliding path, ring read-before-write, `additionalStates` on the constrained encode | n/a | 0 hits for `slidingRingCapacity`/`checkWriteFirstStep` — our fork never took the ring path, so the mis-classification has no home here; and the constrained-encode half is structurally already correct: every CoreAI encode routes through `Engine/StateHandler+Encode.swift:33,60`, which binds `additionalStates` |
 | `70daf4e` | #335 | batched-decode runtime (attention-mask path) | n/a | 0 hits for `BatchedDecodeStep` in `Sources/ocoreai` |
 | `c2ef849` | #258 | idempotent generation via external session state | n/a | 0 hits for `IdempotentEngine`/`GenerationSessionState`; ocoreai's durability lives in `SessionManager` + SQLite, not in an engine wrapper |
 | `09ff139` | #367 | continuous-batching scheduler (`BatchScheduler` 515 L, +Scorer 137, `SchedulerSession` 123, `BatchSessionAdapter` 64, `BatchServingRouter` 21) | n/a today, strategic | 0 hits for `BatchScheduler`. The largest capability our fork lacks — a serving feature, not a fix; taking it is a project with its own owner call |
@@ -83,3 +83,26 @@ assets.
 | `5fe26cb` #410 — draft head reads the scan table in at load (`DraftScan.swift` +5) | **n/a**, axis input | follow-up to the `SpeculativeDecoding/` subsystem #378/#386/#394 already declined above: 0 files named `DraftScan.swift` under `Sources/`, and our drafter is the checkpoint's own MTP layers (`ConfigStruct.swift:336-337`) |
 | `f4803f9` #409 — stop speculative decoding at single-token `--stop-tokens` | **n/a** to the lane, worth having read | `SpeculativeDecodingOptions.swift`/`LLMRunnerMain.swift`/2 tests, ∩ = 0; `Engine/LoadedModel.swift:223` marks speculative decoding MLX-only. What it settles upstream: a verify block can accept a sequence's first tokens before the stop is recognizable, so single-token stops join the stop set and multi-token ones are **named as ignored** (`SpeculativeDecodingOptions.swift:90-99`) instead of a run ending on part of one. The stall in §Open is the loop's *terminal word*, four faces — this commit does not answer that, so it is cited as precedent for naming what a lane cannot honour, not borrowed as a verdict |
 | `f333cf5` #415 — ci: worksteal scheduling retries crashed workers | **n/a** | one file, `.github/workflows/ci.yml`, 10 lines — read from the API's file list, not a diff (see provenance above); our runner is our own workflow set |
+
+## Four mirrors the ledger could not see — read 11-05
+
+The coreai-models ledger reported **40** of our mirrors as having no read-point. Four of them did have one;
+it was spelled
+`Provenance: aligned with … @ <sha>` and the ledger's regex knew only `Absorbed: #N <sha>` /
+`Adjudicated: <sha>`, so the tool said "no baseline" where the header said "read up to here". Teaching the
+ledger that spelling moved 4 rows out of the hole (rows 14 → 18, no-baseline 40 → 36) and they arrived with
+**unread upstream commits attached**, which is the point: two of the four headers also asserted
+`(0 commits changed … — anchor current)` and both assertions were false — one of those files has since been
+edited twice upstream. The counts are the instrument's, reprinted every round; what is written below is
+only the verdicts.
+
+| upstream commit | verdict | evidence from our tree |
+|---|---|---|
+| `78413ae` #74 — build requests with `NDArrayDescriptor.resolvingDynamicDimensions` instead of mutating `.shape` | **absorbed** | `Engine/KVCache+CoreAI.swift:271,387,470` call it |
+| `6d05c05` #328 — map the fp8 KV types to their real MPS types instead of downgrading to `float16` | **open** | our copy is pre-fix at `Engine/KVCache+CoreAI.swift:623-624` (all four of `float8e5m2/float8e4m3fn/float8e8m0fn/float4e2m1fn` → `.float16`). Our copy also carries a broad "nearest MPS type" fallback upstream lacks, so we never reach their `fatalError` — the exposure is not a crash but a mistyped, double-width expansion buffer for a 1-byte KV state, reached only with a bundle exported that way on macOS 27. The settle is one asset-metadata read on a macOS 27 host; a blind edit is a claim |
+| `09e7125` #356 — 8-bit KV states: take the element width from the scalar type; describe the state kinds the runtime has | **open** | the element-width half is already here (`Engine/KVCache+CoreAI.swift:601` returns 1 for the fp8 types); what is missing is the `uint8`/`float8e8m0fn` → `.uInt8` mapping (inside the pre-fix block above) and the doc correction — our `StateKind` (`Engine/StateHandler.swift:25-29`) still carries the pre-#356 reading in which `kv_cache` always grows and a sliding ring is freely truncatable, while upstream now records that a KV cache may export at fixed capacity and a ring rewinds only until it wraps |
+| `156cdb6` #204 — export a `prompt` graph with no LM head and prefill through it | **open**, needs an asset + a macOS 27 host | the mirror half is the output-less encode `#204` appends to `StateHandler+Encode.swift`; this lane has no `prompt` entrypoint to call it with, and producing one is the export side § Upstream 2 has no surface for. What it buys upstream is prefill that stops paying for the LM head on every prompt token — the reason it stays a row instead of an `n/a` |
+
+The remaining 36 carry no sha in any spelling (`Provenance: coreai-models … — absorbed.` with no sha, or a
+type name instead of a path, or nothing at all); that count prints every round with the file list, so the
+debt is a queue rather than a blind spot.

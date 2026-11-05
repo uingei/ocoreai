@@ -1,6 +1,9 @@
 // Copyright 2026 Apple Inc. (BSD-3-Clause)
 // Copied from coreai-models, wrapped in struct for @available compatibility.
-// Provenance: aligned with coreai-models Handlers/StateHandler+Encode.swift @ a5ece33 (0 commits changed a5ece33..21dc8ad — anchor current).
+// Provenance: aligned with coreai-models Handlers/StateHandler+Encode.swift @ a5ece33 — the one
+//   upstream commit since (#204) adds an output-less prefill encode; this lane has no `prompt`
+//   graph to call it with, so the half is not taken. Verdict row: docs/agent/coreai-fork-window-log.md.
+// Adjudicated: 156cdb6
 
 #if canImport(CoreAI)
 import CoreAI

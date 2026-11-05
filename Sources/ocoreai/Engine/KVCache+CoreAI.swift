@@ -2,7 +2,12 @@
 //
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
-// Provenance: aligned with coreai-models InferenceEngines/KVCache+CoreAI.swift @ 78413ae (0 commits changed 78413ae..HEAD — anchor current).
+// Provenance: aligned with coreai-models InferenceEngines/KVCache+CoreAI.swift @ 78413ae — #74's
+//   resolvingDynamicDimensions is in this copy (:271, :387, :470); two commits landed on the upstream
+//   file after that baseline and this copy is pre-fix on the fp8 mapping, so no "anchor current" claim
+//   here — `make drift` prints the live count, the verdict rows live in
+//   docs/agent/coreai-fork-window-log.md.
+// Adjudicated: 09e7125
 
 #if canImport(CoreAI)
 import CoreAI
