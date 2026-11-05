@@ -183,7 +183,17 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `MP_MP.bundle/Contents/Resources/default.metallib` (11-06), so SwiftPM reaches the cryptex MetalToolchain
   without any PATH rung, and the step's own title ("the CLT route has no metal compiler") describes xcrun's
   lookup, not the build's ability. The green appStore leg's notice `no usable MLX shader payload` is then
-  colour for what the *old* globs could see, not proof that nothing was compiled. Not reproducible on this host: a clean SPM
+  colour for what the *old* globs could see, not proof that nothing was compiled. The comparator that ships
+  the same artefact answers the route question the other way (`mlx-serve` refuses the CLT route for the
+  shipping build and pins full Xcode, because its Metal compiler must come from the toolchain it builds with:
+  `app/build.sh:83-91`, and it fetches the component when `xcrun -sdk macosx metal --version` fails:
+  `app/build.sh:97-99`; static guards on the *staged* payload in the release leg, since a cache-miss rebuild
+  there is what ships: `.github/workflows/release.yml:220-224`) — an owner call about the route, not a fix to
+  land blind here, because our route exists to keep CoreAI out of the artefact. Its payload guard was tried
+  and does not transfer: grepping the shipped metallib for kernel names catches `arg_reduce` (24 hits) and
+  `rms_norm` (6) but reports zero for `quantize_mm`, `steel_gemm_splitk` and `add_scaled` (measured 11-06 on
+  the 4 716 496-byte payload), so a name-coverage floor as simple as their `_nax` check would red on a good
+  payload. Not reproducible on this host: a clean SPM
   re-resolve is blocked here (git-over-https fails, curl 28), so a cold `--scratch-path` build stalls
   computing versions (measured 11-06) and the runner is the only place the answer exists.
 - **A caller's one-token `stop` can starve a constrained turn** (Engine/, Handlers/) — naming a stop id

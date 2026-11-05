@@ -35,14 +35,21 @@ heading are when the work landed (measured from git).
 - **What same-session output proves it.** The run/job/annotation triple from `api.github.com`: 22 runs with 11
   green then 12 red on one sha; nine identical failure messages per run; the failing step's own 1 168 s; and
   the *green* appStore leg's notice `payload after the appStore build: ❌ no usable MLX shader payload`, which
-  is colour for one hypothesis and not proof of it. `resolve-metallib.sh` before and after the same edit: same
+  is colour for one hypothesis and not proof of it — and the comparator that ships the same artefact picks
+  the other route (`mlx-serve` pins full Xcode for the shipping build because its Metal compiler must come
+  from the toolchain it builds with, `app/build.sh:83-91`, and static-guards the staged payload in the
+  release leg because that rebuild is what ships, `.github/workflows/release.yml:220-224`); adopting that
+  route is an owner call, since ours exists to keep CoreAI out of the artefact, and its payload guard was
+  tried and does not transfer (measured below). `resolve-metallib.sh` before and after the same edit: same
   winning path (`.build/out/Products/Release/…`, 4 716 496 bytes), and a miss now reaches DerivedData in 1.3 s
   with the walk bounded to this project's trees — 7.8 GB of DerivedData is why the bound is there. Second
   datum, against one of the two hypotheses: the CLT route compiles `.metal` even where `xcrun -f metal`
   fails — a synthetic one-kernel package built under `DEVELOPER_DIR=CLT SDKROOT=MacOSX26.5.sdk` produced its
   own `…_MP.bundle/Contents/Resources/default.metallib`, so SwiftPM reaches the cryptex MetalToolchain on its
   own and the packaging step's title ("the CLT route has no metal compiler") is about xcrun's lookup, not the
-  build's ability. Attempted
+  build's ability. Borrowed, tested, rejected as written: `mlx-serve` floors its metallib by grepping for
+  `_nax`; the same name-coverage floor on ours finds `arg_reduce` (24 hits) and `rms_norm` (6) and reports
+  zero for `quantize_mm`, `steel_gemm_splitk` and `add_scaled`, so it would red a good payload. Attempted
   and abandoned as un-runnable here: a cold `--scratch-path` build of the delivery route, the local analogue of
   a clean runner, stalled at `Computing version for …swift-jinja` because git-over-https fails on this host
   (curl 28) — so the runner is the only place this leg's cause exists, and that is stated as the limit rather
