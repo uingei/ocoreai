@@ -9,6 +9,32 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-05
 
+**11-05 Four dead cache-check functions went, and the three comments that still voted for them**
+
+- **What improved.** `MLXBridge` carried a cache-check chain nothing called: `isModelCached` ×2 and
+  `hasValidSafetensors(for:repoId:log:)`, plus `hasValidSafetensors(in:log:)` — whose only caller was the
+  wrapper, and which had delegated past it to `ModelStore` years ago, so it was dead twice over. 69 lines.
+  What kept them alive was authority, not code: `ModelManager.swift:315` told the reader "loadModel checks
+  isModelCached before downloading", `ModelStore.swift:29` named it as the load side's path consumer, and
+  `ModelStore.swift:211` called the live predicate a copy of one of them. The check that actually exists is
+  the ready-dir shortcut (`MLXBridge.swift:406-411`, gated by `ModelStore.isReadyModelDir`), and on the hub
+  lane `swift-huggingface` decides skip-download per *filename*, so this chain was neither used nor needed.
+  Same class as the entry below: a comment holding a decision the code had already moved on from. Fixed by
+  deletion at all three sites rather than by restating the truth where it already has a home.
+- **What same-session output proves it.** `git grep` for both names: 4 declarations + 3 citing comments
+  before, **0 cites** after. CLT-route build of `--build-tests` green, `ModelStoreTests` **11/11** (exit 0) —
+  that suite is what covers the surviving predicate, including the zero-byte shard. `format-check` clean at
+  the pinned 603.0.0, `docs-check` green in host and runner premise, `unreferenced-decls.sh` still 0.
+- **Which gate goes red if it regresses.** None added — this is subtraction. Read honestly: the existing scan
+  *could not* have caught these four. Its rule counts a name as referenced on a second occurrence anywhere
+  in the tree, and its header already discloses that scope, so an overload pair references itself and both
+  `hasValidSafetensors` copies hid behind `ModelStore`'s live one. Measured last round: tightening it flags
+  17 names. Adjudicating 17 names is work nobody asked for, so it stays an owner call, not a surprise.
+- **Cost.** **−69 net** in `Sources/` (`git diff --numstat`: +5/−74). Removing lines moved six line-cites that
+  point into `MLXBridge.swift` — four in `Package.swift`, two in `engine-line-cites.md` — and
+  `make anchor-check` was the thing that said so (drift 6 → 0, checked 80). That is a gate earning its seat on
+  a change it was never written for, which is why the number here is measured and not assumed.
+
 **11-05 YAGNI/KISS/DRY turned on this session's own census: three findings deleted, two sentences fixed, one boundary measured**
 
 - **What improved.** A comparator census returned five "the field has it, we don't" gaps. Three were this

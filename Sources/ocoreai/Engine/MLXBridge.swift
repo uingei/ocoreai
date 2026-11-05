@@ -234,50 +234,7 @@ actor MLXModelLoader {
         )
     }
 
-    // MARK: - Cache Check
-
-    /// Check if a model is already downloaded in the local cache.
-    ///
-    /// - Parameters:
-    ///   - provider: Hub provider (ModelScope or HuggingFace)
-    ///   - repoId: Repository identifier (e.g. "Qwen/Qwen2.5-7B-Instruct")
-    ///   - logger: For diagnostic output (warning on incomplete cache)
-    /// - Returns: true if a valid safetensors file exists in the expected cache directory
-    ///
-    /// Integrity: verifies .safetensors files have non-zero size.
-    /// Zero-length files indicate interrupted downloads — model is NOT cached.
-    static func isModelCached(
-        _ provider: MLXModelLoader.HubProvider, repoId: String, logger: Logger
-    ) -> Bool {
-        Self.hasValidSafetensors(for: provider, repoId: repoId, log: logger)
-    }
-
-    /// Overload for callers without a Logger (e.g. UI ViewModel context).
-    static func isModelCached(_ provider: MLXModelLoader.HubProvider, repoId: String) -> Bool {
-        Self.hasValidSafetensors(for: provider, repoId: repoId, log: nil)
-    }
-
-    /// Resolve cache directory for a provider/repo pair, then check for valid safetensors.
-    /// M7: paths come from ModelStore (就绪模型目录单一事实源) — new ready root first,
-    /// legacy Caches locations after (discovery/clean only, never moved).
-    private static func hasValidSafetensors(
-        for provider: MLXModelLoader.HubProvider,
-        repoId: String,
-        log: Logger?
-    ) -> Bool {
-        let readyDir: URL?
-        switch provider {
-        case .huggingFace:
-            readyDir = ModelStore.hubReadyDir(repoId)
-        case .modelScope:
-            readyDir = ModelStore.msReadyDir(repoId)
-        }
-        guard let readyDir else {
-            log?.debug("\(provider == .huggingFace ? "HF" : "MS") \(repoId): no ready dir found")
-            return false
-        }
-        return ModelStore.hasValidSafetensors(in: readyDir)
-    }
+    // MARK: - Ready model dirs
 
     /// M7 (omlx 对齐):weights dir for a model that is already ready (就绪),or nil.
     /// `hf:`/`huggingface:` → HF ready dir;`mscope:` → MS ready dir;bare id → try HF then MS.
@@ -294,30 +251,6 @@ actor MLXModelLoader {
         // Bare repo id — legacy convention defaulted org/repo to HF.
         if let hub = ModelStore.hubReadyDir(modelId) { return hub }
         return ModelStore.msReadyDir(modelId)
-    }
-
-    private static func hasValidSafetensors(in url: URL, log: Logger?) -> Bool {
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            return false
-        }
-        do {
-            let files = try FileManager.default.contentsOfDirectory(
-                at: url, includingPropertiesForKeys: [.fileSizeKey])
-            for item in files where item.pathExtension == "safetensors" {
-                let size = (try? item.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-                if size > 0 {
-                    return true
-                }
-                // Zero-length safetensors = incomplete download
-                log?.warning(
-                    "Incomplete cache: \(item.lastPathComponent) is 0 bytes — model will re-download"
-                )
-            }
-            return false
-        } catch {
-            // If directory listing fails, assume not cached — caller will retry download
-            return false
-        }
     }
 
     /// Recursively sum directory size in bytes. Omlx-style: used for

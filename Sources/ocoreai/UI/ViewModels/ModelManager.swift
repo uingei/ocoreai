@@ -312,9 +312,8 @@ final class ModelManager {
         // Progress key = repoId (no prefix) — aligns UI with MLXBridge callbacks
         let progressKey = identity.repoId
 
-        // EnginePool.acquire handles cache check internally (loadModel checks
-        // isModelCached before downloading), so we route everything through
-        // _downloadAndLoad for consistent progress tracking and semaphore gating.
+        // EnginePool.acquire handles the cache check internally, so we route everything
+        // through _downloadAndLoad for consistent progress tracking and semaphore gating.
         return await _downloadAndLoad(
             normalizedId: normalizedId, progressKey: progressKey, pool: pool)
     }
