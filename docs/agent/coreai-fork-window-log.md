@@ -147,7 +147,7 @@ the reader refuses them:
 | `Engine/PrefillGraph.swift` | `Absorbed from coreai-models 156cdb6 (#204) shared/PrefillGraph.swift` |
 | `Engine/SequentialIterator.swift` | `Absorbed: coreai-models #251 (89ba0d4) — shared iterator helpers` |
 | `Multimodal/StreamingWindow.swift` | `Absorbed from coreai-models (de31ba5) swift/Sources/CoreAISpeech/StreamingWindow.swift` |
-| `Engine/LogProbabilities.swift` | `…/TextGeneration/LogProbabilities.swift (8cec4f8).` |
+| `Engine/LogProbabilities.swift` | `../references/coreai-models/swift/Sources/CoreAILanguageModels/TextGeneration/LogProbabilities.swift (8cec4f8).` |
 | `Engine/EngineLogprobs.swift` | `swift/Sources/Tools/llm-server/CompletionHandler.swift (b11ac19):` |
 | `Engine/VLMBundleDetector.swift` | `Upstream pin: coreai-models 7359dbc` |
 | `Video/CoreAIDiffusionModelFunction.swift` | `Fail fast on a missing asset (coreai-models #252, ebb3e54).` |
