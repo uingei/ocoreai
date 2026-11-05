@@ -50,6 +50,8 @@ extension MetricsSnapshot {
         var tokPerSec: Double = 0
         var ttft: Double = 0
         var ttfb: Double = 0
+        var ttfbSum: Double = 0
+        var ttfbCount: Int64 = 0
         var gpuMem: Double = 0
         var kvBytes: Int64 = 0
         var kvEvictions: Int64 = 0
@@ -70,9 +72,11 @@ extension MetricsSnapshot {
             // Throughput
             case "ocoreai_tokens_per_second": tokPerSec = value
             case "ocoreai_ttft_ms": ttft = value
-            // TTFB histogram sum (total seconds) / count
-            case "ocoreai_ttfb_seconds_sum":
-                if infCount > 0 { ttfb = value * 1000.0 / Double(infCount) }
+            // Summed and counted here, divided after the loop: the histogram's denominator is the
+            // turns that had a first byte, not every turn that ran, and the inline quotient also made
+            // the value depend on which histogram the exporter printed first (`DashboardMetricsHonestyTests`).
+            case "ocoreai_ttfb_seconds_sum": ttfbSum = value
+            case "ocoreai_ttfb_seconds_count": ttfbCount = Int64(value)
             // Memory
             case "ocoreai_gpu_memory_gb": gpuMem = value
             case "ocoreai_kv_cache_gpu_bytes": kvBytes = Int64(value)
@@ -90,7 +94,11 @@ extension MetricsSnapshot {
             }
         }
 
-        // Fallback: if TTFB not in histogram, use TTFT
+        // The quotient the histogram actually defines: total first-byte seconds over the turns that
+        // had a first byte.
+        if ttfbCount > 0 { ttfb = ttfbSum * 1000.0 / Double(ttfbCount) }
+        // Nothing has streamed yet, so the dashboard shows the TTFT gauge rather than a 0 that a
+        // reader would take for an instant first byte.
         if ttfb == 0 { ttfb = ttft }
 
         return MetricsSnapshot(

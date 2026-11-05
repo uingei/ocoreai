@@ -233,7 +233,10 @@ actor MetricsRegistry {
     ///   - ms: Inference duration in milliseconds
     ///   - inputTokens: Number of prompt (input) tokens
     ///   - outputTokens: Number of generated (output) tokens
-    ///   - ttfbMs: Time-to-first-byte in milliseconds (string for logging)
+    ///   - ttfbMs: Time-to-first-byte in milliseconds. This is the histogram's only producer: a real
+    ///     value is recorded here as one sample, so a caller that also calls `observeTTFB` itself
+    ///     double-counts its turn. `"0"` (no first byte — a non-streaming turn, or a stream that
+    ///     emitted nothing) records nothing. It is not "for logging".
     ///   - modelId: Model identifier for labeling
     func observeInferenceDuration(
         ms: Double, inputTokens: Int, outputTokens: Int, ttfbMs: String, modelId _: String

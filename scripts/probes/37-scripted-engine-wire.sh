@@ -26,6 +26,10 @@
 #   8. Static floor: the scoreboard still refuses a scripted backend.
 #   9. The tool count AGENTS.md quotes is this server's: the injected file says how many tools the wire
 #      advertises, so a tool added or left unregistered must move the sentence, not age inside it.
+#  10. `/v1/stats` accounting: one turn moves the request counter once and the declared token counts
+#      once; a streaming turn enters the TTFB histogram exactly once and a non-streaming one not at
+#      all. Those counters are advertised on `/v1/capabilities`, and nothing had read them while a
+#      turn ran until 11-05, which is how a histogram with two producers stayed green.
 
 set -uo pipefail
 
@@ -269,6 +273,98 @@ else
   probe_fail "AGENTS.md quotes ${DOC_TOOLS:-?} advertised tools, /v1/tools answers ${ADVERTISED:-?} — a" \
     "tool landed or stopped registering and the injected context still describes the old surface; fix" \
     "the sentence in AGENTS.md or the registration, whichever is wrong"
+fi
+
+# 10 — the counters `/v1/capabilities` advertises ("Structured inference counters and gauges") must
+# move exactly once per turn. `/v1/stats` was a published promise no probe had read while a turn ran
+# until 11-05: the TTFB histogram had two producers — the streaming lane called `observeTTFB` and
+# handed the same value to `observeInferenceDuration`, which counts it too — so every streamed turn
+# entered `ocoreai_ttfb_seconds` twice while `totalRequests` moved by one. The average hid it (both
+# sides of the quotient doubled); only the counts lied, and nothing read the counts. This is the seat
+# that reads them, weight-free: a replayed turn drives the same handlers, so it produces the same
+# accounting a checkpoint would, at no Metal cost.
+# Tool-free on purpose: a tool call would add a second generation round, and every assertion below
+# is one turn = the script's declared counts, exactly once.
+cat > "$SCRIPT_FILE" <<JSON
+{
+  "reasoning": ["planning the read"],
+  "segments": ["counting the deltas, once each"],
+  "finishReason": "eos",
+  "promptTokens": 7,
+  "generatedTokens": 12
+}
+JSON
+
+# Snapshot into globals, never through `$( )`: a verdict raised inside a command substitution runs
+# in a subshell, so its `probe_fail` would print and vanish while `probe_summary` still counted the
+# section green. Only the pure parsers get to live in a subshell.
+stats_snap() {
+  probe_api GET /v1/stats
+  [ "${PROBE_STATUS:-0}" = "200" ] || probe_fail "GET /v1/stats -> ${PROBE_STATUS:-0} — the counters" \
+    "this section judges are unreadable, which is a harness fault and never a zero"
+  STATS_R="$(probe_json "$PROBE_BODY" totalRequests)"
+  STATS_T="$(probe_json "$PROBE_BODY" ttfbSampleCount)"
+  STATS_P="$(probe_json "$PROBE_BODY" totalPromptTokens)"
+  STATS_G="$(probe_json "$PROBE_BODY" totalGeneratedTokens)"
+  local pair
+  for pair in "totalRequests=$STATS_R" "ttfbSampleCount=$STATS_T" "totalPromptTokens=$STATS_P" \
+    "totalGeneratedTokens=$STATS_G"; do
+    probe_require_int "GET /v1/stats ${pair%%=*}" "${pair#*=}"
+  done
+}
+
+stats_snap; R0="$STATS_R"; T0="$STATS_T"; P0="$STATS_P"; G0="$STATS_G"
+
+# 10a — a non-streaming turn has no first byte, so it moves the request and token counters and
+# leaves the latency curve untouched.
+probe_chat "" "$BODY"
+[ "${PROBE_STATUS:-0}" = "200" ] || probe_fail "§10a's turn answered ${PROBE_STATUS:-0}, so the" \
+  "deltas below have no subject — a counter verdict about a turn that never ran is a vacuous pass"
+stats_snap; R1="$STATS_R"; T1="$STATS_T"; P1="$STATS_P"; G1="$STATS_G"
+if [ $(( R1 - R0 )) -eq 1 ] && [ $(( T1 - T0 )) -eq 0 ]; then
+  probe_ok "non-streaming turn: requests +1, TTFB samples +0 — a turn that streamed nothing" \
+    "entered no first-byte curve"
+else
+  probe_fail "non-streaming turn moved requests by $(( R1 - R0 )) and TTFB samples by" \
+    "$(( T1 - T0 )) — expected +1/+0; a silent turn entering the latency curve counts a byte" \
+    "nobody sent"
+fi
+if [ $(( P1 - P0 )) -eq 7 ] && [ $(( G1 - G0 )) -eq 12 ]; then
+  probe_ok "the same turn moved the counters by the script's declared 7/12 — the advertised" \
+    "counters and the turn's own usage field agree"
+else
+  probe_fail "the counters moved by $(( P1 - P0 ))/$(( G1 - G0 )), the script declared 7/12 — the" \
+    "advertised counters and the wire's usage field now describe different turns"
+fi
+
+# 10b — a streaming turn has exactly one first byte, so exactly one sample enters. The doubled
+# producer measured 2 here on 11-05.
+STREAM_BODY="$(printf '%s' "$BODY" \
+  | python3 -c 'import json,sys; b=json.load(sys.stdin); b["stream"]=True; print(json.dumps(b))')"
+# An array, not an inline `${KEYS:+-H "Authorization: …"}`: inside an unquoted word the quotes in the
+# alternate value are literal bytes, so a keyed run would send `-H "Authorization:` and split the rest.
+stream_args=(-sS -X POST)
+if [ -n "${OCOREAI_API_KEYS:-}" ]; then
+  stream_args+=(-H "Authorization: Bearer ${OCOREAI_API_KEYS%%,*}")
+fi
+stream_args+=(-H 'Content-Type: application/json' --data "$STREAM_BODY"
+  "$PROBE_BASE/v1/chat/completions")
+# The deadline sits on the call line, not inside the array: Class-L reads the site, and a site whose
+# bound lives twelve lines away is indistinguishable from one that has none.
+stream_status="$(curl -m "${OCOREAI_PROBE_CURL_TIMEOUT:-180}" "${stream_args[@]}" \
+  -o /dev/null -w '%{http_code}' 2>/dev/null)"
+if [ "$stream_status" = "200" ]; then
+  stats_snap; R2="$STATS_R"; T2="$STATS_T"
+  if [ $(( R2 - R1 )) -eq 1 ] && [ $(( T2 - T1 )) -eq 1 ]; then
+    probe_ok "streaming turn: requests +1, TTFB samples +1 — one first byte is one sample"
+  else
+    probe_fail "streaming turn moved requests by $(( R2 - R1 )) and TTFB samples by" \
+      "$(( T2 - T1 )) — expected +1/+1; $(( T2 - T1 )) samples for one streamed turn means the" \
+      "histogram has two producers again, which doubles every rate a dashboard computes from it"
+  fi
+else
+  probe_fail "the streaming turn answered ${stream_status:-nothing} — §10b has no subject, so its" \
+    "counter verdict would be a vacuous pass (probe rule: floor your own premises)"
 fi
 
 probe_summary "$PROBE_NAME"

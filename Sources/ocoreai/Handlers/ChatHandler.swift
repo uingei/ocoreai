@@ -2009,10 +2009,11 @@ private func streamWithToolCalling(
             ttfbMsVal =
                 Double(ttfbDur.components.seconds) * 1000 + Double(ttfbDur.components.attoseconds)
                 / 1e15
-            // The first byte was already timed here; it just never reached its own histogram, so
-            // `ocoreai_ttfb_seconds` published an empty distribution. Inside the `if` on purpose:
-            // a turn that emitted nothing has no first byte and must not enter a latency curve.
-            await metrics.observeTTFB(ttfbMsVal / 1000.0)
+            // Only this lane knows whether a first byte exists, so the guard stays here and decides
+            // the value it hands down: a turn that emitted nothing leaves `ttfbMsVal` at 0 and the
+            // recorder below skips it. The sample itself is counted in exactly one place —
+            // `observeInferenceDuration` — because counting it here too published two samples per
+            // streamed turn (measured live: `ttfbSampleCount` 0 → 2, `ocoreai_ttfb_seconds_count` 2 → 4).
         }
         await metrics.observeInferenceDuration(
             ms: inferenceDurationMs,

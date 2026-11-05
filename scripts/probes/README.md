@@ -233,9 +233,12 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     `/v1/completions` lane puts the script's reasoning text into `choices[].text` (the field a client
     prints and a harness scores) or its two lanes release different bytes for one request, a
     broken script answers 200 with an empty turn instead of naming its cause, or
-    `scripts/eval/run.sh` stops refusing to score a scripted run, or AGENTS.md's quoted advertised-tool
+    `scripts/eval/run.sh` stops refusing to score a scripted run, AGENTS.md's quoted advertised-tool
     count (40) stops matching `GET /v1/tools` — the injected file's number about the tool surface is the
-    only one a runner can check, and `make docs-check` has no server to check it against.
+    only one a runner can check, and `make docs-check` has no server to check it against — or the
+    counters `GET /v1/stats` advertises stop matching the turns that ran (§10, added 11-05 after the
+    TTFB histogram was found with two producers: one streamed turn moved `ttfbSampleCount` by 2 while
+    `totalRequests` moved by 1, and no probe had ever read that face while a turn ran).
 
 - `38-reasoning-effort-honesty.sh` — does a demanded `reasoning_effort` reach the checkpoint, or only the log?
     Two tiers, because only one runs without weights. §1 (scripted lane, CI seat, no Metal, no download):

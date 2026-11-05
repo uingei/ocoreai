@@ -3,15 +3,22 @@
 /// Every series `GET /metrics` exports must have a producer, and the exporter must read the
 /// very object those producers count into.
 ///
-/// Measured before this suite: six recorders sat in `MetricsRegistry` with zero call sites in
-/// `Sources/` — `recordAuthFailure`, `recordRateLimitRejection`, `recordModelLoad`,
-/// `recordModelLoadFailure`, `observeTTFB`, `incrementKVEvictions` — so those six series
+/// Measured before this suite: six recorders sat in `MetricsRegistry` with no producer on the
+/// shipping path — `recordAuthFailure`, `recordRateLimitRejection`, `recordModelLoad`,
+/// `recordModelLoadFailure`, TTFB, `incrementKVEvictions` — so those series
 /// published a flat zero no matter what the process did, and the app container handed the
 /// exporter its own private registry. A zero that cannot move is indistinguishable from
 /// "nothing went wrong": invariant 2 wearing a Prometheus header.
 ///
+/// The TTFB half of that diagnosis was wrong in the safe direction and cost the opposite error:
+/// the streaming lane already handed its timed first byte to `observeInferenceDuration`, which
+/// counts it. Adding a second, direct `observeTTFB` there did not create a producer, it doubled
+/// one — see `ttfbIsCountedExactlyOncePerFirstByte`, which is where the series' one-home rule lives.
+///
 /// Each row pins the call at the chokepoint where the event is decided (not near the exporter),
-/// and every scan floors its own premises so a regex that stopped matching fails the run.
+/// and every scan floors its own premises so a regex that stopped matching fails the run. The TTFB
+/// row is the shaped exception: its event is a *duration the lane hands over*, so the decision that
+/// owns the count is the recorder's `> 0` guard, and the row names that file.
 
 import Foundation
 import Testing
@@ -74,8 +81,8 @@ private let producers: [Producer] = [
     ),
     Producer(
         series: "ocoreai_ttfb_seconds",
-        call: "metrics.observeTTFB(",
-        file: "Sources/ocoreai/Handlers/ChatHandler.swift",
+        call: "observeTTFB(ttfbSeconds / 1000.0)",
+        file: "Sources/ocoreai/Metrics/Metrics.swift",
         zeroLine: "ocoreai_ttfb_seconds_count 0"
     ),
     Producer(
@@ -152,31 +159,56 @@ struct MetricProducerWiringTests {
         )
     }
 
-    @Test("the TTFB observation sits inside the first-byte guard, before the duration call")
-    func ttfbIsObservedOnlyWhenAFirstByteExists() throws {
-        let text = try readSource("Sources/ocoreai/Handlers/ChatHandler.swift")
-        // Exactly one observation site: the streaming lane. A turn that emitted nothing has no
-        // first byte, so the call must sit inside the guard that establishes one.
-        #expect(occurrences(of: "observeTTFB(", in: text) == 1)
-        guard let guardRange = text.range(of: "if let ttfbTimeVal = ttfbTime {"),
-            let callRange = text.range(of: "await metrics.observeTTFB(")
-        else {
-            Issue.record("the first-byte guard or its TTFB observation is gone")
+    /// The sample has exactly one home. The 10-25 round that added a direct `observeTTFB` beside
+    /// the streaming duration call believed the series had no producer; it had one, in the recorder
+    /// the very next statement hands the value to — so every streamed turn entered the histogram
+    /// twice. Measured live before this fix: one streaming turn moved `/v1/stats`
+    /// `ttfbSampleCount` 0 → 2 and `ocoreai_ttfb_seconds_count` 2 → 4 while `totalRequests` moved
+    /// by one. The average hid it (numerator and denominator both doubled); only the counts lied.
+    @Test("one first byte is one TTFB sample, and no first byte is none")
+    func ttfbIsCountedExactlyOncePerFirstByte() async throws {
+        let lane = try readSource("Sources/ocoreai/Handlers/ChatHandler.swift")
+        // The lane times the first byte (only it knows whether one exists) and hands the value
+        // down; it must not also count it. The recorder below skips a zero, which is how a turn
+        // that emitted nothing stays out of the latency curve.
+        #expect(
+            occurrences(of: "observeTTFB(", in: lane) == 0,
+            """
+            the streaming lane records TTFB by handing `ttfbMs` to observeInferenceDuration; \
+            a direct call beside it counts every streamed turn twice
+            """)
+        guard let guardRange = lane.range(of: "if let ttfbTimeVal = ttfbTime {") else {
+            Issue.record(
+                "the first-byte guard is gone — the lane no longer decides whether a first byte exists"
+            )
             return
         }
-        let distance =
-            callRange.lowerBound.utf16Offset(in: text)
-            - guardRange.lowerBound.utf16Offset(in: text)
         #expect(
-            distance > 0 && distance < 900,
-            "TTFB observation is not inside the first-byte guard (offset \(distance) from it)"
-        )
-        // Same path, later: the duration observation must follow this one (the file holds an
-        // earlier duration call on the non-streaming lane, so a whole-file search would lie).
+            lane[guardRange.lowerBound...].contains("await metrics.observeInferenceDuration("),
+            "the streaming lane no longer hands its timed first byte to the duration recorder")
+
+        // One sample per call, at exact exported values: the zero the guard produces enters nothing,
+        // the real value enters once.
+        let registry = MetricsRegistry()
+        await registry.observeInferenceDuration(
+            ms: 900, inputTokens: 40, outputTokens: 12, ttfbMs: "0.0", modelId: "m")
+        let afterSilent = await registry.export()
+        let silentLines = afterSilent.split(separator: "\n").filter { $0.contains("ttfb") }
+            .joined(separator: "\n")
         #expect(
-            text[callRange.upperBound...].contains("await metrics.observeInferenceDuration("),
-            "the streaming lane no longer observes duration after TTFB"
-        )
+            afterSilent.contains("ocoreai_ttfb_seconds_count 0"),
+            "a turn with no first byte entered the latency curve:\n\(silentLines)")
+        await registry.observeInferenceDuration(
+            ms: 900, inputTokens: 40, outputTokens: 12, ttfbMs: "250.0", modelId: "m")
+        let text = await registry.export()
+        let ttfbLines = text.split(separator: "\n").filter { $0.contains("ttfb") }.joined(
+            separator: "\n")
+        #expect(
+            text.contains("ocoreai_ttfb_seconds_count 1"),
+            "one real first byte must be exactly one sample:\n\(ttfbLines)")
+        #expect(
+            text.contains("ocoreai_ttfb_seconds_sum 0.250000"),
+            "the sum must carry the value once:\n\(ttfbLines)")
     }
 
     @Test("teardown is not eviction: one home for the KV counter, three counted paths")

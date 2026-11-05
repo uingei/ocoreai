@@ -9,6 +9,65 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-05
 
+**11-05 the TTFB histogram had two producers, and the dashboard divided it by the wrong count**
+
+- **What improved.** One quantity, three wrong seats, found by reading a live server's counters
+  instead of its prose. ① `observeInferenceDuration` has counted the first-byte value it is handed
+  since before the suite that "found" its producer existed (`Metrics.swift:256`,
+  `if ttfbSeconds > 0 { observeTTFB(...) }`), and `1d47d739` (10-25, *every exported series has a
+  producer at its chokepoint*) listed TTFB among six recorders with none and wired a **second** one
+  inside the streaming lane's first-byte guard. From 10-25 every streamed turn entered
+  `ocoreai_ttfb_seconds` twice while `totalRequests` moved by one: measured here today on a real
+  checkpoint, `/metrics` moved `…_count` 2 → 4 with `_sum` 0.363 → 1.345 for a single turn, and the
+  weight-free scripted lane reproduced it at `ttfbSampleCount` 0 → 2. `avgTTFBSeconds` hid the whole
+  thing — numerator and denominator double together — so the only faces that lied were the counts a
+  reader divides or rates: `/v1/stats`'s `ttfbSampleCount` and every `rate()` over the Prometheus
+  histogram. The sample now has one home: the lane keeps the *timing* (only it knows whether a first
+  byte exists) and hands the value down; the recorder's `> 0` guard is what keeps a silent turn out
+  of the curve. The root was a doc line — `ttfbMs: … (string for logging)` — which now names the
+  argument as the series' only producer and says what `"0"` means, because that line is what made a
+  careful reader add a call beside it. ② `DashboardMetrics.parse` divided the same sum by
+  `ocoreai_inference_duration_seconds_count` — every turn that ran, not the turns that had a first
+  byte — and computed it on the line the sum appeared, so an exporter reorder would have quietly
+  substituted the `ttft_ms` gauge. With the doubling live the two errors masked each other: that
+  server's mixed traffic printed **448 ms** against the 336 ms mean the same server published on
+  `/v1/stats`; with ① fixed and ② left alone it prints 224 ms, which is why they are one commit.
+  ③ The 10-25 round's premise was never checked against a running server because the face it
+  produced had no probe: `/v1/stats`, `/v1/embeddings` and `/ready` are all advertised on
+  `/v1/capabilities` and in `openapi.json`, and nothing had read any of them while a turn ran.
+  `/v1/stats` has that seat now (§10 of probe 37, weight-free, on the fixture CI already boots);
+  the embeddings measurements and its open faces went to `docs/agent/open-items.md`.
+- **What same-session output proves it.** `MetricProducerWiringTests` one-home test asserts the
+  exported lines at exact values — a `"0.0"` call leaves `ocoreai_ttfb_seconds_count 0`, one real
+  first byte leaves `count 1` and `sum 0.250000` — and asserts the lane holds **zero** direct
+  recorder calls. New `DashboardMetricsHonestyTests`(3): a mixed workload (first bytes 100 ms +
+  300 ms, plus one non-streaming turn) renders 200 ms, not 133.33; the same export with the TTFB
+  block printed first still renders 200 ms, not the 42 ms TTFT gauge; an unseen-first-byte server
+  falls back to that gauge instead of a 0 that reads as instant. Probe 37 §10 reads the live
+  counters around each turn: requests +1 per turn, the script's declared 7/12 once, TTFB samples +0
+  for the non-streaming turn and +1 for the streaming one. 36 tests in 9 metrics suites green on the
+  CLT route before the dashboard suite joined.
+- **Which gate goes red if it regresses.** Three, one per seat, and the mutant was run for real:
+  the direct `observeTTFB` was re-applied in its 10-25 shape, rebuilt, and both ends went red —
+  `MetricProducerWiringTests` with `Expectation failed: occurrences(of: "observeTTFB(", in: lane)
+  == 0` (39 tests in 10 suites, 1 issue) and probe 37 §10b with *"streaming turn moved … TTFB
+  samples by 2 — expected +1/+1; 2 samples for one streamed turn means the histogram has two
+  producers again"* (26 passed, 1 failed). That is the same red the wire gave before any of this was
+  fixed, now owned by a script. Deleting the after-loop division, or moving the sum division back inline, reds
+  `DashboardMetricsHonestyTests` — the order leg is the one that catches a *harmless-looking*
+  exporter edit. The probe's `stats_snap` writes globals rather than returning through `$( )`
+  because a verdict raised in a command substitution prints inside a subshell and never reaches
+  `probe_summary`: a section that can fail invisibly is the vacuous pass this repo deletes.
+- **Cost.** `ChatHandler` −1 call/+6 comment lines, `Metrics.swift` +5 doc, `DashboardMetrics`
+  +12/−7, `MetricProducerWiringTests` re-pointed (its old shape test pinned the double count's text:
+  `occurrences(of: "observeTTFB(", in: ChatHandler) == 1`), new suite +3 tests, probe 37 +1 section
+  with no extra boot. Same round, adjacent read: `EmbeddingService` lost a `cosineSimilarity(Data,
+  Data)` that walked the `Data` struct's own bytes (`withUnsafeBytes(of:)`, not `a.withUnsafeBytes`)
+  — an isolated repro of that exact body scored identical and orthogonal vectors alike at 4.000001
+  and returned NaN for a 1024-dim input, i.e. it read kilobytes past a 16-byte struct — with no
+  caller in `Sources/` or `Tests/`; `unreferenced-decls.sh` cannot see it, exactly as its header
+  says, because the index is a bag of words and two other types carry that name.
+
 **11-05 the Models page hid a wait it did not start — and a waiter's timeout evicted the bytes still landing**
 
 - **What improved.** Two defects, one root: the progress UI was keyed on *who began* the fetch
