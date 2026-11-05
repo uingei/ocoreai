@@ -21,16 +21,21 @@
 ///   and the state machine is now precisely value-testable.
 ///
 /// Usage:
-///   1. UI reads: `OcoreaiDownloadProgress.shared.progress(for:)`
-///   2. Downloader calls: `.start(modelId:)` → `.update(_:for:)` / `.updateBytes`
-///      → `.finish(modelId:success:)`
-///   3. ModelManager gates progress UI on its own `downloadingModelId`, not on
-///      this store's completed flag.
+///   1. UI reads: `OcoreaiDownloadProgress.shared.progress(for:)`, and gates the wait face on
+///      `ModelWaitFace.resolve` — this store, not `ModelManager.downloadingModelId` (which records
+///      only the window that BEGAN a fetch), is the one home of "a wait is live for this id".
+///   2. The transfer lane owns open/close: `.start(modelId:)` → `.update(_:for:)` / `.updateBytes`
+///      → `.finish(modelId:success:)` around every hub fetch (`MLXBridge.loadFromHub`).
+///   3. A caller that merely *waits* on a load — ModelManager's acquire behind a boot prewarm, a
+///      503 poller — writes nothing here: its wait ending is not the transfer ending, and a
+///      `finish` from it would evict a row whose bytes `/v1/models`' `loadProgress` and the ring
+///      both still have to show. The one UI voice is `deleteModel`, where deleting the model
+///      moots the row. Gate: `ModelWaitFaceHonestyTests`.
 
 import Foundation
 
 /// Human-readable download status for a single model.
-struct OcoreaiDownloadProgressState: Sendable {
+struct OcoreaiDownloadProgressState: Sendable, Equatable {
     /// Progress fraction 0.0–1.0
     var fraction: Double
     /// Number of completed files
@@ -192,14 +197,25 @@ final class OcoreaiDownloadProgress: @unchecked Sendable {
         _progress[modelId] = next
     }
 
+    /// Whether the store tracks any live transfer — the ticker's only idle question, answered
+    /// without copying a dictionary out from under the lock.
+    func hasActiveDownloads() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _progress.values.contains(where: \.active)
+    }
+
     /// Mark a download complete (or failed) and evict the entry immediately.
     ///
     /// The previous implementation deferred a 2s "completed flash" via a
     /// detached `Task { @MainActor in ... }` reaper, which captured the
     /// main-actor `self` and was the crash source on first-launch. There is no
     /// UI reader of the `completed` flag and no reader of the deferred entry
-    /// (ModelManager gates the progress UI on its own `downloadingModelId`),
+    /// (the wait face reads liveness off the row's presence — see the header),
     /// so immediate eviction is correct and removes the concurrency surface.
+    ///
+    /// Callers: the transfer lane that opened the row, and `deleteModel` only —
+    /// a waiter whose poll timed out has not earned this call (Usage 3).
     func finish(modelId: String, success: Bool = true) {
         lock.lock()
         defer { lock.unlock() }

@@ -185,16 +185,15 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   beside it — the 503 carries no `Retry-After` though both 429 families do (`AppError.response` sets it for
   `engineBusy` and a measured rate-limit wait only), and a poll cadence is policy, not a measurement, so
   none is guessed here; and whether a human caller should be held or refused at all.
-- **The Models page hides a wait it did not start** (UI/, Models/) — `ModelView.swift:350` gates the ring,
-  the stats row and the button's `.disabled` on `modelManager.downloadingModelId`, which records *who* began
-  the fetch, while the bytes have one home (`OcoreaiDownloadProgress`, written by the engine hub lane too,
-  `MLXBridge.swift:591-610` — the key `ModelLoadProgress.measure` reads). During a boot prewarm, where
-  11-03(12)'s banner sends a waiting user, the page reports no wait and leaves `Download` enabled over
-  weights already landing. A second fetch of an id whose first still holds the store key is **inference**:
-  no duplicate 794 s fetch has run here, so the disk cost is unmeasured and the quote is a line reading, not
-  a probe line. Owner call: key the row on the store, and block the button or dedupe at the loader;
-  prior art: Strata checks the disk before fetching (`434c6221`) — installed-file dedupe, not this
-  row's concurrent race.
+- **The Models page now shows every wait; an engine-started one has no Stop yet** (UI/, Engine/) — the
+  render keys on `ModelWaitFace` ∥ the pool's own `state:"loading"` (`ModelWaitFaceHonestyTests`(7),
+  CHANGELOG 11-05), and only the transfer lane may open/close a progress row, so a waiter's 120 s poll-out can no
+  longer evict the live row the wire's `loadProgress` reads. The row's duplicate-fetch premise is closed
+  by reading, not measured: `prewarmDefaultModel` holds the pool's `loadingModels` slot (`beginLoad`) and
+  both download paths lease `DownloadSemaphore` per repo id — no second 794 s fetch is reachable through
+  either seam. Open: the prewarm task has no cancel affordance anywhere, so its ring renders without a
+  Stop (honest, but a wait the user can only watch); the pixels half stays unverifiable on this host
+  (`screencapture` refused — § UI guide); owner call: a pool-owned cancel route for prewarm.
 - **The audit infers a write, it never reads the workspace** (Models/, Tools/) — a shell success is
   `.unobserved`; an unknown MCP tool still counts as a writer; the key is process-wide. Wanted:
   turn-scoped effect off the filesystem (codex, per turn:

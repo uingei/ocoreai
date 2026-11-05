@@ -60,6 +60,54 @@ enum RepositoryError: LocalizedError {
     }
 }
 
+// MARK: - Wait Face
+
+/// What the Models page owes the user for one model id, decided from the progress store and
+/// this window's task — never from `downloadingModelId` alone. A boot prewarm or a
+/// wire-triggered load lands gigabytes for minutes while `downloadingModelId` stays empty, and a
+/// page gated on it rendered no wait at all to exactly the user the failure banner routes here.
+/// `stoppable` stays with the window that owns the task: observing an engine-initiated fetch
+/// honestly includes saying you cannot stop it from here (the pool's prewarm task has no cancel
+/// affordance — that half stays open in `docs/agent/open-items.md`).
+enum ModelWaitFace: Equatable {
+    /// Nothing is landing for this id and no window is waiting on it — show the action.
+    case idle
+    /// Bytes are in flight, measured by the store, whoever began the fetch.
+    case downloading(progress: OcoreaiDownloadProgressState, stoppable: Bool)
+    /// This window waits on a load that has reported no bytes yet — a local read, or the hub
+    /// resolving config before it fetches. The spinner claims no size it has not measured.
+    case loadingWithoutBytes(stoppable: Bool)
+
+    /// Whether a wait is live for this id — what the resumable badge and the row's `.task(id:)`
+    /// ask. Not the face itself: a face carries moving bytes, and keying `.task(id:)` on it would
+    /// re-fire the row's disk walk on every tick.
+    var isLive: Bool {
+        switch self {
+        case .idle: return false
+        case .downloading, .loadingWithoutBytes: return true
+        }
+    }
+
+    /// Pure: three inputs, no environment, so the exact render decision is reachable from a test
+    /// with an isolated store instead of `.shared` (process-global state is leased, never set).
+    /// Both ids normalize the way the store is keyed (prefix-stripped), or a `mscope:` row finds
+    /// nothing and reports silence as absence.
+    static func resolve(
+        modelId: String,
+        ownedModelId: String,
+        hasOwnedTask: Bool,
+        store: OcoreaiDownloadProgress,
+    ) -> ModelWaitFace {
+        let key = ModelStore.normalizeModelId(modelId)
+        let owned = hasOwnedTask && ModelStore.normalizeModelId(ownedModelId) == key
+        if let progress = store.progress(for: key), progress.active {
+            return .downloading(progress: progress, stoppable: owned)
+        }
+        if owned { return .loadingWithoutBytes(stoppable: true) }
+        return .idle
+    }
+}
+
 // MARK: - Unified Model Manager
 
 @Observable
@@ -156,6 +204,57 @@ final class ModelManager {
     private var downloadTask: Task<Bool, Never>?
     /// Identity token for downloadTask (Task is a struct — no ===).
     private var downloadTaskID: UInt?
+
+    /// Bumped by ``runWaitTicker`` while any wait is live. `OcoreaiDownloadProgress` is
+    /// deliberately not `@Observable` (its writers are downloader threads — see its header), so a
+    /// row that renders live bytes must be re-rendered by someone; this is that someone, and the
+    /// only reason a view reads it. Without it the ring sat at the 0%/0 B sampled when the fetch
+    /// began for the whole 794 s of a cold default-model download.
+    var waitTick: Int = 0
+
+    /// The face this page renders for `modelId` right now. Reads ``waitTick`` inside so every
+    /// caller re-renders as bytes move — the Observation tracker records reads made inside a
+    /// method of the observed object. `store` is injectable for tests, mirroring
+    /// `ModelLoadProgress.measure`.
+    func waitFace(
+        for modelId: String,
+        store: OcoreaiDownloadProgress = .shared,
+    ) -> ModelWaitFace {
+        _ = waitTick
+        return ModelWaitFace.resolve(
+            modelId: modelId,
+            ownedModelId: downloadingModelId,
+            hasOwnedTask: downloadTask != nil,
+            store: store,
+        )
+    }
+
+    /// One loop for the whole Models page: fast while a wait is live (this window's task OR the
+    /// store's own rows — the prewarm lands bytes with neither flag set here), a presence check
+    /// when nothing moves. The idle branch costs one lock and a `contains` per 2 s.
+    ///
+    /// It also ends the waits honestly: disk and pool facts (the resumable badge, a pool
+    /// "loading" card) only move on a refresh, so the loop re-reads them once when a transfer
+    /// ends, and re-reads on the slow tick ONLY while a pool "loading" card is on screen — a
+    /// disk-backed load shows no store row and no window task, and this bounds how long its
+    /// "启动中" can outlive the load it names. The condition is self-limiting: the refresh that
+    /// reports ready clears the flag it polls.
+    func runWaitTicker(store: OcoreaiDownloadProgress = .shared) async {
+        var wasLive = false
+        while !Task.isCancelled {
+            if store.hasActiveDownloads() || isDownloading {
+                waitTick &+= 1
+                wasLive = true
+                try? await Task.sleep(for: .milliseconds(500))
+            } else {
+                if wasLive || localModels.contains(where: \.isPoolLoading) {
+                    wasLive = false
+                    await refreshLocalModels()
+                }
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+    }
 
     // MARK: - Local models (single source of truth)
 
@@ -283,12 +382,6 @@ final class ModelManager {
         downloadTask = nil
     }
 
-    /// True when the Stop affordance should be live: the task exists AND
-    /// belongs to the model currently shown as downloading.
-    func canCancelDownload(for modelId: String) -> Bool {
-        downloadTask != nil && downloadingModelId == modelId
-    }
-
     /// Acquire a model from the EnginePool with an explicit Hub source override.
     /// - Parameters:
     ///   - modelId: The raw model ID (with or without prefix)
@@ -334,7 +427,10 @@ final class ModelManager {
         isDownloading = true
         downloadingModelId = progressKey
         currentError = nil
-        OcoreaiDownloadProgress.shared.start(modelId: progressKey)
+        // No progress-store write here — the transfer lane (`MLXBridge.loadFromHub`) opens and
+        // closes the row for this id. This caller is frequently just WAITING behind a load
+        // someone else began (a boot prewarm holds the pool slot); its `finish` evicted a row
+        // whose bytes the ring and `/v1/models`' `loadProgress` both still had to show.
 
         do {
             let handle = try await pool.acquire(model: normalizedId)
@@ -342,15 +438,12 @@ final class ModelManager {
             // (same fix as P0-2 above)
             await handle.release()
 
-            OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
-
             await refreshLocalModels()
 
             isDownloading = false
             downloadingModelId = ""
             return true
         } catch {
-            OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
             // User-initiated cancel is NOT an error to report — no banner.
             // Temp bytes are kept by the downloader; next tap resumes.
             if !(error is CancellationError) {

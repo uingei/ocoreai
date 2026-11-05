@@ -9,6 +9,60 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-05
 
+**11-05 the Models page hid a wait it did not start — and a waiter's timeout evicted the bytes still landing**
+
+- **What improved.** Two defects, one root: the progress UI was keyed on *who began* the fetch
+  instead of on the store that measures it. ① `ModelResultRow` gated its ring on
+  `ModelManager.downloadingModelId`, which only that window's own tap sets — so during a boot
+  prewarm (11-03(12)'s failure banner routes exactly that user here: `ChatState` calls the Models
+  page the way out of `modelLoading`) gigabytes landed while the row showed an enabled `Download`
+  button and no wait, and the sub-line claimed "resumable N" mid-transfer. ② `_downloadAndLoad`
+  opened and closed the store row it did not own: when its `pool.acquire` released at the 120 s
+  wait window behind a cold 794 s fetch, its `finish` evicted the prewarm's **live** row — the
+  ring went blank mid-transfer and `ModelLoadProgress.measure`, reading the same store for
+  `/v1/models` and the 503 body, reported `downloading:false` for a fetch still landing bytes.
+  The wait now reads `ModelWaitFace.resolve` — store bytes ∥ this window's task, prefix-normalized
+  like the store's own key — with `stoppable` kept strictly with the task's owner (the pool's
+  prewarm has no cancel affordance, and the ring now says so by omission rather than hiding the
+  wait). A page-lifetime `runWaitTicker` re-renders rows only while a wait is live (0.5 s) and
+  otherwise asks the store one `hasActiveDownloads()` presence question per 2 s. The row's
+  `.task(id:)` and the resumable badge now follow the same face, so no two surfaces disagree.
+  The face's last old-keyed consumer, the local card's "启动中", gained the third truth a wait can
+  live in: `EnginePool.listModels` already surfaces `state:"loading"` for prewarms and in-flight
+  loads — including loads whose weights are on disk, which open no store row and no window task,
+  so the face is `.idle` for them by construction — and `ModelID` now carries that field instead
+  of discarding it, with the ticker refreshing on a transfer's end-flip and on the slow tick only
+  while such a card is on screen (self-limiting: the refresh reporting ready clears the flag).
+  Two premises the open row called inference were settled by reading, and one dissolved: a
+  duplicate concurrent fetch cannot happen — `EnginePool.prewarmDefaultModel` holds the
+  `loadingModels` slot (`beginLoad`) so a concurrent `acquire` takes `waitForLoading`, and both
+  UI and SSE download paths lease `DownloadSemaphore` per repo id. The whole fetch also renders
+  live now: nothing had ever invalidated the ring mid-download, so its %/bytes froze at whatever
+  the start-time transition sampled (grep: no timer/poller/read-back exists in the subtree).
+- **What same-session output proves it.** `ModelWaitFaceHonestyTests` seeds an isolated
+  (`forTesting`) store and asserts the rendered face by exact value: an active prewarm row renders
+  `.downloading(completed 1 073 741 824 / total 4 294 967 296, fraction 0.25, stoppable false)`;
+  the owning window's face carries `stoppable: true` through a `mscope:`-prefixed row id (the
+  normalization that was the store's key all along); an owned wait with no bytes is the spinner,
+  never a bar; a finished transfer is `.idle` for a watcher it never started; and the pool's
+  `state:"loading"` survives the parse into `ModelID` (absent ≠ a wait). 61/61 in the
+  neighbouring set (DownloadInfrastructure, ModelManager, ModelLoadProgressHonesty,
+  EnginePoolLoadingGate, ChatFailureFace) green on the CLT route; full-package compile green.
+- **Which gate goes red if it regresses.** `ModelWaitFaceHonestyTests`(7). Mutants, both run:
+  re-adding the waiter's `finish` reds the lifecycle scan naming the count (`measured 2` against
+  `deleteModel`'s one allowed close); deleting the store check in `resolve` would drop the
+  prewarm row to `.idle` and red the exact-value face. The scan pins the ownership **decision**,
+  not a line count copied from the code: opens are exactly `MLXBridge`'s two hub lanes (2),
+  closes are that lane plus `deleteModel`, floors print measured totals so a rotted pattern
+  cannot pass vacuously. Not claimed: rendered pixels — `screencapture` is refused on this host
+  (§ UI guide), so the face is gated at its decision function and the re-render half stands on
+  reading plus the store gate.
+- **Cost.** +163/−52 across the store (doc + `hasActiveDownloads`), the manager (face + ticker +
+  the two lifecycle writes deleted, and `canCancelDownload` — no caller survived the face),
+  `ModelView` (face-gated button/badge/task, pool-state card, one duplicated Stop label),
+  `ModelID` (one carried field), the new suite. Residue named in `open-items.md`: an
+  engine-initiated wait has no Stop anywhere yet.
+
 **11-05 docs-gate P3 judged a comparator cite by basename: four valid cites went red against our own files**
 
 - **What improved.** `Text gates (ubuntu)` went red on `f449a062` with "P3 4 anchor(s) past end of file:

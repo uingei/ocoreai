@@ -16,10 +16,16 @@ struct ModelID: Identifiable, Hashable {
     let isVlm: Bool
     var paramsCustomized: Bool = false
     /// Whether this model has non-default sampling params
+    /// The pool's own `state == "loading"` at this refresh — engine truth
+    /// (`EnginePool.listModels` surfaces prewarms and in-flight loads, including
+    /// for models not yet registered). The wait face cannot see a load whose
+    /// weights are already on disk (no store row, no window task), so the card
+    /// that says "启动中" asks this, not `downloadingModelId`.
+    let isPoolLoading: Bool
 
     init(
         id: String, maxContext: Int = 0, vocabSize: Int = 0, tokenizer: String = "",
-        isVlm: Bool = false, paramsCustomized: Bool = false
+        isVlm: Bool = false, paramsCustomized: Bool = false, isPoolLoading: Bool = false
     ) {
         self.id = id
         self.maxContext = maxContext
@@ -27,6 +33,7 @@ struct ModelID: Identifiable, Hashable {
         self.tokenizer = tokenizer
         self.isVlm = isVlm
         self.paramsCustomized = paramsCustomized
+        self.isPoolLoading = isPoolLoading
     }
 
     static func fromListModels(_ entry: [String: String]) -> ModelID {
@@ -40,6 +47,7 @@ struct ModelID: Identifiable, Hashable {
             // specialization and is absent on macOS 26, so this parser froze the
             // models list to "not a VLM" for every MLX vision model.
             isVlm: (entry["vlm"] ?? "false") == "true",
+            isPoolLoading: (entry["state"] ?? "") == "loading",
         )
     }
 

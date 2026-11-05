@@ -71,6 +71,11 @@ struct ModelView: View {
         .task {
             await modelManager.loadModels()
         }
+        .task {
+            // The page's render driver for live bytes — one loop for every row, alive exactly
+            // while this page is (see `ModelManager.runWaitTicker`).
+            await modelManager.runWaitTicker()
+        }
         .animation(reduceMotion ? nil : .smooth, value: editingModelId)
         .accessibilityLabel(StringKey.tabModels.l)
     }
@@ -274,7 +279,10 @@ private struct ModelResultRow: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(display).font(.ocoreaiText(14)).fontWeight(.semibold).lineLimit(1)
-                if resumableBytes > 0 && modelManager.downloadingModelId != modelId {
+                // The badge claims "resume me from N"; a live transfer makes that stale prose —
+                // the ring on the right is the current fact. One gate (the wait face) decides
+                // both halves, so badge and ring can never contradict each other.
+                if resumableBytes > 0, !modelManager.waitFace(for: modelId).isLive {
                     // HIG honesty: partial bytes on disk are user-visible state.
                     // A plain download arrow would imply "from zero"; it won't.
                     Label(
@@ -310,9 +318,10 @@ private struct ModelResultRow: View {
             downloadButton
         }
         .padding(10).modifier(theme.cardStyle())
-        .task(id: modelManager.downloadingModelId) {
-            // Refresh after every download-state transition (cancel leaves
-            // bytes → badge must appear; success promotes → badge must die).
+        .task(id: modelManager.waitFace(for: modelId).isLive) {
+            // Refresh after every wait-face transition, whoever began the fetch (cancel leaves
+            // bytes → badge must appear; success promotes → badge must die; a prewarm finishing
+            // re-answers even though this window never held the task).
             resumableBytes = await Self.queryResumableBytes(modelId: modelId)
         }
     }
@@ -345,62 +354,59 @@ private struct ModelResultRow: View {
         return String(format: "%.0f KB", Double(bytes) / 1024)
     }
 
+    /// The tappable Stop center — HIG: every long-running operation stays cancellable from where
+    /// its progress is visible. Bytes survive the stop (resume keeps the offset), so pausing
+    /// costs nothing. It renders only when `stoppable`, which is true only for the window that
+    /// owns the task — an engine-initiated wait is shown honestly, affordance and all.
+    private var stopButton: some View {
+        Button {
+            modelManager.cancelDownload()
+        } label: {
+            Image(systemName: "stop.circle.fill")
+                .font(.ocoreaiText(13))
+                .foregroundStyle(theme.textSecondary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(StringKey.stopDownloadAction.l)
+        .accessibilityHint(StringKey.stopDownloadHint.l)
+    }
+
     @ViewBuilder
     private var downloadButton: some View {
-        if modelManager.downloadingModelId == modelId {
-            // Progress ring with a tappable Stop center — HIG: every
-            // long-running operation stays cancellable from where its
-            // progress is visible. Bytes survive the stop (resume keeps
-            // the offset), so pausing costs nothing.
-            if let progress = OcoreaiDownloadProgress.shared.progress(for: modelId) {
-                VStack(spacing: 2) {
-                    ZStack {
-                        ProgressView(value: progress.fraction)
-                            .progressViewStyle(CircularProgressViewStyle(tint: theme.accent))
-                            .scaleEffect(1.15)
-                        if modelManager.canCancelDownload(for: modelId) {
-                            Button {
-                                modelManager.cancelDownload()
-                            } label: {
-                                Image(systemName: "stop.circle.fill")
-                                    .font(.ocoreaiText(13))
-                                    .foregroundStyle(theme.textSecondary)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(StringKey.stopDownloadAction.l)
-                            .accessibilityHint(StringKey.stopDownloadHint.l)
-                        }
-                    }
-                    Text("\(Int(progress.fraction * 100))%")
-                        .font(.ocoreaiMono(8))
-                        .foregroundStyle(theme.textTertiary)
-                    DownloadStatsView(
-                        completed: progress.completedBytes,
-                        total: progress.totalBytes,
-                        throughput: progress.throughputBytesPerSec,
-                        theme: theme
-                    )
-                }
-            } else {
+        // Gated on the wait face (store bytes ∥ this window's task), not on `downloadingModelId`
+        // alone — a boot prewarm lands gigabytes while that flag is empty, and this is the page
+        // the failure banner routes a waiting user to.
+        switch modelManager.waitFace(for: modelId) {
+        case .downloading(let progress, let stoppable):
+            VStack(spacing: 2) {
                 ZStack {
-                    ProgressView()
+                    ProgressView(value: progress.fraction)
                         .progressViewStyle(CircularProgressViewStyle(tint: theme.accent))
                         .scaleEffect(1.15)
-                    if modelManager.canCancelDownload(for: modelId) {
-                        Button {
-                            modelManager.cancelDownload()
-                        } label: {
-                            Image(systemName: "stop.circle.fill")
-                                .font(.ocoreaiText(13))
-                                .foregroundStyle(theme.textSecondary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(StringKey.stopDownloadAction.l)
-                        .accessibilityHint(StringKey.stopDownloadHint.l)
+                    if stoppable {
+                        stopButton
                     }
                 }
+                Text("\(Int(progress.fraction * 100))%")
+                    .font(.ocoreaiMono(8))
+                    .foregroundStyle(theme.textTertiary)
+                DownloadStatsView(
+                    completed: progress.completedBytes,
+                    total: progress.totalBytes,
+                    throughput: progress.throughputBytesPerSec,
+                    theme: theme
+                )
             }
-        } else {
+        case .loadingWithoutBytes(let stoppable):
+            ZStack {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: theme.accent))
+                    .scaleEffect(1.15)
+                if stoppable {
+                    stopButton
+                }
+            }
+        case .idle:
             Button {
                 Task {
                     let ok = await modelManager.load(modelId)
@@ -493,8 +499,11 @@ private struct ModelListContent: View {
         Text(StringKey.sectionModels.l).font(.ocoreaiText(13)).foregroundStyle(.secondary).bold()
         LazyVStack(spacing: 8) {
             ForEach(modelManager.localModels, id: \.id) { model in
-                // Model status: check lifecycle state
-                let isCurrentlyLoading = modelManager.downloadingModelId == model.id
+                // Model status: the pool's own loading state (engine truth, carried on the
+                // entry) ∥ this page's wait face — `downloadingModelId` alone hid a
+                // disk-backed load the page never started.
+                let isCurrentlyLoading =
+                    model.isPoolLoading || modelManager.waitFace(for: model.id).isLive
                 let isCurrentlyServing = modelManager.servingModelIds.contains(model.id)
                 LiveModelCard(
                     model: model, isDownloading: isCurrentlyLoading, isServing: isCurrentlyServing,
