@@ -9,6 +9,35 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-06
 
+**11-06 the bump row's "Blocked" went stale the same day it stood, and the 2.1.318 mine found two defect classes that cannot arise here**
+
+- **What improved.** Two host premises in front of the standing mlx-swift-lm bump decision were false by the
+  evening of the day the row asserted them: Metal was restored by this day's own round (`metal=ok-probed`), and
+  git-over-https — re-tested "still dead (HTTP2 framing, 443)" in this day's earlier round — answered again
+  (`git ls-remote --heads …/mlx-swift-lm` exit 0, refs listed; `api.github.com` had never been the blocker). A
+  stale `Blocked` is the one thing that makes a ready hand wait, so `open-items.md` now names the flap and the
+  one-line re-test instead of the dead state; nothing was re-resolved blind — the bump stays the owner's hand.
+  Second half, the live-tracking axis coming due: the `claude-code` mirror had moved past its last-read anchor
+  (3 commits, `v2.1.318`), and all 84 bullets were mined against our shipped surfaces rather than assumed:
+  their "idle compaction replacing a conversation with a reply that was not a summary" **cannot arise here** —
+  our compaction is deterministic and LLM-free (`Reasoning/ConversationCompaction.swift:7`, `:32`), so there is
+  no model reply to mistake for a summary; their destroyed/empty-`~/.claude.json`-replaced-with-defaults class
+  **cannot arise here** either — settings ride UserDefaults and the YAML tier loads through
+  `ConfigSystem.load`'s parse + validate + last-known-good (`SettingsStore.swift:432`). No code changed: the
+  round's product is two corrected premises, an advanced marker, and datums filed where they land — sglang is
+  still fixing forced-call semantics (#48480/#48481, mirror-read) beside our demanded-tool-call owner call,
+  and their "a call made before the tool is loaded now returns its input schema" is the same deferred-tool
+  shape pi's `tool_search` already gave § Open's tool-surface row.
+- **What same-session output proves it.** In order: `git ls-remote --heads https://github.com/ml-explore/mlx-swift-lm`
+  → exit 0 with refs (against this day's earlier dead reading, recorded above); a plain `curl -sI` to
+  github.com → 200; `git -C ~/references/claude-code log 964d695..HEAD` → 3 commits, the `## 2.1.318` block counted at 84
+  bullets and read whole; the two `file:line` reads quoted above; `make docs-check` ✅ after the edits.
+- **Which gate goes red.** None — a premise correction in prose and the registry's last-read marker
+  (`v2.1.317`/`964d695` → `v2.1.318`/`90380ef`). Two falsifiable sentences replace a dead host claim: if
+  transport flaps back before the hand, the named `ls-remote` line is the one re-test; if anyone re-opens the
+  compaction or config-corruption comparison, the cites above are one read away. Reader whose action changes:
+  the owner deciding the bump — what read "Blocked" now reads "run this one line, then it is your hand."
+
 **11-06 "有跟随吗?" answered with a window read, and the read surfaced the one thing not to absorb blind**
 
 - **What improved.** The owner asked whether the two empirical axes are actually followed; the answer is

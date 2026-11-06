@@ -43,9 +43,11 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   the axis; `make anchor-check` re-points the markers into the files #581 touched — 13 of them per
   `api.github.com` pulls/581, of which our cites reach two: 27 markers into `ChatSession.swift`, 9 into
   `Evaluate.swift` (re-grepped 11-06; anchor-check prints the set).
-  Blocked: the bump owes `make test-ci`, whose Metal Toolchain component this host reports `uninstalled`,
-  and git-over-https to github fails here (curl 28) while `api.github.com` answers — so an SPM re-resolve
-  is not safe to attempt blind. Owner call: the bump is a hand, not a gate.
+  Premise flipped 11-06, the same day it was written: Metal is restored (that day's `toolchain-check` →
+  `metal=ok-probed`), and git-over-https — read dead (curl 28/HTTP2 framing) earlier the same day — answered
+  again that evening (`git ls-remote --heads https://github.com/ml-explore/mlx-swift-lm` exit 0, refs listed).
+  A flapping host premise, so re-test that one line before the hand; nothing was re-resolved blind. Owner call
+  unchanged: the bump is a hand, not a gate.
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
   and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The seam landed upstream at
   `db2e7bf` (#714, 10-24: `observe(to:using:)` + `GenerationTransformer`; the `991266ad3` this row first
