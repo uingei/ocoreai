@@ -3,7 +3,7 @@
 `scripts/probes/` answers *is the wire telling the truth*. This directory answers the
 mission's own question: **did the agent finish a real coding job on this machine?**
 
-## Board ledger (k=1, gemma-4-e2b-it-4bit, temperature 0, tools 6, approval auto)
+## Board ledger (k=1, gemma-4-e2b-it-4bit, temperature 0, tools 6 unless the row states otherwise, approval auto)
 
 | run | passes | median_ms_success | p95_ms_success | ms_per_success | tokens_per_success | note |
 |---|---|---|---|---|---|---|
@@ -11,6 +11,8 @@ mission's own question: **did the agent finish a real coding job on this machine
 | `KcooVJ3yuB` | **25/39** | 2144 | 8362 | **5429** | **3560** | after `edit_file` named the removal route |
 | `B2oqq7JtVF` | **30/45** | 1663 | 11761 | 4501 | 3409 | first run of the 45-task set: `knowledge-work` 3/3, `creative` 1/3 — **not comparable with the 25/39 row** (different set, and the new tasks are short-output, so they pull the cost columns down by composition, not by capability: no paired run exists, so no improvement is claimed) |
 | `CqkYDJq1al` | 29/45 | 3343 | 15914 | 7701 | 3527 | same set, same checkpoint, 45/45 usage; the run answered on a stated stale binary (its only content delta to the tree was an untracked comment-file probe) and no claim rides on the single-run 29 vs 30, k=1 CI ±4; the multi-step claim-without-verify face is where all new fails sit, none is a harness bug — this host's Metal Toolchain component went missing again mid-round and the remedy is recorded in `CHANGELOG` 11-06 |
+| `IhKxSZ1vKw` | **22/45** | 6431 | 73434 | **28230** | **14901** | `OCOREAI_EVAL_TOOLS=all` (tools=40, 25 092 B/request) on fresh release binary `+1793939964+97848344`; paired below with `dyuvBlNB73` |
+| `dyuvBlNB73` | 29/45 | 905 | 5932 | 1944 | 3653 | 6-tool control, same binary/tasks hash/temp as `IhKxSZ1vKw` (tree proven stable since that build): paired b=11 c=4, 15 discordant ≥ floor 6, net +7 to the small surface, exact McNemar p≈0.12 — **direction, not proof** (this house's own 1:1-pairing rule); the surface pays 3.1× prompt tokens and 8.2× ms per success; `CqkYDJq1al` could not serve as this control — its binary (172 MB, overwritten) differed from `IhKxSZ1vKw`'s, two variables in one experiment, caught only because `# conditions` pins `mtime+size`; owner's tools[]-surface call sits on this pair |
 
 The two `creative` misses are both worth reading, because the artefact snapshot (`artifacts-<id>.txt`)
 shows the model *did* write its file and the form rule is what rejected it. `acrostic-spells-nova` produced
