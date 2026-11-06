@@ -9,6 +9,22 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-06
 
+**11-06 the `=` on the releases claim was argued against by its own author, then pinned anyway — the ruling now states itself where it can be grepped**
+
+- **What improved.** The round that added `claim:releases_published=0` earlier the same day had
+  argued, in its own words, that an `=` pin "would red exactly when cadence starts, the wrong
+  ratchet direction" — and the next turn pinned `=` anyway. Both halves were right; the missing
+  half was the reason, which lived only in chat. It now lives under the claim in
+  `long-horizon-goal.md`: `docs-check` is not on the publish path, so the first release reds a
+  to-do, not a toll — red as a reminder to update the row, never as a gate on shipping. A ruling
+  that can't be grepped is a ruling that re-litigates itself.
+- **What same-session output proves it.** The prose sits three lines under the claim it
+  explains; `make docs-check` prints `claims=37/37 ok` with the same reproduction command the
+  sentence names, unchanged.
+- **Which gate goes red.** None newly — this round added explanation, not enforcement; the
+  existing `=` claim keeps its documented semantics. Reader whose action changes: the next one
+  who reads `=` and reaches for `>=` reads the ruling first.
+
 **11-06 the host's Metal Toolchain vanished again mid-board, the freshness gate refused the run before the engine could, and the remedy is one named command**
 
 - **What improved.** The board was asked for its live failure surface and the first thing it did was

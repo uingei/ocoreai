@@ -100,6 +100,10 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    credential), but that release and its tag were later withdrawn; `v0.1.15` is the only remote tag
    (re-measured 11-06 against `api.github.com`; `audit-facts.sh` prints the ours line since this round).
 <!-- claim:releases_published=0 :: curl -sL --max-time 15 api.github.com/repos/uingei/ocoreai/releases | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 9**9)' -->
+   Why this claim is `=` where the repo's other pins are `>=` (a stated ruling, 11-06, after a round
+   argued the opposite and the next round pinned it anyway): `docs-check` is not on the publish path,
+   so the first published release reds nothing that gates shipping — it generates the to-do that
+   updates this very row. Red as a to-do, never as a toll.
    The tag *is* the version (`scripts/version.sh` prints the newest), so the next number is one past it and
    belongs to no doc — `v0.1.14` sat in four files after it shipped. Two things ride on cadence: the trust
    signals a first screen can show are its outputs (§ The first screen), and before self-serve publishing,
