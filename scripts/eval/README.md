@@ -10,6 +10,7 @@ mission's own question: **did the agent finish a real coding job on this machine
 | `013050` | 21/39 | 2191 | 11346 | 8126 | 4224 | first four-axis board |
 | `KcooVJ3yuB` | **25/39** | 2144 | 8362 | **5429** | **3560** | after `edit_file` named the removal route |
 | `B2oqq7JtVF` | **30/45** | 1663 | 11761 | 4501 | 3409 | first run of the 45-task set: `knowledge-work` 3/3, `creative` 1/3 — **not comparable with the 25/39 row** (different set, and the new tasks are short-output, so they pull the cost columns down by composition, not by capability: no paired run exists, so no improvement is claimed) |
+| `CqkYDJq1al` | 29/45 | 3343 | 15914 | 7701 | 3527 | same set, same checkpoint, 45/45 usage; the run answered on a stated stale binary (its only content delta to the tree was an untracked comment-file probe) and no claim rides on the single-run 29 vs 30, k=1 CI ±4; the multi-step claim-without-verify face is where all new fails sit, none is a harness bug — this host's Metal Toolchain component went missing again mid-round and the remedy is recorded in `CHANGELOG` 11-06 |
 
 The two `creative` misses are both worth reading, because the artefact snapshot (`artifacts-<id>.txt`)
 shows the model *did* write its file and the form rule is what rejected it. `acrostic-spells-nova` produced

@@ -9,6 +9,40 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-06
 
+**11-06 the host's Metal Toolchain vanished again mid-board, the freshness gate refused the run before the engine could, and the remedy is one named command**
+
+- **What improved.** The board was asked for its live failure surface and the first thing it did was
+  refuse: the artefact predated the tree (someone's untracked `// probe` file had moved `Sources/`),
+  and the refusal was the gate working — a stated, priced rejection where 10-27 once scored a build its
+  tree had outgrown. The rebuild then surfaced the real host defect: `cannot execute tool 'metal' due
+  to missing Metal Toolchain` across every Cmlx `.metal` — the §Upstream premise "this host's
+  MetalToolchain component is uninstalled" was not history, it is the host's live state again (the
+  component is a MobileAsset cryptex that Xcode updates drop), and the whole behaviour-iteration lane
+  (any prompt or tool-text change needing a rebuild) sits behind it. Remedy is the build system's own
+  named command — `xcodebuild -downloadComponent MetalToolchain` — ran, green: `make toolchain-check`
+  now answers `metal=ok-probed` by compiling a probe kernel on the restored
+  `MobileAsset.MetalToolchain-v27.2.47.0` mount, and `swift build -c release` completed (2.08 s,
+  product 12:39) — the eval freshness gate passes unaided again. The board itself then ran on a stated
+  stale binary (the one-line comment probe was the only content delta) and scored **29/45**
+  (`CqkYDJq1al`, ledger row added): every new fail is the recorded claim-without-verify multi-step face
+  or the python→python3 Recover miss — no harness bug surfaced. Three candidate problems were falsified
+  on the way and are named so nobody re-chases them: the refusal's `exit 0` was my pipeline's `tail`
+  swallowing the code (`probe_summary` does exit 1); the exec report already carries stderr + exit
+  code, so the python miss is not an information gap at the 2B checkpoint's Recover face; and the run
+  that "booted nothing" was the gate, not the harness.
+- **What same-session output proves it.** In order: the refusal note `binary mtime 1793933197 <
+  newest source 1793934050`; the build error `cannot execute tool 'metal' due to missing Metal
+  Toolchain` ×38 files; the download at exit 0; `make toolchain-check` →
+  `R2 shader compiler: compiled a probe kernel with …MobileAsset.MetalToolchain-v27.2.47.0…` +
+  `contract holds (swift=6.4 sdk=26.5 coreai=no metal=ok-probed)`; `swift build -c release` →
+  `Build complete! (2.08 s)` with product mtime 12:39:24 > newest tracked source 11:00:50; and
+  `run.sh` → `TASK SUCCESS 29/45 … usage_parsed=45/45` printed above.
+- **Which gate goes red.** `make toolchain-check` is the arbiter — it settles Metal by compiling a
+  kernel and goes red with `metal=ABSENT` the day the component drops again, naming the same remedy;
+  the eval freshness gate re-refuses any board whose artefact predates the tree; the board ledger row
+  keeps this sample re-greppable. Reader whose action changes: anyone who hits the metal error reads
+  once — it is host state with a named fix, not a build bug — and no agent re-derives it from scratch.
+
 **11-06 the adoption row weighed its two halves on two instruments: the releases API answers 0, and this repo's own Link-trick method answers 10**
 
 - **What improved.** Root § Adoption stated the eight trees' `37 → 1 267` releases (asked from
