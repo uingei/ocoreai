@@ -7,7 +7,50 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-11-06
+## [Unreleased] — 2026-09-05 → 2026-11-07
+
+**11-07 the id `/v1/models` hands out now fits the routes it advertises, and the item that blocked it was a premise nobody had run**
+
+- **What improved.** `GET /v1/models` publishes `mlx-community/Qwen3.6-35B-A3B-4bit`; four routes
+  (`GET/PATCH/DELETE …/sampling`, `GET …/kv-cache`) matched one path segment, so pasting the id a client was
+  *handed* answered 404 and the cure lived in notes: "must be percent-encoded as `%2F`". § Open had that as an
+  owner call on the cost — "accepting a slash costs a second routing truth" — and the cost was an assumption
+  about the router. Run it: Hummingbird answers a slash-bearing path with a recursive wildcard, so
+  `routes.get("/v1/models/**/sampling")` is ONE registration and `resolvedPathModelId` stays the single place an
+  id becomes a storage key; `:model` and `**` cannot coexist on one prefix (`Route /v1/models/{model} overrides
+  /v1/models/**`), so the wildcard replaces rather than joins. Four route strings changed, no new type, no new
+  surface. The five surfaces a client reads — the `endpoints[]` notes, the `{model}` description in
+  `/openapi.json` + its committed copy, both READMEs, `skills/ocoreai/references/wire.md` — now state both
+  spellings instead of warning about one; the published template keeps `:model`, which is what a client
+  substitutes and what OpenAPI renders. Second half, the gate the claim needed: reachability cannot see a *key
+  split*, and a key split is the bug that actually lived here (10-06 — DELETE answered and reset nothing).
+  Probe 03 now drives `seed` in through one spelling and reads it through the other, both directions, then
+  resets through the encoded one and compares against the baseline it captured first. Third: `docs-check` gained
+  **P4b** — one claim id, one number, wherever it is written. Its sampled red is this round's own tree:
+  `apple_derived_files` read `>=44` in the README pair against `>=49` in root, because the earlier 44→49 recount
+  reached `AGENTS.md` and `third-party-notices.md` and left the README pair's sentence stating 44 — every claim
+  green, both numbers printed. P4 runs each copy against *its own* predicate, so a floor cannot see a number
+  that moved up in one home and not the other; the prose is re-typed (44→49, 29→35, en + zh) and P4b now blocks
+  the second occurrence. Byte trade: the § Open row went to `closed-items-log.md`, root 21 444 → 21 374 and the
+  deepest chain 32 744 → 32 674 (94 B headroom), and the consensus row's re-measure was caught by B2 *inside*
+  this round rather than after it.
+- **What same-session output proves it.** `swift build` exit 0. `make test FILTER='V1EndpointCatalogTests|
+  OpenAPIContractTests|ReadmePairParityTests'` → 20 tests / 3 suites green, including "openapi.json in git is
+  what the binary renders". `bash scripts/probes/run.sh 03` twice: before the new section 34 passed / 0 failed
+  (`verbatim id + /sampling -> 200`, `percent-encoded id + /sampling -> 200`, bare and unknown → 404 raised
+  *inside* the handler), after it 38 passed / 0 failed, printing `written through the verbatim id, read back
+  through %2F`, `written through %2F, read back through the verbatim id`, `DELETE through %2F dropped the entry
+  the verbatim PATCH wrote — back to seed=absent`, `unknown encoded id 404s from inside the handler`. P4b
+  falsified on the real sample: README.zh's copy set back to `>=44` → `P4b 1 claim id(s) … apple_derived_files=
+  >=44/>=49`, restored and green; `make docs-check` ✅ claims 37/37, shared-id floor 5 ≥ 3.
+- **Which gate goes red.** Probe 03's one-key section goes red on a key split in either direction (a `seed`
+  written through one spelling and absent from the other) and on a wildcard that answers ids no engine can
+  resolve; `V1EndpointCatalogTests` gained a floor that goes red the day the registration stops being
+  `/v1/models/**/…`, because then its notation mapping would compare an empty set to an empty set;
+  `OpenAPIContractTests` and `ReadmePairParityTests` now require *both* spellings on the parameter description
+  and in both languages, so the note cannot quietly fall back to folklore; **P4b** goes red the next time one
+  home of a shared claim number moves alone. Reader whose action changes: whoever wires a client — the id from
+  `/v1/models` is now the id to send, and the note says so in their language.
 
 **11-06 Direction 3's cites went stale under a mirror that kept moving, and the harness slice turned out to need more than a base URL**
 

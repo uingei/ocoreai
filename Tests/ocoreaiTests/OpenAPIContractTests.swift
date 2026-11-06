@@ -129,7 +129,7 @@ struct OpenAPIContractTests {
 
     // MARK: - 3. A templated path declares its parameters
 
-    @Test("every {parameter} in a path is declared, with the %2F rule where it belongs")
+    @Test("every {parameter} in a path is declared, with the slash-id rule where it belongs")
     func templatedPathsDeclareTheirParameters() throws {
         let paths = try Self.parse(OpenAPIDocument.render())["paths"] as? [String: Any] ?? [:]
         let templated = paths.filter { $0.key.contains("{") }
@@ -150,8 +150,8 @@ struct OpenAPIContractTests {
                     ((ops as? [String: Any])?["parameters"] as? [[String: Any]])?
                     .first { $0["name"] as? String == "model" }?["description"] as? String ?? ""
                 #expect(
-                    described.contains("%2F"),
-                    "\(path)'s `model` parameter stopped stating the encoding rule probe 03 measured"
+                    described.contains("%2F") && described.contains("verbatim"),
+                    "\(path)'s `model` parameter stopped stating both spellings probe 03 measures"
                 )
             }
         }

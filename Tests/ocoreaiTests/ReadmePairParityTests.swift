@@ -116,15 +116,18 @@ struct ReadmePairParityTests {
         #expect(onlyZhKeys.isEmpty, "documented only in Chinese: \(onlyZhKeys.sorted())")
     }
 
-    /// A documented sharp edge is a warning the reader needs in the language they read: the
-    /// percent-encoded model id (`org%2Fname`) is named on both sides or the caveat is missing
-    /// for half the audience.
-    @Test func percentEncodingCaveatIsOnBothSides() throws {
+    /// A documented sharp edge is a warning the reader needs in the language they read: how to
+    /// address a model id containing `/` — verbatim `org/name`, or `%2F` — is named on both sides,
+    /// or half the audience has to guess.
+    @Test func modelIdSlashRuleIsOnBothSides() throws {
         let root = readmeRoot()
         let en = try String(contentsOf: root.appendingPathComponent("README.md"), encoding: .utf8)
         let zh = try String(
             contentsOf: root.appendingPathComponent("README.zh.md"), encoding: .utf8)
-        #expect(en.contains("%2F"), "README.md no longer names the %2F requirement")
-        #expect(zh.contains("%2F"), "README.zh.md omits the %2F requirement README.md documents")
+        for (name, text) in [("README.md", en), ("README.zh.md", zh)] {
+            #expect(
+                text.contains("%2F") && text.contains("org/name"),
+                "\(name) no longer states both spellings a slash-bearing model id accepts")
+        }
     }
 }

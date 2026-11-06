@@ -248,9 +248,10 @@ enum OpenAPIDocument {
                         "description",
                         .string(
                             name == "model"
-                                ? "Model id exactly as GET /v1/models publishes it. One path segment: ids "
-                                    + "shaped `org/name` must be percent-encoded (%2F) here — measured, "
-                                    + "verbatim 404s, encoded 200s."
+                                ? "Model id exactly as GET /v1/models publishes it. An id shaped `org/name` "
+                                    + "may be pasted verbatim; percent-encoding it (%2F) is accepted too, and "
+                                    + "both spellings resolve to one canonical key — measured live, verbatim "
+                                    + "200 and encoded 200."
                                 : "Path parameter as registered by the router."
                         )
                     ),

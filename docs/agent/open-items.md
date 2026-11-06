@@ -5,8 +5,6 @@ where a number is unmeasured it says so, and where a fix is blocked by the host 
 which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes a rule in `AGENTS.md` or
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
-- **`/v1/models/:model/…` needs `%2F`** (Handlers/) — accepting a slash costs a second routing truth, so the
-  wire shape stays pinned in `Handlers/AGENTS.md`; owner call open.
 - **A stall stops MTP hard, the std lane only by consent** (Tools/, Engine/) — the ladder and
   `LoopStallTerminationTests`(6) landed; upstream `mlx-swift-lm`'s `restart:` loop (ChatSession.swift:1164) still has no
   cap, and a std-lane hard stop throws out of `toolDispatch` (:1632) reaching the wire as an error, not a

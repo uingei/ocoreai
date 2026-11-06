@@ -25,14 +25,16 @@
 /// file cannot claim a route is public while the middleware blocks it.
 ///
 /// ### Notes carry what a client cannot guess
-/// `GET /v1/models` publishes HuggingFace-style ids (`org/name`), while `:model` matches
-/// exactly ONE path segment — so the id a client is handed cannot be pasted verbatim into
-/// `/v1/models/:model/…`. Measured live on 10-14
-/// (`scripts/probes/03-capabilities-models-consistency.sh`): verbatim `org/name` → 404,
-/// `org%2Fname` → 200, bare `name` → 404. The route is reachable, but only through an
-/// encoding the client has no way to discover, so the requirement is stated in the note the
-/// client is already reading. Probe 03 fails if that sentence ever leaves the notes while
-/// verbatim ids still 404 — the workaround stops being folklore.
+/// `GET /v1/models` publishes HuggingFace-style ids (`org/name`), and these routes register a
+/// recursive wildcard, so the id a client was handed pastes in VERBATIM and `%2F` still works.
+/// `scripts/probes/03-capabilities-models-consistency.sh` measures both halves live: verbatim →
+/// 200, `org%2Fname` → 200, a bare `name` and an unknown id → 404 raised *inside* the handler
+/// (the route is reachable, existence is still validated), and a `seed` written through one
+/// spelling read back through the other — reachability alone cannot see a key split, and a key
+/// split is the bug that lived here (10-06). The published template keeps the one-segment
+/// `:model` spelling — it is what clients already send and what OpenAPI renders — and the same
+/// probe pins the fallback: should verbatim ids ever stop reaching these routes, an index note
+/// that no longer tells the client to encode is a red probe.
 
 import Foundation
 
@@ -121,24 +123,24 @@ enum V1EndpointCatalog {
         RouteSpec(
             method: "GET", path: "/v1/models/:model/sampling",
             note:
-                "Runtime sampling configuration (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404)"
+                "Runtime sampling configuration (a model id containing `/` works verbatim here; `%2F` is accepted too)"
         ),
         RouteSpec(
             method: "PATCH", path: "/v1/models/:model/sampling",
             note:
-                "Hot-swap sampling parameters (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404)"
+                "Hot-swap sampling parameters (a model id containing `/` works verbatim here; `%2F` is accepted too)"
         ),
         RouteSpec(
             method: "DELETE", path: "/v1/models/:model/sampling",
             note:
-                "Reset one model's sampling defaults (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404)"
+                "Reset one model's sampling defaults (a model id containing `/` works verbatim here; `%2F` is accepted too)"
         ),
         RouteSpec(
             method: "DELETE", path: "/v1/models/sampling", note: "Reset all sampling defaults"),
         RouteSpec(
             method: "GET", path: "/v1/models/:model/kv-cache",
             note:
-                "Planned KV cache topology, capacity disposition, and the measured dispositions — prefix reuse, tool-declaration prose, and which reuse rule turned a warm session away (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404)"
+                "Planned KV cache topology, capacity disposition, and the measured dispositions — prefix reuse, tool-declaration prose, and which reuse rule turned a warm session away (a model id containing `/` works verbatim here; `%2F` is accepted too)"
         ),
         RouteSpec(
             method: "POST", path: "/v1/models/download",

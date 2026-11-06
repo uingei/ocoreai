@@ -88,8 +88,11 @@ how code is written anywhere, it belongs at the root. Two copies of one rule is 
   names what the audit cannot see instead of silencing itself (measured silent 11-01, probe 40). The
   ledger is process-wide, so an earlier turn's write can still summon the changed-files line — § Open.
   Gate: `ClaimVsAuditTests`(19).
-- `/v1/models/:model/…` takes a **percent-encoded** model id (`:model` matches one segment, `/v1/models`
-  publishes `org/name`); the catalog says so and probe 03 pins it — the owner call lives in § Open.
+- `/v1/models/:model/…` takes the id **verbatim** (`org/name`, exactly as `/v1/models` publishes it) or
+  percent-encoded (`%2F`). Those routes capture a recursive wildcard, which covers both in ONE registration;
+  `:model` and `**` cannot coexist (`Route /v1/models/{model} overrides /v1/models/**`), so the wildcard
+  replaces rather than joins, and `resolvedPathModelId` stays the only place an id becomes a storage key.
+  Catalog states it, probe 03 pins it.
 
 ## Verification in this subtree
 - `make test FILTER='WireDTOOptionalityTests'` — a key the spec calls optional decodes when absent.

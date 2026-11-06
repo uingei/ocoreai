@@ -135,7 +135,6 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
 ## Open — measured, unresolved
 Root owes the address only — area, instrument, whose call it waits on (evidence: `docs/agent/open-items.md`;
 verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name below honest).
-- **`/v1/models/:model/…` needs `%2F`** (Handlers/) — owner call.
 - **Stall: MTP stops hard, the std lane by consent** (Tools/, Engine/) — `LoopStallTerminationTests`(6);
   owner call: the terminal word for four faces.
 - **CoreAI / macOS 27 items unverifiable here** (Engine/) — `PlatformPremise.hasMacOS27`.

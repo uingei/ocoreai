@@ -797,8 +797,10 @@ func buildRouter(
     // MARK: Runtime Parameter Hot-Swap API
 
     // ONE choke for every route that takes a model id in the path (GET/PATCH/DELETE
-    // sampling, GET kv-cache): decode the
-    // percent-encoded path param and resolve it to the CANONICAL storage key
+    // sampling, GET kv-cache). Those routes capture a recursive wildcard, so the raw id
+    // may hold slashes (the verbatim `org/name` `GET /v1/models` publishes) or still carry
+    // `%2F` from a client that encoded it; decoding one more time lands both on the same
+    // key. Resolve it to the CANONICAL storage key
     // = bare normalized id. Without this, `%2F` ids created ghost keys and
     // GET answered `nil → .default` while the real entry lived under another
     // key (live-observed 10-06: DELETE on %2F id 'reset' nothing — the flag
@@ -821,17 +823,17 @@ func buildRouter(
         return bare
     }
 
-    routes.get("/v1/models/:model/sampling") { _, context in
+    routes.get("/v1/models/**/sampling") { _, context in
         let modelId = try await resolvedPathModelId(
-            raw: try context.parameters.require("model"))
+            raw: context.parameters.getCatchAll().joined(separator: "/"))
         let config = await enginePool.getSamplingConfig(modelId: modelId)
         let response = ModelSamplingResponse(config: config)
         return try Response.json(response)
     }
 
-    routes.patch("/v1/models/:model/sampling") { request, context in
+    routes.patch("/v1/models/**/sampling") { request, context in
         let modelId = try await resolvedPathModelId(
-            raw: try context.parameters.require("model"))
+            raw: context.parameters.getCatchAll().joined(separator: "/"))
         let patch = try await request.decode(as: ModelSamplingPatch.self, context: context)
         // default_model must point at a CHAT model — the embedder is
         // resolvable but never chatable (chat route fast-400s it); making
@@ -852,9 +854,9 @@ func buildRouter(
         return try Response.json(response)
     }
 
-    routes.delete("/v1/models/:model/sampling") { _, context in
+    routes.delete("/v1/models/**/sampling") { _, context in
         let modelId = try await resolvedPathModelId(
-            raw: try context.parameters.require("model"))
+            raw: context.parameters.getCatchAll().joined(separator: "/"))
         // Reset drops tuning knobs; the config-authored default re-seeds
         // inside the actor (reseedConfigDefaultIfNeeded) — single throat.
         await enginePool.resetSamplingConfig(modelId: modelId)
@@ -869,9 +871,9 @@ func buildRouter(
         return try Response.json(response)
     }
 
-    routes.get("/v1/models/:model/kv-cache") { _, context in
+    routes.get("/v1/models/**/kv-cache") { _, context in
         let modelId = try await resolvedPathModelId(
-            raw: try context.parameters.require("model"))
+            raw: context.parameters.getCatchAll().joined(separator: "/"))
         let response = try await enginePool.kvCacheStatus(modelId: modelId)
         return try Response.json(response)
     }

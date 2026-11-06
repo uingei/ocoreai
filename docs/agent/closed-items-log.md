@@ -3,6 +3,16 @@
 > Material `AGENTS.md` § *Open* used to carry prose for although it was resolved, retracted or
 > judged a phantom gap. An open item is one that can still change a decision; a verdict is
 > history, and history kept in the injected layer costs every session.
+- **`/v1/models/:model/…` does not need `%2F` (11-06).** The item's stated cost — "accepting a slash costs a
+  second routing truth" — was an assumption about the router nobody had run: Hummingbird answers a
+  slash-bearing path with a recursive wildcard, so `/v1/models/**/sampling` is ONE registration and
+  `resolvedPathModelId` stays the only place an id becomes a storage key. Nothing was doubled, so nothing was
+  paid; `:model` and `**` cannot coexist on one prefix (`Route /v1/models/{model} overrides /v1/models/**`),
+  so the wildcard replaces rather than joins. The published template keeps the one-segment `:model` spelling —
+  it is what clients substitute and what OpenAPI renders as `{model}` — and the note that used to warn about
+  encoding now states both spellings instead. Live: verbatim `org/name` → 200, `org%2Fname` → 200, bare `name`
+  and an unknown id → 404 raised inside the handler (probe 03). What closed it was measuring the premise, not
+  deciding the taste: an item that waits on an owner call is still an item whose premises can be run.
 - **Two packaging defects, one of them named by a version line (11-06).** The rehearsal leg's six-day red was
   not one bug. `scripts/toolchain-contract.sh`'s `print-metal-bin` tested the verdict (`METAL != ok`) where its
   consumer needs PATH reachability — `xcrun -f metal` resolves a compiler *inside* a toolchain without putting

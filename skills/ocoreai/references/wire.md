@@ -28,11 +28,11 @@
 | `POST` | `/v1/embeddings` | `key` | Text embeddings |
 | `POST` | `/v1/models/train` | `key` | Start a fine-tune run for a model |
 | `POST` | `/v1/models/evaluate` | `key` | Evaluate a model against a suite |
-| `GET` | `/v1/models/:model/sampling` | `key` | Runtime sampling configuration (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404) |
-| `PATCH` | `/v1/models/:model/sampling` | `admin` | Hot-swap sampling parameters (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404) |
-| `DELETE` | `/v1/models/:model/sampling` | `admin` | Reset one model's sampling defaults (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404) |
+| `GET` | `/v1/models/:model/sampling` | `key` | Runtime sampling configuration (a model id containing `/` works verbatim here; `%2F` is accepted too) |
+| `PATCH` | `/v1/models/:model/sampling` | `admin` | Hot-swap sampling parameters (a model id containing `/` works verbatim here; `%2F` is accepted too) |
+| `DELETE` | `/v1/models/:model/sampling` | `admin` | Reset one model's sampling defaults (a model id containing `/` works verbatim here; `%2F` is accepted too) |
 | `DELETE` | `/v1/models/sampling` | `admin` | Reset all sampling defaults |
-| `GET` | `/v1/models/:model/kv-cache` | `key` | Planned KV cache topology, capacity disposition, and the measured dispositions — prefix reuse, tool-declaration prose, and which reuse rule turned a warm session away (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404) |
+| `GET` | `/v1/models/:model/kv-cache` | `key` | Planned KV cache topology, capacity disposition, and the measured dispositions — prefix reuse, tool-declaration prose, and which reuse rule turned a warm session away (a model id containing `/` works verbatim here; `%2F` is accepted too) |
 | `POST` | `/v1/models/download` | `key` | Fetch a model into the local cache — `model` is a relative `org/name` (absolute paths and `..` are refused 400 naming the field; `provider` hf/mscope, `revision`/`useLatest` optional) |
 | `POST` | `/v1/audio/transcriptions` | `key` | Speech to text, on-device (multipart `file`, or JSON `audio` base64 / `url` file://; `model` and `prompt` accepted and not used by the engine; `verbose_json` and timestamps refused — refusals name the axis: permission, locale, or engine) |
 | `POST` | `/v1/multimodal/capture` | `key` | Camera / microphone / screen capture (`success: true` only when bytes came back; the mic is two-phase — first call starts, second returns the sample) |

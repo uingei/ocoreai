@@ -868,12 +868,12 @@
           "schema": {
             "type": "string"
           },
-          "description": "Model id exactly as GET /v1/models publishes it. One path segment: ids shaped `org/name` must be percent-encoded (%2F) here — measured, verbatim 404s, encoded 200s."
+          "description": "Model id exactly as GET /v1/models publishes it. An id shaped `org/name` may be pasted verbatim; percent-encoding it (%2F) is accepted too, and both spellings resolve to one canonical key — measured live, verbatim 200 and encoded 200."
         }
       ],
       "get": {
         "operationId": "get_v1_models_by_model_sampling",
-        "summary": "Runtime sampling configuration (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404)",
+        "summary": "Runtime sampling configuration (a model id containing `/` works verbatim here; `%2F` is accepted too)",
         "tags": [
           "v1"
         ],
@@ -913,7 +913,7 @@
       },
       "patch": {
         "operationId": "patch_v1_models_by_model_sampling",
-        "summary": "Hot-swap sampling parameters (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404)",
+        "summary": "Hot-swap sampling parameters (a model id containing `/` works verbatim here; `%2F` is accepted too)",
         "tags": [
           "v1"
         ],
@@ -967,7 +967,7 @@
       },
       "delete": {
         "operationId": "delete_v1_models_by_model_sampling",
-        "summary": "Reset one model's sampling defaults (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404)",
+        "summary": "Reset one model's sampling defaults (a model id containing `/` works verbatim here; `%2F` is accepted too)",
         "tags": [
           "v1"
         ],
@@ -1064,12 +1064,12 @@
           "schema": {
             "type": "string"
           },
-          "description": "Model id exactly as GET /v1/models publishes it. One path segment: ids shaped `org/name` must be percent-encoded (%2F) here — measured, verbatim 404s, encoded 200s."
+          "description": "Model id exactly as GET /v1/models publishes it. An id shaped `org/name` may be pasted verbatim; percent-encoding it (%2F) is accepted too, and both spellings resolve to one canonical key — measured live, verbatim 200 and encoded 200."
         }
       ],
       "get": {
         "operationId": "get_v1_models_by_model_kv_cache",
-        "summary": "Planned KV cache topology, capacity disposition, and the measured dispositions — prefix reuse, tool-declaration prose, and which reuse rule turned a warm session away (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404)",
+        "summary": "Planned KV cache topology, capacity disposition, and the measured dispositions — prefix reuse, tool-declaration prose, and which reuse rule turned a warm session away (a model id containing `/` works verbatim here; `%2F` is accepted too)",
         "tags": [
           "v1"
         ],

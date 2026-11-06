@@ -32,6 +32,9 @@
 #                    clone, or is declared absent on the same line
 #   P3 anchors       file:line / file#LNNN anchors point at a line that exists
 #   P4 claims        <!-- claim:id=N :: shell --> runs and must equal N
+#   P4b claim parity the same claim id written in two docs states one number — P4 checks each copy
+#                    against its own predicate, so a number re-typed in one home and not the other
+#                    leaves every copy green while the sentences above them disagree
 #   P5 gates         every `make <target>` and scripts/*.sh named is real
 #   P6 suites        every XxxTests named is declared under Tests/
 #   P11 suite counts every `XxxTests`(N) claim equals the @Test count in Tests/**/<Name>.swift — a
@@ -108,6 +111,8 @@ cd "$(dirname "$0")/.."
 #   (the ocoreai row + its prose tail). A re-derivation whose anchors vanished passes vacuously, so the
 #   scan floors its own hit count instead of trusting the header it reads.
 : "${OCOREAI_FLOOR_DIARY_PAIRED:=40}"   # CHANGELOG entries whose heading was found above their first bullet
+: "${OCOREAI_FLOOR_CLAIM_SHARED_IDS:=3}"  # P4b's premise: claim ids written in more than one doc
+#   (5 today — the licence counts, `spm_deps`, `global_rate_set`, mirrored across root + the README pair)
 : "${OCOREAI_AGENTS_MAX_AREA:=46082}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
@@ -224,6 +229,7 @@ fi
 OCOREAI_AGENTS_MODE="$MODE" \
 OCOREAI_AGENTS_MAX_ROOT="$OCOREAI_AGENTS_MAX_ROOT" \
 OCOREAI_FLOOR_DIARY_PAIRED="$OCOREAI_FLOOR_DIARY_PAIRED" \
+OCOREAI_FLOOR_CLAIM_SHARED_IDS="$OCOREAI_FLOOR_CLAIM_SHARED_IDS" \
 OCOREAI_AGENTS_MAX_CHAIN="$OCOREAI_AGENTS_MAX_CHAIN" \
 OCOREAI_FLOOR_CHAIN_GUIDES="$OCOREAI_FLOOR_CHAIN_GUIDES" \
 OCOREAI_AGENTS_FLOOR_FIGURES="$OCOREAI_AGENTS_FLOOR_FIGURES" \
@@ -668,6 +674,35 @@ for src, cid, op, expect, cmd in sorted(claims):
 
 if bad_claims:
     fail.append("P4 %d claim(s) do not reproduce: %s" % (len(bad_claims), "; ".join(bad_claims)))
+
+# ── P4b one claim id, one stated number ──────────────────────────────────────
+# P4 judges every copy of a claim against ITS OWN predicate, so a number that moves in one
+# home and not another leaves all copies green: five Apple-header files landed 11-05/11-06,
+# root's copy moved to `>=49` while the README pair stayed at `>=44`, and the English and
+# Chinese sentences above those markers stated 44 and 49 on the same day. The floor is the
+# wrong shape for a number a sentence re-types: it can only see a fall. Where the same id is
+# written in more than one file, the predicate itself has to agree — nothing new runs here,
+# it reads the tuples P4 already collected. The diary is not in `docs` (a CHANGELOG entry
+# quotes the number its own round measured), so this compares live pins only.
+claim_homes, claim_preds = {}, {}
+for _src, cid, op, expect, _cmd in claims:
+    claim_homes.setdefault(cid, set()).add(_src)
+    claim_preds.setdefault(cid, set()).add((op, expect))
+split = sorted(c for c, preds in claim_preds.items() if len(preds) > 1)
+if split:
+    fail.append("P4b %d claim id(s) state more than one number across their homes: %s — the copy "
+                "left behind is the sentence a reader acts on"
+                % (len(split), "; ".join(
+                    "%s=%s" % (c, "/".join(sorted("%s%d" % (o, e) for o, e in claim_preds[c])))
+                    for c in split)))
+# Floor the premise: an id shared by two homes is what this rule compares. If the marker regex
+# or the file set ever moves so that no id is written twice, the rule above passes by holding an
+# empty table — which is how a scan quietly retires while still printing a verdict.
+shared = sorted(c for c, hs in claim_homes.items() if len(hs) > 1)
+if len(shared) < env_int("OCOREAI_FLOOR_CLAIM_SHARED_IDS"):
+    fail.append("P4b only %d claim id(s) are written in more than one doc (< floor %d) — nothing "
+                "left for the parity rule to compare, so it is green by finding nothing"
+                % (len(shared), env_int("OCOREAI_FLOOR_CLAIM_SHARED_IDS")))
 # A claim's command runs on a runner too, and a clean checkout is not this host. 10-29 shipped
 # `<!-- claim:tags_published>=1 :: git tag | grep -c '^v' -->` green through every local mode and red
 # on two consecutive `Text gates (ubuntu)` runs (`command returns 0`): a depth-1 checkout may hold no
@@ -786,8 +821,13 @@ ROUTER_SRC = "Sources/ocoreai/Router/ChatCompletionsRouter.swift"
 AUTH_SRC = "Sources/ocoreai/Middleware/AuthMiddleware.swift"
 HUMAN_DOCS = ["README.md", "README.zh.md"]
 
+# The router registers the slash-id family with a recursive wildcard (`/v1/models/**/sampling`,
+# so a verbatim `org/name` reaches it), while every published surface — the capabilities index,
+# openapi.json, the READMEs — keeps the one-segment `:model` spelling a client already sends.
+# The mapping's decision home is V1EndpointCatalogTests.publishedNotation; this is the shell half
+# reading the same decision, and the test's floor goes red if the registration stops being a wildcard.
 router_routes = {
-    "%s %s" % (m.group(1).upper(), m.group(2))
+    "%s %s" % (m.group(1).upper(), m.group(2).replace("/**/", "/:model/"))
     for m in re.finditer(r'routes\.(get|post|patch|delete)\("([^"]+)"', read(ROUTER_SRC))
 }
 if len(router_routes) < env_int("OCOREAI_README_FLOOR_ROUTES"):

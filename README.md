@@ -143,7 +143,7 @@ Known boundaries (as of this commit, not aspirations):
 
 > **Measured, never inferred.** `GET /v1/models` carries per-model disclosure keys — `vlm`, `contextLength`, `capabilities`, `videoInput`/`videoEvidence`, `toolCallDelivery`/`toolCallEvidence` (`parsed` | `prose_only` | `not_observed`),
 > `reasoningEffort` (`honored` | `template_ignores` | `not_observed` — a word your request sends that the
-> checkpoint measurably never reads is refused 400 with the remedy, never answered 200 as if it had landed) — and `GET /v1/capabilities` publishes the same measurements aggregated, plus `tokenizerBackend` (`real`/`heuristic`) and the endpoint index. Nothing is inferred from an architecture name or a linked framework: an unmeasured capability is an explicit `not_observed`/`unknown`, never a silent absence, and unloading a model resets its claims. Model ids contain `/`, so percent-encode them (`org/name` → `org%2Fname`) in `/v1/models/:model/…` paths.
+> checkpoint measurably never reads is refused 400 with the remedy, never answered 200 as if it had landed) — and `GET /v1/capabilities` publishes the same measurements aggregated, plus `tokenizerBackend` (`real`/`heuristic`) and the endpoint index. Nothing is inferred from an architecture name or a linked framework: an unmeasured capability is an explicit `not_observed`/`unknown`, never a silent absence, and unloading a model resets its claims. Model ids contain `/`, and `/v1/models/:model/…` accepts them verbatim (`org/name`) as well as percent-encoded (`org%2Fname`).
 
 ---
 
@@ -261,9 +261,9 @@ MIT — Copyright © 2026 uingei@163.com
 
 MIT covers ocoreai's own code. The product also carries third-party code under its own terms, and those texts travel inside the artifact (`ocoreai.app/Contents/Resources/THIRD-PARTY-LICENSES/`), readable in the GUI under **Settings → About → Third-Party Notices**:
 
-- **Apple-derived source** — BSD-3-Clause. 44 files under `Sources/` retain Apple's copyright notice plus its verbatim BSD-3 header (`git grep -l "Copyright 2026 Apple Inc" -- Sources`; 29 of them name `coreai-models`, the rest are Apple-authored files from other Apple trees), and the verbatim upstream LICENSE ships as `THIRD-PARTY-LICENSES/Apple-coreai-models.txt` — byte-compared against upstream at collection time.
-<!-- claim:apple_derived_files>=44 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | wc -l -->
-<!-- claim:apple_coreai_named>=29 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | xargs grep -l coreai-models | wc -l -->
+- **Apple-derived source** — BSD-3-Clause. 49 files under `Sources/` retain Apple's copyright notice plus its verbatim BSD-3 header (`git grep -l "Copyright 2026 Apple Inc" -- Sources`; 35 of them name `coreai-models`, the rest are Apple-authored files from other Apple trees), and the verbatim upstream LICENSE ships as `THIRD-PARTY-LICENSES/Apple-coreai-models.txt` — byte-compared against upstream at collection time.
+<!-- claim:apple_derived_files>=49 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | wc -l -->
+<!-- claim:apple_coreai_named>=35 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | xargs grep -l coreai-models | wc -l -->
 - **34 SwiftPM dependencies** — 29 Apache-2.0 + 5 MIT, full text each; index in `THIRD-PARTY-LICENSES/NOTICES.md` / `THIRD-PARTY-LICENSES/manifest.json` (38 files in that directory: 34 dependency texts + Apple + dlpack + `NOTICES.md` + `manifest.json`).
 <!-- claim:spm_deps=34 :: grep -c '"identity" : ' Package.resolved -->
 <!-- claim:notice_files>=38 :: ls THIRD-PARTY-LICENSES | wc -l -->

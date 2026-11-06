@@ -17,6 +17,9 @@
 #   • a parameterised route is reachable with SOME form of the ids /v1/models publishes,
 #     and if the verbatim id does not work then the index note must say what to do —
 #     a route that needs undocumented trickery is still a dead end for a client;
+#   • the two spellings of a slash-bearing id (`org/name`, `org%2Fname`) address ONE
+#     storage key — a value written through one is read through the other, and a reset
+#     through one lands on the entry the other created;
 #   • every ready model accepts /v1/count-tokens;
 #   • every model row states `vlm` explicitly, and every capability row states
 #     `available` + a reason, so nothing user-visible is an unstated guess.
@@ -221,11 +224,11 @@ else
 fi
 
 probe_section "the id /v1/models publishes must reach the /v1/models/:model routes"
-# This server publishes HuggingFace-style ids ("org/name"), which are TWO path segments,
-# while the index advertises `/v1/models/:model/…` — one segment. resolvedSamplingModelId
-# calls removingPercentEncoding, so the encoded form is the intended one. Measure all
-# three shapes rather than assume which the router takes: a route that only answers to
-# trickery a client cannot discover is the same dead end as a 404.
+# This server publishes HuggingFace-style ids ("org/name"), which are TWO path segments.
+# The slash-id family registers a recursive wildcard so the published id arrives verbatim, and
+# `resolvedPathModelId` (ChatCompletionsRouter.swift) decodes `%2F` onto the same key, so both
+# spellings should answer. Measure all three shapes rather than assume which the router takes:
+# a route that only answers to trickery a client cannot discover is the same dead end as a 404.
 MODEL_PATH_FORMS="$(python3 - "$PROBE_MODEL" <<'PY'
 import json, sys
 raw = sys.argv[1]
@@ -319,6 +322,99 @@ for suf in sampling kv-cache; do
     *) probe_fail "/v1/models/:model/${suf} 404s for every id form this probe tried — published but unreachable" ;;
   esac
 done
+
+probe_section "the two spellings of a slash-bearing id address ONE storage key"
+# Reaching a route is not reaching the same ENTRY. Before these routes captured a recursive
+# wildcard the encoded form resolved to a key of its own, so DELETE answered while the entry
+# lived under the other spelling and GET fabricated defaults (live-observed 10-06). Nothing
+# above can see that split — both spellings reach a handler either way — so drive one value in
+# through one spelling and read it back through the other. `seed` is the knob: an Int64 with no
+# float-rounding noise, absent until written. Sampling config is per-process in-memory state
+# (EnginePool.updateSamplingConfig writes no disk), so this leaves nothing this boot doesn't own.
+SLASH_ENC="$(printf '%s' "$PROBE_MODEL" | sed 's|/|%2F|g')"
+slash_req() {
+  # slash_req METHOD ID [BODY] → SLASH_STATUS / SLASH_BODY.
+  # --path-as-is: without it curl rewrites %2F into a slash and the encoded form silently
+  # becomes the verbatim one, so this section would measure the same request twice.
+  local -a args=(-sS -m "${OCOREAI_PROBE_CURL_TIMEOUT:-180}" -X "$1" --path-as-is -w $'\n%{http_code}')
+  [ -n "${OCOREAI_API_KEYS:-}" ] && args+=(-H "Authorization: Bearer ${OCOREAI_API_KEYS%%,*}")
+  [ -n "${3:-}" ] && args+=(-H 'Content-Type: application/json' --data "$3")
+  local raw
+  raw="$(curl "${args[@]}" "${PROBE_BASE}/v1/models/$2/sampling" 2>&1)"
+  SLASH_STATUS="${raw##*$'\n'}"
+  SLASH_BODY="${raw%$'\n'*}"
+}
+seed_of() {
+  printf '%s' "$1" | python3 -c '
+import json, sys
+try:
+    print(json.load(sys.stdin).get("seed", "absent"))
+except Exception:
+    print("unparseable")'
+}
+if [ "$SLASH_ENC" = "$PROBE_MODEL" ]; then
+  probe_note "published id '$PROBE_MODEL' holds no '/' — the one-key round trip is vacuous this run"
+else
+  BASE_SEED=""
+  slash_req GET "$PROBE_MODEL"
+  case "$SLASH_STATUS" in
+    200) BASE_SEED="$(seed_of "$SLASH_BODY")" ;;
+    *)
+      probe_fail "GET sampling with the verbatim id -> $SLASH_STATUS — no baseline to drive a value through: ${SLASH_BODY:0:160}"
+      ;;
+  esac
+
+  if [ -n "$BASE_SEED" ]; then
+    slash_req PATCH "$PROBE_MODEL" '{"seed": 777777}'
+    if [ "$SLASH_STATUS" = "401" ]; then
+      probe_note "PATCH sampling needs an admin key this run — the round trip is a WRITE, so it is skipped, not passed"
+    elif [ "$SLASH_STATUS" != "200" ]; then
+      probe_fail "PATCH sampling with the verbatim id -> $SLASH_STATUS: ${SLASH_BODY:0:160}"
+    else
+      slash_req GET "$SLASH_ENC"
+      if [ "$(seed_of "$SLASH_BODY")" = "777777" ]; then
+        probe_ok "written through the verbatim id, read back through %2F — one key, both directions"
+      else
+        probe_fail "PATCH set seed=777777 on the verbatim id but the %2F spelling reads '$(seed_of "$SLASH_BODY")' — the two spellings address two entries: ${SLASH_BODY:0:160}"
+      fi
+      slash_req PATCH "$SLASH_ENC" '{"seed": 555555}'
+      slash_req GET "$PROBE_MODEL"
+      if [ "$(seed_of "$SLASH_BODY")" = "555555" ]; then
+        probe_ok "written through %2F, read back through the verbatim id — the second direction agrees"
+      else
+        probe_fail "PATCH set seed=555555 on the %2F id but the verbatim id reads '$(seed_of "$SLASH_BODY")' — the two spellings address two entries: ${SLASH_BODY:0:160}"
+      fi
+      # The 10-06 symptom exactly: a DELETE that answers and resets nothing because it struck
+      # the other key. The reset's own response body is the evidence.
+      slash_req DELETE "$SLASH_ENC"
+      if [ "$SLASH_STATUS" != "200" ]; then
+        probe_fail "DELETE sampling through %2F -> $SLASH_STATUS: ${SLASH_BODY:0:160}"
+      elif [ "$(seed_of "$SLASH_BODY")" = "$BASE_SEED" ]; then
+        probe_ok "DELETE through %2F dropped the entry the verbatim PATCH wrote — back to seed=$BASE_SEED"
+      else
+        probe_fail "DELETE through %2F answered $SLASH_STATUS and left seed='$(seed_of "$SLASH_BODY")' (baseline was '$BASE_SEED') — it reset a different entry than the one the patch created"
+      fi
+    fi
+  fi
+
+  # The wildcard widened what MATCHES; pin that it did not widen what ANSWERS. An id no engine
+  # can resolve still has to be refused from inside the handler, encoded or not — the same
+  # existence check the chat path uses.
+  slash_req GET "ocoreai-probe%2Fno-such-model-000"
+  case "$SLASH_STATUS" in
+    404)
+      case "$SLASH_BODY" in
+        *route_not_found*)
+          probe_fail "an unknown encoded id 404s as a ROUTER miss, not the choke's modelNotFound — the wildcard registration stopped covering this shape"
+          ;;
+        *) probe_ok "unknown encoded id 404s from inside the handler — existence is still validated" ;;
+      esac
+      ;;
+    *)
+      probe_fail "unknown encoded id -> $SLASH_STATUS; the wildcard answers ids no engine can resolve: ${SLASH_BODY:0:160}"
+      ;;
+  esac
+fi
 
 probe_section "models surface must not promise what count-tokens denies"
 probe_api GET /v1/models

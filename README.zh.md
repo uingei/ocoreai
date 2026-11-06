@@ -117,7 +117,7 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 | `GET`  | `/openapi.json` | OpenAPI 3.1 契约，由端点索引生成（见仓库根 `openapi.json`） |
 
 > 免认证 public 路由：`/health`、`/ready`、`/v1/models`、`/v1/tools`、`/v1/capabilities`、`/v1/stats`、`/metrics`、`/openapi.json`（与 `AuthRoutePolicy.publicPaths` 一致）。所有 `PATCH`/`DELETE` 需 admin key（`OCOREAI_ADMIN_KEYS`）。
-> 模型 id 里的 `/` 写成 `%2F`。
+> 模型 id 里的 `/` 可原样书写（`org/name`），也可写成 `%2F`。
 
 
 > 其余路由在设了 `OCOREAI_API_KEYS` 之后一律要 API key —— **包括 `GET /v1/perception`**：它不在 `AuthRoutePolicy.publicPaths` 里，所以是带鉴权的。该集合是这份名单的唯一真源，两者分叉时 `make docs-check` 的 P10 会判红。
@@ -230,9 +230,9 @@ MIT — Copyright © 2026 uingei@163.com
 
 MIT 只覆盖 ocoreai 自身代码。产品中携带的第三方代码各自保留其条款，许可全文随产物一同分发（`ocoreai.app/Contents/Resources/THIRD-PARTY-LICENSES/`），并在 GUI 内可直接查看：**设置 → 关于 → 第三方许可**。
 
-- **源自 Apple 的代码** — BSD-3-Clause。`Sources/` 下 44 个文件保留 Apple 版权头及其 BSD-3 声明原文（`git grep -l "Copyright 2026 Apple Inc" -- Sources`；其中 29 个注明 `coreai-models`，其余为来自其他 Apple 代码树的 Apple 原创文件），上游 LICENSE 原文以 `THIRD-PARTY-LICENSES/Apple-coreai-models.txt` 打包，收集时已与上游逐字节比对。
-<!-- claim:apple_derived_files>=44 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | wc -l -->
-<!-- claim:apple_coreai_named>=29 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | xargs grep -l coreai-models | wc -l -->
+- **源自 Apple 的代码** — BSD-3-Clause。`Sources/` 下 49 个文件保留 Apple 版权头及其 BSD-3 声明原文（`git grep -l "Copyright 2026 Apple Inc" -- Sources`；其中 35 个注明 `coreai-models`，其余为来自其他 Apple 代码树的 Apple 原创文件），上游 LICENSE 原文以 `THIRD-PARTY-LICENSES/Apple-coreai-models.txt` 打包，收集时已与上游逐字节比对。
+<!-- claim:apple_derived_files>=49 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | wc -l -->
+<!-- claim:apple_coreai_named>=35 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | xargs grep -l coreai-models | wc -l -->
 - **34 个 SwiftPM 依赖** — 29 个 Apache-2.0 + 5 个 MIT，逐个附全文；索引见 `THIRD-PARTY-LICENSES/NOTICES.md` / `THIRD-PARTY-LICENSES/manifest.json`（该目录共 38 个文件：34 份依赖全文 + Apple + dlpack + `NOTICES.md` + `manifest.json`）。
 <!-- claim:spm_deps=34 :: grep -c '"identity" : ' Package.resolved -->
 <!-- claim:notice_files>=38 :: ls THIRD-PARTY-LICENSES | wc -l -->

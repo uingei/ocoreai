@@ -65,12 +65,21 @@ struct V1EndpointCatalogTests {
                 let method = Range(match.range(at: 1), in: source),
                 let path = Range(match.range(at: 2), in: source)
             else { return nil }
-            return key(String(source[method]), String(source[path]))
+            return key(String(source[method]), publishedNotation(String(source[path])))
         }
     }
 
     private static func catalogKeys() -> [String] {
-        V1EndpointCatalog.routes.map { key($0.method, $0.path) }
+        V1EndpointCatalog.routes.map { key($0.method, publishedNotation($0.path)) }
+    }
+
+    /// One route, two notations: the router registers the slash-bearing model routes with a
+    /// recursive wildcard (`/v1/models/**/sampling`, so a verbatim `org/name` id reaches them),
+    /// while the index publishes the one-segment `:model` spelling — what a client substitutes and
+    /// what GET /openapi.json renders as `{model}`. Mapped on both sides so the equality below
+    /// still means "nothing published that is not wired"; an unmapped shape stays a difference.
+    static func publishedNotation(_ path: String) -> String {
+        path.replacingOccurrences(of: "/**/", with: "/:model/")
     }
 
     @Test("the scan itself works: it finds the routes it must find")
@@ -79,6 +88,13 @@ struct V1EndpointCatalogTests {
         // Floor: if the pattern or the file ever stops matching, equality below
         // would compare an empty set to an empty set and call it green.
         #expect(found.count >= 30, "route scan found only \(found.count) registrations")
+        // The wildcard spelling is what the router registers for a slash-bearing id; if that ever
+        // stops being true, publishedNotation() maps nothing and the equality above goes vacuous.
+        let source = try Self.routerSource()
+        #expect(
+            source.contains("/v1/models/**/"),
+            "no `/v1/models/**/…` registration in the router source — the notation mapping is stale"
+        )
         for must in [
             "GET /health", "GET /v1/models", "POST /v1/chat/completions",
             "POST /v1/count-tokens", "POST /v1/messages/count_tokens",
