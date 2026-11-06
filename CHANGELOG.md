@@ -9,6 +9,41 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-06
 
+**11-06 Direction 3's cites went stale under a mirror that kept moving, and the harness slice turned out to need more than a base URL**
+
+- **What improved.** Rapid-MLX sits +37 commits past its 11-04 anchor and the registry's cite for the reversible
+  harness profile — this corpus's own § Direction 3 "cheapest honest slice" — had drifted: `isolated.py:23` still
+  names the nine isolable agents (verified member-by-member today), but the `--remove` flag written beside it is
+  gone; reversibility now lives in a **setup plan with a diff** (`setup.py:83` `changed()`/`:89` `diff()`, `:332`
+  build, `:603` apply; the surviving `--remove` at `isolated.py:695` is a hermes-skills opt-out). The row was
+  re-anchored rather than left to rot — § How-to-use 3 honoured on itself. The move also surfaced the half of the
+  slice nobody had priced: a writer handing an agent a base URL without a **window fitted to that agent's own
+  compaction rules** mis-promises context. Rapid-MLX centralises the per-vendor subtraction (Claude Code's
+  autocompact buffer, Codex's `effective_context_window_percent`, OpenCode's `limit.output`, Hermes' 64K/128K,
+  others −10%, each cited to the vendor's own doc — `context_budget.py:1-21`), and `mlx-serve launch claude` sets
+  up "with the model's real context window" (`README.md:49`): two of the nearest trees now ship the real number as
+  part of the config, so the slice is base-URL + window + merge-safety, never base-URL alone. The shape claim
+  lives in this round until `comparator-consensus.md` § *The harness side* is free of another session's edits —
+  one home, not two. Byte trade: the row sits at its 46 082 cap exactly, so the funded adds were the re-anchor
+  and the window axis, and what left was duplicated homes (the substring-count anecdote already in consensus
+  bullet 5, the mid-round-registration story already there too) plus wordings; Rapid-MLX's first-run answers to
+  our cold-start rows (starter default `609660361`, sourceless-bundle HF judgement `8ab6d739c`, root-checkpoint-
+  only pull `6522eef2d`) stay named here, unfunded into the row. mlx-serve's 36-commit window verified the wedge
+  instead of moving it: zero `ScreenCaptureKit`/`SCStream` symbols in its `app/Sources`, paste-only images; its
+  ANE refusal list grew (reasoning budget and prompt logprobs refused by name beside grammars and forced calls —
+  a datum for the thinking-uncounted and tool-surface owner calls), and its runtime acceptance gate now ships
+  beside a 3-gram prompt-time novelty gate, both applying on tool-bearing requests (`docs/performance.md:20`).
+  No code, no pin, no owner call pre-empted.
+- **What same-session output proves it.** `isolated.py` head printed the 9-member `SUPPORTED` set at `:23`; the
+  setup-plan greps quoted above, and the only remaining `--remove` is `isolated.py:695`; `context_budget.py:1-21`
+  read whole; `grep -rl -E 'ScreenCaptureKit|SCStream' app/Sources` → 0 files; `wc -c` on the registry →
+  46 079/46 082 after the trade; `make docs-check` ✅ (37/37 claims).
+- **Which gate goes red.** None new — a cite repair and an axis clause. What stops re-rotting: the next reader of
+  the harness slice lands on the isolable set at `isolated.py:23` and a falsifiable diff claim at `setup.py:83`,
+  not on a flag that can vanish; if Rapid-MLX restructures again, the row names a home rather than a spelling.
+  Reader whose action changes: whoever drafts the harness side — the slice now names three parts, and the window
+  part has a cite per vendor.
+
 **11-06 the bump row's "Blocked" went stale the same day it stood, and the 2.1.318 mine found two defect classes that cannot arise here**
 
 - **What improved.** Two host premises in front of the standing mlx-swift-lm bump decision were false by the

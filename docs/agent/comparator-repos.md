@@ -9,8 +9,8 @@
 > yours to notice. Coupling re-derives two ways and both are printed, because they answer different questions:
 > `` git grep -lE '`<tree>`|references/<tree>' -- Sources Tests `` counts **cite coupling** (a backticked name
 > or a path into its clone); the looser `git grep -l <tree> -- Sources Tests` counts **name mentions** and is
-> substring-naive — 11-04: bare `pi` reports **458** files, all of them `api` and `Float.pi`, and `-w` fixes
-> `api` but not `let pi`. A **pin** is a build input (`Package.swift:43`); everything else is a comparator.
+> substring-naive both ways (the 458/7 count pair and the `-w` lesson: consensus § What the corpus did not know,
+> bullet 5). A **pin** is a build input (`Package.swift:43`); everything else is a comparator.
 > Context economy across the field — each tree's own `AGENTS.md` set against the 32 768 B our loader injects
 > at — is a cross-tree claim with a denominator, so per § *How to use* 4 it is not homed here: the table and
 > the re-derive command are in `comparator-consensus.md` § The injected ruleset.
@@ -22,9 +22,8 @@ Each entry is one clone under `~/references/`: what it holds, the axis worth bor
 Contains: OpenAI + Anthropic compatibility — parallel-call filtering, `finish_reason` resolution,
   OpenAI→Anthropic field mapping — plus the **intake policy** an AI-assisted PR must satisfy
   (`AGENTS.md:8,21,27,35,39`; full text: adoption-runbook § The intake machine). And since 11-04, in-tree: a Rust
-  front-end whose goal is "to rebuild the northbound serving layer in Rust while still talking to the core
-  Python vLLM engine process(es) via ZMQ over the existing engine boundary", self-labelled experimental and not
-  feature-complete (`rust/README.md:3`, `:5`) — 596 file-touches in 14 d.
+  front-end rebuilding the northbound serving layer over the ZMQ engine boundary, self-labelled experimental and
+  not feature-complete (`rust/README.md:3`, `:5`) — 596 file-touches in 14 d.
 Borrow: consumed, cited by file:line (rounds 19–20); our home for the policy is `CONTRIBUTING.md`
 
 - `sglang` — Python serving stack; `srt/entrypoints/openai/{protocol,serving_chat}.py`,
@@ -116,29 +115,30 @@ Borrow: what it does *not* do is the surviving wedge — it hosts Claude Code an
 
 - `Rapid-MLX` — **the 28th tree, and the one that ships our own sentence** (`raullenchai/Rapid-MLX`, Apache-2.0,
   Python engine + a 332-file SwiftUI app; 4 097 stars api.github.com 11-04, created 02-25, HEAD `8178a75`
-  11-03, 405 commits in 14 d, **290 tags**). Registered the day it was cloned, mid-round. Its first screen is
+  11-03, 405 commits in 14 d, **290 tags**). Its first screen is
   an agent launch, not a model: "Run Codex, Claude Code, OpenCode, Pi, Hermes, Crush or Goose with a local
   model on Mac: `rapid-mlx launch <agent>`" (`README.md:7`), over "OpenAI- and Anthropic-compatible LLM
   inference server for Apple Silicon, built on MLX, focused on reliable tool calling for coding agents"
   (`README.md:13`).
 Contains: (1) **the harness side, built** — 17 configs in `rapid_mlx/agents/profiles/`, **ten of them trees this
-  file tracks**, nine isolable and reversible (`isolated.py:23`, `--remove`), merge-safety rule in
-  `config_merge.py:1-15`. (2) 29 tool-parser modules with an auto-detect fallback (`rapid_mlx/tool_parsers/`)
+  file tracks**, nine isolable (`isolated.py:23`) applied through a setup **plan with a diff** (`setup.py:83,332`
+  — the `--remove` flag this row cited died there; re-anchored 11-06), merge-safety rule in
+  `config_merge.py:1-15`, and each writer **fits the window to the agent's own compaction rules** — Claude Code's
+  autocompact buffer, Codex's `effective_context_window_percent`, OpenCode's `limit.output`, Hermes' 64K/128K
+  (`context_budget.py:1-21`); a base-URL config alone mis-promises the context. (2) 29 tool-parser modules with an auto-detect fallback (`rapid_mlx/tool_parsers/`)
   against our `Parsers/*`. (3) spec decode as data — `spec_decode/{capability,registry,report}.py` over `mtp/`,
-  `dspark/`, `speculative/{native_mtp,dflash,ddtree,suffix_decoding}` and a `tensorfold_*` family, so it
-  *consumes* a comparator of ours; "Registry flags are recommendation evidence… runtime preflight owns
-  compatibility" (`spec_decode/capability.py:4-6`). (4) **a benchmark as a contract** — immutable versioned
+  `dspark/`, `speculative/{native_mtp,dflash,ddtree,suffix_decoding}` and a `tensorfold_*` family — it *consumes*
+  a comparator of ours; "Registry flags are recommendation evidence… runtime preflight owns compatibility"
+  (`spec_decode/capability.py:4-6`). (4) **a benchmark as a contract** — immutable versioned
   protocol files, one JSON-Schema record, runs kept local until an explicit `share`, unobserved settings
-  recorded `unknown` and "never guessed" (`community-benchmarks/README.md:54`), never-sent list (`:59`), its own
-  pre-0.13.4 formula break disclosed (`:46`). (5) it will not grade what it cannot confine
+  recorded `unknown` and "never guessed" (`community-benchmarks/README.md:54`), never-sent list (`:59`). (5) it will not grade what it cannot confine
   (`scripts/benchmark_glm53_real_tasks.py:226-228`; axis: § *Where the field confines a child*). (6) a single
-  `AGENTS.md` — 258 lines, 13 688 B, the only one in 4 271 files, re-measured 11-06 (the "org chart, six
-  persistent roles" this line asserted is gone) — now a **ruleset aimed at coding agents**: plan-before-edit
-  with scope-escalation into the issue tracker, a PR skeleton whose required Why/Non-goals/AI-assistance
-  disclosure gates review, "distill findings instead of committing raw agent transcripts", and a refusal to
-  name another project as a change's inspiration in commits, comments or PRs (byte table:
-  `comparator-consensus.md` § The injected ruleset).
-  (7) a computer-use lane, and it is not a demo: `rapid_mlx/computer_use/{perception,ax_driver,backend}.py`
+  `AGENTS.md` — 258 lines, 13 688 B, the only one in 4 271 files, re-measured 11-06 — now a **ruleset aimed at
+  coding agents**: plan-before-edit with scope-escalation to the tracker, a PR skeleton whose required
+  Why/Non-goals/AI-assistance disclosure gates review, "distill findings instead of committing raw agent
+  transcripts", and never naming another project as a change's inspiration (bytes: consensus § The injected
+  ruleset).
+  (7) a computer-use lane, shipped: `rapid_mlx/computer_use/{perception,ax_driver,backend}.py`
   behind `routes/cua.py`, where every element gets a session ref bound to the live AX element (`CFEqual`) and an
   action naming a ref from a stale observation **is refused**, one run at a time because the AX/CGEvent computer
   is a shared resource, with an explicit approval endpoint (`docs/engineering/decisions/
@@ -153,9 +153,9 @@ Contains: (1) **the harness side, built** — 17 configs in `rapid_mlx/agents/pr
 Borrow: **no home here today** on four axes — the reversible harness profile (11 of 12 serving trees ship
   theirs: § *The harness side…*), a machine-readable eval record with an immutable
   protocol (`scripts/eval/` has neither), confinement at the child boundary, and risk-classed context debit.
-  Against `long-horizon-goal.md` § Rung zero 4 this is the corpus's hardest read — agent, screen input, speech
-  both ways, image, video, MCP, constrained tool calling — and two of that rung's three parts do not survive it;
-  the verdict is the rung's (re-measured 11-04), not this row's. What it does not hold is the *shape*: an app
+  Against `long-horizon-goal.md` § Rung zero 4 the corpus's hardest read — agent, screen input, speech both ways,
+  image, video, MCP, constrained tool calling; two of that rung's three parts do not survive it (verdict: the
+  rung's, re-measured 11-04). What it does not hold is the *shape*: an app
   bundling a Python sidecar is not one binary, and no ANE lane exists in the tree.
 
 - `harness2` — `google-research/harness2`, Python agent harness (`dependencies/ASSETS.json` path→sha256,
