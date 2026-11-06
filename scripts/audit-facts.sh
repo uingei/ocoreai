@@ -32,7 +32,8 @@ echo "env.example keys: $(grep -cE '^[A-Z_]+=' .env.example 2>/dev/null) | OCORE
 grep -n "environment variables\|contract" Tests/ocoreaiTests/EnvKeysDocumentationTests.swift 2>/dev/null | head -3
 echo "--- comparator cadence (the numbers § Adoption and Goal Rung 1 quote) ---"
 # One request per tree: at per_page=1 the total is the last Link page. Unauthenticated is
-# 60 req/h, so this costs 8 of them - run it when a number is quoted, not on a timer.
+# 60 req/h, so this costs 10 of them (8 trees + our own releases/tags) - run it when a number
+# is quoted, not on a timer.
 # A tree that could not be asked prints the reason and never a number, and a partial scan says
 # it is partial: a floor read off a shrunk set is the vacuous-pass shape all over again.
 python3 - <<'CADPY'
@@ -69,6 +70,46 @@ if len(nums) == len(rows):
 else:
     print("  PARTIAL - %d/%d trees answered, so the range above is not a floor"
           % (len(nums), len(rows)))
+
+# The sentence that quotes the range also states ours, and until 11-06 that half was counted
+# with `git tag` while the comparator half counted GitHub Releases - two units in one comparison.
+# Ours is therefore counted on the stranger's unit: releases a GET without a token can SEE. The
+# Link-header trick the comparator half uses counts GitHub's invisible drafts too - measured
+# 11-06, `releases?per_page=1` answers an empty visible body while Link says page=10 - so it
+# would fold the rehearsal lane's unpromoted drafts into a cadence number no stranger can rank.
+def fetch(url):
+    hdr = {"Accept": "application/vnd.github+json", "User-Agent": "ocoreai-audit-facts"}
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=20) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as exc:
+        return "cannot-ask-HTTP%s" % exc.code
+    except Exception as exc:
+        return "cannot-ask-%s" % type(exc).__name__
+
+def ask_visible_releases(repo, cap_pages=3):
+    total, page = 0, 1
+    while page <= cap_pages:
+        body = fetch("https://api.github.com/repos/%s/releases?per_page=100&page=%d" % (repo, page))
+        if not isinstance(body, list):
+            return body
+        total += len(body)
+        if len(body) < 100:
+            return str(total)
+        page += 1
+    return "%s+" % total
+
+def ask_tags(repo):
+    body = fetch("https://api.github.com/repos/%s/tags?per_page=100" % repo)
+    if not isinstance(body, list):
+        return body
+    return "%d%s" % (len(body), "+" if len(body) == 100 else "")
+
+rel = ask_visible_releases("uingei/ocoreai")
+tg = ask_tags("uingei/ocoreai")
+local = len([t for t in __import__("subprocess").run(
+    ["git", "tag"], capture_output=True, text=True).stdout.split() if t.startswith("v")])
+print("  ours: releases_visible=%s tags_remote=%s tags_local=%d" % (rel, tg, local))
 CADPY
 echo "--- CI state ---"
 if [ -n "${1:-}" ]; then

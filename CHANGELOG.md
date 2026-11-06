@@ -9,6 +9,50 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-06
 
+**11-06 the adoption row weighed its two halves on two instruments: the releases API answers 0, and this repo's own Link-trick method answers 10**
+
+- **What improved.** Root § Adoption stated the eight trees' `37 → 1 267` releases (asked from
+  `audit-facts.sh` with the Link-pagination method) and then "ours is 1", a number its own
+  `claim:tags_published>=1 :: git ls-remote` anchors to **tags** — units mixed inside one comparison,
+  and measured today under the API that ranks a stranger, both readings were wrong or referent-stale:
+  visible releases = 0 (the 10-29 `v0.1.14` tag+release pair was withdrawn; the diary itself records
+  "a repo holding 0 releases"), remote tags = 1 (`v0.1.15`, not the `v0.1.14` the confirming cite named),
+  local tags = 2. The sentence now reads `ours: 1 tag, 0 releases` — landed byte-neutral by construction
+  (root returned to exactly 21 439 B), because the B2 re-derived `comparator-consensus.md` row pins the
+  root/corpus/chain bytes live: an edit to the root sentence is a byte-count edit into someone else's
+  green check, and this round is the shape of that contract biting as designed. The instrument the
+  sentence cites now owns its ours half too: `audit-facts.sh` prints
+  `ours: releases_visible=… tags_remote=… tags_local=…`, and the ours releases count is body-derived
+  rather than the Link trick — measured this round, `releases?per_page=1` answers an empty visible body
+  (`content-length: 5`) while its Link header says `page=10 rel=last`: phantom pages of the withdrawn
+  releases, the same trap the diary convicted once ("still resolve" as an unfalsified premise). The
+  `0 releases` is pinned where the unit lives, in `long-horizon-goal.md` Rung 1:
+  `claim:releases_published=0` fail-closes (non-list response prints a sentinel, so a rate-limited ask
+  reds rather than fakes green), and it is deliberately `=`, not `>=` — the first published release
+  MUST red it, that red is the cadence round announcing itself. Three restatements of the same figure
+  family were stale in the same direction and are re-grepped against this run: the comparator range in
+  two files (root `37 → 1 267` → `37 → 1 270`; the goal doc's `34 → 1 254 … ≤8 d` → `37 → 1 270 … ≤9 d`),
+  and the goal doc's leaderboard row (created 06-14 ⇒ **145 d**, not 136; stars 1 / forks 0 / issues 0
+  confirmed alive by the same `/repos` read). The adoption-runbook's `1 tag (v0.1.14)` stays: it is
+  dated 11-01 and was true at its timestamp — dated measurements do not retro-drift, present-tense
+  claims do, which is the whole finding.
+- **What same-session output proves it.** This round's reads, in order: `/releases?per_page=5` → `[]`;
+  `/releases?per_page=1` → empty body, `Link: …page=10 rel="last"` (the phantom-page evidence); `/tags`
+  → 1 (`v0.1.15`); `/repos` → `created_at 2026-06-14`, stars 1 / forks 0 / issues 0;
+  `git ls-remote --tags origin` → one line, `6e64f923`; `git tag` → 2. After the change
+  `bash scripts/audit-facts.sh` printed `range=37 -> 1 270 …` beside
+  `ours: releases_visible=0 tags_remote=1 tags_local=2`, and `make docs-check` is ✅ with `claims=37/37`
+  (the new one runs live through P4), `root=21439/21461`, B2 rows matching the tree again. The P4
+  evaluator's own URL-stripping (`https?://\S+` blanked at scan time — "URLs are cites, not repo paths")
+  was caught red-handed killing the first draft of the claim: the claim speaks the API without a
+  scheme-URL, which is what line 468 of the contract script enforces anyway.
+- **Which gate goes red.** `claim:releases_published=0` reds the day a visible release appears (the
+  correct direction — a publish must not be able to land silently out of the docs) or when the API ask
+  itself fails (sentinel ≠ 0; green is earned by an answer, never by muteness). `claim:tags_published>=1`
+  keeps its tag half, and B2 keeps pinning this sentence's bytes. Reader whose action changes: the owner
+  before the cadence round reads a number the public API confirms, and whoever promotes the first
+  release reads this red on that same day.
+
 **11-06 run 25 is green, and the version line names what six days of red were: `.metal` compilation is a SwiftPM 6.4 capability and the runner has 6.3.3**
 
 - **What improved.** The rehearsal lane built, shipped and judged its own artefact again — DMG, probe 41
