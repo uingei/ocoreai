@@ -9,6 +9,31 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-06
 
+**11-06 "有跟随吗?" answered with a window read, and the read surfaced the one thing not to absorb blind**
+
+- **What improved.** The owner asked whether the two empirical axes are actually followed; the answer is
+  only worth giving as state. coreai-models `f333cf5→1c7c71f` (+4, drift-exit 10) was read per commit
+  (rows: `coreai-fork-window-log.md` § Window read 11-06; patches off `api.github.com`, attribution off
+  the mirror). One real finding: **#412 stops generation when a GPU command buffer fails — our
+  `CoreAIPipelinedEngine.swift:1050` is still the pre-fix raw `yield(nextToken)`, so the CoreAI lane can
+  hand unwritten logits to the caller as a real token.** It is NOT absorbed — the lane is macOS 27
+  (CLT compiles `canImport(CoreAI)` out) and a blind port of upstream's error-recording queue is exactly
+  the "no blind fix" premise forbids; it joins the named open verdicts (14 → 15, `open-items.md`). The
+  other three are inert: 2 python tests, and #416's `oneAtATime` retirement lands on our retained enum
+  case (local ruling, 4 sites). Canonical read-points (`Adjudicated: 1c7c71f`) now sit in the four
+  overlapped fork headers — including, as a side effect, `SequentialIterator.swift`'s first read-point,
+  one of the eleven the drift reader never parsed. mlx-swift-lm: the +6 window stays read-adjudicated
+  (11-05) and un-bumped — but one of that round's two stated blockers went false today (Metal Toolchain
+  restored); the survivor is transport, re-tested here and still dead (HTTP2 framing error, then 443
+  connect failure; `api.github.com` unaffected), so the bump waits on transport, not Metal.
+- **What same-session output proves it.** `make drift` before (both axes ⚠, exit 10) and after (coreai
+  adopted, mlx honestly +6); the four patches quoted in the window-log rows; greps: `GPUErrorHolder`
+  0 hits in `Sources/`, `:1050` raw yield, `oneAtATime` at 4 own-tree sites; `swift build` exit 0.
+- **Which gate goes red if it regresses.** The fork headers are the per-file gate drift computes
+  windows from — a future un-adjudicated coreai commit shows ⚠ against `1c7c71f`, and if someone
+  absorbs #412 without the macOS 27 lane they delete the header's NOT-absorbed clause, which the next
+  window read greps for. No new test (nothing here is runnable on this host).
+
 **11-06 the `=` on the releases claim was argued against by its own author, then pinned anyway — the ruling now states itself where it can be grepped**
 
 - **What improved.** The round that added `claim:releases_published=0` earlier the same day had

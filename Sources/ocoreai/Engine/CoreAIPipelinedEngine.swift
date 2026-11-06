@@ -12,9 +12,11 @@
 //   Absorbed: #176 5660fc6 (repetition penalty, tokenHistory overload).
 //   Absorbed: #204 156cdb6 (prefillFunction / independent prefill graph).
 //   Absorbed: #217 54e6163 (defer yield until after accept/termination check).
-//   Adjudicated: 7fd2063 (the whole 8-commit window read 10-29; one verdict per commit in
-//   docs/agent/coreai-fork-adjudication.md — 2 absorbed, 3 not applicable to this fork, 3 open).
-//   Upstream HEAD anchor: 54e6163 (all in-range commits absorbed).
+//   Adjudicated: 1c7c71f (window 7fd2063..1c7c71f read across 10-29 and 11-06; per-commit rows in
+//   docs/agent/coreai-fork-window-log.md). #412 (8a2d32a) is NOT absorbed: our `:1050` still holds the
+//   raw `yield(nextToken)` upstream replaced with an error-guarded yield, so a failed command buffer
+//   could hand us unwritten logits as a real token; adopting needs the macOS 27 lane (CLT compiles this
+//   out; open item). Upstream HEAD anchor for absorbed content: 54e6163.
 
 #if canImport(CoreAI)
 import CoreAI

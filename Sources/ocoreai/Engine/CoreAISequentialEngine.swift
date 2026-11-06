@@ -11,6 +11,9 @@
 //   compiles out on the CLT route and the OS gate is PlatformPremise.hasMacOS27.)
 //   Pending (gated): #202 4a3f8e4 (Muse Glimmer sliding-window ring cache, useCompactPositionIds) —
 //     Muse Glimmer not in ocoreai model surface (0 hits); activates when that model is added.
+//   Adjudicated: 1c7c71f (#416 read 11-06: its oneAtATime deletion NOT taken — `:40,394,652` keep the
+//     case by local ruling; VLM sliding-ring/logits reshaping has no path in this fork;
+//     rows: coreai-fork-window-log.md)
 //
 /// Clean Core AI inference engine built from public APIs.
 ///

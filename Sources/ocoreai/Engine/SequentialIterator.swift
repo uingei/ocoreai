@@ -2,6 +2,9 @@
 // Absorbed: coreai-models #251 (89ba0d4) — shared iterator helpers
 // (clampMaxTokens + nextToken) for the two sequential engines.
 //   upstream: swift/Sources/CoreAILanguageModels/InferenceEngines/SequentialIterator.swift
+//   Adjudicated: 1c7c71f (#416 retired upstream's `.oneAtATime` arm; ours stays — our enum retains the
+//   case by local ruling, so both sides of our pair are consistent; this line is also the canonical
+//   read-point the #251 dialect above never was; rows: coreai-fork-window-log.md)
 //
 // Gated behind #if canImport(CoreAI) — `LogitsScalarType` + `SamplingConfiguration.fallbackSampler`
 // live in the CoreAI-gated engine modules (unlike upstream, where the whole module is unconditional).

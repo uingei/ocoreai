@@ -15,9 +15,11 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — three `@available(macOS 27.0, *)` or
   SDK-gated sites (detail: `docs/agent/build-gate-reality.md`) ⇒ no blind fix and no claim of one; their
   suites now skip on this OS through `PlatformPremise.hasMacOS27` instead of reporting a red.
-- **The coreai fork's debt is 14 named open verdicts, not a drift window** (Engine/) — 8 of them from
+- **The coreai fork's debt is 15 named open verdicts, not a drift window** (Engine/) — 8 of them from
   77a122f reading all 36 commits behind the four engine windows (7 absorbed, 21 n/a), 3 from the #388/#374
-  read, 3 added by the 11-05 window read; one row each with its action in
+  read, 3 from the 11-05 read, 1 from the 11-06 read (#412's GPU-error stop: our
+  `CoreAIPipelinedEngine.swift:1050` still carries the pre-fix yield shape, adoption waits the macOS 27
+  window); one row each with its action in
   `docs/agent/coreai-fork-window-log.md` (#368 measured 10-30 by probe 12 §5b: the shipping lane damps whitespace via
   upstream `WhitespaceTokenBias`, so its exposure is CoreAI-only, unverifiable here). `make drift` reads 0
   un-adjudicated per file today. The axis since has moved export-side **and** through two Swift commits in

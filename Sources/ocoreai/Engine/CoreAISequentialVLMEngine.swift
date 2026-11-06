@@ -8,7 +8,9 @@
 //   Absorbed: #251 89ba0d4 (shared SequentialIterator — ocoreai 3497ae8); #249 B1+B2 not taken,
 //   so this file kept inline KV/token-box handling while upstream consolidated (1 238 L vs 1 107 L
 //   upstream today).
-//   Adjudicated: 7fd2063 (the 4-commit window since #251 read 10-29; verdicts: docs/agent/coreai-fork-adjudication.md)
+//   Adjudicated: 1c7c71f (window since 7fd2063 read 10-29 and 11-06; #416 inert here — the
+//   oneAtATime retirement lands on OUR retained enum case (a local ruling, `:1173` still routes it)
+//   and our logits guard already accepts bfloat16 (`:270`); rows: coreai-fork-window-log.md)
 
 #if canImport(CoreAI)
 import CoreAI
