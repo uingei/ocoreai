@@ -139,7 +139,7 @@ verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name bel
 - **Stall: MTP stops hard, the std lane by consent** (Tools/, Engine/) — `LoopStallTerminationTests`(6);
   owner call: the terminal word for four faces.
 - **CoreAI / macOS 27 items unverifiable here** (Engine/) — `PlatformPremise.hasMacOS27`.
-- **A no-tool turn cannot be interrupted** (Engine/) — upstream seam landed at `991266ad3`; owner call.
+- **A no-tool turn cannot be interrupted** (Engine/) — upstream seam landed at `db2e7bf` (#714); owner call.
 - **Rewind landed; the reserve is untuned** (Engine/) — `SessionRewindOnDivergenceTests`(8) + probe 27.
 - **`tools[]` gaps; two prefix questions await an owner** — `UI/AGENTS.md`, `ReuseRefusalLedger`.
 - **Multimodal: video publishes per-checkpoint; capture cannot stream headlessly** —
@@ -169,7 +169,7 @@ Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`, one dia
 4. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: on
    anything user-visible it is the authority; no topic covers agents ⇒
    `docs/agent/agent-interface-guidelines.md`.
-5. **Comparators** — the 28 trees in `docs/agent/comparator-repos.md`, counts in
+5. **Comparators** — the 38 trees in `docs/agent/comparator-repos.md`, counts in
    `docs/agent/comparator-consensus.md`: nothing linked or redistributed; a borrowed verdict stays inference
    until a `file:line` says otherwise. `codex` is one since 11-03 (owner: no longer an authority; window
    reported, not owed). Shipped order + fix cost: `docs/agent/competitor-iteration-paths.md`.

@@ -108,7 +108,7 @@ cd "$(dirname "$0")/.."
 #   (the ocoreai row + its prose tail). A re-derivation whose anchors vanished passes vacuously, so the
 #   scan floors its own hit count instead of trusting the header it reads.
 : "${OCOREAI_FLOOR_DIARY_PAIRED:=40}"   # CHANGELOG entries whose heading was found above their first bullet
-: "${OCOREAI_AGENTS_MAX_AREA:=38945}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
+: "${OCOREAI_AGENTS_MAX_AREA:=46082}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
 #   this cap was pinned to. What binds is our chain budget (B2, 32 KiB) and the root ratchet (B1), and
@@ -176,6 +176,15 @@ cd "$(dirname "$0")/.."
 #   25 611 → 27 484 by whichever file was largest. An owner deciding "audit deeper vs audit wider" needs that
 #   curve; a per-file ceiling that never forces the choice is not how to make it. Turning this into a corpus cap
 #   on docs/agent/** is an owner call, not an audit finding, so it is named here and not done here.
+#   RAISED 11-06, the tenth, and the first that made per-tree CHEAPER: the 11-06 evolution read registered the
+#   ten cloned-but-never-registered trees (llama.cpp, modelcontextprotocol, OSWorld, BrowserGym, terminal-bench,
+#   Hybrid-Computer-Use, nanoGPT, llm.c, nanochat, autoresearch) — a distant tree costs ~0.7 KB against a
+#   nearest neighbour's 4.3 KB, so per-tree moves 1 391 → 46 082 / 38 = ~1 213 B; the curve is
+#   15 609 → 18 664 → 20 502 → 25 611 → 27 484 → 32 341 → 36 221 → 37 892 → 38 945 → 46 082. Cut first found
+#   nothing: the only stale mass was the Rapid-MLX row's "org chart" clause, and correcting drift is not a cut.
+#   The same read corrected open-items' seam hash (`db2e7bf`, not `991266ad3` — that hash is that day's #710, a
+#   prefill buffer-cache commit). B1 21 444/21 461 (root's "28→38 trees" byte-neutral, +5 for the seam hash),
+#   B2 32 744/32 768 — the same +5 flows into the chain; neither cap moved.
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
 : "${OCOREAI_AGENTS_FLOOR_REFS:=50}"
 : "${OCOREAI_AGENTS_FLOOR_TREES:=16}"

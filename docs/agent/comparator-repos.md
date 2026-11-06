@@ -75,6 +75,23 @@ Contains: two engine families (llama.cpp + MLX C) behind one local API, each pin
 Borrow: consumed for the lane shape (stars: the runbook's leaderboard); the published-logits seam stays the
   owner call — their lane proves it possible, it does not make ours exist
 
+- `llama.cpp` — **the corpus's deepest evolution record, and the tree both rows above now consume**: 12 174
+  commits since the squashed `2023-03-10 Initial release`, 8 383 tags, 700 commits in 30 d — cloned here since
+  the corpus began and unregistered until this 11-06 read, which is this row's only sin
+Contains: depth-after-early-bet, all commit-dated: grammar sampling 2023-07-23 (`#1773`), json-schema-to-grammar
+  2023-08 (`#2588`) — constrained decoding four and a half months after first release; IQ2_XS 2024-01-11
+  (`#4856`); speculative refactor 2024-11-25 (`#10362`); MTP is a flipped-tensor-option 2025-09-30 (`#16359`) →
+  first-class spec support 2026-05-16 (`#22673`) → still the hottest sub-axis 11-05 (recurrent-model conv
+  snapshots `#31660`); tool calling is a **Peg grammar** now (rules named by index `#30088`, `chat-peg-parser`
+  `#29942`) — the rival road to our `Parsers/*`: grammar, not marker literals; JSON schema got an internal IR
+  (`common_schema`, `#28736`). The motion sits on the product face: `tools/ui/` broke out 2026-05-16 (`#23064`),
+  tool calls ride `/v1/realtime` (`#31287`), the hottest dir over 6 mo is `tools/` (6 171 touches) over `src/`
+  (2 551); AGENTS.md revamp landed 2026-10-04 (`#29656`) — the 2023 engine wrote its agent-contributor rules
+  3.5 years late too.
+Borrow: axes, no consumption — the MTP absorption cadence (8 months from "tensor optional" to "first-class
+  spec") is the honest timescale for any engine absorbing a new head, ours included; the Peg road is worth a
+  re-read before `Parsers/*` grows again (§ Documentation Map prices the marker literals).
+
 - `mlx-serve` — **the closest whole-product analogue to our own sentence** (audited 11-04 at `8d82ebe2`,
   re-read at `6b39f8b8` the same day — three `docs/reference.md` numbers moved +1, no claim did; 388 commits
   in 14 d; Zig engine + SwiftUI app): "chat, coding agents, images, video, music, speech and 3D.
@@ -114,9 +131,13 @@ Contains: (1) **the harness side, built** — 17 configs in `rapid_mlx/agents/pr
   protocol files, one JSON-Schema record, runs kept local until an explicit `share`, unobserved settings
   recorded `unknown` and "never guessed" (`community-benchmarks/README.md:54`), never-sent list (`:59`), its own
   pre-0.13.4 formula break disclosed (`:46`). (5) it will not grade what it cannot confine
-  (`scripts/benchmark_glm53_real_tasks.py:226-228`; axis: § *Where the field confines a child*). (6) an
-  `AGENTS.md` that is an **org chart, not a rulebook** — six persistent roles and no per-directory guide in 4 232
-  files (the shape and its byte count: `comparator-consensus.md` § The injected ruleset).
+  (`scripts/benchmark_glm53_real_tasks.py:226-228`; axis: § *Where the field confines a child*). (6) a single
+  `AGENTS.md` — 258 lines, 13 688 B, the only one in 4 271 files, re-measured 11-06 (the "org chart, six
+  persistent roles" this line asserted is gone) — now a **ruleset aimed at coding agents**: plan-before-edit
+  with scope-escalation into the issue tracker, a PR skeleton whose required Why/Non-goals/AI-assistance
+  disclosure gates review, "distill findings instead of committing raw agent transcripts", and a refusal to
+  name another project as a change's inspiration in commits, comments or PRs (byte table:
+  `comparator-consensus.md` § The injected ruleset).
   (7) a computer-use lane, and it is not a demo: `rapid_mlx/computer_use/{perception,ax_driver,backend}.py`
   behind `routes/cua.py`, where every element gets a session ref bound to the live AX element (`CFEqual`) and an
   action naming a ref from a stale observation **is refused**, one run at a time because the AX/CGEvent computer
@@ -405,6 +426,70 @@ Contains: the vendor's own acceptance framing — the series is "designed to car
   retains "reasoning context from historical messages" (`:25`).
 Borrow: `preserve_thinking` is the vendor's name for the cost § Open's thinking-uncounted row already owes;
   the consequence and its owner live there, not twice.
+
+- `modelcontextprotocol` — the spec's home, not a codebase (4 945 commits since 2024-09; audited 11-06): the
+  draft carries its own `changelog.mdx` and `deprecated.mdx`, and the date-version discipline pins the draft at
+  `2026-07-28` (`a11b1550`, 05-27); the governance grew in the open around it — SEP process 2025-07-18 (`#987`),
+  maintainer nominations 2025-08-22 (`#1368`), WG charters current 10-13 (`#3376`) and 10-30 (`#3447`)
+Contains: the substrate `Sources/ocoreai/MCP/` speaks; every wire word we advertise in `tools[]` ages on this
+  tree's dated versions, so it joins § Upstream's third source (docs-for-intent) with a date to cite.
+Borrow: consumed as spec; the charter/WG machinery is an intake axis whose home is `adoption-runbook.md` —
+  nothing lands from this row today.
+
+- `terminal-bench` — the agent benchmark that declares itself *continuous* (`harbor-framework`; dataset
+  versioned on the Hub, README demands five oracle solves in the target sandbox before a task ships). Oct 2026:
+  ~40 verifiers converted in one day to typed RewardKit workers/native (10-22, `#2290`–`#2301`), integrity
+  checks preserved through the conversion (`#2471`), plain semver aliases published beside the release tags
+  (`#2538`, 11-03; audited 11-06)
+Contains: the engineering spend is on the verifier framework, not on tasks — verifier-as-versioned-unit.
+Borrow: confirmation, nothing taken — our verifier is a shell rc an answer cannot forge (§ Testing Quality; the
+  same confirmation SWE-bench's row already holds once). Typed verifiers are an axis only if the board's scope
+  grows, which is the owner's call.
+
+- `OSWorld` — the computer-use eval (1 668 commits since 2023-10): the 11-02/03 work is per-task honesty
+  audits landing from `*-reviewed` branches — `#682` verifies the guest's key-repeat policy before trusting
+  input, `#683` preserves an incomplete cleanup's retry, `#684` compares all folder messages — each fix a score
+  that previously could lie (audited 11-06)
+Contains: the field re-audits a published eval corpus as ongoing engineering, dated per fix.
+Borrow: nothing taken — our analogue is `scripts/probes/` running live (§ Testing Quality, one home); the row
+  exists because the registry answers for every clone on disk.
+
+- `BrowserGym` — the web-agent env (ServiceNow; single-maintainer cadence, 270 of 390 commits): its October
+  fixes are refusal-shaped — `full_reset` returns an explicit status "to prevent silent skips" (10-28, `#406`),
+  the `program_html` evaluator's race and empty-string handling (`#408`), plus a `webarena_verified_hard`
+  subset (`#416`) and the Knows Workspace benchmark (10-05; audited 11-06)
+Contains/Borrow: one more instance of "silently skipped ≠ passed"; the axis lives once in SWE-bench's row, so
+  nothing lands twice.
+
+- `Hybrid-Computer-Use` — Microsoft's `computer-use` MCP server (5 commits, 10-30..11-02): coding agents drive
+  Linux/macOS/Windows through the accessibility tree plus a visual `GUI` channel, and an action planned on a
+  desktop that has since changed is **rejected, not sent** — `gui_frame_stale` (`CHANGELOG.md:20`,
+  `README.md:42`); one channel's mutation invalidates the other channel's plan (`README.md:74`; audited 11-06)
+Contains: a second org converging on the Rapid-MLX `CFEqual`-bound-ref move (that row's part 7) — refusing
+  actions planned on stale observations, shipped as product, not as a gate.
+Borrow: an axis to § Open's multimodal row (`screenStatus` needs a delivered frame): the refusal is shippable
+  today; no task, the refusal's home is invariant 2.
+
+- `nanoGPT` — the 2022 minimal-GPT reference; its last commit (2025-11-12) is a README naming `nanochat` and
+  deprecation — a reference tree dying by pointer, not by silence (audited 11-06)
+Contains/Borrow: the axis is how a dated artefact ages; ours are the § Upstream pins and dates — named
+  pattern, not task.
+
+- `llm.c` — the C/CUDA pretraining reference, dormant since 2025-05-10 (`#801`; audited 11-06)
+Contains/Borrow: nothing to take; registered because the registry answers for every clone on disk, and every
+  dated claim about this tree ends at that date.
+
+- `nanochat` — "the simplest experimental harness for training LLMs": full-stack (tokenizer → pretrain →
+  finetune → eval → inference) tuned by one complexity dial, `--depth`; its last commits (2026-07-03) add
+  inference benchmarking and tests on the way out (audited 11-06)
+Contains/Borrow: the one-knob reference shape and the explicit supersession chain nanoGPT → nanochat; training
+  is out of stack — axis only.
+
+- `autoresearch` — karpathy's overnight research loop, 36 commits 2026-03-06..25 and dormant since: the agent
+  edits `train.py`, trains five minutes, keeps or discards on measured loss, and the human-editable surface is
+  `program.md` — "research-org code" (audited 11-06)
+Contains: the unscored cousin of `scripts/eval/`'s keep-or-discard loop — no paired-flip floor, no scoreboard.
+Borrow: pattern only; the floors that make keep-or-discard honest live once in `scripts/eval/README.md`.
 
 ## How to use this file
 

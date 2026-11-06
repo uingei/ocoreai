@@ -48,7 +48,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   is not safe to attempt blind. Owner call: the bump is a hand, not a gate.
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
   and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The seam landed upstream at
-  `991266ad3` (`observe(to:using:)` + `GenerationTransformer`);
+  `db2e7bf` (#714, 10-24: `observe(to:using:)` + `GenerationTransformer`; the `991266ad3` this row first
+  cited is that same day's #710, a prefill-buffer-cache commit — re-grepped 11-06 against the pin's history);
   what is left is owning what upstream's `ChatSession` loop owns. Owner call.
 - **Thinking is uncounted on the tools lane** (Engine/) — probe 44 §2: 550 chars, no
   `reasoning_tokens`. Upstream counts only via the processor that also bounds the thought, and a
