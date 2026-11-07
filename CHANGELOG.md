@@ -9,6 +9,40 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-07
 
+**11-07 the second half of the load wait stopped being described by negation — bytes read off the checkpoint now reach the wire**
+
+- **What improved.** `/v1/models` has published `loadProgress` since 11-01 for the *download* phase, but the
+  phase every warm start actually pays is after the bytes land: reading the checkpoint. Measured before the
+  fix, on the ready-directory route every boot takes: **6 808 ms**, during which 30 polls of `/v1/models`
+  answered only `{"downloading":false,"elapsedSeconds":N}` — an honest sentence about a phase nobody had
+  measured. The pin window that landed this morning carries upstream #551's `LoadProgressHandlers.weights`,
+  so the loader now books that handler on every route that knows the repo id and publishes the pair as
+  `weightsBytes`/`weightsBytesTotal` beside the download fields — on `/v1/models` and as `weights_bytes` /
+  `weights_bytes_total` in the 503 a waiting caller gets. Two decisions inside it: the store **drops
+  upstream's synthetic 1/1** (`finish()` emits `totalUnitCount == 1` when it never measured a total — that
+  would publish a denominator the loader did not read), and the pair is all-or-nothing, never one field
+  alone. The first live attempt after wiring went **invisible** — 30 polls, elapsedSeconds only — which is
+  how the real root cause surfaced: the ready-directory shortcut called `loadContainer` on a path that
+  installed no handler at all, so the booking moved into `loadContainer` keyed by `repoId` ('no download'
+  never meant 'no measurement'), and the second run published the axis.
+- **What same-session output proves it.** Live `serve` + poll loop against a non-resident checkpoint:
+  `weightsBytes` climbed 2 043 453 000 → 3 548 197 834 → 3 550 670 554 of `weightsBytesTotal`
+  3 550 670 554 — the total is the summed `*.safetensors` of the checkpoint on disk, byte-identical to the
+  figure the 11-01 diary recorded for the shipping default — and `loadProgress` is absent once the row is
+  ready. `ModelLoadProgressHonestyTests` **15 tests / 1 suite green** (4 new: the exact disclosure string
+  `0s elapsed, weights 1200000 of 4000000 B read`; the weights axis is not a download; the synthetic 1/1 is
+  dropped; the weights row closes with the load, not with the transfer). `scripts/probes/52-
+  load-progress-disclosure.sh` codifies the whole claim against one live server: **7 passed, 0 failed** —
+  30 loading samples of the boot's own prewarm, weights in 29, §3 re-stats the directory as the denominator
+  check, §4 the closed row.
+- **Which gate goes red.** Probe 52 §2 goes red the day a route stops installing the handler — it names
+  #551's nil-handler rule in the failure text — and its §1 hard-fails (with the remedy, not a quiet pass) on
+  any run that never sees a `loading` row, so a vacuous green needs the watch itself to break. The 4 unit
+  tests go red if the pair ever ships half, if the synthetic completion leaks to the store, or if a ready
+  row keeps publishing bytes. P11 already bit once inside this round (`open-items.md` still quoting the
+  suite at 11), which is the sample, not a hypothesis. Reader whose action changes: anyone deciding whether
+  the first-run wait is now pollable — it is, in bytes, for both phases.
+
 **11-07 the pin had moved in a tree nobody had built — the bump's own audit was the half that went missing**
 
 - **What improved.** The session opened on a working tree that already carried `b8d4935ab → 4ab267996` in

@@ -179,7 +179,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **The request that triggers a load waits out the whole load** (Engine/, Config/, UI/) — a waiter is
   released at 120 s with `AppError.modelLoading` while the *owning* request waits out the ~13 min fetch
   (diary 11-01(99), re-measured (101)). Closed since: the measurement crosses the wire (11-02(107) —
-  `loadProgress` on the one `loading` row, the same keys in the 503; `ModelLoadProgressHonestyTests`(11),
+  `loadProgress` on the one `loading` row, the same keys in the 503; `ModelLoadProgressHonestyTests`(15),
   `EnginePoolLoadingGateTests`(5)), and the GUI renders a wait with a route instead of "Generation failed"
   (11-03(12) — `ChatState.failureFace`, `ChatFailureFaceTests`(5)). Open: a pool-owned load task, so the
   caller that triggered a load gets the same bounded pollable answer as every other caller. Two owner calls

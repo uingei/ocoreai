@@ -465,6 +465,19 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     `dimensions` is refused rather than truncated: the spec supports the field only "on text-embedding-3
     and later models", and nothing measured here says this embedder's cosine survives cutting the
     post-layer-norm vector its 1.000183 norm was measured on.
+- `52-load-progress-disclosure.sh` — during a load, does `/v1/models` say what the loader read?
+    `/v1/models` has published `loadProgress` since 11-01 on a measured *download* wait, but the phase
+    every warm start actually pays — mapping the checkpoint's bytes off disk — said only
+    `downloading:false` until 11-07 put mlx-swift-lm #551's weights handler on the route that owns the
+    id. Green 11-07: **7 passed, 0 failed** on one live server — §1 the watch starts the moment
+    `/health` answers and caught the boot's own prewarm in 30 loading samples (premise and observation
+    in one loop: the split first draft lost the load between its premise polls and failed with no
+    subject); §2 the weights axis arrived in 29 of 30 samples, every one a pair with bytes ≤
+    denominator (upstream's synthetic 1/1 for an unmeasured total is dropped at the store); §3 the
+    denominator 3 550 670 554 B equals the summed `*.safetensors` of the checkpoint — a file fact, not
+    an estimate; §4 the row is gone once the id is ready. Two traps this probe ate: a `str.join` over
+    raw JSON bools raised behind `2>/dev/null` and read as "no row" for the whole load, and the loop
+    must follow whichever row is `loading`, not the first row listed.
 - `_lib.sh` — shared harness
 Fails when: —
 

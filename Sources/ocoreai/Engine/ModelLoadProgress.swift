@@ -21,8 +21,9 @@
 /// the engine delivered* is the whole reason this type exists.
 ///
 /// ### One home
-/// Downloaded bytes live in ``OcoreaiDownloadProgress`` and nowhere else; this type reads it and
-/// adds only what only ``EnginePool`` can know — when the load started (§ `elapsedSeconds`).
+/// Downloaded bytes and weights-read bytes live in ``OcoreaiDownloadProgress`` (two axes, one row
+/// per id) and nowhere else; this type reads it and adds only what only ``EnginePool`` can know —
+/// when the load started (§ `elapsedSeconds`).
 
 import Foundation
 
@@ -48,6 +49,13 @@ struct ModelLoadProgress: Sendable, Codable {
     /// `(bytesTotal − bytesDownload) / bytesPerSecond`, rounded up — extrapolated from the two
     /// measured numbers above and named as an estimate. Absent when either is unknown.
     var secondsRemainingEstimate: Int?
+    /// Bytes of checkpoint weights the loader has read, present once the loader reports. This is
+    /// the phase `downloading: false` used to describe only by negation: the bytes are on disk, and
+    /// upstream now measures how much of them has been mapped, so the wait says that instead.
+    var weightsBytes: Int64?
+    /// Denominator measured from the checkpoint's own `*.safetensors` files. Absent when the
+    /// loader could not measure it — and a sample with no denominator never reaches this type.
+    var weightsBytesTotal: Int64?
 
     /// One sentence naming exactly what has been measured, so no surface can word the wait
     /// differently from any other (the pattern ``VideoDeliveryRecord/evidenceLine`` sets).
@@ -64,7 +72,14 @@ struct ModelLoadProgress: Sendable, Codable {
                 parts.append("\(rate) B/s")
             }
         } else if !downloading {
-            parts.append("weights on disk, no transfer in flight")
+            // Measured beats negation: say what has been read, and keep the old sentence only for
+            // the load whose loader reported nothing. No weights ETA — mapping is not linear, so
+            // the two numbers that earn one do not exist here.
+            if let read = weightsBytes, let of = weightsBytesTotal {
+                parts.append("weights \(read) of \(of) B read")
+            } else {
+                parts.append("weights on disk, no transfer in flight")
+            }
         }
         if let remaining = secondsRemainingEstimate {
             parts.append("~\(remaining)s remaining")
@@ -89,6 +104,8 @@ struct ModelLoadProgress: Sendable, Codable {
         if let remaining = secondsRemainingEstimate {
             out["seconds_remaining_estimate"] = remaining
         }
+        if let read = weightsBytes { out["weights_bytes"] = read }
+        if let of = weightsBytesTotal { out["weights_bytes_total"] = of }
         return out
     }
 
@@ -105,6 +122,7 @@ struct ModelLoadProgress: Sendable, Codable {
         // reader normalizes the same way or it finds nothing and reports silence as absence.
         let key = ModelStore.normalizeModelId(modelId)
         let state = store.progress(for: key)
+        let weights = store.weightsProgress(for: key)
         let elapsed = Int(enteredAt.duration(to: .now).components.seconds)
 
         var out = ModelLoadProgress(
@@ -113,7 +131,9 @@ struct ModelLoadProgress: Sendable, Codable {
             bytesDownload: state.map { $0.completedBytes },
             bytesTotal: (state?.totalBytes ?? 0) > 0 ? state.map(\.totalBytes) : nil,
             bytesPerSecond: nil,
-            secondsRemainingEstimate: nil
+            secondsRemainingEstimate: nil,
+            weightsBytes: weights?.completedBytes,
+            weightsBytesTotal: weights?.totalBytes
         )
         if let throughput = state?.throughputBytesPerSec, throughput > 0 {
             let rate = Int(throughput)

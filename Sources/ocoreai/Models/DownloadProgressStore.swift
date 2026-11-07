@@ -61,6 +61,19 @@ struct OcoreaiDownloadProgressState: Sendable, Equatable {
     )
 }
 
+/// Weights-read progress for one id — the phase after the bytes are on disk.
+///
+/// Kept apart from ``OcoreaiDownloadProgressState`` on purpose: `active` there answers "is a hub
+/// transfer in flight", and a local-directory load reads the same weights with no transfer at all.
+/// Merging the two axes would make a disk read publish `downloading: true`.
+struct OcoreaiWeightsProgressState: Sendable, Equatable {
+    /// Bytes of checkpoint weights the loader has actually read.
+    var completedBytes: Int64
+    /// Denominator measured from the checkpoint's own `*.safetensors` files. Never estimated, so
+    /// always non-zero here: a total that could not be measured is recorded as no row at all.
+    var totalBytes: Int64
+}
+
 /// Thread-safe, synchronous download-progress snapshot store.
 ///
 /// NOT `@MainActor`: safe to call from any thread (downloader callbacks,
@@ -78,6 +91,10 @@ final class OcoreaiDownloadProgress: @unchecked Sendable {
 
     /// Rolling throughput samples per model (mirrors upstream MLXDownloadProgress).
     private var _samples: [String: [(time: Date, bytes: Int64)]] = [:]
+
+    /// Weights-read axis, keyed like ``_progress``. Opened by the first honest sample and closed
+    /// by the load slot that owns the load (``finishWeights(modelId:)``), never by a waiter.
+    private var _weights: [String: OcoreaiWeightsProgressState] = [:]
 
     /// Throughput rolling window width. Short enough that stalls show within
     /// seconds; long enough to smooth out HF chunk arrival jitter.
@@ -197,6 +214,38 @@ final class OcoreaiDownloadProgress: @unchecked Sendable {
         _progress[modelId] = next
     }
 
+    // MARK: - Weights-read axis
+
+    /// Record weights-read progress from upstream's `LoadProgressHandlers.weights`.
+    ///
+    /// The denominator is measured off the checkpoint's own `*.safetensors` files
+    /// (`ModelLoadProgressReporter`), so this is bytes the loader read, not an estimate. The one
+    /// sample that must be dropped is a reporter with NO measured total: upstream then publishes a
+    /// synthetic 1/1 completion, and "1 B" is not a byte count the engine ever read.
+    func updateWeights(_ progress: Foundation.Progress, for modelId: String) {
+        let total = progress.totalUnitCount
+        guard total > 0 else { return }
+        let done = min(progress.completedUnitCount, total)
+        lock.lock()
+        defer { lock.unlock() }
+        _weights[modelId] = OcoreaiWeightsProgressState(completedBytes: done, totalBytes: total)
+    }
+
+    /// The weights axis for this id, or nil while nothing honest has been reported.
+    func weightsProgress(for modelId: String) -> OcoreaiWeightsProgressState? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _weights[modelId]
+    }
+
+    /// Close the weights row when the load that opened it ends — the load slot, never a waiter
+    /// (same rule as the transfer row's Usage 3).
+    func finishWeights(modelId: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        _weights.removeValue(forKey: modelId)
+    }
+
     /// Whether the store tracks any live transfer — the ticker's only idle question, answered
     /// without copying a dictionary out from under the lock.
     func hasActiveDownloads() -> Bool {
@@ -224,11 +273,15 @@ final class OcoreaiDownloadProgress: @unchecked Sendable {
     }
 
     /// Clear all state (e.g. when sheet dismisses).
+    ///
+    /// `finish(modelId:)` deliberately does NOT touch `_weights`: the transfer row closes when the
+    /// last byte lands, and the weights read is the phase that starts after that.
     func clear() {
         lock.lock()
         defer { lock.unlock() }
         _progress.removeAll()
         _samples.removeAll()
+        _weights.removeAll()
     }
 
     /// Get current progress for a model, or nil if not tracking one.

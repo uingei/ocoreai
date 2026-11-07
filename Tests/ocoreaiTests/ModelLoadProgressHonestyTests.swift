@@ -166,6 +166,77 @@ struct ModelLoadProgressHonestyTests {
 
     // MARK: - The two wire shapes
 
+    // MARK: - The weights axis (upstream #551)
+
+    /// A store whose only measurement is weights read, the state a local-directory load is in:
+    /// bytes already on disk, no hub row at all.
+    private func store(
+        withWeights id: String, done: Int64, total: Int64
+    ) -> OcoreaiDownloadProgress {
+        let store = OcoreaiDownloadProgress(forTesting: ())
+        let sample = Progress.discreteProgress(totalUnitCount: total)
+        sample.completedUnitCount = done
+        store.updateWeights(sample, for: id)
+        return store
+    }
+
+    @Test("weights bytes reach the line and the 503, spelled as what they are")
+    func weightsReachEverySurface() async throws {
+        let measured = ModelLoadProgress.measure(
+            modelId: "mscope:org/x", enteredAt: .now,
+            store: store(withWeights: "org/x", done: 1_200_000, total: 4_000_000))
+        #expect(measured.weightsBytes == 1_200_000)
+        #expect(measured.weightsBytesTotal == 4_000_000)
+        // Measured beats negation: the stretch is named by what has been read, not by what is
+        // absent.
+        #expect(
+            measured.disclosureLine
+                == "0s elapsed, weights 1200000 of 4000000 B read",
+            "wording drifted: \(measured.disclosureLine)")
+        #expect(measured.refusalDetailKeys["weights_bytes"] as? Int64 == 1_200_000)
+        #expect(measured.refusalDetailKeys["weights_bytes_total"] as? Int64 == 4_000_000)
+    }
+
+    @Test("reading weights is not a transfer in flight, and borrows no download numbers")
+    func weightsAxisIsNotADownload() async throws {
+        let measured = ModelLoadProgress.measure(
+            modelId: "org/x", enteredAt: .now,
+            store: store(withWeights: "org/x", done: 1_200_000, total: 4_000_000))
+        #expect(measured.downloading == false)
+        #expect(measured.bytesDownload == nil, "a disk read must not publish download bytes")
+        #expect(measured.bytesTotal == nil)
+    }
+
+    @Test("a reporter with no measured denominator books no byte count at all")
+    func syntheticCompletionIsDropped() async throws {
+        // Upstream's `ModelLoadProgressReporter.finish()` publishes a synthetic 1/1 when it never
+        // measured a total. Copying that sample would publish `weights_bytes: 1` — a byte count the
+        // loader never read — so the store drops it and the wait keeps the honest old sentence.
+        let store = OcoreaiDownloadProgress(forTesting: ())
+        let synthetic = Progress.discreteProgress(totalUnitCount: 0)
+        synthetic.completedUnitCount = 1
+        store.updateWeights(synthetic, for: "org/x")
+        let measured = ModelLoadProgress.measure(
+            modelId: "org/x", enteredAt: .now, store: store)
+        #expect(measured.weightsBytes == nil)
+        #expect(measured.weightsBytesTotal == nil)
+        #expect(
+            measured.disclosureLine == "0s elapsed, weights on disk, no transfer in flight",
+            "a dropped sample must not change the wording either: \(measured.disclosureLine)")
+    }
+
+    @Test("the weights row closes with the load, so a finished load is not at 30 %")
+    func weightsRowClosesWithTheLoad() async throws {
+        let closing = store(withWeights: "org/x", done: 1_200_000, total: 4_000_000)
+        closing.finishWeights(modelId: "org/x")
+        let measured = ModelLoadProgress.measure(modelId: "org/x", enteredAt: .now, store: closing)
+        #expect(measured.weightsBytes == nil)
+        // A waiter must still see the wait, so the transfer row's own close is untouched by this.
+        let open = store(withWeights: "org/x", done: 1, total: 2)
+        open.finish(modelId: "org/x", success: true)
+        #expect(open.weightsProgress(for: "org/x")?.completedBytes == 1)
+    }
+
     @Test("the 503 envelope carries exactly the keys this measurement backs")
     func refusalCarriesOnlyBackedKeys() async throws {
         let full = ModelLoadProgress.measure(
@@ -177,8 +248,14 @@ struct ModelLoadProgressHonestyTests {
             fullKeys.isSubset(of: [
                 "downloading", "elapsed_seconds", "bytes_download", "bytes_total",
                 "bytes_per_second", "seconds_remaining_estimate",
+                "weights_bytes", "weights_bytes_total",
             ]),
             "a key left this type without a number behind it: \(fullKeys)")
+        // The weights pair arrives together or not at all: a reader that sees bytes read with no
+        // denominator cannot tell 30 % from 90 %.
+        if full.weightsBytes != nil {
+            #expect(full.weightsBytesTotal != nil, "bytes read published without a denominator")
+        }
         #expect(fullKeys.contains("downloading") && fullKeys.contains("elapsed_seconds"))
         if full.secondsRemainingEstimate != nil {
             #expect(fullKeys.contains("seconds_remaining_estimate"))

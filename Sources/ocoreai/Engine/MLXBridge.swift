@@ -214,23 +214,47 @@ actor MLXModelLoader {
         ModelStore.hasVisionProcessor(at: directory)
     }
 
+    /// The measured weights-read handler, booking into the store the wait face and `/v1/models`
+    /// already read. Installed whenever the loader can name the id — upstream creates no reporter
+    /// at all when the handler is nil, so a route that leaves it out is not "less chatty", it is
+    /// unmeasured. The store drops a sample whose denominator was never measured, so no synthetic
+    /// completion can publish a byte count the loader did not read.
+    private static func storeWeights(for repoId: String) -> @Sendable (Foundation.Progress) -> Void
+    {
+        let key = ModelStore.normalizeModelId(repoId)
+        return { progress in
+            OcoreaiDownloadProgress.shared.updateWeights(progress, for: key)
+        }
+    }
+
     /// Load container auto-detecting VLM vs LLM from directory.
+    ///
+    /// `repoId` is what makes the read measurable: pass it and the byte count reaches
+    /// ``ModelLoadProgress``; omit it and upstream reads the weights with nothing installed, which
+    /// is how every ready-directory load was booked until 11-07 (the route is 6.8 s of mapping on
+    /// the shipping default, and the wait said only "elapsed").
     @inline(never)
     func loadContainer(
         from directory: URL,
         repoId: String? = nil
     ) async throws -> MLXLMCommon.ModelContainer {
+        var progress = LoadProgressHandlers()
+        if let repoId {
+            progress.weights = Self.storeWeights(for: repoId)
+        }
         if MLXModelLoader.isVLMModel(at: directory) {
             logger.info("VLM model detected — using VLMModelFactory")
             return try await MLXVLM.VLMModelFactory.shared.loadContainer(
                 from: directory,
                 using: #huggingFaceTokenizerLoader(),
+                progress: progress
             )
         }
         // LLM path
         return try await LLMModelFactory.shared.loadContainer(
             from: directory,
             using: #huggingFaceTokenizerLoader(),
+            progress: progress
         )
     }
 
@@ -401,11 +425,13 @@ actor MLXModelLoader {
         }
 
         // Ready-model shortcut — 就绪模型目录(M7):weights already on disk under the
-        // ready root (or a legacy location) load directly from disk, no download,
-        // no progress UI. M7: omlx 对齐——就绪模型 = 目录里能直接 load。
+        // ready root (or a legacy location) load directly from disk, no download. M7:
+        // omlx 对齐——就绪模型 = 目录里能直接 load. "no download" never meant "no
+        // measurement": this is the route the shipping default takes on every warm start,
+        // so it books the weights axis like every other one.
         if let readyDir = Self.readyWeightsDir(for: modelId) {
             logger.info("Loading ready model \(modelId) from \(readyDir.path)")
-            let container = try await loadContainer(from: readyDir)
+            let container = try await loadContainer(from: readyDir, repoId: modelId)
             logElapsed("MLX model \(modelId) loaded (ready dir)", start)
             return MLXModelHandleImpl(modelContainer: container, modelId: modelId)
         }
@@ -475,7 +501,7 @@ actor MLXModelLoader {
         logger.info("Using local path for \(modelId): \(path.rawValue)")
         let directory = URL(fileURLWithPath: path.rawValue)
         do {
-            return try await loadContainer(from: directory)
+            return try await loadContainer(from: directory, repoId: modelId)
         } catch {
             logger.error("Local load failed for \(modelId): \(error.localizedDescription)")
             throw MLXLoadError.localLoadFailed(
@@ -499,6 +525,11 @@ actor MLXModelLoader {
 
     enum HubProvider { case modelScope, huggingFace }
 
+    /// Fetch and load from a hub.
+    ///
+    /// `progressHandler` stays the download axis (our poller/downloader owns it); the weights axis
+    /// is booked by ``storeWeights(for:)`` off `repoId` on every route, so a stranger's very first
+    /// cold load reports its own second half instead of leaving it to `elapsedSeconds`.
     @inline(never)
     func loadFromHub(
         _ provider: MLXModelLoader.HubProvider, repoId: String, modelId: String,
@@ -573,12 +604,17 @@ actor MLXModelLoader {
             )
             let readyDownloader = ReadyHubDownloader(
                 hub: ModelStore.readyHubClient(), flatRoot: ModelStore.root)
+            // The download axis on this route is the poller above, so only the weights axis is
+            // handed to the factory — two owners of one axis would book the same wait twice.
+            var hubProgress = LoadProgressHandlers()
+            hubProgress.weights = Self.storeWeights(for: repoId)
 
             do {
                 let container = try await LLMModelFactory.shared.loadContainer(
                     from: readyDownloader,
                     using: #huggingFaceTokenizerLoader(),
                     configuration: ModelConfiguration(id: repoId),
+                    progress: hubProgress
                 )
                 pollTask.cancel()
                 OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
@@ -592,6 +628,7 @@ actor MLXModelLoader {
                         from: readyDownloader,
                         using: #huggingFaceTokenizerLoader(),
                         configuration: ModelConfiguration(id: repoId),
+                        progress: hubProgress
                     )
                     pollTask.cancel()
                     OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)

@@ -787,6 +787,9 @@ actor EnginePool {
     private func endLoad(_ modelId: String) {
         loadingModels.remove(modelId)
         loadClocks.removeValue(forKey: modelId)
+        // The weights row closes with the load it belongs to, under the key the reporter opened it
+        // with — otherwise a later read shows a finished load still at 40 % of its weights.
+        OcoreaiDownloadProgress.shared.finishWeights(modelId: ModelStore.normalizeModelId(modelId))
     }
 
     /// What the loads this process owns have measured so far, keyed by BOTH the engine's own id
@@ -1092,7 +1095,7 @@ actor EnginePool {
                         weak self, logger, providerName = hubProviderStr, rId = repoId,
                         mId = modelId, localDir
                     ]
-                    cfg, progressHandler in
+                    cfg, progress in
                     guard let self else {
                         throw AppError.engineUnavailable
                     }
@@ -1102,14 +1105,15 @@ actor EnginePool {
                     // local Qwen3.5-4B dir). Disk first, hub never.
                     if let localDir {
                         logger.info("FM route: local weights dir \(localDir.path) — disk load")
-                        return try await self.mlxModelLoader.loadContainer(from: localDir)
+                        return try await self.mlxModelLoader.loadContainer(
+                            from: localDir, repoId: mId)
                     }
                     let actualProvider: MLXModelLoader.HubProvider =
                         providerName == "huggingface" ? .huggingFace : .modelScope
                     do {
                         let container = try await self.mlxModelLoader.loadFromHub(
                             actualProvider, repoId: rId, modelId: mId,
-                            progressHandler: progressHandler)
+                            progressHandler: progress.download)
                         return container
                     } catch {
                         logger.warning(
@@ -1118,7 +1122,8 @@ actor EnginePool {
                         let fb: MLXModelLoader.HubProvider =
                             actualProvider == .modelScope ? .huggingFace : .modelScope
                         let container = try await self.mlxModelLoader.loadFromHub(
-                            fb, repoId: rId, modelId: mId, progressHandler: progressHandler)
+                            fb, repoId: rId, modelId: mId,
+                            progressHandler: progress.download)
                         return container
                     }
                 }
