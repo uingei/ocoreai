@@ -9,6 +9,22 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-07
 
+**11-07 the release note was a constant wearing a version number — the delta half is now rendered off the CHANGELOG headings, upstream's own pattern**
+
+- **What improved.** v0.1.16's 618-char note is honest but fixed: the heredoc in the publish step
+  re-ships identical text at every tag, only SHA/size vary, so a reader learned nothing about the
+  version. Measured today against the field: their cadence (newest ≤12 d across 9 sampled trees) is
+  payable because notes are compiled — OpenHands' own header prints "generated using", vllm's quotes
+  commit counts. `scripts/release-notes.sh` renders the heading lines added to CHANGELOG.md since the
+  previous tag — our headings are already three-question one-liners, so this is a rendering, not a
+  second home (the `/openapi.json`-off-the-index pattern); the publish step now inserts it between the
+  identity text and the SHA line.
+- **What same-session output proves it.** Ran at the tree: `v0.1.15..HEAD` printed 20 dated heading
+  bullets, exit 0 (first: the B2 row; last: the `/v1/embeddings` row); a range with no new headings
+  exits 0 silently, and the step's `set -euo pipefail` makes a broken renderer block the publish.
+- **Which gate goes red.** The publish step itself: a non-zero renderer fails it before `gh release
+  create`; the read-back parity step behind it is unchanged.
+
 **11-07 B2 disowned the byte-precision copy — the comparator row quotes the percent a reader acts on, and the same-session tamper shows the gate still bites**
 
 - **What improved.** B2 was enforcing a *copy*: the context-economy row in `comparator-consensus.md`

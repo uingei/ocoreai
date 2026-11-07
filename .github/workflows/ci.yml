@@ -534,7 +534,12 @@ jobs:
           SIZE=$(stat -f%z "dist/ocoreai-${VER}.dmg")
           # The note is the first thing a stranger reads about a build of this project, so it is
           # English-first (the repo's own rule: one Chinese file, README.zh.md) and states only what
-          # the artefact is — ad-hoc signed, not notarised, models fetched inside the app.
+          # the artefact is — ad-hoc signed, not notarised, models fetched inside the app. The delta
+          # half was missing: the identity text is a constant, so every tag re-shipped the same note
+          # and a reader learned nothing about the version. It is now rendered off the CHANGELOG
+          # headings (upstream's pattern: OpenHands' notes are machine-compiled, vllm's quote commit
+          # counts — a cadence is only payable when nobody writes per-version prose).
+          DELTA="$(bash scripts/release-notes.sh)"
           NOTE="ocoreai v${VER} — an agent for open models, natively local on Apple silicon.
 
           One binary, offline, no API key: screen, camera, speech and the coding loop behind one
@@ -545,6 +550,8 @@ jobs:
 
           Signed ad-hoc, not notarised: if Gatekeeper refuses the first launch, right-click
           ocoreai in Applications and choose Open (once).
+
+          ${DELTA}
 
           SHA-256: ${SHA}
           Size: ${SIZE} bytes — verify: shasum -a 256 ocoreai-${VER}.dmg"
