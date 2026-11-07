@@ -125,14 +125,17 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    each measured on a runner: the delivery route resolved a Metal compiler through `xcrun` and never put it on
    PATH (fixed in the resolver that owns the route), and the runner's CLT is `swift=6.3.3` where compiling
    `.metal` is a SwiftPM 6.4 capability — a green build, no shader payload, and not one sentence said about
-   it — so the payload comes from a producer this repo runs rather than from a hope. Rung 1 now waits on one
-   act: the owner's hand on a tag. The half this sentence called unexecuted executed: publish + read-back
-   have **one** green pass — `v0.1.14`, 10-29, ten steps, read-back sha-parity (diary 10-29(50), asset
-   digest `229604e0…`) — and the owner withdrew that pair. `v0.1.15`'s tag push (run `42065758740`) then
-   reached `Release DMG` with every build leg green and died at step `Build DMG` on a bare exit 1 — the
-   diagnosis-and-producer epoch this row's own paragraphs pay — never reaching publish. What has never
-   existed is a *surviving* release; that, not an untried ceremony, is what the hand buys. A tag is a hand,
-   not a task.
+   it — so the payload comes from a producer this repo runs rather than from a hope. Rung 1 waited on one
+   act, and the act landed: the owner authorised, `v0.1.16`'s tag pushed (at `bf074506`, 11-07) and the
+   ten-step job went **green end to end** — read-back sha-parity inside the job, asset 28 970 635 B,
+   downloaded inside the hour of publishing. The earlier halves stay as record: publish + read-back first
+   ran green on `v0.1.14` (10-29, ten steps, read-back sha-parity, diary 10-29(50), asset digest
+   `229604e0…`) and the owner withdrew that pair; `v0.1.15`'s tag push (run `42065758740`) then reached
+   `Release DMG` with every build leg green and died at step `Build DMG` on a bare exit 1 — the
+   diagnosis-and-producer epoch this row's own paragraphs pay — never reaching publish. What had never
+   existed until 11-07 is a *surviving* release; it exists, and the open state moved from one act to a
+   cadence (home: the Adoption row). A tag is a hand, not a task — and a hand once spent buys one
+   release, not a line of releases.
 2. **Sixty seconds to first token.** Honest today: `swift build -c release` (minutes) or an ad-hoc-signed
    DMG plus the Gatekeeper right-click. Rung = notarised artefact + Homebrew cask; the metric to floor is
    *clean machine → first completion*, one command, timed. First measured point: 22.1 s from a built DMG to
