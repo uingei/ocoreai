@@ -124,8 +124,13 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    PATH (fixed in the resolver that owns the route), and the runner's CLT is `swift=6.3.3` where compiling
    `.metal` is a SwiftPM 6.4 capability — a green build, no shader payload, and not one sentence said about
    it — so the payload comes from a producer this repo runs rather than from a hope. Rung 1 now waits on one
-   act: the owner's hand on a tag. `release`'s publish + read-back has never run, and a tag is a hand, not a
-   task.
+   act: the owner's hand on a tag. The half this sentence called unexecuted executed: publish + read-back
+   have **one** green pass — `v0.1.14`, 10-29, ten steps, read-back sha-parity (diary 10-29(50), asset
+   digest `229604e0…`) — and the owner withdrew that pair. `v0.1.15`'s tag push (run `42065758740`) then
+   reached `Release DMG` with every build leg green and died at step `Build DMG` on a bare exit 1 — the
+   diagnosis-and-producer epoch this row's own paragraphs pay — never reaching publish. What has never
+   existed is a *surviving* release; that, not an untried ceremony, is what the hand buys. A tag is a hand,
+   not a task.
 2. **Sixty seconds to first token.** Honest today: `swift build -c release` (minutes) or an ad-hoc-signed
    DMG plus the Gatekeeper right-click. Rung = notarised artefact + Homebrew cask; the metric to floor is
    *clean machine → first completion*, one command, timed. First measured point: 22.1 s from a built DMG to

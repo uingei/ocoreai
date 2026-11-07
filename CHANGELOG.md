@@ -9,6 +9,33 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-07
 
+**11-07 the rung disowned a publish pass its own line 99 records — the runner's API settles it, and what never existed is a surviving release**
+
+- **What improved.** Two sentences priced the owner's next hand on a false premise: `AGENTS.md` § Open said
+  "only the publish half has never run" and Rung 1's tail said "publish + read-back has never run" — while
+  Rung 1 itself, 28 lines above, records the job publishing `v0.1.14`. The runner's records, not a side
+  pick, decide: today `api.github.com` reads **0 releases, 1 remote tag (`v0.1.15`)**; run `42065758740`
+  (tag `v0.1.15` @`6e64f923`, 11-05 23:30) lists every build leg **green**, `Release DMG` **run and failed**,
+  its verdict step `Build DMG`, its only failure annotation the bare "Process completed with exit code 1"
+  (plus the `/tmp/ocoreai-window.png` missing-artefact warning — the GUI leg never got a DMG); publish was
+  never reached on that tag. And `v0.1.14` (10-29) ran all ten steps **green including publish + read-back
+  with asset sha-parity** — this file's own 10-29(50). So the true state is narrower and less frightening
+  than the sentence: the publish half has exactly one green pass, the owner withdrew that pair, and what has
+  never existed is a **surviving** release. Both sentences corrected at their evidence, root row kept
+  address-only; the mis-sentence read as "a never-tried ceremony" what is in fact "a one-pass ceremony plus
+  the probe that stands before it".
+- **What same-session output proves it.** Four re-runnable reads: `/repos/uingei/ocoreai/releases` → `[]`
+  and `/tags` → `v0.1.15` only; `/actions/runs?head_sha=6e64f923…` → run `42065758740`; that run's jobs list
+  → `Release DMG → failure`, step `Build DMG`; `/check-runs/127401051231/annotations` → the bare exit 1.
+  Plus the published note of 10-29(50), asset digest `229604e0…e1f454`.
+- **Which gate goes red.** `claim:releases_published=0` re-runs the API inside every `make docs-check` — the
+  first *surviving* release reds it, as a to-do, which is the point of the row; `make docs-check` holds the
+  byte budgets of both corrected files. Reader whose action changes: the owner deciding the hand, who was
+  being shown a riskier first day than the lane actually carries.
+- **Not claimed.** That `Build DMG`'s exit 1 was the shader-payload gap — the log needs a token, and the
+  timing (`90956d46`+`3d0631f9` landed 11-06, after the tag) makes the attribution inference, not verdict.
+  What is verdict: the step that died, the steps that did not run, and the sentence that was false.
+
 **11-07 the second half of the load wait stopped being described by negation — bytes read off the checkpoint now reach the wire**
 
 - **What improved.** `/v1/models` has published `loadProgress` since 11-01 for the *download* phase, but the
