@@ -18,7 +18,11 @@ heading are when the work landed (measured from git).
   fact "our bet, not a field expectation". Table and prose were telling two stories about one number; the
   rule resolves it toward the prose. Same round, same instinct: `long-horizon-goal.md`'s harness row kept the
   pre-correction hand-typed denominator ("five of the seven") — now five-of-twelve against the ledger's
-  corrected serve segment, with the count's one home left in the ledger.
+  corrected serve segment, with the count's one home left in the ledger. And the same re-run caught the
+  ledger's own premise sentence rotting exactly as the file's § corpus lesson predicts: it scores every
+  directory on disk, so today's run prints 39 mirrors, not the 29 the header claimed, and derived segments
+  self-grow (`cancellation` already 23/34 against the cell's 22/24). The premise now states both numbers
+  and why the field cells are dated; re-measuring the whole table is recorded as a session, not a sentence.
 - **What proves it.** The named second tree is now verified from `git ls-files` on the mirror rather than
   repeated from prose; the count's other members were already disclosed in § The harness side (five
   product-traced, two thin hits refused by the stricter count, four unread).

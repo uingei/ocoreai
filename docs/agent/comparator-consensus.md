@@ -4,9 +4,12 @@ Long form behind § *Upstream Audit Dependencies* 5. `comparator-repos.md` answe
 file answers the other question — **does the field agree on Y** — and that question has a denominator, which is why
 it needs its own instrument instead of twenty readings of twenty READMEs.
 
-> **Re-derive:** `bash scripts/comparator-consensus.sh [parent-dir]` — 29 mirrors: the 28 in `~/references` plus
-> us, scored by the same patterns. Premise, stated because it decides every number below: **this box's mirrors at
-> their 11-04 HEADs**. A runner has no `~/references`, so none of this is a gate — a cross-tree count is a
+> **Re-derive:** `bash scripts/comparator-consensus.sh [parent-dir]` — scores every directory on disk plus us:
+> **39 mirrors today, 29 at the 11-04 pass that produced the table below** (the segment lists derive from the
+> disk, so they self-grow; prose does not — the file's own § corpus lesson, caught re-rotting 11-08). A fresh
+> run already moved derived denominators (`cancellation` prints 23/34 against the cell's 22/24); the field cells
+> are dated because they must be, and re-measuring the whole table is a session, not a sentence. Premise, stated
+> because it decides every number below: **this box's mirrors at their 11-04 HEADs**. A runner has no `~/references`, so none of this is a gate — a cross-tree count is a
 > direction input, and a printed count carries no verdict (§ *Working here*). The script floors one thing about
 > itself: an axis no tree matches prints `INSTRUMENT-DEAD`, because that has already happened here (§ The ledger),
 > and `OC_EVIDENCE=1` prints one matched `file:line` per tree, because three counts here turned out to be counting
