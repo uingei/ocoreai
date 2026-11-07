@@ -48,12 +48,14 @@ two model READMEs, the two pins and the SWE-bench harness, plus us). Segments ar
 data, so a denominator can be argued with — and one of them *has* to be: `serve` had been hand-typed at 7
 while five serving trees sat unlisted, so every serve row below was a field divided by a subset of itself
 (the five, each with its route line, and the two adjudicated non-members: `comparator-innovation.md` § What
-this costs). Re-measured 11-04 against 29 mirrors.
+this costs). Re-measured 11-04 against 29 mirrors. The *ours*-column moves with the tree: three cells
+re-measured 11-07/08 (the two install rows — `scripts/install.sh` went live — and the release row —
+2 tags, 1 surviving release `v0.1.16`); the field-columns still stand at the 11-04 pass.
 
 | Practice | Segment | Trees | Ours |
 |---|---|---|---|
-| Advertises an install route a stranger can reach | shippable | 21/24 | yes — a DMG, once (`README.md:23`) |
-| …of which: a command a stranger can *type* | shippable | **16/24** | **no** (§ Direction, item 2) |
+| Advertises an install route a stranger can reach | shippable | 21/24 | yes — DMG (surviving, `v0.1.16`) + terminal path (`README.md:23`) |
+| …of which: a command a stranger can *type* | shippable | **16/24** | yes — `curl … install.sh \| sh` (11-07, `scripts/install.sh`) |
 | …of which: a store shelf | shippable | 2/24 (`cline`, `mlx-serve`) | no — and neither does the field |
 | Reads a project rules file in its own code | agent | 14/14 | yes (`WorkspaceContext.swift:34`) |
 | Cancellation path in code | shippable | 22/24 | yes (35 files) |
@@ -69,7 +71,7 @@ this costs). Re-measured 11-04 against 29 mirrors.
 | Screen capture / computer use in code | agent | 12/14 | yes (17) |
 | Deferred / filtered tool surface | agent | 12/14 | **no** (§ The ledger: our 2 hits are noise) |
 | `SKILL.md` files published | agent | 11/14, median **14** | **1** (`skills/ocoreai/`) |
-| Release tags | shippable | 23/24, median **245** | **1** (v0.1.14) |
+| Release tags | shippable | 23/24, median **245** | **2** tags, 1 surviving release (`v0.1.16`, 11-07) |
 | **Wires a third-party coding agent to itself** | serve | **11/12** | **no — we are the twelfth** (§ The harness side) |
 | **Speaks ACP (the editor↔agent protocol)** | agent | **8/14, and 8/8 editing now** | **no** (§ Direction 8) |
 | **OS confinement profile for the child process** | agent | 6/14, honest read 5 | **no** (§ Where the field confines) |
@@ -313,10 +315,11 @@ yet a task.
    comparators ship monthly; against the tree building our own sentence we match on commits and lose 29·22 to 1·0
    on tags. Rung zero already says this; `scripts/audit-facts.sh` prints the field's release counts and
    `comparator-consensus.sh` now prints tags next to commits so the pair is visible at once.
-2. **A typed install route is the field's majority (16/24) and we have none** — no brew formula, no `curl | sh`,
-   no npm. omlx's quartet (DMG, auto-update, `~/.omlx/bin` shim, self-serve tap whose optional-kernel flag
-   *degrades instead of failing*) remains the concrete shape; it is one `Formula/` file plus a publish leg CI
-   already rehearses.
+2. **A typed install route is the field's majority (16/24) — half-shipped 11-07**: `curl | sh`
+   went live (`scripts/install.sh`, end-to-end tested against the live v0.1.16 asset); still no
+   brew formula, no npm. omlx's quartet (DMG, auto-update, `~/.omlx/bin` shim, self-serve tap whose optional-kernel flag
+   *degrades instead of failing*) remains the concrete shape; the tap is one `Formula/` file plus a
+   publish leg CI already rehearses — the owner's hand, not engineering.
 3. **Ship the harness side** (§ The harness side): **11 of 12 serving trees do it and we are the twelfth**; one owns the merge-safety
    problem in writing, and it is the rung root § Adoption says to spend on. Cheapest honest slice: the
    `launch <agent>`-equivalent for one harness, reversible, with the non-destructive-merge rule copied from the
