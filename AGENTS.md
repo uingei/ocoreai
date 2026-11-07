@@ -35,7 +35,8 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 
 ## Adoption — the surface a stranger ranks
 - **A release is a cadence, not a green suite or one tag:** eight installable trees publish 37 → 1 270
-  releases, newest ≤9 d old (audit-facts.sh, 11-06); ours: 1 tag, 0 releases — cadence is the open item. The
+  releases, newest ≤9 d old (audit-facts.sh, 11-06); ours: 2 tags, 1 release (`v0.1.16`, 11-07) — cadence
+  is the open item. The
   tag *is* the version (`scripts/version.sh` prints it), so no doc re-types one. `Core/UpdateCheck.swift` only
   *notifies*; build/publish must split. Ladder: `long-horizon-goal.md` § Rung zero.
 <!-- claim:tags_published>=1 :: git ls-remote --refs --tags origin | grep -c 'refs/tags/v' -->
@@ -146,8 +147,8 @@ verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name bel
 - **The board scores 6 of the 40 advertised tools; full-surface is `OCOREAI_EVAL_TOOLS=all`** (scripts/eval/)
   — every row prices its `tools[]` bytes; judging the two surfaces waits on the owner.
 - **The tool surface is still ungated against the loaded model** (UI/, Engine/) — owner call; `reasoning_effort`'s gate (`ReasoningEffortHonestyTests`(9) + probe 38) is the pattern to extend.
-- **No release has ever survived** (CI/) — rehearsal green since run 25; publish + read-back ran green
-  once (`v0.1.14`, 10-29, withdrawn); `v0.1.15`'s tag run died at `Build DMG` before them: a tag is a hand.
+- **The surviving release is ad-hoc signed** (CI/) — `v0.1.16` survived 11-07 with read-back sha-parity,
+  probe 41 proves the byte-identical build serves; Gatekeeper's download path stays unjudged — owner call.
 - **A corpus costs injection; the tail is disclosed, not gated** — injected bytes cost a 2B checkpoint
   double-digit pp; the fall-off is named to the model and on `/v1/capabilities` (`make docs-check` prints
   `deepest-chain=`). Owner: gate by capacity — cites: `docs/agent/open-items.md`.

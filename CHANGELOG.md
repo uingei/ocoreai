@@ -9,6 +9,31 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-07
 
+**11-07 the first surviving release — `v0.1.16` published with read-back sha-parity, and the design's own P4 claim went red the moment it became true**
+
+- **What improved.** The owner-authorised tag (at `bf074506`, after CI green on that commit and the
+  wedge re-check — 3-of-4, the single red priced as the known thinking-uncounted budget boundary, not
+  the +13 window) ran the ten-step release job **green end to end**, so for the first time a stranger
+  can install what this repo ships: the job re-downloads its own asset and compares sha256+size against
+  the runner's local build (`ci.yml` read-back), so the published bytes are the bytes CI built. Every
+  row the fact falsified retired in the same round: the ladder doc's P4 claim flips to
+  `releases_published=1`, the AGENTS.md open row — whose title was the sentence this release made
+  false — now names the gap the release *did* expose (the surviving artefact is ad-hoc signed;
+  Gatekeeper's quarantined-download path is unjudged — notarisation, owner call), and both READMEs'
+  install text stopped pointing at a cleaned-and-resent release line and states the double-click path
+  a stranger takes: newest `ocoreai-<ver>.dmg` from Releases → drag into Applications → launch.
+- **What same-session output proves it.** API read-back at publish: `RELEASE v0.1.16 · published
+  2026-11-07T10:46:26Z · draft:False`, asset `ocoreai-0.1.16.dmg` **28 970 635 B**, asset HEAD → HTTP
+  200, `downloads=3` inside the hour; the tag run `completed success`. The receipt for this round's
+  own slip belongs here too: the second the release existed, the P4 claim `releases_published=0` went
+  red — the tripwire doing exactly what it was built to do — and `df253e0a` had already been pushed
+  under that red because a `grep` in the commit chain returned exit 0 on the violation's *text*: a
+  gate you did not run is not green, and this round it was mine.
+- **Which gate goes red if it regresses.** `make docs-check` P4 re-runs `releases_published=1` against
+  `api.github.com` every pass — a deleted, drafted or out-counted release reddens the docs gate; the
+  release job's read-back step owns published-byte parity, and probe 41 keeps judging mount → bundle
+  facts → serve → clean stop on the artefact (local build; read-back is the half it cannot reach).
+
 **11-07 the test leg's label names a toolchain while its runtime gates judge an OS — every run now prints which runtime it decides on**
 
 - **What improved.** Asked whether CI verifies the macOS-27 half, the honest answer had to be

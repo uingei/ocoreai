@@ -80,8 +80,9 @@ conservative, it is invisible.
 
 "S = 1.0 with no adoption" is measured, not felt: trees with stars, forks, age and stars/day in
 `docs/agent/adoption-runbook.md` § The leaderboard (`api.github.com` — HEAD's only authority; a mirror proves
-content, never HEAD), and **ocoreai 1 star / 0 forks / 0 open issues / 1 remote tag / 0 releases (`v0.1.15`
-since 11-05; the published `v0.1.14` tag+release pair was withdrawn; re-measured 11-06), 145 d old**. The gap is not the finding, the *shape* is — and the arithmetic that used to
+content, never HEAD), and **ocoreai 1 star / 0 forks / 0 open issues / 2 remote tags / 1 release
+(`v0.1.16`, published 11-07; `v0.1.15` is a tag without a release, the earlier `v0.1.14` pair was
+withdrawn; re-measured 11-07), 146 d old**. The gap is not the finding, the *shape* is — and the arithmetic that used to
 justify this section is **deleted, not softened (10-28(6))**: it read "the field's best sustained growth is
 ~408/day, so no honest engineering schedule reaches #1", yet `deepseek-ai/deepseek-harness` reached 263 687
 stars 76 days after creation, and `Niko1221/Strata` 34 577 in 34 days (rates per tree: the leaderboard).
@@ -95,11 +96,12 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
 
 0. **Ship.** Done, and askable: `scripts/ci-status.sh` never calls a question it could not ask green.
 1. **Cadence, not one tag.** The eight installable trees publish 37 → 1 270 releases each, newest ≤9 d old
-   (`bash scripts/audit-facts.sh` re-measures); this repo has **1 remote tag and 0 listed releases** —
-   the `release` job did publish `v0.1.14` on 10-29 with the runner's own `${{ github.token }}` (no owner
-   credential), but that release and its tag were later withdrawn; `v0.1.15` is the only remote tag
-   (re-measured 11-06 against `api.github.com`; `audit-facts.sh` prints the ours line since this round).
-<!-- claim:releases_published=0 :: curl -sL --max-time 15 api.github.com/repos/uingei/ocoreai/releases | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 9**9)' -->
+   (`bash scripts/audit-facts.sh` re-measures); this repo has **1 surviving release: `v0.1.16`, published
+   11-07** — the ten-step job green end to end, read-back sha-parity, asset 28 970 635 B, downloaded
+   within the hour of publishing (re-measured 11-07 against `api.github.com`; `audit-facts.sh` prints the
+   ours line). `v0.1.14` published on 10-29 with the runner's own `${{ github.token }}` and was later
+   withdrawn with its tag; `v0.1.15` is a version-anchor tag that never got a release.
+<!-- claim:releases_published=1 :: curl -sL --max-time 15 api.github.com/repos/uingei/ocoreai/releases | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 9**9)' -->
    Why this claim is `=` where the repo's other pins are `>=` (a stated ruling, 11-06, after a round
    argued the opposite and the next round pinned it anyway): `docs-check` is not on the publish path,
    so the first published release reds nothing that gates shipping — it generates the to-do that
