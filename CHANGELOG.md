@@ -9,6 +9,53 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-07
 
+**11-07 the pin had moved in a tree nobody had built — the bump's own audit was the half that went missing**
+
+- **What improved.** The session opened on a working tree that already carried `b8d4935ab → 4ab267996` in
+  `Package.swift`, both `Package.resolved` files and the notices rewritten, and none of § Upstream 1's other
+  four steps: **P8 was red** (the injected root still quoted the old pin) and **`swift build` was red** — four
+  `switch must be exhaustive`, because upstream #608 grew `GenerateStopReason` and `Generation`. The window is
+  13 commits / +5 029 upstream lines, and it carried the three the § Open rows had been waiting on: #581
+  (resumable MTP *inside* `ChatSession`), #608 (mid-turn steering), #747 (`RotatingKVCache` pinned prefix in
+  multi-token masks). What landed is the consumption, decided rather than patched around: a steered step is
+  **not** the turn's end (upstream emits `.info` per model step and continues the response), so `.steered`
+  leaves the prior turn reason standing instead of writing `.eos`/`.cancelled` onto the wire for a turn that is
+  still running, and no `finish_reason` word was invented for a state nothing can produce — we never call
+  `session.steer`, so the `.steering` arms are inert and say so in the arm. Then the half nobody had done:
+  every claim pinned to the old revision re-grepped at the new one (download patterns identical at
+  `ModelFactory.swift:8`; vendored xgrammar byte-identical across the window, so the `isTerminated` measurement
+  carries rather than being re-asserted; the Qwen registration lines and the QSA/N-gram absence unchanged), and
+  the **39 upstream line-cites the window dragged re-anchored** — 6 of them had gone *ambiguous* (the token
+  now sits at 2–6 places), which no script can resolve: `templateMessages = leadingMessages` had to be read as
+  the conversation branch (1354), not the raw-cache fallback (1361), because the claim resting on it is that
+  every later turn re-feeds the transcript. Root kept byte-neutral at 21 374 and the audit narration sent to
+  this diary instead of the 46 KiB comparator guide, since B2 counts both. Two offers the window made and this
+  round did **not** take, both named so the next one can price them: #769 fixed surrogate-pair and Python
+  escape decoding in upstream's `PythonLiteralParser`, which we do not call — we mirror `ToolCallProcessor`
+  ourselves (`OpenAIModels.swift:561-578`), so CJK tool arguments are a question that is ours, not one we
+  absorbed; and `MLXLanguageModel`'s `load:` initializer is now deprecated in favour of one that takes
+  `progress:` (`EnginePool.swift:1085` warns on it today), which is the install-time load-progress seam.
+- **What same-session output proves it.** `swift build --build-tests` exit 0 (119 s) where the same command on
+  the arriving tree printed four `switch must be exhaustive`. `make anchor-check`: 39 → 12 → 0, finishing
+  `bare upstream cites: scanned=294 ok=294 missing=0`; the 6 ambiguous ones closed by reading each branch.
+  P8 falsified on the real sample — red as it arrived (`P8 AGENTS.md quotes pin b8d4935ab but Package.swift
+  pins 4ab267996`), green after. `make audit` ✅ end to end (`resolved-sync`: 34 pins in sync).
+  `make test FILTER='DependencyPinStatementTests|ThirdPartyNoticesTests'` → 25 tests / 2 suites green,
+  including *both upstream pins agree with what the resolver recorded* and *the manifest's consumer audit is
+  the set Sources actually reach — 10 sites / 5 APIs*. `make drift`: the mlx-swift-lm window is consumed and
+  `mlx-swift tag=0.33.0 pin=0.33.0, 0 new`. B2 caught two of my own edits inside this round (comparator guide
+  46 197 > its 46 082 cap; the consensus row's `[21374, 47660, 32674, 94]`), and the fix both times was to make
+  the injected row byte-neutral, not to re-type the measured number.
+- **Which gate goes red.** The four switches are the gate for upstream growing an enum the lanes read — they
+  went red on the arriving tree, which is the sample, not a hypothesis. **P8** goes red the next time the pin
+  and the injected root disagree, which is the defect this round *inherited* rather than made; `anchor-check`
+  goes red on any cite the next window drags (it is on `push-ready`, so a bump cannot be pushed with a stale
+  cite in it); `ThirdPartyNoticesTests` + `resolved-sync` go red if a lockfile or the notices fall out of
+  pairing. Reader whose action changes: whoever takes the next window — `open-items.md` now says the two
+  ours-shaped commits are *unconsumed*, not pending, so what they wait on is one owner decision (adopt what
+  upstream's `ChatSession` loop now owns, or keep a local lane beside it), and it is no longer the same
+  question as whether to bump.
+
 **11-07 the id `/v1/models` hands out now fits the routes it advertises, and the item that blocked it was a premise nobody had run**
 
 - **What improved.** `GET /v1/models` publishes `mlx-community/Qwen3.6-35B-A3B-4bit`; four routes

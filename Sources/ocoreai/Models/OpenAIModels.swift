@@ -1205,10 +1205,10 @@ struct Usage: Encodable {
 /// is what this turn **prefilled** ("When a session reuses a KV-cache prefix only the remaining
 /// suffix is fed to the model, so this counts fewer tokens than the rendered prompt" —
 /// mlx-swift-lm `Evaluate.swift:3005-2943`), while `cachedPromptTokenCount` is the prefix its KV
-// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:3008 counts fewer tokens than the rendered prompt
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:3044 counts fewer tokens than the rendered prompt
 /// cache kept. Upstream's own total is `cached + prefilled` (`totalPromptTokenCount`,
 /// `Evaluate.swift:3069-3004`), and mlx-swift-lm emits exactly that as its input-token count at
-// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:3070 cachedPromptTokenCount + promptTokenCount
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:3112 cachedPromptTokenCount + promptTokenCount
 /// `MLXLanguageModel.swift:1393`, `:1535` and `:1740`.
 ///
 /// Publishing the prefilled suffix instead was the deviation this exists to prevent. Measured 10-21

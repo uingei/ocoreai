@@ -40,7 +40,7 @@ let package = Package(
         // in CHANGELOG.md; AGENTS.md keeps only the current pin and the transferable rules.
         // (docs/agent/upstream-audit-log.md was written once and deleted the same session:
         //  CHANGELOG.md already carries the round-by-round verdicts — one diary, one home.)
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "b8d4935ab"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "4ab267996"),
         // mlx-swift: pinned exact 0.33.0 (resolved revision 7ede4fd6d). This sentence is
         // gated against the pin below and against Package.resolved by
         // DependencyPinStatementTests — this sentence named 0.32.2 as the pin long after
@@ -72,7 +72,7 @@ let package = Package(
         // stops being the set the code actually reaches.
 // anchor:. Sources/ocoreai/Engine/EngineInference.swift:3674 asArray(Int32.self) -->
 // anchor:. Sources/ocoreai/Engine/EngineInference.swift:3721 Stream.gpu.synchronize -->
-// anchor:. Sources/ocoreai/Engine/EngineInference.swift:5162 asArray(Int.self) -->
+// anchor:. Sources/ocoreai/Engine/EngineInference.swift:5188 asArray(Int.self) -->
         // anchor:. Sources/ocoreai/Engine/EngineInferenceSupport.swift:261 MLXArray
 // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1279 MLXArray( -->
 // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1285 MLXArray.zeros -->

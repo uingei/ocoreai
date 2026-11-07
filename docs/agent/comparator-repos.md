@@ -403,7 +403,7 @@ top-k indices across draft steps (mean accepted length **4.06** at four steps, T
 at rung 3's acceptance gap); +51B N-gram embedding tables prefetched from host memory — the capacity route
 unified memory is built for, rung 4's wedge made concrete; 256K native (`../references/Qwen3.8-Flash-Next/README.md:115`);
 and a NoPE ablation whose post-training endless-generation rate jumps (§2.1.1) — the field's stalls are
-trained-in, one more datum on the terminal-word call. At pin `b8d4935ab`: `Libraries/MLXVLM/VLMModelFactory.swift:95-98`
+trained-in, one more datum on the terminal-word call. At pin `4ab267996`: `Libraries/MLXVLM/VLMModelFactory.swift:95-98`
 registers `qwen3_5|qwen3_5_moe|qwen3_8|qwen3_8_moe` onto `Qwen35` (`GatedDeltaNet`, `HybridAttentionSchedule`)
 and `Qwen35MTP` (`Libraries/MLXVLM/Models/Qwen35MTP.swift:99`); QSA and N-gram appear **zero** times pin-wide
 ⇒ the flagship will not load there (inference by absence, not run); dense `Qwen3.8-27B-4bit` does

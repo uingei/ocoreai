@@ -47,10 +47,14 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   A flapping host premise, so re-test that one line before the hand; nothing was re-resolved blind. Owner call
   unchanged: the bump is a hand, not a gate.
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
-  and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The seam landed upstream at
-  `db2e7bf` (#714, 10-24: `observe(to:using:)` + `GenerationTransformer`; the `991266ad3` this row first
-  cited is that same day's #710, a prefill-buffer-cache commit — re-grepped 11-06 against the pin's history);
-  what is left is owning what upstream's `ChatSession` loop owns. Owner call.
+  and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). Upstream answered the rest at the
+  11-07 pin: #608 put mid-turn steering *in* `ChatSession` (`steer(_:policy:)` applies at a complete-text or
+  step boundary, keeps emitted output and completed tools, reports `GenerateStopReason.steered` per yielded
+  step plus a `Generation.steering` event; the `db2e7bf`/`observe(to:using:)` seam this row cited yesterday
+  was only the hook — and `991266ad3`, which an earlier copy named, is that same day's #710, a prefill-buffer
+  cache). Nothing of ours calls it: the four switch arms the bump added are inert until `SteerQueue` reaches
+  `session.steer` on the session's owning actor and the wire can take a steer mid-stream. Owner call — it is
+  also the row that decides whether the local lane keeps existing beside upstream's.
 - **Thinking is uncounted on the tools lane** (Engine/) — probe 44 §2: 550 chars, no
   `reasoning_tokens`. Upstream counts only via the processor that also bounds the thought, and a
   bound there starves the tool call (§2b: 200→500 at 64 tokens). A count-only processor waits
@@ -58,16 +62,15 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `preserve_thinking` retains "reasoning context from historical messages"
   (`../references/Qwen3.8/README.md:25`) — so a caller that retains thinking pays tokens we cannot price
   for it (inference from a README, not a measured interaction).
-- **Pin 1's pending window carries two commits on axes this repo has open** (Engine/) — `make drift` 11-04:
-  `mlx-swift-lm HEAD=ffe7647b0, +3 vs base=b8d4935ab`, and two of the three are ours-shaped: *"Add resumable
-  Qwen MTP speculative decoding to ChatSession (#581)"* (the MTP lane *and* the interrupt/stall rows, which both
-  wait on what upstream's `ChatSession` loop owns) and *"RotatingKVCache: keep the pinned prefix visible in
-  multi-token masks (#747)"* (KV/prefix accounting); the third (`#692`, EmbeddingGemma 2 image orientation) reads
-  n/a. The third pin axis is clean: `mlx-swift tag=0.33.0 pin=0.33.0`, 0 new. `coreai-models` is +1
-  (`#404`, CI-only per its subject). Owner call is § Upstream 1's bump protocol, not an audit finding — but the
-  MTP half deserves the same read as the acceptance row below, because a *resumable* drafter changes what that
-  gate would even measure. (The instrument note this row carried — one verdict, exit **10** then **2** — is
-  closed: `closed-items-log.md`.)
+- **Pin 1's window is taken, so the two ours-shaped commits are now unconsumed, not pending** (Engine/) —
+  bump 11-07 `b8d4935ab → 4ab267996` (+13) carried #581 (resumable MTP *inside* `ChatSession`), #608
+  (mid-turn steering) and #747 (`RotatingKVCache` pinned prefix in multi-token masks). All three compile in
+  and change **nothing** until consumed: our MTP lane still drives its own token loop and `SteerQueue` still
+  drains at the tool-result tail, so the MTP row, the stall row and the interrupt row above all wait on one
+  decision — *adopt what upstream's `ChatSession` loop now owns, or keep maintaining the local lane beside
+  it*. The MTP half still deserves the acceptance row's read: a *resumable* drafter changes what that gate
+  would measure. Third axis clean: `mlx-swift tag=0.33.0 pin=0.33.0`. (Instrument note this row carried — one
+  verdict, exit **10** then **2** — closed: `closed-items-log.md`.)
 - **MTP acceptance is threaded, unused as a signal, and its named suite gates nothing** (Engine/, Tests/) —
   found by reading, not by a scan. ① The counters are real: `proposedDraftTokens`/`acceptedDraftTokens`
   (`EngineEvents.swift:105`) are threaded at `EngineInference.swift:3432`, `:4229` and read by

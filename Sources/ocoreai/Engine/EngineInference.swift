@@ -1814,8 +1814,8 @@ extension EnginePool {
         // These are deliberately NOT deleted when the request ends. Upstream ChatSession
         // keeps the message it was given, with the resolved media URL inside it, and
         // re-feeds that whole transcript to `processor.prepare` on every later turn of the
-        // conversation (ChatSession.swift:1176 — `templateMessages = leadingMessages +
-        // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1176 templateMessages = leadingMessages
+        // conversation (ChatSession.swift:1354 — `templateMessages = leadingMessages +
+        // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1354 templateMessages = leadingMessages
         // currentConversation.messages`; gated by `make anchor-check`). Bytes deleted here therefore cost the
         // conversation its own history: measured 10-16, a clip posted as a data URL was
         // answered correctly on turn 1 ("Red", +79 prompt tokens) and every turn after it
@@ -3103,7 +3103,7 @@ extension EnginePool {
             // `reasoning_content` empty there. A grammar IS the pair that cannot compose with
             // thinking — the constrained loop truncates thinking tokens (the `.alwaysOn` guard
             // below) — so a schema still suppresses the flag.
-            // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1414 reasoning: modelConfiguration.reasoningConfig.map
+            // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1684 reasoning: modelConfiguration.reasoningConfig.map
             let mayRunReasoning =
                 (registeredToolSpecs ?? []).isEmpty && options.grammarSchema == nil
             let thinkingFlagApplies = options.grammarSchema == nil
@@ -3257,7 +3257,7 @@ extension EnginePool {
                 if let rewind = acquired.rewind, rewind.historyEnd < mlxMessages.count {
                     // The pool refused this conversation but left a resumable cache behind:
                     // `fork(history:)` (ChatSession.swift:1741) gives back a session that
-                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1741 func fork(history
+                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2128 func fork(history
                     // holds *this* transcript and keeps only the KV rows its prompt starts
                     // with, so an edited resend stops costing a full re-prefill. The pool
                     // could not do this itself — `[Chat.Message]` is not `Sendable`, so the
@@ -3267,7 +3267,7 @@ extension EnginePool {
                         history: Array(mlxMessages[0 ..< rewind.historyEnd]))
                     // A fork inherits the parent's configuration, and sampling lives on the
                     // session rather than the call (`ChatSession.swift:371`), so a fork that
-                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:371 public var generateParameters
+                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:431 public var generateParameters
                     // keeps last turn's knobs answers this turn under them — the same drift
                     // `staleSamplingFields` names on the pool-hit path.
                     let overriddenFields = MLXSessionPool.staleSamplingFields(
@@ -3933,7 +3933,7 @@ extension EnginePool {
                         // arrives split with delimiters stripped. A second emitter would scan answer
                         // text that can no longer contain a delimiter, holding back any prefix that
                         // looks like one.
-                        // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2574 reasoning: context.configuration.reasoningConfig.map
+                        // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2589 reasoning: context.configuration.reasoningConfig.map
                         mtpGenerationLoop: for try await generation in iterStream {
                             if Task.isCancelled || cancellation.isCancelled {
                                 // Inline emit .done(.cancelled) — same as std cancel path (L2379).
@@ -4043,6 +4043,10 @@ extension EnginePool {
                                     case .stop: .eos
                                     case .length: .maxTokens
                                     case .cancelled: .cancelled
+                                    case .steered:
+                                        // Upstream #608: the step yielded to steering and continues, so the
+                                        // turn has not ended — the prior reason stands (same arm, std lane).
+                                        localStopReason
                                     }
                                 // Capture MTP speculative decoding metrics from upstream
                                 localProposedDraftTokens = completionInfo.proposedDraftTokens
@@ -4076,6 +4080,11 @@ extension EnginePool {
                                 self.logger.warning(
                                     "MTP path: rejected tool call — reason=\(rejection.reason.rawValue) tool=\((rejection.toolName.map { String($0) } ?? "nil")) detail=\((rejection.detail.map { String($0) } ?? "nil"))"
                                 )
+                            case .steering:
+                                // Upstream #608: this lane drives the token loop itself and never submits a
+                                // `session.steer`, so no steering event can arrive here. The arm marks where
+                                // it would land if the MTP lane moved onto upstream's ChatSession loop.
+                                break
                             }
                         }
 
@@ -4494,6 +4503,11 @@ extension EnginePool {
                                         case .stop: .eos
                                         case .length: .maxTokens
                                         case .cancelled: .cancelled
+                                        case .steered:
+                                            // Upstream #608: a step handed off to mid-turn steering, so the
+                                            // turn has not ended — the prior reason stands. Unreachable until
+                                            // we call `session.steer`; no wire word is invented for it.
+                                            localStdStopReason
                                         }
                                     // MTP speculative decoding metrics (upstream Evaluate.swift)
                                     localStdProposedDraftTokens = info.proposedDraftTokens
@@ -4748,6 +4762,11 @@ extension EnginePool {
                                         case .stop: .eos
                                         case .length: .maxTokens
                                         case .cancelled: .cancelled
+                                        case .steered:
+                                            // Upstream #608: the step yielded to steering and a successor
+                                            // continues the turn, so this is not the turn's end — the prior
+                                            // reason stands. See the same arm in the std `.info` site above.
+                                            lastStopReason
                                         }
                                     // MTP speculative decoding metrics — present when ChatSession
                                     // uses SpeculativeTokenIterator internally. Nil on standard path.
@@ -4770,6 +4789,13 @@ extension EnginePool {
                                     self.logger.warning(
                                         "Standard ChatSession path: rejected tool call — reason=\(rejection.reason.rawValue) tool=\((rejection.toolName.map { String($0) } ?? "nil")) detail=\((rejection.detail.map { String($0) } ?? "nil"))"
                                     )
+                                case .steering:
+                                    // Upstream #608: `.applied`/`.failed` only ever follow a
+                                    // `session.steer` submission, and ours still rides SteerQueue at the
+                                    // request seam, so nothing here can produce one — relaying it would
+                                    // advertise a mid-turn steer the wire cannot yet accept. The arm where
+                                    // that changes is this one.
+                                    break
                                 }
                             }
 
