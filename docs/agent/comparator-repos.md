@@ -206,7 +206,7 @@ Borrow: consumed for the dry-run (`Models/ModelDownloadDTO.swift` `DownloadPlan`
   half — "integrity checking of runtime-fetched artefacts is still open" — was stale as written; the honest
   shape is **route-named**. Bytes we fetch ourselves are re-hashed against the digest the hub declared (size
   compare when it declares none; a cache hit is trusted as found, the trade ollama takes), pinned by
-  `DownloadIntegrityTests`(10) + probe 43 — `Models/ModelScopeDownloader.swift:1136-1144`, compare at `:1165`.
+  `DownloadIntegrityTests` + probe 43 — `Models/ModelScopeDownloader.swift:1136-1144`, compare at `:1165`.
   What is genuinely open is the `hf:` route, where the bytes arrive through upstream `HubClient`
   (`Engine/MLXBridge.swift:33-34`), whose file record carries an ETag for caching and no weight digest
   (`.build/checkouts/swift-huggingface/Sources/HuggingFace/Hub/File.swift:11`) — § Upstream's to carry, not a

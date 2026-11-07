@@ -21,12 +21,12 @@ statistical acceptance rule design docs never carried.
 
 | # | What the person is owed | Decidable assertion | Goes red here |
 |---|---|---|---|
-| 1 | Its last sentence is true about what happened | file-change sentences of a self-terminated answer vs the write ledger at `ToolRegistry.call`, which native/MTP/GUI/MCP all pass | `ClaimVsAuditTests`(19) |
-| 2 | Your stop word ends the turn | a stop string ends with `finish_reason: stop`; only the last SSE chunk speaks | `StopSequenceDeliveryTests`(13) + probe 10 |
+| 1 | Its last sentence is true about what happened | file-change sentences of a self-terminated answer vs the write ledger at `ToolRegistry.call`, which native/MTP/GUI/MCP all pass | `ClaimVsAuditTests` |
+| 2 | Your stop word ends the turn | a stop string ends with `finish_reason: stop`; only the last SSE chunk speaks | `StopSequenceDeliveryTests` + probe 10 |
 | 3 | You may change your mind mid-turn | steered text merges at the head of the chat handler, pre-assembly | `SteerRequestHeadTests` + probe 21 |
-| 4 | A refused edit still tells you where it is | durability and validity in one result (`OK-but-invalid`), quoting the file with its line numbers | `EditLinesContractTests`(10) |
-| 5 | Being stuck yields a next step, not a wall | the identical-call cap returns a remedy, not the same refusal | `LoopGuardRemedyTests`(3) |
-| 6 | Its own chrome never passes as your content | read-then-write strips the `N` gutter and `total_lines:` footer, repairs what is provable, refuses to guess | `PresentationEchoGuardTests`(16) |
+| 4 | A refused edit still tells you where it is | durability and validity in one result (`OK-but-invalid`), quoting the file with its line numbers | `EditLinesContractTests` |
+| 5 | Being stuck yields a next step, not a wall | the identical-call cap returns a remedy, not the same refusal | `LoopGuardRemedyTests` |
+| 6 | Its own chrome never passes as your content | read-then-write strips the `N` gutter and `total_lines:` footer, repairs what is provable, refuses to guess | `PresentationEchoGuardTests` |
 
 The human-facing **wire** half of the same policy — knobs, usage numbers, capability rows, hub and capture
 refusals — is owned by `Sources/ocoreai/Handlers/AGENTS.md` § Endpoint Promises, one gate per row there. Not restated here: a

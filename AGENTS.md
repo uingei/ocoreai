@@ -80,7 +80,7 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
 - Style: `swift-format` (`.swift-format`, pinned) via `make format-check`; no other linter.
 - Licenses travel with the binary: MIT **plus** third-party terms (BSD-3 cl.1/cl.2, Apache-2.0 §4). Adding
   a dependency, bumping a pin or vendoring a header ⇒ re-run `scripts/collect-third-party-licenses.sh`
-  and commit it. Gates: `ThirdPartyNoticesTests`(16) + `scripts/audit.swift_patterns.sh` Class-I;
+  and commit it. Gates: `ThirdPartyNoticesTests` + `scripts/audit.swift_patterns.sh` Class-I;
   composition: `docs/agent/third-party-notices.md`.
 <!-- claim:apple_derived_files>=49 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | wc -l -->
 <!-- claim:notice_files>=38 :: ls THIRD-PARTY-LICENSES | wc -l -->
@@ -131,22 +131,22 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   `scripts/eval/README.md` (one home apiece).
 - Process-global state (workspace anchor, `OCOREAI_*`, a `shared` sensor) is leased, never
   set: `.serialized` orders a suite's *own* tests, not suites against each other, and a lease never spans
-  live I/O. Gate: `ProcessGlobalLeaseDisciplineTests`(3).
+  live I/O. Gate: `ProcessGlobalLeaseDisciplineTests`.
 
 ## Open — measured, unresolved
 Root owes the address only — area, instrument, whose call it waits on (evidence: `docs/agent/open-items.md`;
 verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name below honest).
-- **Stall: MTP stops hard, the std lane by consent** (Tools/, Engine/) — `LoopStallTerminationTests`(6);
+- **Stall: MTP stops hard, the std lane by consent** (Tools/, Engine/) — `LoopStallTerminationTests`;
   owner call: the terminal word for four faces.
 - **CoreAI / macOS 27 items unverifiable here** (Engine/) — `PlatformPremise.hasMacOS27`.
 - **A no-tool turn cannot be interrupted** (Engine/) — upstream #608 steer now sits at this pin; owner call.
-- **Rewind landed; the reserve is untuned** (Engine/) — `SessionRewindOnDivergenceTests`(8) + probe 27.
+- **Rewind landed; the reserve is untuned** (Engine/) — `SessionRewindOnDivergenceTests` + probe 27.
 - **`tools[]` gaps; two prefix questions await an owner** — `UI/AGENTS.md`, `ReuseRefusalLedger`.
 - **Multimodal: video publishes per-checkpoint; capture cannot stream headlessly** —
   `VideoDeliveryLedger`; `screenStatus` needs a delivered frame.
 - **The board scores 6 of the 40 advertised tools; full-surface is `OCOREAI_EVAL_TOOLS=all`** (scripts/eval/)
   — every row prices its `tools[]` bytes; judging the two surfaces waits on the owner.
-- **The tool surface is still ungated against the loaded model** (UI/, Engine/) — owner call; `reasoning_effort`'s gate (`ReasoningEffortHonestyTests`(9) + probe 38) is the pattern to extend.
+- **The tool surface is still ungated against the loaded model** (UI/, Engine/) — owner call; `reasoning_effort`'s gate (`ReasoningEffortHonestyTests` + probe 38) is the pattern to extend.
 - **The surviving release is ad-hoc signed** (CI/) — `v0.1.16` survived 11-07 with read-back sha-parity,
   probe 41 proves the byte-identical build serves; Gatekeeper's download path stays unjudged — owner call.
 - **A corpus costs injection; the tail is disclosed, not gated** — injected bytes cost a 2B checkpoint
@@ -231,7 +231,7 @@ against upstream first). Which doc each audience reads, and when: `docs/agent/do
 <!-- claim:core_tools<=43 :: git grep -h 'ToolEntry\.typed(' -- Sources/ocoreai/Tools | grep -vE '^[[:space:]]*(//|\*)' | wc -l -->
 - **One home per decision, and a side effect is gated where it is declared:** `ToolEntry.isDestructive` is
   the only destructive truth and `securityPrecheck` asks from it (∪ blacklist for names nothing registers) —
-  a hand-copied matcher list leaves mutating tools unasked. Gate: `DestructiveApprovalGateTests`(5).
+  a hand-copied matcher list leaves mutating tools unasked. Gate: `DestructiveApprovalGateTests`.
 - **One resolver, one ladder:** precedence as data, a candidate trusted only once probed, a failed *read*
   falling to the next rung, a failed *authoritative write* surfacing or rolling back, bounded retries that
   end in a recovery affordance. Pattern: `MetalShaderLibrary`.
@@ -242,12 +242,12 @@ against upstream first). Which doc each audience reads, and when: `docs/agent/do
 - **Respect the person using it.** Never navigate, refocus, open a pane or announce because something
   *happened* in the background — offer, don't hijack. **Name a destructive route only where the caller's
   own argument asks for it:** `edit_file` offers `rm` solely when `newString` is empty, since in an ordinary
-  mismatch that offer turns a typo into an unrecoverable delete. Gate: `EditMismatchRecoveryTests`(10). HIG
+  mismatch that offer turns a typo into an unrecoverable delete. Gate: `EditMismatchRecoveryTests`. HIG
   is authority on anything user-visible; the five non-happy states owe honest copy and a way out
   (`Sources/ocoreai/UI/AGENTS.md`).
 - **A file's lifetime is the lifetime of the thing that cites it.** Bytes outliving their request need an
   owner, a pin in flight, and collection by idle TTL + byte budget. `MediaSpool`; gates:
-  `MediaLifetimeTests`(15) + probe 08.
+  `MediaLifetimeTests` + probe 08.
 - **Comments say the *why* the code cannot, in 1–3 lines.** No bug history, dates or audit trails inside
   source comments — that is the commit message. One logical change per commit.
 - **A lock lives at the cheapest rung that bites:** hook → `make` → CI, priced in runner-seconds (text

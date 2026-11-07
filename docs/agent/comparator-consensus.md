@@ -289,7 +289,7 @@ honesty gate). **Owner call; nothing here changed model behaviour.**
   claim, not a user.
 - **A store shelf is not the field's habit either** (2/24), so the `appStore` build trait is not a catch-up item
   pretending to be one.
-- **Digest verification exists where we own the bytes**, gated by `DownloadIntegrityTests`(10) + probe 43; the open
+- **Digest verification exists where we own the bytes**, gated by `DownloadIntegrityTests` + probe 43; the open
   half is upstream's (`HubClient` carries an ETag, not a weight digest) — see the corrected Strata row.
 
 ## One more thing the field measures that we do not

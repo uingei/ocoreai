@@ -6,7 +6,7 @@ which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
 - **A stall stops MTP hard, the std lane only by consent** (Tools/, Engine/) — the ladder and
-  `LoopStallTerminationTests`(6) landed; upstream `mlx-swift-lm`'s `restart:` loop (ChatSession.swift:1164) still has no
+  `LoopStallTerminationTests` landed; upstream `mlx-swift-lm`'s `restart:` loop (ChatSession.swift:1164) still has no
   cap, and a std-lane hard stop throws out of `toolDispatch` (:1632) reaching the wire as an error, not a
   finished turn — the terminal word for four faces is the owner call; field constraints mined
   11-03: `CHANGELOG` 11-03(1).
@@ -102,7 +102,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   production reach — only reading, or a mutation that must go red, decides it.
 - **Rewind is landed; the reserve is a guessed constant** (Engine/) — 1024 rows measured on one checkpoint,
   not tuned to model or memory pressure, so an edit further back than the reserve still pays its full prefix.
-  `SessionRewindOnDivergenceTests`(8) + probe 27 hold the wiring and the number.
+  `SessionRewindOnDivergenceTests` + probe 27 hold the wiring and the number.
 - **Video publishing is per-checkpoint** (Multimodal/) — one processor reads `input.videos`, the other does
   not, so it is never inferred from architecture; a turn that got frames but never answered is not
   counted; relaxing that is untested (`VideoDeliveryLedger`).
@@ -133,7 +133,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   score, who pays a wrong pick) plus the composer half. The pattern to extend is the knob already gated: render the checkpoint's template
   with a sentinel at load, record it (`ReasoningEffortLedger`), publish on `/v1/models`, refuse a demanded
   word 400 naming the knob and both exits — codex's `code_mode_warning.rs:6-24` shape, fail-open pinned.
-  `ReasoningEffortHonestyTests`(9) + probe 38.
+  `ReasoningEffortHonestyTests` + probe 38.
 - **Weight-free probes exist; only three hold a CI seat, and no checkpoint tier does.** The scripted lane
   holds 37 (wire contract), 38 §1 (a refusal) and 39 §1/§1b (the skill's markers); §2 of 38/39/40 needs
   weights, so on a runner it takes its skip branch.
@@ -184,15 +184,15 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **The request that triggers a load waits out the whole load** (Engine/, Config/, UI/) — a waiter is
   released at 120 s with `AppError.modelLoading` while the *owning* request waits out the ~13 min fetch
   (diary 11-01(99), re-measured (101)). Closed since: the measurement crosses the wire (11-02(107) —
-  `loadProgress` on the one `loading` row, the same keys in the 503; `ModelLoadProgressHonestyTests`(15),
-  `EnginePoolLoadingGateTests`(5)), and the GUI renders a wait with a route instead of "Generation failed"
-  (11-03(12) — `ChatState.failureFace`, `ChatFailureFaceTests`(5)). Open: a pool-owned load task, so the
+  `loadProgress` on the one `loading` row, the same keys in the 503; `ModelLoadProgressHonestyTests`,
+  `EnginePoolLoadingGateTests`), and the GUI renders a wait with a route instead of "Generation failed"
+  (11-03(12) — `ChatState.failureFace`, `ChatFailureFaceTests`). Open: a pool-owned load task, so the
   caller that triggered a load gets the same bounded pollable answer as every other caller. Two owner calls
   beside it — the 503 carries no `Retry-After` though both 429 families do (`AppError.response` sets it for
   `engineBusy` and a measured rate-limit wait only), and a poll cadence is policy, not a measurement, so
   none is guessed here; and whether a human caller should be held or refused at all.
 - **The Models page now shows every wait; an engine-started one has no Stop yet** (UI/, Engine/) — the
-  render keys on `ModelWaitFace` ∥ the pool's own `state:"loading"` (`ModelWaitFaceHonestyTests`(7),
+  render keys on `ModelWaitFace` ∥ the pool's own `state:"loading"` (`ModelWaitFaceHonestyTests`,
   CHANGELOG 11-05), and only the transfer lane may open/close a progress row, so a waiter's 120 s poll-out can no
   longer evict the live row the wire's `loadProgress` reads. The row's duplicate-fetch premise is closed
   by reading, not measured: `prewarmDefaultModel` holds the pool's `loadingModels` slot (`beginLoad`) and
@@ -231,7 +231,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   does name the model that ran, and this server has exactly one embedder, so no vector store can
   silently mix two spaces — the owner call is whether a named-but-unavailable model owes a 400.
   ② **closed for the two fields 11-06 named, open for the third face**: `encoding_format` is honored
-  and `dimensions` is refused by name (`embeddingsWireEncoding`; gates `EmbeddingsWireTests`(13) + probe
+  and `dimensions` is refused by name (`embeddingsWireEncoding`; gates `EmbeddingsWireTests` + probe
   51), with the base64 string riding `embedding` — the fetched spec says `Embedding.embedding` is
   `anyOf: [array<float>, string(base64)]` (`openai/openai-openapi` ~:51627, read through
   `api.github.com` because platform.openai.com is unreachable from this host) and all four comparators

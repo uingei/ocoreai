@@ -896,7 +896,7 @@ The residue is named, not hidden: one `N|` line with no corroborating chrome is 
 from a genuine pipe-delimited row, so the ladder refuses to guess at it. Closing *that* means
 changing what `read_file` prints, which is a wider contract change than this seam.
 
-Gates: `PresentationEchoGuardTests`(16) pins each family's exact verdict, the repair byte-for-byte,
+Gates: `PresentationEchoGuardTests` pins each family's exact verdict, the repair byte-for-byte,
 the never-strip-to-empty floor, the two false-positive floors (integer column, quoted label), and
 that chrome-free writes still say plain `OK`.
 

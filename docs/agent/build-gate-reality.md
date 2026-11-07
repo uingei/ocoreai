@@ -160,7 +160,7 @@ cost a verdict: `Issue.record("requires macOS 27")` made the platform look like 
 macOS 27 — five `CoreAIVisionConfigTests` were dead that way. The shape that works is
 `@Test(…, .enabled(if: PlatformPremise.hasMacOS27))` on a function carrying `@available(macOS 27.0, *)`:
 the annotation is what lets the body compile against the API, the condition is what skips it.
-`PlatformPremiseHonestyTests`(2) floors a `.disabled(` scan over `Tests/` (300 files, 20
+`PlatformPremiseHonestyTests` floors a `.disabled(` scan over `Tests/` (300 files, 20
 `.enabled(if:)`, scanner exempted by name) and checks the predicate against `operatingSystemVersion`, so
 a premise hardened to `true` goes red with the OS quoted. Round forensics: CHANGELOG 10-26(12).
 

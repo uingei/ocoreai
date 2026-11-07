@@ -124,7 +124,7 @@ so framing and accounting claims decide at k=1 in seconds instead of a Metal loa
 - A script's defaults are part of its contract: `Script` decodes with `decodeIfPresent`, because a
   synthesized `Decodable` ignores Swift defaults and demanded every key — the documented
   one-segment script was a 500 until that was fixed.
-- Gates: `ScriptedEngineTests`(5) for the producer, probe 37 for the wire, and CI runs probe 37 on
+- Gates: `ScriptedEngineTests` for the producer, probe 37 for the wire, and CI runs probe 37 on
   every push from the headless-serve smoke step.
 
 ## Verification in this subtree

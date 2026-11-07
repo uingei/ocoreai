@@ -9,6 +9,23 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-07
 
+**11-07 P11 and its claim surface were deleted on the owner's field-generality test — the sampled trees cite suite names, never a per-suite count**
+
+- **What improved.** `XxxTests`(N) counts and the gate policing them were both singular (38-tree
+  sample: names everywhere, per-suite N nowhere), so the 42 claims were stripped from the 10 contract
+  surfaces — dated logs keep what they wrote, correcting a diary rewrites the record — and P11 died
+  with them. It had evidence (five birth drifts, one overclaiming coverage); it died because the
+  *promise* it policed was itself the non-general artefact — no stranger installs a bigger suite
+  number. Name-based survivors are the general form: P6 (named suite must be declared) and audit
+  Class-J (a comment's suite name must resolve).
+- **What same-session output proves it.** The strip moved bytes twice and red'd nothing twice — first
+  pass ate closing backticks (`X`(6) → `X;), redone from git, caught before commit; final budgets
+  line `root=21400 … deepest-chain=32697/32768` green with zero doc edits, the pct-only figure home
+  (this day's B2 cut) absorbing the movement. Suites line prints `files-with-@Test=345 (metric
+  only)`; P4's 37 claims still all reproduce.
+- **Which gate goes red.** Nothing replaced P11, by design: a dead name still reddens P6, and a wrong
+  count can no longer exist to rot.
+
 **11-07 the release note was a constant wearing a version number — the delta half is now rendered off the CHANGELOG headings, upstream's own pattern**
 
 - **What improved.** v0.1.16's 618-char note is honest but fixed: the heredoc in the publish step
