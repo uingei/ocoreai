@@ -7,7 +7,27 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-11-07
+## [Unreleased] — 2026-09-05 → 2026-11-08
+
+**11-08 the twelfth-tree row flipped by measurement — the harness-wire claim became a probe instead of a sentence**
+
+- **What improved.** The consensus table's wires-agent-to-self axis (11 of 12 serving trees) had one
+  gap a person could fill without owner credentials: proof that a third-party harness can run *its own*
+  loop on our wire — probe 40 only ever drove ours. Measured live, then persisted as
+  `scripts/probes/53-external-harness-wire.sh`: every cloud credential unset before the harness starts,
+  the only base URL ours, the deliverable a token planted on disk and never named in the task, and wire
+  truth taken from the engine's own `Assembled prompt` log lines rather than the harness's exit code.
+  The ledger row and Direction 3 flip honestly: the wire half is done; the product half (detection plus
+  a reversible config writer — a route that edits the *user's* files) stays the owner's call.
+- **What proves it.** First run **6 passed, 0 failed**: claude 2.1.318 finished the job cloud-severed
+  (`num_turns=9`), the server log carries **8** `Assembled prompt [messages]` lines
+  (`systemChars=18 002 declaredTools=12`) — the multi-turn loop is the engine's record, not an
+  inference — and `answer.txt` held the exact seeded token on the list-order checkpoint
+  (Qwen3.6-35B-A3B-4bit). §1's negative control rejects a wrong token before §2 may pass.
+- **The gate.** Probe 53 (escalation tier; `make probes`), P14 index 53/53. It goes red when the
+  harness cannot finish on our wire alone — and when it "succeeds" while the engine assembled fewer
+  than two prompts, which is the silent-cloud-fallback drift this instrument exists to catch.
+
 
 **11-07 the review-family and CONTRIBUTING's PR-culture half were a second home at war with the culture — consolidated into the direct-commit reality the repo already runs**
 

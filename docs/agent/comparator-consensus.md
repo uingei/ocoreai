@@ -72,7 +72,7 @@ re-measured 11-07/08 (the two install rows — `scripts/install.sh` went live �
 | Deferred / filtered tool surface | agent | 12/14 | **no** (§ The ledger: our 2 hits are noise) |
 | `SKILL.md` files published | agent | 11/14, median **14** | **1** (`skills/ocoreai/`) |
 | Release tags | shippable | 23/24, median **245** | **2** tags, 1 surviving release (`v0.1.16`, 11-07) |
-| **Wires a third-party coding agent to itself** | serve | **11/12** | **no — we are the twelfth** (§ The harness side) |
+| **Wires a third-party coding agent to itself** | serve | **11/12** | **yes on the wire** — probe 53 runs claude's own loop cloud-severed on `/v1/messages` (11-08); the product code (detection, config writer) is still ours to ship (§ The harness side) |
 | **Speaks ACP (the editor↔agent protocol)** | agent | **8/14, and 8/8 editing now** | **no** (§ Direction 8) |
 | **OS confinement profile for the child process** | agent | 6/14, honest read 5 | **no** (§ Where the field confines) |
 | Committed machine-readable HTTP contract | serve | **2/12** | yes (`openapi.json`, generated) |
@@ -158,8 +158,11 @@ installer (`install/clients.py`); `Rapid-MLX` renders its Launch page off a deco
 `config_writer` and `adapter_profile` (`apps/rapid-mac/Sources/Rapid/Server/IntegrationCatalog.swift:3-12`).
 Two of the eleven score only on non-product code — vllm's hit is an example webserver script, sglang's a unit
 test. The remaining four (`MTPLX`, `Strata`, `TensorFold`, `openclaw`) joined the segment today and have not
-been read line by line. **We score nothing**: `/v1/capabilities` and `openapi.json` describe us to a client
-that has to configure itself.
+been read line by line. **We scored nothing until 11-08**, when probe 53 proved the wire end-to-end: claude's
+own loop, every cloud credential unset, the only base URL ours, an on-disk exact value delivered through
+8 engine-served turns. That closes the discovery question — the wire works for a harness that owes us nothing —
+but it is not what the eleven score on: they ship product code (detection, config writers), and
+`/v1/capabilities` plus `openapi.json` still describe us to a client that has to configure itself.
 
 Why this is the round's real finding: root § Adoption says to spend on "a harness consuming us", and this says the
 harness side is not an open research question in this field — it is a config file plus a detection routine that
@@ -320,10 +323,10 @@ yet a task.
    brew formula, no npm. omlx's quartet (DMG, auto-update, `~/.omlx/bin` shim, self-serve tap whose optional-kernel flag
    *degrades instead of failing*) remains the concrete shape; the tap is one `Formula/` file plus a
    publish leg CI already rehearses — the owner's hand, not engineering.
-3. **Ship the harness side** (§ The harness side): **11 of 12 serving trees do it and we are the twelfth**; one owns the merge-safety
-   problem in writing, and it is the rung root § Adoption says to spend on. Cheapest honest slice: the
-   `launch <agent>`-equivalent for one harness, reversible, with the non-destructive-merge rule copied from the
-   docstring above.
+3. **Ship the harness side** (§ The harness side): **11 of 12 serving trees do it; the wire half landed 11-08** —
+   probe 53 proves a cloud-severed claude finishes a real job on our endpoint alone. The product half is the
+   `launch <agent>`-equivalent: detection plus a reversible config writer with the non-destructive-merge rule
+   from the docstring above — a route that edits the *user's* files, so the owner's call, not engineering.
 4. **Skills and deferred tool loading are the same economy** (median 14 SKILL.md against our 1; 12/14 agent trees
    defer or filter the tool surface) and we hold the problem — 40 advertised, 6 scored — without the mechanism.
 5. **Put the child boundary on the owner's table with its precedents** (§ Where the field confines): TensorFold's

@@ -478,6 +478,15 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     an estimate; §4 the row is gone once the id is ready. Two traps this probe ate: a `str.join` over
     raw JSON bools raised behind `2>/dev/null` and read as "no row" for the whole load, and the loop
     must follow whichever row is `loading`, not the first row listed.
+- `53-external-harness-wire.sh` — can a third-party harness run its own loop on our wire alone?
+    The consensus table's wires-agent-to-self row counted eleven serving trees and made us the twelfth;
+    probe 40 drives *our* loop, this one points *their* loop at `/v1/messages`. The harness's cloud
+    credentials are unset before it starts and the only base URL it gets is ours, so success has one
+    possible source; the deliverable is an on-disk token the task never names, and wire truth is the
+    engine's own `Assembled prompt` lines, not the harness's exit code. Green 11-08: claude 2.1.318 on
+    the list-order chat checkpoint (Qwen3.6-35B-A3B-4bit), exact-value match, 8 engine-served turns.
+    Fails when: the harness vanishes (missing subject, like 41's absent DMG), or it finishes while the
+    engine assembled fewer than two prompts.
 - `_lib.sh` — shared harness
 Fails when: —
 
