@@ -1022,6 +1022,8 @@ VERIFIED_URLS = {
     "https://github.com/uingei/ocoreai.git": "10-27",
     "https://github.com/uingei/ocoreai/issues": "10-27",
     "https://github.com/uingei/ocoreai/releases": "10-27",
+    "https://img.shields.io/github/v/release/uingei/ocoreai": "11-07",
+    "https://raw.githubusercontent.com/uingei/ocoreai/main/scripts/install.sh": "11-07",
     "https://github.com/uingei/ocoreai/actions/workflows/ci.yml": "10-27",
     "https://github.com/uingei/ocoreai/actions/workflows/ci.yml/badge.svg": "10-27",
     # Fetched 10-29. Two earlier attempts from this host returned no answer at 75 s and one answered

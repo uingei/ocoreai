@@ -5,7 +5,7 @@
 [![swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
 [![macOS 14+ / iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![release](https://img.shields.io/github/v/release/uingei/ocoreai)](https://github.com/uingei/ocoreai/releases/latest)
+[![release](https://img.shields.io/github/v/release/uingei/ocoreai)](https://github.com/uingei/ocoreai/releases)
 [![CI](https://github.com/uingei/ocoreai/actions/workflows/ci.yml/badge.svg)](https://github.com/uingei/ocoreai/actions/workflows/ci.yml)
 [![Package dry-run](https://github.com/uingei/ocoreai/actions/workflows/package.yml/badge.svg)](https://github.com/uingei/ocoreai/actions/workflows/package.yml)
 
@@ -25,6 +25,10 @@ platform line above is the declared floor from `Package.swift`, not a measuremen
 [Releases](https://github.com/uingei/ocoreai/releases), open it, drag `ocoreai` into `Applications`,
 launch. Models download on first run from the built-in recommended list on the app's Models page —
 nothing is fetched before you choose. (The source build below: minutes, no setup — the developer path.)
+
+**Install (terminal path):** `curl -fsSL https://raw.githubusercontent.com/uingei/ocoreai/main/scripts/install.sh | sh`
+— fetches the newest release DMG and copies the app into `/Applications`
+(`OCOREAI_INSTALL_DIR=<dir>` to place it elsewhere). Removal: `scripts/uninstall.sh`.
 
 > First launch: DMGs are ad-hoc signed and **not notarised**. If Gatekeeper refuses one, right-click
 > `ocoreai` in `Applications` → **Open** → **Open** — once, then it starts normally.

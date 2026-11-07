@@ -5,7 +5,7 @@
 [![Swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
 [![macOS 14+ | iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![release](https://img.shields.io/github/v/release/uingei/ocoreai)](https://github.com/uingei/ocoreai/releases/latest)
+[![release](https://img.shields.io/github/v/release/uingei/ocoreai)](https://github.com/uingei/ocoreai/releases)
 [![CI](https://github.com/uingei/ocoreai/actions/workflows/ci.yml/badge.svg)](https://github.com/uingei/ocoreai/actions/workflows/ci.yml)
 [![Package dry-run](https://github.com/uingei/ocoreai/actions/workflows/package.yml/badge.svg)](https://github.com/uingei/ocoreai/actions/workflows/package.yml)
 
@@ -21,6 +21,8 @@ iOS 17+:仅编译验证(CI 的 `generic/platform=iOS`),iOS 上从未真跑过一
 `Package.swift` 里声明的下限,不是实测结论。
 
 **用户路径 — 双击即用:** 从 [Releases](https://github.com/uingei/ocoreai/releases) 下载最新的 `ocoreai-<ver>.dmg`,打开 → 拖到 `应用程序` → 启动。模型在「模型」页推荐列表首启下载;界面跟随系统语言(已内置简体中文)。下面的源码构建几分钟、无需额外配置,是开发者路径。
+
+**用户路径 — 终端一行:** `curl -fsSL https://raw.githubusercontent.com/uingei/ocoreai/main/scripts/install.sh | sh` — 拉取最新 release 的 DMG 并把 app 拷进 `/Applications`(用 `OCOREAI_INSTALL_DIR=<目录>` 换位置)。卸载:`scripts/uninstall.sh`。
 
 > 首次启动: DMG 均为 ad-hoc 签名(未公证)。若 Gatekeeper 提示"无法打开",在访达的 `应用程序` 里**右键 ocoreai → 打开 → 打开**即可,仅需一次。
 

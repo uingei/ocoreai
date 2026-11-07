@@ -9,6 +9,26 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-07
 
+**11-07 the terminal install path arrived — the field-universal artefact every installable tree had and ours lacked — and the pushed bytes are the bytes the test ran**
+
+- **What improved.** ollama ships `install/`, opencode ships an install script; our tree had only
+  `uninstall.sh`. `scripts/install.sh` runs their pattern: newest release DMG → read-only mount →
+  copy to `$OCOREAI_INSTALL_DIR` (default `/Applications`) → detach, refusing a live bundle with the
+  remedy. First screen: both READMEs gained the one-liner and a latest-release badge pointing at the
+  already-listed `/releases`. Terminal downloads carry no quarantine attribute — the same fact brew
+  installers ride — so the browser path's right-click line stays only where it is needed.
+- **What same-session output proves it.** Scratch-PREFIX run against the live v0.1.16 asset: 27.6 MB,
+  `installed ocoreai 0.1.16`, PlistBuddy confirms, metallib inside the copied bundle; the pushed raw
+  copy shasums identical to the tested file (`432b2fcd…` — first fetch timed out, retried, then
+  equal). Two new URLs registered at 11-07 after live 200s; `make links` itself refused to bless
+  anything while blind this hour (`22/32 answered → nothing verified`) — anti-vacuous as designed.
+- **The slip recorded.** `2ac75361` pushed with docs-check red because a `;`-chain with
+  `grep && git add` swallowed EXIT=2 — the second fall today into the hole this same diary names,
+  and P19's own message carried the way out. Gate exit codes are now read as standalone verdicts.
+- **Which gate goes red.** CI's text leg reddens any cited URL neither listed nor verified; a broken
+  renderer/bundle fails the installer before it copies (`set -euo pipefail`, volume-without-bundle is
+  a named red).
+
 **11-07 P11 and its claim surface were deleted on the owner's field-generality test — the sampled trees cite suite names, never a per-suite count**
 
 - **What improved.** `XxxTests`(N) counts and the gate policing them were both singular (38-tree
