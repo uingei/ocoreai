@@ -309,36 +309,29 @@ for p in chain_guides:
 # that file's question and not comparator-repos.md's — see that file's § How to use 4; the check follows
 # the decision's home, not the other way round). Twice on 10-28 a doc restated the number and drifted off
 # the tree, and the header disagreed with itself (a 32 037 row beside a 723 B tail), so the row is
-# re-derived here rather than trusted: the reader who acts on a stale figure is the one writing the next
-# root rule.
+# re-derived here rather than trusted. Since 11-07 the row quotes only the PERCENT — the figure a reader
+# actually acts on ("are we at our own cap?" decides whether the next root rule fits); the byte-exact
+# triple lives at its one home, this check's live output, because no reader's action differs between
+# 65 B and 41 B of headroom and a check that re-measures a byte copy exists to defend a second home
+# CLAUDE.md says must not exist. The cap itself is still hard-enforced above, so this row can only read
+# 100 % while the chain actually fits.
 FIG_DOC = "docs/agent/comparator-consensus.md"
-FIG_ROW = re.compile(r"ocoreai ([\d ]+) / ([\d ]+) / ([\d ]+) \((\d+) %, ([\d ]+) B of headroom\)")
-FIG_TAIL = re.compile(r"ours is ([\d ]+) B from")
-
-
-def _fig(s):
-    return int(s.replace(" ", ""))
-
+FIG_ROW = re.compile(r"\*\*ocoreai (\d+) % of its own cap")
+FIG_TAIL = re.compile(r"ours is at (\d+) % of that line")
 
 chain_cap = env_int("OCOREAI_AGENTS_MAX_CHAIN")
 agents_corpus = root_size + sum(os.path.getsize(p) for p in chain_guides)
-fig_want = [root_size, agents_corpus, deepest_chain,
-            int(round(deepest_chain * 100.0 / chain_cap)), chain_cap - deepest_chain]
-fig_rows = [tuple(_fig(x) for x in m) for m in FIG_ROW.findall(read(FIG_DOC))]
-fig_tails = [_fig(x) for x in FIG_TAIL.findall(read(FIG_DOC))]
-if len(fig_rows) + len(fig_tails) < env_int("OCOREAI_AGENTS_FLOOR_FIGURES"):
+fig_want_pct = int(round(deepest_chain * 100.0 / chain_cap))
+fig_sites = [int(m) for m in FIG_ROW.findall(read(FIG_DOC)) + FIG_TAIL.findall(read(FIG_DOC))]
+if len(fig_sites) < env_int("OCOREAI_AGENTS_FLOOR_FIGURES"):
     fail.append("B2 re-derived %d figure site(s) in %s (floor %d) — the anchors are this check's premise,"
                 " and a header that stopped matching them makes it pass vacuously"
-                % (len(fig_rows) + len(fig_tails), FIG_DOC, env_int("OCOREAI_AGENTS_FLOOR_FIGURES")))
-for got in fig_rows:
-    if list(got) != fig_want:
-        fail.append("B2 %s quotes ocoreai root/corpus/chain/pct/headroom as %s, the tree is %s —"
-                    " re-measure the row (`make docs-check` prints the live pair)"
-                    % (FIG_DOC, list(got), fig_want))
-for got in fig_tails:
-    if got != chain_cap - deepest_chain:
-        fail.append("B2 %s says ours is %d B from the cap while the budgets line leaves %d B — prose"
-                    " and measurement must quote one number" % (FIG_DOC, got, chain_cap - deepest_chain))
+                % (len(fig_sites), FIG_DOC, env_int("OCOREAI_AGENTS_FLOOR_FIGURES")))
+for got in fig_sites:
+    if got != fig_want_pct:
+        fail.append("B2 %s quotes ours at %d %% while the chain reads %d %% of the cap — the percent is"
+                    " the reader's figure, re-measure it (`make docs-check` prints the live chain)"
+                    % (FIG_DOC, got, fig_want_pct))
 
 # ── reference extraction (root + guides share the contract) ───────────────────
 NAME = r"(?:~?/?[A-Za-z0-9_+.\-]+/)*[A-Za-z0-9_+.\-]*[A-Za-z0-9_+\-]"
@@ -1194,11 +1187,11 @@ print("  diary     entries=%d paired=%d (floor %d)  headingless=%d"
       % (len([1 for _l in read("CHANGELOG.md").split("\n") if DIARY_HEAD_RE.match(_l)]),
          diary_paired, env_int("OCOREAI_FLOOR_DIARY_PAIRED"), len(diary_orphans)))
 print("  budgets   root=%d/%d bytes guides=%d  chain-cap=%d  injected=%d nested AGENTS.md"
-      "  deepest-chain=%d/%d  docs-figures=%d site(s) re-derived"
+      "  deepest-chain=%d/%d  chain-corpus=%d  docs-figures=%d site(s) re-derived"
       % (root_size, env_int("OCOREAI_AGENTS_MAX_ROOT"), len(guides),
          env_int("OCOREAI_AGENTS_MAX_CHAIN"), len(chain_guides),
          deepest_chain, env_int("OCOREAI_AGENTS_MAX_CHAIN"),
-         len(fig_rows) + len(fig_tails)))
+         agents_corpus, len(fig_sites)))
 print("  language  english-md=%d (floor %d)  mirror-cjk=%d (floor %d)  diary-excluded=%d"
       % (len(lang_zero), env_int("OCOREAI_FLOOR_LANG_SCANNED"),
          len(CJK_RE.findall(read(MIRROR))) if os.path.exists(MIRROR) else -1,

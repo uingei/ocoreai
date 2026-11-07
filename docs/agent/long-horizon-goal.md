@@ -132,7 +132,7 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    ran green on `v0.1.14` (10-29, ten steps, read-back sha-parity, diary 10-29(50), asset digest
    `229604e0…`) and the owner withdrew that pair; `v0.1.15`'s tag push (run `42065758740`) then reached
    `Release DMG` with every build leg green and died at step `Build DMG` on a bare exit 1 — the
-   diagnosis-and-producer epoch this row's own paragraphs pay — never reaching publish. What had never
+   diagnosis-and-producer epoch the paragraphs above pay for — never reaching publish. What had never
    existed until 11-07 is a *surviving* release; it exists, and the open state moved from one act to a
    cadence (home: the Adoption row). A tag is a hand, not a task — and a hand once spent buys one
    release, not a line of releases.

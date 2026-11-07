@@ -53,6 +53,9 @@ A change earns its place only if it can answer all three, in that order:
 3. **How does it stop regressing?** Name the gate that goes red if the improvement
    disappears: a test, an audit check, a CI step. "I was careful" is not a gate.
 
+Answer in sentences and point at the receipt: an entry that outgrows the change it records is the
+diary doing feature work, and prose written to be quoted grows a new falsehood with every fact move.
+
 If question 3 has no answer, the change is a *claim* — write it down as an open item
 with the instrument that would settle it, and leave the behaviour alone. This repo has
 repeatedly paid for improvements that were only ever asserted (see CHANGELOG's

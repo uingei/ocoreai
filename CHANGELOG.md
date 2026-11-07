@@ -9,6 +9,23 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-07
 
+**11-07 B2 disowned the byte-precision copy — the comparator row quotes the percent a reader acts on, and the same-session tamper shows the gate still bites**
+
+- **What improved.** B2 was enforcing a *copy*: the context-economy row in `comparator-consensus.md`
+  carried the live root/corpus/chain triple and headroom byte-exact, so every AGENTS.md line-edit
+  demanded a second edit of a number whose 65 B→41 B difference changed no reader's action — a second
+  home for CLAUDE.md's one-home number (the owner cut it today, together with the self-referential
+  tail it fed and the diary convention that made entries outgrow their changes; one restraint sentence
+  added to `CONTRIBUTING.md`). The row now reads `100 % of its own cap`, the tail `at 100 % of that
+  line`, and the byte triple lives only in `make docs-check` (the budgets line gained `chain-corpus=`
+  to make that home complete). The caps themselves — B1's ratchet, the 32 768 B chain budget — are
+  untouched and still hard-red, so the row can only read 100 % while the chain actually fits.
+- **What same-session output proves it.** Tail tampered to 99 % → `quotes ours at 99 % while the chain
+  reads 100 % of the cap`, exit 2; restored → exit 0; green budgets line:
+  `root=21427/21461 … deepest-chain=32727/32768 chain-corpus=47713 docs-figures=2`.
+- **Which gate goes red.** The same B2, demonstrated above: a moved chain percent reddens both figure
+  sites; a chain over the cap reddens the hard enforcement above it first.
+
 **11-07 the first surviving release — `v0.1.16` published with read-back sha-parity, and the design's own P4 claim went red the moment it became true**
 
 - **What improved.** The owner-authorised tag (at `bf074506`, after CI green on that commit and the
