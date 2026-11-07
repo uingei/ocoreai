@@ -9,6 +9,40 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-07
 
+**11-07 the wedge was re-measured before the first surviving release — green 3-of-4 post-bump, and the one red names the budget boundary, not the window**
+
+- **What improved.** The tag the owner just authorised ships the +13 pin window, and the std lane's
+  tool loop is the upstream `ChatSession` that window moved — but the rung-6 witness (probe 40 §2: a
+  fresh agent, given only `skills/ocoreai/`, must retrieve a seeded secret through the live wire) last
+  read green on **11-01**, pre-bump. Re-measured it on the rebuilt release binary
+  (`swift build -c release` re-run green, 327 s incremental — the stranger's only existing install
+  path, re-verified as a side effect) at `mlx-community/Qwen3.6-35B-A3B-4bit` via the probe's
+  caller-supplied-BASE exception: **3 passed `finish=stop`, 1 failed `finish=length`**. The failed
+  sample is the interesting one: the model narrated its plan in first person until the harness's
+  900-token cap bit — after the server had executed **4 successful `exec_command` calls** — so the
+  verifier refused the turn (no deliverable) while the serve log proves the loop acted. That is the
+  open *thinking-uncounted* row priced on the wedge's own task; its datum now sits beside the row.
+  The isolation experiment says the flake is not from the bump: the **pre-bump v0.1.14 DMG**, mounted
+  and served, went red on its own k=1 with a *different* mechanism (`finish=stop`, the agent abstained
+  — "The workspace is empty. The referenced script `scripts/probes/run.sh` does not exist"). Both the
+  pass and the red were read, not inferred: `tool_calls_echoed=0` was never allowed to decide (11-01(95)).
+- **What same-session output proves it.** Sample lines verbatim: `6 passed, 0 failed` ×3; the red
+  `stranger-agent-skill-task: 5 passed, 1 failed` with `finish=length tool_calls_echoed=0` answer
+  `"The user wants me to find a note… I need to find this note "`; the pre-bump red
+  `finish=stop` answer `"…the probe cannot be executed. No tool call is needed."`. Serve logs preserved
+  under `/var/folders/…/wedge{1,2,3}-XXXXXX.*/serve.log`; the 4-exec audit trail sits at 16:51:43–16:52:16
+  of the first run (`caller":"mlx_engine`, auto-approved).
+- **Which gate goes red.** Probe 40 itself — §1's negative control runs every invocation, so a lenient
+  verifier cannot quietly green this over; `scripts/e2e-gui-app.sh` step 5 stays the installed-artefact
+  red line. No probe edit was made to dodge the flip: raising the harness's 900 would be a gate
+  inferring its own premise.
+- **Limits.** k=4 on the current tree is not a stability figure — the row says the flip exists, not
+  what the pass rate is; the pre-bump single red shows the flake predates the window, not parity
+  between artefacts; and caller-BASE mode judges the binaries this host booted — the DMG itself is
+  judged by probe 41 on the release leg, whose sibling weight tier still has no CI seat (the open tier
+  question). The tag rides on 3-of-4 plus the pre-bump counter-sample, and says so here before anyone
+  installs it.
+
 **11-07 the rung disowned a publish pass its own line 99 records — the runner's API settles it, and what never existed is a surviving release**
 
 - **What improved.** Two sentences priced the owner's next hand on a false premise: `AGENTS.md` § Open said

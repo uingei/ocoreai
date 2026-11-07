@@ -58,7 +58,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **Thinking is uncounted on the tools lane** (Engine/) — probe 44 §2: 550 chars, no
   `reasoning_tokens`. Upstream counts only via the processor that also bounds the thought, and a
   bound there starves the tool call (§2b: 200→500 at 64 tokens). A count-only processor waits
-  upstream. Owner call. Datum 11-04: the model family ships a wire word for this cost —
+  upstream. Owner call. Datum 11-07 (the wedge's own task prices it): of 4 §2 runs on the shipping
+  tree at Qwen3.6-35B, **1 died `finish=length` mid-work** — first-person narration ate the harness's
+  900 tokens after 4 executed `exec_command` calls — and 3 passed (`finish=stop`); the pre-bump
+  v0.1.14 artefact went red on its own k=1 with a different mechanism, so the flip is at the budget
+  boundary and predates the +13 window, not a regression from it. The pass rate is unmeasured; the
+  flip is. Sample lines: CHANGELOG 11-07 (wedge re-check). Datum 11-04: the model family ships a wire word for this cost —
   `preserve_thinking` retains "reasoning context from historical messages"
   (`../references/Qwen3.8/README.md:25`) — so a caller that retains thinking pays tokens we cannot price
   for it (inference from a README, not a measured interaction).
