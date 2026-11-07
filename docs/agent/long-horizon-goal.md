@@ -197,9 +197,10 @@ off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable
    skill, finds it and finishes a task. `scripts/probes/40-stranger-agent-skill-task.sh` is that instrument — a seeded note whose
    VALUE is reachable only by a live call chain, plus a negative control that must reject a wrong deliverable.
    Probe 39 executes the artefact; probe 40 is read by it.
-   Measured twice on 11-04, and the second count is the honest one: **five of the seven serving trees ship it in
-   product code** (`comparator-consensus.md` § The harness side is already built, on their side — vllm's only hit
-   is an example script, sglang's a unit test). The shape is a **command that hands a configured harness to the
+   Measured on 11-04, counting only what was traced to product code: **five of the twelve serving trees ship it**
+   (`comparator-consensus.md` § The harness side is already built, on their side — vllm's only hit
+   is an example script, sglang's a unit test, so the ledger's 11/12 pattern-score counts thin hits the count
+   here refuses; the denominator is the ledger's corrected serve segment, not the older hand-typed seven). The shape is a **command that hands a configured harness to the
    caller** — `mlx-serve launch claude`
    (`../references/mlx-serve/README.md:49`), `strata connect` printing per-tool setup (`../references/Strata/README.md:168`),
    ollama tuning model output limits *for Claude Code specifically* (`f9323416`) and a `Runner` per agent

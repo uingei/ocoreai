@@ -40,7 +40,14 @@ Read for consensus, the corpus first failed to agree with its own inventory. Fiv
   scores `cline` at 7 (from "decline") and `pi` at 458 (`Float.pi`), which is how the registry's sentence read
   *seven*, then *ten of the 24*, while the disk said otherwise each time.
 
-## The consensus, ranked by how unanimous
+## Agreement, counted and ranked — what is consensus and what is only precedent
+
+**Consensus floor (owner's rule, 11-08): ocoreai and a *single* reference tree agreeing is a precedent, not a
+consensus.** The table ranks counts for direction, but two rows sit at the precedent shape and must not be read
+as mandates: `2/12` committed-contract is us plus `ollama` alone — the field's live stance is to *turn the route
+off* (§ Where we are ahead) — and `2/24` store shelf is two other trees without us. The script's diffusion
+ladder already refuses the CONSENSUS word below 0.8 share; prose here owes the same discipline the heading once
+promised.
 
 Counts are in-segment (`serve` = **12** trees that answer a chat-completion POST themselves; `agent` = 14
 harnesses a person drives; `shippable` = 24 trees that ship something a stranger installs — everything but the
@@ -75,8 +82,8 @@ re-measured 11-07/08 (the two install rows — `scripts/install.sh` went live �
 | **Wires a third-party coding agent to itself** | serve | **11/12** | **yes on the wire** — probe 53 runs claude's own loop cloud-severed on `/v1/messages` (11-08); the product code (detection, config writer) is still ours to ship (§ The harness side) |
 | **Speaks ACP (the editor↔agent protocol)** | agent | **8/14, and 8/8 editing now** | **no** (§ Direction 8) |
 | **OS confinement profile for the child process** | agent | 6/14, honest read 5 | **no** (§ Where the field confines) |
-| Committed machine-readable HTTP contract | serve | **2/12** | yes (`openapi.json`, generated) |
-| Published client *package* | serve | **2/12** (`openclaw`, `sglang`) | no |
+| Committed machine-readable HTTP contract | serve | **2/12** — us + `ollama`: precedent, not consensus | yes (`openapi.json`, generated) |
+| Published client *package* | serve | **2/12** (`openclaw`, `sglang`) — thin, and not ours | no |
 
 Three numbers are the whole calibration, so read them twice. **Median tags 245, ours 1.** Of the 23 installable
 comparators, **21 minted at least one tag in the last 30 days**; we minted one in the last 120 (§ The field's own

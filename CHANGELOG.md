@@ -9,6 +9,23 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-08
 
+**11-08 a two-party count is not a consensus — the summary table was granting the word to rows the file's own prose refused it**
+
+- **What improved.** The owner's methodology rule (单个项目达成一致不算共识) entered the ledger's own head: the
+  heading no longer promotes every count to "consensus", and the two precedent-shaped rows carry their label
+  inline — the `2/12` committed-contract row is literally us + `ollama` (re-checked this round against the
+  mirror's own disk: a tracked `docs/openapi.yaml`), while § Where we are ahead had always called the same
+  fact "our bet, not a field expectation". Table and prose were telling two stories about one number; the
+  rule resolves it toward the prose. Same round, same instinct: `long-horizon-goal.md`'s harness row kept the
+  pre-correction hand-typed denominator ("five of the seven") — now five-of-twelve against the ledger's
+  corrected serve segment, with the count's one home left in the ledger.
+- **What proves it.** The named second tree is now verified from `git ls-files` on the mirror rather than
+  repeated from prose; the count's other members were already disclosed in § The harness side (five
+  product-traced, two thin hits refused by the stricter count, four unread).
+- **The gate.** None new — prose-shape checks are deleted, not downgraded; ledger anchors stay re-checked by
+  `make docs-check` P2/P3, and the rule lives at one home (the ledger head) plus this diary.
+
+
 **11-08 the twelfth-tree row flipped by measurement — the harness-wire claim became a probe instead of a sentence**
 
 - **What improved.** The consensus table's wires-agent-to-self axis (11 of 12 serving trees) had one
