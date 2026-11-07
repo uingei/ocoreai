@@ -35,14 +35,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Verify review infrastructure exists (PR_EVIDENCE.md references), including the intake side:
-      # a stranger's bug report is the cheapest contribution there is, and a form that GitHub refuses
-      # to render (empty description, malformed body) silently costs every one of them.
-      - name: Review governance check
+      # The intake half is what this step guards: a stranger's bug report is the cheapest
+      # contribution there is, and a form that GitHub refuses to render (empty description,
+      # malformed body) silently costs every one of them. The review half — PR template,
+      # CODEOWNERS, the two-axis docs — was deleted 11-07: it guarded a process the repo's own
+      # culture bypasses (direct commits), with zero PRs, zero inbound references and zero reds
+      # in 200 commits; if PRs ever exist, the template costs five minutes then, not 27 KB now.
+      - name: Intake governance check
         run: |
           set -euo pipefail
           FAIL=0
-          for f in .github/PULL_REQUEST_TEMPLATE.md .github/CODEOWNERS .github/PR_EVIDENCE.md .github/REVIEW.md CONTRIBUTING.md \
+          for f in CONTRIBUTING.md \
                    .github/ISSUE_TEMPLATE/config.yml .github/ISSUE_TEMPLATE/bug_report.yml \
                    .github/ISSUE_TEMPLATE/capability_honesty.yml .github/ISSUE_TEMPLATE/feature_request.yml; do
             if [ ! -f "$f" ]; then
@@ -51,7 +54,7 @@ jobs:
             fi
           done
           [ "$FAIL" -eq 1 ] && exit 1
-          echo "✅ Review governance: all infrastructure files present (contribution + intake)"
+          echo "✅ Intake governance: contribution + intake files present"
 
       # Text gates belong on the free runner: the macos-26 audit leg costs 715 s a push, and
       # neither of these needs a Swift toolchain. codespell's pin lives in the script (one home),

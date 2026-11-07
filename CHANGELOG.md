@@ -9,6 +9,25 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-07
 
+**11-07 the review-family and CONTRIBUTING's PR-culture half were a second home at war with the culture — consolidated into the direct-commit reality the repo already runs**
+
+- **What improved.** The owner's generality sweep found its cleanest hit: two review docs, a
+  CODEOWNERS and a PR template (27 KB) with **0 PRs in 90 d, 0 inbound references, 0 governance
+  reds in the last 200 commits**, while CONTRIBUTING maintained a parallel false culture — "never
+  push directly to `main`" and an 8-step pre-commit pipeline whose `[verified]` commit prefix
+  appeared 0/100 times — against AGENTS.md's "direct commits, no branch ritual". Consolidated,
+  not just deleted: the doc now tells one truth (shipping route, evidence = the three questions,
+  verification = the tiers AGENTS.md names), and the CI step guards only the intake half (four
+  ISSUE_TEMPLATEs incl. capability-honesty, plus CONTRIBUTING) under its honest name, Intake
+  governance. The intake files stay because they are the funnel's mouth, not a ceremony for a
+  process this repo bypasses by design.
+- **What same-session output proves it.** The three zeros were measured before the surgery (merge
+  count, python consumer scan, governance-word grep); the `[verified]` prefix at 0/100; the
+  contract exits 0 on the consolidated tree.
+- **Which gate goes red.** Intake governance reddens the moment any intake template vanishes;
+  the evidence standard has no second home to drift back into — the pointers are gone, not
+  warned about.
+
 **11-07 the terminal install path arrived — the field-universal artefact every installable tree had and ours lacked — and the pushed bytes are the bytes the test ran**
 
 - **What improved.** ollama ships `install/`, opencode ships an install script; our tree had only

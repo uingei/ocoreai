@@ -22,24 +22,19 @@ swift run
 # → HTTP gateway + UI; curl http://127.0.0.1:8080/health
 ```
 
-## Branch Workflow
+## Shipping Route
 
-Work on a branch, ship through a PR against `main`. Never push feature work
-directly to `main`.
-
-- Branch naming: `feat/<slug>`, `fix/<slug>`, `docs/<slug>`, `chore/<slug>`
-- Open an issue first for anything non-trivial, link it in the PR
-- One logical change per PR
-
-```bash
-# Sync before PR
-git fetch origin
-git rebase origin/main
-```
+Direct commits to `main` — no branch ritual; `AGENTS.md` § Working here owns the
+rule (stage explicit paths, one logical change per commit, only this session's
+files). Non-trivial work owes an issue first only if it needs a decision from
+outside this session. The CI legs judge every push; the gates worth running
+before it are named in `AGENTS.md` § Build / Test / Lint, and `make push-ready`
+is the no-build set.
 
 ## Evidence Is Required
 
-The binding shipping standard is [`.github/PR_EVIDENCE.md`](.github/PR_EVIDENCE.md).
+Evidence is the three questions below, answered where the change records itself: the
+`CHANGELOG.md` contract for user-visible work, the commit body otherwise.
 
 ### The three questions (applies to every important change, not just PRs)
 
@@ -142,31 +137,12 @@ Every PR includes:
 
 If an evidence type doesn't apply, mark it `N/A - <reason>`. Don't leave it blank.
 
-## Code Review Process
+## Verifying Before You Commit
 
-The review process is [two-axis](.github/REVIEW.md):
-
-1. **Standards axis** — Does the code follow repo conventions, Swift best practices, and the smell baseline?
-2. **Spec axis** — Does the code faithfully implement the issue/description?
-
-Each finding gets a confidence score (0–100). Only findings ≥ 80 are reported.
-This prevents noisy reviews — only report what you're sure about.
-
-Self-review discipline (7-step with forced self-negation) before marking a PR
-ready.
-
-## Pre-Commit Verification
-
-Before committing, run the 8-step verification pipeline:
-
-1. **Diff extraction** — `git diff --cached`
-2. **Static security scan** — hardcoded keys, secrets, injection patterns
-3. **Baseline test + format** — `swift test`, swift-format gate
-4. **Self-review checklist** — secrets, input validation, debug leftovers
-5. **Standards review** — repo conventions + Swift smell baseline
-6. **Spec review** — implementation fidelity to the issue/description
-7. **Auto-fix loop** — fix findings, re-verify (max 2 cycles)
-8. **Commit** — with `[verified]` prefix
+The tiers live in `AGENTS.md` § Build / Test / Lint: sandbox gates first, escalation
+when the change touches Metal or the wire; `swift build` exit 0 before any completion
+claim; `make push-ready` before the push. The three questions above are the review —
+no score threshold, no pipeline ritual stands between a change and its gate.
 
 ## Secret Management — Merge Gate
 
@@ -234,7 +210,7 @@ There is no `--enable-live` flag and no `Tests/OcoreAI/{Component,Integration,Sy
 - If the existing tests for your area are shallow or mocked, **fixing them is part of your change**
 - Use `@Test` from Swift Testing framework for new tests
 
-## Pull Requests
+## Commits
 
 ### Commit Messages
 
@@ -249,31 +225,23 @@ chore: bump MLX to 0.22
 
 ### Risk Labels
 
-Before marking a PR ready, self-assess the risk:
+Before committing a risky change, self-assess the risk:
 
 | Risk | Meaning | Requires |
 |---|---|---|
 | **Low** | Rollback is a revert; no user action needed | N/A |
-| **Medium** | Users may need to update config/behavior | Rollback plan in PR description |
+| **Medium** | Users may need to update config/behavior | Rollback plan stated in the commit body |
 | **High** | Security-critical, breaking API, hardware behavior change | Rollback plan + observable failure symptoms + feature flag if possible |
 
-### PR Workflow
+### The Route
 
-```
-fork → branch → commit → push → open PR → review → merge (squash)
-```
-
-- **PR template is mandatory** — fill every section in `.github/PULL_REQUEST_TEMPLATE.md`
-- **Validation evidence is required** — paste actual command output, not "CI will check"
-- **"It works on my machine" is not evidence**
-- **Small PRs first** — prefer `XS/S/M`. Split large work into stacked PRs
-- **One concern per PR** — avoid mixing refactor + feature + infra
-- **Merge style:** squash-merge with conventional commit in the body
+Work lands on `main` directly (§ Shipping Route). What survives the old PR list,
+scoped to the commit: keep changes small; one concern per commit; paste actual
+command output where evidence is asked — "it works on my machine" is not evidence.
 
 ## Architecture Context
 
 Before architecture-sensitive changes, read:
-- `.github/REVIEW.md` — review process
 - `Sources/ocoreai/Scheduler/HardwareRouter.swift` — routing logic
 
 ## Questions?
