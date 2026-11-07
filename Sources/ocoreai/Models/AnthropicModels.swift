@@ -627,7 +627,8 @@ struct AnthropicUsage: Encodable {
     /// it (`GenerateCompletionInfo.cachedPromptTokenCount`). Anthropic's own identity is
     /// `total == input + cache_read + cache_creation`, so ``inputTokens`` carries the
     /// uncached part — vllm `entrypoints/anthropic/serving.py:80-110`, ollama
-    /// `anthropic/anthropic.go:226-238`, splash `server/api_shapes.py:1221-1226`. The
+    /// `anthropic/anthropic.go:226-238`, splash `server/dialects/anthropic.py:686-690` (the tree split
+    /// its `server/api_shapes.py` into `server/dialects/` — re-anchored 11-07, same arithmetic). The
     /// OpenAI face already publishes the measurement as
     /// `usage.prompt_tokens_details.cached_tokens`; omitting it here hid prefix reuse
     /// from a client that costs cache hits, and left `input_tokens` claiming a prompt the
