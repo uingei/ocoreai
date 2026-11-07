@@ -9,6 +9,28 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-07
 
+**11-07 the test leg's label names a toolchain while its runtime gates judge an OS — every run now prints which runtime it decides on**
+
+- **What improved.** Asked whether CI verifies the macOS-27 half, the honest answer had to be
+  re-derived from three docs: the `xcode-27` leg really does open the **compile** half of the wall
+  (SDK-27 `canImport(CoreAI)` code exists and runs there — verdict lines this morning: **3572 tests /
+  622 suites** vs the `macos-26` leg's **3403 / 595**), while the **runtime** half stays shut — the
+  repo's own pending wording says so (`_applyBitmask` waits "until it runs on macOS 27"; #412 adoption
+  "waits the macOS 27 window"; the 10-26 incident where `.disabled(…exercised in CI matrix)` killed
+  five `CoreAIVisionConfigTests` was exactly this confusion fossilized). So the Build & Test legs now
+  print `sw_vers` + `xcodebuild -version` as a token-free notice at their head: the A/B delta alone
+  cannot separate *compiled-and-ran* from *compiled-and-skipped*, and one line per push retires the
+  archaeology that today cost six API calls and three documents.
+- **What same-session output proves it.** The two annotation verdict lines above, pulled from the
+  public `check-runs/{id}/annotations` endpoint for `bf074506` — and the note that `xcode-27` is named
+  for its toolchain where the OS image is named `macos-26`, which is the ambiguity in one word.
+- **Which gate goes red.** None added — this is disclosure, not a gate: the spring already exists and
+  is wound (`PlatformPremiseHonestyTests` pins the predicate against the running OS; every macOS-27
+  suite carries `.enabled(if: PlatformPremise.hasMacOS27)`), so the day a leg prints `27.x`, its
+  CoreAI suites wake in that same run with no new work. Reader whose action changes: anyone deciding
+  whether a green `xcode-27` leg means behaviour verified — from now on the run says which half it
+  verified in its own log.
+
 **11-07 the wedge was re-measured before the first surviving release — green 3-of-4 post-bump, and the one red names the budget boundary, not the window**
 
 - **What improved.** The tag the owner just authorised ships the +13 pin window, and the std lane's

@@ -193,6 +193,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Which half of the macOS-27 wall this leg opens is decided by its RUNTIME, and the label
+      # names neither: `xcode-27` is a toolchain, `hasMacOS27` is a runtime predicate. Sampled
+      # 11-07: a reader had to re-derive this from three docs and two verdict lines. One notice
+      # per push, same token-free channel as every other verdict here.
+      - name: Name the runtime this leg judges on
+        run: |
+          echo "::notice::runtime=$(sw_vers -productVersion) build=$(sw_vers -buildVersion) xcode=$(xcodebuild -version | tr '\n' ' ')"
+
       # SPM dependency cache — bare repositories only. `.build/checkouts` used to be cached here
       # and is NOT: a resolved tree is build output, and the prefix restore-key below hands it to a
       # run whose pins already moved. Measured 10-30 on the mlx-swift 0.33.0 bump — the leg linked
