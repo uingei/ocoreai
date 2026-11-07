@@ -5,6 +5,7 @@
 [![Swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
 [![macOS 14+ | iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![release](https://img.shields.io/github/v/release/uingei/ocoreai)](https://github.com/uingei/ocoreai/releases/latest)
 [![CI](https://github.com/uingei/ocoreai/actions/workflows/ci.yml/badge.svg)](https://github.com/uingei/ocoreai/actions/workflows/ci.yml)
 [![Package dry-run](https://github.com/uingei/ocoreai/actions/workflows/package.yml/badge.svg)](https://github.com/uingei/ocoreai/actions/workflows/package.yml)
 
