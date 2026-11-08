@@ -178,6 +178,49 @@ The verdict on the standing question — does following the field make it right:
 the form-consensus was thinnest, and they do not persist either. A crowd tells you which forms are cheap to buy;
 it has never told anybody what to be, and its own additions are not durable.
 
+## What the field fixes about itself — 90 d of fix-subject buckets (11-08)
+
+The reversal section reads what the field *removed*; this reads what it *repairs*, from the same mirrors and the
+same 90 d window. Instrument: per tree, take commit subjects matching `fix|repair|resolve|workaround` (base counts
+150–25 567 across 24 live trees), then for each failure bucket count what **share of that tree's own fix stream**
+carries the bucket's words and report the **median share across trees** (not the raw hit count — raw counts are
+swamped by `openclaw`/`hermes-agent`, whose 20 k+ fixes each would dominate every row and say nothing about the
+median tree). Re-derive: `git -C ../references/$t log --since='90 days ago' --pretty=%s | grep -i -E '<fix>|<bucket>'`.
+
+| failure bucket | median share of a tree's fixes | trees ≥10 % | ours (base 434) |
+|---|---|---|---|
+| **kv / cache / context / truncat / tokeniz** | **5 %** | **11 / 23** | 7 % |
+| stream / chunk / partial | 2 % | 0 | 4 % |
+| tool-call / parse / marker | 2 % | 0 | 2 % |
+| race / thread / concurrent | 1 % | 0 | 0 % |
+| platform (metal/ane/coreai/gpu) | 1 % | 1 | **13 %** |
+| quant / checkpoint / gguf | 1 % | 1 | 1 % |
+| http / status / header | 1 % | 0 | 1 % |
+| crash / abort / panic | 0 % | 0 | 1 % |
+| hang / stall / deadlock / stuck | 0 % | 0 | 1 % |
+| timeout | 0 % | 0 | 0 % |
+| oom / leak / alloc | 0 % | 0 | 0 % |
+
+- **The field's whole repair budget is the KV/context/tokenizer axis, and nothing else clears the median.** No other
+  bucket — not crashes, not hangs, not OOM — reaches 10 % on even one tree's *own* fix stream; the median tree spends
+  its fixes keeping prefix caches, context windows and token accounting correct. That is precisely where our densest
+  gate family lives (`KVCacheResidencyTests`, `KVCacheAdmissionPricingTests`, `KVCacheStatusEndpointTests`,
+  `ContextWindowPolicyTests`, `FastPathContextWindowTests` + the `CountTokens` pair), and it is *why* — the hardest
+  durable failure in local serving is bookkeeping, not the generate() call. Our share there (7 %) sits just above the
+  field median; we are not under-invested on the one axis that actually breaks.
+- **The one place we spend 13× the field is platform — and that is the dual-engine bet's bill, paid honestly.**
+  Metal/ANE/CoreAI/GPU words carry 13 % of our 434-commit fix stream against a field median of 1 %, because we ship
+  two backends on two Apple SDKs where the field ships CUDA or CPU. It is gated where it is declared
+  (`PlatformPremiseHonestyTests`, `CoreAILiveGenerateTests`, `make toolchain-check` compiling a kernel), so the tax
+  is real and priced, not silent. Read next to the churn block's `engi=16 %`: engine work is our largest spend
+  *and* our largest repair cost — the same number from two instruments, which is the point.
+- **Crash/hang/timeout/OOM are all ~0 in the field's *own* words — a ceiling on the instrument, stated.** These
+  are the failures a user feels most, yet median trees label ≤1 % of fixes with those nouns: trees file such fixes
+  under the subsystem that broke (`fix(kv): …`, `fix(stream): …`), not under the symptom. So the buckets above read
+  the field's *diagnosis vocabulary*, not its incident rate — a scan that reads labels cannot see what is filed
+  under a cause. That is invariant 1's other face, and the reason this section is read beside the reversals, not
+  instead of them.
+
 ## What the field's own ledgers say — the only source here that carries sequence
 
 Churn measures *now* and cannot see a decision that stopped being edited. A per-version changelog is the other

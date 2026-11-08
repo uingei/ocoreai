@@ -9,6 +9,23 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-08
 
+**11-08 the field's 90-d repair budget is one axis — KV/cache/context — and the only place we out-spend it 13× is platform, which is the dual-engine bill**
+
+- **What improved.** A new measured section in `docs/agent/comparator-evolution.md` ("What the field fixes about
+  itself"): fix-subject taxonomy over 24 live mirrors × 90 d, reported as each bucket's *median share of a tree's
+  own fix stream* (raw counts would be swamped by the two 20 k-fix giants). The field's durable repair family is
+  kv/cache/context/tokenizer — 5 % median share, 11/23 trees ≥10 % — and no crash/hang/timeout/OOM bucket clears
+  10 % on *any* tree's own stream. Our densest gate family sits exactly on that axis (KV-residency/admission-
+  pricing/status, context-window policy, count-tokens), so the finding buys no new gate — it prices why the gate
+  density is right, and puts priority evidence under the still-open capacity call. Our one 13× outlier is
+  platform (13 % of our 434 fixes vs field median 1 %) — the two-backend/two-SDK tax, already gated by
+  `PlatformPremiseHonestyTests` + kernel-compiling `toolchain-check`.
+- **What proves it.** The section's own re-derive one-liner, and the same-day self-catch: first pass with `\b`
+  boundaries (BSD grep ignores it) read `inst**all**` and `c**hang**ing` as stall/hang and drafted "harness hangs
+  dominate the agent trees" — POSIX `[[:<:]]` + reading matched lines collapsed that row to 0 % median before
+  anything shipped. Three-layer verification earned its keep again.
+- **The gate.** `make docs-check` (cite + budget side); the taxonomy itself re-derives in ~2 min off the mirrors.
+
 **11-08 the two-surface A/B reproduced across days — −7 again on a same-day pair, and the full surface pays 4.2× the tokens to lose them**
 
 - **What improved.** The owner's pending tools[]-surface call (root § Open: "judging the two surfaces waits on the
