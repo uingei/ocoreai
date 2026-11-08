@@ -24,6 +24,12 @@ heading are when the work landed (measured from git).
   boundaries (BSD grep ignores it) read `inst**all**` and `c**hang**ing` as stall/hang and drafted "harness hangs
   dominate the agent trees" — POSIX `[[:<:]]` + reading matched lines collapsed that row to 0 % median before
   anything shipped. Three-layer verification earned its keep again.
+- **The same-session tightening:** shipped caveat ("crash rows ≈0 because labels file symptoms under causes") was
+  then re-measured over subject **+ body**: the crash family does not move (≤2 % median even with prose), the kv
+  family rises 5→16 % median (12/21 trees ≥10 %) — the bookkeeping dominance survives reading the field's full
+  text, so it is not a labeling artifact; the caveat shipped replaced with the measurement. (The re-run's
+  "subject-only" column turned out to be the same two greps in swapped order — A|B ≡ B|A — caught by the two
+  columns being identically suspicious.)
 - **The gate.** `make docs-check` (cite + budget side); the taxonomy itself re-derives in ~2 min off the mirrors.
 
 **11-08 the two-surface A/B reproduced across days — −7 again on a same-day pair, and the full surface pays 4.2× the tokens to lose them**

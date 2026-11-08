@@ -214,12 +214,15 @@ median tree). Re-derive: `git -C ../references/$t log --since='90 days ago' --pr
   (`PlatformPremiseHonestyTests`, `CoreAILiveGenerateTests`, `make toolchain-check` compiling a kernel), so the tax
   is real and priced, not silent. Read next to the churn block's `engi=16 %`: engine work is our largest spend
   *and* our largest repair cost — the same number from two instruments, which is the point.
-- **Crash/hang/timeout/OOM are all ~0 in the field's *own* words — a ceiling on the instrument, stated.** These
-  are the failures a user feels most, yet median trees label ≤1 % of fixes with those nouns: trees file such fixes
-  under the subsystem that broke (`fix(kv): …`, `fix(stream): …`), not under the symptom. So the buckets above read
-  the field's *diagnosis vocabulary*, not its incident rate — a scan that reads labels cannot see what is filed
-  under a cause. That is invariant 1's other face, and the reason this section is read beside the reversals, not
-  instead of them.
+- **Crash/hang/timeout/OOM stay ≤ 2 % even when the body is read — the dominance is bookkeeping, not a label.**
+  The table first shipped with the weaker caveat ("subject vocabulary is a lower bound; symptom fixes are filed
+  under the subsystem"), then was re-measured same-day over subject **+ body** merged per commit: the crash-family
+  rows do not move (≤ 2 % median, 0 / 21 trees ≥ 10 %, one tree for OOM) while the kv family rises to a **16 %
+  median with 12 / 21 trees ≥ 10 %**. So reading the field's full prose neither reveals a hidden incident class
+  nor weakens the headline — the field genuinely spends its repair time on cache/context bookkeeping, and a
+  crash-centric failure model of local serving would be the wrong map. (Own error for the record: the re-run's
+  "subject-only" column was the same two greps in swapped order — A|B ≡ B|A — so no subject-only number was ever
+  re-derived; the swap is what made the two columns suspiciously identical and sent me back to read my own loop.)
 
 ## What the field's own ledgers say — the only source here that carries sequence
 
