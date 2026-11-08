@@ -9,6 +9,19 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-08
 
+**11-08 the research round's two open sentences closed — download-verify backed per tree, and root now routes the whole comparator corpus**
+
+- **What improved.** The unanimity-floor check named the download-verify row as the one full-score row not yet
+  content-checked; it is now: all 10 reference serving trees back it on download-path files (3–36 each), with
+  the two thinnest readings named in the sentence rather than rounded up. And `comparator-evolution.md` /
+  `comparator-innovation.md` — the trajectory and diffusion halves of the corpus this whole round read —
+  joined root § Upstream 5 inside the 61 B headroom (+43 B, 18 B left), so the field-direction trio is
+  routable from every future session; `doc-orphans` 2→0.
+- **What proves it.** The backing matrix ran the script's own regexes over the mirrors; docs-check prints
+  `root=…/21461` and `doc-orphans=0` on one line.
+- **The gate.** `make docs-check` budgets B1/B2 go red if the root line grows past the cap; P14 floors the
+  doc-file count so orphan-sweeping cannot fake the zero.
+
 **11-08 the whole field-column pass landed on 39 mirrors — and the shared-progress ledger was written with measured numbers, two of them about our own stale cells**
 
 - **What improved.** (1) Every field cell in the consensus table is now the 11-08 pass (shippable derives to

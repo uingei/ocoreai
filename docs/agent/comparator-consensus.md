@@ -96,7 +96,9 @@ the one root already calls the open item — now measured instead of asserted.
 compaction, stall bound over the 13 reference agent trees; the effort knob over the 10 reference serving trees),
 **every tree backs its own cell in non-test code** — thinnest backing 1 file (`harness2` compaction), typical
 backing dozens, no cell is one tree's many files. The check is what § Consensus floor demands before a full row
-is repeated as a claim; it has not yet been run on the download-verify row.
+is repeated as a claim; the download-verify row joined on the same rule — all 10 reference serving trees back
+it on download-path files (3 to 36 each; `MTPLX` thinnest by count at `mtplx/aria2_downloader.py`, and
+`openclaw`'s first hit is a Dockerfile digest, read honestly as a digest on an artefact path not a downloader).
 
 ## Where the field disagrees
 
