@@ -9,6 +9,22 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-08
 
+**11-08 the eval board's stale-binary premise was pinning an unsatisfiable claim — a docs-only tree blocked it twice, and running its own remedy changed nothing**
+
+- **What improved.** The premise compares binary mtime against `Sources/** + Package.swift` — which counts the
+  three `Sources/**/AGENTS.md` guides. Those are read from disk at runtime and never linked, and a no-change
+  `swift build` does not relink, so the remedy the failure printed ("build first") could not advance the binary's
+  mtime: the second refusal printed the same mtime the build had just "refreshed". The premise now excludes `*.md`
+  via git's exclude-magic (313→310 on the live repo, binary verified newer than every compiled input left). The
+  exclusion is four-square: the remedy demonstrably cannot satisfy the old form; `.md` is not a link input; the
+  compiled premise is untouched (swift/h/cpp/modulemap/xcprivacy still gate); and the doc surface already digests
+  at its own home (the conditions `docs` field).
+- **What proves it.** Both refusals are in the run logs with their identical `mtime 1794041201`; after the fix the
+  same board passed the premise and the full-surface run started (pairing: same checkpoint/temperature as the
+  recorded 6-tool rows, the only variable the tool surface).
+- **The gate.** The premise itself is the gate — it re-asserts on every board run; the exclusion's floor is that
+  run's own exit, and the conditions self-test (41 checks) still digests the binary and docs separately.
+
 **11-08 the corpus's first reversal-mining — ~1 000 changelog removal-lines separated into one product deletion that concerns us directly, and everything else was fixes**
 
 - **What improved.** A question the instruments never asked: not what the field adds or edits, but what it **deletes**.

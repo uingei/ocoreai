@@ -192,8 +192,13 @@ if [ -z "$EVAL_BIN" ]; then
   probe_summary "$PROBE_NAME"
 fi
 BIN_MTIME="$(stat -f %m "$EVAL_BIN")"
-SRC_MTIME="$(git -C "$PROBE_REPO_ROOT" ls-files -z -- Sources Package.swift | xargs -0 stat -f %m \
-  | sort -n | tail -1)"
+# Compiled inputs only: the `Sources/**` guides (*.md) are read from disk at runtime, never linked,
+# so an old binary already answers with the newest guide — and a no-change `swift build` does not
+# relink, so counting them pinned a premise its own remedy could not satisfy (caught live 11-08:
+# the board refused a docs-only tree twice; the second refusal printed the same binary mtime the
+# remedy had just "refreshed"). The doc surface keeps its own home in the conditions `docs` digest.
+SRC_MTIME="$(git -C "$PROBE_REPO_ROOT" ls-files -z -- Sources Package.swift ':(exclude,glob)**/*.md' \
+  | xargs -0 stat -f %m | sort -n | tail -1)"
 probe_require_int "newest tracked source mtime" "$SRC_MTIME"
 probe_note "artefact $EVAL_BIN · mtime $BIN_MTIME · newest tracked source mtime $SRC_MTIME"
 if [ "$BIN_MTIME" -lt "$SRC_MTIME" ] && [ "${OCOREAI_EVAL_ALLOW_STALE_BIN:-}" != "1" ]; then
