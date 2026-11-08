@@ -111,7 +111,7 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_FLOOR_DIARY_PAIRED:=40}"   # CHANGELOG entries whose heading was found above their first bullet
 : "${OCOREAI_FLOOR_CLAIM_SHARED_IDS:=3}"  # P4b's premise: claim ids written in more than one doc
 #   (5 today — the licence counts, `spm_deps`, `global_rate_set`, mirrored across root + the README pair)
-: "${OCOREAI_AGENTS_MAX_AREA:=46082}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
+: "${OCOREAI_AGENTS_MAX_AREA:=47422}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
 #   this cap was pinned to. What binds is our chain budget (B2, 32 KiB) and the root ratchet (B1), and
@@ -188,6 +188,13 @@ cd "$(dirname "$0")/.."
 #   The same read corrected open-items' seam hash (`db2e7bf`, not `991266ad3` — that hash is that day's #710, a
 #   prefill buffer-cache commit). B1 21 444/21 461 (root's "28→38 trees" byte-neutral, +5 for the seam hash),
 #   B2 32 744/32 768 — the same +5 flows into the chain; neither cap moved.
+#   RAISED 11-09, the eleventh, cut-first honoured by this cap's own red: the round registered the two
+#   cloned-but-never-registered trees (`claude-skills-official`, `claude-plugins-official`); the rows' first
+#   drafts were full read-diaries and B2 went red at 49 327 B, so the diaries moved to CHANGELOG 11-09 and
+#   each row kept ident + axis + cites — the alternative was again deleting measured `file:line` cites.
+#   40 trees on disk now, per-tree 47 422 / 40 = ~1 186 B; the curve is
+#   15 609 → 18 664 → 20 502 → 25 611 → 27 484 → 32 341 → 36 221 → 37 892 → 38 945 → 46 082 → 47 422.
+#   B1 and B2 untouched: this file is still not in the injected chain.
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
 : "${OCOREAI_AGENTS_FLOOR_REFS:=50}"
 : "${OCOREAI_AGENTS_FLOOR_TREES:=16}"

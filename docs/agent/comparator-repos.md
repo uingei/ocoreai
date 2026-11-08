@@ -259,8 +259,10 @@ Borrow: the README is a signpost, not a manual; ours is a manual, and this file'
 - `mlx-swift-lm` (pin 1) and `coreai-models` (pin 2) — engineering consumption is § Upstream 1–2; the practice
   axis is in both and missing here: **the repo ships the skill that teaches an outside agent its API** —
   `mlx-swift-lm/skills/` + `skills/README.md` (install steps for another vendor's agent) and
-  `coreai-models/skills/skills/{working-with-coreai,model-authoring,model-compression-exploration}`, packaged
-  for a second host via `skills/gemini-extension.json`. `mlx-swift-lm/AGENTS.md` carries the AI-usage policy
+  `coreai-models/skills/skills/{working-with-coreai,model-authoring,model-compression-exploration}`, packaged for
+  **two** hosts — `skills/gemini-extension.json` and, re-read 11-09, its own `.claude-plugin/marketplace.json`
+  (`owner: Apple`; 5 of the 40 trees here ship that manifest).
+  `mlx-swift-lm/AGENTS.md` carries the AI-usage policy
   with scripted refusals (`:5`, `:24` — draft a PR description yes, open the PR on the author's behalf no).
 Borrow: a published skill for `/v1` is rung 6 of `docs/agent/long-horizon-goal.md`; the policy belongs to
   `CONTRIBUTING.md` when outside intake exists to apply it to
@@ -330,6 +332,20 @@ Contains: invariant-2 copy as shipped (`CHANGELOG.md:687` failed search ≠ empt
 Borrow: live tracking axis — the track/mine/verify loop and last-read marker live in CHANGELOG 11-02(112); it shows
   field alignment, never behaviour (our gates keep that job). last-read `v2.1.318` (mirror `90380ef`)
 
+- `claude-skills-official` — `anthropics/skills`: the reference skill implementation (19 skills, template, spec
+  → agentskills.io); registered 11-09, present unread before — the `llm.cpp` sin. A skill routes on
+  `name`+`description` and nothing else (`../references/claude-skills-official/README.md:86-90`; survey of the
+  19: `license` 17/19, else nothing), and the channel is a `.claude-plugin/` manifest.
+Borrow: consumed 11-09 — the survey sent our unread `triggers:` list into `description`, pinned by probe 39
+  §0b; verdicts and cites: CHANGELOG 11-09
+
+- `claude-plugins-official` — `anthropics/claude-plugins-official`: the curated Claude Code catalog (41 plugins,
+  14 vendor entries); registered 11-09. Entries arrive `git-subdir`-pinned by `ref`+`sha`, renames ship as data,
+  sha and `owner/repo#tag` are honoured by the harness (`../references/claude-code/CHANGELOG.md:8690`, `:9281`),
+  and `claude plugin validate` is the offline artefact gate (`:4610`).
+Borrow: consumed 11-09 — versionless `.claude-plugin/` manifests plus the validator's own prescribed install
+  line; verdicts and cites: CHANGELOG 11-09
+
 - `qwen-code` — `Qwen-Coder/qwen-code`, TypeScript coding-agent CLI, registered 11-03 (mirror refreshed 11-04 to
   `35aa4b76ae`, 689 commits in 14 d); peer of `claude-code`/`codex`/`opencode`/`goose`/`pi`
 Contains: **the computer-use axis as a vendored dependency** — `packages/cua-driver` is a vendored Rust CUA
@@ -369,8 +385,9 @@ Contains: (1) **the agent published as an SDK** — `sdk/packages/{shared,llms,a
   model's context. (4) **intake defended against agents** — `repo-strip-agent-badges.yml` and
   `repo-delete-agent-promo-comments.yml` are the only workflows in this corpus that treat AI-generated noise on
   the issue tracker as the surface it is.
-Borrow: axis, **no home here today** — we ship no SDK, no package-manager or marketplace route (a DMG and a
-  source build: `README.md:23`, `:35`), and nothing machine-defends our intake. Re-read the day we publish a
+Borrow: axis, **no home here today** — we ship no SDK, no package-manager route for the binary (a DMG and a
+  source build: `README.md:23`, `:35`); the skill channel's manifest closed 11-09 (`.claude-plugin/`, CHANGELOG
+  11-09), and nothing machine-defends our intake. Re-read the day we publish a
   client or open intake; (3) already has a home.
 
 - `SWE-bench` — `princeton-nlp/SWE-bench`, Python benchmark harness, registered 11-03 (HEAD `02e7a74`,

@@ -9,6 +9,31 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-09
 
+**11-09 the agent channel was a manifest, and two audit trees had never been registered: the survey also caught our own skill routing itself through a field nothing reads — the `triggers:` vocabulary moved into `description`, the repo gained `.claude-plugin/`, and the typed install command is the line the validator itself spells out**
+
+- **What improved:** `claude-skills-official` and `claude-plugins-official` were present under `~/references` and
+  absent from the registry (rows added with the survey inside); the frontmatter survey over all 19 official skills
+  reads 19/19 `name`, 19/19 `description`, 17/19 `license`, **nothing else** — and
+  `../references/claude-skills-official/README.md:86-90` states two fields are all a skill requires. Our `skills/ocoreai/SKILL.md` carried a `triggers:` list that nothing on either
+  side of the boundary reads: `SkillLoader.swift:75-83` parses name/category/description/tags/depends and
+  `App.swift:391` passes `skillsDir: nil`, and a live `claude plugin validate` passed the dead field silently —
+  an invisible stub by invariant 2, claiming routing nobody delivers. The seven phrases moved into `description`,
+  the one field a foreign model sees. Second: `.claude-plugin/{plugin,marketplace}.json`, so the repo is its own
+  Claude Code marketplace — 5 of the 40 trees here ship that manifest (three Anthropic, **Apple's
+  `coreai-models`** — its row corrected, it self-hosts the first host and the gemini extension the second — and
+  `modelcontextprotocol`), zero of the agent trees: the channel is the harness's, not a field habit. Manifests
+  carry no version (the tag is the version; installers pin with `owner/repo#tag`, `claude-code/CHANGELOG.md:9281`),
+  and the harness validator prescribes the README line verbatim: `/plugin install ocoreai --marketplace uingei/ocoreai`.
+- **Same-session output:** `claude plugin validate .` → **✔ Validation passed** (icon warning is portal-only; the
+  `.DS_Store` it flags is on-disk, not committed — `git ls-files` empty); probe 39 ran whole on this host:
+  **33 passed, 0 failed**, its §0b line printing the routing verdict, §1–§2 unchanged (15+5 markers); §0b was
+  negative-tested against four broken copies first — dead field returns, routing term genuinely gone, manifest
+  re-types a version, skill path rots — each went red naming its cause.
+- **Gate:** probe 39 §0b (no server, no weights) goes red if `triggers:` returns, a routing term leaves
+  `description`, a manifest drifts from the repo, or an install would ship a dead path; `scripts/probes/README.md`
+  §39 carries the red-sampling record. Inference labelled: the harness's own reading of the frontmatter is
+  asserted from its docs and validator behaviour, not from its source, which is not in this corpus.
+
 **11-09 the syntax gate returns a verdict twice, and the second answer indicts the refusal itself: field-best payload (stated line + caller's own bytes quoted + ordered retry) still cost the frozen set 1.83 tasks, p=0.0266 — pooled b=35 c=11, p=0.00054 — which is also why no comparator tree gates writes**
 
 - **The v2 payload, assembled from the field before re-measuring:** codex states the position inside the message

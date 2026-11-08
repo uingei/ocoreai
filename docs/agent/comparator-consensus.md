@@ -344,13 +344,20 @@ yet a task.
    went live (`scripts/install.sh`, end-to-end tested against the live v0.1.16 asset); still no
    brew formula, no npm. omlx's quartet (DMG, auto-update, `~/.omlx/bin` shim, self-serve tap whose optional-kernel flag
    *degrades instead of failing*) remains the concrete shape; the tap is one `Formula/` file plus a
-   publish leg CI already rehearses — the owner's hand, not engineering.
+   publish leg CI already rehearses — the owner's hand, not engineering. A second channel, re-read 11-09: 5 of the 40
+   trees here ship a `.claude-plugin/marketplace.json` (re-derive: `find ~/references -maxdepth 5 -path
+   '*claude-plugin/marketplace.json'`) — three Anthropic trees plus **Apple's `coreai-models`** and
+   `modelcontextprotocol` — and zero of the agent trees, so the channel is the harness's, not a field habit to catch
+   up with; ours landed the same day (rows: `comparator-repos.md`) and typed install is one `/plugin install` line
+   the validator itself prints.
 3. **Ship the harness side** (§ The harness side): **11 of 12 serving trees do it; the wire half landed 11-08** —
    probe 53 proves a cloud-severed claude finishes a real job on our endpoint alone. The product half is the
    `launch <agent>`-equivalent: detection plus a reversible config writer with the non-destructive-merge rule
    from the docstring above — a route that edits the *user's* files, so the owner's call, not engineering.
 4. **Skills and deferred tool loading are the same economy** (median 14 SKILL.md against our 1; 12/14 agent trees
    defer or filter the tool surface) and we hold the problem — 40 advertised, 6 scored — without the mechanism.
+   The *outbound* half closed 11-09 (one skill published on the harness's own install machine, frontmatter reduced to
+   the fields its loader reads — CHANGELOG 11-09); the inbound half — our loop carrying all 40 — is untouched.
 5. **Put the child boundary on the owner's table with its precedents** (§ Where the field confines): TensorFold's
    refuse-and-name-the-exit with the flag in the result, Rapid-MLX's no-grade-without-confinement, and
    deepseek-harness's three-mode file-effect policy. Present it as **acquiring a shipped property, not out-building a
