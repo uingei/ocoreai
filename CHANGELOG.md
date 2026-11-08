@@ -9,6 +9,22 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-08
 
+**11-08 the corpus's first reversal-mining — ~1 000 changelog removal-lines separated into one product deletion that concerns us directly, and everything else was fixes**
+
+- **What improved.** A question the instruments never asked: not what the field adds or edits, but what it **deletes**.
+  Mined 90 d of `+`-lines with removal verbs across every mirror, then read the matches: the reversals that survived
+  reading are written up in `comparator-evolution.md` § What the field walked back. The headline is about us:
+  `Rapid-MLX` — the nearest tree — deleted its chat's local file and command tools outright (#4860/#4865), which is
+  the corpus's only field-tested negative about agent tools in a chat UI **without** the machinery ours ships
+  (approval gate, one destructive truth, stall bound). It falsifies the half-fused product, not the fused one — and
+  that distinction is now evidence, not posture. goose's loop deletion names its successor in the same window;
+  openclaw's retirements name their replacements — both converging on our refusal-with-exit shape. Two candidates
+  died at the read step (a TensorFold path absent from its own HEAD; claude-code fixes posing as reversals).
+- **What proves it.** The re-derive loop is printed in the section; the five verdicts cite their PR numbers; the
+  surface-churn cell got its 11-08 refresh (12/13, `pi` crossed) in the same file.
+- **The gate.** None new — the section's pool command re-runs in seconds and its own text says the reading, not
+  the count, is the claim; `make docs-check` EXIT=0 covers pointers.
+
 **11-08 the research round's two open sentences closed — download-verify backed per tree, and root now routes the whole comparator corpus**
 
 - **What improved.** The unanimity-floor check named the download-verify row as the one full-score row not yet

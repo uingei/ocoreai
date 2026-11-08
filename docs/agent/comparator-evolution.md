@@ -37,9 +37,10 @@ touches, not one) and cutting them by what the path says the file is for.
 > total; and a path regex is a proxy for intent — which is why each tree's three hottest files print beside the
 > shares, since those can be audited without trusting a pattern.
 
-- **The surface is where the effort goes: ≥ 10 % of own churn in 11 of 13 trees, 19–57 %.** `cline` 57, `opencode`
-  38, `deepseek-harness` 32, `hermes-agent` 31, `OpenHands`/`goose` 29, `codex` 28. Only `pi` (8 %) and `harness2`
-  (0 %) are not surface trees right now.
+- **The surface is where the effort goes: ≥ 10 % of own churn in 11 of 13 trees, 19–57 % (12 of 13 on the 11-08
+  re-derive — `pi` crossed the line, only `harness2` stays below).** `cline` 57, `opencode`
+  38, `deepseek-harness` 32, `hermes-agent` 31, `OpenHands`/`goose` 29, `codex` 28 — shares from the older pass.
+  On that pass only `pi` (8 %) and `harness2` (0 %) were not surface trees; by 11-08 `pi` crossed.
 - **Inside the surface, the hottest file is often a locale table.** `../references/hermes-agent/apps/desktop/src/i18n/en.ts`
   377 touches, `../references/qwen-code/packages/web-shell/client/i18n.tsx` 199, `../references/opencode/packages/app/src/runtime/i18n/en.ts`
   161, `../references/OpenHands/src/i18n/translation.json` 112. Localization is non-zero in 9 of 13 trees (≥ 10 % in
@@ -136,6 +137,46 @@ which we clear. This cut therefore licenses neither surface spending nor engine 
 our segment the field's touches are on the engine (10/11), that our row's only outlier is prose, and that `Strata`
 and `openclaw` — members of both segments — vote twice with different denominators, which is what an honest segment
 costs.
+
+## What the field walked back of itself — 90 d of changelog reversals (11-08)
+
+Consensus counts additions, churn counts flow; neither counts **removals**, and a retreat tells you what the ground
+it stood on turned out to be. The mine: each tree's tracked changelog files, `+`-lines added in the window, the
+removal verbs — then the matched lines **read by hand**, because of the ~1 000 hits essentially all were bug-fix
+phrasing ("remove the case where X hangs") and five were something else. Re-derive the candidate pool with:
+
+```
+for t in ~/references/*/; do echo "$t $(git -C "$t" log --since=90.days -p --format= -- '*CHANGELOG*' |
+  grep -icE '^\+.\s*(removed|deleted|dropped|disabled|reverted|retired|no longer)')"; done
+```
+
+(the pool is only the envelope; the verdicts below are what reading the matched lines produced, and the reading
+is the claim).
+
+- **The one that concerns us: the nearest tree walked part of our road and stepped back.** `Rapid-MLX` deleted its
+  "Personal Intelligence": *"Local file and command tools are gone from Chat; the built-in tools are Web Search,
+  Browse Web Page, Weather, and Read Attached Document again"*, with `/v1/models` dropping the
+  `personal_intelligence_profile` field with it (its #4860, #4865). The serving tree closest to us — the one that
+  ships our `launch <agent>` shape and reversible-merge safety — removed from its chat product the exact half our
+  identity is made of. This does not falsify the fused product; it falsifies the half-fused one: what ours has and
+  that Chat lacked is the approval gate (`DestructiveApprovalGateTests`), the one destructive truth
+  (`ToolEntry.isDestructive` → `securityPrecheck`), the stall bound. It is the corpus's only field-tested negative
+  about *file-and-command tools in a chat UI without that machinery*, and the tested verdict was deletion.
+- **Where sequence is visible, a retreat names its destination.** `goose`'s "Delete the legacy agent loop" (its
+  #12760) sits in the same window as two lines about the new loop owning tool-call checks (#12865) and ending runs
+  promptly on Stop (#12765) — the deletion reads as a move, not an amputation.
+- **Retirement gained manners, and they converge on ours.** `openclaw`'s retired synchronous methods "now name
+  their awaited or V2 replacement before rejecting calls" (its #169750), and five SDK names that were *never
+  stable* got pruned before they could become load-bearing (#170034): refuse-and-name-the-exit, plus
+  prune-before-blessing — the copy shape root demands of our own refusals, independently adopted.
+- **What the check discarded:** one `TensorFold` hit read as product retreat from its own checkpoint page-cache but
+  is an A/B-harness hygiene line whose cited path does not exist at the mirror's HEAD — dropped as wrong-role; and
+  `claude-code`'s three plugin-removal hits are fixes. Wrong-role is the whole disease; reading matched lines is
+  the only cure that has ever worked here.
+
+The verdict on the standing question — does following the field make it right: the reversals cluster exactly where
+the form-consensus was thinnest, and they do not persist either. A crowd tells you which forms are cheap to buy;
+it has never told anybody what to be, and its own additions are not durable.
 
 ## What the field's own ledgers say — the only source here that carries sequence
 
