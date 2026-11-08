@@ -36,3 +36,20 @@ recovery payload that converts a refusal into a landing rewrite — nearest-cand
 field ships (openclaw `edit-diff.ts` getCandidateHint) but which has still never been measured
 against this give-up loop. Owner call if durability is ever worth a fixed price: the board says the
 current gate costs ≈2.2 tasks/52 per run. Recorded: `docs/agent/open-items.md`, CHANGELOG 11-08.
+
+**V2 (measured 11-09, second matched k=6 — reverted again; the payload was not the cost).** The refusal was rebuilt
+to the field's strongest shapes before re-measuring: the compiler's stated line travels inside the message (codex
+`apply-patch/src/lib.rs:353` "Invalid patch hunk on line {line_number}: {message}" — v1 had clipped Python's own
+`File "x.py", line N` away); the caller's own failing bytes are quoted back verbatim, un-numbered and with neighbours
+(openclaw `edit-diff.ts` candidate-anchor thinking, aimed at the new text instead of the file); and the retry is
+ordered in the exact sentences that took the `found 0` class to 6/6 recovery ("Retry this call now … Do not answer
+the user before that retry."). Payload pinned by the same 15-test suite (`syntax-regression-gate-v2.patch` holds the
+v2 code whole). Result against the same base root: 28.50 → 26.67 of 52, b=16 c=5, exact McNemar **p=0.0266 the wrong
+way**, veto clean again (worst 6/6→5/6); the give-up class stayed given up (`fix-off-by-one` 2/6→0/6). **Pooled across
+the two independent rounds: b=35 c=11, exact McNemar p=0.00054.** The cost is the refusal itself, not its wording —
+at this checkpoint repair-by-rewrite needs the broken intermediate state, and no message buys that stepping stone
+back. This is also the empirical answer to why no tree among the 38+ in `~/references` gates writes on syntax
+(surveyed 11-08/09: qwen-code's `file-changed-watcher.ts` is UI-sync not a gate; codex states positions, openclaw
+quotes candidates, cline says only "text not found" — none blocks). Any future attempt must change *what* gets
+refused — not what gets said — or be measured on a checkpoint where repair-by-rewrite is not the load-bearing
+strategy.

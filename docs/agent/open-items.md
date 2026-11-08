@@ -5,15 +5,17 @@ where a number is unmeasured it says so, and where a fix is blocked by the host 
 which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes a rule in `AGENTS.md` or
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
-- **Durability is priced, the product call is not ours** (Tools/, eval/) — a pre-write gate that refuses the
-  valid→broken syntax transition kept **all 110 corrupting writes out** across six frozen-set runs (zero silent
-  corruption) and cost **2.17 tasks/52, matched McNemar p=0.0146 the wrong way** (ledger `20261108-230722`, patch
-  + 15-test suite in `scripts/eval/proposals/syntax-regression-gate.*`): at this model size repair is
-  rewrite-through-broken-states, and a refusal mid-flow ends in give-up retries. Unresolved pair: either pay
-  durability a fixed score price (owner), or build the refusal payload that converts give-up into a landing
-  rewrite — the field's nearest-candidate machinery (openclaw `edit-diff.ts` getCandidateHint) has now earned
-  measured consumers (19 discordant cells + 110 refusals) but has never been tried against this loop; any such
-  variant re-measures on the frozen set before anything ships.
+- **Durability is priced twice, and the second price indicts the mechanism, not the message** (Tools/, eval/) —
+  the pre-write gate (refuses valid→broken syntax, keeps old bytes: **110/110 corruptions stopped, zero silent
+  damage**) cost the frozen set **2.17 tasks/52 (p=0.0146)** at bare reason, and still **1.83 (p=0.0266)** with the
+  field's best payload — stated line (codex `lib.rs:353`), the caller's own failing bytes quoted verbatim
+  (openclaw `edit-diff.ts` shape), the recovery-proven ordered retry. **Pooled b=35 c=11, p=0.00054** — at this
+  checkpoint repair is rewrite-through-broken-states and the refusal, whatever it says, removes the stepping stone;
+  this is also why no comparator tree gates writes (11-09 survey). Owner's remaining question, sharpened: pay the
+  ~2-task fixed price for zero-corruption anyway (a stranger's script survives), re-measure the same patch on a
+  larger checkpoint where repair-by-rewrite may not be load-bearing, or close the trade. Patches + both verdicts +
+  the 15-test suite: `scripts/eval/proposals/syntax-regression-gate{,-v2}.patch|.md`; ledgers `20261108-230722`,
+  `20261109-001350`.
 - **The auto-A/B loop cannot judge the only patches its allow-list admits** (scripts/eval/) — `autoloop-allow.txt`
   admits `Sources/` (“contract/format changes in the product”), but `binary` is in `_repeat_stats.INVARIANT_FIELDS`
   with no declared-crossing path, and any compiled change moves the binary token (`name+mtime+size`) — so every

@@ -7,7 +7,23 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-11-08
+## [Unreleased] — 2026-09-05 → 2026-11-09
+
+**11-09 the syntax gate returns a verdict twice, and the second answer indicts the refusal itself: field-best payload (stated line + caller's own bytes quoted + ordered retry) still cost the frozen set 1.83 tasks, p=0.0266 — pooled b=35 c=11, p=0.00054 — which is also why no comparator tree gates writes**
+
+- **The v2 payload, assembled from the field before re-measuring:** codex states the position inside the message
+  (`apply-patch/src/lib.rs:353`) — v1 had clipped Python's own `File "x.py", line N` away, a payload bug the
+  survey exposed; openclaw quotes candidates (`edit-diff.ts:330-395`) — v2 quoted the caller's own failing line,
+  verbatim and un-numbered, with neighbours; and the retry was ordered in the exact sentences that recovered the
+  `found 0` class 6/6. 15-test suite green, then matched k=6 vs the same base root: 28.50 → 26.67 of 52,
+  b=16 c=5, **p=0.0266 wrong way**, veto clean, give-ups stayed given up (`fix-off-by-one` 2/6→0/6).
+- **The pooled verdict (two independent rounds, same base):** b=35 c=11, exact McNemar **p=0.00054**. The cost is
+  the refusal, not its wording: at this checkpoint repair is rewrite-through-broken-states and no message buys the
+  stepping stone back — the empirical reason no tree in `~/references` gates writes (re-surveyed: qwen-code's
+  `file-changed-watcher.ts` is UI-sync not a gate; codex/openclaw/cline differ only in how they *say* failure).
+  Any future attempt must change *what* is refused, not what is said — or measure on a checkpoint where
+  repair-by-rewrite is not load-bearing. Ledger `20261109-001350`, code whole in
+  `scripts/eval/proposals/syntax-regression-gate-v2.patch`.
 
 **11-08 the second proposal, built where the first one's negative pointed: the gate kept all 110 files intact — and cost the frozen set 2.17 tasks, p=0.0146; the durability/compliance trade is now priced, not speculated**
 
