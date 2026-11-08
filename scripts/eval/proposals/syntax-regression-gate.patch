@@ -1,0 +1,409 @@
+diff --git a/Sources/ocoreai/Tools/FileTools.swift b/Sources/ocoreai/Tools/FileTools.swift
+index 34771240..c4e2e74e 100644
+--- a/Sources/ocoreai/Tools/FileTools.swift
++++ b/Sources/ocoreai/Tools/FileTools.swift
+@@ -168,7 +168,16 @@ enum FileTools {
+             throw ToolError.invalidParameter(
+                 "write_file: content too large (\(bytes.count) bytes, max \(maxWriteBytes))")
+         }
+-        let existingBytes = (try? Data(contentsOf: url, options: .uncached))?.count
++        let existingData = try? Data(contentsOf: url, options: .uncached)
++        let existingBytes = existingData?.count
++        // The gate reads what is already in hand: a file that parses today is not rewritten
++        // into bytes that do not (`syntaxRegression` holds the measured reason).
++        if let oldText = existingData.flatMap({ String(data: $0, encoding: .utf8) }),
++            let why = Self.syntaxRegression(path: path, oldContent: oldText, newContent: echo.text)
++        {
++            throw ToolError.invalidParameter(
++                Self.syntaxRegressionRefusal(tool: "write_file", path: path, why: why))
++        }
+         let parent = url.deletingLastPathComponent()
+         if parent != URL(fileURLWithPath: "/") {
+             try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+@@ -321,6 +330,10 @@ enum FileTools {
+             throw ToolError.invalidParameter(
+                 "edit_file: result too large (\(bytes.count) bytes, max \(maxWriteBytes))")
+         }
++        if let why = Self.syntaxRegression(path: path, oldContent: original, newContent: updated) {
++            throw ToolError.invalidParameter(
++                Self.syntaxRegressionRefusal(tool: "edit_file", path: path, why: why))
++        }
+         do {
+             try bytes.write(to: url, options: .atomic)
+         } catch {
+@@ -363,6 +376,37 @@ enum FileTools {
+         return "─── total_lines: \(total) (\(scope)) ───"
+     }
+ 
++    /// A file that compiled may not stop compiling by the tool's own hand.
++    ///
++    /// Measured 11-08 (`fix-off-by-one-slice`, six-arm board run): `edit_lines` replaced a whole
++    /// valid `.py` with an orphan-indented fragment; the post-write verdict said `OK-but-invalid`
++    /// with the compiler's `IndentationError` in the same result, and two seconds later the turn
++    /// answered "has been fixed" over a verify_rc=1 artefact. Reporting after the write is
++    /// measured-ignored, and making the duty a prompt sentence measured a clean negative
++    /// (`scripts/eval/proposals/verify-before-done.md`, p=1.00), so the truth moves before the
++    /// write: only a valid→broken regression of a decidable type refuses, and the old bytes stay
++    /// on disk. Broken→fixed, fixed→fixed, broken→broken and new files write exactly as before.
++    /// Returns the compiler's reason, or `nil` when this write is not a regression.
++    static func syntaxRegression(path: String, oldContent: String, newContent: String) -> String? {
++        guard !oldContent.isEmpty,
++            let was = PostWriteSyntax.sourceVerdict(path: path, content: oldContent),
++            case .valid = was,
++            let now = PostWriteSyntax.sourceVerdict(path: path, content: newContent),
++            case .invalid(let why) = now
++        else { return nil }
++        return why
++    }
++
++    /// The refusal's wording, homed once because three write sites read it. A fragment that is
++    /// genuinely the goal still has a route that exists today — a new path — so the refusal
++    /// closes nothing (the `rm`-offer discipline: name an exit only the caller's own facts show).
++    static func syntaxRegressionRefusal(tool: String, path: String, why: String) -> String {
++        "\(tool): refusing to break valid syntax — \(path) is valid today and these bytes are not"
++            + " (\(why)). Nothing was written; the file still holds its old bytes. Retry this call"
++            + " with text that keeps the file valid; if this text is meant to be a fragment, it"
++            + " belongs at a new path."
++    }
++
+     /// Durability was proven by the caller's read-back; this is the other half of the report.
+     /// Syntax is judged over the whole file, presentation-echo only over the text this call
+     /// supplied — otherwise a file that already holds a numbered dump would condemn every
+@@ -452,6 +496,10 @@ enum FileTools {
+             throw ToolError.invalidParameter(
+                 "edit_lines: result too large (\(bytes.count) bytes, max \(maxWriteBytes))")
+         }
++        if let why = Self.syntaxRegression(path: path, oldContent: original, newContent: updated) {
++            throw ToolError.invalidParameter(
++                Self.syntaxRegressionRefusal(tool: "edit_lines", path: path, why: why))
++        }
+         do {
+             try bytes.write(to: url, options: .atomic)
+         } catch {
+diff --git a/Sources/ocoreai/Tools/PostWriteSyntax.swift b/Sources/ocoreai/Tools/PostWriteSyntax.swift
+index 73e0c6b2..db2fb5a9 100644
+--- a/Sources/ocoreai/Tools/PostWriteSyntax.swift
++++ b/Sources/ocoreai/Tools/PostWriteSyntax.swift
+@@ -105,6 +105,74 @@ enum PostWriteSyntax: Sendable {
+         }
+     }
+ 
++    /// Same type coverage as `check`, decided from the bytes alone — nothing touches the disk.
++    /// This exists for the one caller that must decide before a write (`FileTools`
++    /// `syntaxRegression`); every result suffix keeps using `check`, which judges the file
++    /// actually on disk.
++    static func sourceVerdict(path: String, content: String) -> Verdict? {
++        let ext = (path as NSString).pathExtension.lowercased()
++        switch ext {
++        case "json":
++            return jsonVerdict(content)
++        case "plist":
++            return plistVerdict(content)
++        case "py":
++            return pythonSourceVerdict(
++                name: (path as NSString).lastPathComponent, source: content)
++        default:
++            return nil
++        }
++    }
++
++    /// `compile(source, name, "exec")` fed over stdin — the same grammar `py_compile` applies
++    /// to the file, decided without writing it. `compile()` rather than `ast.parse()`: only
++    /// `compile()` rejects a `return` outside a function, so a string verdict and the later
++    /// file verdict cannot disagree about the same bytes.
++    static func pythonSourceVerdict(name: String, source: String) -> Verdict {
++        #if !os(macOS)
++        _ = (name, source)
++        return .notChecked("no subprocess on this platform — syntax not checked")
++        #else
++        guard let exe = pythonExecutable else {
++            return .notChecked("python unavailable here — syntax not checked")
++        }
++        let proc = Process()
++        proc.executableURL = URL(fileURLWithPath: exe)
++        proc.arguments = [
++            "-c", "import sys; compile(sys.stdin.read(), sys.argv[1], \"exec\")", name,
++        ]
++        let inPipe = Pipe()
++        let errPipe = Pipe()
++        proc.standardInput = inPipe
++        proc.standardError = errPipe
++        proc.standardOutput = Pipe()
++        do {
++            try proc.run()
++        } catch {
++            return .notChecked("python could not run (\(clip(error.localizedDescription)))")
++        }
++        // Write then close: `sys.stdin.read()` returns only at EOF, so a pipe left open
++        // would park this thread to the deadline on a perfectly valid file.
++        inPipe.fileHandleForWriting.write(Data(source.utf8))
++        inPipe.fileHandleForWriting.closeFile()
++        let deadline = Date().addingTimeInterval(timeoutSeconds)
++        while proc.isRunning, Date() < deadline {
++            Thread.sleep(forTimeInterval: 0.02)
++        }
++        if proc.isRunning {
++            proc.terminate()
++            return .notChecked("compile timed out after \(Int(timeoutSeconds))s — no verdict")
++        }
++        if proc.terminationStatus == 0 {
++            return .valid("compile OK")
++        }
++        let raw = errPipe.fileHandleForReading.readDataToEndOfFile()
++        let text = String(data: raw, encoding: .utf8) ?? ""
++        let line = text.split(separator: "\n").last.map(String.init) ?? "compile error"
++        return .invalid("compile FAILED — \(clip(line))")
++        #endif
++    }
++
+     /// `python3 -m py_compile` — compiles to bytecode, imports nothing, runs nothing.
+     static func pythonVerdict(path: String) -> Verdict {
+         #if !os(macOS)
+diff --git a/Tests/ocoreaiTests/PostWriteSyntaxTests.swift b/Tests/ocoreaiTests/PostWriteSyntaxTests.swift
+index 603eedf1..88d716f3 100644
+--- a/Tests/ocoreaiTests/PostWriteSyntaxTests.swift
++++ b/Tests/ocoreaiTests/PostWriteSyntaxTests.swift
+@@ -104,17 +104,31 @@ struct PostWriteSyntaxTests {
+     }
+ 
+     @Test(
+-        "edit_file reports the verdict too, not just the byte delta",
++        "a valid→broken .py edit is refused, and a broken→broken edit still reports its verdict",
+         .enabled(if: PostWriteSyntax.pythonExecutable != nil))
+-    func pythonEditIsReportedInvalid() throws {
++    func pythonEditRegressionRefusedOthersReported() throws {
+         let dir = try tempDir()
+         defer { try? FileManager.default.removeItem(atPath: dir) }
+         let good = dir + "/calc.py"
+         _ = try FileTools.write(path: good, content: "def add(a, b):\n    return a + b\n")
+-        let broken = try FileTools.editFile(
+-            path: good, oldString: "return a + b", newString: "return a +")
+-        #expect(broken.contains("edit_file: OK-but-invalid"))
+-        #expect(broken.contains("syntax: py_compile FAILED"))
+-        #expect(broken.contains("replacement(s)"))
++        // The valid→broken case used to land and report `OK-but-invalid`; the 11-08 board
++        // measured that report being ignored, so the refusal moved before the write
++        // (FileTools.syntaxRegression — the incident and the reasoning live there).
++        #expect(throws: (any Error).self) {
++            _ = try FileTools.editFile(
++                path: good, oldString: "return a + b", newString: "return a +")
++        }
++        #expect(
++            try String(contentsOfFile: good, encoding: .utf8)
++                == "def add(a, b):\n    return a + b\n")
++        // Post-write reporting survives where the gate does not reach: a file that was
++        // already broken stays writable and still says `OK-but-invalid`.
++        let broken = dir + "/broken.py"
++        _ = try FileTools.write(path: broken, content: "def f(:\n    pass\n")
++        let edited = try FileTools.editFile(
++            path: broken, oldString: "pass", newString: "passx")
++        #expect(edited.contains("edit_file: OK-but-invalid"))
++        #expect(edited.contains("syntax: py_compile FAILED"))
++        #expect(edited.contains("replacement(s)"))
+     }
+ }
+diff --git a/Tests/ocoreaiTests/SyntaxRegressionGateTests.swift b/Tests/ocoreaiTests/SyntaxRegressionGateTests.swift
+new file mode 100644
+index 00000000..65372987
+--- /dev/null
++++ b/Tests/ocoreaiTests/SyntaxRegressionGateTests.swift
+@@ -0,0 +1,199 @@
++// Copyright © 2026 uingei@163.com.
++// Licensed under MIT.
++/// The syntax-regression gate — a file that compiled may not stop compiling by the tool's hand.
++///
++/// Measured 11-08 (`fix-off-by-one-slice`, six-arm board run, `scripts/eval/`): `edit_lines`
++/// replaced the whole valid `page.py` with the orphan-indented fragment `    return items[:n]`;
++/// the write landed, the result said `OK-but-invalid — … py_compile FAILED — IndentationError`,
++/// and the turn two seconds later answered "The slice in `page.py` has been fixed." over a
++/// verify_rc=1 artefact. The post-write report is measured-ignored and the prompt-sentence
++/// alternative measured a clean negative (`scripts/eval/proposals/verify-before-done.md`), so
++/// this gate decides before the write. These tests pin the refusal's exact text, the surviving
++/// bytes, and — the half that must stay silent — every transition the gate may not touch.
++import Foundation
++import Testing
++
++@testable import ocoreai
++
++@Suite(
++    "syntax regression gate — valid→broken refuses, every other transition writes",
++    .serialized)
++struct SyntaxRegressionGateTests {
++
++    private func tempDir() throws -> String {
++        let dir = NSTemporaryDirectory() + "ocoreai-syntaxgate-\(UUID().uuidString)"
++        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
++        return dir
++    }
++
++    @discardableResult
++    private func seed(_ dir: String, _ name: String, _ body: String) throws -> Data {
++        let url = URL(fileURLWithPath: dir).appendingPathComponent(name)
++        let bytes = Data(body.utf8)
++        try bytes.write(to: url)
++        return bytes
++    }
++
++    private func bytesAt(_ dir: String, _ name: String) throws -> Data {
++        try Data(contentsOf: URL(fileURLWithPath: dir).appendingPathComponent(name))
++    }
++
++    /// The exact bytes the 11-08 incident left and consumed.
++    private static let pageValid =
++        "def first_n(items, n):\n    return items[0:n - 1]\n"
++    private static let pageFragment = "    return items[:n]\n"
++
++    @Test(
++        "the incident replayed: the orphan-fragment edit_lines is refused and page.py keeps its bytes",
++        .enabled(if: PostWriteSyntax.pythonExecutable != nil))
++    func editLinesFragmentRefused() throws {
++        let dir = try tempDir()
++        defer { try? FileManager.default.removeItem(atPath: dir) }
++        let original = try seed(dir, "page.py", Self.pageValid)
++
++        var message = ""
++        do {
++            _ = try FileTools.editLines(
++                path: dir + "/page.py", startLine: 1, endLine: 2,
++                newText: "    return items[:n]")
++            Issue.record("the fragment write must be refused")
++        } catch let ToolError.invalidParameter(text) {
++            message = text
++        }
++        #expect(message.hasPrefix("edit_lines: refusing to break valid syntax"))
++        #expect(message.contains("compile FAILED — IndentationError"), "\(message)")
++        #expect(message.contains("Nothing was written"), "\(message)")
++        // The refusal names the exits that exist: retry, and the fragment's own path.
++        #expect(message.contains("belongs at a new path"), "\(message)")
++        #expect(try bytesAt(dir, "page.py") == original)
++    }
++
++    @Test(
++        "edit_file refuses the same regression and leaves the file byte-identical",
++        .enabled(if: PostWriteSyntax.pythonExecutable != nil))
++    func editFileFragmentRefused() throws {
++        let dir = try tempDir()
++        defer { try? FileManager.default.removeItem(atPath: dir) }
++        let original = try seed(dir, "page.py", Self.pageValid)
++
++        #expect(throws: (any Error).self) {
++            _ = try FileTools.editFile(
++                path: dir + "/page.py",
++                oldString: "def first_n(items, n):\n    return items[0:n - 1]",
++                newString: "    return items[:n]")
++        }
++        #expect(try bytesAt(dir, "page.py") == original)
++    }
++
++    @Test(
++        "write_file over a valid .py with non-compiling bytes is refused",
++        .enabled(if: PostWriteSyntax.pythonExecutable != nil))
++    func writeFileRegressionRefused() throws {
++        let dir = try tempDir()
++        defer { try? FileManager.default.removeItem(atPath: dir) }
++        let original = try seed(dir, "page.py", Self.pageValid)
++
++        var message = ""
++        do {
++            _ = try FileTools.write(path: dir + "/page.py", content: Self.pageFragment)
++            Issue.record("the overwrite must be refused")
++        } catch let ToolError.invalidParameter(text) {
++            message = text
++        }
++        #expect(message.hasPrefix("write_file: refusing to break valid syntax"))
++        #expect(try bytesAt(dir, "page.py") == original)
++    }
++
++    @Test(
++        "the fix direction still writes: broken→fixed reports OK, not a refusal",
++        .enabled(if: PostWriteSyntax.pythonExecutable != nil))
++    func brokenToFixedWrites() throws {
++        let dir = try tempDir()
++        defer { try? FileManager.default.removeItem(atPath: dir) }
++        try seed(dir, "page.py", Self.pageFragment)
++
++        let out = try FileTools.editLines(
++            path: dir + "/page.py", startLine: 1, endLine: 1,
++            newText: "def first_n(items, n):\n    return items[:n]")
++        #expect(out.contains("edit_lines: OK —"), "\(out)")
++        #expect(out.contains("syntax: py_compile OK"), "\(out)")
++        #expect(
++            try String(
++                contentsOfFile: dir + "/page.py", encoding: .utf8)
++                == "def first_n(items, n):\n    return items[:n]\n")
++    }
++
++    @Test(
++        "a new broken .py is created, not refused — the gate only stops regressions",
++        .enabled(if: PostWriteSyntax.pythonExecutable != nil))
++    func newFileStaysUnrefused() throws {
++        let dir = try tempDir()
++        defer { try? FileManager.default.removeItem(atPath: dir) }
++
++        let out = try FileTools.write(path: dir + "/fragment.py", content: Self.pageFragment)
++        #expect(out.contains("write_file: OK-but-invalid"), "\(out)")
++        #expect(out.contains("created"), "\(out)")
++        #expect(try bytesAt(dir, "fragment.py") == Data(Self.pageFragment.utf8))
++    }
++
++    @Test("json refuses valid→unparseable with the decoder's words")
++    func jsonRegressionRefused() throws {
++        let dir = try tempDir()
++        defer { try? FileManager.default.removeItem(atPath: dir) }
++        let original = try seed(dir, "cfg.json", #"{"a": 1}"#)
++
++        var message = ""
++        do {
++            _ = try FileTools.editFile(
++                path: dir + "/cfg.json", oldString: "1", newString: "}")
++            Issue.record("valid→unparseable json must be refused")
++        } catch let ToolError.invalidParameter(text) {
++            message = text
++        }
++        #expect(message.hasPrefix("edit_file: refusing to break valid syntax"))
++        #expect(message.contains("JSON invalid"), "\(message)")
++        #expect(try bytesAt(dir, "cfg.json") == original)
++    }
++
++    @Test(
++        "undecidable types are untouched — bytes that break a .py write fine as .txt")
++    func undecidableTypesStaySilent() throws {
++        let dir = try tempDir()
++        defer { try? FileManager.default.removeItem(atPath: dir) }
++        try seed(dir, "note.txt", "def first_n(items, n):\n    return items[0:n - 1]\n")
++
++        let out = try FileTools.editLines(
++            path: dir + "/note.txt", startLine: 1, endLine: 2,
++            newText: Self.pageFragment.trimmingCharacters(in: .newlines))
++        #expect(out.contains("edit_lines: OK —"), "\(out)")
++        #expect(
++            try String(contentsOfFile: dir + "/note.txt", encoding: .utf8)
++                == Self.pageFragment)
++    }
++
++    @Test("the gate's premise is stated, not assumed: json decides in-process, py only with python")
++    func gatePremisesAreHonest() {
++        // If python is absent here, the py gate must fall to silence (`.notChecked` is neither
++        // valid nor invalid), and that must be a visible skip in this suite, never a vacuous pass.
++        #expect(
++            PostWriteSyntax.sourceVerdict(path: "x.json", content: #"{"a": 1}"#)?.failed == false)
++        #expect(PostWriteSyntax.sourceVerdict(path: "x.txt", content: "anything") == nil)
++        if PostWriteSyntax.pythonExecutable == nil {
++            #expect(
++                PostWriteSyntax.sourceVerdict(path: "x.py", content: "def f(:")?.headline
++                    .contains("not checked") == true)
++        } else {
++            #expect(
++                PostWriteSyntax.sourceVerdict(path: "x.py", content: "def f(:")?.failed == true,
++                "with python present the source verdict must decide, not abstain")
++            #expect(
++                PostWriteSyntax.sourceVerdict(path: "x.py", content: "def f():\n    return 1\n")?
++                    .headline == "compile OK")
++            // compile(), not ast.parse(): a return outside a function is only a syntax error
++            // to compile(), and the post-write py_compile agrees — the two verdicts cannot
++            // disagree about the same bytes.
++            #expect(
++                PostWriteSyntax.sourceVerdict(path: "x.py", content: "return 1")?.failed == true)
++        }
++    }
++}

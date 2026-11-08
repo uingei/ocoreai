@@ -9,6 +9,31 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-08
 
+**11-08 the second proposal, built where the first one's negative pointed: the gate kept all 110 files intact — and cost the frozen set 2.17 tasks, p=0.0146; the durability/compliance trade is now priced, not speculated**
+
+- **The locus, quoted from the board:** `fix-off-by-one-slice` — `edit_lines` replaced a whole valid
+  `page.py` with the orphan fragment `    return items[:n]`; the result carried the honest
+  `OK-but-invalid — … py_compile FAILED — IndentationError` and two seconds later the turn answered
+  "has been fixed" (verify_rc 1, fragment still on disk, `py_compile` re-run on those exact bytes rc=1).
+  The post-write report is measured-ignored; the prompt sentence for the same class measured p=1.00
+  earlier today. Enforcement before the write was the remaining rung.
+- **What was built:** all three write paths refuse exactly the valid→broken transition of a decidable
+  type (`.py` via `compile()` over stdin, json/plist in-process), the refusal carrying the compiler's
+  line and both exits that exist today; new files, broken→fixed, broken→broken and undecidable types
+  write untouched. 15 exact-value tests including the byte-incident replay — green — and the live board
+  showed it firing on the incident's own file, three times.
+- **The answer (matched k=6 vs k=6, frozen 52-set, base root `20261108-213000`):** 28.50 → 26.33,
+  b=19 c=6 of 312 cells, exact McNemar **p=0.0146 — the wrong direction**; strict veto rule fired on
+  none; one task rose (`fix-off-by-two` 1/6→5/6). Reverted; patch + verdict + ledger
+  `20261108-230722` under `scripts/eval/proposals/`.
+- **The trade, priced:** 110 broken writes refused across the six gated runs (attributed per run via
+  each boot's bridge log), zero silent corruptions — and a −2.17-task board bill, because at this model
+  size repair is *repair-by-rewrite through broken states*: refusing the broken step sends the model
+  into repeated-identical retries ending in giving up (one answer quoted the refusal verbatim). The
+  next honest lever is a refusal payload that converts give-up into landing (openclaw's nearest-candidate
+  machinery, still never measured against this loop); whether durability deserves a fixed price is
+  `open-items.md`, owner.
+
 **11-08 the first real Auto-A/B proposal measured a clean negative — and its unmeasurable first pass exposed that the loop cannot judge any patch it permits**
 
 - **The experiment:** the field-traced claim-without-verify cluster (write-OK ≠ valid: `out.txt` missing its
