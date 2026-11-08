@@ -21,6 +21,14 @@ Adjust the destination directory name if your host wants the skill's own name.
 
 ### Claude Code
 
+One step, from the repo's own plugin marketplace (`.claude-plugin/`):
+
+```
+/plugin install ocoreai --marketplace uingei/ocoreai
+```
+
+Or by hand, without the plugin system:
+
 ```sh
 mkdir -p ~/.claude/skills
 cp -R "$(pwd)/skills/ocoreai" ~/.claude/skills/
@@ -43,6 +51,7 @@ echo "Read and follow $(pwd)/skills/ocoreai/SKILL.md when working against a loca
 
 ### Gemini / extensions
 
-`skills/ocoreai/SKILL.md` is plain Markdown with YAML front matter (`name`, `description`, `triggers`), so
-it packages the same way other model-repo skills do — see `coreai-models/skills/gemini-extension.json` for
-the shape this convention follows.
+`skills/ocoreai/SKILL.md` is plain Markdown with YAML front matter (`name`, `description` — the fields
+host harnesses actually route on; probe 39 §0b keeps the routing terms in the field a reader exists for),
+so it packages the same way other model-repo skills do — `coreai-models` ships the same convention as a
+Gemini extension *and* a Claude Code marketplace, the two hosts this file's instructions serve.

@@ -1,15 +1,6 @@
 ---
 name: ocoreai
-description: Drive ocoreai — one binary that is both a local agent and a local inference server for open models on Apple silicon (MLX Metal + CoreAI, offline, no API key). Covers starting the bridge, asking the server what it actually measured, generating through the OpenAI and Anthropic wires, running the tool loop inside its approval boundary, and the honesty fields that say what is NOT measured.
-triggers:
-  - ocoreai
-  - local model server apple silicon
-  - offline coding agent
-  - mlx inference server
-  - openai compatible local server
-  - anthropic compatible local server
-  - on-device tool calling
-  - no api key inference
+description: Drive ocoreai — one binary that is both a local agent and a local inference server for open models on Apple silicon (MLX Metal + CoreAI, offline, no API key). Use when working against an OpenAI-compatible or Anthropic-compatible local server, an MLX inference server on Apple silicon, an on-device tool-calling loop, or an offline coding agent that needs inference with no API key. Covers starting the bridge, asking the server what it actually measured, generating through the OpenAI and Anthropic wires, running the tool loop inside its approval boundary, and the honesty fields that say what is NOT measured.
 ---
 
 # ocoreai — driving a local model agent from another harness

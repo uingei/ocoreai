@@ -17,7 +17,8 @@
 # ### Tiers, because only one of them can run anywhere
 #   §0 clone     — no server: every path the skill cites is tracked by git, and nothing under skills/ is
 #                  ignored. This is how §0 caught an unanchored `references/` rule shipping a skill whose three
-#                  reference files only existed on the author's disk.
+#                  reference files only existed on the author's disk. §0b adds the routing contract: the
+#                  frontmatter fields and `.claude-plugin/` manifests a foreign harness actually reads.
 #   §1 contract  — scripted lane (nothing resident, no Metal): executes every `exec:` marker, and FLOORS
 #                  its own hit count: a renamed skill or a rotted pattern must fail loudly, not pass by
 #                  finding nothing (invariant 1 — the failure this probe exists to prevent is its own).
@@ -190,6 +191,83 @@ else
     probe_ok "$CITED cited file(s) all tracked by git, and nothing under skills/ is ignored" \
       " — the skill a stranger clones is the skill on this disk"
   fi
+fi
+
+# ── §0b the routing contract a foreign harness actually reads ────────────────────────────────
+probe_section "§0b frontmatter and plugin manifests promise only what a harness reads"
+# Why this clause exists: the frontmatter once carried a `triggers:` list. Neither this repo's loader
+# (SkillLoader.swift reads name/category/description/tags/depends; App.swift passes skillsDir: nil, so
+# even that reader is dormant for this file) nor the reference harness the skill is written for reads
+# that field — the official skill set routes on `description` prose, and a live `claude plugin
+# validate` passed the dead field silently. Phrases in an unread field claim routing nobody delivers
+# (invariant 2), so they now ride `description`, the one field that reaches a foreign model, and this
+# clause pins the routing terms to the field that has a reader. The manifests are checked the same
+# way: parseable JSON, names matching the repo, skill paths resolving, and no second home for the
+# version — the tag is the version (`scripts/version.sh`), installers pin with `owner/repo#tag`.
+# Comparator copies under ~/references are cited in the CHANGELOG, never read here: this clause reads
+# only the repo, so it measures the same on any clone.
+ROUT_OUT="$(python3 - "$SKILL" "$PROBE_REPO_ROOT" <<'PY' 2>&1
+import json, os, re, sys
+skill, root = sys.argv[1:3]
+
+
+def fail(msg):
+    print(msg)
+    sys.exit(1)
+
+
+text = open(skill, encoding="utf-8").read()
+m = re.match(r"\A---\n(.*?)\n---\n", text, re.S)
+if not m:
+    fail("SKILL.md carries no YAML frontmatter — there is nothing for a harness to route on")
+fm = m.group(1)
+name = re.search(r"^name:\s*(\S+)\s*$", fm, re.M)
+desc = re.search(r"^description:\s*(.+)$", fm, re.M)
+if not name:
+    fail("frontmatter has no `name` — the only required field of the skill contract")
+if not desc or len(desc.group(1).strip()) < 40:
+    fail("frontmatter `description` is missing or thin — the reference harness routes skills on this "
+         "field alone, so a thin description is an undiscoverable skill")
+if re.search(r"^triggers:", fm, re.M):
+    fail("frontmatter carries `triggers:` — no harness or loader reads that field "
+         "(SkillLoader.swift reads name/category/description/tags/depends only); the phrases belong "
+         "in `description` or nowhere")
+terms = ["apple silicon", "openai", "anthropic", "mlx", "offline", "no api key", "tool"]
+lower = desc.group(1).lower()
+missing = [t for t in terms if t not in lower]
+if missing:
+    fail("description lost routing term(s): %s — all %d must ride the field a reader exists for"
+         % (", ".join(missing), len(terms)))
+
+pj = json.load(open(os.path.join(root, ".claude-plugin", "plugin.json"), encoding="utf-8"))
+mj = json.load(open(os.path.join(root, ".claude-plugin", "marketplace.json"), encoding="utf-8"))
+if pj.get("name") != "ocoreai" or mj.get("name") != "ocoreai":
+    fail("a manifest name is not `ocoreai` — the harness lists the plugin under its manifest name")
+if "version" in pj or "version" in mj:
+    fail("a manifest re-types a version — the tag is the version (scripts/version.sh); installers "
+         "pin exact versions with `owner/repo#tag`, not a second home read at install")
+if pj.get("license") != "MIT":
+    fail("plugin.json `license` is not MIT — what the harness shows a stranger about our terms")
+plug = [p for p in mj.get("plugins", []) if p.get("name") == "ocoreai"]
+if len(plug) != 1:
+    fail("marketplace.json must list exactly one plugin named `ocoreai`")
+for p in plug[0].get("skills", []):
+    path = os.path.normpath(os.path.join(root, p))
+    if not os.path.isfile(os.path.join(path, "SKILL.md")):
+        fail("marketplace lists skill %s with no SKILL.md under %s — an install would ship a dead path"
+             % (p, path))
+if name and name.group(1) != "ocoreai":
+    fail("SKILL.md `name` %r does not match the skill directory the manifests point at"
+         % name.group(1))
+print("frontmatter routes on name+description; %d routing terms present; manifests parse, point at "
+      "real paths and carry no version" % len(terms))
+PY
+)"
+if [ $? -ne 0 ]; then
+  probe_fail "$ROUT_OUT" \
+    " — the published skill or its plugin manifests no longer match what the reference harness reads"
+else
+  probe_ok "$ROUT_OUT"
 fi
 
 # ── §1 contract lane ──────────────────────────────────────────────────────────────────────────

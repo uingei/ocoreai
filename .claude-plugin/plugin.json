@@ -1,0 +1,10 @@
+{
+  "name": "ocoreai",
+  "description": "One binary that is both a local agent and a local inference server for open models on Apple silicon (MLX Metal + CoreAI, offline, no API key). This plugin carries the skill that drives it: the OpenAI and Anthropic wires, the per-checkpoint measured capability fields, and the tool loop inside its approval boundary.",
+  "author": {
+    "name": "uingei"
+  },
+  "homepage": "https://github.com/uingei/ocoreai",
+  "repository": "https://github.com/uingei/ocoreai",
+  "license": "MIT"
+}

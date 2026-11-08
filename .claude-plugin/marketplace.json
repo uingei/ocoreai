@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "ocoreai",
+  "owner": {
+    "name": "uingei"
+  },
+  "metadata": {
+    "description": "The ocoreai skill: drive one binary that is a local agent and a local inference server for open models on Apple silicon."
+  },
+  "plugins": [
+    {
+      "name": "ocoreai",
+      "description": "Drive ocoreai — a local agent and local inference server for open models on Apple silicon (MLX Metal + CoreAI, offline, no API key): the OpenAI and Anthropic wires, the per-checkpoint measured capability fields, and the tool loop inside its approval boundary.",
+      "category": "development",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/ocoreai"]
+    }
+  ]
+}

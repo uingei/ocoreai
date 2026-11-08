@@ -260,7 +260,11 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     this probe boots a server and runs every one: §0 the clone itself (no server) — every backticked path the
     skill cites must be tracked by git and nothing under `skills/` may be ignored, floor 3 cites, added 10-28
     when an unanchored `references/` rule in `.gitignore` shipped a skill whose three reference files existed
-    only on the author's disk; §1 the contract lane (scripted, no weights, no Metal),
+    only on the author's disk; §0b the routing contract a foreign harness reads (no server) — frontmatter
+    carries `name`+`description` and none of the fields nothing reads (the `triggers:` list was one, added
+    11-09 after the official skill set and a live `claude plugin validate` showed it inert), all seven routing
+    terms ride `description`, and the `.claude-plugin/` manifests parse, name the repo, point at real skill
+    paths and carry no version (the tag is the version); §1 the contract lane (scripted, no weights, no Metal),
     §1b the key boundary the skill tells callers to expect (401 naming the fix / bearer accepted / `/health`
     still public), §2 the measured lane against a real checkpoint — `@model` resolved from `/v1/models`, and
     the tier's premise (one real generation must complete) established **before** any assertion, so a host
@@ -271,7 +275,9 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     under its floor, the key boundary stops matching what §2 of the skill says, or the measured lane's
     sentence stops being true of a real checkpoint, a path the skill cites is not tracked by git, or an ignore
     rule swallows a file under `skills/` (§0; red-sampled 10-28 against the three reference files `.gitignore`
-    was hiding, green after `git add`). Red-sampled 10-28 while it was being written: a
+    was hiding, green after `git add`); frontmatter re-admits an unread field, a routing term leaves
+    `description`, or a `.claude-plugin/` manifest drifts from the repo — version re-typed, skill path dead
+    (§0b; all four reds sampled 11-09 against deliberately broken copies before the clause shipped). Red-sampled 10-28 while it was being written: a
     dotted-path assertion (`engineSummary.loadedModels`) and a body written before the status each turned it
     red against the real served bytes — the skill was wrong twice before it was shipped, which is the point.
 

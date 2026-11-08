@@ -158,8 +158,10 @@ Known boundaries (as of this commit, not aspirations):
 reads a Markdown file — to drive this server: the endpoint index, the agent-loop contract, and the honesty
 vocabulary that separates `not_observed` from `supported`. It is executed, not trusted:
 `bash scripts/probes/run.sh 39` boots its own server, runs every documented call, and goes red on its own
-floor if it finds too few markers. Install with `cp -R skills/ocoreai ~/.codex/skills/`
-(other hosts: `skills/README.md`). A client that would rather not read prose at all can enumerate the same
+floor if it finds too few markers. Claude Code installs it in one step —
+`/plugin install ocoreai --marketplace uingei/ocoreai` (the repo is its own plugin marketplace via
+`.claude-plugin/`; the command line is the one `claude plugin validate` prescribes). Other hosts:
+`cp -R skills/ocoreai ~/.codex/skills/` (`skills/README.md`). A client that would rather not read prose at all can enumerate the same
 surface from `GET /v1/capabilities` → `endpoints[]`, which is pinned to the router by a build gate.
 
 A client that wants no prose at all can take the contract instead: `openapi.json` at the repo root, or
