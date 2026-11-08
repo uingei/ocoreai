@@ -9,6 +9,21 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-08
 
+**11-08 probe 50's own hygiene: the day's disclosure probe walked into the exit-trap gate it was written next to — CI caught it in 111 s**
+
+- **What happened.** `58166a77` went red on both Build & Test legs: probe 54 cleaned its workspace with a raw
+  `trap … EXIT`, which per `run.sh:136` replaces `probes_cleanup` and strands the probe's serve on the
+  instance lock — the exact class `ProbeHarnessHygieneTests` scans for, and caught the moment it joined the
+  tree. `probe_atexit` now. Same push, the spell gate's other red: the failure-taxonomy table's bucket
+  caption typed `truncat` — the fix is NOT a vocabulary entry there (a caption wants the English word, the
+  word stayed corrected), while the instrument-stem occurrence inside the section's pattern block earned
+  its `.codespellrc` line only after the `cach`/`summar`/`integrat` precedent was cited. The section also
+  gained the full bucket-pattern block — shipped first with only a generic re-derive line, which the same
+  review caught: a table whose reader cannot re-derive its rows is a claim again.
+- **The gate did its job.** Both reds reproduced locally in minutes (`make spell`, one filtered suite) before
+  the next push; `make test` in flight for the 8 s-cluster observed mid-run (timing tests coincident with a
+  concurrent model load — verdict on the next line only after an idle re-run).
+
 **11-08 the board's three structured failures traced to a silent engine limit — tools+response_format is a single-pass turn that fabricates; the wire now says so, live-proved**
 
 - **What improved.** Following today's repro to the bottom: the structured tasks fail on both arms because a turn

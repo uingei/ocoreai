@@ -185,11 +185,29 @@ same 90 d window. Instrument: per tree, take commit subjects matching `fix|repai
 150–25 567 across 24 live trees), then for each failure bucket count what **share of that tree's own fix stream**
 carries the bucket's words and report the **median share across trees** (not the raw hit count — raw counts are
 swamped by `openclaw`/`hermes-agent`, whose 20 k+ fixes each would dominate every row and say nothing about the
-median tree). Re-derive: `git -C ../references/$t log --since='90 days ago' --pretty=%s | grep -i -E '<fix>|<bucket>'`.
+median tree). Re-derive with the bucket patterns as run (POSIX `[[:<:]]` boundaries are not decoration —
+plain substrings read `inst**all**` as stall and `c**hang**ing` as hang, and the first pass of this table fell
+for exactly that):
+
+```
+FIXPAT='^(fix|bugfix|hotfix)|fix(es|ed)?|repair|resolve[sd]?|workaround'
+crash:        crash|segfault|abort|panic
+hang_stall:   [[:<:]]hang|[[:<:]]stall|deadlock|freeze|froze|wedge|[[:<:]]stuck|uninterrupt
+timeout:      timeout|timed[ _-]?out
+oom_mem:      [[:<:]]oom|out of memory|memory leak|leak|alloc
+race_conc:    [[:<:]]race|concurrent|thread|reentr
+stream_sse:   stream|chunk|partial (response|output|json)
+tool_parse:   tool.call|function.call|[[:<:]]parse|marker|malformed|invalid json
+kv_context:   [[:<:]]kv|[[:<:]]prefix|context.(length|window)|truncat[a-z]*|tokeniz[a-z]*|[[:<:]]cache
+model_quant:  quant|4.bit|checkpoint|safetensors|gguf|weights?
+http_wire:    http|status.code|endpoint|header|cors|openai.compat
+platform:     metal|[[:<:]]ane[[:>:]]|coreai|[[:<:]]ios[[:>:]]|macos|gpu|driver
+share(t) = 100 * count(FIXPAT ∩ bucket) / count(FIXPAT);  row = median over trees with ≥50 fixes
+```
 
 | failure bucket | median share of a tree's fixes | trees ≥10 % | ours (base 434) |
 |---|---|---|---|
-| **kv / cache / context / truncat / tokeniz** | **5 %** | **11 / 23** | 7 % |
+| **kv / cache / context / truncation / tokenizer** | **5 %** | **11 / 23** | 7 % |
 | stream / chunk / partial | 2 % | 0 | 4 % |
 | tool-call / parse / marker | 2 % | 0 | 2 % |
 | race / thread / concurrent | 1 % | 0 | 0 % |

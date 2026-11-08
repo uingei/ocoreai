@@ -59,7 +59,10 @@ fi
 
 probe_section "2. the live turn matches the disclosure"
 ws="$(mktemp -d -t ocoreai-probe54-XXXXXX)"
-trap 'rm -rf "$ws"' EXIT
+# `probe_atexit`, not a raw `trap … EXIT`: bash keeps one handler per signal and a raw trap here
+# would silently replace `probes_cleanup`, leaving the probe's own serve on the instance lock —
+# the class ProbeHarnessHygieneTests exists to catch, and caught this file for, 11-08.
+probe_atexit 'rm -rf "$ws"'
 # Distinctive values: a model that never reads grid.txt has no route to 4477/9013.
 printf 'shape 4477 by 9013\n' > "$ws/grid.txt"
 body="$(python3 -I -c '
