@@ -156,19 +156,24 @@ for t in vllm sglang ollama omlx mlx-serve splash Rapid-MLX; do git -C ~/referen
   -e 'ANTHROPIC_BASE_URL|OPENAI_BASE_URL|OPENAI_API_BASE|CLAUDE_CODE_|claude[-_]code|codex[-_](config|app[-_]server)' -- '*.py' '*.ts' '*.go' '*.rs' '*.swift'; done
 ```
 
-**Eleven of the twelve serving trees score — we are the twelfth** (the axis printed 6/7 until the segment was
-corrected today; § What this costs in `comparator-innovation.md` for the five trees that had been unlisted).
-**Five of them were traced to product code this round** (the rest score on the pattern, and `OC_EVIDENCE=1`
-prints one matched line per tree so any of them can be traced in one re-run) — `ollama` has a `Runner` per
+**Eleven of the twelve serving trees score** (the axis printed 6/7 until the segment was
+corrected 11-04; § What this costs in `comparator-innovation.md` for the five trees that had been unlisted).
+**Nine of the eleven are now traced to product code — five on 11-04, the four that had joined unread on 11-08:**
+`ollama` has a `Runner` per
 (`cmd/launch/claude.go:15` "Claude implements Runner for Claude Code integration"); `mlx-serve` detects installed
 agents on `PATH` through a *login* zsh so nvm/asdf/pyenv resolve the way the user's terminal sees them
 (`app/Sources/MLXServe/Services/CLILauncher.swift:4-10`); `omlx` ships an `IntegrationsScreen`
 (`apps/omlx-mac/Sources/AppView/Screens/IntegrationsScreen.swift:224`); `splash` writes client configs from its
 installer (`install/clients.py`); `Rapid-MLX` renders its Launch page off a decoded registry whose kinds are
-`config_writer` and `adapter_profile` (`apps/rapid-mac/Sources/Rapid/Server/IntegrationCatalog.swift:3-12`).
+`config_writer` and `adapter_profile` (`apps/rapid-mac/Sources/Rapid/Server/IntegrationCatalog.swift:3-12`);
+`MTPLX` hands hermes the endpoint as an env var
+(`apps/MTPLXApp/Sources/MTPLXAppCore/Services/HermesIntegration.swift:772` `env["OPENAI_BASE_URL"] = baseURL`); `Strata`'s `strata connect <harness>` names seven harnesses in its help
+(`strata_cli/launch/cmd.py:168`) and maps each one's wire (`launch/check.py:21`
+`WIRE = {"codex": "responses", "claude-code": "messages"}`); `TensorFold` spawns the claude CLI as its agent
+(`app/electron/agent/claude-cli.ts:263`); `openclaw` launches codex-app-server through a named env contract
+(`apps/macos/Sources/OpenClaw/NodeMode/MacNodeCodexThreadCatalog.swift:90-91`).
 Two of the eleven score only on non-product code — vllm's hit is an example webserver script, sglang's a unit
-test. The remaining four (`MTPLX`, `Strata`, `TensorFold`, `openclaw`) joined the segment today and have not
-been read line by line. **We scored nothing until 11-08**, when probe 53 proved the wire end-to-end: claude's
+test — and the segment now has **no unread tree**. **We scored nothing until 11-08**, when probe 53 proved the wire end-to-end: claude's
 own loop, every cloud credential unset, the only base URL ours, an on-disk exact value delivered through
 8 engine-served turns. That closes the discovery question — the wire works for a harness that owes us nothing —
 but it is not what the eleven score on: they ship product code (detection, config writers), and
@@ -176,7 +181,7 @@ but it is not what the eleven score on: they ship product code (detection, confi
 
 Why this is the round's real finding: root § Adoption says to spend on "a harness consuming us", and this says the
 harness side is not an open research question in this field — it is a config file plus a detection routine that
-five of our seven nearest trees already ship. `Rapid-MLX` goes one rung further and owns the risk that comes with
+nine of our twelve nearest trees already ship. `Rapid-MLX` goes one rung further and owns the risk that comes with
 it: 17 harness configs, a reversible private profile (`isolated.py:23`, `--remove`), and `config_merge.py:1-15`
 documenting the two ways a naive merge deletes the *user's* own entries (pi's id-keyed `models` list, dsh's
 `cordis.patch.yml` layers). That docstring is the shape our § *Working here* "respect the person" rule wants: the

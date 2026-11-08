@@ -9,6 +9,24 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-08
 
+**11-08 the four unread serving trees closed the harness-side evidence debt — nine of twelve nearest trees ship agent wiring in app code**
+
+- **What improved.** `MTPLX`, `Strata`, `TensorFold`, `openclaw` had joined the serve segment on 11-04
+  "not read line by line"; each is now traced to product code with a `file:line`: MTPLX hands hermes
+  `OPENAI_BASE_URL` (`HermesIntegration.swift:772`), Strata's `strata connect <harness>` names seven
+  harnesses and maps their wires (`launch/cmd.py:168`, `check.py:21`), TensorFold spawns the claude CLI
+  (`claude-cli.ts:263`), openclaw launches codex-app-server via a named env contract
+  (`MacNodeCodexThreadCatalog.swift:90-91`). The harness side is now 9/12 product-traced with only the two
+  disclosed thin hits (vllm's example script, sglang's unit test) and no unread tree; `long-horizon-goal.md`'s
+  rung count moved five-of-twelve → nine-of-twelve against the same trace rule.
+- **What proves it.** The four greps ran against the mirrors' own tracked files this round; and the round
+  ate its own near-miss: a suspected wrong-role hit (deepseek-harness `package-target.ts:16` for
+  *cancellation*) turned out to be my shell filter's `-A4` context bleeding from another axis — the tree's
+  real score sits on `apps/desktop/src/*.ts` AbortSignal use, and score and evidence sides run the same
+  `grep -i -E` (script `:303`/`:333`), so no instrument bug survived the check.
+- **The gate.** None new; § The harness side keeps the section's evidence in its one home, and every new
+  cite is re-greppable on `~/references` by the same command the section header prints.
+
 **11-08 a two-party count is not a consensus — the summary table was granting the word to rows the file's own prose refused it**
 
 - **What improved.** The owner's methodology rule (单个项目达成一致不算共识) entered the ledger's own head: the
