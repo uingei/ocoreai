@@ -42,6 +42,7 @@ struct CapabilityMeasurementHonestyTests {
         let out = RuntimeCapability.measured(.unmeasured)
         // The overlay appends exactly what it has always appended plus function-calling
         // delivery (10-18): if a third measured row appears, this floor is the notice.
+        // (The 11-08 structured_output row is TIER truth — it lives in `lines`, not here.)
         #expect(out.count == base.count + 2)
         // Everything the tier matrix says is unchanged, in the same order.
         for (index, tierLine) in base.enumerated() {
@@ -100,6 +101,26 @@ struct CapabilityMeasurementHonestyTests {
         let names = RuntimeCapability.measured(.unmeasured).map(\.name)
         #expect(Set(names).count == names.count, "duplicate capability names: \(names)")
         #expect(names.filter { $0 == "video_input" }.count == 1)
+    }
+
+    @Test("structured_output discloses its composition limit, not just its existence")
+    func structuredOutputRowDisclosesLimit() throws {
+        let row = try Self.row(RuntimeCapability.measured(.unmeasured), "structured_output")
+        // The row exists unmeasured — a client must learn the limit before its first request.
+        #expect(
+            RuntimeCapability.lines.contains { $0.name == "structured_output" },
+            "the prompt/info-tool audience reads the tier matrix only; a wire-only row would leave them the liars"
+        )
+        // Pure response_format turns DO work, so `true` is the measured value; the honest
+        // part is the note — a row that said only "structured output: yes" is exactly the
+        // overclaim the board's structured tasks paid for (fabricated answers, 11-08 pair).
+        #expect(row.available)
+        #expect(
+            row.note.contains("single-pass"),
+            "the limit must be readable from the wire: \(row.note)")
+        #expect(
+            row.note.contains("tools declared beside it cannot run first"),
+            "the combination limit must be named, not hinted: \(row.note)")
     }
 
     @Test("the overlay never upgrades a row the tier gate turned off")

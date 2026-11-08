@@ -51,6 +51,7 @@ public enum RuntimeCapability {
             case "video_generation": return "Video"
             case "video_input": return "Video input"
             case "tool_call_delivery": return "Tool calls"
+            case "structured_output": return "Structured output"
             case "mcp_stdio": return "MCP stdio"
             case "screenshot_capture": return "Screenshot"
             case "model_fidelity": return "Fidelity"
@@ -127,6 +128,21 @@ public enum RuntimeCapability {
             .init(
                 name: "agent_loop", available: true,
                 note: "Tool + turn + recover loop, all 4 OS tiers"))
+        // Composition limit, disclosed where every consumer reads: a `response_format` turn
+        // is a single-pass constrained answer — with tools declared beside it the answer
+        // grammar wins and the turn cannot emit a tool call first, so a grounded answer
+        // cannot be grounded (measured: `OpenAIModels.swift` "the JSON wins"; board
+        // structured tasks 11-08). Pure `response_format` turns work; "structured output:
+        // yes" alone would claim more than the engine delivers on the combination —
+        // invariant 2, the `tokenizerBackend` family. sglang treats the pair the same
+        // (`serving_chat.py:1130`). In the tier matrix, not the measured overlay: the
+        // prompt and the `info` tool read `lines` only.
+        result.append(
+            .init(
+                name: "structured_output", available: true,
+                note:
+                    "single-pass — `response_format` constrains the answer; tools declared beside it cannot run first on that turn (tool_choice forcing selects the tool grammar instead)"
+            ))
         result.append(
             .init(
                 name: "mlx_inference", available: true,

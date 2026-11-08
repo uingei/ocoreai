@@ -485,6 +485,14 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     possible source; the deliverable is an on-disk token the task never names, and wire truth is the
     engine's own `Assembled prompt` lines, not the harness's exit code. Green 11-08: claude 2.1.318 on
     the list-order chat checkpoint (Qwen3.6-35B-A3B-4bit), exact-value match, 8 engine-served turns.
+- `54-structured-output-composition.sh` — is the `tools[]` + `response_format` composition limit
+    readable before the request and true in the turn? A combination turn is single-pass (the answer
+    grammar wins, `OpenAIModels.swift` "the JSON wins"), so it cannot read a file before answering —
+    the board's structured tasks paid for that in fabricated JSON on both arms 11-08 while the wire
+    said nothing. §1 asserts `/v1/capabilities` carries the `structured_output` row naming the limit;
+    §2 asserts the live turn matches it: schema-valid, no `tool_calls`, and the file's distinctive
+    values absent (a grounded answer reds here as a *stale-disclosure* finding, not a pass). sglang
+    treats the pair the same (`serving_chat.py:1130`). Green 11-08 both sections.
     Fails when: the harness vanishes (missing subject, like 41's absent DMG), or it finishes while the
     engine assembled fewer than two prompts.
 - `_lib.sh` — shared harness

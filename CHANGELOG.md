@@ -9,6 +9,30 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-08
 
+**11-08 the board's three structured failures traced to a silent engine limit — tools+response_format is a single-pass turn that fabricates; the wire now says so, live-proved**
+
+- **What improved.** Following today's repro to the bottom: the structured tasks fail on both arms because a turn
+  carrying `tools[]` **and** `response_format` never runs tools — the answer grammar wins
+  (`OpenAIModels.swift` `buildGrammarSchema`, "the JSON wins"), the model cannot emit `read_file`, and it fills
+  the schema with plausible inventions (answers recovered from `OLTREZvTTx`: `"word":"note.txt","chars":8`).
+  The engine knew ("recorded open rather than fixed by picking a different loser"); the **caller never did** —
+  a 200 with valid JSON and invented values. The fix slice today is the disclosure, in the `tokenizerBackend`
+  family: tier row `structured_output` (in `lines`, so the prompt and the `info` tool read it too) states
+  "single-pass — tools declared beside it cannot run first", and sglang's own treatment
+  (`serving_chat.py:1130`, tool parser switched off) makes the behaviour field-standard, only now stated.
+  The deeper fix (per-iteration grammar: tools during the loop, schema on the final turn) is written up in
+  `docs/agent/open-items.md` as an explicit owner call — staying matches sglang; diverging matches the OpenAI
+  spec's final-message reading.
+- **What proves it.** Probe 54 green 11-08, both sections: `/v1/capabilities` names the limit before the first
+  request, and the live combination turn is schema-valid, carries no `tool_calls`, and omits a file's distinctive
+  values (4477/9013) exactly as disclosed — a grounded answer would red the probe as *stale disclosure*, not pass.
+  `CapabilityMeasurementHonestyTests` 17/17 with a new test pinning the note's exact markers; the +2
+  overlay floor stayed honest on its own terms (the new row is tier truth — the floor caught my first
+  placement guess). Release build green; live curl pair (fresh vs board-tainted session) killed the
+  session-reuse hypothesis on the way, as did the correct-by-luck guess that taught us the path fabricates.
+- **The gate.** Probe 54 (live pair) + the honesty test (wire text); open-items carries the price
+  (3/45 tasks, both surfaces, deterministic) so a final-turn-constraint commit knows its own bill.
+
 **11-08 the field's 90-d repair budget is one axis — KV/cache/context — and the only place we out-spend it 13× is platform, which is the dual-engine bill**
 
 - **What improved.** A new measured section in `docs/agent/comparator-evolution.md` ("What the field fixes about

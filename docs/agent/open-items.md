@@ -5,6 +5,15 @@ where a number is unmeasured it says so, and where a fix is blocked by the host 
 which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes a rule in `AGENTS.md` or
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
+- **A `response_format` turn cannot ground itself; the limit is disclosed, the fix is a call** (Engine/, Handlers/) —
+  with `tools[]` declared beside `response_format` the answer grammar wins (`OpenAIModels.swift` "the JSON wins",
+  four orderings measured there) and the turn cannot emit a tool call first, so it fabricates instead of reading
+  (board structured tasks, both arms 11-08, deterministic at temp 0 — 3/45 tasks priced). The disclosure shipped
+  same day: tier row `structured_output` + probe 54 pins disclosure↔behaviour; sglang treats the pair the same
+  (`serving_chat.py:1130`), so staying is defensible. The fix shape is a per-iteration grammar: tool grammar while
+  the loop runs, the caller's schema only on the final turn — engine surgery, and it would DIVERGE from sglang
+  while matching the OpenAI spec's final-message semantics. Owner call: stay disclosed or build the final-turn
+  constraint.
 - **A stall stops MTP hard, the std lane only by consent** (Tools/, Engine/) — the ladder and
   `LoopStallTerminationTests` landed; upstream `mlx-swift-lm`'s `restart:` loop (ChatSession.swift:1164) still has no
   cap, and a std-lane hard stop throws out of `toolDispatch` (:1632) reaching the wire as an error, not a
