@@ -9,6 +9,23 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-08
 
+**11-08 the whole field-column pass landed on 39 mirrors — and the shared-progress ledger was written with measured numbers, two of them about our own stale cells**
+
+- **What improved.** (1) Every field cell in the consensus table is now the 11-08 pass (shippable derives to
+  34 as the disk grew): cancellation 22/24→23/34, auto-update 21/24→24/34, probes 23/24→26/34, tags
+  median 245→209 — the 11-04 counts held exactly four days, the § corpus lesson told live. (2) The typed-install
+  row was ruler drift caught in the open: the axis pattern counts *package-manager* commands while the cell
+  scored our `curl … install.sh | sh` as yes — the row now counts what the pattern measures (ours: no, the
+  curl route scored on the artefact row), and the table finally agrees with Direction 2's own prose ("still no
+  brew formula, no npm"). (3) The tags cell said 2 while the tree carried 3 — all three inside the newest 30-day
+  window (cadence `0·0·0·3`; AGENTS.md synced, byte-neutral); (4) unanimity-floor check: every one of the 13
+  reference agent trees backs its own cell in the four full-score rows in non-test code (thinnest: `harness2`
+  compaction, 1 file), and so do all 10 reference serving trees on the effort knob.
+- **What proves it.** The pass output (cadence block: `ocoreai 535·260·297·298 / 3·0·0·0`; field: 19/19 tagged
+  comparators minted ≥1 in the newest window), the per-tree backing matrix run with the script's own regexes,
+  and ollama's cadence line beside ours (39 tags/30 d) as the honest scale of what "together" costs.
+- **The gate.** None new; every number re-derives from the header's one command; `make docs-check` EXIT=0.
+
 **11-08 the four unread serving trees closed the harness-side evidence debt — nine of twelve nearest trees ship agent wiring in app code**
 
 - **What improved.** `MTPLX`, `Strata`, `TensorFold`, `openclaw` had joined the serve segment on 11-04

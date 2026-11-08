@@ -35,7 +35,7 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 
 ## Adoption — the surface a stranger ranks
 - **A release is a cadence, not a green suite or one tag:** eight installable trees publish 37 → 1 270
-  releases, newest ≤9 d old (audit-facts.sh, 11-06); ours: 2 tags, 1 release (`v0.1.16`, 11-07) — cadence
+  releases, newest ≤9 d old (audit-facts.sh, 11-06); ours: 3 tags, 1 release (`v0.1.16`, 11-07) — cadence
   is the open item. The
   tag *is* the version (`scripts/version.sh` prints it), so no doc re-types one. `Core/UpdateCheck.swift` only
   *notifies*; build/publish must split. Ladder: `long-horizon-goal.md` § Rung zero.

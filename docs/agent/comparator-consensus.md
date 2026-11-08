@@ -5,11 +5,10 @@ file answers the other question — **does the field agree on Y** — and that q
 it needs its own instrument instead of twenty readings of twenty READMEs.
 
 > **Re-derive:** `bash scripts/comparator-consensus.sh [parent-dir]` — scores every directory on disk plus us:
-> **39 mirrors today, 29 at the 11-04 pass that produced the table below** (the segment lists derive from the
-> disk, so they self-grow; prose does not — the file's own § corpus lesson, caught re-rotting 11-08). A fresh
-> run already moved derived denominators (`cancellation` prints 23/34 against the cell's 22/24); the field cells
-> are dated because they must be, and re-measuring the whole table is a session, not a sentence. Premise, stated
-> because it decides every number below: **this box's mirrors at their 11-04 HEADs**. A runner has no `~/references`, so none of this is a gate — a cross-tree count is a
+> **39 mirrors**. The table below is the 11-08 pass; a pass over the same disk days apart moves derived
+> denominators because the segment lists grow with the corpus while prose does not (the file's own § corpus
+> lesson, told live: the 11-04 counts held exactly four days). Premise, stated because it decides every number
+> below: **this box's clones as of 11-08 — mirrors of the projects, not a guarantee of their live HEADs**. A runner has no `~/references`, so none of this is a gate — a cross-tree count is a
 > direction input, and a printed count carries no verdict (§ *Working here*). The script floors one thing about
 > itself: an axis no tree matches prints `INSTRUMENT-DEAD`, because that has already happened here (§ The ledger),
 > and `OC_EVIDENCE=1` prints one matched `file:line` per tree, because three counts here turned out to be counting
@@ -48,50 +47,56 @@ Read for consensus, the corpus first failed to agree with its own inventory. Fiv
 **Consensus floor (owner's rule, 11-08): ocoreai and a *single* reference tree agreeing is a precedent, not a
 consensus.** The table ranks counts for direction, but two rows sit at the precedent shape and must not be read
 as mandates: `2/12` committed-contract is us plus `ollama` alone — the field's live stance is to *turn the route
-off* (§ Where we are ahead) — and `2/24` store shelf is two other trees without us. The script's diffusion
+off* (§ Where we are ahead) — and `2/34` store shelf is two other trees without us. The script's diffusion
 ladder already refuses the CONSENSUS word below 0.8 share; prose here owes the same discipline the heading once
 promised.
 
 Counts are in-segment (`serve` = **12** trees that answer a chat-completion POST themselves; `agent` = 14
-harnesses a person drives; `shippable` = 24 trees that ship something a stranger installs — everything but the
-two model READMEs, the two pins and the SWE-bench harness, plus us). Segments are declared in the script as
-data, so a denominator can be argued with — and one of them *has* to be: `serve` had been hand-typed at 7
-while five serving trees sat unlisted, so every serve row below was a field divided by a subset of itself
-(the five, each with its route line, and the two adjudicated non-members: `comparator-innovation.md` § What
-this costs). Re-measured 11-04 against 29 mirrors. The *ours*-column moves with the tree: three cells
-re-measured 11-07/08 (the two install rows — `scripts/install.sh` went live — and the release row —
-2 tags, 1 surviving release `v0.1.16`); the field-columns still stand at the 11-04 pass.
+harnesses a person drives; `shippable` = **34** trees that ship something a stranger installs — derived from
+the disk (every mirror but the two model READMEs, the two pins and the SWE-bench harness, plus us), so it grows
+with the corpus). Segments are declared in the script as data, so a denominator can be argued with — and one of
+them *has* to be: `serve` had been hand-typed at 7 while five serving trees sat unlisted, so every serve row
+was once a field divided by a subset of itself (the five, each with its route line, and the two adjudicated
+non-members: `comparator-innovation.md` § What this costs). **Every field cell below is the 11-08 pass over 39
+mirrors** (the 11-04 counts held for four days and were already moved by the growing disk — the § corpus
+lesson, told live); the *ours*-column moves with the tree the same day.
 
 | Practice | Segment | Trees | Ours |
 |---|---|---|---|
-| Advertises an install route a stranger can reach | shippable | 21/24 | yes — DMG (surviving, `v0.1.16`) + terminal path (`README.md:23`) |
-| …of which: a command a stranger can *type* | shippable | **16/24** | yes — `curl … install.sh \| sh` (11-07, `scripts/install.sh`) |
-| …of which: a store shelf | shippable | 2/24 (`cline`, `mlx-serve`) | no — and neither does the field |
-| Reads a project rules file in its own code | agent | 14/14 | yes (`WorkspaceContext.swift:34`) |
-| Cancellation path in code | shippable | 22/24 | yes (35 files) |
-| Auto-update path in code | shippable | 21/24 | half — notifies only (`Core/UpdateCheck.swift`) |
-| Refuses an empty suite as evidence | shippable | 21/24 | yes (49 source files) |
-| Live probe / smoke scripts committed | shippable | 23/24 | yes (58) |
+| Advertises an install route a stranger can reach | shippable | 24/34 | yes — DMG (surviving, `v0.1.16`) + terminal path (`README.md:23`) |
+| …of which: a typed *package-manager* command | shippable | **17/34** | no — the axis pattern counts `brew/npm/pipx/uv/cargo/…`; our typed route is `curl … install.sh \| sh` (11-07, `scripts/install.sh`), which the artefact row scores |
+| …of which: a store shelf | shippable | 2/34 (`cline`, `mlx-serve`) | no — and neither does the field |
+| Reads a project rules file in its own code | agent | 14/14 | yes (87 files) |
+| Cancellation path in code | shippable | 23/34 | yes (36 files) |
+| Auto-update path in code | shippable | 24/34 | half — notifies only (`Core/UpdateCheck.swift`) |
+| Refuses an empty suite as evidence | shippable | 23/34 | yes (50 source files) |
+| Live probe / smoke scripts committed | shippable | 26/34 | yes (61) |
 | Session rewind / fork / compaction | agent | 14/14 | yes (`Reasoning/ConversationCompaction.swift`) |
 | Turn/stall bound in code | agent | 14/14 | yes (`LoopStallTerminationTests`) |
 | Verifies bytes in a download module | serve | 12/12 | yes on the route we fetch (`ModelScopeDownloader.swift:1136-1144`) |
 | `reasoning_effort`-class knob | serve | 12/12 | yes, and gated (probe 38) |
-| Evals or benchmark tree | shippable | 19/24 | yes (26) |
-| Third-party notice manifest | shippable | 17/24 | yes (43) |
+| Evals or benchmark tree | shippable | 22/34 | yes (26) |
+| Third-party notice manifest | shippable | 20/34 | yes (43) |
 | Screen capture / computer use in code | agent | 12/14 | yes (17) |
 | Deferred / filtered tool surface | agent | 12/14 | **no** (§ The ledger: our 2 hits are noise) |
 | `SKILL.md` files published | agent | 11/14, median **14** | **1** (`skills/ocoreai/`) |
-| Release tags | shippable | 23/24, median **245** | **2** tags, 1 surviving release (`v0.1.16`, 11-07) |
+| Release tags | shippable | 29/34, median **209** | **3** tags — all three inside the newest 30-d window (`v0.1.14` 10-29 → `v0.1.16` 11-07), 1 surviving release |
 | **Wires a third-party coding agent to itself** | serve | **11/12** | **yes on the wire** — probe 53 runs claude's own loop cloud-severed on `/v1/messages` (11-08); the product code (detection, config writer) is still ours to ship (§ The harness side) |
 | **Speaks ACP (the editor↔agent protocol)** | agent | **8/14, and 8/8 editing now** | **no** (§ Direction 8) |
 | **OS confinement profile for the child process** | agent | 6/14, honest read 5 | **no** (§ Where the field confines) |
 | Committed machine-readable HTTP contract | serve | **2/12** — us + `ollama`: precedent, not consensus | yes (`openapi.json`, generated) |
 | Published client *package* | serve | **2/12** (`openclaw`, `sglang`) — thin, and not ours | no |
 
-Three numbers are the whole calibration, so read them twice. **Median tags 245, ours 1.** Of the 23 installable
-comparators, **21 minted at least one tag in the last 30 days**; we minted one in the last 120 (§ The field's own
-trend). And the practice we are behind on that the field holds near-unanimously (auto-update 21/24, an install
-route 21/24) is the one root already calls the open item — now measured instead of asserted.
+Three numbers are the whole calibration, so read them twice. **Median tags 209, ours 3 — but all three inside
+the newest 30-day window, where the field's 19 tagged comparators each minted at least one too** (ours ran
+0·0·0·3 across the cadence block's windows: the habit is a week old, and the field does not pause). And the
+practice we are behind on that the field holds near-unanimously (auto-update 24/34, an install route 24/34) is
+the one root already calls the open item — now measured instead of asserted.
+**Unanimity-floor check, 11-08:** for the four full-score axes checked per tree (rules file,
+compaction, stall bound over the 13 reference agent trees; the effort knob over the 10 reference serving trees),
+**every tree backs its own cell in non-test code** — thinnest backing 1 file (`harness2` compaction), typical
+backing dozens, no cell is one tree's many files. The check is what § Consensus floor demands before a full row
+is repeated as a claim; it has not yet been run on the download-verify row.
 
 ## Where the field disagrees
 
@@ -303,11 +308,11 @@ honesty gate). **Owner call; nothing here changed model behaviour.**
   2/12 (`sglang`, and `openclaw`, which joined the segment today). So a
   **generated client is our bet, not a field expectation** — the evidence behind the owner's standing caution that
   "a public contract is a promise" (root § Adoption).
-- **Depth we already exceed:** notices (43 files vs 17/24 having any manifest), probes (58 of the 23/24 that ship
+- **Depth we already exceed:** notices (43 files vs 20/34 having any manifest), probes (61 of the 26/34 that ship
   any), evals, and a rules budget the field does not keep at all — four trees load a ruleset bigger than their own
   loader's cap and three never say so (§ The injected ruleset). Adding a fifth verification discipline buys a
   claim, not a user.
-- **A store shelf is not the field's habit either** (2/24), so the `appStore` build trait is not a catch-up item
+- **A store shelf is not the field's habit either** (2/34), so the `appStore` build trait is not a catch-up item
   pretending to be one.
 - **Digest verification exists where we own the bytes**, gated by `DownloadIntegrityTests` + probe 43; the open
   half is upstream's (`HubClient` carries an ETag, not a weight digest) — see the corrected Strata row.
@@ -333,7 +338,7 @@ yet a task.
    comparators ship monthly; against the tree building our own sentence we match on commits and lose 29·22 to 1·0
    on tags. Rung zero already says this; `scripts/audit-facts.sh` prints the field's release counts and
    `comparator-consensus.sh` now prints tags next to commits so the pair is visible at once.
-2. **A typed install route is the field's majority (16/24) — half-shipped 11-07**: `curl | sh`
+2. **A typed *package-manager* route is the field's majority (17/34) — half-shipped 11-07**: `curl | sh`
    went live (`scripts/install.sh`, end-to-end tested against the live v0.1.16 asset); still no
    brew formula, no npm. omlx's quartet (DMG, auto-update, `~/.omlx/bin` shim, self-serve tap whose optional-kernel flag
    *degrades instead of failing*) remains the concrete shape; the tap is one `Formula/` file plus a
