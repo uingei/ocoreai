@@ -5,6 +5,15 @@ where a number is unmeasured it says so, and where a fix is blocked by the host 
 which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes a rule in `AGENTS.md` or
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
+- **The auto-A/B loop cannot judge the only patches its allow-list admits** (scripts/eval/) — `autoloop-allow.txt`
+  admits `Sources/` (“contract/format changes in the product”), but `binary` is in `_repeat_stats.INVARIANT_FIELDS`
+  with no declared-crossing path, and any compiled change moves the binary token (`name+mtime+size`) — so every
+  real proposal the loop permits lands `not-measured` (first live instance 11-08: `verify-before-done`,
+  ledger `20261108-172950`; the verdict was reached by manual matched pairing instead, `20261108-213000`). The
+  loop's whole measured life before this was same-binary config pairs and self-test fixtures whose conditions
+  rows are fabricated to agree — a mechanism with zero measured consumers, exactly where its own invariant says
+  to look. The fix is a human act on protected files: a declared-binary-move mode (movement named in the ledger
+  beside the veto, model/tasks/temp/host still invariant) is the shape this round would have used. Owner call.
 - **A `response_format` turn cannot ground itself; the limit is disclosed, the fix is a call** (Engine/, Handlers/) —
   with `tools[]` declared beside `response_format` the answer grammar wins (`OpenAIModels.swift` "the JSON wins",
   four orderings measured there) and the turn cannot emit a tool call first, so it fabricates instead of reading

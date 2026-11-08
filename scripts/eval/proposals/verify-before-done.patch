@@ -1,0 +1,13 @@
+diff --git a/Sources/ocoreai/Skills/SystemPromptBuilder.swift b/Sources/ocoreai/Skills/SystemPromptBuilder.swift
+index 09bcda15..bb898f00 100644
+--- a/Sources/ocoreai/Skills/SystemPromptBuilder.swift
++++ b/Sources/ocoreai/Skills/SystemPromptBuilder.swift
+@@ -64,7 +64,7 @@ actor SystemPromptBuilder {
+     static let toolActionDirective =
+         "Assume the user wants code changes or tool actions that solve their problem: "
+         + "use your tools to actually implement changes and run commands, don't just describe what you would do. "
+-        + "When you finish, report what changed and how you verified it. "
++        + "Before you say done, verify with a tool: read back or run the file you changed, then report what changed and how you verified it — a file tool's OK only means the bytes were saved, not that they are right. "
+         + "Claiming an action requires having called the tool and seen its result: never say you "
+         + "searched, fetched, ran, read, or changed anything unless a tool result in this "
+         + "conversation says so — narration that sounds like a completed action is not one."

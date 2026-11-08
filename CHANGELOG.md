@@ -9,6 +9,28 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-08
 
+**11-08 the first real Auto-A/B proposal measured a clean negative — and its unmeasurable first pass exposed that the loop cannot judge any patch it permits**
+
+- **The experiment:** the field-traced claim-without-verify cluster (write-OK ≠ valid: `out.txt` missing its
+  suffix yet answered as done) met its codex-shaped fix — turn the report-shaped verify duty
+  (`SystemPromptBuilder.swift:67`) into an operational command ("before you say done, verify with a tool; a
+  file tool's OK is durability, not validity"), field-cited (`gpt_5_2_prompt.md:111,138`), run through the
+  house's own contract loop.
+- **The answer:** k=6 vs k=6 on the 52-task frozen set: 28.50 → 28.67, matched b=17 c=18, exact McNemar **p=1.00**;
+  moved tasks in both directions; veto clean. Reverted, patch not applied. The negative is the finding: the
+  verify sentence was already in prose; making it operational at this checkpoint moves the board nowhere —
+  the claim-without-verify face is engine/loop territory (turn termination accepts intent-prose), not a missing
+  prompt clause. Ledger rows `20261108-172950` (not-measured) and `20261108-213000` (manual matched pairing,
+  the house's own `R.discordance` + `mcnemar_exact`, conditions-binary move stated as the hypothesis).
+- **The instrument finding:** the loop's allow-list admits `Sources/` only, while `binary` is an INVARIANT field
+  with no declared-crossing path — every compiled proposal it permits must land not-measured; its entire
+  measured life before today was same-binary config pairs and self-test fixtures with fabricated-agreeing
+  conditions. Zero measured consumers, recorded in `open-items.md` with the shape of the fix (a
+  declared-binary-move mode); the protected-file edit itself is an owner act, deliberately not taken.
+- **Also today, twice honest about hand-made stops:** the chain died once on my own `git checkout` bumping a
+  tracked mtime (rebuild, no `ALLOW_STALE_BIN`), and once on the CLT-default build with no `metal` on this
+  host (re-hooked via the sanctioned `OCOREAI_AUTOAB_BUILD_CMD`, measurement objects untouched).
+
 **11-08 probe 50's own hygiene: the day's disclosure probe walked into the exit-trap gate it was written next to — CI caught it in 111 s**
 
 - **What happened.** `58166a77` went red on both Build & Test legs: probe 54 cleaned its workspace with a raw
