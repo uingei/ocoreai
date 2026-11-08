@@ -9,6 +9,23 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-08
 
+**11-08 the two-surface A/B reproduced across days — −7 again on a same-day pair, and the full surface pays 4.2× the tokens to lose them**
+
+- **What improved.** The owner's pending tools[]-surface call (root § Open: "judging the two surfaces waits on the
+  owner") stops being a one-pair anecdote: the 11-06 pair (all 22, six 29) now has a second pair measured today —
+  `B3mcwWEGT8` all-surface **23/45** (repro of 22 inside k=1 CI) against same-day paired arm `OLTREZvTTx` **30/45**
+  (repro of 29), net −7 to the small surface *again*; exact flips 5:12, McNemar p≈0.14/day with the recorded pair
+  at p≈0.12 — direction stable two days running, **significance deliberately not claimed**, this house pairs 1:1
+  and names its own floor. The cost column arrived too: 14 216 tokens per success vs 3 396 (4.2×), 24 272 ms vs
+  11 296 — the full surface pays more and finishes less, and the losses sit on the *easy* single-edit tasks the
+  six-tool wins while prompt starts ≥7.3k tokens per turn. Two flip tasks were `exec_shell` substituting for the
+  edit route — the 34 extra schemas do not only cost bytes, they offer detours.
+- **What proves it.** Per-task flip lists from both arms' `results.tsv` (both preserved), the two ledger rows in
+  `scripts/eval/README.md`, and ~20 minutes of rerun to reproduce the pair.
+- **The gate.** The board itself; `_ledger_selftest` 0 defects after the rows landed. Full confession for the
+  round: one risky edit anchored on a truncated display string cut the `dyuvBlNB73` row in half mid-word —
+  caught on the next command by line-length reads, both halves restored verbatim from the grep'd original.
+
 **11-08 the eval board's stale-binary premise was pinning an unsatisfiable claim — a docs-only tree blocked it twice, and running its own remedy changed nothing**
 
 - **What improved.** The premise compares binary mtime against `Sources/** + Package.swift` — which counts the
