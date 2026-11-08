@@ -9,6 +9,12 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-09
 
+**11-09 the adoption numbers drifted while the session argued epistemology: one live `api.github.com` pass convicted our own prose — `3 tags` is now 1, and the "within the hour" download reading is re-labelled what it is**
+
+- **What improved:** `AGENTS.md`'s ours line and `long-horizon-goal.md` § Rung zero read **1 remote tag = 1 release** (`v0.1.15`'s tag has since followed `v0.1.14`'s off the remote — `audit-facts.sh` 11-09: `tags_remote=1`, `tags_local=3`); the field ceiling re-measured `37 → 1 272`; watchers restated as `subscribers_count` 0; rung 1 now names the asset's `download_count=5` as a cumulative counter, so the 11-07 "downloaded within the hour" survives as diary inference, not a re-measurable claim.
+- **What proves it:** the session's live reads — stars 1 / forks 0 / releases 1 / `tags_remote=1` / downloads 5 — the same two `api.github.com` calls the claim pins already spell out, plus `audit-facts.sh`'s ours line.
+- **Gate:** the surviving pins (`claim:releases_published=1`, `claim:tags_published>=1`) reproduced and never contradicted the drift — `>=1` passes on 1 — which *is* the finding: the stale `3 tags` lived in restated prose with no pin of its own, the exact class invariant 1 says drifts. `make docs-check` green with the re-measured numbers.
+
 **11-09 the agent channel was a manifest, and two audit trees had never been registered: the survey also caught our own skill routing itself through a field nothing reads — the `triggers:` vocabulary moved into `description`, the repo gained `.claude-plugin/`, and the typed install command is the line the validator itself spells out**
 
 - **What improved:** `claude-skills-official` and `claude-plugins-official` were present under `~/references` and

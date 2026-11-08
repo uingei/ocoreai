@@ -80,9 +80,9 @@ conservative, it is invisible.
 
 "S = 1.0 with no adoption" is measured, not felt: trees with stars, forks, age and stars/day in
 `docs/agent/adoption-runbook.md` § The leaderboard (`api.github.com` — HEAD's only authority; a mirror proves
-content, never HEAD), and **ocoreai 1 star / 0 forks / 0 open issues / 2 remote tags / 1 release
-(`v0.1.16`, published 11-07; `v0.1.15` is a tag without a release, the earlier `v0.1.14` pair was
-withdrawn; re-measured 11-07), 146 d old**. The gap is not the finding, the *shape* is — and the arithmetic that used to
+content, never HEAD), and **ocoreai 1 star / 0 forks / 0 open issues / 1 remote tag = 1 release
+(`v0.1.16`, published 11-07; `v0.1.15`'s tag is since withdrawn too, as was `v0.1.14`'s pair;
+re-measured 11-09), 146 d old as of 11-07**. The gap is not the finding, the *shape* is — and the arithmetic that used to
 justify this section is **deleted, not softened (10-28(6))**: it read "the field's best sustained growth is
 ~408/day, so no honest engineering schedule reaches #1", yet `deepseek-ai/deepseek-harness` reached 263 687
 stars 76 days after creation, and `Niko1221/Strata` 34 577 in 34 days (rates per tree: the leaderboard).
@@ -92,15 +92,17 @@ four sits on a machine that manufactures one (two model vendors, one ecosystem, 
 phenomenon), and two of the three fastest movers are institution-shipped. So distribution comes first, the
 objective stays the wedge rank not the headline, the rungs that move a stranger's install decision this
 quarter are 1 (a tag per merge) and 6 (be consumed), and the cheapest parts are still unpaid — Discussions
-off, no homepage, `VISION.md` absent, 1 watcher. Every rung below is falsifiable:
+off, no homepage, `VISION.md` absent, 0 watchers (`subscribers_count`, 11-09). Every rung below is falsifiable:
 
 0. **Ship.** Done, and askable: `scripts/ci-status.sh` never calls a question it could not ask green.
-1. **Cadence, not one tag.** The eight installable trees publish 37 → 1 270 releases each, newest ≤9 d old
+1. **Cadence, not one tag.** The eight installable trees publish 37 → 1 272 releases each, newest ≤9 d old
    (`bash scripts/audit-facts.sh` re-measures); this repo has **1 surviving release: `v0.1.16`, published
    11-07** — the ten-step job green end to end, read-back sha-parity, asset 28 970 635 B, downloaded
    within the hour of publishing (re-measured 11-07 against `api.github.com`; `audit-facts.sh` prints the
    ours line). `v0.1.14` published on 10-29 with the runner's own `${{ github.token }}` and was later
-   withdrawn with its tag; `v0.1.15` is a version-anchor tag that never got a release.
+   withdrawn with its tag; `v0.1.15`'s version-anchor tag followed it off the remote — 11-09: `tags_remote=1`.
+   The asset's `download_count` is a cumulative counter (5 at 11-09), so the 11-07 "downloaded within the hour"
+   cannot be re-derived from it and stands as diary inference.
 <!-- claim:releases_published=1 :: curl -sL --max-time 15 api.github.com/repos/uingei/ocoreai/releases | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 9**9)' -->
    Why this claim is `=` where the repo's other pins are `>=` (a stated ruling, 11-06, after a round
    argued the opposite and the next round pinned it anyway): `docs-check` is not on the publish path,
