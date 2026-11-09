@@ -210,7 +210,7 @@ printed under the p and recorded as `declarations_moved` in `_autoab_gate.py`'s 
 whichever surface field moved — `tools`, `docs`, or both — and the printed sentence names the field it
 is explaining), so a `keep` never reads as if only the engine moved.
 
-Measured over fabricated scoreboards (no GPU; `_conditions_selftest.py` = 50 checks, and these are the
+Measured over fabricated scoreboards (no GPU; `_conditions_selftest.py` = 51 checks, and these are the
 same fixtures by hand):
 
 | fixture | with the conditions line | with the line deleted (red sample) |
@@ -1013,7 +1013,7 @@ points refuse first now — `_repeat_stats.taskset_mismatch`, called by `paired(
 same task file. Growing the set is legitimate; it costs a re-baseline, which is exactly the price the refusal
 quotes.
 
-**Judges with no gate are claims.** `_autoab_selftest.py` — no GPU, no build, 21 scenarios, ~0.4 s — pins the
+**Judges with no gate are claims.** `_autoab_selftest.py` — no GPU, no build, 22 scenarios, ~1 s — pins the
 path gate *by reported reason* (so an entry deleted from `autoloop-protected.txt` fails the attribution
 assertion instead of letting the prefix rule cover for it), the exact b/c/cells of every decision, and that α and
 k_min are live knobs: the CLI must revert the +0.5-task variant at the shipped α and must *keep* it under
@@ -1022,7 +1022,11 @@ second goes red if the knob stops being wired. Scenario 14 prices a *rebuilt bin
 stated commit, `not-measured` on two commits, on an unstated commit, and on another model), and requires the
 ad-hoc `paired` CLI to keep refusing the same pair — the axis is the loop's, not the pairing primitive's.
 Scenario 15 runs `_conditions_selftest.py` as part of the referee, because `autoab.sh` calls this file at
-startup and whatever this file does not consult is not gated at all. `_autoab_mutate.py` runs eighteen of
+startup and whatever this file does not consult is not gated at all. Scenario 16 runs a **copy of the loop
+script itself** far enough to assemble its build command and reach its proposal list (stub referee, empty
+proposals dir, its own ledger) — added because a `set -u` reference to an unset optional env var killed the
+loop at startup on 11-09 while every scan in this file stayed green: a scan reads text, the shell reads
+values. `_autoab_mutate.py` runs nineteen of
 them — it edits each rule out,
 requires `_autoab_selftest.py` to go red, restores from an in-memory snapshot and verifies the restore by
 checksum; an escaped mutation decides the exit code, because a documented rule with nothing that goes red is not
@@ -1048,6 +1052,7 @@ a rule:
 | `HYPOTHESIS_AXIS = ("binary",)` → `("binary", "model")` | the another-model case is judged instead of refused — the declared axis would price the checkpoint, not the patch |
 | `premise_violation(...)`'s call site hardcoded to `None` | a base root that never stated a commit is granted the crossing (the function survives; only its answer dies) |
 | `host` written with a space again | the panel's chunk-count pin fires — only caught *because* scenario 15 runs the whole panel |
+| `${OCOREAI_AUTOAB_BUILD_CMD:-}` → `$OCOREAI_AUTOAB_BUILD_CMD` | scenario 16: the copy of the script exits 1 on `unbound variable` before it reaches its proposals — the bug that shipped 11-09 |
 
 `PYTHONDONTWRITEBYTECODE=1` is exported by both the loop and the self-test: a judge served from cached bytecode
 is a verdict computed from a file that no longer exists, and same-second edits of equal length are invisible to
@@ -1100,7 +1105,7 @@ same-line one. Verification is grep → run → read the matched lines, and a sc
 nothing.
 
 ```bash
-python3 scripts/eval/_autoab_selftest.py   # 21 scenarios, ~0.4 s, no GPU (runs the conditions panel)
-python3 scripts/eval/_autoab_mutate.py    # 18 mutations, ~20 s, exit 1 if any escapes
+python3 scripts/eval/_autoab_selftest.py   # 22 scenarios, ~1 s, no GPU (panel + a copy of the script)
+python3 scripts/eval/_autoab_mutate.py    # 19 mutations, ~20 s, exit 1 if any escapes
 python3 scripts/eval/_ledger_selftest.py   # 6 ledger rows re-derived, ~0.1 s, no GPU
 ```

@@ -7,7 +7,35 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-11-09
+## [Unreleased] — 2026-09-05 → 2026-11-10
+
+**11-10 the guard I shipped last night killed the loop at startup and every scan stayed green — the self-test now executes a copy of the loop script, and the README's check-count joined the ratchet**
+
+- **What improved:** (1) **`autoab.sh` runs again.** Yesterday's metal-on-PATH warning read
+  `[ -z "$OCOREAI_AUTOAB_BUILD_CMD" ]` under `set -u`, so on the *default* route — the one nobody
+  overrides — the script died at line 72 with `unbound variable` before it reached a single proposal
+  (live: the chained round logged `scripts/eval/autoab.sh: line 72: OCOREAI_AUTOAB_BUILD_CMD:
+  unbound variable`, exit 1, no ledger row). Fixed to `${…:-}`. The same run also killed its own base:
+  I re-baselined against `tasks.json` (45 tasks) while the loop defaults to `tasks-edit-repair.json`
+  (52, the frozen set every prior row cites) — a pairing the task-set guard would rightly refuse, so
+  six board runs went to waste and the remedy is in the chain script, not in my memory.
+  (2) **A scenario that executes the script**, because nothing above could see this: scenarios 1-15
+  read `autoab.sh` as *text* (same-line scans) and call the judges as *imported functions*; neither
+  path ever ran the shell. Scenario 16 runs a copy of the loop — stub referee so it cannot recurse,
+  empty `proposals/` so it builds nothing and boots no server, its own ledger so it books no row — and
+  requires it to reach its proposal list. (3) **The README's check-count is now re-grepped**: the
+  ratchet covered `scenarios`, `mutations`, `ledger rows`, so "`_conditions_selftest.py` = 41
+  checks" sat a full round past the number it described and I re-typed it by hand yesterday; it is
+  the fourth noun, and the pin caught its own stale value (50 claimed vs 51 run) on first execution.
+- **What proves it:** the break is quoted from the live log above, and the mutation harness reproduces
+  it from the fixed line — `${OCOREAI_AUTOAB_BUILD_CMD:-}` → `$OCOREAI_AUTOAB_BUILD_CMD` turns
+  scenario 16 red (`exited 1 before reaching its proposal list`), so the class is gated, not the
+  instance: **19 mutations, 19 caught**, tree checksum-verified after restore. Scenario 16 passes on
+  the fixed script; the panel pin went red the moment it was added, which is the sample for (3).
+- **Gate:** `_autoab_selftest.py` 21 → **22 scenarios**; `_autoab_mutate.py` 18 → **19 mutations**;
+  `_conditions_selftest.py` 50 → **51 checks** (the count claim itself). `make docs-check` green.
+  Found while answering the owner's question about whether the docs serve both audiences — the honest
+  answer included "three doc numbers are machine-pinned, this one was not".
 
 **11-09 the loop could not price a rebuilt binary, and the field that would let it cross was half-recorded — `binary` is now a declared hypothesis axis resting on a stated commit, and the conditions line's `host` came back from its own parser truncated**
 

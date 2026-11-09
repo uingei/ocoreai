@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Break the auto-A/B loop on purpose, eighteen ways, and require the self-test to go red each time.
+"""Break the auto-A/B loop on purpose, nineteen ways, and require the self-test to go red each time.
 
 `_autoab_selftest.py` says the rules hold; this file says the *test of the rules* holds, by
 editing each rule out and requiring a failure. A mutation that the self-test does not catch is
@@ -74,6 +74,10 @@ MUTATIONS = [
      "    bad = premise_violation(ma, mb, declared)", "    bad = None"),
     # the conditions line has no quoting, so a value with a space is a truncated value plus junk;
     # only caught because the referee runs the whole panel (scenario 15), which is the point.
+    # shipped live on 11-09: the guard I added to name a toolchain gap referenced an unset optional
+    # env var under `set -u`, and every scan here stayed green while the loop died at startup.
+    ("optional env referenced unguarded under set -u", "autoab.sh",
+     '[ -z "${OCOREAI_AUTOAB_BUILD_CMD:-}" ]', '[ -z "$OCOREAI_AUTOAB_BUILD_CMD" ]'),
     ("host written with a space again", "_conditions.py",
      '("host", host_token(host)),',
      '("host", host or "%s %s %s" % (platform.system(), platform.release(), platform.machine())),'),

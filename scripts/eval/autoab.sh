@@ -69,7 +69,7 @@ CLT_SDK="$(DEVELOPER_DIR="$CLT" bash scripts/toolchain-contract.sh print-sdk-roo
 # contract script rather than a path, so a toolchain move does not strand the loop.
 METAL_BIN="$(bash scripts/toolchain-contract.sh print-metal-bin 2>/dev/null)"
 BUILD_CMD="${OCOREAI_AUTOAB_BUILD_CMD:-PATH=$METAL_BIN:\$PATH DEVELOPER_DIR=$CLT SDKROOT=$CLT_SDK swift build --scratch-path .build-clt -Xswiftc -F$CLT_F -Xlinker -F$CLT_F}"
-if [ -z "$OCOREAI_AUTOAB_BUILD_CMD" ] && [ -z "$METAL_BIN" ]; then
+if [ -z "${OCOREAI_AUTOAB_BUILD_CMD:-}" ] && [ -z "$METAL_BIN" ]; then
   echo "   ⚠️  no cryptex metal bin resolved — a variant that recompiles a .metal file will fail as" \
        "rc=127 (utility not found), which is a toolchain gap, not a compile error" >&2
 fi

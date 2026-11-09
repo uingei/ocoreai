@@ -19,6 +19,7 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import _conditions as C  # noqa: E402
+import _ledger_selftest as ledgerdoc  # noqa: E402
 
 RUN_SH = os.path.join(HERE, "run.sh")
 STATS_PY = os.path.join(HERE, "_repeat_stats.py")
@@ -318,7 +319,12 @@ def main():
             else:
                 os.environ["OCOREAI_TOOLS_CACHE"] = env_cache
 
-    n = len(C.KEY_FIELDS) + 40
+    n = len(C.KEY_FIELDS) + 41
+    # The count this file prints is also a sentence in the README, and that noun was not one of the
+    # three the ratchet re-greps: "`_conditions_selftest.py` = 41 checks" sat a whole round past the
+    # number it described until a human happened to edit the file. Same rule as the loop's scenario
+    # and mutation counts, same home (`_ledger_selftest.readme_count_defects`).
+    defects += ledgerdoc.readme_count_defects("checks", n)
     print("conditions self-test: %d check(s), %d defect(s)" % (n, len(defects)))
     for d in defects:
         print("  ✘ %s" % d)

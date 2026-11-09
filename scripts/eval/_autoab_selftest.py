@@ -11,6 +11,7 @@ than a silently weaker loop.
 import glob
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -445,8 +446,37 @@ def main():
                    " on are unsound, so no verdict from the judges above is attributable"
                    % panel.stdout.strip().replace("\n", " | ")[:180])
 
-    bad += ledgerdoc.readme_count_defects("scenarios", len(cases) + len(knob_cases) + 12)
-    print("autoab self-test: %d scenario(s), %d defect(s)" % (len(cases) + len(knob_cases) + 12,
+    # 16 — the script executes, not just scans. On 11-09 the loop died at its own BUILD_CMD line
+    # (`OCOREAI_AUTOAB_BUILD_CMD: unbound variable` under `set -u`) and every static scan above
+    # stayed green: a scan reads text, the shell reads values. The fixture runs a COPY of the loop far
+    # enough to assemble its build command and reach its proposal list — stub referee (no recursion),
+    # empty proposals dir (no build, no server, no ledger row).
+    smoke = os.path.join(tempfile.mkdtemp(prefix="ocoreai-autoab-smoke-"), "scripts", "eval")
+    os.makedirs(os.path.join(smoke, "proposals"))
+    for artifact in ("autoab.sh", "autoloop-allow.txt", "autoloop-protected.txt"):
+        shutil.copyfile(os.path.join(HERE, artifact), os.path.join(smoke, artifact))
+    smoke_ledger = os.path.join(smoke, "autoloop.tsv")
+    with open(smoke_ledger, "w", encoding="utf-8") as fh:
+        fh.write(header + "\n")
+    with open(os.path.join(smoke, "_autoab_selftest.py"), "w", encoding="utf-8") as fh:
+        fh.write("import sys\n\nsys.exit(0)\n")  # this scenario tests the shell, not the judges
+    proc = subprocess.run(["bash", os.path.join(smoke, "autoab.sh")],
+                          capture_output=True, text=True,
+                          env=dict(os.environ, OCOREAI_AUTOAB_BASE=tempfile.mkdtemp()))
+    if proc.returncode != 0:
+        bad.append("the loop's own script exited %d before reaching its proposal list: %s — a shell"
+                   " error at startup is invisible to every scan in this file"
+                   % (proc.returncode,
+                      (proc.stderr.strip().splitlines() or ["<no stderr>"])[-1][:160]))
+    if "no proposals" not in proc.stdout:
+        bad.append("the loop's script did not reach its proposal list (stdout: %s) — the startup"
+                   " section above it is what this scenario exists to execute"
+                   % proc.stdout.strip().replace("\n", " | ")[:160])
+    if len(open(smoke_ledger, encoding="utf-8").read().splitlines()) != 1:
+        bad.append("the smoke run appended to its ledger — a scenario must not book rows")
+
+    bad += ledgerdoc.readme_count_defects("scenarios", len(cases) + len(knob_cases) + 13)
+    print("autoab self-test: %d scenario(s), %d defect(s)" % (len(cases) + len(knob_cases) + 13,
                                                               len(bad)))
     for entry in bad:
         print("  FAIL %s" % entry)
