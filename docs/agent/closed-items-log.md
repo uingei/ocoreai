@@ -164,3 +164,15 @@
   nothing was cut, no absolute path on the row — and probe 03, which boots a server against a
   workspace seeded to overflow the cap; both were red-sampled by reporting the dropped doc as
   `whole`. What the open item keeps is only what can still change a decision.
+- **A pin bump can swallow its own unread window — the ledger exists (11-09).** The mlx axis's baseline is the SPM pin
+  itself, so a bump crossing unread commits deleted them from `make drift`'s report at landing (measured: `a70ef531`
+  audited only #732 and shipped #731/#745/#746/#740 blind — #731 a correctness fix our guided lane needed). Closed
+  as an instrument, not a promise: `pairing_ledger` (`bash scripts/upstream-drift.sh pairing`) — every `revision:`-
+  moving commit's crossed commits must be named (`#PR`/sha-prefix) in the bump message or the diary; same 0/10/1
+  contract, self-floored premises, the pre-discipline lineage (178 ancestors behind the 10-06 anchor) declared as a
+  blind face, not back-filled. Red sampled on `HEAD~2`'s diary (17 names across five windows, founding instance
+  included) before the seam was trusted; it then convicted the closing round's own "nothing inside the pin is
+  unnumbered" sentence — two more commits (`#669` test-only, `#614` default-impl protocol addition) read, judged
+  and named on first run. Full verdict rows: CHANGELOG 11-09 (three entries); the `generation_config.json`
+  dormant face travels with them — a future wiring commit lands inside a paired window, where the ledger names it
+  and that round pays for it.

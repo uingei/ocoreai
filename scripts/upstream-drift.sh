@@ -12,6 +12,8 @@
 #     `if` 体里也一样）。本文今天 0 个顶层子 shell（grep 过），所以这是条边界而不是缺陷；哪天写进
 #     一个，它就在契约外面。`make drift` 传不出这三个数（make 把任何失败配方改写成自己的 2），
 #     所以读码的自动化调本脚本；走 make 就读 stdout 的 `drift-exit=N`。
+#   bash scripts/upstream-drift.sh pairing [diary] [anchor]  # mlx bump 的裁决台账（每个 bump 跨过的 commit 须被点名）；
+#                                            同 0/10/1 三数契约；check 路自带台账判定（漏→10 粘住，读不到→1 填空表）
 #   bash scripts/upstream-drift.sh adopt                  # 把三源当前 HEAD 采纳为新基线（只改 state 文件）
 #   bash scripts/upstream-drift.sh adopt coreai-models    # 只采纳这一条轴，其余轴的窗口如实留着
 #     轴名写错直接 exit 1 —— 静默采纳 0 条轴看起来像「全部办完」，正是这类工具最贵的错。
@@ -535,6 +537,79 @@ if [ "$cmd" = "axis-verdict" ]; then
   exit 0
 fi
 
+# ── 裁决台账（bump 窗口的逐条点名）────────────────────────────────────────────
+# 这条轴的基线 = SPM pin，于是「bump 跳过了没读的 commit」这条轴自己看不见自己的债:
+# pin 一挪,没读的窗口就永久从报告里消失(11-09 实测:a70ef531 只裁决了它去取的 #732,
+# 同窗口另外 4 条 —— #731/#745/#746/#740 —— 无声进了出货树,#731 恰是我们 guided lane
+# 需要的正确性修复)。修法是台账不是新轴:每个挪 revision: 的 commit,它跨过的每条上游
+# commit 必须被点名(sha7 或 subject 里的 #PR)在 bump 自己的 message 或 CHANGELOG 里。
+# 锚点前(171cd3ee,10-06)的历史是**声明的盲面**:打印祖先数并跳过扫描 —— 拿今天的口径
+# 去判六月的树会造 51 条没法追认的红,那是伪造 retro-scope,不是补台账。
+# 测试缝:bash scripts/upstream-drift.sh pairing [diary-file] [anchor-sha]
+PAIR_ANCHOR="171cd3ee"
+pairing_ledger() { # pairing_ledger [diary-file] [anchor-sha] → exit 0 全点名 / 10 有漏 / 1 没跑成
+  local diary="${1:-CHANGELOG.md}" anchor="${2:-$PAIR_ANCHOR}" mirror="" d
+  for d in "$REFS/mlx-swift-lm" .build/checkouts/mlx-swift-lm .build-clt/checkouts/mlx-swift-lm; do
+    [ -n "$mirror" ] && continue
+    [ -d "$d/.git" ] && mirror="$d"
+  done
+  [ -n "$mirror" ] || { echo "!!  裁决台账：无 clone/checkout 可读（\$OCOREAI_REFERENCES_DIR 或 .build/checkouts）—— 未跑成,不是无漏"; return 1; }
+  [ -f "$diary" ] || { echo "!!  裁决台账：diary '$diary' 读不到 —— 未跑成,不是无漏"; return 1; }
+  python3 -I - "$mirror" "$diary" "$anchor" <<'PY'
+import json,re,subprocess,sys
+mirror,diary,anchor=sys.argv[1:4]
+def git(*a,cwd=None): return subprocess.run(a,capture_output=True,text=True,cwd=cwd).stdout
+def gitc(*a,cwd=None): return subprocess.run(a,capture_output=True,text=True,cwd=cwd).returncode
+try: pin=json.load(open("Package.resolved"))
+except Exception: print("!!  裁决台账：Package.resolved 读不到 —— 未跑成"); sys.exit(1)
+pinrev=next((p["state"]["revision"] for p in pin.get("pins",[]) if "mlx-swift-lm" in p.get("identity","")), "")
+if not pinrev or gitc("git","-C",mirror,"cat-file","-e",f"{pinrev}^{{commit}}"):
+    print(f"!!  裁决台账：pin {pinrev[:9] or '?'} 在镜像里读不到 —— 未跑成,不是无漏"); sys.exit(1)
+def rev_of(commit):
+    m=re.search(r'mlx-swift-lm\.git",\s*revision:\s*"([0-9a-f]+)"', git("git","show",f"{commit}:Package.swift"))
+    return m.group(1) if m else None
+log=git("git","log","--format=%H","--reverse","--","Package.swift").split()
+bumps=[(c,rev_of(c),rev_of(c+"^")) for c in log if rev_of(c) and rev_of(c)!=rev_of(c+"^")]
+if len(bumps)<10: print(f"!!  裁决台账：只找到 {len(bumps)} 个 bump(预期 ≥10)——前提破了,不是无漏"); sys.exit(1)
+text=open(diary,encoding="utf-8").read()
+started=False; rows=[]; miss_total=0; scan_total=0; anchor_base=None; pre_total=0
+for c,new,old in bumps:
+    if c.startswith(anchor): started=True; anchor_base=old
+    if not started:
+        # 锚点前:数我们的 bump 跨过的条数(不是全上游的祖先数),端点缺读就如实计 '?'.
+        if old and not gitc("git","-C",mirror,"cat-file","-e",f"{old}^{{commit}}") \
+           and not gitc("git","-C",mirror,"cat-file","-e",f"{new}^{{commit}}"):
+            pre_total+=len(git("git","-C",mirror,"rev-list",f"{old}..{new}").split())
+        continue
+    msg=git("git","log","-1","--format=%B",c)
+    if gitc("git","-C",mirror,"cat-file","-e",f"{old}^{{commit}}") or gitc("git","-C",mirror,"cat-file","-e",f"{new}^{{commit}}"):
+        print(f"  {c[:9]} {old[:9]}..{new[:9]}  !! 端点不在镜像里 —— 这一窗未判,计为漏"); miss_total+=1; continue
+    ids=git("git","-C",mirror,"rev-list",f"{old}..{new}").split()
+    miss=[]
+    for full in ids:
+        subj=git("git","-C",mirror,"log","-1","--format=%s",full).strip()
+        pr=re.search(r"#(\d+)",subj)
+        tok=[full[:7],full[:9]]+([f"#{pr.group(1)}"] if pr else [])
+        if not any(t in msg or t in text for t in tok): miss.append(f"{full[:9]}{' '+pr.group(0) if pr else ''}")
+    scan_total+=len(ids); miss_total+=len(miss)
+    status=f"{len(ids)-len(miss)}/{len(ids)}" if not miss else f"{len(ids)-len(miss)}/{len(ids)}  !! 未点名: {', '.join(miss)}"
+    rows.append(f"  {c[:9]} {old[:9]}..{new[:9]}  {status}")
+if scan_total<40: print(f"!!  裁决台账：锚点后只扫到 {scan_total} 条(预期 ≥40)——前提破了"); sys.exit(1)
+print(f"  裁决台账 {anchor[:9]} 起 {len(rows)} 个 bump / {scan_total} 条逐条点名;锚点前 {pre_total} 条 = 声明的盲面(纪律前的历史,跳过扫描,不假装追认)")
+for r in rows: print(r)
+sys.exit(10 if miss_total else 0)
+PY
+}
+
+if [ "$cmd" = "pairing" ]; then
+  # `&& rc=0 || rc=$?` 是量出来的必需形态:裸调用 + `rc=$?` 会被 ERR trap 先接管,10 归一成 1,
+  # 台账的「有漏」就被报成「没跑成」——文件头那条契约在调用点自己兑现一次。
+  rc=0
+  pairing_ledger "${2:-CHANGELOG.md}" "${3:-$PAIR_ANCHOR}" && rc=0 || rc=$?
+  printf 'PAIRING_EXIT=%s\n' "$rc"
+  exit "$rc"
+fi
+
 echo "═══ ocoreai upstream drift — baseline $(baseline_note) ═══"
 coreai_fork_ledger || true
 echo
@@ -586,6 +661,21 @@ done
 
 
 mlx_axis
+
+# 裁决台账只在 check 路参与判定（adopt 有自己的收口）；它没跑成只把 1 填进还没有 10 的表。
+if [ "$cmd" = "check" ]; then
+  prc=0
+  pairing_ledger >/dev/null 2>&1 && prc=0 || prc=$?
+  if [ "$prc" -eq 10 ]; then
+    echo "  !! 裁决台账：有 bump 跨过未点名的上游 commit —— 逐条见 `bash scripts/upstream-drift.sh pairing`"
+    tally_drift 10
+  elif [ "$prc" -ne 0 ]; then
+    echo "  !! 裁决台账未跑成（镜像/diary 读不到）—— 是局限,不是无漏"
+    tally_drift 1
+  else
+    echo "  裁决台账 ✓ 锚点后每个 revision: bump 跨过的 commit 都被点名（锚点前面的盲面已声明,见 pairing 缝）"
+  fi
+fi
 
 echo
 if [ "$cmd" = "adopt" ]; then
