@@ -348,4 +348,49 @@ struct EditMismatchRecoveryTests {
             "naming a route must not delete anything by itself")
     }
 
+    @Test(
+        "no-op against a file that already holds the text says so, with the place count",
+        arguments: [("def total(n):\n    return 1\n", "def total(n):", 1)])
+    func noOpAlreadyThereNamesTheState(existing: String, quoted: String, places: Int) throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
+        let url = try seeded("app.py", existing)
+        defer { SessionWorkspace.clear() }
+
+        do {
+            _ = try FileTools.editFile(path: "app.py", oldString: quoted, newString: quoted)
+            Issue.record("a no-op must stay refused")
+        } catch let ToolError.invalidParameter(message) {
+            #expect(message.hasPrefix("edit_file: oldString == newString (no-op)"), "\(message)")
+            let placeNote = "(\(places) place(s)"
+            #expect(
+                message.contains("already holds exactly") && message.contains(placeNote),
+                "the truth the retry needed: \(message)")
+            #expect(message.contains("newString differs"), "a next step: \(message)")
+        }
+        #expect(try String(contentsOf: url, encoding: .utf8) == existing, "nothing written")
+    }
+
+    @Test("a no-op whose text is not in the file gets the quoted-file recovery, ordered")
+    func noOpNotThereQuotesAndOrders() throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
+        let url = try seeded("sum100.py", Self.sum100)
+        defer { SessionWorkspace.clear() }
+
+        do {
+            _ = try FileTools.editFile(
+                path: "sum100.py", oldString: "def total(n):\n  return sum(n)",
+                newString: "def total(n):\n  return sum(n)")
+            Issue.record("a no-op must stay refused")
+        } catch let ToolError.invalidParameter(message) {
+            #expect(message.contains("not in sum100.py"), "the opposite truth: \(message)")
+            #expect(message.contains("the file says"), "quoted, as the 6/6 shape: \(message)")
+            #expect(message.contains("Retry this call now"), "ordered: \(message)")
+            #expect(
+                message.contains("Do not answer the user before that retry"), "\(message)")
+            #expect(message.contains("Nothing was written"), "\(message)")
+        }
+        #expect(try String(contentsOf: url, encoding: .utf8) == Self.sum100)
+    }
 }

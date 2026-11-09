@@ -224,7 +224,37 @@ enum FileTools {
             throw ToolError.invalidParameter("edit_file: oldString must not be empty")
         }
         guard oldString != newString else {
-            throw ToolError.invalidParameter("edit_file: oldString == newString (no-op)")
+            // The 5-word refusal could not tell the caller which of two opposite truths it faced,
+            // and the retry spun on both: 3 strikes inside 12 s in one task window, the same
+            // shape on four consecutive boards, halved to 2 by this split's rerun. The decision
+            // is edit_lines' OK-no-change — name the state, give the next step, never claim a
+            // write (never a pass either: an OK here would book a change nobody made).
+            let places = original.components(separatedBy: oldString).count - 1
+            if places > 0 {
+                throw ToolError.invalidParameter(
+                    "edit_file: oldString == newString (no-op) — \(path) already holds exactly"
+                        + " the text you sent (\(places) place(s)), so nothing can change here. If"
+                        + " that text is the change you wanted, it is already in the file: check"
+                        + " it and say so. If you meant to change something, send the edit whose"
+                        + " newString differs from what you quoted. Nothing was written.")
+            }
+            let hint = Self.nearestLinesHint(text: original, oldString: oldString)
+            let order: String
+            if hint.quotedWholeFile {
+                // The sentences that took the `found 0` class from retry storms to 6/6 recovery.
+                order =
+                    " Retry this call now with the exact text above as oldString and a newString"
+                    + " that differs from it: the whole file is quoted above, so nothing has to"
+                    + " be read first. Do not answer the user before that retry."
+            } else {
+                order =
+                    " read_file the whole file, then retry with copied text as oldString and a"
+                    + " newString that differs from it."
+            }
+            throw ToolError.invalidParameter(
+                "edit_file: oldString == newString (no-op) — that text is not in \(path)"
+                    + " either, so nothing can be replaced with it\(hint.text).\(order)"
+                    + " Nothing was written.")
         }
         var count = original.components(separatedBy: oldString).count - 1
         // `replace_all` states intent without demanding the count, so the caller cannot be
