@@ -11,13 +11,15 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   audited #732 — the commit it went to fetch — and crossed four with no verdict anywhere (`411d8e7` #731, `71cc028` #745,
   `52e6001` #746, `128f49f` #740); they entered the shipped tree, and one (#731) was a `GuidedGenerationLoop` correctness fix
   our own guided lane needed (it has driven that loop with `fastForward: true` since `7a167fc4`) and consumed blind. All four
-  verdicts landed 11-09 (CHANGELOG, same day). Residual face inside the shipped pin: **13 further commits carry no individual
-  number** — 5 of the 10-30 +10 window and 8 of the 11-07 +13 window, whose rounds audited by build blast radius and cite
-  re-grep (real instruments, honest claims) but read no per-commit diff. Owner call, two-part: the instrument — pair every
-  `revision:`-moving commit with a window row naming each crossed commit by `#PR` or 7-hex (the sampled red exists; the reader
-  whose action it changes is the next bump round) — and the retro-scope: name the 13 into a window log now, or anchor the check
-  to bumps after the call date. Until it lands, § Upstream 1's "audit the consumption surface" is enforced only by a bump
-  round's own honesty.
+  verdicts landed 11-09 (CHANGELOG, same day). The residual face — **13 further commits carrying no individual number** (5 of
+  the 10-30 +10, 8 of the 11-07 +13, rounds that audited by build blast radius and cite re-grep — real instruments, honest
+  claims, but no per-commit read) — was cleared the same day: 13 → 0, rows in CHANGELOG, and the retro-scope half of the call
+  is spent (nothing inside the current pin is unnumbered). What remains is one owner call, the forward instrument: pair every
+  `revision:`-moving commit with a window row naming each crossed commit by `#PR` or 7-hex (the sampled red exists — the four
+  above; the reader whose action it changes is the next bump round). Until it lands, § Upstream 1's "audit the consumption
+  surface" is enforced only by a bump round's own honesty. Adjacent dormant face from the same read: upstream auto-loads each
+  checkpoint's `generation_config.json` but its application point has zero consumers at the pin — if wired, sampling defaults
+  gain a third claimant beside spec-1.0 and our `?? 0.7` wire fill (`OpenAIModels.swift:249`).
 
 - **Sessions carry a TTL promise nobody enforces** (SQLite/, Scheduler/) — every `INSERT INTO sessions`
   writes `ttl_days` (default 180, configurable: `SessionCompressor.swift:114,120,72`; read back at
