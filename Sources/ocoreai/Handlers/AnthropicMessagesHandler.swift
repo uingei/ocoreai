@@ -395,7 +395,7 @@ func anthropicMessagesHandler(
 /// the agent's own (user instructions first, then skills/workspace/memory), exactly as it
 /// does for `userSystemPrompt` on `/v1/chat/completions`.
 func anthropicConversationMessages(request: AnthropicMessageRequest) throws -> [Message] {
-    try request.messages.flatMap { try $0.toInternalMessages() }
+    try anthropicMappedConversation(request.messages)
 }
 
 func buildAnthropicMessageList(

@@ -407,7 +407,11 @@ extension AnthropicMessage {
     ///   block with no source, or a turn whose array holds nothing readable. Naming the
     ///   shape is the alternative to a 200 that answered a turn the client believes it
     ///   sent — the rule `AudioTranscription.unsupportedField` applies to fields.
-    func toInternalMessages() throws -> [Message] {
+    /// - Parameter attachableResultIDs: the `tool_use` ids the surrounding conversation
+    ///   declares. A `tool_result` whose id is absent folds to its text form instead of
+    ///   emitting a tool turn no template will render — see ``anthropicMappedConversation``.
+    ///   `nil` (a lone message, as unit-mapped) treats every present id as attachable.
+    func toInternalMessages(attachableResultIDs declared: Set<String>? = nil) throws -> [Message] {
         switch content {
         case .some(.text(let s)):
             return [Message(role: role, content: .text(s))]
@@ -452,6 +456,18 @@ extension AnthropicMessage {
                                 name: block.name ?? "unknown",
                                 arguments: AnthropicContentBlock.jsonText(block.input) ?? "{}")))
                 case "tool_result" where block.toolUseId?.isEmpty == false:
+                    let orphan: Bool
+                    if let declared, let resultId = block.toolUseId {
+                        orphan = !declared.contains(resultId)
+                    } else {
+                        orphan = false
+                    }
+                    if orphan, let contribution = block.promptTextContribution {
+                        // Attaches to nothing, is still content: the same rendering the
+                        // missing-id fallback uses, so guard and prompt never split.
+                        texts.append(contribution)
+                        break
+                    }
                     let body = block.content?.text ?? ""
                     let text =
                         (block.isError == true)
@@ -1114,13 +1130,33 @@ struct AnthropicMetadata: Decodable {
 
 // MARK: - Conversion Helpers
 
+/// The conversation as the engine sees it: one mapping for every caller and one correlation
+/// pass. A `tool_result` may attach only to a `tool_use` the conversation actually declares,
+/// because the chat template renders a tool turn only after the call it answers — measured
+/// 11-09 against a live serve, a dangling result's ~1 500 bytes moved `input_tokens` by 0
+/// while the same bytes as a text block moved it by 1 562, and the content guard had already
+/// counted them: the two-rendering split ``AnthropicContentBlock/promptTextContribution``
+/// warns about. An unattachable result folds to its text form, the same rule as a missing
+/// correlation id: a result that cannot be attached is still content.
+func anthropicMappedConversation(_ messages: [AnthropicMessage]) throws -> [Message] {
+    var declared: Set<String> = []
+    for turn in messages where turn.role == "assistant" {
+        if case .some(.blocks(let blocks)) = turn.content {
+            for block in blocks where block.type == "tool_use" {
+                if let id = block.id { declared.insert(id) }
+            }
+        }
+    }
+    return try messages.flatMap { try $0.toInternalMessages(attachableResultIDs: declared) }
+}
+
 /// Convert Anthropic request to internal ChatCompletionRequest
 func toChatCompletionRequest(_ req: AnthropicMessageRequest) throws -> ChatCompletionRequest {
     // Convert messages
-    // One mapping for every caller: the same `toInternalMessages` the messages route uses,
-    // so detection/metrics and the prompt the model sees cannot disagree about what the
-    // client sent.
-    let messages: [Message] = try req.messages.flatMap { try $0.toInternalMessages() }
+    // One mapping and one correlation pass for every caller: the same
+    // `anthropicMappedConversation` the messages route uses, so detection/metrics and the
+    // prompt the model sees cannot disagree about what the client sent.
+    let messages: [Message] = try anthropicMappedConversation(req.messages)
 
     // Convert tools
     let tools: [ToolDef]? = req.tools?.map { $0.toOpenAITool() }

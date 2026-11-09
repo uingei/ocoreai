@@ -210,6 +210,43 @@ struct AnthropicBlockHonestyTests {
         #expect(turns[0].toolCallID == "t1")
     }
 
+    /// A `tool_result` whose call never appears in the conversation attaches to nothing: the
+    /// chat template renders a tool turn only after the call it answers, so the structured
+    /// turn arrives as NOTHING (measured 11-09 against a live serve: the dangling body moved
+    /// `input_tokens` by 0 while the same bytes as a text block moved it by 1 562). Folding
+    /// it to the missing-id text form keeps the client's bytes in the prompt.
+    @Test("a tool_result that attaches to no declared call arrives as text, not silence")
+    func danglingResultFoldsToText() throws {
+        let turns = try anthropicMappedConversation([
+            message(
+                #"{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_orphan","content":"The value is 42."},{"type":"text","text":"so what is the weather?"}]}"#
+            )
+        ])
+        #expect(
+            turns.map(\.role) == ["user"],
+            "a result no template can place must not arrive as a silent tool turn")
+        #expect(
+            textOf(turns[0])
+                == "[tool_result · toolu_orphan] The value is 42.\nso what is the weather?")
+    }
+
+    /// The other direction, floored by the same helper: an id the conversation DOES declare
+    /// keeps the structured tool turn — the fold must not regress the pair that lines up.
+    @Test("a result whose call the conversation declares keeps the structured tool turn")
+    func correlatedResultStaysStructured() throws {
+        let turns = try anthropicMappedConversation([
+            message(
+                #"{"role":"assistant","content":[{"type":"text","text":"I will look."},{"type":"tool_use","id":"toolu_9","name":"weather","input":{}}]}"#
+            ),
+            message(
+                #"{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_9","content":"sunny, 30C"}]}"#
+            ),
+        ])
+        #expect(turns.map(\.role) == ["assistant", "tool"])
+        #expect(turns[1].toolCallID == "toolu_9")
+        #expect(textOf(turns[1]) == "sunny, 30C")
+    }
+
     /// `is_error:true` means the call FAILED. The engine's tool turn has no error bit
     /// (`Chat.Message.tool(_:id:)` takes content and id), so the flag travels as text —
     /// the alternative is a model told, in effect, that the call succeeded.
