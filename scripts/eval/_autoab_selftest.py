@@ -272,6 +272,20 @@ def main():
     if scope_lines and not derived:
         bad.append("autoab.sh builds its write scope without the allow list — scope and gate would "
                    "be two numbers that drift (%s)" % (scope_lines[0].strip()[:90],))
+    # Same-line again: the CLT ships no `metal`, so a BUILD_CMD without the cryptex bin on PATH
+    # fails a metal-touching variant as rc=127 (utility not found) — measured 11-09, and never seen
+    # at all on an incremental build, which is why the round that hit it had already passed.
+    build_cmds = [l for l in script.splitlines() if l.startswith("BUILD_CMD=")]
+    if not build_cmds:
+        bad.append("autoab.sh has no BUILD_CMD line — the CLT-route premise below would be vacuous")
+    elif "PATH=" not in build_cmds[0] or "$METAL_BIN" not in build_cmds[0]:
+        bad.append("autoab.sh's build command no longer puts the resolved metal bin on PATH — a "
+                   "metal-touching variant fails as rc=127 and reads as a compile error (%s)"
+                   % build_cmds[0].strip()[:100])
+    resolve = [l for l in script.splitlines() if "METAL_BIN=" in l]
+    if not resolve or "toolchain-contract.sh" not in resolve[0]:
+        bad.append("autoab.sh hardcodes or has lost the metal-bin resolution — a toolchain move "
+                   "would strand the loop with a path nothing owns")
 
     # 11 — both sides must be the same game. `task_row` books a task missing from a run as a fail,
     # so a wider variant against a narrower base manufactures k one-direction cells per added task.

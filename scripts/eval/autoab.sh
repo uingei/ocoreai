@@ -63,7 +63,16 @@ fi
 CLT=/Library/Developer/CommandLineTools
 CLT_F="$CLT/Library/Developer/Frameworks"
 CLT_SDK="$(DEVELOPER_DIR="$CLT" bash scripts/toolchain-contract.sh print-sdk-root 2>/dev/null)"
-BUILD_CMD="${OCOREAI_AUTOAB_BUILD_CMD:-DEVELOPER_DIR=$CLT SDKROOT=$CLT_SDK swift build --scratch-path .build-clt -Xswiftc -F$CLT_F -Xlinker -F$CLT_F}"
+# The CLT ships no `metal`; the cryptex Metal.xctoolchain supplies it, and without its bin on PATH a
+# metal-touching variant fails as rc=127 (utility not found), not as a compile error — measured 11-09,
+# and invisible on an incremental build, which never re-invokes the compiler. Resolved through the
+# contract script rather than a path, so a toolchain move does not strand the loop.
+METAL_BIN="$(bash scripts/toolchain-contract.sh print-metal-bin 2>/dev/null)"
+BUILD_CMD="${OCOREAI_AUTOAB_BUILD_CMD:-PATH=$METAL_BIN:\$PATH DEVELOPER_DIR=$CLT SDKROOT=$CLT_SDK swift build --scratch-path .build-clt -Xswiftc -F$CLT_F -Xlinker -F$CLT_F}"
+if [ -z "$OCOREAI_AUTOAB_BUILD_CMD" ] && [ -z "$METAL_BIN" ]; then
+  echo "   ⚠️  no cryptex metal bin resolved — a variant that recompiles a .metal file will fail as" \
+       "rc=127 (utility not found), which is a toolchain gap, not a compile error" >&2
+fi
 
 PROPOSALS=("$@")
 if [ ${#PROPOSALS[@]} -eq 0 ]; then
