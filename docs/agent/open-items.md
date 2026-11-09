@@ -5,6 +5,20 @@ where a number is unmeasured it says so, and where a fix is blocked by the host 
 which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes a rule in `AGENTS.md` or
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
+- **A pin bump can swallow its own unread window and `make drift` can never see it again** (scripts/, Package.swift/) — on the
+  mlx-swift-lm axis the baseline *is* the SPM pin (`scripts/upstream-drift.sh:221-234` — deliberate, "the pin is the adoption
+  record", after the 10-11 double-report of an already-absorbed window). Measured 11-09: the bump `f5b0677f6 → 128f49f1d` (`a70ef531`, 10-31)
+  audited #732 — the commit it went to fetch — and crossed four with no verdict anywhere (`411d8e7` #731, `71cc028` #745,
+  `52e6001` #746, `128f49f` #740); they entered the shipped tree, and one (#731) was a `GuidedGenerationLoop` correctness fix
+  our own guided lane needed (it has driven that loop with `fastForward: true` since `7a167fc4`) and consumed blind. All four
+  verdicts landed 11-09 (CHANGELOG, same day). Residual face inside the shipped pin: **13 further commits carry no individual
+  number** — 5 of the 10-30 +10 window and 8 of the 11-07 +13 window, whose rounds audited by build blast radius and cite
+  re-grep (real instruments, honest claims) but read no per-commit diff. Owner call, two-part: the instrument — pair every
+  `revision:`-moving commit with a window row naming each crossed commit by `#PR` or 7-hex (the sampled red exists; the reader
+  whose action it changes is the next bump round) — and the retro-scope: name the 13 into a window log now, or anchor the check
+  to bumps after the call date. Until it lands, § Upstream 1's "audit the consumption surface" is enforced only by a bump
+  round's own honesty.
+
 - **Sessions carry a TTL promise nobody enforces** (SQLite/, Scheduler/) — every `INSERT INTO sessions`
   writes `ttl_days` (default 180, configurable: `SessionCompressor.swift:114,120,72`; read back at
   `:1073`), and no code enforces it: the enforcer `purgeExpired()` had **zero callers** repo-wide
