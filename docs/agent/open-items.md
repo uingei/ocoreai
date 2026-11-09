@@ -5,6 +5,21 @@ where a number is unmeasured it says so, and where a fix is blocked by the host 
 which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes a rule in `AGENTS.md` or
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
+- **A name-keyed tool binding silently drops tool turns on the checkpoint the product ships default**
+  (Engine/, Handlers/) — on `gemma-4-e2b-it-4bit`, a well-formed `role:"tool"` history contributes **~0
+  tokens on both compat faces**: measured 11-09 against a live serve, a ~1 550-token tool result moved
+  `input_tokens` from a 690 baseline to **693 on `/v1/messages`** and the `prompt_tokens` to **688 on
+  `/v1/chat/completions`** (an orphan tool message reads *below* baseline). The template has the branch —
+  `chat_template.jinja` `format_tool_response_block`/`<|tool_response>`, keyed by **tool name** — but the
+  engine's tool turn carries no name (`Chat.Message.tool(_:id:)` takes content and id, the rule the
+  Anthropic mapper's own comment quotes), so the binding cannot find the branch and the result is gone
+  without a word. The native loop is unaffected (results are injected in-process; the board and probe set
+  pass because nothing re-sends history) — the loss is exactly what an external agent client re-sends.
+  Candidate routings, owner call: thread the name into the tool turn; fold results to the template's text
+  shape whenever the loaded template binds by name (the mapper's own "a result that cannot be attached is
+  still content" rule, applied to template capability rather than correlation); or disclose. The dangling
+  `tool_result` half of this class landed 11-09 (`anthropicMappedConversation` fold, probe 07 green,
+  `AnthropicBlockHonestyTests` pins both directions); the paired arm waits on this call.
 - **Durability is priced twice, and the second price indicts the mechanism, not the message** (Tools/, eval/) —
   the pre-write gate (refuses valid→broken syntax, keeps old bytes: **110/110 corruptions stopped, zero silent
   damage**) cost the frozen set **2.17 tasks/52 (p=0.0146)** at bare reason, and still **1.83 (p=0.0266)** with the
