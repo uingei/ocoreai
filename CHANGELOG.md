@@ -9,6 +9,33 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-10
 
+**11-10 four comparator cites behind a recommendation I had already given: two held, two did not — and the field's honest `tool_reference` behaviours are render or refuse, never silence**
+
+- **What improved:** re-read rather than re-quoted, because `anchor-check` green covers pinned trees
+  only. Held: `codex/codex-rs/tools/src/tool_search.rs:111-130` (sets `defer_loading = Some(true)` per
+  namespaced function; a `ToolSearch` spec is never rendered as a namespace) and
+  `Strata/serve/frontend.py:655-674` (renders a referenced deferred tool's definition *in place*, cache
+  preserved, membership-guarded). Did not hold: **"opencode ships `defer_loading: false`" has no home in
+  that tree** — swept whole, no `defer_loading` anywhere, its only `tool_search` hits are Storybook names
+  for web-search tools (`research-and-agents.stories.tsx:191-198`) — and
+  `hermes-agent/agent/chat_completion_helpers.py:1344`, recorded as provider-side search, is a
+  **homegrown** bridge tool named `tool_search` renamed on the wire because xAI's chat-completions
+  reserves the name and 400s when it is declared (#95003). New in the same sweep:
+  `sglang/python/sglang/srt/parser/glm53_chat_template.py:135-140` **refuses** to render a
+  `tool_reference` it cannot resolve. So among serving trees that parse the block nested in a
+  `tool_result`, nobody drops it silently — ours does (`AnthropicModels.swift:328` keeps
+  `type == "text"`, while `:479` refuses unknown *top-level* blocks by name), which is recorded as the
+  disagreement with both cites and the choice left to the owner, not decided by me.
+- **What proves it:** each line above was opened today; `docs-check` green after the writes
+  (`dangling=0`, `claims=37/37`, `gateable-refs` 496 → 501 from the new cites). The recommendation
+  against a homegrown retriever stands on other legs (`pi` already ships a BM25-ranked one,
+  `comparator-repos.md:298`; our 40-tool open item is a board judgement), and the hermes fact supplies a
+  constraint nobody had written down: a tool we *name* `tool_search` can be refused by name on a
+  provider route. `~/references` is 43 directories, where my notes said 41.
+- **Gate:** none added (a read earns none). The two dead cites went to the existing
+  *false-positives-that-would-have-become-claims* ledger in `comparator-consensus.md` — one home per
+  fact, so the xAI 400 was deliberately not duplicated into `comparator-evolution.md`.
+
 **11-10 the loop priced a rebuilt binary for the first time, and the verdict it produced is against the feature it was built to test — stripping `2f63a64c`'s edit-noop split scored *better*, 8 b / 17 c, p=0.1078**
 
 - **What improved:** nothing in the product — this row is the measurement yesterday's mechanism was

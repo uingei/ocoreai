@@ -151,6 +151,18 @@ second home for a decision is the thing this corpus keeps catching):
   `CHANGELOG.md`, the most-edited file in this repo, answers "it is for the next engineer here", pointing a person
   deciding what to install at the release note instead (`CHANGELOG.md` header). That is a defensible position and it
   is also the position of 14 other trees, so it is not the field's default.
+- **What you owe a `tool_reference` that arrived inside a `tool_result`** — the trees that accept one do two things
+  with it, and neither is silence. `Strata/serve/frontend.py:664-674` renders the referenced deferred tool's own
+  definition as a text block *in place*, so "the model sees a tool where it was loaded, and the prompt's start (its
+  tool list) stays the same, so the prompt cache does too", with a membership guard so an unknown name is left out
+  rather than failing the session; `sglang/python/sglang/srt/parser/glm53_chat_template.py:135-140` **refuses** when
+  it cannot render one ("Rendering a `tool_reference` requires `tools`"). A third behaviour exists only in trees that
+  never parse the block. Ours is that third: `Sources/ocoreai/Models/AnthropicModels.swift:328` keeps
+  `type == "text"` from a `tool_result`'s content, so the reference's bytes are billed into the prompt and the tool
+  it names never arrives — while an unknown *top-level* block is refused by name two functions earlier (`:479`), so
+  the silent path is the nested one. The verdict on which of the two honest shapes we owe is the owner's; the probe
+  that prices it (`scripts/probes/07-anthropic-blocks.sh` §2c, three arms of one request) is written and its numbers
+  are owed, so this row claims the disagreement, not a fix.
 
 ## The harness side is already built, on their side
 
@@ -436,6 +448,21 @@ now prints one matched line per tree so the next one is caught by a reader, not 
   named. `git ls-files | grep -c` in the named tree is 200 ms and settled it. Comparator cites are
   content-unverified-by-construction; this is the second time that distinction has saved a false claim here.
 
+- **A recommendation I had already given rested on four cites; re-reading them cut two.** On 11-09 the owner asked
+  whether we should build a `tool_search`, and I argued no partly from "12/14 defer or filter" plus four tree-level
+  cites. Two held: `codex-rs/tools/src/tool_search.rs:111-130` really does set `defer_loading = Some(true)` per
+  namespaced function (and a `ToolSearch` spec is never rendered as a namespace at all), and
+  `Strata/serve/frontend.py:655-674` is real and load-bearing. Two did not. **"opencode ships the flag
+  `defer_loading: false`" has no home in that tree** — swept whole, `~/references/opencode` contains no
+  `defer_loading` anywhere, and its only `tool_search` hits are Storybook names for *web* search tools
+  (`packages/session-ui/src/timeline/research-and-agents.stories.tsx:191-198`). And
+  `hermes-agent/agent/chat_completion_helpers.py:1344`, which I had recorded as provider-side search, is a
+  **homegrown bridge tool named `tool_search`** that has to be renamed on the wire because xAI's chat-completions
+  reserves that name and 400s when the bridge declares it (#95003) — i.e. a comparator built the thing I said the
+  field doesn't build, and its failure mode is a *wire-name collision*, not retrieval quality. The recommendation
+  survives for other reasons (`pi` already ships the BM25-ranked one — `comparator-repos.md:298`; the
+  open item on our 40-tool surface is a board judgement, not a retriever), which is the point of re-reading cites
+  rather than re-quoting them: a conclusion can be right on legs that aren't.
 - **Three porting bugs in the ledger block, each of which printed a confident wrong number.** (i) A changelog is
   written **newest-first**; the port forgot to reverse the release list, so "first release to record each axis"
   reported the *newest* release as #1 and made fifteen axes look like they shipped on day one — the throwaway script
