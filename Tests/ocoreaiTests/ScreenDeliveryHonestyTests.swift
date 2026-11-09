@@ -30,9 +30,12 @@ private let screenPairs:
         (.denied, .notAttempted, .blocked),
         (.restricted, .captured, .blocked),
         (.notGranted, .captured, .unknown),
+        (.notGranted, .failed, .blocked),
         (.notGranted, .notAttempted, .unknown),
         (.notDetermined, .captured, .unknown),
+        (.notDetermined, .failed, .blocked),
         (.unknown, .captured, .unknown),
+        (.unknown, .failed, .blocked),
         (.unsupported, .captured, .unsupported),
         (.unsupported, .notAttempted, .unsupported),
     ]
@@ -172,12 +175,13 @@ struct ScreenDeliveryRecordTests {
         #expect(measured.screenDelivery == .failed)
         #expect(measured.screenDeliveryError == "could not start stream")
         #expect(measured.screenDeliveryLatencyMs == 194)
-        // Whether that reads as blocked or unknown depends on the grant, but the verdict
-        // never reads `ready` — the case the shipping host was caught publishing.
+        // A measured failure is decisive regardless of the grant read — the rule probe 04's
+        // refused leg (167 ms, same process, seconds apart) settled on 11-09: the leg
+        // measured, so the verdict says `blocked` in the framework's words and never the
+        // preflight's `unknown`. The verdict still never reads `ready` without a frame —
+        // the case the shipping host was caught publishing.
         #expect(measured.screenStatus != .ready)
-        #expect(
-            measured.screenStatus
-                == (measured.screenPermission == .authorized ? .blocked : .unknown))
+        #expect(measured.screenStatus == .blocked)
 
         // A later success overwrites: the record reports the last attempt, not a grudge.
         ScreenDeliveryRecord.captured(latencyMs: 1102)

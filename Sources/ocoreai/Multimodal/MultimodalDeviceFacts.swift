@@ -268,7 +268,10 @@ struct MultimodalDeviceFacts: Codable, Equatable, Sendable {
         case .unsupported:
             return .unsupported
         case .notGranted, .notDetermined, .unknown:
-            return .unknown
+            // The promise the doc above already made: a measured delivery failure is
+            // decisive even against a permission read that only says "not granted yet" —
+            // probe 04's refused leg (167 ms) outranks the axis that predicted nothing.
+            return screenDelivery == .failed ? .blocked : .unknown
         case .authorized:
             switch screenDelivery {
             case .captured: return .ready

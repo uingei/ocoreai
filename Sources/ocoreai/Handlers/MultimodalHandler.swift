@@ -291,6 +291,12 @@ private func captureGate(
     guard case .refuse(let reason) = captureAttempt(channel: channel, permission: permission) else {
         return nil
     }
+    if channel == "screen" {
+        // The permission read IS a measurement, so the refusal moves the verdict: probe 04
+        // §3b pairs this refusal with the status read seconds later, and a status still
+        // reading `unknown` after this refusal quotes a permission the leg just disproved.
+        await MainActor.run { ScreenDeliveryRecord.failed(reason: reason, latencyMs: nil) }
+    }
     return try await Response.json(
         CaptureResponse(dataType: dataType, dataURL: nil, message: "Capture refused — \(reason)"))
 }
