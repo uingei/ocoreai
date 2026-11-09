@@ -1134,12 +1134,16 @@ for f in sorted(set(tracked_md)):
 # offline, no prose judgement: the first `- **What improved.**` of an entry must have a heading line
 # above it that post-dates the previous entry's first bullet.
 DIARY_HEAD_RE = re.compile(r"^\*\*\S")  # any bold-led line: `**10-29(46) …**` or a `**B. …**` part-head
+# Colon-or-dot, both counted: the label moved to `What improved:` and the startswith carried a literal
+# dot, blinding the scan to every modern-style entry (widening found +6 such entries; the remaining
+# entries/196 gap is older diary styles that carry no `What improved` bullet at all, not victims).
+DIARY_IMPR_RE = re.compile(r"^- \*\*What improved[.:]")
 last_head = last_impr = 0
 diary_orphans, diary_paired = [], 0
 for _i, _ln in enumerate(read("CHANGELOG.md").split("\n"), 1):
     if DIARY_HEAD_RE.match(_ln):
         last_head = _i
-    elif _ln.startswith("- **What improved."):
+    elif DIARY_IMPR_RE.match(_ln):
         if last_head > last_impr:
             diary_paired += 1
         else:
