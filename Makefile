@@ -253,8 +253,7 @@ test:
 # pipe otherwise decides the recipe's exit code.
 test-ci:
 	@echo "🧪 Running the CI-identical full gate (xcodebuild → xctest)..."
-	@export OCOREAI_BUILD=ci; \
-	export SWIFTC_SCAN_FOR_DEPS=0; \
+	@export SWIFTC_SCAN_FOR_DEPS=0; \
 	xcodebuild build-for-testing \
 	  -workspace ocoreai.xcworkspace \
 	  -scheme ocoreaiTests \

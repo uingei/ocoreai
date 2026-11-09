@@ -247,9 +247,6 @@ jobs:
             -skipPackagePluginValidation \
             -skipMacroValidation \
             ONLY_ACTIVE_ARCH=YES
-        env:
-          OCOREAI_BUILD: ci
-
       # build-for-testing only compiles the test bundle. Tests must be
       # EXECUTED in a dedicated step — `TEST BUILD SUCCEEDED` does NOT mean
       # tests ran. This is the real test gate; its size is what the run prints, not a comment.
@@ -386,9 +383,6 @@ jobs:
             -skipPackagePluginValidation \
             -skipMacroValidation \
             ONLY_ACTIVE_ARCH=YES
-        env:
-          OCOREAI_BUILD: ci
-
       # No bare-binary artefact here on purpose: the deliverable is the DMG (`package.yml` rehearses it and
       # `release` publishes it), so the Release build above is coverage that the scheme compiles, not a product.
 
@@ -786,9 +780,6 @@ jobs:
             done
             exit 65
           fi
-        env:
-          OCOREAI_BUILD: ci
-
 
   ## ── (legacy tar.gz release removed 09-27 — superseded by DMG release job above;
   ##     nothing needed it: no iOS/legacy consumer, and job id 'release' conflicted)
