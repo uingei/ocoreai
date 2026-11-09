@@ -9,6 +9,36 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-10
 
+**11-10 the loop priced a rebuilt binary for the first time, and the verdict it produced is against the feature it was built to test — stripping `2f63a64c`'s edit-noop split scored *better*, 8 b / 17 c, p=0.1078**
+
+- **What improved:** nothing in the product — this row is the measurement yesterday's mechanism was
+  built to make possible. `edit-noop-split-strip` removes `2f63a64c`'s `FileTools.swift` hunk (the
+  5-word `oldString == newString` refusal split into two states: file already holds the text vs wrong
+  quote), whose shipping row said its own limit outright: *"the board verdict is next round's autoab
+  row, not this entry's claim."* That round is this one. Base (the split, at HEAD
+  `90813505`) scored **25/30/29/27/27/26**, mean **27.33/52**; variant (the strip) scored
+  **28/30/28/29/28/30**, mean **28.83** — b=**8**, c=**17**, 312 matched cells (52 tasks x 6 runs),
+  McNemar exact **p=0.1078**, no regression veto → **revert**, "inside noise". The judge's own
+  `declarations_moved` line reads `declared axis moved: binary ocoreai+1794237727+… vs
+  ocoreai+1794242897+… — the build under test is the hypothesis (both arms state commit
+  90813505…)` — the axis firing, naming itself, and nothing else moving, on a live pair.
+- **What the number says, and does not:** under `_repeat_stats.py`'s convention (b = base-only pass,
+  c = variant-only) **c=17 means the strip took more cells than the split** — the split is not shown
+  to pay for its bytes, and the sign leans the other way by 1.5 tasks. Two limits keep that from being
+  a finding: the board's own noise floor (10 FLAKY tasks; "a clean sweep of 6 task(s) flipping one way
+  is the smallest paired p<0.05 result"), and the fact that p>α is not evidence of absence. So the
+  merged disclosure survives as what its shipping row said it was — a claim carried by reasoning, not
+  by the board — and anyone who wants it gone now has a 1.5-task tilt to cite, which is not a green
+  light. **One correction, recorded rather than silently edited:** the proposal's own `.md` stated its
+  direction of reading as "a revert with variant-dominated c says the split paid for its bytes" — that
+  inverts the convention above, and the file is now archived evidence, so the fix lives here.
+- **Gate:** none added — a read earns none. The artifacts are the row itself
+  (`autoloop.tsv` `20261110-004610`), the decide JSON under the round's work dir, and the archival
+  (the patch and its `.md` moved to `proposals/adjudicated/`, so the queue glob will not buy this
+  verdict again). The tree came back clean through `git apply -R`: `git status` shows no `Sources/`
+  diff after the revert, which is the property scenario 10 exists to protect.
+
+
 **11-10 the guard I shipped last night killed the loop at startup and every scan stayed green — the self-test now executes a copy of the loop script, and the README's check-count joined the ratchet**
 
 - **What improved:** (1) **`autoab.sh` runs again.** Yesterday's metal-on-PATH warning read
