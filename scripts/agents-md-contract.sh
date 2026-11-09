@@ -111,7 +111,7 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_FLOOR_DIARY_PAIRED:=40}"   # CHANGELOG entries whose heading was found above their first bullet
 : "${OCOREAI_FLOOR_CLAIM_SHARED_IDS:=3}"  # P4b's premise: claim ids written in more than one doc
 #   (5 today — the licence counts, `spm_deps`, `global_rate_set`, mirrored across root + the README pair)
-: "${OCOREAI_AGENTS_MAX_AREA:=47422}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
+: "${OCOREAI_AGENTS_MAX_AREA:=48077}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
 #   this cap was pinned to. What binds is our chain budget (B2, 32 KiB) and the root ratchet (B1), and
@@ -195,6 +195,13 @@ cd "$(dirname "$0")/.."
 #   40 trees on disk now, per-tree 47 422 / 40 = ~1 186 B; the curve is
 #   15 609 → 18 664 → 20 502 → 25 611 → 27 484 → 32 341 → 36 221 → 37 892 → 38 945 → 46 082 → 47 422.
 #   B1 and B2 untouched: this file is still not in the injected chain.
+#   RAISED 11-09(2), visibly, the twelfth, same rule: the disk sweep for self-improvement guidance surfaced a
+#   registered tree's unregistered axis — qwen-code `auto-mode` keeps its own settings/skills/hooks/MCP files
+#   off the write-approval fast path even against a `Bash(*)` allow-rule (`auto-mode.md:18-21,63-68`), a
+#   comparator-side `autoloop-protected.txt` as a product rule — and the registry is the axis's one home.
+#   Cut-first refused: funding a newly measured axis by deleting another tree's audited row is a content call,
+#   not a budget one. +662 B → 48 077; per-tree 48 077/40 = ~1 202 B. B1 21 453/21 461 (root −3: the "38 trees"
+#   count deleted rather than re-typed — the registry re-derives off disk), B2 32 750/32 768; neither cap moved.
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
 : "${OCOREAI_AGENTS_FLOOR_REFS:=50}"
 : "${OCOREAI_AGENTS_FLOOR_TREES:=16}"

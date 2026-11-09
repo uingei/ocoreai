@@ -367,6 +367,13 @@ Borrow: axis, **no home here today** — measured absence: disk skills load only
   skill tools are read-only (`Tools/BuiltInTools.swift:73,111,142`), and an MCP command reaches a process
   only through an endpoint built in-process (`MCP/MCPBridge.swift:941` → `MCP/MCPStdioClient.swift:247`).
   Re-read this entry the day we add workspace-scope MCP, hooks or skills.
+Contains (11-09): **a write gate on its own self-modification surfaces** — the acceptEdits fast-path exempts
+  its config/skill/hook/command/MCP filenames and persistence paths, and a `permissions.allow` rule resolving
+  to one of them is **re-checked through the classifier** so an allow rule on `Bash(*)` cannot silently become
+  permission to rewrite the agent's own settings (`docs/users/features/auto-mode.md:18-21,63-68`; profile
+  writes are self-modification too, `docs/design/fork-profiles.md:51-53`). The same move our
+  `autoloop-protected.txt` makes — goalposts leave the default-approve path — run as a product rule, not a
+  loop veto.
 
 - `cline` — **the 27th tree: cloned here since the corpus began, never registered until 11-04** (the row that
   falsifies this file's last completeness claim — § *How to use* 2). TypeScript monorepo, 71 277 stars,
