@@ -107,8 +107,10 @@ struct MCPCallCacheTests {
         #expect(await cache.count() == 0)
     }
 
-    @Test("Purge expired removes old entries")
-    func purgeExpired() async {
+    // Named for what it verified all along: `get` expires lazily; the removed sweeper
+    // (`MCPCallCache.purgeExpired`, zero callers 11-09) was never called here or anywhere.
+    @Test("An expired entry reads as nil without any sweeper")
+    func lazyExpiryOnRead() async {
         let cache = MCPCallCache(maxEntries: 10, ttlSeconds: 0.05)
         await cache.set("old", value: "v")
         await cache.set("new", value: "w")  // this one is NOT expired yet

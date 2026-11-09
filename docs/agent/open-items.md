@@ -5,6 +5,19 @@ where a number is unmeasured it says so, and where a fix is blocked by the host 
 which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes a rule in `AGENTS.md` or
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
+- **Sessions carry a TTL promise nobody enforces** (SQLite/, Scheduler/) — every `INSERT INTO sessions`
+  writes `ttl_days` (default 180, configurable: `SessionCompressor.swift:114,120,72`; read back at
+  `:1073`), and no code enforces it: the enforcer `purgeExpired()` had **zero callers** repo-wide
+  (measured 11-09; it, its DTO `ExpiryTask` and the never-read helper `SessionModel.expired` were deleted
+  same-round — the sweep that removed the genuinely-dead `MCPCallCache.purgeExpired` uncollided the name
+  and `unreferenced_decls_ours` went 0→1, which is the claim catching what three files hiding one name had
+  masked). Expired sessions accumulate
+  forever. The promise itself (column + config) stays; deleting the never-run enforcer deleted no
+  behaviour. Revival is cheap — the TTL SQL is in `git log -S purgeExpired`; the wiring call is
+  destructive (it DELETEs messages and sessions) and needs the owner's route: sweep on a tick (which
+  seam), on boot, or retire `ttl_days` from schema and config (also a promise change). Until then every
+  "retention" claim about sessions reads as unenforced.
+
 - **A name-keyed tool binding silently drops tool turns on the checkpoint the product ships default**
   (Engine/, Handlers/) — on `gemma-4-e2b-it-4bit`, a well-formed `role:"tool"` history contributes **~0
   tokens on both compat faces**: measured 11-09 against a live serve, a ~1 550-token tool result moved

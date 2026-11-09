@@ -32,10 +32,6 @@ struct SessionModel: Codable {
         case modelId = "model_id"
         case workspaceDirectory = "workspace_directory"
     }
-
-    var expired: Bool {
-        createdAt.addingTimeInterval(Double(ttlDays) * 86400) < Date()
-    }
 }
 
 // MARK: - Message
@@ -100,12 +96,4 @@ struct FTSSearchResult: Codable {
     let snippet: String
     let score: Double
     let sessionId: Int64
-}
-
-// MARK: - TTL Expiry Task
-
-struct ExpiryTask: Codable {
-    let sessionIds: [Int64]
-    let totalMessages: Int
-    let scheduledAt: Date
 }

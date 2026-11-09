@@ -719,41 +719,6 @@ actor SessionCompressor {
         return result.isEmpty ? nil : result
     }
 
-    // MARK: - TTL Expiry
-
-    /// Purge expired sessions based on TTL.
-    func purgeExpired() async throws -> ExpiryTask {
-        let now = Date().timeIntervalSince1970
-        let sql = """
-            SELECT id FROM sessions
-            WHERE (created_at / 1000000.0 + ttl_days * 86400) < ?
-            """
-        let params: [AnyHashable] = [now]
-
-        do {
-            let rows = try await store.query(sql, parameters: params)
-            let sessionIds = rows.compactMap { $0["id"]?.asInt64 }
-
-            for sid in sessionIds {
-                try await store.execute(
-                    sql: "DELETE FROM messages WHERE session_id = ?", parameters: [sid])
-                try await store.execute(sql: "DELETE FROM sessions WHERE id = ?", parameters: [sid])
-                sessionTokenCounts.removeValue(forKey: sid)
-                compressedSessions.remove(sid)
-            }
-
-            return ExpiryTask(
-                sessionIds: sessionIds,
-                totalMessages: 0,
-                scheduledAt: Date(),
-            )
-        } catch let sqliteErr as SQLiteError {
-            throw sqliteErr
-        } catch {
-            throw SQLiteError.executionFailed(detail: error.localizedDescription)
-        }
-    }
-
     // MARK: - Internal
 
     private func updateSession(_ id: Int64, messageDelta: Int, tokenDelta: Int) async throws {

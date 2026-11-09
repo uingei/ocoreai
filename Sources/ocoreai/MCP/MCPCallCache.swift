@@ -73,22 +73,6 @@ actor MCPCallCache {
         accessOrder.append(key)
     }
 
-    /// 清除过期条目。返回清理数量。
-    @discardableResult
-    func purgeExpired() -> Int {
-        let now = Date()
-        var removed = 0
-        let expiredKeys = accessOrder.filter { key in
-            guard let entry = entries[key] else { return false }
-            return now.timeIntervalSince(entry.timestamp) > ttlSeconds
-        }
-        for key in expiredKeys {
-            remove(key)
-            removed += 1
-        }
-        return removed
-    }
-
     /// 清空缓存
     func clear() {
         entries.removeAll()
