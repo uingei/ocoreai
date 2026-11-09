@@ -28,6 +28,15 @@ from _repeat_stats import (  # one McNemar, one home
 
 KEEP, NOT_SIGNIFICANT, REGRESSION, NOT_MEASURED = 0, 1, 2, 3
 
+# The axis this loop declares as its own hypothesis: a `Sources/` patch reaches the engine only
+# through the build it is compiled into, so the arms differ on `binary` by construction and refusing
+# on it made the loop unable to price any compiled change (every real proposal landed
+# `not-measured`, 11-08/11-09). Exactly one field, because model/tasks/temperature/approval/
+# concurrency/host moving is never the proposal — and `_repeat_stats.premise_violation` only grants
+# the axis when both arms state the same commit, which is what separates "the patch rebuilt" from
+# "another commit landed between the arms". The ad-hoc `paired --a/--b` CLI declares nothing.
+HYPOTHESIS_AXIS = ("binary",)
+
 
 def read_list(path):
     if not path or not os.path.isfile(path):
@@ -89,7 +98,7 @@ def decide(base_root, variant_root, k_min=6, alpha=0.05, veto_drop=2):
         out.update(decision="not-measured", why=mismatch)
         return out, NOT_MEASURED
 
-    cond = conditions_mismatch(base_root, variant_root)
+    cond = conditions_mismatch(base_root, variant_root, hypothesis=HYPOTHESIS_AXIS)
     if cond:
         # Same ids, different rules — the conditions line is what makes this decidable at all.
         out.update(decision="not-measured", why=cond)
@@ -121,7 +130,7 @@ def decide(base_root, variant_root, k_min=6, alpha=0.05, veto_drop=2):
         p=round(p, 4),
         regressions=regressions,
     )
-    moved = conditions_movement(base_root, variant_root)
+    moved = conditions_movement(base_root, variant_root, hypothesis=HYPOTHESIS_AXIS)
     if moved:
         # A "keep" must not read as if only the engine moved: the declarations handed to the
         # model changed too, and the verdict records which ones.

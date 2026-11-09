@@ -172,7 +172,36 @@ Recording is half of it, so `_repeat_stats.py` refuses:
 - **inside one root** — a run whose fingerprint differs from the majority of its root is excluded,
   naming the field (`run-04: tasks tasks.json+a… → tasks.json+b…`);
 - **across two roots** — a base/variant pairing whose *invariant* fields differ (task file, model,
-  temperature, approval policy, concurrency, host, artefact) is reported with no p at all.
+  temperature, approval policy, concurrency, host, commit, artefact) is reported with no p at all.
+
+Two things that look like fields and are not, both measured 11-09:
+
+- **a value the parser cannot read back whole is half a field.** The line is `k=v` chunks split on
+  whitespace, and nothing quotes it, so `host=Darwin 25.6.0 arm64` came back from `parse` as
+  `host=Darwin`: pairing across a different macOS release *and* architecture reported no difference
+  while this file listed host as a refusal field. `host_token` now emits `Darwin+25.6.0+arm64`, and
+  `_conditions_selftest.py` pins the chunk count against the field count — the premise is general, so
+  the next value with a space in it goes red too rather than quietly narrowing the refusal.
+- **`commit` is the field that lets an invariant be crossed on purpose.** `binary` proves the artefact
+  *moved*; only the commit shows the two arms are one commit plus one patch. It is invariant, never
+  surface, and it is the premise the loop's declared axis rests on (next paragraph). An unresolved
+  HEAD states `unknown`, which costs the loop the axis rather than granting it.
+
+**The loop declares one hypothesis axis: `binary`.** A `Sources/` patch reaches the engine only
+through the build it is compiled into, so the arms differ on the artefact *by construction*; with
+`binary` an ordinary invariant, every proposal the allow list admits landed `not-measured`
+(`verify-before-done` 11-08, `edit-noop-split-strip` 11-09) — a mechanism with zero measured
+consumers, found by asking how many verdicts it had ever produced. `_autoab_gate.HYPOTHESIS_AXIS` is
+exactly one field, and `_repeat_stats.premise_violation` grants it only when **both arms state the
+same commit**: an unstated commit is refused rather than accepted as "no difference", because
+`field_diffs` reads an unstated field as no difference and an old base root would otherwise buy the
+crossing with a silence. The crossing is printed under the p as `declared axis moved: binary … both
+arms state commit …`, so a `keep` never reads as if only the task scores moved. The ad-hoc
+`paired --a/--b` CLI declares nothing and still refuses across a rebuild: two roots someone happened
+to have are not a statement that the rebuild is the experiment.
+
+Consequence for a re-run: base roots written before this round state neither `commit` nor the
+space-free host, so they are refused across arms — re-baseline with `repeat.sh` on the current HEAD.
 
 `tools` is deliberately not an invariant across roots: a proposal may edit precisely the tool
 descriptions and schemas it is being judged on (AGENTS.md treats them as function-calling contracts),
@@ -181,7 +210,7 @@ printed under the p and recorded as `declarations_moved` in `_autoab_gate.py`'s 
 whichever surface field moved — `tools`, `docs`, or both — and the printed sentence names the field it
 is explaining), so a `keep` never reads as if only the engine moved.
 
-Measured over fabricated scoreboards (no GPU; `_conditions_selftest.py` = 41 checks, and these are the
+Measured over fabricated scoreboards (no GPU; `_conditions_selftest.py` = 50 checks, and these are the
 same fixtures by hand):
 
 | fixture | with the conditions line | with the line deleted (red sample) |
@@ -984,12 +1013,17 @@ points refuse first now — `_repeat_stats.taskset_mismatch`, called by `paired(
 same task file. Growing the set is legitimate; it costs a re-baseline, which is exactly the price the refusal
 quotes.
 
-**Judges with no gate are claims.** `_autoab_selftest.py` — no GPU, no build, 19 scenarios, ~0.1 s — pins the
+**Judges with no gate are claims.** `_autoab_selftest.py` — no GPU, no build, 21 scenarios, ~0.4 s — pins the
 path gate *by reported reason* (so an entry deleted from `autoloop-protected.txt` fails the attribution
 assertion instead of letting the prefix rule cover for it), the exact b/c/cells of every decision, and that α and
 k_min are live knobs: the CLI must revert the +0.5-task variant at the shipped α and must *keep* it under
 `OCOREAI_AUTOAB_ALPHA=0.99`. Both directions are needed — the first goes red if someone loosens the bar, the
-second goes red if the knob stops being wired. `_autoab_mutate.py` runs fifteen of them — it edits each rule out,
+second goes red if the knob stops being wired. Scenario 14 prices a *rebuilt binary* end to end (keep on one
+stated commit, `not-measured` on two commits, on an unstated commit, and on another model), and requires the
+ad-hoc `paired` CLI to keep refusing the same pair — the axis is the loop's, not the pairing primitive's.
+Scenario 15 runs `_conditions_selftest.py` as part of the referee, because `autoab.sh` calls this file at
+startup and whatever this file does not consult is not gated at all. `_autoab_mutate.py` runs eighteen of
+them — it edits each rule out,
 requires `_autoab_selftest.py` to go red, restores from an in-memory snapshot and verifies the restore by
 checksum; an escaped mutation decides the exit code, because a documented rule with nothing that goes red is not
 a rule:
@@ -1011,6 +1045,9 @@ a rule:
 | the guard kept but dead (`taskset_mismatch` always answers "same game") | the same board — a call site that outlived its answer is what a presence check cannot see |
 | the archive call gutted (decision test stands, move does not) | the queue-hygiene scan reports the adjudicated stems back in the glob — a bare re-run buys those verdicts again |
 | the startup referee's `!` dropped (self-test still runs, exit fires when it *agrees*) | the same-line `! python3` pin fires — a presence check cannot see an inverted guard |
+| `HYPOTHESIS_AXIS = ("binary",)` → `("binary", "model")` | the another-model case is judged instead of refused — the declared axis would price the checkpoint, not the patch |
+| `premise_violation(...)`'s call site hardcoded to `None` | a base root that never stated a commit is granted the crossing (the function survives; only its answer dies) |
+| `host` written with a space again | the panel's chunk-count pin fires — only caught *because* scenario 15 runs the whole panel |
 
 `PYTHONDONTWRITEBYTECODE=1` is exported by both the loop and the self-test: a judge served from cached bytecode
 is a verdict computed from a file that no longer exists, and same-second edits of equal length are invisible to
@@ -1063,7 +1100,7 @@ same-line one. Verification is grep → run → read the matched lines, and a sc
 nothing.
 
 ```bash
-python3 scripts/eval/_autoab_selftest.py   # 19 scenarios, ~0.1 s, no GPU
-python3 scripts/eval/_autoab_mutate.py    # 15 mutations, ~15 s, exit 1 if any escapes
+python3 scripts/eval/_autoab_selftest.py   # 21 scenarios, ~0.4 s, no GPU (runs the conditions panel)
+python3 scripts/eval/_autoab_mutate.py    # 18 mutations, ~20 s, exit 1 if any escapes
 python3 scripts/eval/_ledger_selftest.py   # 6 ledger rows re-derived, ~0.1 s, no GPU
 ```

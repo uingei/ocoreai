@@ -246,19 +246,69 @@ def _majority_pair(a_root, b_root):
     return dict(ma), dict(mb)
 
 
-def conditions_mismatch(a_root, b_root):
-    """None when both roots agree on every field the loop may not move; else the refusal text.
+def premise_violation(ma, mb, declared):
+    """Refusal text when a declared hypothesis axis rests on nothing; None when it rests on a commit.
+
+    A declared axis is a premise, not a favour. `binary` may move between arms only when both sides
+    *state* the same commit: `binary` proves the artefact moved, and only the commit shows the two
+    arms are one tree plus the patch rather than a second commit that landed in between. An unstated
+    commit is refused here rather than granted by `field_diffs`, which reads an unstated field as no
+    difference — the whole reason pre-conditions runs stay readable.
+
+    What the commit cannot see is uncommitted work on the base side; the loop covers that where it
+    applies the patch (`autoab.sh` snapshots the allowed scope at both ends), not here.
+    """
+    if not declared:
+        return None
+    ca, cb = ma.get("commit"), mb.get("commit")
+    if not ca or not cb or "unknown" in (ca, cb):
+        return ("the pairing declares %s as its hypothesis axis, but a side does not state the"
+                " commit it was measured at (%s vs %s) — with no commit on the line, a moving"
+                " artefact is indistinguishable from a second commit landing between the arms, so"
+                " any p measures the tree rather than the change"
+                % (", ".join(declared), ca or "unstated", cb or "unstated"))
+    if ca != cb:
+        return ("the pairing declares %s as its hypothesis axis, but the arms were measured at"
+                " different commits (%s vs %s) — the p would price every commit between them, not"
+                " the proposal" % (", ".join(declared), ca, cb))
+    return None
+
+
+def _axis_fields(hypothesis):
+    """The invariant fields this caller declares to be its hypothesis — never a widening.
+
+    Intersection with INVARIANT_FIELDS is the whole safety of the mechanism: a caller can only ever
+    *remove* fields from the refusal, and a name that is not an invariant (or is misspelled) removes
+    nothing. SURFACE_FIELDS are not honoured here because they are never refused in the first place.
+    """
+    return tuple(k for k in (hypothesis or ()) if k in COND.INVARIANT_FIELDS)
+
+
+def conditions_mismatch(a_root, b_root, hypothesis=()):
+    """None when both roots agree on every field the pairing may not move; else the refusal text.
 
     `taskset_mismatch` catches a differing set of task ids; this catches the game changing under
     identical ids — another task file, model, temperature, approval policy, concurrency or host.
     Each of those moves a score without the engine changing, which is what a p is meant to
     isolate. The tool declarations are deliberately NOT refused across roots: a proposal may edit
     precisely those contracts, so their movement is `conditions_movement`, stated under the p.
+
+    `hypothesis` is how a caller declares one further field as its own axis — the auto-A/B loop
+    declares `binary`, because a `Sources/` patch reaches the engine only through the build it is
+    compiled into, so refusing on it left the loop unable to price any compiled change at all (every
+    real proposal landed `not-measured`, 11-08/11-09). The ad-hoc `paired --a/--b` CLI passes
+    nothing and refuses exactly as before: a human pairing two arbitrary roots has no statement that
+    the rebuild is the experiment, and `_conditions_selftest.py` pins that `binary` is not surface.
     """
     ma, mb = _majority_pair(a_root, b_root)
     if ma is None or mb is None:
         return None
-    diffs = COND.field_diffs(ma, mb, only=COND.INVARIANT_FIELDS)
+    declared = _axis_fields(hypothesis)
+    bad = premise_violation(ma, mb, declared)
+    if bad:
+        return bad
+    diffs = COND.field_diffs(ma, mb,
+                             only=[k for k in COND.INVARIANT_FIELDS if k not in declared])
     if not diffs:
         return None
     return ("conditions differ on %s (%s) — the two sides were played under different rules, so"
@@ -267,7 +317,7 @@ def conditions_mismatch(a_root, b_root):
             + " any p from this pairing measures the rules rather than the change")
 
 
-def conditions_movement(a_root, b_root):
+def conditions_movement(a_root, b_root, hypothesis=()):
     """What the two sides legitimately differ in, as one quotable line (None when nothing moved).
 
     A surface field moving is the agent-facing half of a proposal: what the turn was handed changed,
@@ -275,20 +325,35 @@ def conditions_movement(a_root, b_root):
     sentence names the field it is explaining — a tool digest moving is a changed contract, a docs
     digest moving is a changed instruction corpus, and telling a docs A/B that "declarations moved"
     hands the reader the wrong explanation of their own number.
+
+    A declared hypothesis axis gets its own clause, because it means the opposite of a surface move:
+    nothing the model was handed changed, the thing answering changed. The commit that let it through
+    is quoted, so a reader of the verdict can see which tree both arms ran.
     """
     ma, mb = _majority_pair(a_root, b_root)
     if ma is None or mb is None:
         return None
-    diffs = COND.field_diffs(ma, mb, only=COND.SURFACE_FIELDS)
-    if not diffs:
+    declared = _axis_fields(hypothesis)
+    parts = []
+    surface = COND.field_diffs(ma, mb, only=COND.SURFACE_FIELDS)
+    if surface:
+        why = {
+            "tools": "the schemas/descriptions the model was handed changed",
+            "docs": "the instruction doc injected into every turn changed",
+        }
+        parts.append(
+            "surface moved: %s — %s, so this p is about what the turn was handed, not only the"
+            " engine" % (", ".join("%s %s vs %s" % (k, a, b) for k, a, b in surface),
+                         "; ".join(why.get(k, "%s changed" % k) for k, _, _ in surface)))
+    axis = COND.field_diffs(ma, mb, only=declared)
+    if axis:
+        parts.append(
+            "declared axis moved: %s — the build under test is the hypothesis (both arms state"
+            " commit %s), so this p is about that build and nothing else moved"
+            % (", ".join("%s %s vs %s" % (k, a, b) for k, a, b in axis), ma.get("commit", "?")))
+    if not parts:
         return None
-    why = {
-        "tools": "the schemas/descriptions the model was handed changed",
-        "docs": "the instruction doc injected into every turn changed",
-    }
-    return "surface moved: %s — %s, so this p is about what the turn was handed, not only the engine" % (
-        ", ".join("%s %s vs %s" % (k, a, b) for k, a, b in diffs),
-        "; ".join(why.get(k, "%s changed" % k) for k, _, _ in diffs))
+    return "; ".join(parts)
 
 
 def paired(a_root, b_root):

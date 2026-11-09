@@ -20,6 +20,7 @@ sys.path.insert(0, HERE)
 os.environ["PYTHONDONTWRITEBYTECODE"] = "1"  # inherited by every subprocess below: a judge read
 # from stale bytecode is a judge that passed while the file on disk said otherwise
 import _autoab_gate as gate  # noqa: E402
+import _conditions as COND  # noqa: E402
 import _ledger_selftest as ledgerdoc  # noqa: E402
 
 FIXTURES = os.path.join(HERE, "fixtures")
@@ -52,9 +53,14 @@ def synthetic_patch(path):
     return patch
 
 
-def write_runs(dirs, bits_by_task):
+def write_runs(dirs, bits_by_task, conditions=None):
     """A root of k runs of results.tsv, from per-task pass bits — the judges testable without a
-    model, and with the discordance (b, c) set on purpose rather than inherited from a score."""
+    model, and with the discordance (b, c) set on purpose rather than inherited from a score.
+
+    `conditions` writes one `# conditions …` line per run, before the score line (`load_runs` keeps
+    the last `#` line as the score). Default None keeps the fixtures byte-identical to the ones the
+    decision-rule cases were pinned with: a root stating nothing is a root that cannot be refused.
+    """
     tasks = sorted(bits_by_task)
     k = len(next(iter(bits_by_task.values())))
     for index in range(k):
@@ -66,8 +72,34 @@ def write_runs(dirs, bits_by_task):
             for task in tasks:
                 fh.write("%s\twrite\t%s\t1\tfinish=stop\n"
                        % (task, "0" if task in passes else "1"))
+            if conditions:
+                fh.write(conditions + "\n")
             fh.write("# score %d/%d  model fake\n" % (len(passes), len(tasks)))
     return dirs
+
+
+# A conditions line rendered by the real builder, so a field added to KEY_FIELDS shows up here
+# instead of in a hand-typed fixture that quietly describes yesterday's format.
+_COND_TMP = tempfile.mkdtemp(prefix="ocoreai-autoab-cond-")
+with open(os.path.join(_COND_TMP, "tasks.json"), "w", encoding="utf-8") as _fh:
+    _fh.write('[{"id":"taskA","verify":"true"}]\n')
+_COND_SPECS = [{"type": "function", "function": {
+    "name": "read_file", "description": "read", "parameters": {"type": "object"}}}]
+
+
+def cond_line(binary, commit=None, model="fake", drop=()):
+    """One arm's conditions line, with the two fields that vary between arms set by name.
+
+    `commit=None` states `unknown`; `drop=("commit",)` removes the field, which is how a run written
+    before the field existed looks — the two are different refusals and both are tested.
+    """
+    fields = dict(c.split("=", 1) for c in COND.render(
+        model, os.path.join(_COND_TMP, "tasks.json"), _COND_SPECS, "0.0", "auto").split())
+    fields["binary"] = binary
+    fields["commit"] = commit if commit else "unknown"
+    return "# conditions " + " ".join(
+        "%s=%s" % (k, fields[k]) for k in COND.KEY_FIELDS
+        if k in fields and k not in drop)
 
 
 def bits(common_pass="111111", a="100000", b="001100", c="000000"):
@@ -315,8 +347,92 @@ def main():
             bad.append("autoab.sh runs the self-test but does not stop the round on it — the call "
                        "would be decoration while the ledger books the row")
 
-    bad += ledgerdoc.readme_count_defects("scenarios", len(cases) + len(knob_cases) + 10)
-    print("autoab self-test: %d scenario(s), %d defect(s)" % (len(cases) + len(knob_cases) + 10,
+    # 14 — the loop can price a rebuilt binary, on that axis alone. Until 11-09 `binary` was an
+    # ordinary invariant across arms, and since a `Sources/` patch reaches the engine only through
+    # the build it compiles into, EVERY proposal the allow list admits landed `not-measured`
+    # (`verify-before-done` 11-08, `edit-noop-split-strip` 11-09) — a mechanism with zero measured
+    # consumers. The loop now declares `binary` as its hypothesis axis; what the four cases below
+    # pin is that the declaration is (a) real, (b) one field wide, (c) resting on a stated commit,
+    # and (d) the loop's own, not the ad-hoc pairing's.
+    head = "c" * 40
+    axis_base = write_runs(tempfile.mkdtemp(prefix="ocoreai-autoab-axis-base-"), bits(),
+                           cond_line("ocoreai+1794229234+174493440", commit=head))
+    axis_better = write_runs(tempfile.mkdtemp(prefix="ocoreai-autoab-axis-better-"),
+                             bits(a="111111", b="111111", c="111111"),
+                             cond_line("ocoreai+1794231296+174493440", commit=head))
+    out, rc = gate.decide(axis_base, axis_better)
+    if rc != gate.KEEP or out.get("decision") != "keep" or (out.get("b"), out.get("c")) != (0, 15):
+        bad.append("a rebuilt binary at one commit was not judged (%s rc=%s %s) — the loop still"
+                   " cannot price a compiled change, which is the whole point of the axis"
+                   % (out.get("decision"), rc, json.dumps(out, sort_keys=True)[:200]))
+    if "declared axis moved" not in out.get("declarations_moved", ""):
+        bad.append("the verdict that crossed `binary` did not name the axis it crossed (%s) — a keep"
+                   " would read as if only the task scores moved" % json.dumps(out, sort_keys=True)[:200])
+
+    axis_apart = write_runs(tempfile.mkdtemp(prefix="ocoreai-autoab-axis-apart-"),
+                            bits(a="111111", b="111111", c="111111"),
+                            cond_line("ocoreai+1794231296+174493440", commit="d" * 40))
+    out, rc = gate.decide(axis_base, axis_apart)
+    if rc != gate.NOT_MEASURED or "different commits" not in out.get("why", ""):
+        bad.append("arms at two different commits were judged (%s, rc=%d) — the p would price every"
+                   " commit between them, not the proposal" % (out.get("decision"), rc))
+
+    axis_legacy = write_runs(tempfile.mkdtemp(prefix="ocoreai-autoab-axis-legacy-"), bits(),
+                             cond_line("ocoreai+1794229234+174493440", drop=("commit",)))
+    out, rc = gate.decide(axis_legacy, axis_better)
+    if rc != gate.NOT_MEASURED or "does not state the commit" not in out.get("why", ""):
+        bad.append("the axis was granted to a base that never stated a commit (%s, rc=%d) —"
+                   " `field_diffs` reads an unstated field as no difference, so an old root would"
+                   " otherwise buy the crossing with a silence" % (out.get("decision"), rc))
+
+    axis_model = write_runs(tempfile.mkdtemp(prefix="ocoreai-autoab-axis-model-"),
+                            bits(a="111111", b="111111", c="111111"),
+                            cond_line("ocoreai+1794231296+174493440", commit=head, model="mlx/other"))
+    out, rc = gate.decide(axis_base, axis_model)
+    if rc != gate.NOT_MEASURED or "conditions differ on model" not in out.get("why", ""):
+        bad.append("another model was priced as a code change (%s, rc=%d) — the declared axis is"
+                   " wider than `binary`" % (out.get("decision"), rc))
+
+    # The declaration belongs to the loop, not to the pairing primitive: a human pairing two
+    # arbitrary roots has not stated that the rebuild is the experiment, so the CLI must still
+    # refuse on `binary` exactly as it did before the axis existed.
+    adhoc = subprocess.run([sys.executable, os.path.join(HERE, "_repeat_stats.py"),
+                            "--a", axis_base, "--b", axis_better],
+                           capture_output=True, text=True)
+    if adhoc.returncode == 0 or "conditions differ on binary" not in adhoc.stdout:
+        bad.append("the ad-hoc `paired` CLI honoured the declared axis (rc=%d): %s — the whitelist"
+                   " leaked out of the loop and any two roots could now be paired across a rebuild"
+                   % (adhoc.returncode, adhoc.stdout.strip().replace("\n", " | ")[:160]))
+    gate_src = open(os.path.join(HERE, "_autoab_gate.py"), encoding="utf-8").read()
+    declared_axis = [l for l in gate_src.splitlines() if l.startswith("HYPOTHESIS_AXIS")]
+    if not declared_axis:
+        bad.append("_autoab_gate.py has no HYPOTHESIS_AXIS line — the axis would live only in the"
+                   " behaviour above, which a reader of the gate cannot see")
+    elif '"binary"' not in declared_axis[0] or "model" in declared_axis[0]:
+        bad.append("the declared axis is no longer exactly `binary`: %s" % declared_axis[0].strip())
+    if gate_src.count("hypothesis=HYPOTHESIS_AXIS") < 2:
+        bad.append("_autoab_gate.py honours the axis at %d call site(s), not at both — the refusal"
+                   " would cross without the verdict saying so (or say so without crossing)"
+                   % gate_src.count("hypothesis=HYPOTHESIS_AXIS"))
+    if "premise_violation(ma, mb, declared)" not in stats_src:
+        bad.append("_repeat_stats.conditions_mismatch no longer calls premise_violation — the"
+                   " commit premise would live in a function nobody consults")
+
+    # 15 — the referee is the whole panel, not one file. `autoab.sh` calls this file at startup, so
+    # whatever this file does not consult is not gated at all: the loop's declared axis rests on the
+    # conditions fields `_conditions_selftest.py` checks (the commit premise above, and a host value
+    # the parser can read back whole), so a panel that stops being one referee leaves the axis
+    # standing on an ungated judge. Run as a subprocess, because importing it would share this
+    # process's environment and its temp fixtures.
+    panel = subprocess.run([sys.executable, os.path.join(HERE, "_conditions_selftest.py")],
+                           capture_output=True, text=True)
+    if panel.returncode != 0:
+        bad.append("_conditions_selftest.py is red (%s) — the conditions fields the pairing refuses"
+                   " on are unsound, so no verdict from the judges above is attributable"
+                   % panel.stdout.strip().replace("\n", " | ")[:180])
+
+    bad += ledgerdoc.readme_count_defects("scenarios", len(cases) + len(knob_cases) + 12)
+    print("autoab self-test: %d scenario(s), %d defect(s)" % (len(cases) + len(knob_cases) + 12,
                                                               len(bad)))
     for entry in bad:
         print("  FAIL %s" % entry)
@@ -324,7 +440,9 @@ def main():
         return 1
     print("  ✅ path gate refuses goal-post moves for the recorded reason, the allow list bites"
           " too, discordance is matched 1:1 by run position, and a variant is kept only on a"
-          " significant gain in the right direction with no veto — at an alpha the test can move")
+          " significant gain in the right direction with no veto — at an alpha the test can move;"
+          " a rebuilt binary is priced on the one axis it is allowed to move, and only when both"
+          " arms state the same commit")
     return 0
 
 

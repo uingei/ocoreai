@@ -9,6 +9,54 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-09
 
+**11-09 the loop could not price a rebuilt binary, and the field that would let it cross was half-recorded — `binary` is now a declared hypothesis axis resting on a stated commit, and the conditions line's `host` came back from its own parser truncated**
+
+- **What improved:** three faces of one instrument, all quoted before any guard was written.
+  (1) **The loop declares its hypothesis axis.** `binary` (artefact name+mtime+bytes) was an ordinary
+  invariant across arms, but a `Sources/` patch — the only thing `autoloop-allow.txt` admits — reaches
+  the engine *only* through the build it compiles into, so every real proposal landed `not-measured`:
+  `verify-before-done` (ledger `20261108-172950`) and `edit-noop-split-strip` (`20261109-213417`), the
+  first's verdict reached only by hand (`20261108-213000`, whose `traces` field says the loop refused
+  it). The loop's whole measured life was same-binary config pairs and fixtures fabricated to agree.
+  `HYPOTHESIS_AXIS` in `_autoab_gate.py` is exactly `("binary",)`; `conditions_mismatch`/
+  `conditions_movement` take `hypothesis=`, and `_axis_fields` intersects it with `INVARIANT_FIELDS`,
+  so a caller can only ever *narrow* the refusal and a misspelled name removes nothing. The crossing
+  is printed under the p (`declared axis moved: binary … both arms state commit …`) into
+  `declarations_moved`. `paired --a/--b` declares nothing and still refuses across a rebuild: two
+  roots someone happened to have are not a statement that the rebuild is the experiment, and
+  `_conditions_selftest.py`'s pin that `binary` is not a surface field stands untouched.
+  (2) **`commit` is the field that makes crossing one field honest.** `binary` proves the artefact
+  *moved*; only the commit shows the arms are one commit plus one patch rather than a commit that
+  landed in between. `run.sh` stamps `git -C "$PROBE_REPO_ROOT" rev-parse HEAD` into the line;
+  `premise_violation` grants the axis only when both sides state it and it agrees — an *unstated*
+  commit is refused, not read as "no difference", because `field_diffs` treats an unstated field as
+  no difference and an old base root would otherwise buy the crossing with a silence.
+  (3) **A value the parser cannot read back whole is half a field.** The line is `k=v` chunks split on
+  whitespace and nothing quotes it, so `host=Darwin 25.6.0 arm64` parsed back as `host=Darwin`:
+  measured same-day, `field_diffs` across a different macOS release *and* architecture returned `[]`
+  while `README.md:173` lists host as a refusal field. `host_token` now emits `Darwin+25.6.0+arm64`.
+- **What proves it:** the host defect was reproduced against the shipped builder before the fix —
+  `host A='Darwin' B='Darwin'`, `field_diffs: []` — and a scratch copy of the harness with the fix
+  reverted goes red twice (rc=1) while the tree is green at 50 checks. My *first* version of that pin
+  was vacuous: it compared the parsed value to the written chunk, which is the same truncation twice;
+  the red-sample is what caught it, and the pin now counts chunks against fields, so the next value
+  with a space in it fails too. Scenario 14 prices a rebuilt binary end to end — `keep` at one stated
+  commit (same matched-pairing convention, b=0 c=15), `not-measured` at two commits, at an unstated
+  commit, and when another model moves — and requires the ad-hoc CLI to keep refusing the very same
+  pair. **Still owed, not claimed:** the `edit-noop-split-strip` McNemar row; base roots written
+  before this state neither `commit` nor the space-free host, so the re-run re-baselines at HEAD.
+- **Gate:** `_conditions_selftest.py` 41 → **50 checks** (per-field round-trip premise, `host_token`,
+  `commit` invariant + verbatim + `unknown` + a commit-only difference visible to the pairing, and
+  `run.sh`'s `--commit "$EVAL_COMMIT"` wiring floors); `_autoab_selftest.py` 19 → **21 scenarios**
+  (the four axis cases, same-line `HYPOTHESIS_AXIS` scan, both call sites honour it, the premise is
+  actually called, and scenario 15 runs the conditions panel inside the referee — `autoab.sh` calls
+  this file at startup, so anything it does not consult is not gated at all);
+  `_autoab_mutate.py` 15 → **18 mutations, 18 caught** in 9 s, tree verified byte-identical after
+  restore (axis widened to `("binary","model")`, premise call site hardcoded to `None`, host written
+  with a space again — the last catchable only because the referee is the whole panel).
+  `make docs-check` green. Rows: `docs/agent/open-items.md` § "The auto-A/B loop cannot judge the only
+  patches its allow-list admits".
+
 **11-09 the RSI loop was buying its own verdicts and its referee ran uninvited — a measured proposal now leaves the queue glob, the judges' self-test gates every round, and the first gate's red was sampled on the three adjudicated patches the glob was volunteering this morning (pooled p=0.00054, recorded yesterday and today)**
 
 - **What improved:** two faces of one instrument, both quoted before either guard was written.

@@ -58,6 +58,31 @@ def main():
         if line != again:
             defects.append("the same inputs produced two different conditions lines: %r vs %r" % (line, again))
 
+        # Every field must survive the parse, not just be written. The line is `k=v` chunks split on
+        # whitespace with no quoting rule, so one value containing a space truncates at the space:
+        # measured 11-09, `host=Darwin 25.6.0 arm64` came back as `host=Darwin`, and a pairing across
+        # a different macOS release and a different architecture reported NO difference while the
+        # README lists host as a field it refuses on. Chunk count is the premise, because comparing
+        # the parsed value against the written *chunk* compares two copies of the same truncation.
+        chunks = line.split()
+        pairs = [c for c in chunks if "=" in c]
+        if len(pairs) != len(C.KEY_FIELDS) or len(pairs) != len(chunks) - 1:
+            defects.append("the conditions line carries %d k=v chunk(s) for %d fields in %d chunks —"
+                           " the parser splits on whitespace and quotes nothing, so a value with a"
+                           " space reads as a truncated value plus junk: %s"
+                           % (len(pairs), len(C.KEY_FIELDS), len(chunks), line))
+        if C.host_token("Darwin 25.6.0 arm64") != "Darwin+25.6.0+arm64":
+            defects.append("host_token returned %r for a spaced host — the token must not contain a"
+                           " space, which is the whole fix" % C.host_token("Darwin 25.6.0 arm64"))
+        # Same OS name, different release and architecture: the case the truncation hid. A pair that
+        # differs in the OS *name* was always caught; this is the one that has to be.
+        other_machine = C.parse(C.build("mlx/probe", a, specs, "0.0", "auto",
+                                        host="Darwin 24.1.0 x86_64"))
+        if [k for k, _, _ in C.field_diffs(fields, other_machine, only=C.INVARIANT_FIELDS)] != ["host"]:
+            defects.append("the same OS name with another release and architecture produced no host"
+                           " difference in the pairing fields — the machine a score came from is"
+                           " half-recorded, so the pairing is blind to it")
+
         # The instruction doc a workspace handed the agent. Three things must hold: absence is a
         # stated `none` (the board ran doc-free for its whole history and that has to be readable),
         # presence is digested (a reworded corpus is a different instrument), and a docs-only
@@ -102,6 +127,28 @@ def main():
         if "binary" in C.SURFACE_FIELDS:
             defects.append("`binary` is a SURFACE field — a rebuild between arms changes the engine,"
                            " not the hypothesis, so the pairing must refuse it")
+
+        # Which commit the answering build came from. `binary` proves the artefact moved; only this
+        # shows the two arms are one commit plus one patch, so it is the premise the loop's declared
+        # hypothesis axis rests on (`_repeat_stats.premise_violation`). Invariant, and an omission
+        # must state `unknown` rather than match every later run.
+        if "commit" not in C.INVARIANT_FIELDS:
+            defects.append("`commit` is not an invariant field — a pairing could then cross two"
+                           " commits while claiming only the build moved")
+        at_head = C.parse(C.build("mlx/probe", a, specs, "0.0", "auto", commit="DEADBEEFcafe1234"))
+        if at_head.get("commit") != "deadbeefcafe1234":
+            defects.append("a stated commit came through as %r — the value is what a reader greps"
+                           " `git log` for, so it must survive verbatim, not be digested away"
+                           % at_head.get("commit"))
+        if C.commit_token(None) != "unknown" or C.commit_token("   ") != "unknown":
+            defects.append("an unresolved commit must state `unknown`, got %r/%r — an omission would"
+                           " read as a match against every later run"
+                           % (C.commit_token(None), C.commit_token("   ")))
+        commit_only = [k for k, _, _ in C.field_diffs(C.parse(line), at_head,
+                                                      only=C.INVARIANT_FIELDS)]
+        if commit_only != ["commit"]:
+            defects.append("a commit-only difference reported invariant=%s — the premise the declared"
+                           " axis rests on would be invisible to the pairing" % commit_only)
 
         # The digest must be a digest: equal bytes → equal token, one byte elsewhere → different,
         # and the value must match sha256 recomputed here (a hardcoded token would pass 1-2).
@@ -168,6 +215,10 @@ def main():
         ("run.sh writes a conditions line", run.count("'# conditions") >= 1, ">=1"),
         ("run.sh passes --docs to the conditions builder", run.count("--docs") >= 1, ">=1"),
         ("run.sh names the artefact that answered", run.count('--binary "$EVAL_BIN"') >= 1, ">=1"),
+        ("run.sh names the commit that artefact was built from",
+         run.count('--commit "$EVAL_COMMIT"') >= 1, ">=1"),
+        ("run.sh resolves that commit before writing the line", run.count("EVAL_COMMIT=") >= 1,
+         ">=1"),
         ("run.sh floors the artefact against the tree", run.count("BIN_MTIME") >= 4,
          ">=4 (compare, note and the remedy text)"),
         ("run.sh re-materializes the instruction doc per task",
@@ -267,7 +318,7 @@ def main():
             else:
                 os.environ["OCOREAI_TOOLS_CACHE"] = env_cache
 
-    n = len(C.KEY_FIELDS) + 32
+    n = len(C.KEY_FIELDS) + 40
     print("conditions self-test: %d check(s), %d defect(s)" % (n, len(defects)))
     for d in defects:
         print("  ✘ %s" % d)
@@ -276,7 +327,8 @@ def main():
     print("  ✅ every conditions field is present and stable (including `docs`, stated as `none` when"
           " absent and digested when present and treated as surface movement so a docs A/B is judgeable,"
           " and `binary`, which names the artefact that answered and stays an invariant so a rebuild"
-          " between arms cannot read as a hypothesis),"
+          " between arms cannot read as a hypothesis — except across the loop's pairing, where"
+          " `commit` is the stated premise that makes the rebuild the patch and not a second commit),"
           " the digests are real sha256 of the bytes they name (same bytes match, one edited byte or one"
           " renamed tool moves them), the parse round-trips, differences are reported only for fields both"
           " sides state, and both the scoreboard and the aggregator are wired to it at floors the scans"

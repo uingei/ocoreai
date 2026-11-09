@@ -191,6 +191,10 @@ if [ -z "$EVAL_BIN" ]; then
     " `unknown`, so no later run could tell whether it matched this one"
   probe_summary "$PROBE_NAME"
 fi
+# Which commit that artefact was built from, verbatim: `binary` says the build *moved*, only this
+# says whether both arms of a pairing are one commit plus one patch. Empty (not a git tree) states
+# `unknown`, which costs the loop its declared hypothesis axis downstream rather than granting it.
+EVAL_COMMIT="$(git -C "$PROBE_REPO_ROOT" rev-parse HEAD 2>/dev/null)"
 BIN_MTIME="$(stat -f %m "$EVAL_BIN")"
 # Compiled inputs only: the `Sources/**` guides (*.md) are read from disk at runtime, never linked,
 # so an old binary already answers with the newest guide — and a no-change `swift build` does not
@@ -281,7 +285,7 @@ printf 'task\tkind\trc\telapsed_ms\tusage\n' > "$RESULTS"
 # server's own tool declarations, and `field_diffs` is what `_repeat_stats.py` refuses on.
 CONDITIONS="$(python3 "$HERE/_conditions.py" --model "$PROBE_MODEL" \
   --tools "$OCOREAI_EVAL_TOOLS" --approval "$OCOREAI_APPROVAL_POLICY" \
-  --docs "$DOCS_ARG" --binary "$EVAL_BIN" 2>"$LOADER_ERR")"
+  --docs "$DOCS_ARG" --binary "$EVAL_BIN" --commit "$EVAL_COMMIT" 2>"$LOADER_ERR")"
 if [ -z "$CONDITIONS" ]; then
   probe_fail "could not derive the conditions line for this run ($(tail -n 1 "$LOADER_ERR")) — a" \
     "score with no conditions behind it cannot be compared with any other run, so it is not written"

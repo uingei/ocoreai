@@ -26,8 +26,8 @@ DIGEST_LEN = 12
 
 # The fields that decide whether two runs measured the same game. `score` is deliberately not one
 # of them — that is the thing being measured.
-KEY_FIELDS = ("model", "tasks", "tools", "temperature", "approval", "concurrency", "host", "docs",
-              "binary")
+KEY_FIELDS = ("model", "tasks", "tools", "temperature", "approval", "concurrency", "host", "commit",
+              "docs", "binary")
 
 # Inside one root every field above must agree: a repeat of a configuration that states something
 # else is not a repeat. Across two roots the loop is *deliberately* moving one thing, so the
@@ -37,6 +37,9 @@ KEY_FIELDS = ("model", "tasks", "tools", "temperature", "approval", "concurrency
 # the experiments it exists to judge. Movement there is the hypothesis, so it is printed instead.
 SURFACE_FIELDS = ("tools", "docs")
 INVARIANT_FIELDS = tuple(k for k in KEY_FIELDS if k not in SURFACE_FIELDS)
+# `commit` is the field that lets an invariant be *crossed on purpose*: `_autoab_gate.py` declares
+# `binary` as the loop's hypothesis axis, and the only thing that can show the two arms are one tree
+# plus one patch is both sides naming the same commit. It is therefore invariant, never surface.
 
 
 def _digest(data):
@@ -94,8 +97,35 @@ def binary_token(path):
     return "%s+%d+%d" % (os.path.basename(path), int(st.st_mtime), st.st_size)
 
 
+def host_token(host):
+    """`<os>+<release>+<arch>` — one token with no space in it, because the line has no quoting.
+
+    The line is `k=v` chunks split on whitespace, so a value containing a space truncates silently:
+    a host written `Darwin 25.6.0 arm64` came back from `parse` as `host=Darwin` (measured 11-09),
+    and pairing a run across a different macOS release *and* architecture reported no difference at
+    all while the line claimed the host was pinned. `_conditions_selftest.py` re-derives the
+    round-trip; the "+", not a space, is what the parser cannot eat.
+    """
+    raw = host or "%s %s %s" % (platform.system(), platform.release(), platform.machine())
+    return "+".join(raw.split())
+
+
+def commit_token(value):
+    """The commit the answering tree was built at, verbatim and lowercased — or `unknown`.
+
+    A commit id is already an identity, so it is not digested: the value a reader greps `git log`
+    for is the value on the line. `unknown` is a stated value for the same reason `binary`'s is —
+    an omission would read as a match against every later run, and this field carries a premise
+    (`_repeat_stats.conditions_mismatch` grants the loop's declared axis only on a stated commit).
+    """
+    if not value:
+        return "unknown"
+    text = str(value).strip().lower()
+    return text if text not in ("", "none", "unknown") else "unknown"
+
+
 def render(model, tasks_path, tool_specs, temperature, approval, concurrency=1, host=None,
-           docs=None, binary=None):
+           docs=None, binary=None, commit=None):
     """The `k=v …` body, in KEY_FIELDS order — one home for the order and for the separators."""
     fields = [
         ("model", model),
@@ -104,7 +134,8 @@ def render(model, tasks_path, tool_specs, temperature, approval, concurrency=1, 
         ("temperature", str(temperature)),
         ("approval", approval),
         ("concurrency", str(concurrency)),
-        ("host", host or "%s %s %s" % (platform.system(), platform.release(), platform.machine())),
+        ("host", host_token(host)),
+        ("commit", commit_token(commit)),
         ("docs", docs_token(docs)),
         ("binary", binary_token(binary)),
     ]
@@ -112,10 +143,11 @@ def render(model, tasks_path, tool_specs, temperature, approval, concurrency=1, 
 
 
 def build(model, tasks_path, tool_specs, temperature, approval, concurrency=1, host=None,
-          docs=None, binary=None):
+          docs=None, binary=None, commit=None):
     """The canonical conditions string (without the leading `#` the scoreboard writes)."""
     return "conditions " + render(model, tasks_path, tool_specs, temperature, approval,
-                                  concurrency=concurrency, host=host, docs=docs, binary=binary)
+                                  concurrency=concurrency, host=host, docs=docs, binary=binary,
+                                  commit=commit)
 
 
 def parse(text):
@@ -202,6 +234,9 @@ if __name__ == "__main__":
     ap.add_argument("--binary", default="unknown",
                    help="the ocoreai artefact answering the requests; recorded as"
                         " <name>+<mtime>+<bytes> so a rebuild between arms is visible")
+    ap.add_argument("--commit", default="unknown",
+                   help="HEAD the answering tree was built at; verbatim, so a pairing can show two"
+                        " arms are one commit plus the patch instead of two commits apart")
     a = ap.parse_args()
     # Pairs only: `run.sh` writes the `# conditions …` marker itself, so the marker lives at the
     # one site that writes it instead of being invented twice.
@@ -214,4 +249,5 @@ if __name__ == "__main__":
         concurrency=a.concurrency,
         docs=None if a.docs == "none" else a.docs,
         binary=None if a.binary in ("none", "unknown") else a.binary,
+        commit=None if a.commit in ("none", "unknown") else a.commit,
     ))

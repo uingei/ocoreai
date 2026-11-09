@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Break the auto-A/B loop on purpose, thirteen ways, and require the self-test to go red each time.
+"""Break the auto-A/B loop on purpose, eighteen ways, and require the self-test to go red each time.
 
 `_autoab_selftest.py` says the rules hold; this file says the *test of the rules* holds, by
 editing each rule out and requiring a failure. A mutation that the self-test does not catch is
@@ -64,6 +64,19 @@ MUTATIONS = [
     ("startup referee check inverted", "autoab.sh",
      'if ! python3 "$HERE/_autoab_selftest.py" >"$WORK/referee.log" 2>&1; then',
      'if python3 "$HERE/_autoab_selftest.py" >"$WORK/referee.log" 2>&1; then'),
+    # the axis still exists, the call sites still pass it — it just swallows a second field, so a
+    # different model would be priced as if it were the proposal's build.
+    ("declared hypothesis axis widened past the build", "_autoab_gate.py",
+     'HYPOTHESIS_AXIS = ("binary",)', 'HYPOTHESIS_AXIS = ("binary", "model")'),
+    # the premise function stays, its call site stays, the answer is hardcoded: the loop would grant
+    # itself the crossing on a base root that never stated which commit it ran.
+    ("commit premise granted without a commit", "_repeat_stats.py",
+     "    bad = premise_violation(ma, mb, declared)", "    bad = None"),
+    # the conditions line has no quoting, so a value with a space is a truncated value plus junk;
+    # only caught because the referee runs the whole panel (scenario 15), which is the point.
+    ("host written with a space again", "_conditions.py",
+     '("host", host_token(host)),',
+     '("host", host or "%s %s %s" % (platform.system(), platform.release(), platform.machine())),'),
 ]
 
 
