@@ -70,14 +70,15 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — three `@available(macOS 27.0, *)` or
   SDK-gated sites (detail: `docs/agent/build-gate-reality.md`) ⇒ no blind fix and no claim of one; their
   suites now skip on this OS through `PlatformPremise.hasMacOS27` instead of reporting a red.
-- **The coreai fork's debt is 15 named open verdicts, not a drift window** (Engine/) — 8 of them from
+- **The coreai fork's debt is 16 named open verdicts, not a drift window** (Engine/) — 8 of them from
   77a122f reading all 36 commits behind the four engine windows (7 absorbed, 21 n/a), 3 from the #388/#374
-  read, 3 from the 11-05 read, 1 from the 11-06 read (#412's GPU-error stop: our
-  `CoreAIPipelinedEngine.swift:1050` still carries the pre-fix yield shape, adoption waits the macOS 27
-  window); one row each with its action in
+  read, 3 from the 11-05 read, 2 from the 11-06/11-09 reads (#412's GPU-error stop and #490's
+  repetition-penalty carry-in: our `CoreAIPipelinedEngine.swift` still carries the pre-fix yield shape
+  (`:1050`) and the pre-fix lazy-penalty shape (`:859,:1387`), both ports wait the macOS 27 window);
+  one row each with its action in
   `docs/agent/coreai-fork-window-log.md` (#368 measured 10-30 by probe 12 §5b: the shipping lane damps whitespace via
   upstream `WhitespaceTokenBias`, so its exposure is CoreAI-only, unverifiable here). `make drift` reads 0
-  un-adjudicated per file today. The axis since has moved export-side **and** through two Swift commits in
+  un-adjudicated per file since the 11-09 window read. The axis since has moved export-side **and** through two Swift commits in
   `CoreAILanguageModels/SpeculativeDecoding/` — a target this tree mirrors nothing of (rows: that log's
   § Window read 11-05), so § Upstream 2 still has no surface for it. The ledger's other face is the bigger
   half: of 56 candidates it calls **36** mirrors unread — **25** carry no sha at all, **11** carry one in

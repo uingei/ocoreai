@@ -14,6 +14,9 @@
 //   Adjudicated: 1c7c71f (#416 read 11-06: its oneAtATime deletion NOT taken — `:40,394,652` keep the
 //     case by local ruling; VLM sliding-ring/logits reshaping has no path in this fork;
 //     rows: coreai-fork-window-log.md)
+//   Adjudicated: 8d505c2 (#420 read 11-09: the drain()/Mutex → GenerationTokenBox move and the
+//     DecodeLoop/SamplingPolicy extraction are idempotency prep, not a fix; this fork keeps the
+//     locally ruled `drain()` (`:476`) and `_activeToken` (`:96`). Row: coreai-fork-window-log.md)
 //
 /// Clean Core AI inference engine built from public APIs.
 ///

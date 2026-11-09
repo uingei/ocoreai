@@ -11,6 +11,8 @@
 //   Adjudicated: 1c7c71f (window since 7fd2063 read 10-29 and 11-06; #416 inert here — the
 //   oneAtATime retirement lands on OUR retained enum case (a local ruling, `:1173` still routes it)
 //   and our logits guard already accepts bfloat16 (`:270`); rows: coreai-fork-window-log.md)
+//   Adjudicated: 12f3700 (#490 read 11-09: inert here — this slice carries no penalty surface
+//   (`penaltyState` grep empty), so the carry-in bug it fixes has no face in this file)
 
 #if canImport(CoreAI)
 import CoreAI

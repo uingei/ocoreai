@@ -11,6 +11,9 @@
 //   Why the CoreAI export needs its own drafter asset is my inference (static-shape .aimodel graphs
 //   may not carry the MTP head) — #394 does not say. So it neither unblocks the § Open stall item
 //   nor contradicts it; it is the shape a CoreAI drafter would follow, for the day the lane runs.)
+//   Adjudicated: 8d505c2 (#420 read 11-09: the GenerationTokenBox move and the forward/sampling split
+//   are idempotency prep, not a fix; this fork keeps `_activeToken` (`:80`) and the unsplit forward
+//   pass by the same local ruling as the sequential engine. Row: coreai-fork-window-log.md)
 //
 /// Static-shape inference engine using Core AI chunked models (.aimodel).
 ///

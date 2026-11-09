@@ -6,6 +6,9 @@
 //   swift/Sources/CoreAIShared/Image/ImagePreprocessor.swift (L37-290) @ HEAD 5716935
 //   Adjudicated: 7fd2063 — the only upstream change since is `renderToContext` private→public
 //   (#370), which this slice has no caller for: docs/agent/coreai-fork-adjudication.md
+//   Adjudicated: 1c7c71f (#416 read 11-09: its one hunk here adds the public `loadCGImage` helper,
+//   which no ocoreai call site uses — our `preprocess(imageURL:)` renders through the same shared
+//   `ciContext` already at :32; row in coreai-fork-window-log.md § Window read 11-09)
 // Pure Foundation/CoreImage/CoreGraphics/vDSP value types — no CoreAI dependency,
 // always compiled (unit-testable on any Apple OS at the module floor).
 // `import simd` trimmed (unused in ocoreai build); `ImageStrategy` lives in

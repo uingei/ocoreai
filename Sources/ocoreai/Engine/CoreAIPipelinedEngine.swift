@@ -17,6 +17,12 @@
 //   raw `yield(nextToken)` upstream replaced with an error-guarded yield, so a failed command buffer
 //   could hand us unwritten logits as a real token; adopting needs the macOS 27 lane (CLT compiles this
 //   out; open item). Upstream HEAD anchor for absorbed content: 54e6163.
+//   Adjudicated: 12f3700 (#490 read 11-09 — the second named port, same premise as #412's: our
+//   `:859` keeps the lazy `penaltyState == nil` init and `:1387` the in-place reset, which is exactly
+//   the shape upstream found carrying one request's penalty/window/history into the next, plus a
+//   penalty-less cached sampler wrongly reused. Adopt = #490's sampler check + `forGeneration`
+//   reuse-if-idle + idle tracking here and in Engine/RepetitionPenaltyGPUState.swift; not absorbed
+//   blind on an unverifiable lane. Row: coreai-fork-window-log.md § Window read 11-09)
 
 #if canImport(CoreAI)
 import CoreAI
