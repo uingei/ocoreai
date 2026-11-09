@@ -9,6 +9,44 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-09
 
+**11-09 the RSI loop was buying its own verdicts and its referee ran uninvited — a measured proposal now leaves the queue glob, the judges' self-test gates every round, and the first gate's red was sampled on the three adjudicated patches the glob was volunteering this morning (pooled p=0.00054, recorded yesterday and today)**
+
+- **What improved:** two faces of one instrument, both quoted before either guard was written.
+  (1) **A measured verdict now consumes its proposal.** `autoab.sh` globs `proposals/*.patch` with no
+  ledger skip, and all three patches in the glob carried measured `revert` rows — `verify-before-done`
+  (p=1.0000) and `syntax-regression-gate` v1/v2 (pooled b=35 c=11 **p=0.00054**): each a standing
+  buy-order for a CLT release build + k=6 variant runs (the base root is reused) to re-derive a row the
+  ledger already holds. On `keep`/`revert` the loop now moves the patch and its `.md` claim to
+  `proposals/adjudicated/`; `refused`/`not-measured` consume nothing — the patch stays, the round is
+  retryable; the move skips anything outside the queue dir (the fixtures' documented explicit re-run
+  keeps its file) and skips a name collision rather than clobber the verdict's evidence; an
+  explicit-path re-run still works, `adjudicated/` included. The stem is the ledger's proposal key, so
+  a revised payload gets a new stem — the rule the v1→v2 pair already practiced, now written in one
+  home (`proposals/README.md`). (2) **The loop runs its own referee.** `_autoab_selftest.py` — the gate
+  that says the loop's refusals still refuse — had **zero automated callers**: grep across `Makefile`,
+  `.github/` and `run.sh` returns prose only, so it ran when someone remembered the README command,
+  while its four sibling selftests all run inside `run.sh` before its boot. The loop now runs it before
+  its first proposal and exits 3 on red — ~0.1 s against a minutes-long build, wired at the one
+  consumer the judges govern (the scoreboard never calls the loop's judges; that host was not it).
+- **What proves it:** the hygiene scan ran red on the **live tree before the fix** — 5 defects naming
+  the three adjudicated stems, the floor and the stale count — and the three `git mv`s took it green
+  (19 scenarios, 0 defects); a copied-back adjudicated patch turns the loop itself away **live:
+  exit 3, "refusing to measure anything", before any build**, and the same command on the clean queue
+  exits 0 past an empty glob — after the move, a bare `autoab.sh` no longer volunteers yesterday's
+  verdicts (pre-fix that exact command would have started measuring all three). My first red-sampling
+  attempt — emptying `OCOREAI_AUTOAB_PROTECTED` — ran straight through, which is the selftest reading
+  the *real* lists on purpose: the env var steers the loop, not the referee; the copy-back is the
+  honest sample. `_autoab_mutate.py` carries both new rules: **15 mutations, 15 caught**, including
+  the gutted archive call (decision test stands, `mv` gone) and the referee's `!` dropped (self-test
+  still runs, exit fires when it *agrees*). No build, no model: both changes live below the product
+  line in `scripts/eval/`; the runs are `bash -n`, the selftest, the mutation harness.
+- **Gate:** `_autoab_selftest.py` scenario 12 (queue hygiene: no adjudicated stem in the glob, nothing
+  unadjudicated parked in `adjudicated/`, floor 3 so neither scan passes on an emptied directory) and
+  scenario 13 (startup referee — same-line `! python3`, `exit 3` within the block), each with its
+  mutation in `_autoab_mutate.py`. Both reds were sampled before landing: 12 on the three live
+  adjudicated patches, 13 on the loop refusing its own round on a copied-back patch.
+
+
 **11-09 the forward instrument landed as a `pairing` seam in the drift script — and its first run convicted this session's own retro-scope claim: "nothing inside the current pin is unnumbered" was scoped to the windows from `991266a`, while the pin's lineage reaches back to `5e46681b` (10-06), where two commits sat unnamed**
 
 - **What improved:** the owner-call from the day's earlier rows built at the footprint rung that consumes the existing seam: `pairing_ledger` in `scripts/upstream-drift.sh` — for every `Package.swift` commit that moves the lm `revision:`, each upstream commit in the crossed window must be named (`#PR` or sha-prefix) in the bump's own message or the diary, the two homes where reads actually get written; the scan keeps the script's own three-number contract (missed verdict = 10 sticks, unreadable mirror/diary = 1 fills only a table without a 10), floors its own premises (≥10 bumps, ≥40 commits or it says *premise broke*, not *clean*), and declares rather than back-fills the pre-discipline history: the 178 ancestors crossed by the 51 pre-anchor bumps print as a blind-face count and skip the scan — a today-shaped gate retrofitted onto June's tree would manufacture 51 unverifiable reds, which is falsifying the retro-scope, not completing it. The seam re-runs against any diary (`pairing [diary] [anchor]`), which is how the **red got sampled, not asserted**: pointed at `HEAD~2`'s CHANGELOG it prints exactly the missing faces and exits 10 — including the round's founding instance (`a70ef531` → `#731 #745 #746`) and the five whose names only this morning's rows wrote. Its first run against the *current* tree printed two commits the two earlier rows left unnumbered — `c07010e` **#669** and `3615fe4` **#614** — inside the current pin's lineage (windows `171cd3ee9`, 10-06, and `80f0c0168`, 10-10), which my own open-items sentence had waved past with "nothing inside the current pin is unnumbered"; the sentence's scope was the post-`991266a` windows and I wrote it as if it were the pin's whole ancestry. Flat assertion, own instrument, own conviction. Both verdicts now read and named here: **#669 is test-only** — `RerankerTests.swift` determinism, 2/2 lines; zero Reranker consumption ours, and test files are not compiled into our product ⇒ inert at file level; the 10-06 round named the other four of its window, the test commit simply slipped the enumeration. **#614 reduces unused vocabulary projections during Qwen prefill**: it adds `nextTokenLogits` to the `LanguageModel` protocol *with a default implementation* (conformers untouched — which is why every bump since compiled), re-tiles the final projection for Qwen3/Qwen3.5 prefill claiming exact parity (upstream's own parity tests, `Qwen35PrefillLogitsTests`/`Qwen3PrefillLogitsTests`), and our tree has zero call sites of `nextTokenLogits` or direct `logits(` — the change rides model execution on the Qwen-family lanes, numerics-preserving per upstream's tests, not ours; our logprobs face never requested raw logits.

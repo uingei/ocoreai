@@ -984,12 +984,12 @@ points refuse first now — `_repeat_stats.taskset_mismatch`, called by `paired(
 same task file. Growing the set is legitimate; it costs a re-baseline, which is exactly the price the refusal
 quotes.
 
-**Judges with no gate are claims.** `_autoab_selftest.py` — no GPU, no build, 17 scenarios, ~0.1 s — pins the
+**Judges with no gate are claims.** `_autoab_selftest.py` — no GPU, no build, 19 scenarios, ~0.1 s — pins the
 path gate *by reported reason* (so an entry deleted from `autoloop-protected.txt` fails the attribution
 assertion instead of letting the prefix rule cover for it), the exact b/c/cells of every decision, and that α and
 k_min are live knobs: the CLI must revert the +0.5-task variant at the shipped α and must *keep* it under
 `OCOREAI_AUTOAB_ALPHA=0.99`. Both directions are needed — the first goes red if someone loosens the bar, the
-second goes red if the knob stops being wired. `_autoab_mutate.py` runs thirteen of them — it edits each rule out,
+second goes red if the knob stops being wired. `_autoab_mutate.py` runs fifteen of them — it edits each rule out,
 requires `_autoab_selftest.py` to go red, restores from an in-memory snapshot and verifies the restore by
 checksum; an escaped mutation decides the exit code, because a documented rule with nothing that goes red is not
 a rule:
@@ -1009,6 +1009,8 @@ a rule:
 | scope hardcoded `SCOPE=("Sources/")` instead of derived from the allow list | scope and gate become two numbers that drift |
 | `taskset_mismatch(...)` unwired from `_autoab_gate.decide` | the 20-vs-21-task synthetic board is judged instead of refused |
 | the guard kept but dead (`taskset_mismatch` always answers "same game") | the same board — a call site that outlived its answer is what a presence check cannot see |
+| the archive call gutted (decision test stands, move does not) | the queue-hygiene scan reports the adjudicated stems back in the glob — a bare re-run buys those verdicts again |
+| the startup referee's `!` dropped (self-test still runs, exit fires when it *agrees*) | the same-line `! python3` pin fires — a presence check cannot see an inverted guard |
 
 `PYTHONDONTWRITEBYTECODE=1` is exported by both the loop and the self-test: a judge served from cached bytecode
 is a verdict computed from a file that no longer exists, and same-second edits of equal length are invisible to
@@ -1048,13 +1050,20 @@ runs of one identical patch, two very different p-values, both inside noise, bot
 argument for the veto and the two-sided bar sitting where they do, and for treating a single A/B as direction.
 `autoloop.tsv` keeps both rows.
 
+**A measured verdict consumes its proposal.** The row is the record; on `keep`/`revert` the loop moves the patch
+(and its `.md` claim) to `proposals/adjudicated/`, because a patch left in the queue glob is a standing buy-order
+for a build + k=6 pair to re-derive a verdict already written — three adjudicated patches sat in the glob on 11-09
+(pooled p=0.00054, recorded) with the bare glob volunteering all three. `refused`/`not-measured` consume nothing:
+the patch stays, the round is retryable. A re-run at an explicit path still works, including against `adjudicated/`
+— only the glob stops volunteering; a *revised* payload gets a new stem, since stem is the ledger's proposal key.
+
 The vacuous-scan lesson is in that list for a reason: the write-scope pin first tested `"$ALLOW"` file-wide, and
 `autoab.sh` mentions `$ALLOW` in its existence check, so a hardcoded scope passed — the assertion had to become a
 same-line one. Verification is grep → run → read the matched lines, and a scan that never fails has checked
 nothing.
 
 ```bash
-python3 scripts/eval/_autoab_selftest.py   # 17 scenarios, ~0.1 s, no GPU
-python3 scripts/eval/_autoab_mutate.py    # 13 mutations, ~15 s, exit 1 if any escapes
+python3 scripts/eval/_autoab_selftest.py   # 19 scenarios, ~0.1 s, no GPU
+python3 scripts/eval/_autoab_mutate.py    # 15 mutations, ~15 s, exit 1 if any escapes
 python3 scripts/eval/_ledger_selftest.py   # 6 ledger rows re-derived, ~0.1 s, no GPU
 ```

@@ -9,7 +9,9 @@
 #   • the loop cannot move the goal posts — see `autoloop-allow.txt` / `autoloop-protected.txt`;
 #   • a variant that was never measured is never a win: build, boot and invalid-run failures all
 #     land in the ledger as not-measured, because averaging a broken run into a trend is the exact
-#     mistake that once produced a "significant p=0.0032 regression" out of an engine outage.
+#     mistake that once produced a "significant p=0.0032 regression" out of an engine outage;
+#   • a measured verdict consumes its proposal (moved to `proposals/adjudicated/`), so a bare re-run
+#     never buys a build + k=6 pair to re-derive a row the ledger already holds.
 # The loop edits the working tree and never commits: the owner reviews every commit.
 #
 #   OCOREAI_AUTOAB_BASE=<root-of-base-k-runs> bash scripts/eval/autoab.sh [proposal.patch …]
@@ -44,6 +46,17 @@ if [ -z "$BASE" ]; then
 fi
 if [ ! -f "$ALLOW" ] || [ ! -f "$PROTECTED" ]; then
   echo "❌ missing $ALLOW or $PROTECTED — the loop does not run without its path rules" >&2
+  exit 3
+fi
+
+# The judges must pass their own self-test before the loop measures anything: until 11-09 nothing
+# ran it automatically — zero callers in Makefile, CI or run.sh, only a README command — so a round
+# could ride a rule that had been edited out and book a row no later round can trust. ~0.1 s
+# against a minutes-long build, at the one consumer the judges actually govern (the scoreboard's
+# own path runs its four selftests the same way, before its boot).
+if ! python3 "$HERE/_autoab_selftest.py" >"$WORK/referee.log" 2>&1; then
+  echo "❌ the loop's own judges failed their self-test — refusing to measure anything:" >&2
+  tail -12 "$WORK/referee.log" | sed 's/^/   /' >&2
   exit 3
 fi
 
@@ -88,6 +101,26 @@ ledger() {
 restore_tree() {
   local patch="$1"
   git apply -R "$patch" 2>>"$WORK/revert.log"
+}
+
+# A measured verdict consumes the proposal. The ledger row is the record; a patch left in the queue
+# glob would buy a whole build + k=6 pair to re-derive a verdict already written — three adjudicated
+# patches sat in the glob on 11-09 for exactly that. Explicit re-runs still work
+# (`autoab.sh proposals/adjudicated/foo.patch`); only the glob stops volunteering.
+archive_proposal() {
+  local patch="$1" name
+  name="$(basename "$patch")"
+  # Only queue patches are archived: the fixtures' documented explicit re-run must not have its
+  # file moved, and a name collision must not clobber committed archaeology — the patch bytes are
+  # the verdict's evidence.
+  if [ "$(cd "$(dirname "$patch")" && pwd)" != "$HERE/proposals" ] \
+     || [ -e "$HERE/proposals/adjudicated/$name" ]; then
+    return 0
+  fi
+  mkdir -p "$HERE/proposals/adjudicated"
+  echo "   archived → proposals/adjudicated/$name — verdict recorded, the glob will not re-measure it"
+  mv "$patch" "$HERE/proposals/adjudicated/"
+  [ -f "${patch%.patch}.md" ] && mv "${patch%.patch}.md" "$HERE/proposals/adjudicated/"
 }
 
 for patch in "${PROPOSALS[@]}"; do
@@ -159,6 +192,7 @@ PY
   fi
   ledger "$name" "$(git rev-parse --short HEAD)" "$vruns/$OCOREAI_EVAL_REPEATS" \
     "$scores_b" "$scores_v" "$pb" "$pc" "$pp" "$decision" "$VROOT"
+  if [ "$decision" = keep ] || [ "$decision" = revert ]; then archive_proposal "$patch"; fi
 done
 
 # The loop must end where it started unless it kept something: a leftover diff is how a reverted

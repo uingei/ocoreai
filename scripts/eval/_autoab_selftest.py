@@ -8,6 +8,7 @@ is what makes deleting `tasks-edit-repair.json` from `autoloop-protected.txt` a 
 than a silently weaker loop.
 """
 
+import glob
 import json
 import os
 import subprocess
@@ -261,9 +262,62 @@ def main():
         bad.append("_repeat_stats.paired() no longer calls the guard — the CLI path and the loop "
                    "path would drift apart, which is the whole thing this repo says not to do")
 
-    bad += ledgerdoc.readme_count_defects("scenarios", len(cases) + len(knob_cases) + 8)
-    print("autoab self-test: %d scenario(s), %d defect(s)" % (len(cases) + len(knob_cases) + 8,
-                                                               len(bad)))
+    # 12 — a measured verdict consumes its proposal. Three adjudicated patches sat in the queue
+    # glob on 11-09 — three standing buy-orders for a build + k=6 pair to re-derive rows the ledger
+    # already held. The loop now moves a patch to proposals/adjudicated/ the moment its verdict is
+    # measured, and both ends of that stay honest here: the queue carries no adjudicated stem, the
+    # archaeology is all adjudicated (so nothing escapes the queue by parking there), and the move
+    # lives in the script, not in someone's running habits. The floor is the scan's own premise.
+    queue = sorted(glob.glob(os.path.join(HERE, "proposals", "*.patch")))
+    adj = sorted(glob.glob(os.path.join(HERE, "proposals", "adjudicated", "*.patch")))
+    if len(adj) < 3:
+        bad.append("proposals/adjudicated holds %d patch(es) (floor 3) — the queue scans below "
+                   "would pass on an emptied directory" % len(adj))
+    measured_stems = set()
+    with open(ledger, encoding="utf-8") as fh:
+        for line in fh:
+            cells = line.rstrip("\n").split("\t")
+            if len(cells) >= 10 and cells[9] in ("keep", "revert"):
+                measured_stems.add(cells[1])
+    for path in queue:
+        if os.path.splitext(os.path.basename(path))[0] in measured_stems:
+            bad.append("%s sits in the queue glob carrying a measured verdict in autoloop.tsv — a "
+                       "bare re-run buys it again; a revised payload gets a new stem or an "
+                       "explicit path" % os.path.relpath(path, HERE))
+    for path in adj:
+        if os.path.splitext(os.path.basename(path))[0] not in measured_stems:
+            bad.append("%s is parked in adjudicated/ with no measured verdict — that is how a live "
+                       "proposal escapes the queue" % os.path.relpath(path, HERE))
+    archive_calls = [l for l in script.splitlines() if "archive_proposal" in l]
+    if not any("keep" in l and "$decision" in l for l in archive_calls):
+        bad.append("autoab.sh no longer gates archive_proposal on a measured verdict on the same "
+                   "line — an unmeasured round must not consume its proposal")
+    if not [l for l in script.splitlines() if l.strip().startswith("mv ") and "adjudicated" in l]:
+        bad.append("autoab.sh has no mv into proposals/adjudicated/ — the archival rule would live "
+                   "only in this file's prose")
+    if not [l for l in script.splitlines() if "dirname" in l and "proposals" in l]:
+        bad.append("autoab.sh no longer restricts archiving to queue patches — the fixtures' "
+                   "documented explicit re-run would have its file moved out of fixtures/")
+
+    # 13 — the loop runs its own referee. Until 11-09 `_autoab_selftest.py` had zero automated
+    # callers (grep across Makefile, .github and run.sh: prose only), so a round could ride a rule
+    # that had been edited out. Same-line `! python3`: an inverted test keeps the filename and the
+    # exit-3 below it while exiting only when the referee *agrees* — the mutation this pin must
+    # catch.
+    referee = [i for i, l in enumerate(script.splitlines())
+               if "_autoab_selftest.py" in l and "! python3" in l]
+    if not referee:
+        bad.append("autoab.sh no longer refuses a round when _autoab_selftest.py fails — the "
+                   "judges' rules would be gated only by someone remembering the README command")
+    else:
+        window = script.splitlines()[referee[0]:referee[0] + 6]
+        if not any("exit 3" in l for l in window):
+            bad.append("autoab.sh runs the self-test but does not stop the round on it — the call "
+                       "would be decoration while the ledger books the row")
+
+    bad += ledgerdoc.readme_count_defects("scenarios", len(cases) + len(knob_cases) + 10)
+    print("autoab self-test: %d scenario(s), %d defect(s)" % (len(cases) + len(knob_cases) + 10,
+                                                              len(bad)))
     for entry in bad:
         print("  FAIL %s" % entry)
     if bad:

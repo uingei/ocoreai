@@ -5,6 +5,14 @@ sentence (what behaviour moves, and why). `bash scripts/eval/autoab.sh` takes th
 order: gate → apply → build → frozen set k=6 → exact McNemar → keep or revert → ledger row in
 `../autoloop.tsv`. A proposal never commits; the owner reviews the tree and the ledger.
 
+A measured verdict consumes its proposal: on `keep`/`revert` the loop moves the patch (and its `.md`)
+to `adjudicated/`, so the next bare run buys no verdict twice — the ledger row is the record. The move
+skips anything outside this directory (the fixtures below stay put under an explicit re-run) and skips
+a name collision rather than clobber archaeology. `refused`/`not-measured` rows consume nothing; the
+patch stays and the round is retryable. The stem is the ledger's proposal key: a revised payload gets
+a new stem (`…-v2.patch` is that rule working), and an explicit-path re-run of a held verdict stays
+possible: `bash autoab.sh proposals/adjudicated/<name>.patch`.
+
 Write proposals against `Sources/` only. Anything that moves the frozen task set, a verifier, a
 floor, or the doc ratchet is refused before it is applied — that refusal is the point of
 `../autoloop-protected.txt`, and `../_autoab_selftest.py` is the gate that says the refusal still

@@ -53,6 +53,17 @@ MUTATIONS = [
     ("task-set guard alive but dead", "_repeat_stats.py",
      "    if a == b:\n        return None",
      "    return None\n    if a == b:\n        return None"),
+    # the call site stays, the decision test stays — the consumed patch simply is not moved, so the
+    # adjudicated ones re-enter the queue glob and buy their build + k=6 pair again.
+    ("measured proposal left in the queue glob", "autoab.sh",
+     'if [ "$decision" = keep ] || [ "$decision" = revert ]; then archive_proposal "$patch"; fi',
+     'if [ "$decision" = keep ] || [ "$decision" = revert ]; then :; fi'),
+    # negation dropped: the self-test still runs, the filename still sits on the line, and the loop
+    # now exits 3 only when the referee *agrees* — a presence check cannot see this, only the
+    # same-line `! python3` can.
+    ("startup referee check inverted", "autoab.sh",
+     'if ! python3 "$HERE/_autoab_selftest.py" >"$WORK/referee.log" 2>&1; then',
+     'if python3 "$HERE/_autoab_selftest.py" >"$WORK/referee.log" 2>&1; then'),
 ]
 
 
