@@ -102,9 +102,10 @@ it on download-path files (3 to 36 each; `MTPLX` thinnest by count at `mtplx/ari
 
 ## Where the field disagrees
 
-Agreement is the headline; the useful signal often sits where the trees split. Eight divergences worth a
-direction, each with its own evidence (the rest are pointers to sections that already hold them, because a
-second home for a decision is the thing this corpus keeps catching):
+Agreement is the headline; the useful signal often sits where the trees split. These are the divergences
+worth a direction, each with its own evidence; no count is typed here, because the list grows with every
+read and a numeral nobody re-greps is a drift waiting. (The rest are pointers to sections that already
+hold them, because a second home for a decision is the thing this corpus keeps catching):
 
 - **How long a warm prefix is allowed to live** — the axis is 12/12 present and 12/12 being edited, so
   everyone agrees on reuse and disagrees on its lifetime. `omlx` runs a cold tier on disk
@@ -163,6 +164,22 @@ second home for a decision is the thing this corpus keeps catching):
   the silent path is the nested one. The verdict on which of the two honest shapes we owe is the owner's; the probe
   that prices it (`scripts/probes/07-anthropic-blocks.sh` §2c, three arms of one request) is written and its numbers
   are owed, so this row claims the disagreement, not a fix.
+- **Whether an edit tool keeps the file's line endings or normalizes them** — forced on any tree whose
+  read surface shows LF while the file may hold CRLF. Three trees **splice**: pi d448c51e (#11751)
+  deleted its own `detectLineEnding` / `restoreLineEndings` pair — the flatten, whole-file one ending —
+  for splicing each replacement into the original text, "text outside the replaced ranges keeps its
+  bytes, including its line endings", and pins the bytes it writes; opencode
+  `packages/core/src/tool/plugin/edit.ts:165-188` matches "the LF view Read shows the model, then maps
+  offsets back to the source" and applies `withRegionEndings` per region; codex
+  `codex-rs/apply-patch/src/text_file.rs:19-33` keeps a `LineEnding` per `SourceLine` and takes the
+  file's first as `preferred_ending` for the lines it inserts. One tree **flattens**: qwen-code
+  `packages/core/src/tools/edit.ts:269` rewrites `\r\n` to `\n` across the content and carries a
+  detected `lineEnding` (`:453`) to re-end the whole file. Unclassified: cline splits on `/\r\n|\n/`
+  (`sdk/packages/core/src/extensions/tools/executors/editor.ts:82`, `:202`) and I did not read its
+  write-back far enough to say which side it lands on. The split is not cosmetic — the flatten writes
+  bytes on lines the caller never named, which is what a spurious whole-file rewrite looks like in a
+  diff. Ours had decided nothing; it splices now (`FileTools.Endings`, `LineEndingFidelityTests`;
+  the incident and its pre-fix quotes: CHANGELOG 11-10).
 
 ## The harness side is already built, on their side
 

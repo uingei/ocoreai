@@ -111,7 +111,7 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_FLOOR_DIARY_PAIRED:=40}"   # CHANGELOG entries whose heading was found above their first bullet
 : "${OCOREAI_FLOOR_CLAIM_SHARED_IDS:=3}"  # P4b's premise: claim ids written in more than one doc
 #   (5 today — the licence counts, `spm_deps`, `global_rate_set`, mirrored across root + the README pair)
-: "${OCOREAI_AGENTS_MAX_AREA:=48077}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
+: "${OCOREAI_AGENTS_MAX_AREA:=50389}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
 #   this cap was pinned to. What binds is our chain budget (B2, 32 KiB) and the root ratchet (B1), and
@@ -202,6 +202,15 @@ cd "$(dirname "$0")/.."
 #   Cut-first refused: funding a newly measured axis by deleting another tree's audited row is a content call,
 #   not a budget one. +662 B → 48 077; per-tree 48 077/40 = ~1 202 B. B1 21 453/21 461 (root −3: the "38 trees"
 #   count deleted rather than re-typed — the registry re-derives off disk), B2 32 750/32 768; neither cap moved.
+#   RAISED 11-10, visibly, the thirteenth, same rule — and the first where the pin follows a DIFFERENT file:
+#   comparator-consensus.md carried the line-ending split (pi/opencode/codex splice vs qwen-code flatten) and
+#   two MCP false-positives read out of the spec (`outputSchema` SHOULD, `destructiveHint`) into 50 762 B.
+#   Cut-first honoured inside what the round itself wrote (−373 B: the byte-pin and quote tails that restated
+#   CHANGELOG 11-10), refused across files as 11-06 and 11-09(2) refused it — the alternative was deleting
+#   another round's audited rows. P12 red rode along: the new entry wrote `§ Output Schema` for an EXTERNAL
+#   section and the scanner reads § as "our section"; reworded — the sigil is ours, external refs name file+line.
+#   Pin now = the largest file that exists: comparator-consensus.md 50 389 B; comparator-repos.md 48 077 B
+#   sits 2 312 B under it. B1 21 453/21 461 and B2 chain 32 750/32 768 untouched: neither file is in the chain.
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
 : "${OCOREAI_AGENTS_FLOOR_REFS:=50}"
 : "${OCOREAI_AGENTS_FLOOR_TREES:=16}"

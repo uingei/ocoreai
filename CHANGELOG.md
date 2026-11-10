@@ -9,6 +9,50 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-10
 
+**11-10 `read_file` shows LF and `edit_file` matched bytes: a correct quote into a CRLF file answered `found 0`, and `edit_lines` re-ended the whole file under an `OK`**
+
+- **What improved:** the two write seams now agree with the read surface, at one home.
+  `numberedContentLines` (`Tools/FileTools.swift:382`) strips `\r` from every line it shows, so LF is
+  the only text a caller can copy — while `edit_file` counted that quote against the file's raw bytes
+  (`:259`) and `edit_lines` rebuilt the file *from* that stripped view and joined it with `\n`
+  (`:437`, `:463`), so an edit to one line re-ended every line in the file. New `FileTools.Endings`
+  holds the pair the writer needs — the LF view to match, the file's own endings to write back.
+  `edit_file` gains one rung *under* the existing chrome rung (the raw count must already have
+  failed, the view count must equal `expected` exactly, the verdict says which matched), `edit_lines`
+  splices by line range, and every replacement's line breaks take the ending of the region they
+  replace, falling back to the file's first — bytes outside the edit are copied, never re-rendered
+  (pi d448c51e #11751, opencode `tool/plugin/edit.ts:165-188`, codex `text_file.rs:19-33`;
+  qwen-code `tools/edit.ts:269` flattens instead, which is the shape refused). `comparator-consensus.md`
+  § Where the field disagrees carries the split.
+- **What proves it:** the pre-fix verdicts, quoted from the run rather than described — a 3-line CRLF
+  file: `edit_file: expected exactly 1 occurrence(s) of oldString in f.txt, found 0, refusing partial
+  edit — the file says (all 3 lines, verbatim, indentation included, and this is the file's own text,
+  not the read_file view)` (the refusal quoted the stripped text it had just asked for, so the retry it
+  ordered could not land), and `edit_lines: OK — replaced lines 2-2 (1) with 1, of 3 lines, -4 bytes,
+  read-back verified` — the `-4` is the four CRs it deleted. The fix's 18 frozen before/after pairs are
+  green, asserting bytes and not strings. The instrument then convicted my own first version:
+  `original.contains("\r")` is **false for every CRLF file**, because `\r\n` is one `Character` and
+  `contains` compares graphemes — it made the view rung dead code, and one printed byte array said so;
+  reading the line could not have.
+- **Gate:** `LineEndingFidelityTests` — 9 `edit_file` byte pairs (LF, CRLF, mixed, lone CR, exact-CRLF
+  quote, `replace_all`), one miss that must stay a refusal and not write, 7 `edit_lines` pairs, and the
+  `OK-no-change` state that a CRLF file could not reach before (it answered with a write). Neighbours
+  green in the same run: `EditMismatchRecoveryTests`, `EditLinesContractTests`, `FileToolsBehaviorTests`,
+  `PresentationEcho` — 51 tests / 6 suites. `make test` full was **red on the recorded rotating
+  wall-clock class** (a different cast each of two runs: `EngineBusyAdmissionTests`,
+  `SleepSteerWakeTests`, `ModelLoadProgressHonestyTests`, `ProfilingTests`, `MiddlewareChainTests`'s
+  rate-limit window), those suites green standalone — 60 tests / 10 suites in 1.0 s — exactly as
+  `build-gate-reality.md:132-135` describes it; nothing in them reads a file tool. **Not priceable by
+  the board:** `grep -c '\\r'` is 0 in both frozen sets (`tasks.json` 45, `tasks-edit-repair.json` 52),
+  so no task can seed a CRLF file and a strip-proposal could only return "inside noise" — seeding one is
+  an edit to a protected path, so it is an owner call, recorded in `open-items.md`. **`make docs-check`
+  went red on this round's own docs** — a gate the writing session had not run: `comparator-consensus.md`
+  crossed the per-guide cap at 50 762 B, and the new ledger entry wrote `§ Output Schema` for an *external*
+  section, which P12 reads as ours (the sigil is ours; an external ref names file and line). Cut-first
+  trimmed the round's own additions by 373 B — the quote and byte-pin tails restating this entry — then the
+  cap rose visibly to 50 389 B (the thirteenth raise, history in `agents-md-contract.sh:205-214`); the
+  neighbour run above was re-confirmed green on a rebuilt binary: 51 tests / 6 suites.
+
 **11-10 four comparator cites behind a recommendation I had already given: two held, two did not — and the field's honest `tool_reference` behaviours are render or refuse, never silence**
 
 - **What improved:** re-read rather than re-quoted, because `anchor-check` green covers pinned trees

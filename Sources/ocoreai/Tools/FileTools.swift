@@ -273,6 +273,12 @@ enum FileTools {
         // stripped text matches `expected` exactly — then the verdict says it happened.
         var located = oldString
         var chromeNote = ""
+        // A byte test, deliberately: `contains("\r")` compares graphemes, and `"\r\n"` is its own
+        // grapheme, so the Character question is false for every CRLF file in the tree (measured
+        // 11-10 — it made this gate never open and the view rung dead code).
+        let endings = original.utf8.contains(0x0D) ? Endings(original) : nil
+        var matchedInView = false
+        var repairedText: String?
         if count != expected {
             let repair = PresentationEcho.repair(oldString)
             if repair.didRepair && !repair.isUnrepaired {
@@ -283,10 +289,31 @@ enum FileTools {
                     located = repair.text
                     count = stripped
                     expected = strippedExpected
+                    repairedText = repair.text
                     let families = repair.removed.map { $0.artifact.rawValue }
                     chromeNote =
                         " [oldString carried read_file chrome (\(families.joined(separator: ", ")))"
                         + " — matched after stripping it]"
+                }
+            }
+        }
+        // The next rung down is the view the caller was shown: a CRLF file cannot be matched by LF
+        // text at all, so a correct quote answered `found 0` and the refusal quoted back the same
+        // stripped text it had just asked for (`LineEndingFidelityTests`). Decided like the rung
+        // above, never guessed — it runs only after the raw count already failed, is accepted only
+        // when the view count equals `expected` exactly, and the verdict says it happened.
+        if count != expected, let e = endings {
+            for candidate in [located, repairedText.map { $0 }].compactMap({ $0 }) {
+                let needle = candidate.replacingOccurrences(of: "\r\n", with: "\n")
+                let found = Endings.ranges(of: needle, in: e.view).count
+                let foundExpected =
+                    replaceAll == true ? max(1, found) : max(1, occurrences ?? 1)
+                if found > 0, found == foundExpected {
+                    located = needle
+                    count = found
+                    expected = foundExpected
+                    matchedInView = true
+                    break
                 }
             }
         }
@@ -345,7 +372,32 @@ enum FileTools {
                 "\(head)\(remedy), refusing partial edit\(hint.text)")
         }
         let echo = PresentationEcho.repair(newString)
-        let updated = original.replacingOccurrences(of: located, with: echo.text)
+        // Where the file ends its lines, it keeps doing so: the caller's text is spliced into the
+        // bytes that were matched, so the lines around the edit are copied rather than re-rendered,
+        // and a line break the caller wrote as LF joins the style of the region it replaces.
+        var endingsNote = ""
+        let updated: String
+        if let e = endings {
+            let regions =
+                matchedInView
+                ? e.sourceRegions(ofViewNeedle: located)
+                : Endings.ranges(of: located, in: e.source)
+            let spliced = e.splice(regions, with: echo.text)
+            updated = spliced.text
+            // Only what actually happened to this call's bytes, and nothing that repeats the
+            // chrome report above: a caller who sent the file's own endings was not converted, so
+            // has nothing to be told.
+            var why: [String] = []
+            if matchedInView { why.append("matched the LF view read_file shows") }
+            if !spliced.appliedEndings.isEmpty {
+                let styles = spliced.appliedEndings.map { $0 == "\r\n" ? "CRLF" : "LF" }.sorted()
+                why.append(
+                    "wrote the new lines with the file's \(styles.joined(separator: "/")) endings")
+            }
+            if !why.isEmpty { endingsNote = " [\(why.joined(separator: "; "))]" }
+        } else {
+            updated = original.replacingOccurrences(of: located, with: echo.text)
+        }
         let bytes = updated.data(using: .utf8) ?? Data()
         guard bytes.count <= maxWriteBytes else {
             throw ToolError.invalidParameter(
@@ -369,6 +421,7 @@ enum FileTools {
             + "read-back verified (\(path))"
             + verdict.suffix
             + chromeNote
+            + endingsNote
     }
     // MARK: - edit_lines
 
@@ -380,6 +433,196 @@ enum FileTools {
         var lines = text.components(separatedBy: "\n")
         if lines.last == "" { lines.removeLast() }
         return lines.map { $0.replacingOccurrences(of: "\r", with: "") }
+    }
+
+    /// The LF view of a file and the endings it was written with — what both write seams need to
+    /// agree with what `read_file` showed.
+    ///
+    /// `numberedContentLines` renders every line with `\r` stripped, so LF is the only text a caller
+    /// can copy off `read_file`. Both write seams worked on the raw bytes: on a CRLF file a correct
+    /// multi-line quote answered `found 0` while the refusal quoted back the very stripped text that
+    /// cannot match, and `edit_lines` rebuilt the file *from* that stripped text, so an edit to one
+    /// line re-ended every line in the file and booked the deleted CRs as a byte delta under `OK`
+    /// (`LineEndingFidelityTests`, 11-10). A line breaks at `\n` or at `\r\n`, exactly where
+    /// `numberedContentLines` breaks one, so a line range means the same number on both seams, and a
+    /// `\r` that is not a terminator is data that keeps its byte.
+    ///
+    /// The rule is the field's, spliced rather than flattened: pi d448c51e (#11751) keeps a line's
+    /// own bytes "including its line endings" outside the replaced ranges; opencode
+    /// `tool/plugin/edit.ts:165-188` matches "the LF view Read shows the model, then maps offsets
+    /// back to the source, so CRLF and mixed line endings neither block matches nor leak into
+    /// untouched regions"; codex `apply-patch/src/text_file.rs:19-33` prefers the file's first ending
+    /// for lines it inserts. qwen-code `tools/edit.ts:269` normalizes the whole file to one ending
+    /// instead, which is the flatten pi's commit exists to remove. `write_file` stays outside this
+    /// seam: the caller authored every byte it sends, so there is no untouched region to protect.
+    struct Endings {
+        /// The file's bytes, held here so a slice of them stays meaningful.
+        let source: String
+        /// The LF view `read_file` shows: the lines joined by `\n`, no `\r` anywhere.
+        let view: String
+        /// Whether each line is terminated; `false` only for a last line that has none. `edit_lines`
+        /// asks, because the file keeps its own trailing state whichever line ends up last.
+        let terminated: [Bool]
+        /// Each line's text, terminator excluded — for a CRLF line that excludes its `\r` too, which
+        /// `carriage` records rather than folding into the text.
+        private let texts: [Substring]
+        /// Whether the line ends CRLF. A `\r` anywhere else is inside `texts`: data, not a terminator.
+        private let carriage: [Bool]
+        /// `\r\n` when the file's first terminated line carries a CR, `\n` otherwise — the style text
+        /// joins when the region it replaces holds no terminator of its own.
+        private let first: String
+        /// Where each line starts in `source` and in `view`, index-for-index with `texts`.
+        private let sourceStarts: [String.Index]
+        private let viewStarts: [String.Index]
+
+        /// `"\r\n"` is one `Character` in Swift, so the terminator test has to name both spellings:
+        /// scanning for `\n` alone walks straight past every CRLF and reports the file as one line.
+        init(_ text: String) {
+            var texts: [Substring] = []
+            var carriage: [Bool] = []
+            var terminated: [Bool] = []
+            var sourceStarts: [String.Index] = []
+            var lineStart = text.startIndex
+            var cursor = text.startIndex
+            while cursor < text.endIndex {
+                let ch = text[cursor]
+                if ch == "\n" || ch == "\r\n" {
+                    texts.append(text[lineStart ..< cursor])
+                    carriage.append(ch == "\r\n")
+                    terminated.append(true)
+                    sourceStarts.append(lineStart)
+                    lineStart = text.index(after: cursor)
+                }
+                cursor = text.index(after: cursor)
+            }
+            if lineStart < text.endIndex {
+                texts.append(text[lineStart ..< text.endIndex])
+                carriage.append(false)
+                terminated.append(false)
+                sourceStarts.append(lineStart)
+            }
+            var viewParts: [String] = []
+            viewParts.reserveCapacity(texts.count)
+            // The style an inserted line joins is the first terminator the file actually has.
+            var first = "\n"
+            for n in texts.indices where terminated[n] {
+                first = carriage[n] ? "\r\n" : "\n"
+                break
+            }
+            for n in texts.indices {
+                viewParts.append(String(texts[n]))
+                if terminated[n] { viewParts.append("\n") }
+            }
+            let view = viewParts.joined()
+            var viewStarts: [String.Index] = []
+            var at = view.startIndex
+            viewStarts.append(at)
+            while at < view.endIndex {
+                if view[at] == "\n" { viewStarts.append(view.index(after: at)) }
+                at = view.index(after: at)
+            }
+            self.source = text
+            self.texts = texts
+            self.carriage = carriage
+            self.terminated = terminated
+            self.view = view
+            self.first = first
+            self.sourceStarts = sourceStarts
+            self.viewStarts = viewStarts
+        }
+
+        /// The line's own bytes, terminator included — what an untouched line has to be written back
+        /// as, and the reason `carriage` and `terminated` are separate facts.
+        func bytes(atLine line: Int) -> String {
+            guard texts.indices.contains(line) else { return "" }
+            return String(texts[line]) + (carriage[line] ? "\r" : "")
+                + (terminated[line] ? "\n" : "")
+        }
+
+        /// The style this line ends in, which is the style text replacing it should join.
+        func ending(atLine line: Int) -> String {
+            guard texts.indices.contains(line) else { return first }
+            return carriage[line] ? "\r\n" : "\n"
+        }
+
+        /// Non-overlapping occurrences of `needle` in `haystack`, as ranges of `haystack`.
+        ///
+        /// A hit is kept only when its bytes equal the needle's: `range(of:)` answers for
+        /// canonically-equal text too, and a splice that replaces more occurrences than the guard
+        /// counted would claim a change it did not make (invariant 2). Bytes are the only literal
+        /// comparison here, which is also what `components(separatedBy:)` — the counter — does.
+        static func ranges(of needle: String, in haystack: String) -> [Range<String.Index>] {
+            guard !needle.isEmpty else { return [] }
+            let want = Array(needle.utf8)
+            var found: [Range<String.Index>] = []
+            var from = haystack.startIndex
+            while from < haystack.endIndex,
+                let hit = haystack.range(of: needle, range: from ..< haystack.endIndex)
+            {
+                if Array(haystack[hit].utf8) == want { found.append(hit) }
+                from = hit.upperBound
+            }
+            return found
+        }
+
+        /// Where `needle` occurs in the view, mapped onto the file's bytes.
+        func sourceRegions(ofViewNeedle needle: String) -> [Range<String.Index>] {
+            Self.ranges(of: needle, in: view).map {
+                source($0.lowerBound) ..< source($0.upperBound)
+            }
+        }
+
+        /// The position in the file for a position in the view: a view line's text is its file line's
+        /// text, so only the offset *within* that line has to be carried across.
+        private func source(_ offset: String.Index) -> String.Index {
+            guard offset != view.endIndex, !sourceStarts.isEmpty else { return source.endIndex }
+            var line = viewStarts.count - 1
+            for (n, start) in viewStarts.enumerated() where start > offset {
+                line = n - 1
+                break
+            }
+            if line < 0 { line = 0 }
+            let within = view.distance(from: viewStarts[line], to: offset)
+            return source.index(sourceStarts[line], offsetBy: within)
+        }
+
+        /// The file's bytes with each region replaced, the replacement's line breaks taking the
+        /// ending of the region it replaces — the file's first ending when that region holds none.
+        /// Everything outside the regions is copied, never re-rendered.
+        /// - Returns: the new bytes, and the endings actually written where they differ from the bytes
+        ///   the caller supplied (a caller who sent CRLF into a CRLF file was not converted, so has
+        ///   nothing to be told).
+        func splice(
+            _ regions: [Range<String.Index>], with replacement: String
+        ) -> (text: String, appliedEndings: Set<String>) {
+            let lf = replacement.replacingOccurrences(of: "\r\n", with: "\n")
+            var out = ""
+            out.reserveCapacity(source.count)
+            var cursor = source.startIndex
+            var applied: Set<String> = []
+            for region in regions {
+                guard region.lowerBound >= cursor else { continue }
+                out += source[cursor ..< region.lowerBound]
+                let ending = Self.ending(
+                    ofRegion: source[region.lowerBound ..< region.upperBound], fallback: first)
+                let written = lf.replacingOccurrences(of: "\n", with: ending)
+                if written != replacement { applied.insert(ending) }
+                out += written
+                cursor = region.upperBound
+            }
+            out += source[cursor ..< source.endIndex]
+            return (out, applied)
+        }
+
+        /// The terminator that ends the first line inside `region`, since that is the style the text
+        /// replacing it should join. Both spellings, for the reason named on `init`.
+        static func ending(ofRegion region: Substring, fallback: String) -> String {
+            for ch in region {
+                if ch == "\r\n" { return "\r\n" }
+                if ch == "\n" { return "\n" }
+            }
+            return fallback
+        }
     }
 
     /// The footer `read_file` prints under a numbered window, said in one place because both
@@ -455,13 +698,36 @@ enum FileTools {
         if insertion.last == "" { insertion.removeLast() }
         let cutEnd = end
         let replacedCount = max(0, cutEnd - (start - 1))
+        // Rebuild from the file's own lines, never from the LF view: joining the stripped lines with
+        // `\n` re-ended every line in a CRLF file, so an edit to line 2 rewrote the whole file and
+        // reported the deleted CRs as a byte delta under an `OK` (`Endings`, measured 11-10:
+        // `edit_lines: OK — replaced lines 2-2 … -4 bytes` on a 3-line CRLF file). A line the caller
+        // did not name keeps the bytes it had; a line it supplied joins the ending of the region it
+        // replaces — pi #11751, opencode `withRegionEndings`, codex's `preferred_ending`.
+        let eol = Endings(original)
+        // The style a new line joins: the replaced line's own ending, and for a pure insertion the
+        // line it goes above (or, appending, the line above it).
+        let newLineEnding = eol.ending(atLine: min(max(start - 1, 0), max(total - 1, 0)))
         // Split with explicit types: the single concat expression timed out the type-checker.
-        var updatedLines: [String] = []
-        updatedLines.append(contentsOf: lines[0 ..< (start - 1)])
-        updatedLines.append(contentsOf: insertion)
-        updatedLines.append(contentsOf: lines[cutEnd ..< total])
-        var updated = updatedLines.joined(separator: "\n")
-        if original.hasSuffix("\n"), !updated.isEmpty { updated += "\n" }
+        var pieces: [(text: String, ending: String)] = []
+        for n in 0 ..< (start - 1) {
+            pieces.append((eol.bytes(atLine: n), ""))
+        }
+        for text in insertion {
+            pieces.append((text, newLineEnding))
+        }
+        for n in cutEnd ..< total {
+            pieces.append((eol.bytes(atLine: n), ""))
+        }
+        let updatedLineCount = pieces.count
+        // Whichever line ends up last, the file keeps its own trailing state: no newline where it
+        // had none, one where it had one.
+        if updatedLineCount > 0, cutEnd >= total, !insertion.isEmpty,
+            !(eol.terminated.last ?? false)
+        {
+            pieces[pieces.count - 1].ending = ""
+        }
+        let updated = pieces.map { $0.text + $0.ending }.joined()
         guard updated != original else {
             // "It already says exactly that" is a fact about the goal, not a bad parameter: the
             // refusal bought four identical refusals on `make-two-tests-pass` (zero writes, FAIL)
@@ -498,7 +764,7 @@ enum FileTools {
         } else {
             clampedNote =
                 " (clamped: start_line \(startLine) -> \(start), end_line \(endLine) -> \(end);"
-                + " \(path) has \(total) lines, now \(updatedLines.count))"
+                + " \(path) has \(total) lines, now \(updatedLineCount))"
         }
         let delta = bytes.count - (original.data(using: .utf8)?.count ?? 0)
         let verdict = Self.writeVerdict(path: url.path, fileContent: updated, echo: echo)

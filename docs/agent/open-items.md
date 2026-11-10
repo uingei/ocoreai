@@ -50,6 +50,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   its base from `OCOREAI_AUTOAB_BASE` rather than measuring one per invocation — self-baselining costs +k board
   runs per loop and is the owner's call. `edit-noop-split-strip`'s McNemar row (`20261109-213417` refused on the
   old rule) is next round's claim, not this one's.
+- **The frozen board cannot seed a CRLF file, so no byte-fidelity class is priceable there**
+  (scripts/eval/) — `grep -c '\\r'` is 0 across `tasks.json` (45) and `tasks-edit-repair.json` (52), so
+  `edit_file`'s line-ending rung (`FileTools.Endings`, 11-10) has no task that can move: a
+  strip-proposal would return "inside noise" because the instrument is blind, not because the change is
+  free. Seeding a CRLF fixture means editing a path `autoloop-protected.txt` names a human act, so the
+  call is the owner's. Gate meanwhile, and byte-exact: `LineEndingFidelityTests`.
 - **A `response_format` turn cannot ground itself; the limit is disclosed, the fix is a call** (Engine/, Handlers/) —
   with `tools[]` declared beside `response_format` the answer grammar wins (`OpenAIModels.swift` "the JSON wins",
   four orderings measured there) and the turn cannot emit a tool call first, so it fabricates instead of reading
