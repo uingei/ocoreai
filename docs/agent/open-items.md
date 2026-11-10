@@ -52,21 +52,36 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   seam), on boot, or retire `ttl_days` from schema and config (also a promise change). Until then every
   "retention" claim about sessions reads as unenforced.
 
-- **A name-keyed tool binding silently drops tool turns on the checkpoint the product ships default**
-  (Engine/, Handlers/) — on `gemma-4-e2b-it-4bit`, a well-formed `role:"tool"` history contributes **~0
-  tokens on both compat faces**: measured 11-09 against a live serve, a ~1 550-token tool result moved
-  `input_tokens` from a 690 baseline to **693 on `/v1/messages`** and the `prompt_tokens` to **688 on
-  `/v1/chat/completions`** (an orphan tool message reads *below* baseline). The template has the branch —
-  `chat_template.jinja` `format_tool_response_block`/`<|tool_response>`, keyed by **tool name** — but the
-  engine's tool turn carries no name (`Chat.Message.tool(_:id:)` takes content and id, the rule the
-  Anthropic mapper's own comment quotes), so the binding cannot find the branch and the result is gone
-  without a word. The native loop is unaffected (results are injected in-process; the board and probe set
-  pass because nothing re-sends history) — the loss is exactly what an external agent client re-sends.
-  Candidate routings, owner call: thread the name into the tool turn; fold results to the template's text
-  shape whenever the loaded template binds by name (the mapper's own "a result that cannot be attached is
-  still content" rule, applied to template capability rather than correlation); or disclose. The dangling
-  `tool_result` half of this class landed 11-09 (`anthropicMappedConversation` fold, probe 07 green,
-  `AnthropicBlockHonestyTests` pins both directions); the paired arm waits on this call.
+- **Tool turns contribute ~0 tokens on the checkpoint the product ships default — the seam is ours, the
+  instrument is gone** (Engine/, Handlers/) — on `gemma-4-e2b-it-4bit`, a well-formed `role:"tool"`
+  history contributes **~0 tokens on both compat faces**: measured 11-09 against a live serve, a ~1 550-token
+  tool result moved `input_tokens` from a 690 baseline to **693 on `/v1/messages`** and the `prompt_tokens`
+  to **688 on `/v1/chat/completions`** (an orphan tool message reads *below* baseline). The symptom stands;
+  the mechanism this row blamed was convicted 11-10 by re-read at the pin — the gap is our call site, not a
+  missing upstream seam. `Chat.Message.tool(_:id:name:)` takes a name *at our pin* `4ab267996`
+  (`Chat.swift:112-122`), whose own comment names this failure mode ("others … render the function `name`
+  directly", `:57-63`); `addToolMetadata` writes `dictionary["name"]` for result turns (`:195-197`) and
+  `Gemma4MessageGenerator` calls it (`Gemma4.swift:2158`); our wire DTO already parses `name`
+  (`OpenAIModels.swift:663`). We simply never fill it: `EngineInference.swift:1882` passes `id:` only. So
+  routing (a) is one argument at a seam upstream already exports, not engine surgery (§ Adoption: consume
+  it). `/v1/messages` needs one rung more — the Anthropic DTO parses `tool_use_id` but not the block's
+  optional `name` (`AnthropicModels.swift:251,271`), so the name resolves id→name from the same
+  conversation's `tool_use` blocks: one resolver at the boundary that owns the conversation. **Two premises
+  stay unverified, and a second drop site is named for the first time.** (i) "the template binds by name,
+  so the branch cannot be found" was inference from a template read; the only gemma4-e2b template on this
+  host is ollama's fixture, which resolves `tool_call_id`→name *itself* by scanning the preceding
+  assistant `tool_calls` (`../references/ollama/model/renderers/testdata/gemma4_e2b_chat_template.jinja2:287-290`)
+  — so a name-only branch is unconfirmed, while a correct name is a strict gain on either shape. (ii) The
+  row's "the native loop is unaffected … nothing re-sends history" is wrong as written: the MTP lane
+  re-sends its history every iteration but flattens it to `(role, content)` pairs
+  (`EngineInference.swift:3834-3836`), which discards `tool_call_id` and any name before a template can see
+  either — so threading a name at `:4217` is inert until that snapshot carries metadata, and whether the
+  loop has been running blind to its own results on such a checkpoint is an open question the board's
+  passes do not answer (they score tool loops on a different face). Blocked on weights, not arithmetic:
+  `mlx-community/gemma-4-e2b-it-4bit` is absent here and the host holds no LLM weights at all, so no arm
+  runs today; the fix ships with its own probe (none is shipped — the 11-09 numbers came from a session,
+  not a script), and the dangling-`tool_result` half that landed 11-09 (`anthropicMappedConversation` fold,
+  probe 07 green, `AnthropicBlockHonestyTests` both directions) is the pattern that gate follows.
 - **Durability is priced twice, and the second price indicts the mechanism, not the message** (Tools/, eval/) —
   the pre-write gate (refuses valid→broken syntax, keeps old bytes: **110/110 corruptions stopped, zero silent
   damage**) cost the frozen set **2.17 tasks/52 (p=0.0146)** at bare reason, and still **1.83 (p=0.0266)** with the

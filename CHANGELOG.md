@@ -9,6 +9,34 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-10
 
+**11-10 the tool-turn row that quoted an upstream limitation was re-read at the pin and the limitation is ours — the pin exports the name, we never fill it, and the MTP flatten turns out to be a second drop site the row never named**
+
+- **What improved:** `open-items.md`'s tool-turn row blamed a missing seam (`Chat.Message.tool(_:id:)` takes
+  content and id, it said); at our pinned rev — checkout HEAD `4ab267996c83a1ae60789850cddfe646043cc36d`, the
+  `revision:` at `Package.swift:43` — the factory is `tool(_:id:name:)` (`Chat.swift:112-122`), its own comment
+  names this failure mode ("others … render the function `name` directly", `:57-63`), `addToolMetadata` writes
+  `dictionary["name"]` for result turns (`:195-197`), `Gemma4MessageGenerator` calls it (`Gemma4.swift:2158`),
+  and our wire DTO already parses `name` (`OpenAIModels.swift:663`). So routing (a) is one argument at a seam
+  upstream already exports — § Adoption's "consume it, don't author a variant" — and the row's cost dropped from
+  engine surgery to `EngineInference.swift:1882`. `/v1/messages` needs one rung more: the Anthropic DTO parses
+  `tool_use_id` but not the block's optional `name` (`AnthropicModels.swift:251,271`), so the name resolves
+  id→name at the boundary owning the conversation. Two things the row asserted are now marked unverified and one
+  new site is named: the name-keyed branch is unconfirmed (the only gemma4-e2b template on this host is ollama's
+  fixture, which resolves `tool_call_id`→name *itself* — `gemma4_e2b_chat_template.jinja2:287-290`), and "the
+  native loop is unaffected" is wrong as written — the MTP lane re-sends its history each iteration but flattens
+  it to `(role, content)` pairs (`EngineInference.swift:3834-3836`), discarding `tool_call_id` and any name
+  before a template sees either, which makes threading at `:4217` inert until that snapshot carries metadata.
+- **What same-session output proves it:** every cite above was read at the checkout this build resolves, not
+  quoted from the doc; `git -C .build/checkouts/mlx-swift-lm rev-parse HEAD` matched the pin before any claim was
+  written. No behaviour was measured and **no fix shipped**: `mlx-community/gemma-4-e2b-it-4bit` is absent here
+  and the host holds one `.safetensors` under the HF hub — a 350 M embedding model — so no `serve`, probe or
+  board arm can run today. The row now says that, and says the 11-09 numbers came from a session, not a script.
+- **Which gate goes red if it regresses:** `make docs-check` holds the re-derived cites (the ollama fixture is an
+  outside-tree path cite, so a malformed attribution goes red in the registry scan). Stated plainly because it
+  is the third question and cannot be answered fully: **no behavioural gate exists for this row yet**, and the
+  row now names the probe it owes before any fix ships — a correction that only re-points a pointer must not be
+  dressed as a verified fix.
+
 **11-10 the five unregistered clones were adjudicated the morning the sweep named them — all five rows are read off the disk with `file:line`, and the reads carry teeth: `aider` is confirmed dead, `unsloth` is the corpus's cadence ceiling behind an AGPL wall, `nginx` enters as the registry's first environment-authority entry**
 
 - **What improved:** `comparator-repos.md` now has a row for every disk tree (47 minus the two excluded
