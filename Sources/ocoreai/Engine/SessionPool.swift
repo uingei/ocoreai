@@ -976,9 +976,34 @@ actor MLXSessionPool {
             let residency = KVCacheResidency(status: try await pooled.session.cacheStatus())
             measuredBytes = residency.residentBytes
             measuredTokens = residency.processedTokens
+            // Symmetry: a read that succeeds states its number too, so a session that
+            // entered the pool without ever passing this gate is detectable in the log.
+            logger.info(
+                """
+                KV residency [\(modelId)] priced at release: \(measuredBytes) bytes / \
+                \(measuredTokens) tokens
+                """
+            )
+            if measuredBytes == 0 {
+                // Upstream answers this as cacheStatus() only reports allocated bytes for a
+                // `.kvcache`; any other cache state (streaming / finished / planned) yields a
+                // zero-byte reading that reads on the surface exactly like an empty cache.
+                logger.warning(
+                    """
+                    KV residency [\(modelId)] read zero bytes after a completed turn — the \
+                    cache reported no allocation, so the gauge and /kv-cache stay \
+                    not_observed (0 tokens held: \(measuredTokens))
+                    """
+                )
+            }
         } catch {
-            logger.debug(
-                "KV residency [\(modelId)] not measured: \(error.localizedDescription)")
+            logger.warning(
+                """
+                KV residency [\(modelId)] not measured: \(error.localizedDescription) — \
+                the gauge and /kv-cache stay not_observed for this session; a model never \
+                priced keeps the admission gate's fallback basis
+                """
+            )
         }
         // Fold the same measurement into the per-model price the admission gate reserves at.
         // One read, two consumers: a model never priced keeps the fallback and says so.

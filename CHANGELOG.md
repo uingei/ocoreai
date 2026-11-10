@@ -9,6 +9,29 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-11
 
+**11-11 the reserve plan reached the live wire, and the same boot that proved it convicted a traffic class nobody prices**
+
+- **What improved.** Probe 35 §8 asserts `rewindReserve` on the live wire equals the plan the server's own
+  environment resolved (table mirrored from `$OCOREAI_KV_REWIND_RESERVE_TOKENS`), predicate red-sampled on
+  four mutants (field absent / basis lies / override evaporates / raw unquoted) before any live run. The
+  release-time residency read, which had logged its failure at `.debug` (below `serve`'s level forever), now
+  states itself both ways at the levels `serve` prints — `priced at release: N bytes / M tokens`, or a
+  warning that says the surface will stay `not_observed` and why. A `.debug` line no reader can reach is
+  silence wearing a log's clothes: the whole flat-zero class it exposed was invisible to every probe run.
+- **What same-session output proves it.** Two live boots: unset → `{requested:true, tokens:1024,
+  basis:"default"}` on the wire; `=0` → `{requested:false, tokens:0, basis:"off", rawEnvironment:"0"}` —
+  both rows green. The new symmetry log then caught the defect the same morning: the reasoning lane (no
+  tools, thinking model) releases a session whose cache never realized — `priced at release: 0 bytes / 0
+  tokens` twice — while a tools-bearing turn on the same server priced `26.7 MB / 1651 tok` and the gauge
+  moved to `26676608` (one boot, three shapes, `max_tokens` 8/8/64). Probe 35 §3–6 red is now a named class
+  with its window (the 11-07 bump to `4ab267996`), its owner call and its instrument: `docs/agent/open-items.md`.
+- **What I got wrong first, and what fixed it.** Two discriminators I ran were invalid: I compared a
+  no-tools probe against a tools-bearing eval without matching shape (the eval's pricing never tested the
+  probe's lane), and I read the gauge milliseconds after the response with no evidence of when release
+  priced — shape C is what settled it. One boot, three shapes, one read: that is the cheapest honest
+  discriminator here, and a live lane the loop does not cover rots: probe 35 had been green 10-25 and no
+  round between then and today ran it.
+
 **11-11 whole-project audit round — five dead StringKeys cut, and the P4 collector convicted of gutting its own network claims**
 
 - **What improved.** The scan's confident finds, fixed same-turn: (1) five `StringKey` cases with zero

@@ -231,6 +231,15 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `basis`, and `OCOREAI_KV_REWIND_RESERVE_TOKENS` overrides once at boot (0=off; a negative or unparseable value
   keeps the default and says so on the wire) — tuning can now be priced against a number the operator can set.
   `SessionRewindOnDivergenceTests` + `KVCacheRewindReserveTests` + probe 27 hold the wiring and the number.
+- **A no-tools turn on a thinking model prices no KV residency** (Engine/) — the reasoning lane
+  (`EngineInference.swift`, "Routing through reasoning path") never realizes the pooled session's cache, so
+  release reads `cacheStatus()` at zero bytes and the gauge, `/kv-cache` `residency` and the admission price
+  all stay `not_observed`/fallback for that whole traffic class; a tools-bearing turn on the same server
+  prices 26.7 MB/1651 tok in the same second (measured 11-11, one boot three shapes). The window is the
+  mlx bump to `4ab267996` (11-07, "bumped without ever being built"): probe 35 §3–6 were green 10-25 on the
+  same no-tools shape. Whether the fix is pricing the reasoning lane from its own turn or refusing to pool
+  its session as warm is the owner's design call; probe 35 stays red until one lands — a red stating which
+  traffic the surfaces cannot price is worth more than an inertial green.
 - **Video publishing is per-checkpoint** (Multimodal/) — one processor reads `input.videos`, the other does
   not, so it is never inferred from architecture; a turn that got frames but never answered is not
   counted; relaxing that is untested (`VideoDeliveryLedger`).
