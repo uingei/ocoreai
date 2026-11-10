@@ -515,6 +515,65 @@ Contains/Borrow: the one-knob reference shape and the explicit supersession chai
 Contains: the unscored cousin of `scripts/eval/`'s keep-or-discard loop — no paired-flip floor, no scoreboard.
 Borrow: pattern only; the floors that make keep-or-discard honest live once in `scripts/eval/README.md`.
 
+- `aider` — `Aider-AI/aider`, Python terminal pair-programmer, 50 047 stars (api.github.com 11-10),
+  **dormant: local HEAD `5dc9490bb` 2026-05-22 and the repo's `pushed_at` agree** — the tree that made
+  SEARCH/REPLACE the field's edit format stopped the same day on both sides (registered 11-10)
+Contains: the failed-edit round-trip as a prompt contract — `aider/coders/editblock_prompts.py:27-28`
+  ("All changes to files must use this SEARCH/REPLACE block format… ONLY EVER RETURN CODE IN A
+  *SEARCH/REPLACE BLOCK*"), `editblock_coder.py:84` (the failure report names the count: "# N
+  SEARCH/REPLACE blocks failed to match!"), `:122` (the reflection asks back fixed versions of **only the
+  failed blocks**), `base_coder.py:101,939-940` (`max_reflections = 3`, then a printed stop).
+Borrow: consumed as reference for our edit-repair row (`EditMismatchRecoveryTests`, `tasks-edit-repair.json`,
+  the `edit-noop-split-strip` proposal): same family as our `OK-but-invalid`, and its bounded reflection
+  budget is the resolver ladder's "bounded retries that end in a recovery affordance" with a number on it.
+
+- `SWE-agent` — `SWE-agent/SWE-agent`, Python, 20 772 stars (api.github.com 11-10); **the clone is stale —
+  HEAD `3ea751c0` 2026-07-16 against upstream `pushed_at` 2026-11-09** — a dated snapshot of the clone
+  as found (registered 11-10); refresh the mirror and re-read before quoting anything new from it
+Contains: the ACI thesis on record (`README.md:105`, *Agent-Computer Interfaces Enable Automated Software
+  Engineering*) made concrete as **tools-as-config**: `config/default.yaml:33` and `config/bash_only.yaml:208-216`
+  declare tool bundles, the reply parser (`parse_function: single_bash_code_block`) and the budgets
+  (`per_instance_cost_limit: 3`, `per_instance_call_limit: 250`) as data, and `next_step_template` states the
+  `OBSERVATION:` wire word for tool results (`config/default.yaml:29`).
+Borrow: axis, nothing consumed — precedent for holding tool surface, parser and budget as one declarative
+  unit; ours is Swift structs (`ToolEntry.swift`). Re-read after a refresh before quoting anything new.
+
+- `mini-swe-agent` — `SWE-agent/mini-swe-agent`, Python, 9 500 stars (api.github.com 11-10); the same tree
+  family as the row above, at the opposite complexity pole (HEAD `04d809ce` 2026-09-03 against upstream
+  `pushed_at` 2026-11-09 — same stale-clone note) (registered 11-10)
+Contains: the minimal-harness hypothesis — `README.md:17` declares v2, `:21` asks "What if our agent was
+  100x simpler, and still worked nearly as well?", and `:26` claims "Just some 100 lines of python for the
+  agent class" (the claim is scoped to that class: the whole v2 `src/` tree measures 5 349 LOC, read off the
+  disk). `AGENTS.md:4` — "the simplest, smallest, most readable agent" — with protocols in `__init__` and
+  the agent/environment/model/run split below it.
+Borrow: axis only — the foil for `scripts/eval/`: when the board's harness grows, `mini` is the price
+  ceiling to compare against before adding another file to it.
+
+- `unsloth` — `unslothai/unsloth`, Python, 79 276 stars (api.github.com 11-10); **the corpus's
+  highest-cadence tree: 6 698 commits in 90 d off this clone's log, HEAD `5a1bf45da0` dated the read day
+  11-10** (registered 11-10)
+Contains: train + run + local product in one repo — "Run and train LLMs, MLX, GGUF, diffusion…"
+  (`README.md:95`), three shipped surfaces (Desktop app / Studio web UI / Core CLI, `README.md:132`) with
+  `studio/backend` + `studio/frontend` + `INFERENCE_ENGINES.md`/`MCP.md`, an env-var port discipline that
+  probes the next 20 ports and rejects browser-restricted ranges instead of failing (`README.md:167`), and an
+  MLX-side export filter in `unsloth/_mlx_trl_all.py` (PEP 562 `__all__`, resolved names never bookkept).
+  **License is AGPL-3.0-only per file, `studio/LICENSE.AGPL-3.0`** — a read-comparator, never vendorable
+  into the MIT binary (the license rule at `AGENTS.md` § Build / Test / Lint).
+Borrow: pattern-in-prose only, AGPL is the boundary — the cadence (its 90 d is our open cadence item's
+  denominator), and the Desktop/Studio/Core ladder on Apple silicon; any borrowed verdict travels as a
+  `file:line` citation, not a byte.
+
+- `nginx` — `nginx/nginx`, C, 32 089 stars (api.github.com 11-10), 100 commits in 90 d off this clone — the
+  registry's first **environment-authority** entry: a tree whose conventions our code already defers to,
+  not a peer codebase (registered 11-10)
+Contains: it is the frontend our own middleware names — `Sources/ocoreai/Middleware/RateLimitMiddleware.swift:223,240`
+  trust `X-Real-IP` "for nginx-style frontends", and that header's canonical meaning is
+  `src/http/ngx_http_request.c:175`. Nothing else here is comparable to us (C event-loop server; our HTTP
+  layer is Hummingbird).
+Borrow: header and proxy semantics only — where a trust boundary reads a forwarded-for header, this tree is
+  the authority for what the header means; registered so the five-clone sweep closes with a verdict on every
+  disk tree, not a shrug.
+
 ## How to use this file
 
 1. Where a tree has the answer, cite `file:line` rather than authoring a local variant, and land the change

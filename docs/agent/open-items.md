@@ -39,12 +39,6 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   gate `:anon:` KV sharing is the owner's — it sits on the loop seams the open rows around Pin 1 call
   sensitive. Instrument: probe 07 §2c's nonce-isolated NOTE lines print each arm's whole; 59-token
   cold-looking arms next to a growing cache_read are this row's return.
-- **Five clones on disk carry no comparator verdict** (docs/) — the 11-10 `~/references` update swept to 47
-  trees; `aider`, `SWE-agent`, `mini-swe-agent`, `unsloth` and `nginx` exist on disk with no row in
-  `comparator-repos.md` (upstream siblings excluded). Registering one is the verdict that it is a tree we
-  measure against — unadjudicated trees stay unregistered rather than swept into the count; the sweep that
-  finds them ran again 11-10 and will run again (memory: registry silence ≠ absence).
-
 - **Sessions carry a TTL promise nobody enforces** (SQLite/, Scheduler/) — every `INSERT INTO sessions`
   writes `ttl_days` (default 180, configurable: `SessionCompressor.swift:114,120,72`; read back at
   `:1073`), and no code enforces it: the enforcer `purgeExpired()` had **zero callers** repo-wide

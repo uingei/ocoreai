@@ -111,7 +111,7 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_FLOOR_DIARY_PAIRED:=40}"   # CHANGELOG entries whose heading was found above their first bullet
 : "${OCOREAI_FLOOR_CLAIM_SHARED_IDS:=3}"  # P4b's premise: claim ids written in more than one doc
 #   (5 today — the licence counts, `spm_deps`, `global_rate_set`, mirrored across root + the README pair)
-: "${OCOREAI_AGENTS_MAX_AREA:=50389}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
+: "${OCOREAI_AGENTS_MAX_AREA:=53197}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
 #   this cap was pinned to. What binds is our chain budget (B2, 32 KiB) and the root ratchet (B1), and
@@ -211,6 +211,14 @@ cd "$(dirname "$0")/.."
 #   section and the scanner reads § as "our section"; reworded — the sigil is ours, external refs name file+line.
 #   Pin now = the largest file that exists: comparator-consensus.md 50 389 B; comparator-repos.md 48 077 B
 #   sits 2 312 B under it. B1 21 453/21 461 and B2 chain 32 750/32 768 untouched: neither file is in the chain.
+#   RAISED 11-10(2), visibly, the fourteenth, same rule: the disk sweep's five unregistered clones were
+#   adjudicated the same morning it named them, and registration is this file's own duty (a disk tree without
+#   a row is the open row the round closed) — +5 120 B → 53 197 for five rows, ~1 024 B/tree, the audited rows'
+#   density, so further trimming would cut cites not prose. Cut-first honoured inside what the round itself
+#   wrote (−81 B of round narration that CHANGELOG carries); refused across files as before. P12 rode along a
+#   second time with the SAME class of error (`§ Licenses` for a root section named otherwise) — the 13th's
+#   lesson already has its home above; reworded, not re-narrated. Pin now = comparator-repos.md 53 197 B;
+#   comparator-consensus.md 50 389 B sits under it. B1 and B2 untouched: neither file is in the chain.
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
 : "${OCOREAI_AGENTS_FLOOR_REFS:=50}"
 : "${OCOREAI_AGENTS_FLOOR_TREES:=16}"

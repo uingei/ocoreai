@@ -3,6 +3,18 @@
 > Material `AGENTS.md` § *Open* used to carry prose for although it was resolved, retracted or
 > judged a phantom gap. An open item is one that can still change a decision; a verdict is
 > history, and history kept in the injected layer costs every session.
+- **Five clones on disk with no comparator verdict (11-10, same-day adjudication).** The 11-10 sweep found
+  `aider`, `SWE-agent`, `mini-swe-agent`, `unsloth`, `nginx` on disk unregistered; all five now carry a
+  content-read row in `comparator-repos.md` (§ end, before *How to use*), each claim read off the clone with
+  `file:line` and stars/HEAD from api.github.com. The sweep re-derives to zero (the docs-check `TREE_BULLET`
+  regex vs `ls ~/references`, minus the two excluded upstream siblings). Verdicts with teeth: `aider` is
+  genuinely dormant (clone and `pushed_at` both 2026-05-22 — the format outlived the tree); `SWE-agent`'s
+  clone is a stale snapshot (HEAD 07-16 vs upstream pushed 11-09 — the 11-10 `git pull` failed on host
+  network, disclosed in the row, re-read before quoting); `unsloth` is the corpus's cadence ceiling
+  (6 698 commits/90 d) and an **AGPL-3.0-only read-comparator** — patterns cited, never vendored; `nginx`
+  enters as the registry's first environment-authority entry (our `RateLimitMiddleware.swift:223` already
+  defers to its `X-Real-IP`, `src/http/ngx_http_request.c:175`), not a peer codebase.
+
 - **Probe 13 §8's thinking byte-identity gate (11-10, landed and closed the same day).** The gate demanded
   `thinking:{enabled}` == `thinking:{disabled}` byte-for-byte at temp 0 — a 10-19 premise ("no reasoning
   channel ⇒ the knob is inert") that two boot-stable samples convicted the day the escalation tier first ran

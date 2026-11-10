@@ -9,6 +9,32 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-10
 
+**11-10 the five unregistered clones were adjudicated the morning the sweep named them — all five rows are read off the disk with `file:line`, and the reads carry teeth: `aider` is confirmed dead, `unsloth` is the corpus's cadence ceiling behind an AGPL wall, `nginx` enters as the registry's first environment-authority entry**
+
+- **What improved:** `comparator-repos.md` now has a row for every disk tree (47 minus the two excluded
+  upstream siblings), and each of the five rows is a content read, not a name guess. `aider` — the edit-repair
+  lineage our own `EditMismatchRecoveryTests`/`tasks-edit-repair.json` row works in, priced: failure report
+  names the count (`aider/coders/editblock_coder.py:84`), reflection re-asks only the failed blocks (`:122`),
+  the loop is capped at three (`base_coder.py:101,939-940`). `SWE-agent` — tools-as-config precedent: tool
+  bundles, reply parser and cost/call budgets sit in one YAML (`config/bash_only.yaml:208-216`).
+  `mini-swe-agent` — the minimal-harness claim measured against itself: "some 100 lines … for the agent
+  class" (`README.md:26`) vs 5 349 LOC for the whole v2 `src/`. `unsloth` — 6 698 commits/90 d off the clone
+  (our open cadence item's denominator) shipping Desktop/Studio/Core plus MLX surfaces, and per-file
+  **AGPL-3.0-only**: a read-comparator whose patterns travel as citations, never as bytes (the license rule
+  at `AGENTS.md` § Build / Test / Lint).
+  `nginx` — registered because our own `RateLimitMiddleware.swift:223` already defers to its `X-Real-IP`
+  (`src/http/ngx_http_request.c:175`): header semantics authority, not a peer codebase.
+- **What same-session output proves it:** the sweep re-derivation ran before and after (`comm -23` of
+  `ls ~/references` vs the registry's `TREE_BULLET` bullets): 7 trees missing → 2 (the excluded siblings).
+  Stars and `pushed_at` are api.github.com reads of this round; the two stale clones (`SWE-agent` HEAD
+  07-16 vs pushed 11-09, `mini-swe-agent` 09-03 vs 11-09) are disclosed **in their rows** because this host
+  could not reach github.com for the refresh — § How to use 3 made visible rather than quietly quoted.
+- **Which gate goes red if it regresses:** `make docs-check` — `agents-md-contract.sh` derives the outside-tree
+  set from these very bullets (`COMPARATOR_DOC`, `TREE_BULLET` at `scripts/agents-md-contract.sh:437-440`), so a
+  malformed row, a missing tree attribution on a `references/` cite, or a dead pointer into the registry goes
+  red there; and the § Open line in `open-items.md` that carried this row is gone, its verdict moved to
+  `closed-items-log.md` per that file's own rule.
+
 **11-10 the three Qwen checkpoints were asked "which comparators back them", and the answer turned out to be a hole in our own pin: Flash-Next's outer arch is `qwen4_exp`, which the pin does not carry — and five comparator trees had independently built it the same way**
 
 - **What improved:** the question was adjudicated by runtime arch, not marketing name — measured, not
