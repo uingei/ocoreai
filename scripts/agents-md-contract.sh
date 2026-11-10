@@ -67,6 +67,10 @@
 #                    area guides, docs/**, script READMEs. The diary is EXCLUDED, not ceilinged:
 #                    it is the owner's own log, and a ratchet that blocks them writing it in
 #                    their own language is friction, not a contract. No raw \uXXXX escapes.
+#   P21 knobs       every `OCOREAI_*` a human-facing doc names is read in code — the P2 dead-pointer
+#                    class on the env axis: the operator exports the knob, nothing changes, the doc
+#                    still promises the control. Comments do not count as wiring (a 11-11 manual scan's
+#                    first answer was a false positive whose consumer lived in a marker's code line).
 # Why this exists at all: three "verified" counts had already drifted and the Documentation Map
 # pointed at files that are not in git — nothing read the docs, so nothing knew. The round's
 # forensics are in CHANGELOG.md; this file carries the rules.
@@ -95,6 +99,9 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_FLOOR_MD_SCANNED:=15}"
 : "${OCOREAI_URL_FLOOR:=27}"      # P19: outbound URLs P19 must see (measured 10-27: 27 cited, non-loopback)
 : "${OCOREAI_FLOOR_DOC_FILES:=5}"
+: "${OCOREAI_FLOOR_KNOB_DOCS:=15}"  # P21's premise: knob names the docs promise (measured 20, 11-11)
+: "${OCOREAI_FLOOR_KNOB_CODE:=50}"  # P21's walk must find knobs in code (measured 118, 11-11) — a
+                                    # stopped consumer-walk would pass the promise scan vacuously
 : "${OCOREAI_AGENTS_MAX_CHAIN:=32768}" # OUR cap, priced 10-27 and re-adopted as policy 11-03 (owner: codex
 #   is no longer an authority). Same 32 KiB the injector spends (`WorkspaceContext.maxDocBytes`) and the
 #   same number root's head quotes — `InstructionBudgetSingleSourceTests` goes red if the three homes drift
@@ -266,6 +273,8 @@ OCOREAI_PROBE_FLOOR_INDEX="$OCOREAI_PROBE_FLOOR_INDEX" \
 OCOREAI_FLOOR_MD_SCANNED="$OCOREAI_FLOOR_MD_SCANNED" \
 OCOREAI_URL_FLOOR="$OCOREAI_URL_FLOOR" \
 OCOREAI_FLOOR_DOC_FILES="$OCOREAI_FLOOR_DOC_FILES" \
+OCOREAI_FLOOR_KNOB_DOCS="$OCOREAI_FLOOR_KNOB_DOCS" \
+OCOREAI_FLOOR_KNOB_CODE="$OCOREAI_FLOOR_KNOB_CODE" \
 OCOREAI_AGENTS_FLOOR_REFS="$OCOREAI_AGENTS_FLOOR_REFS" \
 OCOREAI_AGENTS_FLOOR_TREES="$OCOREAI_AGENTS_FLOOR_TREES" \
 OCOREAI_AGENTS_FLOOR_CLAIMS="$OCOREAI_AGENTS_FLOOR_CLAIMS" \
@@ -1021,6 +1030,61 @@ if doc_orphans:
     # metric only: an unreachable doc is wasted prose, not a false promise (deleted 10-27)
     pass
 
+# ── P21: a knob the human surface names is wired somewhere ────────────────────
+# An `OCOREAI_*` name a human-facing doc promises that no code reads is a dead pointer on the
+# env axis (the P2 class): the operator exports it, nothing changes, and the docs keep claiming
+# a control that does not exist. The class's red was sampled from the producer side
+# (`MetricProducerWiringTests`: a series that exports a permanent zero); the docs side was
+# adjudicated by hand on 11-06 and again 11-11 — the first scan round answered
+# `OCOREAI_HEARING_PROBE` as unwired when its consumer lived in a marker's code line, and the
+# second round's first answer was wrong three more ways (script-consumed knobs outside Sources,
+# an output sentinel that is not a knob at all, a knob whose reader lives in Tests/). This scan
+# counts only code lines — a comment naming a knob is not wiring — and walks the whole tracked
+# tree so a scripts-consumed knob credits its real consumer.
+KNOB_NAME = re.compile(r"OCOREAI_[A-Z0-9_]+")
+knob_doc_named = set()
+for q in md_tracked:
+    if q == "CHANGELOG.md" or q.startswith(".agents/"):
+        continue  # the diary names knobs its rounds measured; it promises nothing forward
+    knob_doc_named.update(KNOB_NAME.findall(read(q)))
+knob_code = set()
+KNOB_EXTS = (".swift", ".sh", ".py", ".yaml", ".yml", ".json")
+for q in tracked:
+    ext = os.path.splitext(q)[1]
+    if not (q.endswith(KNOB_EXTS) or os.path.basename(q) == "Makefile"):
+        continue
+    try:
+        text = read(q)
+    except OSError:
+        continue
+    for line in text.splitlines():
+        stripped = line.strip()
+        if ext == ".swift" and stripped.startswith("//"):
+            continue
+        if ext in (".sh", ".py", ".yaml", ".yml", "") and stripped.startswith("#"):
+            continue
+        for m in KNOB_NAME.finditer(line):
+            before = line[:m.start()]
+            if "//" in before:
+                continue
+            if (ext in (".sh", ".py", ".yaml", ".yml", "")
+                    and "#" in before.split('"')[-1].split("'")[-1]):
+                continue
+            knob_code.add(m.group())
+if len(knob_doc_named) < env_int("OCOREAI_FLOOR_KNOB_DOCS"):
+    fail.append("P21 the docs named only %d knob(s) (floor %d) — the doc-side premise rotted, so "
+                "an empty promise scan would pass vacuously"
+                % (len(knob_doc_named), env_int("OCOREAI_FLOOR_KNOB_DOCS")))
+if len(knob_code) < env_int("OCOREAI_FLOOR_KNOB_CODE"):
+    fail.append("P21 the consumer walk found only %d knob(s) in code (floor %d) — a walk that "
+                "stopped matching cannot clear any promise" % (len(knob_code),
+                                                               env_int("OCOREAI_FLOOR_KNOB_CODE")))
+knob_unwired = sorted(knob_doc_named - knob_code)
+if knob_unwired:
+    fail.append("P21 %d knob(s) a human-facing doc names but no code reads: %s"
+                % (len(knob_unwired), ", ".join(knob_unwired)))
+knob_pairs = len(knob_doc_named) - len(knob_unwired)
+
 # ── P19: every outbound link a doc points at was verified to resolve ─────────────────────────
 # Why this is offline: the live probe (scripts/link-check.sh, `make links`) is honest but cannot be
 # a blocking gate here — egress to github.com from this host is flaky, and on the day this gate was
@@ -1213,9 +1277,11 @@ print("  language  english-md=%d (floor %d)  mirror-cjk=%d (floor %d)  diary-exc
       % (len(lang_zero), env_int("OCOREAI_FLOOR_LANG_SCANNED"),
          len(CJK_RE.findall(read(MIRROR))) if os.path.exists(MIRROR) else -1,
          env_int("OCOREAI_FLOOR_ZH_MIRROR_CJK"), len(DIARY)))
-print("  scan      gateable-refs=%d (floor %d)  claims=%d/%d ok (floor %d)  suites=%d  routing=%d  upstream-trees=%d"
+print("  scan      gateable-refs=%d (floor %d)  claims=%d/%d ok (floor %d)  suites=%d  routing=%d  upstream-trees=%d  knobs=%d/%d (floors %d/%d)"
       % (len(hard_refs), env_int("OCOREAI_AGENTS_FLOOR_REFS"), ok_claims, len(claims),
-         env_int("OCOREAI_AGENTS_FLOOR_CLAIMS"), len(suites), len(routing), len(clones)))
+         env_int("OCOREAI_AGENTS_FLOOR_CLAIMS"), len(suites), len(routing), len(clones),
+         knob_pairs, len(knob_doc_named), env_int("OCOREAI_FLOOR_KNOB_DOCS"),
+         env_int("OCOREAI_FLOOR_KNOB_CODE")))
 print("  human     router-routes=%d (floor %d)  public-paths=%d  README tables=%s"
       % (len(router_routes), env_int("OCOREAI_README_FLOOR_ROUTES"), len(public_paths),
          ",".join("%d rows" % len({("%s %s" % (m.group(1), m.group(2)))

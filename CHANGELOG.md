@@ -9,6 +9,34 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-11
 
+**11-11 the knob scan an earlier round refused to persist got persisted in a different form — P21 makes every `OCOREAI_*` a human doc names owe its wiring, and the docs contract goes red at ~3 s**
+
+- **What improved.** The 11-05 round ran this exact scan by hand, measured 0 of 26 knobs unconsumed, and
+  closed its gate question with "None, and saying so is the honest part: the scan is a throwaway, not an
+  artefact, because a script whose only consumer is the person who wrote it is exactly what I deleted this
+  round." That refusal was about the FORM — a lone script nobody runs — not the predicate. Two things
+  changed the arithmetic since: the predicate was re-derived by hand a second time (11-11 morning), which is
+  the throwaway being paid for twice, and the same defect class got a producer-side red
+  (`MetricProducerWiringTests`: a series that exports a permanent zero). P21 in `agents-md-contract.sh` is
+  the form-change the refusal left room for: the predicate rides docs-check, whose consumer is every push.
+  Every knob named by a tracked human-facing doc (diary and archived notes excluded — a diary promises
+  nothing forward) must be read in a line of code in the tracked tree; premises floored at 15 doc-named /
+  50 code-wired (measured 49/118 today, `knobs=49/49` on the `scan` line). The manual scan's first answers
+  were wrong in four classes across the two rounds — comment mentions counted as wiring (the
+  `OCOREAI_HEARING_PROBE` false positive the 11-05 diary adjudicated), script-consumed knobs outside
+  `Sources`, a knob whose reader lives in `Tests/`, and an output sentinel that is not a knob at all; the
+  line-filter encodes all four, so the persisted scan is strictly better than either hand sweep. The
+  generic dead-code axis (`periphery`, arbitrary unused functions) was attempted this round first and
+  stopped at an authority boundary: an owner-unnamed third-party release binary is not executed here, and
+  the download was deleted — if that surface is ever wanted the owner names the tool; do not re-download
+  blind.
+- **What same-session output proves it.** Both directions sampled: green baseline (49/49), then red — a
+  temporary `OCOREAI_KNOB_REDSAMPLE_NOT_WIRED_XY` in `docs/agent/adoption-runbook.md` failed docs-check
+  naming the knob exactly; reverted, green again. `make audit` green alongside.
+- **Gate.** `make docs-check` (sandbox tier, ~3 s, no build). A documented-but-unwired knob — the operator
+  exports it and nothing happens — is now red at the commit that documents it, the same P2 class as a
+  dead pointer.
+
 **11-11 the zero-consumer gap the metrics round left as a manual audit became a scan — membership now comes from the registry's own source, so a seventh dead recorder fails at add time instead of at the next audit**
 
 - **What improved.** `MetricProducerWiringTests` pinned the six recorders the 11-01/11-02 round wired, but its
