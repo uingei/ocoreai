@@ -239,6 +239,144 @@ check_block "unknown block" \
   "{\"type\":\"search_result\",\"content\":[{\"type\":\"text\",\"text\":\"irrelevant\"}]}" \
   "search_result"
 
+# ── 2c. tool-search content — what a client that DEFERS tools gets back ──────
+# A client may hold most of its tools out of the prompt and fetch them mid-turn (Anthropic's
+# tool search: `defer_loading: true` on the definitions, a search tool whose RESULT arrives as
+# `tool_reference` blocks inside a `tool_result`). A local server has no provider to run that
+# search, so the honest outcomes are the same two as every other shape here — carry the
+# content, or refuse by name. Dropping it silently is the 10-15 defect wearing a new type:
+# the client's search comes back, the model never sees it, and the turn still answers 200.
+#
+# The judges, read at the trees this session: BOTH carry `tool_reference` into the tool message
+# (`vllm/entrypoints/anthropic/serving.py:610,669-681`,
+# `sglang/python/sglang/srt/entrypoints/anthropic/serving.py:317-341`), and sglang accepts both
+# spellings of the name field (`protocol.py:85-93`). Nothing is claimed here about
+# *server-typed* tool definitions, because the two judges split on those (vllm refuses them by
+# name, `protocol.py:134-150`; sglang parses them as typed variants, `protocol.py:158+`) — those
+# arms are reported, never gated.
+TOOLSEARCH_NAME="probe-zephyrkite"
+tool_turn_body() {  # $1 = the tool_result's content array, as JSON
+  python3 - "$PROBE_MODEL" "$1" <<'PY'
+import json, sys
+model, content_json = sys.argv[1:3]
+print(json.dumps({
+    "model": model, "max_tokens": 24, "temperature": 0.0,
+    "tools": [{"name": "read_file", "description": "Read a file.",
+               "input_schema": {"type": "object",
+                                "properties": {"path": {"type": "string"}}}}],
+    "messages": [
+        {"role": "user", "content":
+            "A tool search will name exactly one tool. Reply with that tool name and nothing else."},
+        {"role": "assistant", "content": [
+            {"type": "tool_use", "id": "toolu_probe_ts", "name": "read_file",
+             "input": {"path": "/tmp/probe"}}]},
+        {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "toolu_probe_ts",
+             "content": json.loads(content_json)}]},
+    ],
+}))
+PY
+}
+
+# Three arms of ONE request, differing only in what the search result carries. The empty arm is
+# the floor: it is the same conversation with the search result's payload removed, so a subject
+# arm that matches it proves the payload never entered the prompt — no model cooperation needed.
+# `probe_api` sets PROBE_STATUS/PROBE_BODY; the token count is read immediately after each call.
+ts_probe() {  # $1 label, $2 content json → sets TS_STATUS TS_TOKENS TS_TEXT
+  local body
+  body="$(tool_turn_body "$2")"
+  probe_api POST /v1/messages "$body"
+  TS_STATUS="${PROBE_STATUS:-}"
+  TS_TOKENS="$(probe_json "$PROBE_BODY" 'usage.input_tokens')"
+  TS_TEXT="$(anthropic_text "$PROBE_BODY")"
+  TS_ERR="$(probe_json "$PROBE_BODY" 'error.message')"
+  probe_note "$1 -> HTTP ${TS_STATUS:-none} | input_tokens=${TS_TOKENS:-none} | text='${TS_TEXT:0:60}'"
+}
+
+probe_section "tool search — a tool_reference inside a tool_result (the client's search result)"
+ts_probe "empty search result (floor)" '[]'
+FLOOR_STATUS="$TS_STATUS"; FLOOR_TOKENS="$TS_TOKENS"
+ts_probe "tool_result naming the tool as TEXT (control)" \
+  "[{\"type\":\"text\",\"text\":\"$TOOLSEARCH_NAME\"}]"
+CTRL_STATUS="$TS_STATUS"; CTRL_TOKENS="$TS_TOKENS"; CTRL_TEXT="$TS_TEXT"
+ts_probe "tool_reference naming the tool (subject)" \
+  "[{\"type\":\"tool_reference\",\"tool_name\":\"$TOOLSEARCH_NAME\"}]"
+SUBJ_STATUS="$TS_STATUS"; SUBJ_TOKENS="$TS_TOKENS"; SUBJ_TEXT="$TS_TEXT"; SUBJ_ERR="$TS_ERR"
+
+if [ -z "$FLOOR_TOKENS" ] || [ "$FLOOR_STATUS" != "200" ]; then
+  bad "the tool-loop floor arm is unusable (HTTP ${FLOOR_STATUS:-none}, input_tokens=${FLOOR_TOKENS:-none}) — no tool-search verdict would mean anything"
+else
+  ok "tool-loop premises hold: an empty search result answers 200 at input_tokens=$FLOOR_TOKENS"
+  case "$SUBJ_STATUS" in
+    200)
+      # Hard check, model-independent: the referenced name must COST tokens against the floor.
+      if [ -z "$SUBJ_TOKENS" ] || [ "$SUBJ_TOKENS" -le "$FLOOR_TOKENS" ]; then
+        bad "tool_reference inside tool_result: 200 at input_tokens ${SUBJ_TOKENS:-none} vs the ${FLOOR_TOKENS}-token floor — the referenced tool never entered the prompt, so the client's search result was dropped and the turn was answered without it"
+      else
+        ok "tool_reference: input_tokens $SUBJ_TOKENS vs floor $FLOOR_TOKENS — the referenced name entered the prompt"
+      fi
+      # Delivery, only where the control proves this model can echo the name at all.
+      if printf '%s' "$CTRL_TEXT" | grep -qi "$TOOLSEARCH_NAME"; then
+        if printf '%s' "$SUBJ_TEXT" | grep -qi "$TOOLSEARCH_NAME"; then
+          ok "tool_reference: the model named $TOOLSEARCH_NAME back — the reference reached it as well as the text did"
+        else
+          bad "tool_reference: 200 and the tokens were billed, but the model answered '${SUBJ_TEXT:0:40}' where the same name as TEXT ($CTRL_TOKENS tokens) got $TOOLSEARCH_NAME back — carried into the prompt, not into the model's view"
+        fi
+      else
+        probe_note "control arm did not echo the name either — this model cannot follow the instruction, so delivery rests on the token delta alone"
+      fi
+      ;;
+    4??|5??)
+      if printf '%s' "$SUBJ_ERR" | grep -qi "tool_reference"; then
+        ok "tool_reference refused at ${SUBJ_STATUS} naming the block — honest refusal, the client can drop it"
+      else
+        bad "tool_reference refused at ${SUBJ_STATUS} without naming the block: ${SUBJ_ERR:0:140}"
+      fi
+      ;;
+    *)
+      bad "tool_reference: unexpected HTTP ${SUBJ_STATUS:-none}: $(printf '%.200s' "$PROBE_BODY")"
+      ;;
+  esac
+fi
+
+probe_section "server-typed tool definitions, tool_removal, defer_loading — REPORTED, the judges split here"
+probe_api POST /v1/messages "$(python3 - "$PROBE_MODEL" <<'PY'
+import json, sys
+print(json.dumps({"model": sys.argv[1], "max_tokens": 16, "temperature": 0.0,
+    "tools": [{"type": "web_search_20260209", "name": "web_search"}],
+    "messages": [{"role": "user", "content": "Reply with the word KESTREL."}]}))
+PY
+)"
+ST_TOKENS="$(probe_json "$PROBE_BODY" 'usage.input_tokens')"
+probe_note "server-typed tool (web_search_20260209, no input_schema) -> HTTP ${PROBE_STATUS:-none}" \
+  "| input_tokens=${ST_TOKENS:-none} (baseline $BASE_INPUT_TOKENS) | error=$(printf '%.80s' "$(probe_json "$PROBE_BODY" 'error.message')")"
+probe_note "⇒ reported only: vllm refuses Anthropic-defined tools by name, sglang parses them as typed" \
+  " variants; a token count ABOVE baseline here means the route declared a tool it cannot execute."
+probe_api POST /v1/messages "$(python3 - "$PROBE_MODEL" "$TOOLSEARCH_NAME" <<'PY'
+import json, sys
+model, name = sys.argv[1:3]
+print(json.dumps({"model": model, "max_tokens": 16, "temperature": 0.0,
+    "messages": [{"role": "user", "content": "Reply with the word KESTREL."},
+                 {"role": "user", "content": [{"type": "tool_removal",
+                     "tool": {"type": "tool_reference", "tool_name": name}}]}]}))
+PY
+)"
+probe_note "tool_removal block -> HTTP ${PROBE_STATUS:-none} | error=$(printf '%.80s' "$(probe_json "$PROBE_BODY" 'error.message')")" \
+  "⇒ reported: vllm refuses these blocks outright (protocol.py:_reject_tool_changes)."
+probe_api POST /v1/messages "$(python3 - "$PROBE_MODEL" <<'PY'
+import json, sys
+print(json.dumps({"model": sys.argv[1], "max_tokens": 16, "temperature": 0.0,
+    "tools": [{"name": "read_file", "description": "Read a file.", "defer_loading": True,
+               "input_schema": {"type": "object",
+                                "properties": {"path": {"type": "string"}}}}],
+    "messages": [{"role": "user", "content": "Reply with the word KESTREL."}]}))
+PY
+)"
+DL_TOKENS="$(probe_json "$PROBE_BODY" 'usage.input_tokens')"
+probe_note "defer_loading:true on a real tool -> HTTP ${PROBE_STATUS:-none} | input_tokens=${DL_TOKENS:-none}" \
+  " vs baseline $BASE_INPUT_TOKENS ⇒ reported: the tool is callable either way (Strata's reading: a deferred" \
+  " tool is callable although the prompt does not list it), so declaring it is not a false capability."
+
 # ── 3. vision cross-route comparison (reported, not gated) ───────────────────
 probe_section "vision cross-route — does /v1/messages see what /v1/chat/completions sees?"
 probe_api GET /v1/models
@@ -289,12 +427,13 @@ else
 fi
 
 # ── verdict ───────────────────────────────────────────────────────────────────
-# Baseline (2) + four block shapes (1 each) + the vision cross-check + this floor is ~8.
-# 6 sits well under that and well above zero: a route that stopped answering, or a scan that
-# stopped matching, fails instead of passing vacuously.
-if [ "$CHECKS" -ge 7 ]; then
+# Baseline (2) + four block shapes (1 each) + the tool-search section (2-3, the delivery check
+# is conditional on the control arm) + the vision cross-check + this floor is ~11. 9 sits under
+# that and well above zero: a route that stopped answering, or a section that stopped emitting
+# verdicts, fails instead of passing vacuously.
+if [ "$CHECKS" -ge 9 ]; then
   ok "premise floor: $CHECKS verdicts issued by this run"
 else
-  probe_fail "only $CHECKS verdicts issued (< 6) — this probe silently stopped measuring"
+  probe_fail "only $CHECKS verdicts issued (< 9) — this probe silently stopped measuring"
 fi
 probe_summary "$PROBE_NAME"
