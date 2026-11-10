@@ -146,9 +146,6 @@ public enum StringKey: String, CaseIterable, Sendable {
     case diffAddedLines = "Chat.Diff.AddedLines"
     case diffRemovedLines = "Chat.Diff.RemovedLines"
     case diffElidedLines = "Chat.Diff.ElidedLines"
-    case diffExpand = "Chat.Diff.Expand"
-    case diffCollapse = "Chat.Diff.Collapse"
-    case diffNotApplied = "Chat.Diff.NotApplied"
     // — Chat phases (progress display) —
     case phasePreparing = "Chat.Phase.Preparing"
     case phasePrefilling = "Chat.Phase.Prefilling"
@@ -366,7 +363,6 @@ public enum StringKey: String, CaseIterable, Sendable {
     case messageInputLabel = "A11y.MessageInputLabel"
     case messageInputHint = "A11y.MessageInputHint"
     case stopStreamingLabel = "A11y.StopStreamingLabel"
-    case stopStreamingHint = "A11y.StopStreamingHint"
     case sendMessageLabel = "A11y.SendMessageLabel"
     case sendMessageHint = "A11y.SendMessageHint"
     case composerSteerLabel = "Composer.SteerLabel"
@@ -587,7 +583,6 @@ public enum StringKey: String, CaseIterable, Sendable {
     case clearConversationTitle = "Chat.ClearConversationTitle"
     case clearAllAction = "Chat.ClearAllAction"
     case clearConversationMessage = "Chat.ClearConversationMessage"
-    case fileTooLarge = "Chat.FileTooLarge"
     case generationFailed = "Chat.GenerationFailed"
     /// The `loading` face of the five non-happy states (`UI/AGENTS.md`): the engine refused with
     /// `model_loading`, which is a wait it measured, not a failure. Says only what the refusal
@@ -742,9 +737,6 @@ enum L10nTables {
         .diffAddedLines: "+%d",
         .diffRemovedLines: "−%d",
         .diffElidedLines: "… %d unchanged line(s)",
-        .diffExpand: "Show changes",
-        .diffCollapse: "Hide changes",
-        .diffNotApplied: "Preview — not yet run",
         .tokPerSec: "Tok/S",
         .phasePreparing: "Preparing model…",
         .phasePrefilling: "Prefilling context…",
@@ -985,7 +977,6 @@ enum L10nTables {
         .messageInputLabel: "Message Input",
         .messageInputHint: "Type your message and press Enter to send",
         .stopStreamingLabel: "Stop Streaming",
-        .stopStreamingHint: "Tap to stop the current response",
         .composerSteerLabel: "Steer this turn",
         .composerSteerHint: "Send a course-correction to the running turn without stopping it",
         .composerSteerQueued: "Steering queued",
@@ -1124,7 +1115,6 @@ enum L10nTables {
         .clearAllAction: "Clear All",
         .clearConversationMessage:
             "This will delete all messages in this chat. You can undo with ⌘Z.",
-        .fileTooLarge: "File too large (%@) (max 10 MB)",
         .generationFailed: "Generation failed",
         .modelLoadingTitle: "Model is still loading",
         .contextCompactedBadge: "%d earlier message(s) compacted to fit the context window",
@@ -1295,9 +1285,6 @@ enum L10nTables {
         .diffAddedLines: "+%d",
         .diffRemovedLines: "−%d",
         .diffElidedLines: "… %d 行未改动",
-        .diffExpand: "查看改动",
-        .diffCollapse: "收起改动",
-        .diffNotApplied: "预览 — 尚未执行",
         .tokPerSec: "Token/s",
         .chatTTFT: "首 Token",
         .perfStatsToggle: "显示每轮统计（tok/s、TTFT、token 计数）",
@@ -1466,7 +1453,6 @@ enum L10nTables {
         .clearConversationTitle: "清空对话？",
         .clearAllAction: "全部清空",
         .clearConversationMessage: "此操作将删除当前对话的所有消息。可使用 ⌘Z 撤销。",
-        .fileTooLarge: "文件过大 (%@) (max 10 MB)",
         .generationFailed: "生成失败",
         .modelLoadingTitle: "模型仍在加载中",
         .contextCompactedBadge: "已压缩 %d 条早期消息以适配上下文窗口",
@@ -1552,7 +1538,6 @@ enum L10nTables {
         .messageInputLabel: "消息输入框",
         .messageInputHint: "输入消息后按回车发送",
         .stopStreamingLabel: "停止流式输出",
-        .stopStreamingHint: "点击停止当前回复",
         .composerSteerLabel: "引导本轮",
         .composerSteerHint: "不打断当前回复，向进行中的一轮发送方向修正",
         .composerSteerQueued: "待引导",
