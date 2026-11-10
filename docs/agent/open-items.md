@@ -39,15 +39,6 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   gate `:anon:` KV sharing is the owner's — it sits on the loop seams the open rows around Pin 1 call
   sensitive. Instrument: probe 07 §2c's nonce-isolated NOTE lines print each arm's whole; 59-token
   cold-looking arms next to a growing cache_read are this row's return.
-- **Probe 13 §8's thinking byte-identity gate measures the checkpoint, not the code** (scripts/probes/) —
-  the check passes only when `thinking:{enabled}` and `thinking:{disabled}` answer byte-identically, an
-  expectation carried since 10-19 for a checkpoint with "no reasoning channel". Measured 11-10 twice on two
-  boots: enabled 289 tok / `end_turn`, disabled 512 tok / `max_tokens`, byte-equal across boots — the knob
-  moves generation on the judged checkpoint (the reasoning text lands inside the answer; the probe's own
-  NOTE admits that face). The byte-identity expectation is therefore falsified, and its two named
-  regressions (budget capping, disabled→ON) stay covered by the assembly greps and the over-budget 400 that
-  passed today. Repair: re-measure the knob's inertness per checkpoint at load, then restate §8's arms;
-  until then `make probes` is red there and the red measures the probe.
 - **Five clones on disk carry no comparator verdict** (docs/) — the 11-10 `~/references` update swept to 47
   trees; `aider`, `SWE-agent`, `mini-swe-agent`, `unsloth` and `nginx` exist on disk with no row in
   `comparator-repos.md` (upstream siblings excluded). Registering one is the verdict that it is a tree we

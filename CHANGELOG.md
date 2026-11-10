@@ -7,7 +7,25 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-11-10
+**11-10 the thinking-knob probe was repaired the day its premise died: §8 now gates the two things that are our code, and the red that measured the probe is gone**
+
+- **What improved:** probe 13 §8 demanded `thinking:{enabled}` == `thinking:{disabled}` byte-for-byte at
+  temp 0 — the 10-19 "no reasoning channel ⇒ inert knob" premise that today's escalation tier convicted
+  twice. Measured first, then restated: three hand-fired requests on the judged checkpoint gave
+  absent ≡ **disabled byte-identically** (sha `1d5bbdd05d7b`, 761 in / 512 out / `max_tokens`) and
+  `enabled` a different answer (289 / `end_turn`) — the knob delivers; a default resolving to neither state
+  is what would be broken. §8 now asserts exactly that (absent must match one stated state), plus the
+  shape the budget-cap regression took (a `max_tokens` stop must reach the request's 512, never the
+  thinking budget's 300) — both checkpoint-independent; whether the knob moves a given checkpoint's
+  generation became a recorded NOTE beside the run, gated where it belongs (the reasoning-channel rows).
+  The section's `probe_ok` text, the two stale NOTEs and the falsified "identical here" claim went with it.
+- **What proves it:** the same-session measurements (the three-curl sha table above, fired by hand against a live
+  serve), then the repaired probe live: `PASS the silent default resolves to a stated state
+  — absent matches disabled byte-identically (1660-char answer)` and the run exits green — the tier's
+  second red is closed; 07's two remain, deliberately, until the owner's `tool_reference` call lands.
+- **Gate:** §8 itself, restated — `disabled`→ON drift or an invented third default reddens the
+  match-a-stated-state check; a `min(max_tokens, budget_tokens)` regression reddens the ceiling check; the
+  closed row in `closed-items-log.md` is where the story lives now.
 
 **11-10 the `~/references` wave consumed: every live cite held its line, and one held its verdict wrongly — Strata silently drops what it cannot resolve, so the field's honest set for the `tool_reference` row is three-way, not two**
 

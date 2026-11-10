@@ -3,6 +3,21 @@
 > Material `AGENTS.md` § *Open* used to carry prose for although it was resolved, retracted or
 > judged a phantom gap. An open item is one that can still change a decision; a verdict is
 > history, and history kept in the injected layer costs every session.
+- **Probe 13 §8's thinking byte-identity gate (11-10, landed and closed the same day).** The gate demanded
+  `thinking:{enabled}` == `thinking:{disabled}` byte-for-byte at temp 0 — a 10-19 premise ("no reasoning
+  channel ⇒ the knob is inert") that two boot-stable samples convicted the day the escalation tier first ran
+  it: enabled 289 tok/`end_turn` vs disabled 512/`max_tokens`, the arms' counts and answer openings
+  identical across two boots (sha-equality is measured live by hand on one boot: absent and disabled share
+  it, enabled does not) — the flag
+  reaches generation even through a channel-less template (the reasoning text lands inside the answer). The
+  section now asserts only what is our code: `absent` matches one of the two STATED states byte-identically
+  (measured: `disabled`, sha-verified at temp 0; a default matching neither is the third-behavior face of
+  the disabled→ON class), and an arm stopping `max_tokens` reaches the request's ceiling, never the thinking
+  budget — the `min(max_tokens, budget_tokens)` shape. Whether the knob moves a given checkpoint is that
+  checkpoint's reasoning reality: recorded beside the run, gated by the reasoning-channel rows, never by
+  this section. The red it last printed measured the probe, not the product — which is the only thing a
+  probe may never do.
+
 - **`/v1/models/:model/…` does not need `%2F` (11-06).** The item's stated cost — "accepting a slash costs a
   second routing truth" — was an assumption about the router nobody had run: Hummingbird answers a
   slash-bearing path with a recursive wildcard, so `/v1/models/**/sampling` is ONE registration and

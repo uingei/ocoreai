@@ -509,6 +509,9 @@ asm() {
 
 probe_api POST /v1/messages "$(ant_think_body absent 512)"
 ABSENT_ANSWER="$(text_block_text)"
+ABSENT_FULL="$(text_block_text 1000000)"
+ABSENT_OUT="$(msg_field usage.output_tokens)"
+ABSENT_STOP="$(msg_field stop_reason)"
 ABSENT_ASM="$(asm messages)"
 if printf '%s' "$ABSENT_ASM" | grep -q 'enableReasoning=default'; then
   probe_ok "no thinking field states no preference (engine template decides)"
@@ -543,30 +546,43 @@ else
   probe_fail "disabled did not reach the options as off: $OFF_ASM"
 fi
 
-# The knob must never cost the answer, and at temp 0 that is an exact claim: `enabled`
-# and `disabled` must return the same bytes over the FULL answer, with the same
-# output-token count. Two regressions move those bytes — the budget capping the output
-# (what `min(max_tokens, budget_tokens)` used to do) and `disabled` resolving to ON
-# (what this build used to do) — and neither slips past an equality check.
-#
-# NOT asserted: "the turn concludes with 9". Where this checkpoint puts the conclusion
-# moves between boots — measured 10-19 on the same prompt/temp: end_turn at 209 tokens in
-# one run, max_tokens at 512 (and still no conclusion at 1024) in another. A conclusion
-# check would therefore fail on the checkpoint, not on our code, and a substring test for
-# the digit passes on the riddle's own "9" regardless. Both are recorded, not claimed.
-if [ "$ON_STATUS" = "200" ] && [ "$OFF_STATUS" = "200" ] && [ -n "$ON_FULL" ] \
-   && [ "$ON_FULL" = "$OFF_FULL" ] && [ "$ON_OUT" = "$OFF_OUT" ]; then
-  probe_ok "the knob never costs the answer (identical ${#ON_FULL}-char output, ${ON_OUT} tokens both ways)"
+# What the three states may and may not do, re-measured 11-10 (the expectation this section
+# carried since 10-19 — byte-identity ACROSS the knob — asserted a property of the checked
+# checkpoint, not of our code, and two boot-stable samples convicted it: on gemma at temp 0
+# `enabled` answers 289/end_turn where `disabled` rambles to 512/max_tokens, byte-equal across
+# boots; the flag reaches generation even through a channel-less template, the reasoning text
+# landing in the answer). What IS our code, asserted instead:
+#   • the template's silent default is one of the two STATED states: `absent` is byte-identical
+#     to `disabled` or to `enabled` (measured here: to `disabled`) — a default resolving to
+#     neither is broken pooling or state, and it is the `disabled`-resolving-to-ON regression
+#     wearing a third face;
+#   • a `max_tokens` stop reaches the request's ceiling (512 here), never the thinking budget
+#     (300) — the shape the `min(max_tokens, budget_tokens)` regression took.
+# NOT asserted: "the turn concludes with 9" — the conclusion position on this checkpoint moves
+# between boots (measured 10-19: end_turn at 209 vs max_tokens at 512), and a substring test
+# for the digit passes on the riddle's own "9" regardless. Both are recorded, not claimed.
+ABSENT_MATCH=""
+[ "$ABSENT_FULL" = "$OFF_FULL" ] && ABSENT_MATCH="disabled"
+[ "$ABSENT_FULL" = "$ON_FULL" ] && ABSENT_MATCH="enabled"
+if [ -n "$ABSENT_MATCH" ] && [ "$ON_STATUS" = "200" ] && [ "$OFF_STATUS" = "200" ] \
+   && [ -n "$OFF_FULL" ]; then
+  probe_ok "the silent default resolves to a stated state — absent matches $ABSENT_MATCH byte-identically (${#OFF_FULL}-char answer)"
 else
-  probe_fail "thinking A/B changed the answer: enabled=[$ON_STATUS/${ON_OUT}tok/$ON_STOP] disabled=[$OFF_STATUS/${OFF_OUT}tok/$OFF_STOP] enabled='$(printf %.160s "$ON_ANSWER")' disabled='$(printf %.160s "$OFF_ANSWER")'"
+  probe_fail "the template default matches neither stated state: absent=${#ABSENT_FULL}c vs disabled=${#OFF_FULL}c vs enabled=${#ON_FULL}c — an unset thinking field invented a third behavior"
 fi
-probe_note "stop_reason enabled=$ON_STOP disabled=$OFF_STOP at max_tokens=512 — the conclusion position on this checkpoint moves between boots, so the verdict above compares the two turns rather than reading for a number"
+for cap_arm in "ON" "OFF" "ABSENT"; do
+  eval "cap_stop=\$${cap_arm}_STOP cap_out=\$${cap_arm}_OUT"
+  if [ "$cap_stop" = "max_tokens" ] && [ "${cap_out:-0}" != "512" ]; then
+    probe_fail "$cap_arm stopped max_tokens at ${cap_out:-?} output tokens, not the requested 512 — the budget is capping the answer (the min(max,budget) shape)"
+  fi
+done
+probe_note "stop_reason enabled=$ON_STOP/${ON_OUT:-?}tok disabled=$OFF_STOP/${OFF_OUT:-?}tok absent=$ABSENT_STOP/${ABSENT_OUT:-?}tok at max_tokens=512 budget=300 — the knob moves generation on this checkpoint (boot-stable 11-10); which side the default sits on is the checkpoint's reasoning reality, recorded here, gated by the reasoning-channel probes, not by this section"
 if [ "$ON_BLOCKS" = "thinking" ]; then
   probe_ok "reasoning arrived as a thinking block"
 else
   probe_note "no thinking block on this checkpoint (content[0].type='${ON_BLOCKS:-none}'): its template has no reasoning channel, so thinking text stays in the answer here"
 fi
-probe_note "output_tokens enabled=${ON_OUT:-?} disabled=${OFF_OUT:-?} — identical here, and identical on /v1/chat/completions (reasoning:true/false), which is a checkpoint fact, not the knob being unwired: the two greps above are the delivery proof"
+probe_note "output_tokens enabled=${ON_OUT:-?} disabled=${OFF_OUT:-?} — where these differ, the knob is delivered, not unwired: the assembly greps above are the wiring proof, and whether a checkpoint's generation moves is that checkpoint's reasoning reality (see the reasoning-channel rows), which this section records without gating on it"
 
 probe_api POST /v1/messages "$(ant_think_body overbudget 100)"
 if [ "$PROBE_STATUS" = "400" ] && printf '%s' "$PROBE_BODY" | grep -q 'budget_tokens'; then
