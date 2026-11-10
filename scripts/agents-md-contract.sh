@@ -519,7 +519,9 @@ for src, text in docs.items():
         for m in ANCHOR_MARK.finditer(line):
             if m.group(1) != ".":  # `anchor:.` cites the working tree, which resolves-here can judge
                 marker_cites.add((m.group(2), int(m.group(3))))
-        for m in CLAIM_RE.finditer(line):
+        # Raw line, not the URL-stripped one: a claim's command may BE a URL fetch, and
+        # stripping it silently re-pointed the tag claim at origin's ssh transport (11-11).
+        for m in CLAIM_RE.finditer(raw):
             claims.add((src, m.group(1), m.group(2), int(m.group(3)), m.group(4)))
         suites.update((src, s) for s in SUITE_RE.findall(line))
         make_targets.update(MAKE_RE.findall(line))

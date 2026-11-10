@@ -9,6 +9,30 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-11
 
+**11-11 whole-project audit round — five dead StringKeys cut, and the P4 collector convicted of gutting its own network claims**
+
+- **What improved.** The scan's confident finds, fixed same-turn: (1) five `StringKey` cases with zero
+  consumers (`diffExpand`/`diffCollapse`/`diffNotApplied`/`stopStreamingHint`/`fileTooLarge`), deleted at
+  all three homes; compile is the proof nothing referenced them. (2) The claim collector read the
+  URL-stripped line (stripping exists so file-ref checks don't chase URLs), so a claim whose command
+  *is* a URL fetch had its URL blanked before execution — `tags_published` silently ran
+  `git ls-remote … origin` over the ssh transport (whose port-22 banner exchange flaps hard from this
+  box: 3.6 s successes and >30 s hangs within one hour), and the docs had been routing around the
+  stripper by writing schemeless URLs (`curl api.github.com/…` → http-redirect → https). Claims are now
+  collected from the raw line, and `tags_published` names its https URL explicitly
+  (`git ls-remote … https://github.com/uingei/ocoreai.git` — 0.9 s × 3 back-to-back, no keychain,
+  no ssh, no 60-req/h API pool that our own docs-check and probes keep draining).
+- **What same-session output proves it.** The claim's own red: `docs-check` failed on it three times
+  while every direct invocation of the printed command succeeded — the printed command was not the run
+  command until the fix. Red sample after: expect `>=2` → P4 names `tags_published … command returns 1`,
+  restored → green. The +29-byte claim line moved the deepest chain 32 249→32 280, and B2's live-percent
+  re-derivation convicted the consensus `98 %` the same day (3rd time that check has caught a stale
+  percent — the instrument works).
+- **Which gate goes red.** P4 re-runs the claim every `make docs-check`; the collector fix is judged by
+  every URL-bearing claim reproducing. The residue of the audit — what looked broken but is an owner
+  call or an open item — went to the owner as a review list (drift windows, unwired closed-loop
+  scripts, the diff-affordance question, `tools[]`-vs-board surface).
+
 **11-11 the rewind reserve stopped being a bare constant — it ships stated on the kv-cache endpoint and overridable by one boot-time knob, the first two rungs of the ladder the vllm-metal row named**
 
 - **What improved.** `kvCacheRewindReserveTokens` was `1024` with no way to see or move it, so the § Open

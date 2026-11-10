@@ -39,7 +39,7 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
   `long-horizon-goal.md` § Rung zero (audit-facts.sh is its instrument). The
   tag *is* the version (`scripts/version.sh` prints it), so no doc re-types one. `Core/UpdateCheck.swift` only
   *notifies*; build/publish must split.
-<!-- claim:tags_published>=1 :: git ls-remote --refs --tags origin | grep -c 'refs/tags/v' -->
+<!-- claim:tags_published>=1 :: git ls-remote --refs --tags https://github.com/uingei/ocoreai.git | grep -c 'refs/tags/v' -->
 - **Agents are a channel they cannot find:** `/v1/capabilities` serves `endpoints[]`, `skills/ocoreai/` is
   published (probe 39 runs its markers), and `GET /openapi.json` renders the contract off that index; a
   generated client is still missing. Owner call: a public contract is a promise.
