@@ -5,6 +5,44 @@ where a number is unmeasured it says so, and where a fix is blocked by the host 
 which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes a rule in `AGENTS.md` or
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
+- **A `tool_reference` inside a `tool_result` is blanked to `"no output"` and billed** (Models/, Handlers/) —
+  measured 11-10, the first live sampling of probe 07 §2c (`111c120f` shipped the instrument with
+  "numbers still owed"): with the arms nonce-isolated and WHOLE (`input_tokens + cache_read_input_tokens`)
+  compared, the arms land 905 / 908 / 905 floor–control–subject: the name costs its 3 tokens as text and
+  zero as a reference. Live disambiguation the same round: the handler's own `Assembled prompt [messages]`
+  disclosure is **identical for floor and subject** (4 messages, promptTokens 744), and an un-nonce'd
+  subject turn's model answer is the literal fold copy `"no output"` —
+  the fold site is `AnthropicModels.swift:328`'s text-only filter (the earlier round's `:264`-adjacent
+  pointer; the 59-vs-899 token gap that first fired §2c belonged to the row below, not to this fold). The
+  field carries or refuses by name, never silence (`AnthropicModels.swift:479` already does refuse
+  top-level unknowns by name; vllm and sglang both carry the block into the tool message — cites at
+  `07 §2c` header). Owner call (routed 11-10, `CHANGELOG.md` dff9e099 round): render the referenced name,
+  or refuse by name. Until then this is the one silent-drop face on `/v1/messages` that answers 200.
+- **A warm re-send of an identical anonymous conversation bills the server's own previous turn**
+  (Engine/, Handlers/) — measured 11-10 against a live serve, three `/v1/messages` re-fires of ONE
+  stateless conversation: cold `input=899, cache_read=0`; warm `input=59, cache_read=908`, next re-send
+  `cache_read=970` — the whole (`input + cache_read`, the identity `AnthropicCacheUsage` declares a
+  breakdown may never exceed) reads 967 → 1029 against a 899-token render, growing per re-send, and
+  `StdTurn fed=3 of 3 divergence=0 upstreamCached=908…` names the mechanism: the std lane's `:anon:` slot
+  treats a re-send as a continuation, so its own previous answer's KV and positions ride into the request's
+  account and the conditioning. `PromptTokenAccounting`'s add-back (Handlers guide §"a usage field carries
+  the quantity its name claims") is not the site — its numbers are engine-scope truth, correct for a real
+  continuation where the caller re-sends the answer as history; the site is upstream's `cachedPromptTokenCount`
+  being session-scope where the wire promises request-scope. Repair shape: truncate at the divergence point
+  so the cache-read portion is request-scope (and the answer regenerates, as stateless means); the choice to
+  gate `:anon:` KV sharing is the owner's — it sits on the loop seams the open rows around Pin 1 call
+  sensitive. Instrument: probe 07 §2c's nonce-isolated NOTE lines print each arm's whole; 59-token
+  cold-looking arms next to a growing cache_read are this row's return.
+- **Probe 13 §8's thinking byte-identity gate measures the checkpoint, not the code** (scripts/probes/) —
+  the check passes only when `thinking:{enabled}` and `thinking:{disabled}` answer byte-identically, an
+  expectation carried since 10-19 for a checkpoint with "no reasoning channel". Measured 11-10 twice on two
+  boots: enabled 289 tok / `end_turn`, disabled 512 tok / `max_tokens`, byte-equal across boots — the knob
+  moves generation on the judged checkpoint (the reasoning text lands inside the answer; the probe's own
+  NOTE admits that face). The byte-identity expectation is therefore falsified, and its two named
+  regressions (budget capping, disabled→ON) stay covered by the assembly greps and the over-budget 400 that
+  passed today. Repair: re-measure the knob's inertness per checkpoint at load, then restate §8's arms;
+  until then `make probes` is red there and the red measures the probe.
+
 - **Sessions carry a TTL promise nobody enforces** (SQLite/, Scheduler/) — every `INSERT INTO sessions`
   writes `ttl_days` (default 180, configurable: `SessionCompressor.swift:114,120,72`; read back at
   `:1073`), and no code enforces it: the enforcer `purgeExpired()` had **zero callers** repo-wide

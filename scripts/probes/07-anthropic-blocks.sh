@@ -255,10 +255,16 @@ check_block "unknown block" \
 # name, `protocol.py:134-150`; sglang parses them as typed variants, `protocol.py:158+`) — those
 # arms are reported, never gated.
 TOOLSEARCH_NAME="probe-zephyrkite"
-tool_turn_body() {  # $1 = the tool_result's content array, as JSON
-  python3 - "$PROBE_MODEL" "$1" <<'PY'
+tool_turn_body() {  # $1 = the tool_result's content array, as JSON; $2 = per-arm nonce
+  # The nonce is why the floor comparison means anything: without a per-arm-unique prefix the
+  # arms share one pooled KV slot (measured 11-10 against a live serve — the second and third
+  # arms answered at input_tokens=59 with cache_read=908..970, the session billing its own
+  # previous answer as this request's cache read), and an `input_tokens` compared ACROSS cache
+  # states measures the pool, not the content. With one unique prefix per arm every arm is
+  # cold, and the arm that loses a payload loses exactly those tokens.
+  python3 - "$PROBE_MODEL" "$1" "$2" <<'PY'
 import json, sys
-model, content_json = sys.argv[1:3]
+model, content_json, nonce = sys.argv[1:4]
 print(json.dumps({
     "model": model, "max_tokens": 24, "temperature": 0.0,
     "tools": [{"name": "read_file", "description": "Read a file.",
@@ -266,7 +272,8 @@ print(json.dumps({
                                 "properties": {"path": {"type": "string"}}}}],
     "messages": [
         {"role": "user", "content":
-            "A tool search will name exactly one tool. Reply with that tool name and nothing else."},
+            "A tool search will name exactly one tool. Reply with that tool name and nothing else."
+            + f" [nonce {nonce}]"},
         {"role": "assistant", "content": [
             {"type": "tool_use", "id": "toolu_probe_ts", "name": "read_file",
              "input": {"path": "/tmp/probe"}}]},
@@ -278,30 +285,39 @@ print(json.dumps({
 PY
 }
 
-# Three arms of ONE request, differing only in what the search result carries. The empty arm is
-# the floor: it is the same conversation with the search result's payload removed, so a subject
-# arm that matches it proves the payload never entered the prompt — no model cooperation needed.
+# Three arms of ONE request, differing only in what the search result carries and in their
+# per-arm nonce. The empty arm is the floor: it is the same conversation with the search
+# result's payload removed, so a subject arm whose WHOLE matches it proves the payload never
+# entered the prompt — no model cooperation needed. WHOLE means `input_tokens +
+# cache_read_input_tokens`: Anthropic accounts a warm prompt as uncached + cache-read, and the
+# face splits it that way, so the bare `input_tokens` of a warm turn is a suffix (measured 11-10
+# before the nonce existed: arms 2–3 answered at 59 with cache_read=908..970, the pool billing
+# its own previous answer). With distinct nonces the arms cannot share KV, and the sum keeps
+# the check honest even if that ever changes again.
 # `probe_api` sets PROBE_STATUS/PROBE_BODY; the token count is read immediately after each call.
-ts_probe() {  # $1 label, $2 content json → sets TS_STATUS TS_TOKENS TS_TEXT
-  local body
-  body="$(tool_turn_body "$2")"
+ts_probe() {  # $1 label, $2 content json, $3 nonce → sets TS_STATUS TS_TOKENS TS_WHOLE TS_TEXT
+  local body cached
+  body="$(tool_turn_body "$2" "$3")"
   probe_api POST /v1/messages "$body"
   TS_STATUS="${PROBE_STATUS:-}"
   TS_TOKENS="$(probe_json "$PROBE_BODY" 'usage.input_tokens')"
+  cached="$(probe_json "$PROBE_BODY" 'usage.cache_read_input_tokens')"
+  case "$cached" in (''|*[!0-9]*) cached=0 ;; esac
+  TS_WHOLE=$(( ${TS_TOKENS:-0} + cached ))
   TS_TEXT="$(anthropic_text "$PROBE_BODY")"
   TS_ERR="$(probe_json "$PROBE_BODY" 'error.message')"
-  probe_note "$1 -> HTTP ${TS_STATUS:-none} | input_tokens=${TS_TOKENS:-none} | text='${TS_TEXT:0:60}'"
+  probe_note "$1 -> HTTP ${TS_STATUS:-none} | input_tokens=${TS_TOKENS:-none} (whole $TS_WHOLE) | text='${TS_TEXT:0:60}'"
 }
 
 probe_section "tool search — a tool_reference inside a tool_result (the client's search result)"
-ts_probe "empty search result (floor)" '[]'
-FLOOR_STATUS="$TS_STATUS"; FLOOR_TOKENS="$TS_TOKENS"
+ts_probe "empty search result (floor)" '[]' 'arm-floor'
+FLOOR_STATUS="$TS_STATUS"; FLOOR_TOKENS="$TS_TOKENS"; FLOOR_WHOLE="$TS_WHOLE"
 ts_probe "tool_result naming the tool as TEXT (control)" \
-  "[{\"type\":\"text\",\"text\":\"$TOOLSEARCH_NAME\"}]"
-CTRL_STATUS="$TS_STATUS"; CTRL_TOKENS="$TS_TOKENS"; CTRL_TEXT="$TS_TEXT"
+  "[{\"type\":\"text\",\"text\":\"$TOOLSEARCH_NAME\"}]" 'arm-control'
+CTRL_STATUS="$TS_STATUS"; CTRL_TOKENS="$TS_TOKENS"; CTRL_WHOLE="$TS_WHOLE"; CTRL_TEXT="$TS_TEXT"
 ts_probe "tool_reference naming the tool (subject)" \
-  "[{\"type\":\"tool_reference\",\"tool_name\":\"$TOOLSEARCH_NAME\"}]"
-SUBJ_STATUS="$TS_STATUS"; SUBJ_TOKENS="$TS_TOKENS"; SUBJ_TEXT="$TS_TEXT"; SUBJ_ERR="$TS_ERR"
+  "[{\"type\":\"tool_reference\",\"tool_name\":\"$TOOLSEARCH_NAME\"}]" 'arm-subject'
+SUBJ_STATUS="$TS_STATUS"; SUBJ_TOKENS="$TS_TOKENS"; SUBJ_WHOLE="$TS_WHOLE"; SUBJ_TEXT="$TS_TEXT"; SUBJ_ERR="$TS_ERR"
 
 if [ -z "$FLOOR_TOKENS" ] || [ "$FLOOR_STATUS" != "200" ]; then
   bad "the tool-loop floor arm is unusable (HTTP ${FLOOR_STATUS:-none}, input_tokens=${FLOOR_TOKENS:-none}) — no tool-search verdict would mean anything"
@@ -310,10 +326,10 @@ else
   case "$SUBJ_STATUS" in
     200)
       # Hard check, model-independent: the referenced name must COST tokens against the floor.
-      if [ -z "$SUBJ_TOKENS" ] || [ "$SUBJ_TOKENS" -le "$FLOOR_TOKENS" ]; then
-        bad "tool_reference inside tool_result: 200 at input_tokens ${SUBJ_TOKENS:-none} vs the ${FLOOR_TOKENS}-token floor — the referenced tool never entered the prompt, so the client's search result was dropped and the turn was answered without it"
+      if [ -z "$SUBJ_TOKENS" ] || [ "$SUBJ_WHOLE" -le "$FLOOR_WHOLE" ]; then
+        bad "tool_reference inside tool_result: 200 at whole $SUBJ_WHOLE tokens (input ${SUBJ_TOKENS:-none}) vs the ${FLOOR_WHOLE}-token floor — the referenced tool never entered the prompt, so the client's search result was dropped and the turn was answered without it"
       else
-        ok "tool_reference: input_tokens $SUBJ_TOKENS vs floor $FLOOR_TOKENS — the referenced name entered the prompt"
+        ok "tool_reference: whole $SUBJ_WHOLE vs floor $FLOOR_WHOLE — the referenced name entered the prompt"
       fi
       # Delivery, only where the control proves this model can echo the name at all.
       if printf '%s' "$CTRL_TEXT" | grep -qi "$TOOLSEARCH_NAME"; then

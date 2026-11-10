@@ -80,7 +80,7 @@ Fails when: HTTP 200 without `audio_input` on a request that carried audio (the 
 - `07-anthropic-blocks.sh` — Does `/v1/messages` honour, or blank, the content blocks a real SDK sends?
   Includes a tool search's result: a `tool_reference` nested in a `tool_result` must reach the model
   or be refused by name, never billed into a prompt and dropped on the way in.
-Fails when: a spec-legal block array answering 200 while `usage.input_tokens` sits at or under the plain-string baseline (the turn was blanked), a refusal that does not name the block type, `[{type:text}]` itself failing, a 200 with empty content next to an image, or a run whose baseline is unusable (it aborts instead of issuing verdicts built on a missing
+Fails when: a spec-legal block array answering 200 while the prompt WHOLE (`input_tokens + cache_read_input_tokens`, arms nonce-isolated) sits at or under the plain-string baseline (the turn was blanked), a refusal that does not name the block type, `[{type:text}]` itself failing, a 200 with empty content next to an image, or a run whose baseline is unusable (it aborts instead of issuing verdicts built on a missing
     premise)
 
 - `08-video-honesty.sh` — Does `/v1/chat/completions` see the video it accepts, keep the bytes its transcript cites, and name what it cannot open?

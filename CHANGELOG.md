@@ -9,6 +9,35 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-10
 
+**11-10 the escalation tier ran on today's tree: two reds, both pre-existing, and one of them was the probe measuring the wrong axis — §2c pays its numbers with a nonce-isolated 905 / 908 / 905**
+
+- **What improved:** probe 07 §2c's floor check can no longer be fooled by KV scope: each arm now carries
+  a unique nonce prefix and the comparison runs on the prompt WHOLE (`input_tokens +
+  cache_read_input_tokens`), the identity this face's own `AnthropicCacheUsage` declares a breakdown may
+  never exceed. First live samples had shown the subject arm at `input_tokens=59` — which looked like the
+  drop but was partly a different defect: arms 2–3 shared one pooled `:anon:` KV slot and answered warm
+  (`cache_read=908→970`, `StdTurn fed=3 of 3 divergence=0`), i.e. the server billed and conditioned on its
+  own previous turn for a stateless re-send (cold 899/0, warm 59/908, next 59/970). With nonces the arms
+  are individually cold and §2c fires for its named reason: floor 905, control 908 (the name as TEXT costs
+  its 3 tokens), subject 905 (the name as `tool_reference` costs nothing) — the silent fold
+  (`AnthropicModels.swift:328`) is proven model-independently, matching the handler's identical
+  `[messages]` disclosures (4 messages, 744) and the fold-copy answer `"no output"`. Three open rows
+  landed: the `tool_reference` blank (owner call render-vs-refuse, routed by the dff9e099 round), the
+  warm-re-send billing/conditioning (Engine/, the repair sits on the seam Pin 1's rows call sensitive), and
+  probe 13 §8's thinking byte-identity gate, whose inert-knob premise two boot-stable samples (enabled
+  289/end_turn vs disabled 512/max_tokens) falsify — its two named regressions stay covered by the
+  assembly greps and the over-budget 400, which passed.
+- **What proves it:** the same-session runs: six-probe pass (11, 14, 22, 27 green; 07, 13 red) and a
+  rerun reproducing both shapes exactly; live triage fires on a hand-driven serve capturing full `usage`
+  per arm and the `StdTurn` lines; post-fix probe 07 prints the 905/908/905 NOTE lines and two FAILs whose
+  text now names WHOLE comparisons. Attribution off today's three commits by diff: `758f827d..HEAD` is
+  identity threading only — no sampling or reasoning line among its 383 insertions.
+- **Gate:** probe 07 §2c stays RED until the owner picks render or refuse — that red is the point
+  (invariant 2: a 200 that bills and drops). Its nonce-isolated NOTE lines double as the instrument for the
+  warm-re-send row (a growing `cache_read` or a cold-looking 59 beside it is that row's return); probe 13
+  §8's red is named by its row and measures the probe, not the product. `make docs-check` green after the
+  writes.
+
 **11-10 the FM lane forwards the audit key too — the round that closed the turn key had called it an unverifiable class, and the owner's CI question showed the class was half-verifiable**
 
 - **What improved:** the previous entry left the FM/ANE channels keyless, reasoning a macOS-27
