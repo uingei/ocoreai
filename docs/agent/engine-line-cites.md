@@ -5,17 +5,17 @@ The host injects root `AGENTS.md` plus every `AGENTS.md` to the cwd, truncated a
 sweep `docs/agent/*.md`, so one hop out loses nothing.
 
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:195 Task.sleep(until: deadline -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1432 Float.leastNormalMagnitude -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3073 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3806 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1434 Float.leastNormalMagnitude -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3079 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3812 SteerQueue.shared.drain -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInferenceSupport.swift:116 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4412 components: thinkingComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4406 answerOnly: true -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3914 components: mtpGenComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4418 components: thinkingComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4412 answerOnly: true -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3920 components: mtpGenComponents -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:889 case "affine" -->
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1566 static func rewindHistoryEnd -->
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:687 Self.rewindHistoryEnd( -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3266 rewind.source.session.fork( -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3272 rewind.source.session.fork( -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:913 let kvCacheRewindReserveTokens = 1024 -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:14 public struct Message { -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/UserInput.swift:131 public struct Image { -->
