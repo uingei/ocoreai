@@ -341,6 +341,26 @@ for id in $(python3 "$HERE/_eval.py" ids); do
   printf 'workspace %s\nusage %s\nelapsed_ms %s\nverify_rc %s\n' "$ws" "$usage" "$PROBE_ELAPSED_MS" "$rc" \
     >> "$OUT/verify-$id.log"
 
+  # 126/127 are machine state, never workspace state: no file an agent writes makes the
+  # verifier's own command missing or unexecutable. Scoring one as a task fail launders a
+  # dead toolchain into the model's task-success rate — the stale-Metal mid-round incident
+  # (README §ledger, 11-06) is the same family one layer up, and four recorded runs paid a
+  # paragraph each to adjudicate by hand whether the harness or the model failed. The
+  # attribution rule is borrowed (terminal-bench's verifier contract, tasks/*/tests/test.sh: a
+  # verifier that cannot record a scoreable verdict is a hard error, never a laundered 0);
+  # the exit shape is this file's own pre-run stance (a verifier that cannot fail is audited
+  # before any turn runs — this is its mid-run twin). Stop loudly: the remaining tasks would
+  # inherit the same broken machine. Premise audited 11-10 before writing the branch: all 45
+  # verify commands start with a machine tool (python3/[/case/grep/printf/test/!) and none
+  # execs an agent-authored artifact as a command, so 126/127 here cannot name a missing
+  # product of the agent — that floor is what makes an abort the right reading of those codes.
+  if [ "$rc" -eq 126 ] || [ "$rc" -eq 127 ]; then
+    probe_fail "task $id: verify_rc $rc — the verifier's own command is missing or unexecutable" \
+      "(machine state, not agent state; see verify-$id.log) — the run stops here rather than" \
+      "score the rest of the set against a broken toolchain"
+    probe_summary "$PROBE_NAME"
+  fi
+
   # A verifier's rc says the workspace is wrong, never what the produced file said, and the next
   # task wipes the directory: without these bytes the cause of a failure dies with the session.
   # Passing tasks are snapshotted too — "it passed" is only evidence once the shape is on disk.

@@ -72,6 +72,11 @@ printed as a directory at the start of the run — read the failures, not only t
   (45 scored, 52 frozen edit-repair), so losing six of the default set is a failure, and
   `OCOREAI_EVAL_FLOOR_FAMILY` (2) is the floor under that: a set missing a whole *family* of
   tasks is a shrunken instrument even when the total clears;
+- a verifier command whose exit is 126/127 is machine state, not agent state (every verify
+  starts with a machine tool — audited 11-10 across all 45 tasks): the run stops there rather
+  than score the rest of the set against a dead toolchain — the stale-Metal mid-round incident
+  (ledger above, 11-06) is the same family one layer up, and the attribution rule is
+  terminal-bench's verifier contract (an unverifiable run is an error, never a laundered 0);
 - `_verifier_selftest.py` refuses a task file below `OCOREAI_SELFTEST_FLOOR` (20) — a
   verifier self-test over a near-empty set proves nothing. Screening runs lower it deliberately;
   a scored run does not;

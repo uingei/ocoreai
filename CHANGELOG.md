@@ -9,6 +9,32 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-10
 
+**11-10 the comparator census answered "aren't there projects we could still benchmark against?": all 43 registered trees carry cites, the wasted tail is the eval/computer-use one — and the first harvest from it stopped the scoreboard from laundering a dead toolchain into a model fail**
+
+- **What improved:** the three-zeros method aimed at the comparator layer (word-boundary counts,
+  substring-fat fixed): 43 registered, 47 on disk (the five unregistered are the named row), none
+  uncited, none missing — the registry is healthy; what wastes is the tail: the eval/computer-use
+  benchmarks (`terminal-bench`, `SWE-bench`, `BrowserGym`, `OSWorld`, `Hybrid-Computer-Use` at 1–10
+  cites) sit beside a board whose scoreboard feeds the auto-A/B p-values, on the identity's deepest
+  slice (coding/computer agents). The first harvest: terminal-bench's verifier contract
+  (`tasks/*/tests/test.sh` — a verifier whose own preconditions broke exits nonzero WITHOUT writing
+  the reward file; "must not be laundered into a scoreable 0"). Our board scores every `verify rc ≠
+  0` as a task fail with no verifier-error state, and the question "harness bug or model result?"
+  was adjudicated by hand across at least four recorded runs (eval README :27/:71, CHANGELOG
+  :1192/:3493) — each cost a paragraph, and the stale-Metal mid-round incident (11-06) is the same
+  family. `run.sh` now exits the run on `verify_rc` 126/127 (machine state by bash's own contract —
+  the branch's premise audited first: all 45 verify commands begin with a machine tool, none execs
+  an agent-authored artifact as a command, so those codes cannot name a missing product of the
+  agent); attribution borrowed, exit shape already this file's own pre-run stance.
+- **What proves it:** the census output above (word-boundary, weakest-first); the branch's
+  semantics sampled red on bash's contract (missing cmd → 127, non-exec → 126) with `bash -n`
+  clean and `_verifier_selftest.py` still green; the offending-relative-path scare was checked to
+  a substring of `rows`, not a real `./` call.
+- **Gate:** none installed (the branch is exercised only when the machine breaks; its red sample is
+  the rc contract itself, and the next harness-suspect run is its live trial) — the README premise
+  bullet is the consumer's address, and the census is reproducible by the one-liner recorded in the
+  commit.
+
 **11-10 half of this afternoon's pin-window adjudication convicted itself: `#724`'s batched MTP verify lands on a path we DO consume, and P20 gained the face that let it slip**
 
 - **What improved:** the afternoon row adjudicated mlx-swift-lm `+2` as "iterators our lanes never drive"
