@@ -34,25 +34,25 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 - If upstream already has the answer, consume it or cite `file:line` — do not author a local variant.
 
 ## Adoption — the surface a stranger ranks
-- **A release is a cadence, not a green suite or one tag:** eight installable trees publish 37 → 1 272
-  releases, newest ≤9 d old (audit-facts.sh, 11-09); ours: 1 remote tag, 1 release (`v0.1.16`) — cadence is
-  the open item. The
+- **A release is a cadence, not a green suite or one tag:** ours is 1 remote tag, 1 release
+  (`v0.1.16`) — cadence is the open item; the re-measurable field ceiling lives at
+  `long-horizon-goal.md` § Rung zero (audit-facts.sh is its instrument). The
   tag *is* the version (`scripts/version.sh` prints it), so no doc re-types one. `Core/UpdateCheck.swift` only
-  *notifies*; build/publish must split. Ladder: `long-horizon-goal.md` § Rung zero.
+  *notifies*; build/publish must split.
 <!-- claim:tags_published>=1 :: git ls-remote --refs --tags origin | grep -c 'refs/tags/v' -->
 - **Agents are a channel they cannot find:** `/v1/capabilities` serves `endpoints[]`, `skills/ocoreai/` is
   published (probe 39 runs its markers), and `GET /openapi.json` renders the contract off that index; a
   generated client is still missing. Owner call: a public contract is a promise.
 - **Intake is a surface:** a duplicate-work check before any outbound issue or PR, answer latency, and a
   verifiable first-screen privacy contract (mechanics + cites: `docs/agent/adoption-runbook.md`).
-- **#1 is bounded by distribution, not arithmetic:** 3 469 stars/day for 76 d (`deepseek-harness`),
-  1 016/day at 34 d (`Strata`) against our 1 star in 136 d — never call the headline unreachable by math, and
+- **#1 is bounded by distribution, not arithmetic** (the stars/day table and its audit:
+  `docs/agent/adoption-runbook.md`): never call the headline unreachable by math, and
   never chase it: spend on a tag per merge and on a harness consuming us.
 
 ## Architecture
 HTTP/Handlers → Router/Middleware · Engine: `EnginePool`(actor) → `EngineInference` → MLX | CoreAI ·
-Scheduler: SchedulerActor, AdmissionGate, MemoryTracker, OOMGuard · SwiftUI: ChatViewModel,
-SessionManager(SQLite). The file per layer and the invariants: `ARCHITECTURE.md`.
+Scheduler: SchedulerActor, AdmissionGate, MemoryTracker, OOMGuard · SwiftUI: ChatState
+(`ChatViewModel.swift`), SessionManager(SQLite). The file per layer and the invariants: `ARCHITECTURE.md`.
 - `EnginePool` gates backends with inline `#if canImport(CoreAI)`; there is no `BackendProtocol`.
 - The two lanes reach the wire by different routes (MLX through upstream `ChatSession`, MTP around it);
   where each line lives is `Sources/ocoreai/Engine/AGENTS.md`.
@@ -226,7 +226,7 @@ against upstream first). Which doc each audience reads, and when: `docs/agent/do
 - **Footprint ladder — take the highest rung that solves it:** consume upstream → extend an existing seam →
   opt-in flag/trait → tool or skill → new module → new core/agent-facing surface. A new surface needs a
   consumer that exists today.
-- **Refused even when well-built** (the list hermes-agent keeps too): a guard for a failure nobody quoted;
+- **Refused even when well-built**: a guard for a failure nobody quoted;
   a test that only detects change; a second home for a decision; a new core tool where a file tool or a
   skill already does it — only that last clause is machine-decidable, hence the ceiling below.
 <!-- claim:core_tools<=43 :: git grep -h 'ToolEntry\.typed(' -- Sources/ocoreai/Tools | grep -vE '^[[:space:]]*(//|\*)' | wc -l -->
