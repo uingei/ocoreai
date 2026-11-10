@@ -15,9 +15,15 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   the fold site is `AnthropicModels.swift:328`'s text-only filter (the earlier round's `:264`-adjacent
   pointer; the 59-vs-899 token gap that first fired §2c belonged to the row below, not to this fold). The
   field carries or refuses by name, never silence (`AnthropicModels.swift:479` already does refuse
-  top-level unknowns by name; vllm and sglang both carry the block into the tool message — cites at
-  `07 §2c` header). Owner call (routed 11-10, `CHANGELOG.md` dff9e099 round): render the referenced name,
-  or refuse by name. Until then this is the one silent-drop face on `/v1/messages` that answers 200.
+  top-level unknowns by name). The field's honest set is three-way, not two — the earlier "render or
+  refuse, never silence" wording (this morning's round) was convicted by re-read after the `~/references`
+  update: vllm and sglang carry the block into the tool message (cites at `07 §2c` header); **Strata
+  renders a resolvable reference in place and silently drops an unresolvable one and answers 200**, its
+  documented reason being that a gone MCP server must not fail the rest of the session
+  (`../references/Strata/serve/frontend.py:664-673`, stance paragraph `:226-228`); sglang's GLM template
+  refuses the unresolvable by name. Owner call (routed 11-10, `CHANGELOG.md` dff9e099 round) now prices a
+  third shape: render-if-resolvable, and choose the unresolvable's exit between Strata's drop and the
+  template's refusal.
 - **A warm re-send of an identical anonymous conversation bills the server's own previous turn**
   (Engine/, Handlers/) — measured 11-10 against a live serve, three `/v1/messages` re-fires of ONE
   stateless conversation: cold `input=899, cache_read=0`; warm `input=59, cache_read=908`, next re-send
@@ -42,6 +48,11 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   regressions (budget capping, disabled→ON) stay covered by the assembly greps and the over-budget 400 that
   passed today. Repair: re-measure the knob's inertness per checkpoint at load, then restate §8's arms;
   until then `make probes` is red there and the red measures the probe.
+- **Five clones on disk carry no comparator verdict** (docs/) — the 11-10 `~/references` update swept to 47
+  trees; `aider`, `SWE-agent`, `mini-swe-agent`, `unsloth` and `nginx` exist on disk with no row in
+  `comparator-repos.md` (upstream siblings excluded). Registering one is the verdict that it is a tree we
+  measure against — unadjudicated trees stay unregistered rather than swept into the count; the sweep that
+  finds them ran again 11-10 and will run again (memory: registry silence ≠ absence).
 
 - **Sessions carry a TTL promise nobody enforces** (SQLite/, Scheduler/) — every `INSERT INTO sessions`
   writes `ttl_days` (default 180, configurable: `SessionCompressor.swift:114,120,72`; read back at
@@ -173,7 +184,15 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   drains at the tool-result tail, so the MTP row, the stall row and the interrupt row above all wait on one
   decision — *adopt what upstream's `ChatSession` loop now owns, or keep maintaining the local lane beside
   it*. The MTP half still deserves the acceptance row's read: a *resumable* drafter changes what that gate
-  would measure. Third axis clean: `mlx-swift tag=0.33.0 pin=0.33.0`. (Instrument note this row carried — one
+  would measure. The window moved again 11-10 (+2 → `ec4c966`) and both commits were adjudicated the same
+  round: `#774` (logprobs during speculative decoding) and `#724` (greedy MTP verify batched to one GPU
+  readback) change only the upstream spec-decode iterators our lanes never drive — no consumption surface,
+  no bump; but #724 is fresh weight on the owner's adopt-vs-keep call: verify 1.25–6.4× faster, e2e
+  27.7→28.5 tok/s on Qwen3.5-4B-4bit block-2 (M2), parity claims exact. coreai-models' +3 window judged
+  same round too: an RNG file-move (our `Video/RandomSource`/`TorchRandomSource`/`SeededRandomNumberGenerator`
+  mirrors' come-from relabels to `CoreAIShared/RNG` at next re-read), a python packaging chore, and a
+  python export-side RoPE precision fix — none touches a consumed surface. Third axis clean:
+  `mlx-swift tag=0.33.0 pin=0.33.0`. (Instrument note this row carried — one
   verdict, exit **10** then **2** — closed: `closed-items-log.md`.)
 - **MTP acceptance is threaded, unused as a signal, and its named suite gates nothing** (Engine/, Tests/) —
   found by reading, not by a scan. ① The counters are real: `proposedDraftTokens`/`acceptedDraftTokens`

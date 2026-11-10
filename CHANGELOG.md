@@ -9,6 +9,31 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-10
 
+**11-10 the `~/references` wave consumed: every live cite held its line, and one held its verdict wrongly — Strata silently drops what it cannot resolve, so the field's honest set for the `tool_reference` row is three-way, not two**
+
+- **What improved:** the update landed across 26 active trees (hermes-agent 1 398 commits since 11-08,
+  vllm/sglang/Strata 100+), so every cite this session's rows lean on was re-read, not re-quoted: vllm
+  `entrypoints/anthropic/serving.py:610,669`, sglang `…/anthropic/serving.py:317-341`, codex
+  `mcp_tool_call.rs:2746`, opencode `mcp/client.ts` (`outputSchema: undefined` and its documented reason) —
+  all on the lines cited. One verdict did not survive its own re-read: this morning's "among serving trees
+  that parse the block nested in a `tool_result`, nobody drops it silently — ours does" missed the other
+  half of the Strata docstring it had just cited — `serve/frontend.py:664-673` renders a RESOLVABLE
+  reference in place and **silently drops an unresolvable one and answers 200**, the stated reason being a
+  gone MCP server must not fail the rest of the session (stance paragraph `:226-228`). The `open-items.md`
+  row is restated as the three real shapes (carry / render-or-drop / refuse-by-name) and the owner's
+  pending call now prices the third: render-if-resolvable plus a chosen exit for the unresolvable. Both
+  upstream windows adjudicated to nothing owed: mlx-swift-lm +2 (`#774` spec-decode logprobs, `#724`
+  greedy-MTP verify batched to one readback — iterators our lanes never drive, so no bump; #724's
+  1.25–6.4× verify speedup is recorded as weight on the adopt-vs-keep owner call), coreai-models +3 (RNG
+  file-move relabelling three mirrors' come-from, a python packaging chore, a python export-side RoPE
+  precision fix — no consumed surface touched). The disk-vs-registry sweep (standing rule) found five
+  unadjudicated clones (`aider`, `SWE-agent`, `mini-swe-agent`, `unsloth`, `nginx`), named as a row rather
+  than registered — comparator status is a verdict, not a directory listing.
+- **What proves it:** the cited lines were opened against the post-update trees this session (each grep and
+  `sed` output above is the read); `make drift` printed the two windows and the clean third axis; the
+  registry diff ran off the real `- \`name\`` form after the first pass proved my regex was the wrong one.
+- **Gate:** none added — a read earns none. The corrected row is the consumer: the owner's A-call reads it.
+
 **11-10 the escalation tier ran on today's tree: two reds, both pre-existing, and one of them was the probe measuring the wrong axis — §2c pays its numbers with a nonce-isolated 905 / 908 / 905**
 
 - **What improved:** probe 07 §2c's floor check can no longer be fooled by KV scope: each arm now carries
