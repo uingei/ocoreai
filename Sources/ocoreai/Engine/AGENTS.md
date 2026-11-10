@@ -5,10 +5,9 @@
 the engine, so it costs context when someone is actually working here.
 
 ## Backend axes are independent — never gate one with another
-- `#if canImport(CoreAI)` means "this SDK ships CoreAI" (macOS 27+). It says nothing about Metal,
-  vision, tokenizers or the ANE. `TokenizerManager` was once gated on `canImport(CoreAI)` while its
-  only dependency is swift-transformers `Tokenizers` ⇒ the real tokenizer compiled out on the
-  delivery platform and a same-named no-op stub took its place, silently.
+- `#if canImport(CoreAI)` means "this SDK ships CoreAI" (macOS 27+) — nothing about Metal, vision,
+  tokenizers or the ANE. Worked instance: `TokenizerManager` gated on it while its only dependency
+  is swift-transformers `Tokenizers` ⇒ a silent no-op stub on the delivery platform.
 - Where a substitution is possible, make it observable (`TokenizerManager.isRealTokenizerBackend` →
   `/v1/capabilities` `tokenizerBackend: real|heuristic`) and pin it with a test.
 - Two routes build this subtree: CLT SDK 26.5 (every `canImport(CoreAI)` block compiles out) and
@@ -27,9 +26,7 @@ signed bundle (nested code object ⇒ CodeSign dies). Gate: `MetalShaderLibraryT
   not evidence of prefill reuse. A HIT that reports 0 reused tokens reused 0 tokens.
   Publish the measured number as `prefixReuse` on `/v1/models/:model/kv-cache` and the misses as
   `reuseRefusals`: a lane that builds its own cache (guided gen, MTP) is booked as the refusal it was.
-- Polling: `EnginePool.waitForLoading` sleeps one poll interval (`min(deadline, now +
-  loadingPollInterval)`), never to the deadline — sleeping to the deadline inside `while` cost 120 s
-  for a model ready in 8 s. Deadline-sleeping is correct only in a single-shot watchdog
+- Polling: `EnginePool.waitForLoading` is the worked instance of the root's one-poll-interval rule
   (`EngineInference.swift:172`).
 
 ## An edited resend rewinds; it does not re-prefill
@@ -55,11 +52,10 @@ Three conditions, and two of the ways they fail are silent (measured, not inferr
   (one cold turn) rather than hand upstream rows it rejects at first token — `requirePlan` throws
   `kvCacheConfigurationChanged` for a plan mismatch.
 
-Measured (gemma-4-e2b-it-4bit, one session): appended turn `758/734`, edited resend
-`758/718`; the same turn was `758/0` before this landed. Gates: `SessionRewindOnDivergenceTests`
-(the two rules never both say yes, over a 384-cell sweep; one fork site, one decision home,
-reserve at every resolver exit), `SessionIsolationTests` (plan mismatch, precedence, round trip),
-probe 27 (live server: reuse asserted, replaced fact absent from the reply).
+Gates: `SessionRewindOnDivergenceTests` (the two rules never both say yes, over a 384-cell sweep;
+one fork site, one decision home, reserve at every resolver exit), `SessionIsolationTests` (plan
+mismatch, precedence, round trip), probe 27 (live server: reuse asserted, replaced fact absent from
+the reply). Pre/post numbers: `CHANGELOG.md`.
 
 ## Steering is delivered at the request seam
 `mergingSteeredTurn` (`Sources/ocoreai/Handlers/ChatHandler.swift`) folds a queued steer into the head
@@ -74,22 +70,20 @@ completion path (`EngineInference.swift:4725`), and the prompt size in its evide
 `completionInfo.promptTokenCount` — never a bytes/4 heuristic.
 Counting at the media hand-off instead would claim video for turns that never produced an answer;
 reading `processor_class` would claim it for checkpoints whose processor ignores `input.videos`
-(`Gemma4UnifiedProcessor`), which is exactly the per-checkpoint trap this disclosure avoids.
+(`Gemma4UnifiedProcessor`).
 
-**Never inside the pooled release.** `releasePoolSlotWithAssistant` is a no-op when there is no pool —
-the degraded `.cpu` lane (`poolRef = nil`) and a pool-disabled engine (`sessionPool = nil`) both run
-without one, and both still hand every frame to the processor. Measured on that lane: the model
-answered "Red" with prompt 712 → 856 (+144 video tokens) while `/v1/models` held `video_input =
-not_observed`. `OCOREAI_SESSION_POOL=0` reaches the lane on demand (the memory-pressure route cannot
-be scheduled). Gates: `VideoDeliveryPathTests` (placement, premise-floored: one record site in the
-tree, none inside the release, guards still exclude media from guided-gen/MTP) +
-`VideoDeliveryDisclosureTests` + probe 08 §4 (pooled lane) + probe 17 (unpooled lane).
+**Never inside the pooled release.** `releasePoolSlotWithAssistant` is a no-op when there is no pool,
+and the degraded `.cpu` lane (`poolRef = nil`) and a pool-disabled engine (`sessionPool = nil`) both
+still hand every frame to the processor — `OCOREAI_SESSION_POOL=0` reaches that lane on demand.
+Gates: `VideoDeliveryPathTests` (premise-floored: one record site in the tree, none inside the
+release, guards still exclude media from guided-gen/MTP) + `VideoDeliveryDisclosureTests` +
+probes 08 §4 (pooled lane), 17 (unpooled lane); the unpooled-lane measurement: `CHANGELOG.md`.
 
-The server-wide row (`/v1/capabilities` → `video_input`) is the *same* measurement aggregated:
-`VideoDeliveryLedger.aggregate` counts models separately from turns/parts, and the sentence lives on
-`VideoDeliveryAggregate.evidenceLine`, so no publisher re-words it (a router that assembles its own
-evidence sentence is a second truth). Both are measured-only: `not_observed` is a fact about this
-process, never a claim about the checkpoint. Gate: `CapabilityMeasurementHonestyTests`.
+The server-wide row (`/v1/capabilities` → `video_input`) is the *same* measurement aggregated
+(`VideoDeliveryLedger.aggregate`), and the sentence lives on `VideoDeliveryAggregate.evidenceLine`,
+so no publisher re-words it (a router that assembles its own evidence sentence is a second truth).
+Both are measured-only: `not_observed` is a fact about this process, never a claim about the
+checkpoint. Gate: `CapabilityMeasurementHonestyTests`.
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3424 items: videoInputCount, promptTokens -->
 
 ## Known defect, deliberately unfixed — do not "fix" it blind
@@ -121,9 +115,8 @@ so framing and accounting claims decide at k=1 in seconds instead of a Metal loa
   client routes by must not gain a model that cannot load.
 - Nothing is prewarmed (`prewarmDefaultModel` returns early) and nothing claims reuse: `.done`
   carries no `cachedPromptTokens`, so `usage` publishes no `prompt_tokens_details`.
-- A script's defaults are part of its contract: `Script` decodes with `decodeIfPresent`, because a
-  synthesized `Decodable` ignores Swift defaults and demanded every key — the documented
-  one-segment script was a 500 until that was fixed.
+- A script's defaults are part of its contract: `Script` decodes with `decodeIfPresent` (the
+  DTO rule in `Handlers/AGENTS.md` applies to a script body too).
 - Gates: `ScriptedEngineTests` for the producer, probe 37 for the wire, and CI runs probe 37 on
   every push from the headless-serve smoke step.
 
