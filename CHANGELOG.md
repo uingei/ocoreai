@@ -9,6 +9,42 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-10
 
+**11-10 the two MCP-compliance ledger entries, verified before landing: the sweep had missed that codex gates MCP approval on server-declared hints — and there `readOnlyHint: true` skips the prompt**
+
+- **What improved:** the two `comparator-consensus.md` ledger entries (`outputSchema` SHOULD,
+  `destructiveHint`) now say what the trees actually do, every cite resolves under this doc's `codex-rs/…`
+  path convention (the first drafts' bare `protocol/src/mcp.rs:413` and `app-server-protocol/…` were dead
+  pointers), and the second entry's field-claim is inverted against the code: codex's
+  `requires_mcp_tool_approval` returns true on `destructiveHint: true`, **false on a server-declared
+  `readOnlyHint: true`**, and holds when hints are absent (`codex-rs/core/src/mcp_tool_call.rs:2746-2762`);
+  `AppToolApproval::Writes` keys off `readOnlyHint` too (`:2765-2774`); the connectors' exposure policy
+  computes `.enabled` from the hints (`codex-rs/connectors/src/app_tool_policy.rs:302-305`, fed by
+  `codex-rs/core/src/hook_runtime/executor.rs:32-39`). So the spec's "Clients should never make tool use
+  decisions based on ToolAnnotations received from untrusted servers"
+  (`~/references/modelcontextprotocol/docs/specification/2025-06-18/schema.mdx:793-794`) has a named
+  violator, and the escape the spec's language anticipated is live there: any server silences its own
+  approval prompt by declaring `readOnlyHint: true` (default false, `:794`).
+- **What proves it:** the re-reads, quoted. The spec's own words, at the lines the ledger cites: the SHOULD
+  sits in the "Output Schema" section (header `tools.mdx:309`, SHOULD `:315`); ToolAnnotations are
+  "not guaranteed to provide a faithful description of tool behavior", and reading one for a decision is
+  what the spec rules out against "untrusted servers" (`schema.mdx:791-794`), `destructiveHint` defaulting
+  to true (`:796`). opencode's removal of SDK output-validation holds verbatim —
+  servers "return results that miss or break their own schema (Zoom answers a 204 with nothing), and
+  failing the call would report a completed action as failed"
+  (`~/references/opencode/packages/core/src/mcp/client.ts:527-532`, commit `10bc5cbeb` 11-08) — and codex
+  validates nothing tree-wide: `codex-rs/codex-mcp/src/binding.rs:529` forwards `structured_content`
+  untouched, `codex-rs/tools/src/output_schema.rs` only materializes the schema toward consumers, and no
+  validator dep exists (`schemars` generates, never checks). Local side by the same traversal:
+  `grep outputSchema Sources/` is 0; the `.ask` chokepoint reason string quoted verbatim in the ledger
+  row. The negative-sweep error mattered: "no tree decides on annotations" would have let the next round
+  cite a consensus that does not exist; the corrected row still refuses the change, now on codex's live
+  escape rather than on a unanimous field that isn't one.
+- **Gate:** `make docs-check` — B2 goes red if this file re-inflates past the 50 389 B pin (the
+  thirteenth raise pinned to these very entries this morning), so the diary lives here, not there, and no
+  fourteenth raise was needed. The ledger rows themselves are the reproduction: every `file:line` in them
+  re-resolves, and a future round repeating "the field does not read annotations" goes red against the
+  codex cites.
+
 **11-10 `read_file` shows LF and `edit_file` matched bytes: a correct quote into a CRLF file answered `found 0`, and `edit_lines` re-ended the whole file under an `OK`**
 
 - **What improved:** the two write seams now agree with the read surface, at one home.

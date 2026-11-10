@@ -419,9 +419,37 @@ yet a task.
 ## The ledger: false positives that would have become claims
 
 Every one of these was read before it was written down, and each is a count that was wrong until someone opened
-the file — the reason the row-by-row cites above are the artefact and the counts are the summary. `OC_EVIDENCE=1`
-now prints one matched line per tree so the next one is caught by a reader, not by a round.
+the file — the reason the row-by-row cites above are the artefact and the counts are the summary.
 
+- **"Clients SHOULD validate `outputSchema` — so not validating is a gap."** `grep outputSchema
+  Sources/` is 0: discovery reads `name`/`description`/`inputSchema` and drops the rest
+  (`MCPBridge.swift:784-788`), so the SHOULD at
+  `modelcontextprotocol/docs/specification/2025-06-18/server/tools.mdx:315` looked unimplemented. Building
+  it is a measured regression: opencode removed its SDK's enforcement on 11-08 — the toolDefinition sets
+  `outputSchema: undefined` (`packages/core/src/mcp/client.ts:530`) — because servers miss their own schema
+  and failing the call reports a completed action as failed, inviting the model to repeat a landed side
+  effect (`10bc5cbeb`; verbatims: CHANGELOG 11-10). codex carries the field
+  (`codex-rs/protocol/src/mcp.rs:413`) and validates nothing: `codex-rs/codex-mcp/src/binding.rs:529`
+  forwards results untouched, `codex-rs/tools/src/output_schema.rs` only materializes it, no validator dep
+  (`schemars` generates, never checks). Ours is worse than either: a conformant validator is a dependency
+  (license ritual, root § Build/Test/Lint); a hand-rolled type/required pass prints an unearned verdict —
+  a vacuous gate (root invariant 1).
+- **`annotations.destructiveHint` read as "servers may declare themselves destructive."** Every
+  ToolAnnotations property is a *hint* and "Clients should never make tool use decisions based on
+  ToolAnnotations received from untrusted servers" (`schema.mdx:791-794`); `destructiveHint` **defaults to
+  true** (`:796`). The draft claimed no tree reads one for approval; the re-read convicted codex:
+  `requires_mcp_tool_approval` approves on `destructiveHint: true`, **skips on a server-declared
+  `readOnlyHint: true`**, holds when absent (`codex-rs/core/src/mcp_tool_call.rs:2746-2762`); `Writes` mode
+  too (`:2765-2774`); connectors' exposure `.enabled` reads them (`codex-rs/connectors/src/app_tool_policy.rs:302-305`
+  ← `codex-rs/core/src/hook_runtime/executor.rs:32-39`). Named violator, live escape: `readOnlyHint: true`
+  (default false, `:794`) silences a server's own prompt. The other four don't decide: opencode forwards
+  opaque (`packages/core/src/mcp/client.ts:463`), hermes renders panel facets
+  (`apps/desktop/src/app/capabilities/connectors/derive-tools.ts:105` → `tools-filter-bar.tsx`), qwen-code
+  only emits, goose never reads. Ours already asks: an external call hits the chokepoint with
+  `ungated: .ask` — "External MCP tool — operator approval required (no hook claims this call)"
+  (`ToolRegistry.swift:455-462`, reached from `MCPBridge.swift:350`, `:370`), while `isDestructive` stays
+  the one local truth (`:779-780`). Dropping the annotation costs nothing; trusting one imports codex's
+  `readOnlyHint` escape.
 - **`job.?object` read as "this harness sandboxes its shell."** The confinement axis first printed 8/14 and the
   evidence flag showed goose's match to be `CreateJobObjectW` + `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` — killing a
   process tree on close, not a sandbox (`crates/goose/src/agents/platform_extensions/developer/shell_process.rs:100`)
