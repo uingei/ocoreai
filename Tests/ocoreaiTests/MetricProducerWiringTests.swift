@@ -139,6 +139,58 @@ struct MetricProducerWiringTests {
         )
     }
 
+    /// Membership is derived from the registry's own `func` declarations, not from the list above.
+    /// The enumerated rows pin *where* each known series is produced; they can never see a seventh
+    /// recorder added without a producer, and that is the exact defect this suite was built on —
+    /// a series that exports a flat zero no matter what the process does. The scan fails it at
+    /// add time instead of at the next manual audit. A recorder named outside the three verbs is
+    /// the known hole in the derivation; the doc-header scan above is its backstop.
+    @Test("every recorder the registry declares is called by someone")
+    func noDeclaredRecorderIsDead() async throws {
+        let metrics = try readSource("Sources/ocoreai/Metrics/Metrics.swift")
+        guard
+            let re = try? NSRegularExpression(
+                pattern: "func ((?:record|observe|increment)[A-Z][A-Za-z0-9]*)\\(")
+        else {
+            Issue.record("the recorder-derivation regex stopped compiling")
+            return
+        }
+        var recorders: Set<String> = []
+        let full = NSRange(metrics.startIndex ..< metrics.endIndex, in: metrics)
+        for match in re.matches(in: metrics, range: full) {
+            guard let range = Range(match.range(at: 1), in: metrics) else { continue }
+            recorders.insert(String(metrics[range]))
+        }
+        #expect(
+            recorders.count >= 8,
+            """
+            the derivation found \(recorders.count) recorders — the registry changed shape, \
+            re-read it before trusting a pass
+            """)
+
+        let sourcesRoot = metricsRoot().appendingPathComponent("Sources").path
+        let walk = (try? FileManager.default.subpathsOfDirectory(atPath: sourcesRoot)) ?? []
+        let files = walk.filter { $0.hasSuffix(".swift") }.map { "Sources/" + $0 }
+        #expect(
+            files.count >= 200,
+            "the Sources walk found only \(files.count) files — a stopped scan would pass vacuously"
+        )
+        var deadRecorders: [String] = []
+        for recorder in recorders {
+            var hits = 0
+            for file in files {
+                guard let text = try? readSource(file) else { continue }
+                hits += occurrences(of: "\(recorder)(", in: text)
+            }
+            // One occurrence is the declaration alone; a recorder nobody calls exports a zero
+            // that can never move.
+            if hits < 2 { deadRecorders.append(recorder) }
+        }
+        #expect(
+            deadRecorders.isEmpty,
+            "recorders with no call site (their series export a permanent zero): \(deadRecorders)")
+    }
+
     @Test(
         "a fresh registry exports each series at zero, with the header name spelled alike",
         arguments: producers

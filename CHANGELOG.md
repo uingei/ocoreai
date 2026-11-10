@@ -9,6 +9,25 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-11
 
+**11-11 the zero-consumer gap the metrics round left as a manual audit became a scan — membership now comes from the registry's own source, so a seventh dead recorder fails at add time instead of at the next audit**
+
+- **What improved.** `MetricProducerWiringTests` pinned the six recorders the 11-01/11-02 round wired, but its
+  membership was the `producers` enumeration: a seventh recorder added without a producer passed every row
+  (the doc-header floor is `>= 12`, the exporter exports anything the registry declares) — the suite guarded
+  against the six known defects, not the defect's class. New test `noDeclaredRecorderIsDead`: derives recorder
+  names from `Metrics.swift`'s own `func (record|observe|increment)[A-Z]` declarations, floors its own premise
+  (`>= 8` derived, `>= 200` walked files), and requires each name to occur more than once across `Sources`
+  (one occurrence = declaration alone = a series exporting a permanent zero). The TTFB one-home case survives
+  correctly: `observeTTFB`'s internal call inside the owner recorder counts, which is exactly the shape the
+  10-25 double-count fix established. Known hole, written in the doc comment: a recorder outside the three
+  verbs escapes the derivation; the header scan remains its backstop.
+- **What same-session output proves it.** Both directions sampled: green baseline (7 tests, the new scan
+  costing 1.06 s), then red — a temporary `recordRedSampleZeroProbeNotWiredUp` (reverted, not committed) made
+  only the new scan fail, naming the fake in its message while the six pinned rows stayed green.
+- **Gate.** `make test FILTER=MetricProducerWiringTests`; CI runs the whole bundle (`xcrun xctest`, the
+  swift-testing half judged by `scripts/test-verdict.sh`) on every push. If a
+  future series ships without a producer, the red names it at the commit that added it.
+
 **11-11 the injected chain was judged line by line against its own split rule and ate ~1.1 KB of its own diary — and the B2 gate convicted the round mid-flight for quoting a percent the trim had just moved**
 
 - **What improved.** Every sentence in the injected chain (`AGENTS.md` + the three area guides) was judged: whose
