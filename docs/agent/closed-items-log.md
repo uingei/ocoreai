@@ -173,6 +173,6 @@
   blind face, not back-filled. Red sampled on `HEAD~2`'s diary (17 names across five windows, founding instance
   included) before the seam was trusted; it then convicted the closing round's own "nothing inside the pin is
   unnumbered" sentence — two more commits (`#669` test-only, `#614` default-impl protocol addition) read, judged
-  and named on first run. Full verdict rows: CHANGELOG 11-09 (three entries); the `generation_config.json`
-  dormant face travels with them — a future wiring commit lands inside a paired window, where the ledger names it
+  and named on first run. Full verdict rows: CHANGELOG 11-09 (three entries); the mlx-swift-lm
+  `generation_config.json` dormant face travels with them — a future wiring commit lands inside a paired window, where the ledger names it
   and that round pays for it.

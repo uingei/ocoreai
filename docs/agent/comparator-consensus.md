@@ -153,7 +153,7 @@ hold them, because a second home for a decision is the thing this corpus keeps c
   deciding what to install at the release note instead (`CHANGELOG.md` header). That is a defensible position and it
   is also the position of 14 other trees, so it is not the field's default.
 - **What you owe a `tool_reference` that arrived inside a `tool_result`** — the trees that accept one do two things
-  with it, and neither is silence. `Strata/serve/frontend.py:664-674` renders the referenced deferred tool's own
+  with it, never silence. Strata's `serve/frontend.py:664-674` renders the referenced deferred tool's own
   definition as a text block *in place*, so "the model sees a tool where it was loaded, and the prompt's start (its
   tool list) stays the same, so the prompt cache does too", with a membership guard so an unknown name is left out
   rather than failing the session; `sglang/python/sglang/srt/parser/glm53_chat_template.py:135-140` **refuses** when
@@ -469,7 +469,7 @@ now prints one matched line per tree so the next one is caught by a reader, not 
   whether we should build a `tool_search`, and I argued no partly from "12/14 defer or filter" plus four tree-level
   cites. Two held: `codex-rs/tools/src/tool_search.rs:111-130` really does set `defer_loading = Some(true)` per
   namespaced function (and a `ToolSearch` spec is never rendered as a namespace at all), and
-  `Strata/serve/frontend.py:655-674` is real and load-bearing. Two did not. **"opencode ships the flag
+  Strata's `serve/frontend.py:655-674` is real and load-bearing. Two did not. **"opencode ships the flag
   `defer_loading: false`" has no home in that tree** — swept whole, `~/references/opencode` contains no
   `defer_loading` anywhere, and its only `tool_search` hits are Storybook names for *web* search tools
   (`packages/session-ui/src/timeline/research-and-agents.stories.tsx:191-198`). And
