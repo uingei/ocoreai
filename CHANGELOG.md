@@ -7,6 +7,34 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
+## [Unreleased] — 2026-09-05 → 2026-11-10
+
+**11-10 half of this afternoon's pin-window adjudication convicted itself: `#724`'s batched MTP verify lands on a path we DO consume, and P20 gained the face that let it slip**
+
+- **What improved:** the afternoon row adjudicated mlx-swift-lm `+2` as "iterators our lanes never drive"
+  and refused a bump — wrong about `#724`. The trace: `EngineInference.swift:3914` → upstream
+  `generate(mtpDrafter:)` (pin checkout `Evaluate.swift:2559`) → `MTPSpeculativeTokenIterator`, whose
+  greedy-verify loop is exactly the one `#724` rewrote (per-row argmax + readback → one argmax and one
+  readback per block). The guide phrase the adjudication leaned on — "the MTP lane drives its own token
+  loop" — is true of the tool-loop wrapper around `generate()`, not of the verify inside it; a lane-level
+  sentence does not cover the whole call chain, and the fix was the trace. `#774` (spec-decode logprobs)
+  stays genuinely unconsumed: no site requests logprobs through that path. The next bump therefore carries
+  a measured 1.25–6.4× verify speedup at the board's/eval's own temperature — cargo, not paperwork; it
+  waits the protocol's CI tier in the owner's push window. Found while extracting experience in the other
+  direction (the user's prompt: can `~/references` yield anything positive at all?) — the check-it-against-
+  our-own-lane habit is what caught the adjudication, three hours after it landed.
+  The same splice round lost two more things to splices, both pinned: this entry's own predecessor
+  committed with the `## [Unreleased]` umbrella eaten (P20 caught entry-heading loss since 10-29 but not
+  the section's, and only a mis-landed append found it) — P20 now demands exactly one umbrella above the
+  first entry, red-sampled against the very commit that lost it.
+- **What proves it:** the grep chain, printed same-session: our call site `:3914`, the upstream overload
+  at checkout `Evaluate.swift:2559`, `#724`'s own file list (`MTPSpeculativeTokenIterator.swift` ±100
+  lines plus its three test files). The umbrella check: run against `git show c332ae84:CHANGELOG.md` it
+  fails ("0 `## [Unreleased]` heading(s)"), against HEAD~ it holds.
+- **Gate:** P20 extended (the umbrella clause above) — the red it was sampled against is c332ae84
+  itself, and the reader whose action it changes is any session appending an entry by anchoring on the
+  heading. The `:131` row's claim stays falsifiable in one grep, which is how it died.
+
 **11-10 the thinking-knob probe was repaired the day its premise died: §8 now gates the two things that are our code, and the red that measured the probe is gone**
 
 - **What improved:** probe 13 §8 demanded `thinking:{enabled}` == `thinking:{disabled}` byte-for-byte at

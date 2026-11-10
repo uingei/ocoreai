@@ -1165,6 +1165,22 @@ if diary_orphans:
 if diary_paired < env_int("OCOREAI_FLOOR_DIARY_PAIRED"):
     fail.append("P20 paired only %d diary entries (floor %d) — a scan that matches nothing reports a "
                 "clean diary" % (diary_paired, env_int("OCOREAI_FLOOR_DIARY_PAIRED")))
+# P20's second face, sampled 11-10 the same bad way: a splice of c332ae84 ate the live
+# `## [Unreleased]` umbrella while leaving every ENTRY heading intact — P20's pairing passed, and
+# the loss surfaced an hour later as a mis-landed append. One home extends rather than a second gate:
+# exactly one umbrella heading, above the first entry heading. Exact count, no floor — a live
+# period is one heading by definition.
+unrels = [i for i, ln in enumerate(read("CHANGELOG.md").split("\n"), 1)
+          if ln.startswith("## [Unreleased]")]
+first_entry = next((i for i, ln in enumerate(read("CHANGELOG.md").split("\n"), 1)
+                    if DIARY_HEAD_RE.match(ln)), 0)
+if len(unrels) != 1:
+    fail.append("P20 CHANGELOG.md has %d `## [Unreleased]` heading(s) (line(s) %s) — appends anchor on it, "
+                "and a diary whose live period is unnamed ships a map with no you-are-here"
+                % (len(unrels), unrels[:4]))
+elif first_entry and first_entry < unrels[0]:
+    fail.append("P20 CHANGELOG.md's first entry (line %d) sits above the [Unreleased] umbrella (line %d) — "
+                "newest-first means below the live heading, not before it" % (first_entry, unrels[0]))
 
 # ── report ───────────────────────────────────────────────────────────────────
 print("AGENTS.md contract (%s)" % mode)

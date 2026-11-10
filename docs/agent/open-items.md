@@ -176,10 +176,16 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   decision — *adopt what upstream's `ChatSession` loop now owns, or keep maintaining the local lane beside
   it*. The MTP half still deserves the acceptance row's read: a *resumable* drafter changes what that gate
   would measure. The window moved again 11-10 (+2 → `ec4c966`) and both commits were adjudicated the same
-  round: `#774` (logprobs during speculative decoding) and `#724` (greedy MTP verify batched to one GPU
-  readback) change only the upstream spec-decode iterators our lanes never drive — no consumption surface,
-  no bump; but #724 is fresh weight on the owner's adopt-vs-keep call: verify 1.25–6.4× faster, e2e
-  27.7→28.5 tok/s on Qwen3.5-4B-4bit block-2 (M2), parity claims exact. coreai-models' +3 window judged
+  round, and the same evening convicted half of that reading: `#774` (logprobs during speculative decoding)
+  does stay unconsumed — our lane never requests them — but `#724` (greedy MTP verify batched to one GPU
+  readback) lands **on a consumed path**: `EngineInference.swift:3914` calls upstream
+  `generate(mtpDrafter:)` (checkout `Evaluate.swift:2559`), whose verify loop IS the
+  `MTPSpeculativeTokenIterator` #724 rewrote — "drives its own token loop" meant the tool-loop wrapper, not
+  the verify. So the next bump carries a measured 1.25–6.4× verify speedup (greedy + stateless processor —
+  the board's and eval's temperature), e2e 27.7→28.5 tok/s Qwen3.5-4B-4bit block-2 (M2), parity claims
+  exact; the bump itself waits its protocol turn (test-ci is the CI tier — owner's push window). #724
+  simultaneously weighs the adopt-vs-keep call: upstream's loop is not just owning more, it is owning more
+  *faster*. coreai-models' +3 window judged
   same round too: an RNG file-move (our `Video/RandomSource`/`TorchRandomSource`/`SeededRandomNumberGenerator`
   mirrors' come-from relabels to `CoreAIShared/RNG` at next re-read), a python packaging chore, and a
   python export-side RoPE precision fix — none touches a consumed surface. Third axis clean:
