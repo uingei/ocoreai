@@ -7,7 +7,30 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-11-10
+## [Unreleased] — 2026-09-05 → 2026-11-11
+
+**11-11 the injected chain was judged line by line against its own split rule and ate ~1.1 KB of its own diary — and the B2 gate convicted the round mid-flight for quoting a percent the trim had just moved**
+
+- **What improved.** Every sentence in the injected chain (`AGENTS.md` + the three area guides) was judged: whose
+  decision changes if it is deleted. The dated measurements the root itself forbids there went to their homes:
+  the rewind pre/post numbers (`758/734` appended, `758/718` edited resend, `758/0` before landing,
+  gemma-4-e2b-it-4bit, one session) and the unpooled-lane video measurement (model answered "Red" with prompt
+  `712 → 856`, +144 video tokens, while `/v1/models` held `video_input=not_observed`) land here; the root's
+  stars/day figures were pointed at `adoption-runbook.md` and `long-horizon-goal.md` § Rung zero, which already
+  carry them (verified before deletion, not assumed). The polling rule that the Engine guide restated verbatim
+  collapsed to a pointer (one home: root § Concurrency); the Handler DTO rule absorbs the scripted-lane restatement.
+  Deletions convicted during the round: the UI guide's two line cites had drifted (`:975`/`:971` are now `:1011`/`:979`)
+  **and named a type that does not exist** — `ChatViewModel.chat`; the class in `ChatViewModel.swift` is `ChatState`
+  (`:129`, `chat` at `:1011`; `ChatView.sendMessage` at `ChatView.swift:979` delegates to it), so the seam now cites
+  symbol+file, which greps and cannot drift; root § Architecture corrected the same name. Chain effect:
+  deepest root→Engine path `32 750 → 31 929` B of the 32 768 cap — margin was **18 B**, now 839 B.
+- **What same-session output proves it.** `make docs-check` went red *during* this round with exactly the check
+  this culture is about: `comparator-consensus.md` still quoted "ocoreai 100 % of its own cap" after the trim
+  moved the chain to 97 % — the B2 re-derivation names the figure and the doc, and both sites were re-measured
+  against its printed value. Green again at commit time; both relocated measurements are readable here.
+- **Gate.** `make docs-check` (chain budget, live chain percent re-derivation, claims, anchors). No new gate:
+  the deleted sentences were claims the existing rules already forbade; where a deleted cite mattered, its
+  symbol+file form is now re-greppable.
 
 **11-10 the tool-turn row that quoted an upstream limitation was re-read at the pin and the limitation is ours — the pin exports the name, we never fill it, and the MTP flatten turns out to be a second drop site the row never named**
 
