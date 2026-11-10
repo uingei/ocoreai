@@ -9,7 +9,32 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-10
 
-**11-10 the comparator census answered "aren't there projects we could still benchmark against?": all 43 registered trees carry cites, the wasted tail is the eval/computer-use one — and the first harvest from it stopped the scoreboard from laundering a dead toolchain into a model fail**
+**11-10 the three Qwen checkpoints were asked "which comparators back them", and the answer turned out to be a hole in our own pin: Flash-Next's outer arch is `qwen4_exp`, which the pin does not carry — and five comparator trees had independently built it the same way**
+
+- **What improved:** the question was adjudicated by runtime arch, not marketing name — measured, not
+  recalled: 3.6-35B-A3B actually runs `qwen3_5_moe` (local `config.json`, read this round); 3.8-27B is
+  `qwen3_8`; Flash-Next is `qwen4_exp` (live-fetched `config.json` via hf-mirror:
+  `Qwen4ExpForConditionalGeneration`, `indexer_budget`, `ple_layer_ids`, `mtp_num_hidden_layers: 1`).
+  At the pin checkout (`4ab2679`) two of three are already served: `qwen3_8*` registered
+  (`LLMModelFactory.swift:73-75`) with companion drafter `mlx-community/Qwen3.8-27B-MTP-4bit`
+  (`MTPDrafterModelFactory.swift:41`) — the 27B's only gap is weights never fetched here (owner
+  action); 3.6 serves with its native MTP head (`Qwen35TextMTPRegistration.swift:26` keyed on
+  `qwen3_5_moe`, registered unconditionally at `EnginePool.swift:460`). Flash-Next lacks an
+  architecture, not a config: `qwen4` appears nowhere in the pin tree; the load fails honestly by name
+  (`ModelFactoryError.unsupportedModelType`, checkout `ModelFactory.swift:11`). The comparator read
+  (harvested into `comparator-innovation.md` case 7): ollama, vllm, sglang, llama.cpp and Rapid-MLX
+  each implement `qwen4_exp` by *inheriting the 3.5 contract* and adding three mechanisms — QSA
+  indexer, host-backed PLE tables (ollama and Rapid-MLX chose host backing independently), embedded
+  native MTP head — which makes that shape the acceptance checklist for the bump when upstream carries it.
+- **What proves it:** every cite above was opened this round (checkout greps, the two config fetches,
+  five comparator files read); the one cheap shortcut was measured to be false rather than argued:
+  aliasing `qwen4_exp` onto `Qwen35Configuration` would silently drop the `indexer_*/ple_*` weights
+  and answer anyway — the surface claiming more than the engine delivered (invariant 2).
+- **Gate:** none goes red today — the gap fails by name upstream already; the red this entry exists to
+  prevent is someone taking the alias, and the Pin-1 bump audit inherits the five-tree shape as its
+  premise. Address: `open-items.md`.
+
+**11-10 the comparator census answered "aren't there projects we could still benchmark against?**": all 43 registered trees carry cites, the wasted tail is the eval/computer-use one — and the first harvest from it stopped the scoreboard from laundering a dead toolchain into a model fail**
 
 - **What improved:** the three-zeros method aimed at the comparator layer (word-boundary counts,
   substring-fat fixed): 43 registered, 47 on disk (the five unregistered are the named row), none

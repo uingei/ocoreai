@@ -294,6 +294,23 @@ that catches a drifted cite; where a number moved since the last read it is stat
    root cap … (refuses to raise it)"). Same shape, different property, and the shape came from the same
    place in the end (harness2's digest map taught the manifest, the manifest taught the ratchet). A
    convergent invention is the one class of innovation claim this corpus can actually support.
+7. **`qwen4_exp` (Qwen3.8 Flash Next) arrived in five of our trees inside the mirror windows, and all
+   five built it the same way.** ollama `mlxrunner/model/qwen4_exp/` (`config.go:116`,
+   `ple_mapping_unix.go`) plus its memory-efficiency pass `c053d1e` (#18078: mixed quantization by
+   sensitivity, PLE rows host-backed, fused indexed QSA attention); vllm `models/registry.py:118-120`
+   plus `config.py:1341` — comment reads "Apply the Qwen3.5 hybrid-cache contract to Qwen4Exp" — plus
+   `speculative.py:90` and an SM100 kernel (`torch_bindings.cpp:615`); sglang `models/qwen4_exp.py:2256`
+   (inherits the 3.5/VL line) with a PLE-offload gate (`load_model_utils.py:369-371`); llama.cpp
+   `src/models/qwen4exp.cpp`, whose comments cite vllm/sglang line numbers back at each other;
+   Rapid-MLX `models/qwen4_exp.py` + `QSAIndexCache` (`qwen4_exp_cache.py:60`) + `qwen4_ple_nvme.py`.
+   The convergence is the finding: nobody wrote a fresh architecture — everyone *inherits the 3.5
+   contract* and adds exactly three mechanisms: a QSA indexer, a host/NVMe-backed PLE table (the two
+   Apple-silicon trees chose host backing independently), and an embedded native MTP head (omlx
+   `model_settings.py:42`; Rapid-MLX `detect.py:82-84` — "The outer checkpoint advertises qwen4_exp").
+   Dates are bounded by the mirror pulls (§ *How an arrival is datable here*), so "same window" is
+   window-bounded inference, not a field claim. What it costs us: our pin has no `qwen4_exp` (the
+   open-items row), and the converged shape is the acceptance checklist the next Pin-1 bump audit can
+   carry.
 
 ## What this costs — three numbers in our own docs that were wrong while I read them
 

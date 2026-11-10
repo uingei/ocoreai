@@ -490,10 +490,27 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   box has toggled that channel off; likelihood = deterministic once the key exists, not a race; cost = three small
   decisions at one gate (`captureGate` plus the response builder), each with a shipped shape above and none of them a
   new subsystem. Not claimed: that any caller has done this — no consumer has a name here, which is why this is an
-  address and not a diff.- **The per-guide byte cap does not reach the two largest docs in the repo** (scripts/eval/, scripts/probes/) —
+  address and not a diff.
+- **The per-guide byte cap does not reach the two largest docs in the repo** (scripts/eval/, scripts/probes/) —
   `scripts/agents-md-contract.sh:258-261` builds the capped set from four globs (`Sources/**` + `Tests/**` +
   `docs/**` AGENTS.md, plus `docs/agent/*.md`) at 38 945 B, so `scripts/eval/README.md` (77 077 B) and `scripts/probes/README.md` (54 644 B) are uncapped and are
   3–8× the peer norm for a dev-tooling README (~9–26 KB across the 14 peers that have one; one 385 KB outlier).
   Both stayed on the 11-05 deletion pass, and for the invariant-1 reason: they are the declared single home of the
   noise band, set size and paired-flip floor. Owner call: extend the cap to tooling READMEs, or record that it
   deliberately does not reach them — the silence is what makes the two numbers unreadable as either normal or not.
+- **The pin serves 2 of 3 Qwen generations; Flash-Next is the missing architecture, not a missing config**
+  (Engine/, Upstream Pin-1) — measured at the checkout `4ab2679`: `qwen3_8*` is registered
+  (`LLMModelFactory.swift:73-75`), so Qwen3.8-27B loads today with its companion drafter
+  `mlx-community/Qwen3.8-27B-MTP-4bit` (`MTPDrafterModelFactory.swift:41`) — the only gap is weights never
+  fetched on this host (owner action); 3.6-35B-A3B already serves with a native MTP head (its config
+  `mtp_num_hidden_layers: 1`; `Qwen35TextMTPRegistration.swift:26` keyed on `qwen3_5_moe`; registered at
+  `EnginePool.swift:460`). **Flash-Next cannot load**: the checkpoint advertises outer `model_type:
+  qwen4_exp` (live-fetched via hf-mirror — `Qwen4ExpForConditionalGeneration`, `indexer_budget`,
+  `ple_layer_ids`) and `qwen4` appears nowhere in the pin tree; the failure is honest by name
+  (`ModelFactoryError.unsupportedModelType`, checkout `ModelFactory.swift:11`). No owner call while upstream
+  lacks it — four comparator trees converged on the shape it would have (inherit the 3.5 contract + QSA
+  indexer + host-backed PLE + native MTP head; cites in `comparator-innovation.md` § *Diffusion observed*
+  case 7), and that paragraph doubles as the Pin-1 bump audit's acceptance checklist. The rejected shortcut
+  is filed because it is cheap: aliasing `qwen4_exp` onto `Qwen35Configuration` would silently drop the
+  `indexer_*/ple_*` weights and answer anyway — the surface claiming more than the engine delivered
+  (invariant 2).
