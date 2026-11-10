@@ -85,10 +85,9 @@ how code is written anywhere, it belongs at the root. Two copies of one rule is 
   `ToolRegistry.call` — the chokepoint native loop, MTP, GUI and MCP share (a native turn echoes no
   `tool_calls`, so the wire proves nothing). Both false directions get an `[audit]` line on four faces.
   A shell success is `WriteEvidence.unobserved`, not a write: over a record of shell calls only the line
-  names what the audit cannot see instead of silencing itself (measured silent 11-01, probe 40). The
+  names what the audit cannot see instead of silencing itself (probe 40). The
   ledger is process-wide but records are turn-attributed: a handler mints one key per request, the
-  engine threads it to this chokepoint, and the query credits only its own dispatches (measured
-  11-01: the unkeyed window invented the changed-files line across concurrent turns). Every
+  engine threads it to this chokepoint, and the query credits only its own dispatches. Every
   in-process lane forwards the key, FM proxies included (compile-verified; the macOS-27 runtime
   springs its suites when the window opens). Keyless by design — GUI and external `tools/call` —
   belong to no audited turn. Gate: `ClaimVsAuditTests` + `ClaimVsAuditTurnKeyTests`.
