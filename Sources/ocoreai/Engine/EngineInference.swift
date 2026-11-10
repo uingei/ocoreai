@@ -2621,7 +2621,7 @@ extension EnginePool {
                     if !surface.isEmpty {
                         let fmToolsArray = FMToolProxy.tools(
                             from: registry, toolSpecs: surface, log: log,
-                            headless: options.headless)
+                            headless: options.headless, turnToken: turnToken)
                         fmTools = fmToolsArray
                         log.info(
                             "Injected \(fmToolsArray.count) tools into FM session [\(route)]")

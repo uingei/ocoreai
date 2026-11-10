@@ -71,11 +71,15 @@ struct FMToolProxy: FoundationModels.Tool {
     // MARK: - Factory
 
     /// Build a [any FoundationModels.Tool] array from toToolSpecs output.
+    /// - Parameter turnToken: The owning turn's audit key, forwarded to every dispatch so the
+    ///   FM lane's records attribute to the turn like every other lane's
+    ///   (`Models/ClaimVsAudit.swift`). nil unkeys the records — the old behaviour.
     static func tools(
         from registry: ToolRegistry,
         toolSpecs: [[String: any Sendable]],
         log logger: Logging.Logger,
-        headless: Bool = false
+        headless: Bool = false,
+        turnToken: String? = nil
     ) -> [any FoundationModels.Tool] {
         var result: [any FoundationModels.Tool] = []
         for spec in toolSpecs {
@@ -98,7 +102,8 @@ struct FMToolProxy: FoundationModels.Tool {
                 dispatch: { toolName, args in
                     do {
                         return try await registry.call(
-                            toolName, arguments: args, headless: headless)
+                            toolName, arguments: args, headless: headless,
+                            turnToken: turnToken)
                     } catch {
                         // Tool-failure recovery (codex semantics, mirrors the
                         // MLX path EngineInference L2683-2690): a handler-level

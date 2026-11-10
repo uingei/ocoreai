@@ -27,11 +27,12 @@ struct SuccessfulMutation: Equatable, Sendable {
     /// The path or command it named, when its arguments carried one — the part a user acts on.
     let target: String?
     /// The caller-minted key of the turn whose dispatch produced this record, when the caller
-    /// threaded one (the wire handlers do; GUI, external `tools/call` and the macOS-27 FM/ANE
-    /// channels do not — their records never match a turn query, which is the honest direction:
-    /// a write that belongs to no audited turn must not be credited to some other turn's audit).
-    /// `var` on purpose: a `let` with a default is dropped from the memberwise init, which
-    /// would force every pre-existing literal to name the field.
+    /// threaded one — every in-process lane does, FM proxies included (its runtime is the
+    /// macOS-27 window, its wiring gate is the text scan in `ClaimVsAuditTurnKeyTests`). GUI
+    /// and external `tools/call` dispatch keyless by design, and their records never match a
+    /// turn query — the honest direction: a write that belongs to no audited turn must not be
+    /// credited to some other turn's audit. `var` on purpose: a `let` with a default is dropped
+    /// from the memberwise init, which would force every pre-existing literal to name the field.
     var turnToken: String? = nil
 }
 
@@ -59,8 +60,8 @@ enum WriteEvidence: String, Equatable, Sendable {
 /// an inflated set invents the second notice, it does not only suppress the first. The fix is
 /// the record's `turnToken` (minted by the wire handler, threaded through the engine's agent
 /// loop to the dispatch chokepoint): `since(_:turnToken:)` credits only the querying turn's own
-/// dispatches. A record carrying nil belongs to no audited turn (GUI, external `tools/call`,
-/// the macOS-27 FM/ANE channels) and never matches a turn query — the conservative direction,
+/// dispatches. A record carrying nil belongs to no audited turn (GUI and external `tools/call`
+/// dispatch keyless by design) and never matches a turn query — the conservative direction,
 /// where the audited turn must not be credited another's write.
 actor ToolMutationLedger {
     static let shared = ToolMutationLedger()

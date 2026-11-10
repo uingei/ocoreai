@@ -265,8 +265,10 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   key closed 11-10: the wire handlers mint a turn key, the engine threads it to the chokepoint, and
   `since(_:turnToken:)` credits only that turn's dispatches (`ClaimVsAuditTurnKeyTests` pins the
   filter, the equality direction, and the wiring scan). What the key does not fake: a shell success
-  is still `.unobserved`, an unknown MCP tool still counts as a writer, and the macOS-27 FM/ANE
-  dispatches carry no key (unverifiable here, so keyed there is a named class, not coded blind).
+  is still `.unobserved`, an unknown MCP tool still counts as a writer. No lane is left unkeyed:
+  the FM proxies forward the key (compile-verified here and on the SDK-27 legs; the runtime half
+  waits the macOS-27 window, where `PlatformPremise` springs the suites), and the CoreAI/ANE
+  engines hold no `ToolRegistry` reference at all — they never dispatch in-process, nothing to key.
   Wanted: turn-scoped effect off the filesystem (codex, per turn:
   `../references/codex/codex-rs/core/src/turn_diff_tracker.rs:46`).
 - **A demanded tool call is reported, not forced** (Engine/, Handlers/) — the unmet demand now rides in

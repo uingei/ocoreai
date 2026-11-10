@@ -9,6 +9,28 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-10
 
+**11-10 the FM lane forwards the audit key too — the round that closed the turn key had called it an unverifiable class, and the owner's CI question showed the class was half-verifiable**
+
+- **What improved:** the previous entry left the FM/ANE channels keyless, reasoning a macOS-27
+  runtime cannot be exercised here. Asked whether CI verifies macOS 27, the measured answer was
+  already on record (CHANGELOG 11-07: the `xcode-27` leg opens the COMPILE half — SDK-27 code exists
+  and runs, 3572/622 vs the macos-26 leg's 3403/595 — while every runner boots the macos-26 image,
+  so the runtime half sleeps behind `PlatformPremise.hasMacOS27`). Compile is verification of a
+  parameter thread, so the FM proxies now forward the caller's key (`FMToolProxy.tools(turnToken:)`
+  → dispatch closure → the registry) from its point of construction — inside the same turn body,
+  one line each; the wiring is compile-checked locally (the SDK here is 27.2 — `canImport
+  (FoundationModels)` is true) and on every SDK-27 leg. Reading for the remaining class closed it
+  entirely: the CoreAI/ANE engines hold **no** `ToolRegistry` reference at all — they never dispatch
+  in-process, so there was never a record to key. The three doc sites that called FM/ANE the named
+  residual now say what is actually left: GUI and external `tools/call`, unkeyed by design.
+- **What proves it:** the FM file compiles with the thread in this very build; the wiring scan
+  gained its FM and EngineInference floors (`turnToken: turnToken` ≥1 / ≥3), so a dropped argument
+  reddens the scan on any host, including one where the runtime never boots; audit suites re-run
+  green (35 tests, 4 suites).
+- **Gate:** the same `ClaimVsAuditTurnKeyTests.handlersThreadTheKeyThroughEveryAuditPath` — it now
+  scans four files and each floor names its lane; the runtime half stays honestly deferred, sprung
+  automatically the day a leg prints `27.x` (`PlatformPremiseHonestyTests` pins the predicate).
+
 **11-10 the claim/audit record is now attributed to the turn that dispatched it: the 11-01 measured skew — a turn dispatching nothing told "This turn did change files" — can no longer inflate across concurrent turns**
 
 - **What improved:** `ToolMutationLedger`/`ToolAttemptLedger` kept a process-wide window, and the

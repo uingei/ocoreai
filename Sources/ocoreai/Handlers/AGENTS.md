@@ -88,9 +88,10 @@ how code is written anywhere, it belongs at the root. Two copies of one rule is 
   names what the audit cannot see instead of silencing itself (measured silent 11-01, probe 40). The
   ledger is process-wide but records are turn-attributed: a handler mints one key per request, the
   engine threads it to this chokepoint, and the query credits only its own dispatches (measured
-  11-01: the unkeyed window invented the changed-files line across concurrent turns). Keyless
-  dispatches — GUI, external `tools/call`, the macOS-27 FM/ANE channels — belong to no audited
-  turn, the named residual (§ Open). Gate: `ClaimVsAuditTests` + `ClaimVsAuditTurnKeyTests`.
+  11-01: the unkeyed window invented the changed-files line across concurrent turns). Every
+  in-process lane forwards the key, FM proxies included (compile-verified; the macOS-27 runtime
+  springs its suites when the window opens). Keyless by design — GUI and external `tools/call` —
+  belong to no audited turn. Gate: `ClaimVsAuditTests` + `ClaimVsAuditTurnKeyTests`.
 - `/v1/models/:model/…` takes the id **verbatim** (`org/name`, exactly as `/v1/models` publishes it) or
   percent-encoded (`%2F`). Those routes capture a recursive wildcard, which covers both in ONE registration;
   `:model` and `**` cannot coexist (`Route /v1/models/{model} overrides /v1/models/**`), so the wildcard

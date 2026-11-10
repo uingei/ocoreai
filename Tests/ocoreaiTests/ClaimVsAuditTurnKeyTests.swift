@@ -134,5 +134,14 @@ struct ClaimVsAuditTurnKeyTests {
         let registry = try readSource("Sources/ocoreai/Tools/ToolRegistry.swift")
         // 1 mutation record + 2 attempt records (success and failure paths).
         #expect(occurrences(of: "turnToken: turnToken", in: registry) >= 3)
+        // The FM lane (macOS-27 runtime, compile-verified SDK-27 legs and locally): its proxies
+        // forward the key through the dispatch closure; this text scan is the gate that runs
+        // where the runtime does not. Verified by reading that no other lane is left: the
+        // CoreAI/ANE engines hold no `ToolRegistry` reference at all — they never dispatch
+        // in-process, so they produce no records to key.
+        let fmBridge = try readSource("Sources/ocoreai/Engine/FMToolBridge.swift")
+        #expect(occurrences(of: "turnToken: turnToken", in: fmBridge) >= 1)
+        let inference = try readSource("Sources/ocoreai/Engine/EngineInference.swift")
+        #expect(occurrences(of: "turnToken: turnToken", in: inference) >= 3)
     }
 }
