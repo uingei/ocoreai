@@ -19,7 +19,10 @@
 # Dead alternatives are deleted, not registered: `changlog` sat in the deps/release alternation and
 # matched nothing — no path in any of the 28 comparator trees is spelled that way (`find ~/references
 # -iname '*changlog*'` = empty), so it was a typo in a regex, not a stem with a purpose.
-ignore-words-list = ane,caf,nd,ans,inout,unparseable,uptodate,ontext,allready,optionall,reuseable,alloc,datas,checkin,numer,re-declaring,temprature,probabilit,cach,truncat,summar,integrat
+# `aci` is a quoted title, not our prose: the SWE-agent row quotes that tree's own thesis name
+# "the ACI thesis" (its README's "Agent-Computer Interfaces Enable Automated Software Engineering"),
+# at docs/agent/comparator-repos.md:533 — rewriting an acronym we are quoting would misquote the quote.
+ignore-words-list = ane,caf,nd,ans,inout,unparseable,uptodate,ontext,allready,optionall,reuseable,alloc,datas,checkin,numer,re-declaring,temprature,probabilit,cach,truncat,summar,integrat,aci
 # Vendored and generated surfaces are not ours to reword: CXGrammar + dlpack are upstream C,
 # THIRD-PARTY-LICENSES is collected verbatim, and .build is a resolved dependency cache. The diary
 # is skipped for a different reason: it quotes the misspellings it recorded, as evidence, and
