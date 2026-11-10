@@ -9,6 +9,30 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-11
 
+**11-11 the first full probe sweep since the 11-07 bump: 45/54 green, and the 9 reds fell into three named classes with two suspects cleared**
+
+- **What the sweep is.** `make probes` had not been run across the 11-07 bump (`ed99a84c`'s own words:
+  "bumped without ever being built"). 54 probes, one boot each, HEAD `fb45db01`: 45 green; reds 07, 08,
+  17, 19, 29, 31, 32, 34, 35.
+- **The classes.** (1) reasoning-lane traffic (already named below): 19 (no reuse baseline — the
+  no-tools turn reused 0), 29 (the busy turn's lock did not refuse the overlap — the wait turn answered
+  the second request instead of holding the engine), 31 (positive control: the long turn never completed
+  three times), 32 (0/3 boots recorded a prompt hash for the no-tools shape — inferred attribution),
+  35 (pricing). (2) video over-claims on the current default checkpoint: 08/17 — adding a clip moved
+  `prompt_tokens` by 0 (691→691) and the answer asked for context, yet the ledger still published
+  `video_input.available=true`: the record rule assumes the processor consumed the frames, and on this
+  checkpoint it did not. That is the invariant-2 class, and it is the sweep's most valuable find. (3) two
+  stand-alone reds: 07 — a `tool_reference` inside a `tool_result` is billed but never enters the prompt
+  (the text-named twin got the answer, the reference got 200-and-dropped); 34 — an MCP `tools/call` came
+  back success-shaped and empty.
+- **Two suspects cleared by reading, cheaply.** The +7 unread mlx-swift-lm window contains no
+  video/gemma-processor commit (registry, tests, parser, memory reporting, MTP batching, logprobs), and
+  neither does the consumed 11-07 window `b8d4935ab..4ab267996` (13 commits; the only gemma-adjacent ones
+  are EmbeddingGemma image-processor fixes). So the video red is not window drift — it is the record rule
+  meeting a checkpoint that drops frames, and it needs its own diagnosis round before any edit.
+- **Gate.** This sweep is itself the instrument (`make probes`, escalation); the reds stand until their
+  rounds land — `docs/agent/open-items.md` carries each with its measured tell.
+
 **11-11 the reserve plan reached the live wire, and the same boot that proved it convicted a traffic class nobody prices**
 
 - **What improved.** Probe 35 §8 asserts `rewindReserve` on the live wire equals the plan the server's own

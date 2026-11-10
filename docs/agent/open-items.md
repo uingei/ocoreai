@@ -231,15 +231,24 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `basis`, and `OCOREAI_KV_REWIND_RESERVE_TOKENS` overrides once at boot (0=off; a negative or unparseable value
   keeps the default and says so on the wire) — tuning can now be priced against a number the operator can set.
   `SessionRewindOnDivergenceTests` + `KVCacheRewindReserveTests` + probe 27 hold the wiring and the number.
-- **A no-tools turn on a thinking model prices no KV residency** (Engine/) — the reasoning lane
-  (`EngineInference.swift`, "Routing through reasoning path") never realizes the pooled session's cache, so
-  release reads `cacheStatus()` at zero bytes and the gauge, `/kv-cache` `residency` and the admission price
-  all stay `not_observed`/fallback for that whole traffic class; a tools-bearing turn on the same server
-  prices 26.7 MB/1651 tok in the same second (measured 11-11, one boot three shapes). The window is the
-  mlx bump to `4ab267996` (11-07, "bumped without ever being built"): probe 35 §3–6 were green 10-25 on the
-  same no-tools shape. Whether the fix is pricing the reasoning lane from its own turn or refusing to pool
-  its session as warm is the owner's design call; probe 35 stays red until one lands — a red stating which
-  traffic the surfaces cannot price is worth more than an inertial green.
+- **Reasoning-lane traffic is unaccounted** (Engine/) — the no-tools lane (`"Routing through reasoning
+  path"`) never realizes the pooled session's cache: release reads `cacheStatus()` at zero, so gauge,
+  `/kv-cache` residency and the admission price all stay `not_observed`/fallback for it, while a
+  tools-bearing turn on the same server prices 26.7 MB/1651 tok (measured 11-11, one boot three shapes;
+  green 10-25 on the same shape puts the window at the 11-07 bump). Corroborated by probes 19/29/31/32/35
+  (attribution: 35 measured, the rest inferred — `CHANGELOG.md` sweep entry). Price the lane from its own
+  turn or refuse to pool it as warm is the owner's design call; the reds state which traffic the surfaces
+  cannot price.
+- **The video record assumes the processor consumed the frames** (Multimodal/) — probes 08/17 at HEAD:
+  adding a clip moved `prompt_tokens` by 0 and the answer asked for context, yet the ledger published
+  `video_input.available=true` — `recordVideoDelivery` counts decodable parts in a completed turn, not
+  tokens the model received. Both windows around the 11-07 bump cleared by reading (13+7 commits, none
+  video); it is the rule meeting a checkpoint that drops frames. Diagnosis round before any edit; until
+  then the aggregate may publish more than the engine delivered — invariant 2's own face.
+- **A `tool_reference` inside a `tool_result` is billed but never enters the prompt** (Tools/) — probe 07:
+  the same content as plain text reaches the model (908 tok, name retrieved); as a reference it prices 905
+  tok and the answer says it found nothing — charges for bytes the model cannot see. Probe 34's
+  success-shaped empty MCP `tools/call` sits beside it for the same round.
 - **Video publishing is per-checkpoint** (Multimodal/) — one processor reads `input.videos`, the other does
   not, so it is never inferred from architecture; a turn that got frames but never answered is not
   counted; relaxing that is untested (`VideoDeliveryLedger`).
