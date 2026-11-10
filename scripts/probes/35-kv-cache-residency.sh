@@ -28,6 +28,8 @@
 #      that the gate found out what this checkpoint actually costs).
 #   7. The reservation itself moves to that price: the first turn can only reserve at the
 #      fallback, the turn after it must reserve at the measured price and name the basis.
+#   8. `rewindReserve` reaches the live wire stating exactly the plan this server's own
+#      environment resolved to (unset/positive/zero/negative/garbage mirrored from $env).
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -208,6 +210,42 @@ else
 fi
 if [[ "$measured_price" =~ ^[0-9]+$ ]] && [ "$measured_price" -gt 1024 ]; then
   probe_note "the bet avoided: the floor reserves $(( measured_price / 1024 ))x less than the cache holds"
+fi
+
+probe_section "8. the wire states the rewind-reserve plan this server booted under"
+# `KVCacheRewindReserveTests` proves the resolver and the encoder agree in-process; only a live
+# server proves the field reaches the wire at all (invariant 2: what a stranger reads must be
+# what was delivered). The expectation mirrors the same decision table from THIS probe's
+# environment — the server was booted from it — so an operator running the suite with the knob
+# set asserts the override reached the wire instead of watching it silently evaporate.
+python3 - "$after_json" "${OCOREAI_KV_REWIND_RESERVE_TOKENS-__unset__}" <<'PY'
+import json, sys
+body, raw = sys.argv[1], sys.argv[2]
+try:
+    published = json.loads(body).get("rewindReserve")
+except Exception:
+    print("FAIL rewindReserve: response body did not parse"); sys.exit(1)
+if published is None:
+    print("FAIL rewindReserve: field absent — the plan is not on the wire"); sys.exit(1)
+if raw == "__unset__":
+    want = {"requested": True, "tokens": 1024, "basis": "default", "rawEnvironment": None}
+elif __import__("re").fullmatch(r"[+-]?[0-9]+", raw):
+    v = int(raw)
+    if v == 0:
+        want = {"requested": False, "tokens": 0, "basis": "off", "rawEnvironment": raw}
+    elif v > 0:
+        want = {"requested": True, "tokens": v, "basis": "environment", "rawEnvironment": raw}
+    else:
+        want = {"requested": True, "tokens": 1024, "basis": "invalid_environment", "rawEnvironment": raw}
+else:
+    want = {"requested": True, "tokens": 1024, "basis": "invalid_environment", "rawEnvironment": raw}
+got = {k: published.get(k) for k in want}
+if got != want:
+    print(f"FAIL rewindReserve: wire {got} != booted plan {want}"); sys.exit(1)
+print(f"OK rewindReserve on the live wire states the booted plan: {got}")
+PY
+if [ $? -ne 0 ]; then
+  probe_fail "rewindReserve on the wire does not state the plan this server booted under"
 fi
 
 probe_summary "$PROBE_NAME"

@@ -215,7 +215,10 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     Fails when: `/metrics` reads non-zero before any cache exists, stays zero after a 3K-token
     turn, disagrees with the endpoint's `residency.residentBytes`, reports a `bytesPerToken`
     outside 256..1048575, or after a turn has priced the model no reservation logs
-    `@ measured <that price> B/token` (§6 — the 1024 B/token floor is for the unpriced model only).
+    `@ measured <that price> B/token` (§6 — the 1024 B/token floor is for the unpriced model only),
+    or when `rewindReserve` is absent from the wire or states a plan other than the one this
+    server's own `$OCOREAI_KV_REWIND_RESERVE_TOKENS` resolved to (§8, table mirrored: unset /
+    positive / 0 / negative / garbage).
 - `36-download-plan-dry-run.sh` — can a client size a download before committing to one?
     Fails when: `dryRun: true` writes anything under `~/.ocoreai/models`, the plan disagrees
     with the stub hub's sizes (1000150 on an empty cache), a 404'd repo publishes

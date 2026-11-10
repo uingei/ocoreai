@@ -48,7 +48,7 @@ Three conditions, and two of the ways they fail are silent (measured, not inferr
   The reserve is a stated plan, not a hidden constant: the kv-cache endpoint publishes
   `rewindReserve{requested,tokens,basis,rawEnvironment}` and `OCOREAI_KV_REWIND_RESERVE_TOKENS`
   resolves once at boot (0=off; negative or garbage keeps the default and names itself in
-  `basis`). Gate: `KVCacheRewindReserveTests`.
+  `basis`). Gate: `KVCacheRewindReserveTests` + probe 35 §8 (live wire).
 - **A rewind is not a refusal.** It books under `prefixReuse`, never `historyDiverged` — a ledger
   that counts it as refused publishes a full recompute the engine did not perform.
 - **A snapshot states the plan it was written under.** `KVCacheManifest` v2 carries
