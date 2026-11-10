@@ -63,15 +63,14 @@ source the engine used — never a literal typed into a view.
 ## GUI end-to-end — measured scope
 
 `verify-gui-window.sh` asserts what a user would see: a layer-0 window of believable size, and with
-`SHOT=1` a frame with content (distinct-colour floor ≥64). Pixels have both come out and been refused
-on this host (`screencapture`: "could not create image from window"; the captured geometry is diary in
-CHANGELOG), so pixels are claimed only where they were captured: fatal by default (what CI runs); local
-release passes `GUI_REQUIRE_PIXELS=0` and says the evidence was skipped. `scripts/e2e-gui-app.sh` adds
+`SHOT=1` a frame with content (distinct-colour floor ≥64). Pixels are claimed only where they were
+captured: fatal by default (what CI runs); local release passes `GUI_REQUIRE_PIXELS=0` and says the
+evidence was skipped. `scripts/e2e-gui-app.sh` adds
 the model-dependent half (version == tag, the :8080 listener *is* the bundle binary, one real completion
 `'OCOREAI_GUI_E2E_OK'`, graceful SIGTERM). None of it licenses "the GUI works": the bridge is opt-in
 (App Store builds serve nothing), CI skips the completion leg, and Accessibility-driven control
 automation is unverified.
-Their seam is `ChatViewModel.chat` (`:975`); `ChatView.sendMessage` (`:971`) delegates.
+Their seam is `ChatState.chat` (`ViewModels/ChatViewModel.swift`); `ChatView.sendMessage` delegates to it.
 `ChatStateSendPathTests` executes it (live: `OCOREAI_GUI_LIVE=1`).
 
 ## Verification in this subtree
