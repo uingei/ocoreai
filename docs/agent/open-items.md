@@ -57,8 +57,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   history contributes **~0 tokens on both compat faces**: measured 11-09 against a live serve, a ~1 550-token
   tool result moved `input_tokens` from a 690 baseline to **693 on `/v1/messages`** and the `prompt_tokens`
   to **688 on `/v1/chat/completions`** (an orphan tool message reads *below* baseline). The symptom stands;
-  the mechanism this row blamed was convicted 11-10 by re-read at the pin — the gap is our call site, not a
-  missing upstream seam. `Chat.Message.tool(_:id:name:)` takes a name *at our pin* `4ab267996`
+  the mechanism this row blamed was convicted 11-10 by re-read at the `mlx-swift-lm` pin — the gap is our
+  call site, not a missing upstream seam. `Chat.Message.tool(_:id:name:)` takes a name *at our pin*
+  `4ab267996`
   (`Chat.swift:112-122`), whose own comment names this failure mode ("others … render the function `name`
   directly", `:57-63`); `addToolMetadata` writes `dictionary["name"]` for result turns (`:195-197`) and
   `Gemma4MessageGenerator` calls it (`Gemma4.swift:2158`); our wire DTO already parses `name`
@@ -178,7 +179,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   (`../references/Qwen3.8/README.md:25`) — so a caller that retains thinking pays tokens we cannot price
   for it (inference from a README, not a measured interaction).
 - **Pin 1's window is taken, so the two ours-shaped commits are now unconsumed, not pending** (Engine/) —
-  bump 11-07 `b8d4935ab → 4ab267996` (+13) carried #581 (resumable MTP *inside* `ChatSession`), #608
+  `mlx-swift-lm` bump 11-07 `b8d4935ab → 4ab267996` (+13) carried #581 (resumable MTP *inside* `ChatSession`), #608
   (mid-turn steering) and #747 (`RotatingKVCache` pinned prefix in multi-token masks). All three compile in
   and change **nothing** until consumed: our MTP lane still drives its own token loop and `SteerQueue` still
   drains at the tool-result tail, so the MTP row, the stall row and the interrupt row above all wait on one
@@ -508,7 +509,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   noise band, set size and paired-flip floor. Owner call: extend the cap to tooling READMEs, or record that it
   deliberately does not reach them — the silence is what makes the two numbers unreadable as either normal or not.
 - **The pin serves 2 of 3 Qwen generations; Flash-Next is the missing architecture, not a missing config**
-  (Engine/, Upstream Pin-1) — measured at the checkout `4ab2679`: `qwen3_8*` is registered
+  (Engine/, Upstream Pin-1) — measured at the `mlx-swift-lm` checkout `4ab2679`: `qwen3_8*` is registered
   (`LLMModelFactory.swift:73-75`), so Qwen3.8-27B loads today with its companion drafter
   `mlx-community/Qwen3.8-27B-MTP-4bit` (`MTPDrafterModelFactory.swift:41`) — the only gap is weights never
   fetched on this host (owner action); 3.6-35B-A3B already serves with a native MTP head (its config
