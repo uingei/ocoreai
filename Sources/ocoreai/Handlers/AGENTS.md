@@ -86,8 +86,11 @@ how code is written anywhere, it belongs at the root. Two copies of one rule is 
   `tool_calls`, so the wire proves nothing). Both false directions get an `[audit]` line on four faces.
   A shell success is `WriteEvidence.unobserved`, not a write: over a record of shell calls only the line
   names what the audit cannot see instead of silencing itself (measured silent 11-01, probe 40). The
-  ledger is process-wide, so an earlier turn's write can still summon the changed-files line — § Open.
-  Gate: `ClaimVsAuditTests`.
+  ledger is process-wide but records are turn-attributed: a handler mints one key per request, the
+  engine threads it to this chokepoint, and the query credits only its own dispatches (measured
+  11-01: the unkeyed window invented the changed-files line across concurrent turns). Keyless
+  dispatches — GUI, external `tools/call`, the macOS-27 FM/ANE channels — belong to no audited
+  turn, the named residual (§ Open). Gate: `ClaimVsAuditTests` + `ClaimVsAuditTurnKeyTests`.
 - `/v1/models/:model/…` takes the id **verbatim** (`org/name`, exactly as `/v1/models` publishes it) or
   percent-encoded (`%2F`). Those routes capture a recursive wildcard, which covers both in ONE registration;
   `:model` and `**` cannot coexist (`Route /v1/models/{model} overrides /v1/models/**`), so the wildcard

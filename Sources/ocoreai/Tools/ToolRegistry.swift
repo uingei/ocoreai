@@ -681,12 +681,15 @@ actor ToolRegistry {
                 name: name, isReadOnly: isReadOnly(name))
             if evidence == .reported {
                 await ToolMutationLedger.shared.record(
-                    SuccessfulMutation(tool: name, target: Self.mutationTarget(in: arguments)))
+                    SuccessfulMutation(
+                        tool: name, target: Self.mutationTarget(in: arguments),
+                        turnToken: turnToken))
             }
             await ToolAttemptLedger.shared.record(
                 ToolAttempt(
                     tool: name, target: Self.mutationTarget(in: arguments),
-                    evidence: evidence, outcome: .succeeded, failure: nil))
+                    evidence: evidence, outcome: .succeeded, failure: nil,
+                    turnToken: turnToken))
             await hookRunner.firePostToolUse(
                 toolName: name, arguments: arguments, result: result, error: nil)
             // Secret redaction (codex main-axis baseline, `secrets/sanitizer.rs`):
@@ -718,7 +721,8 @@ actor ToolRegistry {
                     tool: name, target: Self.mutationTarget(in: arguments),
                     evidence: ToolMutationLedger.writeEvidence(
                         name: name, isReadOnly: isReadOnly(name)),
-                    outcome: .failed, failure: Self.failureLine(of: error)))
+                    outcome: .failed, failure: Self.failureLine(of: error),
+                    turnToken: turnToken))
             // Complete audit on error
             if let t = token {
                 await auditTrail?.completeToken(

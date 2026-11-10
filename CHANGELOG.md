@@ -9,6 +9,34 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-10
 
+**11-10 the claim/audit record is now attributed to the turn that dispatched it: the 11-01 measured skew — a turn dispatching nothing told "This turn did change files" — can no longer inflate across concurrent turns**
+
+- **What improved:** `ToolMutationLedger`/`ToolAttemptLedger` kept a process-wide window, and the
+  handler comment still claimed the skew "can only inflate… which suppresses a notice" — its own
+  module had measured the opposite on 11-01: the inflated set INVENTS the "This turn did change
+  files" line, the exact invariant-2 breach the notice exists to prevent. The stale comment is
+  corrected, and the record gained the key the open item named: the wire handler mints `turnKey`
+  once per request, `generateFromMessages` → `doInferenceMLX` → `_runInferenceWithMessages` thread
+  it (`EngineInference`'s per-turn token is the same value now, `callerTurnToken ?? UUID()`), the
+  chokepoint stamps it on every record, and `since(_:turnToken:)` credits by equality — the
+  corrected-stream rerun of a degenerate turn is still that turn (one key covers both calls). A
+  keyless record — GUI, external `tools/call`, the macOS-27 FM/ANE channels — matches no audited
+  turn: a write belonging to no audited turn is never credited to some other turn's audit.
+- **What proves it:** `ClaimVsAuditTurnKeyTests` — five tests, exact values: foreign-turn and
+  keyless records excluded from a keyed query (1 returned of 3 written), same-key records bounded
+  by the baseline, the failure half attributing identically, a real `registry.call(…,
+  turnToken:)` coming back stamped, and a wiring scan flooring the handler/chokepoint arguments
+  (`turnToken: turnKey` ≥7 ChatHandler / ≥6 Anthropic, ≥3 at the chokepoint) — a dropped
+  argument compiles green, so the scan is what reddens. The unit run of the three audit suites is
+  34/34 green; the full suite ran 3586 tests with two clock/port-sensitive failures
+  (`SystemSleepBackend`, MCP live-child at 6.87 s against a 4.0 s budget — its fixture's port was
+  taken by a concurrent suite), both green re-run alone.
+- **Gate:** `ClaimVsAuditTurnKeyTests` goes red if the filter, the equality direction, or any
+  handler thread is dropped; the old suites stay green unmodified (the memberwise-init `var` keeps
+  every pre-existing literal). The workspace-diff half of the open item is explicitly NOT claimed:
+  a shell success is still `.unobserved`, an unknown MCP tool still counts as a writer — what
+  closed is the key, not the observation (`docs/agent/open-items.md` carries the split).
+
 **11-10 the two MCP-compliance ledger entries, verified before landing: the sweep had missed that codex gates MCP approval on server-declared hints — and there `readOnlyHint: true` skips the prompt**
 
 - **What improved:** the two `comparator-consensus.md` ledger entries (`outputSchema` SHOULD,

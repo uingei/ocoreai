@@ -210,6 +210,7 @@ extension EnginePool {
         metrics: PerRequestMetrics,
         conversationId: String? = nil,
         cancellation: InferenceCancellation = .none,
+        turnToken: String? = nil,
     ) -> AsyncThrowingStream<InferenceEvent, Error> {
         AsyncThrowingStream { continuation in
             Task { [self] in
@@ -225,6 +226,7 @@ extension EnginePool {
                         continuation: continuation,
                         conversationId: conversationId,
                         cancellation: cancellation,
+                        callerTurnToken: turnToken,
                     )
                     ()
                 }
@@ -1562,6 +1564,7 @@ extension EnginePool {
         conversationId: String?,
         cancellation: InferenceCancellation = .none,
         skipLock: Bool = false,
+        callerTurnToken: String? = nil,
     ) async {
         // Query HardwareRouter for runtime compute channel decision.
         // Channel drives session pool + speculative decoding for .cpu.
@@ -2462,7 +2465,10 @@ extension EnginePool {
             // zero-new-information ladder resets at the turn boundary instead of counting
             // across every turn the conversation ever has (codex counts per turn). Fresh
             // per invocation: this function runs once per user-visible turn on both lanes.
-            let turnToken = UUID().uuidString
+            // A wire handler that owns an audit of this turn (Models/ClaimVsAudit.swift)
+            // mints the key itself and hands it down, so the audit and the dispatches carry
+            // one identity; every other caller keeps the engine-minted token.
+            let turnToken = callerTurnToken ?? UUID().uuidString
             // Say out loud who owns the bytes this turn cited. If this turn never reaches
             // the pool (CPU channel, guided/MTP paths that close their own session), the
             // idle sweep is what eventually collects them — a fact worth naming in the log

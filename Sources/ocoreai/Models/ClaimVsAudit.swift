@@ -26,6 +26,13 @@ struct SuccessfulMutation: Equatable, Sendable {
     let tool: String
     /// The path or command it named, when its arguments carried one — the part a user acts on.
     let target: String?
+    /// The caller-minted key of the turn whose dispatch produced this record, when the caller
+    /// threaded one (the wire handlers do; GUI, external `tools/call` and the macOS-27 FM/ANE
+    /// channels do not — their records never match a turn query, which is the honest direction:
+    /// a write that belongs to no audited turn must not be credited to some other turn's audit).
+    /// `var` on purpose: a `let` with a default is dropped from the memberwise init, which
+    /// would force every pre-existing literal to name the field.
+    var turnToken: String? = nil
 }
 
 /// What one dispatched tool call proves about the workspace.
@@ -44,15 +51,17 @@ enum WriteEvidence: String, Equatable, Sendable {
     case unobserved
 }
 
-/// Process-wide counter of successful file-changing tool calls.
+/// Process-wide counter of successful file-changing tool calls, **attributable per turn**.
 ///
-/// Monotonic counter + snapshot-at-turn-head is deliberate: the wire can run several turns
-/// concurrently, and a per-conversation ledger needs a conversation key at the dispatch site
-/// that only the engine has (`EngineInference`'s `convKey`). The skew is NOT safe: measured
-/// 2026-11-01 on the probe-40 live tier, a turn that dispatched no tool at all was told "This
-/// turn did change files" because an earlier turn's writes were still inside its window — an
-/// inflated set invents the second notice, it does not only suppress the first. Keying the
-/// record by the turn is the open item (`docs/agent/open-items.md`).
+/// Monotonic counter + snapshot-at-turn-head was the first shape; it left a skew that was NOT
+/// safe: measured 2026-11-01 on the live tier, a turn that dispatched no tool at all was told
+/// "This turn did change files" because a concurrent turn's writes landed inside its window —
+/// an inflated set invents the second notice, it does not only suppress the first. The fix is
+/// the record's `turnToken` (minted by the wire handler, threaded through the engine's agent
+/// loop to the dispatch chokepoint): `since(_:turnToken:)` credits only the querying turn's own
+/// dispatches. A record carrying nil belongs to no audited turn (GUI, external `tools/call`,
+/// the macOS-27 FM/ANE channels) and never matches a turn query — the conservative direction,
+/// where the audited turn must not be credited another's write.
 actor ToolMutationLedger {
     static let shared = ToolMutationLedger()
 
@@ -97,9 +106,18 @@ actor ToolMutationLedger {
         total
     }
 
-    /// Everything that succeeded after `baseline`, oldest first.
+    /// Everything that succeeded after `baseline`, oldest first — every turn, unattributed.
+    /// The wire handlers use the turn-keyed form below; this stays for consumers that have
+    /// no turn identity (and for the tests that read the window as a whole).
     func since(_ baseline: UInt64) -> [SuccessfulMutation] {
         recent.filter { $0.seq > baseline }.map(\.mutation)
+    }
+
+    /// The successes belonging to `turnToken` that landed after `baseline`, oldest first.
+    /// Equality on the minted key, not a window: a concurrent turn's write cannot enter,
+    /// and a record minted without a key never matches any turn.
+    func since(_ baseline: UInt64, turnToken: String) -> [SuccessfulMutation] {
+        recent.filter { $0.seq > baseline && $0.mutation.turnToken == turnToken }.map(\.mutation)
     }
 }
 
@@ -128,6 +146,9 @@ struct ToolAttempt: Equatable, Sendable {
     let outcome: Outcome
     /// First line of the refusal, redacted and capped; nil on success.
     let failure: String?
+    /// Turn key of the dispatch that produced this record — see ``SuccessfulMutation/turnToken``
+    /// (`var` for the same memberwise-init reason).
+    var turnToken: String? = nil
 }
 
 /// Process-wide record of every dispatched tool call, success and failure alike.
@@ -136,7 +157,8 @@ struct ToolAttempt: Equatable, Sendable {
 /// "attempted" means *reached a handler*, not *was asked for*: a security pre-flight denial
 /// throws before the handler and is not an attempt here, which keeps the ledger's meaning
 /// aligned with the one place tools actually execute. Same monotonic-counter + snapshot-at-turn
-/// head shape as its sibling, and the same one-directional skew under concurrency.
+/// head shape as its sibling, and the same turn-keyed attribution (`ToolMutationLedger`'s
+/// header carries the measured history of why the unkeyed window was not safe).
 actor ToolAttemptLedger {
     static let shared = ToolAttemptLedger()
 
@@ -164,9 +186,15 @@ actor ToolAttemptLedger {
         total
     }
 
-    /// Everything dispatched after `baseline`, oldest first.
+    /// Everything dispatched after `baseline`, oldest first — every turn, unattributed.
     func since(_ baseline: UInt64) -> [ToolAttempt] {
         recent.filter { $0.seq > baseline }.map(\.attempt)
+    }
+
+    /// The dispatches belonging to `turnToken` that landed after `baseline`, oldest first —
+    /// the same equality attribution as ``ToolMutationLedger/since(_:turnToken:)``.
+    func since(_ baseline: UInt64, turnToken: String) -> [ToolAttempt] {
+        recent.filter { $0.seq > baseline && $0.attempt.turnToken == turnToken }.map(\.attempt)
     }
 
     /// Failed writer calls with no successful write after them.

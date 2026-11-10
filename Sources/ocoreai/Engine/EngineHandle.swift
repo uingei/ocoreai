@@ -130,12 +130,17 @@ struct EngineHandle {
     ///   - conversationId: Optional conversation ID for session pooling / KV cache reuse
     ///   - cancellation: Cancellation token (default ``none`` — never autocancels)
     /// - Returns: Async throwing stream of events
+    /// - Parameter turnToken: The caller's turn key, threaded to the dispatch chokepoint so
+    ///   the claim/audit record this turn produces is attributable to it
+    ///   (`Models/ClaimVsAudit.swift`). nil keeps today's behavior: the engine mints its own
+    ///   token and the dispatches belong to no caller-queried turn.
     func generateFromMessages(
         messages: [Message],
         sampling: SamplingConfiguration,
         options: InferenceOptions,
         conversationId: String? = nil,
         cancellation: InferenceCancellation = .none,
+        turnToken: String? = nil,
     ) -> AsyncThrowingStream<InferenceEvent, Error> {
         if ScriptedInference.isEnabled {
             return ScriptedInference.stream()
@@ -156,6 +161,7 @@ struct EngineHandle {
                         metrics: metrics,
                         conversationId: conversationId,
                         cancellation: cancellation,
+                        turnToken: turnToken,
                     ) {
                         guard !Task.isCancelled else { break }
                         continuation.yield(event)

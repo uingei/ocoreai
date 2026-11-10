@@ -443,6 +443,9 @@ private func nonStreamAnthropicResponse(
     /// The failure half of the same record: only `ToolAttemptLedger` knows a handler was
     /// reached and missed, which the mutation ledger alone cannot see (`Models/ClaimVsAudit.swift`).
     let attemptBaseline = await ToolAttemptLedger.shared.snapshot()
+    /// One key for this request's audit, threaded to the dispatch chokepoint by the engine so
+    /// only this turn's records match at the finalize (`Models/ClaimVsAudit.swift`).
+    let turnKey = UUID().uuidString
 
     await handle.markActive()
 
@@ -450,6 +453,7 @@ private func nonStreamAnthropicResponse(
         messages: messages,
         sampling: sampling,
         options: options,
+        turnToken: turnKey,
     )
 
     var accumulatedTokens: [Int32] = []
@@ -669,8 +673,8 @@ private func nonStreamAnthropicResponse(
     /// zero-tool turn answered "File created." with the file absent, and that a turn whose
     /// `edit_file` succeeded answered "I failed to fix the code". A `tool_use` turn is not
     /// an answer yet, so it is not judged.
-    let turnMutations = await ToolMutationLedger.shared.since(mutationBaseline)
-    let turnAttempts = await ToolAttemptLedger.shared.since(attemptBaseline)
+    let turnMutations = await ToolMutationLedger.shared.since(mutationBaseline, turnToken: turnKey)
+    let turnAttempts = await ToolAttemptLedger.shared.since(attemptBaseline, turnToken: turnKey)
     var auditedContent = content
     if deliveredCalls.isEmpty, finishReason == "end_turn",
         let notice = ClaimVsAudit.notice(
@@ -791,6 +795,8 @@ private func streamAnthropicResponse(
     /// The failure half of the same record: only `ToolAttemptLedger` knows a handler was
     /// reached and missed, which the mutation ledger alone cannot see (`Models/ClaimVsAudit.swift`).
     let attemptBaseline = await ToolAttemptLedger.shared.snapshot()
+    /// One key for this request's audit — see the non-stream face above (`Models/ClaimVsAudit.swift`).
+    let turnKey = UUID().uuidString
 
     let (stream, continuation) = AsyncStream<ByteBuffer>.makeStream()
 
@@ -826,6 +832,7 @@ private func streamAnthropicResponse(
                 sampling: sampling,
                 options: options,
                 cancellation: canceller,
+                turnToken: turnKey,
             )
 
             var totalOutputTokens = 0
@@ -1132,8 +1139,10 @@ private func streamAnthropicResponse(
             /// Same cross-check as this face's non-stream path: the claim already streamed, so
             /// the audit line arrives as one more `text_delta` (clients concatenate blocks) and
             /// the persisted row stores the corrected answer.
-            let streamTurnMutations = await ToolMutationLedger.shared.since(mutationBaseline)
-            let streamTurnAttempts = await ToolAttemptLedger.shared.since(attemptBaseline)
+            let streamTurnMutations = await ToolMutationLedger.shared.since(
+                mutationBaseline, turnToken: turnKey)
+            let streamTurnAttempts = await ToolAttemptLedger.shared.since(
+                attemptBaseline, turnToken: turnKey)
             if deliveredToolCalls.isEmpty, finishReason == "stop",
                 let notice = ClaimVsAudit.notice(
                     text: answerText, mutations: streamTurnMutations, attempts: streamTurnAttempts

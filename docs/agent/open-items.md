@@ -261,9 +261,13 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   either seam. Open: the prewarm task has no cancel affordance anywhere, so its ring renders without a
   Stop (honest, but a wait the user can only watch); the pixels half stays unverifiable on this host
   (`screencapture` refused — § UI guide); owner call: a pool-owned cancel route for prewarm.
-- **The audit infers a write, it never reads the workspace** (Models/, Tools/) — a shell success is
-  `.unobserved`; an unknown MCP tool still counts as a writer; the key is process-wide. Wanted:
-  turn-scoped effect off the filesystem (codex, per turn:
+- **The audit infers a write, it never reads the workspace** (Models/, Tools/) — the process-wide
+  key closed 11-10: the wire handlers mint a turn key, the engine threads it to the chokepoint, and
+  `since(_:turnToken:)` credits only that turn's dispatches (`ClaimVsAuditTurnKeyTests` pins the
+  filter, the equality direction, and the wiring scan). What the key does not fake: a shell success
+  is still `.unobserved`, an unknown MCP tool still counts as a writer, and the macOS-27 FM/ANE
+  dispatches carry no key (unverifiable here, so keyed there is a named class, not coded blind).
+  Wanted: turn-scoped effect off the filesystem (codex, per turn:
   `../references/codex/codex-rs/core/src/turn_diff_tracker.rs:46`).
 - **A demanded tool call is reported, not forced** (Engine/, Handlers/) — the unmet demand now rides in
   the result at all four sites; the engine still answers `required` with zero tokens, where sglang

@@ -904,12 +904,17 @@ private func nonStreamWithToolCalling(
     /// change the workspace between here and the answer" is answered by `ToolMutationLedger`
     /// (fed at the `ToolRegistry` chokepoint), never by what the model said nor by the wire
     /// echo — a native tool turn runs inside `ChatSession` and echoes no `tool_calls` at all.
-    /// Skew is one-directional: a concurrent turn's write can only inflate this set, which
-    /// suppresses a notice rather than inventing a contradiction.
+    /// The baseline alone is NOT enough: under concurrency it inflates, and an inflated set
+    /// invents the "This turn did change files" notice — measured 11-01 — so `turnKey` below
+    /// attributes the record to THIS request's dispatches (`Models/ClaimVsAudit.swift`).
     let mutationBaseline = await ToolMutationLedger.shared.snapshot()
     /// The failure half of the same record: only `ToolAttemptLedger` knows a handler was
     /// reached and missed, which the mutation ledger alone cannot see (`Models/ClaimVsAudit.swift`).
     let attemptBaseline = await ToolAttemptLedger.shared.snapshot()
+    /// One key for this request's audit — the same value passed to every engine call below
+    /// (a degenerate-output correction stream is still this turn), and threaded by the engine
+    /// to the dispatch chokepoint so only this request's tool records match at the finalize.
+    let turnKey = UUID().uuidString
 
     /// Generate unique request ID for tracing.
     let requestId = "req-\(UUID().uuidString.prefix(8))"
@@ -967,6 +972,7 @@ private func nonStreamWithToolCalling(
         sampling: sampling,
         options: options,
         conversationId: conversationId,
+        turnToken: turnKey,
     )
 
     var accumulatedContent = ""
@@ -1098,6 +1104,7 @@ private func nonStreamWithToolCalling(
                         sampling: correctedSampling,
                         options: correctedOpts,
                         conversationId: conversationId,
+                        turnToken: turnKey,
                     )
                     var accTokens: [Int32] = []
                     var accText: String? = nil
@@ -1242,8 +1249,9 @@ private func nonStreamWithToolCalling(
     /// Only a self-terminated answer turn is judged — a turn ending in `tool_calls` has not
     /// finished the work yet, so its text is not a completion claim.
     if toolCalls == nil, finishReasonFinal == "stop" {
-        let mutations = await ToolMutationLedger.shared.since(mutationBaseline)
-        let attempts = await ToolAttemptLedger.shared.since(attemptBaseline)
+        // Keyed attribution: only this request's dispatches match (ClaimVsAudit).
+        let mutations = await ToolMutationLedger.shared.since(mutationBaseline, turnToken: turnKey)
+        let attempts = await ToolAttemptLedger.shared.since(attemptBaseline, turnToken: turnKey)
         if let notice = ClaimVsAudit.notice(
             text: finalContent, mutations: mutations, attempts: attempts
         ) {
@@ -1388,12 +1396,17 @@ private func streamWithToolCalling(
     /// change the workspace between here and the answer" is answered by `ToolMutationLedger`
     /// (fed at the `ToolRegistry` chokepoint), never by what the model said nor by the wire
     /// echo — a native tool turn runs inside `ChatSession` and echoes no `tool_calls` at all.
-    /// Skew is one-directional: a concurrent turn's write can only inflate this set, which
-    /// suppresses a notice rather than inventing a contradiction.
+    /// The baseline alone is NOT enough: under concurrency it inflates, and an inflated set
+    /// invents the "This turn did change files" notice — measured 11-01 — so `turnKey` below
+    /// attributes the record to THIS request's dispatches (`Models/ClaimVsAudit.swift`).
     let mutationBaseline = await ToolMutationLedger.shared.snapshot()
     /// The failure half of the same record: only `ToolAttemptLedger` knows a handler was
     /// reached and missed, which the mutation ledger alone cannot see (`Models/ClaimVsAudit.swift`).
     let attemptBaseline = await ToolAttemptLedger.shared.snapshot()
+    /// One key for this request's audit — the same value passed to every engine call below
+    /// (a degenerate-output correction stream is still this turn), and threaded by the engine
+    /// to the dispatch chokepoint so only this request's tool records match at the finalize.
+    let turnKey = UUID().uuidString
 
     /// Configure SSE-compliant response headers.
     let responseHeaders = SSEHeaders
@@ -1489,6 +1502,7 @@ private func streamWithToolCalling(
             options: options,
             conversationId: conversationId,
             cancellation: canceller,
+            turnToken: turnKey,
         )
 
         var totalOutputTokens = 0
@@ -1912,7 +1926,8 @@ private func streamWithToolCalling(
         /// Same cross-check as the non-stream path, one delta before the terminator: the
         /// claim has already streamed, so the audit line rides as an extra content delta
         /// (clients concatenate) and the persisted row stores the corrected text.
-        let streamMutations = await ToolMutationLedger.shared.since(mutationBaseline)
+        let streamMutations = await ToolMutationLedger.shared.since(
+            mutationBaseline, turnToken: turnKey)
         let streamResolvedFinish = ToolCallWire.resolveFinishReason(
             engineReason: lastFinishReason,
             toolCallsMade: !deliveredToolCalls.isEmpty)
@@ -1934,7 +1949,7 @@ private func streamWithToolCalling(
             let notice = ClaimVsAudit.notice(
                 text: prevDecodedText,
                 mutations: streamMutations,
-                attempts: await ToolAttemptLedger.shared.since(attemptBaseline)
+                attempts: await ToolAttemptLedger.shared.since(attemptBaseline, turnToken: turnKey)
             )
         {
             _ = yieldSSE(
