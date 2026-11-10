@@ -9,6 +9,34 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-11
 
+**11-11 the rewind reserve stopped being a bare constant — it ships stated on the kv-cache endpoint and overridable by one boot-time knob, the first two rungs of the ladder the vllm-metal row named**
+
+- **What improved.** `kvCacheRewindReserveTokens` was `1024` with no way to see or move it, so the § Open
+  "untuned" could not even be priced by an operator. Now: `GET /v1/models/:model/kv-cache` publishes
+  `rewindReserve{requested,tokens,basis,rawEnvironment}` — a plan truth with the basis that produced it —
+  and `OCOREAI_KV_REWIND_RESERVE_TOKENS` resolves once at boot (`KVCacheRewindReservePolicy`, shaped like
+  `SessionPoolPolicy`: value shapes decided by table, never by exception). `0` = off, which the existing
+  `makeKVCacheRewind` guard already degraded to "no reserve requested"; positive = the override; a negative
+  or unparseable value keeps the default and says so — `basis: "invalid_environment"` plus the operator's
+  raw text quoted on the wire and a boot log for every non-default basis, because a refused override that
+  goes silent is the flat-zero-series class this session has now gated from both sides. Untouched default
+  behaviour is unchanged (the whole § Open tuning decision stays where it belongs). Rung 3 — per-model/
+  pressure tuning — stays the open item, now priceable.
+- **What same-session output proves it.** `KVCacheRewindReserveTests` 16 cases over the whole value table
+  (nil/positive/1/0/negative/garbage/empty), wire exact JSON per row, and the global resolution asserted
+  equal to the pure resolver over the live environment (no second decision home); the resolver takes the
+  environment as a parameter, so no test leases process-global state. Adjacent suites green together with
+  it (23 in 4: `SessionRewindOnDivergence`, `KVCacheStatusEndpoint`, `KVCacheResidency`) — default behaviour
+  did not move. Red sample: mutating one basis string failed exactly the named row with the named argument.
+  The edit moved lines: anchor-check went red on five cites it owns, all five re-pinned, drift=0; B2
+  re-measured the consensus percent (97→98) again mid-round, live, as designed. Incidents on my side: a
+  whole-file `git checkout` (to undo a red-sample hunk) reverted this round's own policy with it — restored,
+  and the lesson is the standing one: in the shared cwd revert hunks, not files — and one mis-targeted edit
+  to `UI/AGENTS.md` was caught and reverted before it reached a commit. Live `serve` curl of the new field
+  is NOT owed green here: the endpoint needs a resident model and none was booted this round.
+- **Gate.** `make test FILTER='KVCacheRewindReserve|SessionRewindOnDivergence'` — the table, the wire shape,
+  and the unchanged default behaviour; anchor-check and B2 hold the cites and the percent the edit moved.
+
 **11-11 the knob scan an earlier round refused to persist got persisted in a different form — P21 makes every `OCOREAI_*` a human doc names owe its wiring, and the docs contract goes red at ~3 s**
 
 - **What improved.** The 11-05 round ran this exact scan by hand, measured 0 of 26 knobs unconsumed, and

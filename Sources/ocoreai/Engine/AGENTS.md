@@ -43,8 +43,12 @@ Three conditions, and two of the ways they fail are silent (measured, not inferr
 - **The reserve must be requested.** A rotating cache past its window reports `maxTrimCount == 0`
   (upstream `mlx-swift-lm` `KVCache.swift:997`), so `RewindToCommonPrefixRule` downgrades the trim to
   `.rebuild`: the answer stays correct and `cached_tokens` stays 0.
-  `kvCacheRewindReserveTokens` (`MLXBridge.swift:910`) is therefore passed at all three exits of
+  `kvCacheRewindReserveTokens` (`MLXBridge.swift:955`) is therefore passed at all three exits of
   `makeKVCacheConfiguration`, including the unquantized one that used to return nil.
+  The reserve is a stated plan, not a hidden constant: the kv-cache endpoint publishes
+  `rewindReserve{requested,tokens,basis,rawEnvironment}` and `OCOREAI_KV_REWIND_RESERVE_TOKENS`
+  resolves once at boot (0=off; negative or garbage keeps the default and names itself in
+  `basis`). Gate: `KVCacheRewindReserveTests`.
 - **A rewind is not a refusal.** It books under `prefixReuse`, never `historyDiverged` — a ledger
   that counts it as refused publishes a full recompute the engine did not perform.
 - **A snapshot states the plan it was written under.** `KVCacheManifest` v2 carries

@@ -74,10 +74,10 @@ let package = Package(
 // anchor:. Sources/ocoreai/Engine/EngineInference.swift:3727 Stream.gpu.synchronize -->
 // anchor:. Sources/ocoreai/Engine/EngineInference.swift:5194 asArray(Int.self) -->
         // anchor:. Sources/ocoreai/Engine/EngineInferenceSupport.swift:261 MLXArray
-// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1316 MLXArray( -->
-// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1322 MLXArray.zeros -->
-// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1328 result.eval -->
-// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1330 asArray(Float.self) -->
+// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1358 MLXArray( -->
+// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1364 MLXArray.zeros -->
+// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1370 result.eval -->
+// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1372 asArray(Float.self) -->
 // anchor:. Sources/ocoreai/Engine/DegenerateMarginProbe.swift:257 asArray(Int32.self) -->
         // All MLX *inference* flows through MLXLLM/MLXNN/MLXLMCommon; these 5 APIs are
         // where an MLX signature change lands in ocoreai's own code, so a bump audits

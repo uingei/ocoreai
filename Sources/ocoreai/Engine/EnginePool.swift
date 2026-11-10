@@ -439,6 +439,18 @@ actor EnginePool {
                 "MLXSessionPool disabled (create-and-destroy per request)\(suffix)")
         }
 
+        // The rewind reserve's non-default bases name themselves: an operator who set the
+        // override — or whose override was refused — sees which number the caches got.
+        if kvCacheRewindReserveResolution.basis != "default" {
+            logger.info(
+                """
+                KV rewind reserve (\(kvCacheRewindReserveResolution.basis)): \
+                \(KVCacheRewindReservePolicy.environmentVariable)=\
+                \(kvCacheRewindReserveResolution.rawEnvironment ?? "") \
+                → \(kvCacheRewindReserveResolution.tokens) tokens
+                """)
+        }
+
         // Log speculative decoding status
         if config.specDecoding.enabled {
             if let draftId = config.specDecoding.draftModelId {

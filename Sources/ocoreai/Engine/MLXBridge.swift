@@ -910,7 +910,49 @@ nonisolated func extractKVQuantizationParams(
 /// exactly; past it the engine rebuilds, which is the pre-#700 behaviour, not a failure.
 /// The cost is storage only — it widens no attention window (`KVCacheConfiguration.Rewind`
 /// is documented as adding rows "beyond each attention window without widening attention").
-let kvCacheRewindReserveTokens = 1024
+///
+/// The number ships visible (`rewindReserve` on `GET /v1/models/:model/kv-cache`) and
+/// overridable once at boot (`OCOREAI_KV_REWIND_RESERVE_TOKENS`); tuning it per model or
+/// memory pressure stays the open item — a constant nobody can see is not a tunable.
+enum KVCacheRewindReservePolicy {
+    static let environmentVariable = "OCOREAI_KV_REWIND_RESERVE_TOKENS"
+    static let defaultTokens = 1024
+
+    /// `tokens > 0` requests the reserve; 0 is an explicit off (`makeKVCacheRewind`
+    /// already degrades off to "no reserve requested"). `basis` names where the number
+    /// came from and `rawEnvironment` quotes the operator's text whenever the env was in
+    /// play — including when it was refused — so a refused override is never silence.
+    struct Resolution: Sendable, Equatable {
+        let tokens: Int
+        let basis: String
+        let rawEnvironment: String?
+    }
+
+    /// Reads once (a global `let` resolves it lazily at first use); a later
+    /// `setenv` cannot move a plan the caches were already built under.
+    static func resolve(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Resolution {
+        guard let raw = environment[environmentVariable] else {
+            return Resolution(tokens: defaultTokens, basis: "default", rawEnvironment: nil)
+        }
+        if let value = Int(raw) {
+            if value == 0 {
+                return Resolution(tokens: 0, basis: "off", rawEnvironment: raw)
+            }
+            if value > 0 {
+                return Resolution(tokens: value, basis: "environment", rawEnvironment: raw)
+            }
+        }
+        // Negative or unparseable: leave the engine's behaviour at what it was before
+        // the knob existed, and let `basis` say so — a typo must not silently retune.
+        return Resolution(
+            tokens: defaultTokens, basis: "invalid_environment", rawEnvironment: raw)
+    }
+}
+
+let kvCacheRewindReserveResolution = KVCacheRewindReservePolicy.resolve()
+let kvCacheRewindReserveTokens = kvCacheRewindReserveResolution.tokens
 
 /// The reserve as upstream wants it. `Rewind.init` rejects `maxTokens <= 0`, so a disabled
 /// reserve degrades to "no reserve requested" rather than to an error: the caller keeps

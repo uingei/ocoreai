@@ -16,7 +16,7 @@ sweep `docs/agent/*.md`, so one hop out loses nothing.
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1566 static func rewindHistoryEnd -->
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:687 Self.rewindHistoryEnd( -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3272 rewind.source.session.fork( -->
-<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:913 let kvCacheRewindReserveTokens = 1024 -->
+<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:955 let kvCacheRewindReserveTokens = kvCacheRewindReserveResolution -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:14 public struct Message { -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/UserInput.swift:131 public struct Image { -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2128 func fork(history -->

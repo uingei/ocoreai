@@ -76,13 +76,36 @@ struct KVCacheStatusResponse: Encodable {
     /// until the first cache update, so `residency` is where the byte answer lives.
     let residency: KVCacheResidencyObservation
 
+    /// The rewind reserve this process requested — a plan truth (what the caches were
+    /// asked to hold beyond each window), not a measurement of reuse. `basis` names where
+    /// the number came from; `rawEnvironment` quotes the operator's text whenever the env
+    /// var was in play, refused overrides included.
+    let rewindReserve: KVCacheRewindReserveWire
+
+    struct KVCacheRewindReserveWire: Encodable {
+        let requested: Bool
+        let tokens: Int
+        let basis: String
+        let rawEnvironment: String?
+
+        init(_ resolution: KVCacheRewindReservePolicy.Resolution) {
+            requested = resolution.tokens > 0
+            tokens = resolution.tokens
+            basis = resolution.basis
+            rawEnvironment = resolution.rawEnvironment
+        }
+    }
+
     init(
         status: KVCacheStatus,
         prefixReuse: PrefixReuseObservation = .notObserved,
         toolProse: ToolProseObservation = ToolProseMode.injectedUnmeasured.observation,
         reuseRefusals: ReuseRefusalObservation = .empty,
-        residency: KVCacheResidencyObservation = .notObserved
+        residency: KVCacheResidencyObservation = .notObserved,
+        rewindReserve: KVCacheRewindReserveWire =
+            KVCacheRewindReserveWire(kvCacheRewindReserveResolution)
     ) {
+        self.rewindReserve = rewindReserve
         self.residency = residency
         self.prefixReuse = prefixReuse
         self.toolProse = toolProse
@@ -216,14 +239,17 @@ nonisolated func makeKVCacheStatusResponse(
     prefixReuse: PrefixReuseObservation = .notObserved,
     toolProse: ToolProseObservation = ToolProseMode.injectedUnmeasured.observation,
     reuseRefusals: ReuseRefusalObservation = .empty,
-    residency: KVCacheResidencyObservation = .notObserved
+    residency: KVCacheResidencyObservation = .notObserved,
+    rewindReserve: KVCacheStatusResponse.KVCacheRewindReserveWire =
+        .init(kvCacheRewindReserveResolution)
 ) -> KVCacheStatusResponse {
     KVCacheStatusResponse(
         status: status,
         prefixReuse: prefixReuse,
         toolProse: toolProse,
         reuseRefusals: reuseRefusals,
-        residency: residency
+        residency: residency,
+        rewindReserve: rewindReserve
     )
 }
 
