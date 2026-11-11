@@ -3,6 +3,16 @@
 > Material `AGENTS.md` § *Open* used to carry prose for although it was resolved, retracted or
 > judged a phantom gap. An open item is one that can still change a decision; a verdict is
 > history, and history kept in the injected layer costs every session.
+- **"MCP empty success" was a misread sweep red (11-11, same-day conviction).** The 11-11 sweep classed
+  probe 34 §D as "success-shaped empty `tools/call`" — read off the section title and the FAIL label, not
+  the body. The body was there in the sweep log: the tool ran and returned an honest anchor-naming error
+  (`read_file: cannot read: Package.swift … anchored to scripts/probes; no workspace set`) — the probe had
+  sent a RELATIVE path, and under `make probes` the server's cwd is `scripts/probes`. Reproduced
+  red-sampled from the probe's own directory, fixed with `PROBE_REPO_ROOT` absolute path, green from both
+  cwds. What was never true: an empty success-shaped MCP result (the wire legs A-E all pass; the old
+  `paramsData`-drop class stayed closed). The audit rule this instance buys: a red's class is a claim
+  about its mechanism — read the failure BODY before naming the class; titles label positions, not causes.
+
 - **`tool_reference` inside `tool_result` billed-but-invisible (11-11, probe 07 green same day).** The
   shared tool-result accessor contributed text blocks only, so a tool search's result entered the prompt
   as nothing: 200 at the empty-result floor (905 = 905) and the answer "I did not find a tool named …"

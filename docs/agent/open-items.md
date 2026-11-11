@@ -245,9 +245,6 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   itself — decodable parts in a completed turn, not tokens received — can still over-publish on a
   checkpoint whose `processor_class` ignores `input.videos`; the color-naming gate covers only the probe
   checkpoints (next row; `VideoDeliveryLedger`).
-- **An MCP `tools/call` can come back success-shaped and empty** (MCP/) — probe 34's red: the server
-  reported no error and delivered nothing the turn could use; the refusal/empty face the failure-report
-  rule demands (cause named, way out) is not yet decided — whose verdict: the MCP round.
 - **Video publishing is per-checkpoint** (Multimodal/) — one processor reads `input.videos`, the other does
   not, so it is never inferred from architecture; a turn that got frames but never answered is not
   counted; relaxing that is untested (`VideoDeliveryLedger`).

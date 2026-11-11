@@ -114,7 +114,11 @@ else
 fi
 
 probe_section "D) params reach the tool: a real tools/call returns its arguments, not {}"
-rpc '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"read_file","arguments":{"path":"Package.swift"}}}'
+# Absolute path: a relative one resolves against the SERVER process cwd — under `make probes`
+# that is scripts/probes, and the sweep's red 11-11 measured exactly that harness fact, not
+# the wire (the tool's anchor-naming error came back honest; an earlier audit classed it
+# "MCP empty success" off this section's title without reading the body).
+rpc "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"read_file\",\"arguments\":{\"path\":\"$PROBE_REPO_ROOT/Package.swift\"}}}"
 python3 - "$(body)" <<'PY'
 import json, sys
 d = json.loads(sys.argv[1])

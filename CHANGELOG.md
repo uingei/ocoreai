@@ -9,6 +9,27 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-11
 
+**11-11 my own sweep verdict "MCP empty success" convicted itself: probe 34 §D measured the harness's cwd, not the wire — and the misclassification rule got bought with it**
+
+- **What improved.** The morning sweep classed probe 34's red as "MCP `tools/call` came back
+  success-shaped and empty" — I read the section title and the FAIL label, not the failure body,
+  and re-published the class into open-items. Re-running §D was green; running it from the probe's
+  OWN directory reproduced the exact sweep red: the probe sent a relative `path`, the tool resolved
+  it against the server's process cwd (`scripts/probes` under `make probes`), and the body the sweep
+  HAD printed was an honest anchor-naming error — the tool reporting its cause and way out, the
+  opposite of empty success. Fix: §D sends `$PROBE_REPO_ROOT/Package.swift`. No product code moved;
+  what was wrong was the audit, and the audit's instrument.
+- **Same-session proof.** Red-sampled by reproduction (cwd=scripts/probes → 1 failed; green from
+  both cwds after the absolute path); the sweep log line 1583 stands as the quoted body my
+  classification ignored. Legs A-E pass — the old `paramsData`-drop class stays closed.
+- **Gate.** The probe itself, run from both cwds; the durable rule lives in `closed-items-log.md`:
+  a red's class is a claim about its mechanism — read the failure BODY before naming the class,
+  titles label positions not causes. Open-items lost the invented row; nothing else moved.
+- **Three questions.** Improved: the sweep's red count was 9 real + this one mis-read, and the
+  surviving classes now each carry a body-read tell. Proved by: the cwd reproduction and its flip.
+  Gate red if it regresses: probe 34 §D from the probe directory (a relative path creeping back is
+  red exactly there).
+
 **11-11 a tool search's `tool_reference` now names the tool it found — the shared tool-result accessor was dropping it, so the client's search result entered the prompt as nothing**
 
 - **What improved.** `/v1/messages` accepted a `tool_result` whose content array held
