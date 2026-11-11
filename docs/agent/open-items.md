@@ -247,8 +247,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **Screen capture cannot start a stream headlessly** (Multimodal/) — authorized, display attached, still
   "cannot start stream", while the camera on the same box delivers: an SCStream-in-no-GUI-session limit,
   not TCC. `screenStatus` is `ready` only after a delivered frame.
-- **`tools[]` enforcement has gaps** — scope and open halves: `Sources/ocoreai/UI/AGENTS.md`; the
-  `required`-strength bound sits in `Handlers/AGENTS.md`.
+- **GUI e2e proves the window, not the driving** — completion leg local-only, Accessibility control
+  unverified. Scope: `UI/AGENTS.md` § GUI end-to-end.
 - **Two owner questions have data now and no answer** — refresh-vs-refuse when instructions change, and
   cross-conversation prefix sharing. `ReuseRefusalLedger` publishes both; the ledger is opportunity, not a
   capability claim.
