@@ -224,7 +224,10 @@ enum HarnessConnect {
         process.waitUntilExit()
         return process.terminationStatus
         #else
-        print("connect: this platform launches no harnesses")
+        // Same channel as the macOS plan lines, written the way the file's other output goes:
+        // the print-site ceiling stays the number a reviewer can re-grep.
+        FileHandle.standardOutput.write(
+            Data("connect: this platform launches no harnesses\n".utf8))
         return unavailableExit
         #endif
     }
