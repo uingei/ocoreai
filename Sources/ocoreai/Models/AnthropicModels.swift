@@ -329,7 +329,7 @@ enum AnthropicToolResultContent: Decodable {
     /// model was never shown it was measured 11-11 (probe 07: 200 at the floor's token
     /// count, the answer "I did not find a tool named …" beside the same name as TEXT
     /// getting it back). Precedent: splash renders references as naming text
-    /// (`dialects/anthropic.py:388-407`). A reference with no `tool_name` names nothing.
+    /// (`server/dialects/anthropic.py:388-407`). A reference with no `tool_name` names nothing.
     var text: String {
         switch self {
         case .text(let s): return s
