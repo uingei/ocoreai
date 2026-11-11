@@ -1,9 +1,23 @@
 # CoreAI lane: consume upstream, stop forking — a proposal
 
-Status: **proposal for owner decision — Phase 2 integration found a fundamental platform wall (below);
-consumption is gated on a delivery-model change.** Evidence gathered 11-12; the integration scaffolding
-was reverted, nothing here is implemented. The hand-ports already landed (fp8 #328, #412 pending CI)
-are patches on the *current* fork and stand regardless.
+Status: **DECIDED — owner chose option 1 (keep the fork + mechanize maintenance), 11-12.** Option 3
+(runtime-loaded engine) was verified *feasible* by a dlopen spike but **deferred**: the stable-C-interface
+project cost isn't justified now. Option 2 (raise the floor to macOS 27) stays off the table — macOS 14
+delivery is fixed. Mechanization is underway: `coreai-delta` (per-file code-debt view, `upstream-drift.sh`)
+landed and is gated. The hand-ports (fp8 #328, #412 pending CI) are patches on the fork and stand.
+
+**Option 3 spike (11-12), kept for the record:** a macOS 14 host `dlopen`s a separately-built engine
+dylib and calls a `@_cdecl` C interface — works. The link-time platform wall (SwiftPM won't link a
+macOS 27 product into a macOS 14 target) is bypassed because dlopen is runtime, not link-time; the real
+engine's runtime gate is its CoreAI.framework dependency (absent < 27). So "no fork + macOS 14" is
+*feasible*; the cost is flattening the engine's async Swift API to a stable C ABI + dylib build/sign.
+Deferred, not ruled out.
+
+**Delta-view nuance:** the raw per-file delta is not all debt. Small deltas are mostly already-adjudicated
+inert (e.g. ImagePreprocessor's `loadCGImage`/`renderToContext` public — ocoreai has no caller) or cosmetic
+(InputEmbeddings TODO removal); large deltas (SequentialEngine 1134 L, StaticShape 873 L) are largely
+*deliberate* shape divergence. The real sync debt is the named open verdicts (the 16, e.g. #412 done,
+#490 next), read with the window-log adjudication — not the raw delta numbers.
 
 ## Phase 2 integration finding (11-12): the platform wall
 
