@@ -173,6 +173,19 @@ struct AnthropicBlockHonestyTests {
                 "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_2\",\"content\":[{\"type\":\"text\",\"text\":\"sunny, 30C\"}]}",
                 "sunny, 30C"
             ),
+            (
+                "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_3\",\"content\":[{\"type\":\"tool_reference\",\"tool_name\":\"weather_api\"}]}",
+                "Available tool: weather_api"
+            ),
+            (
+                #"""
+                {"type":"tool_result","tool_use_id":"toolu_4","content":[
+                  {"type":"text","text":"searched"},
+                  {"type":"tool_reference","tool_name":"weather_api"},
+                  {"type":"tool_reference","tool_name":"calendar_api"}]}
+                """#,
+                "searched\nAvailable tool: weather_api\nAvailable tool: calendar_api"
+            ),
         ] as [(String, String)])
     func toolResultDelivers(blockJSON: String, expected: String) throws {
         let turns = try message(
@@ -184,6 +197,18 @@ struct AnthropicBlockHonestyTests {
         #expect(turns[0].toolCallID != nil, "a result without its call id is not a result")
         #expect(textOf(turns[0]) == expected)
         #expect(textOf(turns[1]) == "so what is the weather?")
+    }
+
+    /// A reference with no `tool_name` names nothing — it must not invent a name, and a
+    /// search that found nothing reads as nothing ("no output"), the same floor as an
+    /// empty result. The named case above is what probe 07's red measured.
+    @Test("a nameless tool_reference contributes silence, not a hallucinated name")
+    func namelessToolReferenceContributesNothing() throws {
+        let turns = try message(
+            #"{"role":"user","content":[{"type":"tool_result","tool_use_id":"t9","content":[{"type":"tool_reference"}]}]}"#
+        ).toInternalMessages()
+        #expect(turns.count == 1)
+        #expect(textOf(turns[0]) == "no output")
     }
 
     @Test("the tool turn carries the id the client used, so the pair still lines up")

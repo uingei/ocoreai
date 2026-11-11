@@ -266,8 +266,12 @@ struct AnthropicContentBlock: Decodable {
     /// `image` / `document` source.
     let source: AnthropicBlockSource?
 
+    /// `tool_reference.tool_name` — a tool-search result naming the tool it found.
+    let toolName: String?
+
     enum CodingKeys: String, CodingKey {
         case type, text, id, name, input, content, source, signature
+        case toolName = "tool_name"
         case toolUseId = "tool_use_id"
         case isError = "is_error"
     }
@@ -320,13 +324,26 @@ enum AnthropicToolResultContent: Decodable {
     case text(String)
     case blocks([AnthropicContentBlock])
 
-    /// Text the result contributes (non-text blocks contribute none).
+    /// Text the result contributes. `tool_reference` blocks — a tool search's result —
+    /// contribute the name they reference: a search that came back with a name and the
+    /// model was never shown it was measured 11-11 (probe 07: 200 at the floor's token
+    /// count, the answer "I did not find a tool named …" beside the same name as TEXT
+    /// getting it back). Precedent: splash renders references as naming text
+    /// (`dialects/anthropic.py:388-407`). A reference with no `tool_name` names nothing.
     var text: String {
         switch self {
         case .text(let s): return s
         case .blocks(let blocks):
-            return blocks.compactMap { $0.type == "text" ? $0.text : nil }
-                .joined(separator: "\n")
+            return blocks.compactMap { block in
+                switch block.type {
+                case "text": return block.text
+                case "tool_reference":
+                    guard let name = block.toolName, !name.isEmpty else { return nil }
+                    return "Available tool: \(name)"
+                default: return nil
+                }
+            }
+            .joined(separator: "\n")
         }
     }
 

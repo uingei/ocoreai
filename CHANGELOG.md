@@ -9,6 +9,30 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-11
 
+**11-11 a tool search's `tool_reference` now names the tool it found — the shared tool-result accessor was dropping it, so the client's search result entered the prompt as nothing**
+
+- **What improved.** `/v1/messages` accepted a `tool_result` whose content array held
+  `tool_reference` blocks and answered as if the search had found nothing (probe 07: subject 200 at
+  905 = the empty-result floor; the same name as TEXT cost 908 and got echoed back).
+  `AnthropicToolResultContent.text` contributed `text` blocks only. The fix is at that one accessor
+  the guard's read and the prompt share — references render as `Available tool: <tool_name>`; a
+  nameless reference names nothing, no name is invented. The block's `tool_name` is now decoded
+  (`toolName`). Precedent read before authoring: splash renders references as naming text
+  (`server/dialects/anthropic.py:388-407`) — one tree, so precedent, not consensus; the probe's own
+  TEXT control independently shows naming is what delivers here.
+- **Same-session proof, live.** Probe 07 `15 passed, 0 failed` (was 13/2): subject now costs 911 vs
+  the 905 floor — the name entered the prompt — and the model echoes `probe-zephyrkite` exactly as
+  the text arm does. The two FAIL lines flipped without touching the probe's assertions.
+- **Gate.** `AnthropicBlockHonestyTests`: two exact-value parameterized cases (single and mixed
+  text+two-references, joined order pinned) + the nameless edge (`no output`, silence not a
+  hallucinated name). Red-sampled: the drop-mutant reddens exactly the two named cases and nothing
+  else; nameless stays green under it — each case bites only its own direction. Probe 07 keeps
+  proving it live. Open-items: the row moved to `closed-items-log.md`; probe 34's empty MCP
+  `tools/call` keeps its own new row, not merged into this verdict.
+- **What I got wrong first.** After restoring the red-sample mutant I re-ran the live probe against
+  the still-stale binary and reported the FAILs as unflipped — the rebuild is part of the claim; a
+  live probe scores the binary its mtime found, not the source I just edited.
+
 **11-11 the video over-report closes at its root: media turns had been routed onto the std-reasoning lane, whose `(role, content)` rebuild silently drops the frames it accepted**
 
 - **The defect the sweep classed as "checkpoint drops frames" was a lane bug.** The std-reasoning lane

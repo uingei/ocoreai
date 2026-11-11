@@ -3,6 +3,16 @@
 > Material `AGENTS.md` § *Open* used to carry prose for although it was resolved, retracted or
 > judged a phantom gap. An open item is one that can still change a decision; a verdict is
 > history, and history kept in the injected layer costs every session.
+- **`tool_reference` inside `tool_result` billed-but-invisible (11-11, probe 07 green same day).** The
+  shared tool-result accessor contributed text blocks only, so a tool search's result entered the prompt
+  as nothing: 200 at the empty-result floor (905 = 905) and the answer "I did not find a tool named …"
+  while the same name as TEXT reached the model (908, name echoed). Fix at the one accessor the guard and
+  the prompt share: references render as `Available tool: <tool_name>` (precedent read at
+  `~/references/splash/server/dialects/anthropic.py:388-407`; a nameless reference names nothing). Live:
+  probe 07 15/15 — subject 911 vs floor 905, name echoed like the control. Gates: `AnthropicBlockHonestyTests`
+  exact-value cases (two named shapes + nameless edge), red-sampled on the drop-mutant. Probe 34's
+  success-shaped empty MCP result keeps its own row — never merged into this verdict.
+
 - **Five clones on disk with no comparator verdict (11-10, same-day adjudication).** The 11-10 sweep found
   `aider`, `SWE-agent`, `mini-swe-agent`, `unsloth`, `nginx` on disk unregistered; all five now carry a
   content-read row in `comparator-repos.md` (§ end, before *How to use*), each claim read off the clone with
