@@ -247,11 +247,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **Screen capture cannot start a stream headlessly** (Multimodal/) — authorized, display attached, still
   "cannot start stream", while the camera on the same box delivers: an SCStream-in-no-GUI-session limit,
   not TCC. `screenStatus` is `ready` only after a delivered frame.
-- **GUI e2e proves the window, not the driving** — completion leg local-only, Accessibility control
-  unverified. Scope: `UI/AGENTS.md` § GUI end-to-end.
-- **Two owner questions have data now and no answer** — refresh-vs-refuse when instructions change, and
-  cross-conversation prefix sharing. `ReuseRefusalLedger` publishes both; the ledger is opportunity, not a
-  capability claim.
+- **GUI e2e proves the window, not the driving** — the completion leg stays the escalation tier's:
+  the field ships model-backed agent gates on self-hosted silicon only (Rapid-MLX's `agent-gate.yml`).
+  Accessibility control unverified. Scope: `UI/AGENTS.md` § GUI end-to-end.
+- **Prefix questions ruled by the field's shipped shape** — sglang keys identity in, so a cross-
+  conversation share misses, never collides (`hicache_key_scheme.py:34`), and no serving tree refuses
+  a changed instruction — vllm logs and degrades to a standard completion (`message_assembly.py:99`).
 
 - **A turn's tool surface costs 19 points; one knob is gated, the surface is not.** Measured on
   `gemma-4-e2b-it-4bit`: 6 tools against all 40 ⇒ **−18.8 pp, McNemar exact p < 0.0001** — read it as *what a
@@ -418,10 +419,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   its quoted recovery phrase is gone upstream, and the sha that "landed" the contract is not an
   ancestor of the pin (merge-base exit 1; object present), so provenance shas left the prose and the
   live contract is the Throw-before-dispatch its anchor pins; four new anchors own every surviving
-  number. Both `EngineInference.swift` sites were then adjudicated against HEAD, not the worktree:
-  claims TRUE, pointers stale (`:1386/1704`→catches now `:1198/:1539`; the two-channel range now
-  holds prewarm code, the `.reasoning`/`.response` destinations live elsewhere); the fix is
-  mechanical, waiting only because the file is another session's live copy, not for knowledge.
+  number. Both `EngineInference.swift` sites were adjudicated against HEAD: claims TRUE, pointers
+  stale; the de-numbering is mechanical, waiting on the file's live copy, not on knowledge.
 
 - **Upstream already ships a scripted engine; ours has to be re-judged when the planned half lands**
   (Engine/) — `MLXScriptedLM` is a published product at the pin, and its scripted tokenizer implements

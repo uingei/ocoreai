@@ -145,7 +145,7 @@ verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name bel
 - **Multimodal: video publishes per-checkpoint; capture cannot stream headlessly** —
   `VideoDeliveryLedger`; `screenStatus` needs a delivered frame.
 - **The board scores 6 of the 40 advertised tools; full-surface is `OCOREAI_EVAL_TOOLS=all`** (scripts/eval/)
-  — every row prices its `tools[]` bytes; judging the two surfaces waits on the owner.
+  — every row prices its `tools[]` bytes; the curated 6 is the headline, ruled by the paired rows.
 - **The tool surface is still ungated against the loaded model** (UI/, Engine/) — owner call; `reasoning_effort`'s gate (`ReasoningEffortHonestyTests` + probe 38) is the pattern to extend.
 - **The surviving release is ad-hoc signed** (CI/) — `v0.1.16` survived 11-07 with read-back sha-parity,
   probe 41 proves the byte-identical build serves; Gatekeeper's download path stays unjudged — owner call.

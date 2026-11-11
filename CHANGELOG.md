@@ -9,6 +9,34 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-11
 
+**11-11 three parked verdicts fell to the field's shipped shapes — references pay out as decided rows, not new knowledge**
+
+- **What improved.** Three items had been waiting on a hand; each was adjudicated by reading the
+  closest tree's product code at the line, not by re-describing it. **Refresh-vs-refuse when
+  instructions change → refresh:** vllm's nearest face logs "Cannot determine if tools should be
+  extracted. Returning a standard chat completion." and answers (`message_assembly.py:99-105`) —
+  the field degrades a degraded turn, it does not refuse a request; a changed instruction is just
+  another prefix miss. **Cross-conversation prefix sharing → keyed away, not adjudicated:** sglang
+  spells the rule in its keyspace comment — "The digest prefixes every key, so any identity
+  mismatch misses rather than collides" (`hicache_key_scheme.py:34`); sharing is designed out by
+  scope-in-key, which is the same law our § Working here already carries for persisted state.
+  **GUI completion leg in CI → stays the escalation tier's:** Rapid-MLX ships its Tier-1 agent gate
+  (five real harnesses on a real model) and its own header names why GitHub cannot host it — "no
+  Metal, no weights, no agent binaries" — dispatching to `[self-hosted, macOS, rapidmlx-studio]`
+  single-flight (`agent-gate.yml:8,58`); our equivalent is `make probes` on owned silicon, already
+  shipped, so no CI change is owed and none was invented. **Board headline ruled:** the curated
+  6-tool surface stays the headline — two paired runs put the all-surface arm at −7 tasks on the
+  same block at 4.2× tokens, over the k=3 19-pp reading, and the wire default matches the field (a caller declaring no
+  tools gets none; vllm never injects its own surface at the same file just read).
+- **Same-session output.** Each cite above was read at the line this turn (not copied from the
+  registry); the open-items rows now carry the verdicts with tree-named block attribution, and the
+  EngineInference adjudication tail folded to its durable half (settled numbers fade to git history
+  per today's cite doctrine), funding the edits inside the shrink-only budget.
+- **Three questions.** Improved: the owner queue loses three items and gains none; a reader learns
+  what ships instead of what awaits. Proved by: the quoted lines above, each read on disk today.
+  Gate: `make docs-check` keeps each ruled row's tree attribution honest; if a future bump moves
+  vllm/sglang/Rapid-MLX off these shapes, the rows are findings with addresses, re-greppable.
+
 **11-11 `ocoreai connect` shipped the harness-side product code nine of twelve serving trees already had — launch instead of config-write, so the whole change is the child's exit**
 
 - **What improved.** § Adoption says to spend on "a harness consuming us", and § The harness side had
