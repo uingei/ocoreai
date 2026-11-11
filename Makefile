@@ -25,7 +25,7 @@ else
   endif
 endif
 
-.PHONY: all build release release-mac27 app dmg test test-ci test-clt probes format format-check audit docs-check anchor-check round-gates clean metallib help ci-local push-ready ci-status spell links install-hooks openapi
+.PHONY: all build release release-mac27 app dmg test test-ci test-clt probes format format-check audit docs-check anchor-check round-gates clean metallib help ci-local push-ready ci-status spell links install-hooks openapi sf-pin docs-budget drift
 
 all: build
 
