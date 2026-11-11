@@ -9,6 +9,33 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-11
 
+**11-11 `ocoreai connect` shipped the harness-side product code nine of twelve serving trees already had — launch instead of config-write, so the whole change is the child's exit**
+
+- **What improved.** § Adoption says to spend on "a harness consuming us", and § The harness side had
+  already read all twelve serving trees: nine ship detection + config-writer code, we shipped a
+  probe. Now `ocoreai connect claude-code` detects the binary on PATH (reports the exact path, or
+  says absent), trusts the bridge only after its own `/v1/models` answered (a listener nobody probed
+  is not "ours"), prints the plan it will run, and execs the child with probe 53's measured env
+  contract — `ANTHROPIC_API_KEY` synthesized only when the caller carries none, caller bytes never
+  overwritten. Launch and not config-write is the higher footprint rung under "respect the person":
+  nothing merges into a user file, so the two ways a naive merge deletes the user's own entries —
+  the failure `Rapid-MLX` documents before writing its code — cannot occur here; exit is the undo.
+  `--dry-run` prints the plan and touches nothing.
+- **Same-session output.** probe 55 green 13/13 weight-free on the scripted lane: the exec'd subject
+  is a stand-in that records its own environment — `ANTHROPIC_BASE_URL|key|args` matched
+  byte-for-byte, exit 3 forwarded unchanged, absent-harness and dead-server faces assert the honest
+  refusal text; `HarnessConnectTests` 6/6 pin the classifier table, PATH-order detection, the four
+  plan lines per server state, and key preservation to exact values; live-binary checks matched every
+  exit code (0 plan / 3 child / 64 usage / 69 absent subject). In unit runs the classification table
+  caught my own wrong expectation (`connect help` answers usage — serve's documented rule), not the
+  code.
+- **Three questions.** Improved: a stranger's harness needs one command instead of a manual env
+  ritual, and the claim is now carried by gates, not prose. Proved by: probe 55 + the unit suite
+  above. Gate reds: probe 55 reddes if detection drifts from the fixture PATH, a launch proceeds
+  while the printed server line objects, or the child's env bytes/exit change;
+  `HarnessConnectTests` reddes on any classifier-table move. In passing: probe 53's "Fails when"
+  tail was sitting after probe 54's entry in the README — moved back where it reads.
+
 **11-11 "a local full-suite green is owed" was a bar I invented — pass four on an owned box proved the rotating wall-clock reds are the suite-internal pool, the class the repo already carries as an owner item**
 
 - **What improved.** Today I chased a single-pass `make test` green across four passes (5/3/8/8 issues)

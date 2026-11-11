@@ -22,6 +22,7 @@ import SwiftUI
 ///     SwiftUI View instantiation, which never happens without WindowServer.
 ///   • `ocoreai --version` / `-v` → print the bundle version, exit 0.
 ///   • `ocoreai --help` / `-h` / `help` → usage, exit 0.
+///   • `ocoreai connect …` → `HarnessConnect` (see its header) — exits with its own code.
 ///   • `ocoreai serve --help` → the same usage, exit 0; any other argument after `serve` →
 ///     usage on stderr and exit 64 (`EX_USAGE`), booting nothing.
 ///   • anything else → `OcoreaiGUIApp.main()` — the untouched SwiftUI path,
@@ -44,6 +45,36 @@ struct OcoreaiApp {
             FileHandle.standardOutput.write(
                 Data((report.hasSuffix("\n") ? report : report + "\n").utf8))
             exit(0)
+        }
+        switch HarnessConnect.request(for: CommandLine.arguments) {
+        case .notConnect: break
+        case .help:
+            FileHandle.standardOutput.write(Data((HarnessConnect.usageText() + "\n").utf8))
+            exit(0)
+        case .noHarness:
+            FileHandle.standardError.write(
+                Data(
+                    (HarnessConnect.usageText() + "\n\nocoreai: 'connect' needs a harness name\n")
+                        .utf8))
+            exit(64)  // EX_USAGE
+        case .unknownHarness(let name):
+            FileHandle.standardError.write(
+                Data(
+                    ("ocoreai: connect does not know harness \"\(name)\" — supported: "
+                        + HarnessConnect.harnesses.keys.sorted().joined(separator: ", ") + "\n")
+                        .utf8))
+            exit(64)
+        case .refused(let unrecognized):
+            FileHandle.standardError.write(
+                Data(
+                    ("ocoreai: 'connect' cannot honour \"" + unrecognized.joined(separator: "\" \"")
+                        + "\" — see `ocoreai connect --help`\n").utf8))
+            exit(64)
+        case .run(let harness, let binaryName, let dryRun, let harnessArgs):
+            exit(
+                HarnessConnect.run(
+                    harness: harness, binaryName: binaryName,
+                    dryRun: dryRun, harnessArgs: harnessArgs))
         }
         switch HeadlessMode.serveRequest(for: CommandLine.arguments) {
         case .run:

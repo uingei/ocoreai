@@ -45,6 +45,8 @@ enum CLIMode {
           ocoreai serve              Headless engine + HTTP bridge (default
                                      127.0.0.1:8080) — no window; SIGTERM or
                                      stdin-EOF shuts it down gracefully.
+          ocoreai connect <harness>  Launch an installed coding agent against
+                                     that bridge (`connect --help`).
 
         CONFIGURATION (environment):
           OCOREAI_HOST / OCOREAI_PORT      Bridge bind address (serve).

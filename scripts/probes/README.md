@@ -500,6 +500,8 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     possible source; the deliverable is an on-disk token the task never names, and wire truth is the
     engine's own `Assembled prompt` lines, not the harness's exit code. Green 11-08: claude 2.1.318 on
     the list-order chat checkpoint (Qwen3.6-35B-A3B-4bit), exact-value match, 8 engine-served turns.
+    Fails when: the harness vanishes (missing subject, like 41's absent DMG), or it finishes while the
+    engine assembled fewer than two prompts.
 - `54-structured-output-composition.sh` — is the `tools[]` + `response_format` composition limit
     readable before the request and true in the turn? A combination turn is single-pass (the answer
     grammar wins, `OpenAIModels.swift` "the JSON wins"), so it cannot read a file before answering —
@@ -508,8 +510,16 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     §2 asserts the live turn matches it: schema-valid, no `tool_calls`, and the file's distinctive
     values absent (a grounded answer reds here as a *stale-disclosure* finding, not a pass). sglang
     treats the pair the same (`serving_chat.py:1130`). Green 11-08 both sections.
-    Fails when: the harness vanishes (missing subject, like 41's absent DMG), or it finishes while the
-    engine assembled fewer than two prompts.
+- `55-connect-harness-launch.sh` — does `ocoreai connect` earn the trust it prints? probe 53 proved
+    the wire route with a real loop; this one pins our CLI face at k=1 and weight-free: argv refusals
+    exit 64 naming the token, detection reports exactly the binary a PATH fixture provides (and says
+    absent when it is), the server is called "ours" only because `/v1/models` answered that shape,
+    and the child receives `ANTHROPIC_BASE_URL` byte-exact with the caller's own API key kept and the
+    child's exit forwarded unchanged. The exec'd subject is a stand-in that records its own
+    environment — deliberate: the mechanism is priced here, the real-loop claim stays probe 53's.
+    Green 11-11, 13 passed on the scripted lane. Fails when: a token stops being refused, detection
+    reports a path its fixture never had, a launch proceeds while the server line objects, or the
+    env bytes or exit code drift.
 - `_lib.sh` — shared harness
 Fails when: —
 
