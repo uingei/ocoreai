@@ -13,10 +13,10 @@
 //   Absorbed: #204 156cdb6 (prefillFunction / independent prefill graph).
 //   Absorbed: #217 54e6163 (defer yield until after accept/termination check).
 //   Adjudicated: 1c7c71f (window 7fd2063..1c7c71f read across 10-29 and 11-06; per-commit rows in
-//   docs/agent/coreai-fork-window-log.md). #412 (8a2d32a) is NOT absorbed: our `:1050` still holds the
-//   raw `yield(nextToken)` upstream replaced with an error-guarded yield, so a failed command buffer
-//   could hand us unwritten logits as a real token; adopting needs the macOS 27 lane (CLT compiles this
-//   out; open item). Upstream HEAD anchor for absorbed content: 54e6163.
+//   docs/agent/coreai-fork-window-log.md). #412 (8a2d32a) ported 11-12: error-guarded yield +
+//   GPUErrorHolder/ErrorRecordingCommandQueue (CoreAIPipelinedEngine+Metal.swift), so a failed command
+//   buffer ends the stream instead of yielding unwritten logits. Pending CI xcode-27 verification (CLT
+//   compiles this out; not claimed until run). Upstream HEAD anchor for absorbed content: 54e6163.
 //   Adjudicated: 12f3700 (#490 read 11-09 — the second named port, same premise as #412's: our
 //   `:859` keeps the lazy `penaltyState == nil` init and `:1387` the in-place reset, which is exactly
 //   the shape upstream found carrying one request's penalty/window/history into the next, plus a
@@ -507,6 +507,7 @@ private struct EngineImpl: ~Copyable {
     /// at the context width. Applies only to the prefill-graph path.
     let prefillMaxQueryLength: Int
     let pipelineQueue: MTLCommandQueue
+    let gpuErrors: GPUErrorHolder
     let computeStream: ComputeStream
     let device: MTLDevice
 
@@ -784,11 +785,14 @@ private struct EngineImpl: ~Copyable {
                 "Cannot load function '\(config.function)'")
         }
 
-        guard let pipelineQueue = device.makeCommandQueue() else {
+        guard let baseQueue = device.makeCommandQueue() else {
             throw InferenceRuntimeError.invalidState(
                 "Failed to allocate MTLCommandQueue for CoreAIPipelinedEngine")
         }
-        pipelineQueue.label = "CoreAIPipelinedEngine.queue"
+        baseQueue.label = "CoreAIPipelinedEngine.queue"
+        // Every command buffer on the queue, including Core AI's and the samplers', records into gpuErrors.
+        let gpuErrors = GPUErrorHolder()
+        let pipelineQueue = ErrorRecordingCommandQueue(baseQueue, errors: gpuErrors)
         let computeStream = ComputeStream(commandQueue: pipelineQueue)
 
         // Assign
@@ -798,6 +802,7 @@ private struct EngineImpl: ~Copyable {
         self.prefillFunction = prefillFn
         self.prefillMaxQueryLength = prefillMaxQueryLen
         self.pipelineQueue = pipelineQueue
+        self.gpuErrors = gpuErrors
         self.computeStream = computeStream
         self.device = device
         self.inputIdsName = inputIdsName
@@ -1037,6 +1042,7 @@ private struct EngineImpl: ~Copyable {
             let queue = pipelineQueue
             let localInFlightGate = inFlightGate
             let localPenaltyState = penaltyState
+            let localGPUErrors = gpuErrors
             let completionCallback: (Int32, Error?) -> Void = { nextToken, error in
                 // Update penalty state BEFORE releasing the gate, so the next
                 // buffer(forStep:) call in this slot sees the token.
@@ -1055,7 +1061,8 @@ private struct EngineImpl: ~Copyable {
                     signpostID: encodeStepID,
                     details: "token=\(nextToken)"
                 )
-                continuation.yield(nextToken)
+                // A failed command buffer (this step's or an earlier one's) left the logits unwritten.
+                localGPUErrors.yield(nextToken, to: continuation)
             }
 
             if queryLength == 1 {
@@ -1166,6 +1173,7 @@ private struct EngineImpl: ~Copyable {
         yieldingTo continuation: AsyncThrowingStream<InferenceEngine.TokenId, Error>.Continuation
     ) async throws {
         let gpuSampler = try getOrCreateSampler(for: sampler)
+        gpuErrors.reset()
 
         let isCancelled = Atomic<Bool>(false)
         continuation.onTermination = { _ in
@@ -1247,6 +1255,8 @@ private struct EngineImpl: ~Copyable {
                 cmdBuf.commit()
             }
         }
+        // A failure on the last step has no later yield to catch it.
+        if let error = gpuErrors.error { throw error }
     }
 
     // MARK: - Chunked Prefill
