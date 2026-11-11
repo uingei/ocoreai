@@ -450,8 +450,10 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   measurable, the tail is not. ② production writes the anchor outside every lease
   (`SessionWorkspace.swift:114`, `SessionManager.swift:138`); 11-03(3) lost a content suite that way
   once (inferred — the lease scan only sees test-file writes). Closed: the ledger's cross-suite half
-  (11-02(105)). Wanted: a controlled clock (`ClockToolsTests`), a quiet lane (`make test-clt`), or
-  the anchor's scope. Owner.
+  (11-02(105)). 11-11(8): four passes (5/3/8/8 issues), no cast repeated, every red green in isolation —
+  and the fourth pass owned the box exclusively (my earlier "box load" attribution is corrected: the
+  suite-internal pool alone suffices). Wanted: a controlled clock (`ClockToolsTests`), a quiet lane
+  (`make test-clt`), or the anchor's scope. Owner.
 - **The 11-02 compat sweep left one owner call, one dated debt and one seatless surface**
   (Middleware/, Router/, Security/) — the swept axes landed (spec-name `error.type`; `max_model_len`
   aliased one release, 11-02(110)); ① the eight hand-built error bodies render through

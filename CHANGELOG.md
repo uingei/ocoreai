@@ -9,6 +9,25 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-11
 
+**11-11 "a local full-suite green is owed" was a bar I invented — pass four on an owned box proved the rotating wall-clock reds are the suite-internal pool, the class the repo already carries as an owner item**
+
+- **What improved.** Today I chased a single-pass `make test` green across four passes (5/3/8/8 issues)
+  and told myself pass 1's cause was this box's parallel load. Pass 4 owned the machine EXCLUSIVELY —
+  no other command issued — and still redded a FIFTH distinct cast; every member green in isolation.
+  The culprit is the ~618-suite cooperative pool itself: exactly the class already standing at
+  `open-items.md` § loaded-host reds (since 11-02(106)), with its fixes named and owner-assigned
+  (controlled clock / `make test-clt` quiet lane / anchor scope). What moved: the row carries today's
+  four-pass sample and the corrected attribution — an external-load story can't explain a red on an
+  owned box. Nothing else: no product code, no new row, no new gate — the finding is that the debt was
+  not owed, and chasing it another hour was the cost of not reading the row first.
+- **The compounding lesson, priced.** Twice today the expensive mistake was classifying before reading
+  the existing home (sweep red → titled class; test red → invented debt). The cheap move is always:
+  grep for the mechanism before owning a verdict — the repo has been up all night since 10-24.
+- **Three questions.** Improved: the standing-red list stays honest and the mis-attribution is
+  corrected where a reader would act on it. Proved by: pass 4's cast (five casts, none repeated, all
+  green isolated). Gate: none new — if any pass ever goes single-shot green here, the 11-11(8) sample
+  is refuted by the run itself.
+
 **11-11 my own sweep verdict "MCP empty success" convicted itself: probe 34 §D measured the harness's cwd, not the wire — and the misclassification rule got bought with it**
 
 - **What improved.** The morning sweep classed probe 34's red as "MCP `tools/call` came back
