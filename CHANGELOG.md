@@ -9,6 +9,41 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-11
 
+**11-11 the video over-report closes at its root: media turns had been routed onto the std-reasoning lane, whose `(role, content)` rebuild silently drops the frames it accepted**
+
+- **The defect the sweep classed as "checkpoint drops frames" was a lane bug.** The std-reasoning lane
+  (the 10-30 native-reasoning split, `1d17dd22`) rebuilds the prompt from `(role, content)` text pairs, so
+  `Chat.Message.media` cannot reach `context.processor.prepare` on it. `bypassesPooledChatSession` learned
+  early that media outranks its lanes ("neither lane carries media"), but the std-reasoning `if` never got
+  the same clause — the two mirror sites disagreed. Video was green 10-20/10-25 (+144 video tokens, 712→856)
+  because probes predate the split reaching this shape; the 11-07 bump put the probe checkpoint's no-tools
+  turns on the reasoning lane and 08/17 died unobserved. Probe 04's "passing" beside 08's red is no paradox:
+  04 tests status/inventory honesty and never shows pixels.
+- **Fix — the lane predicate's own rule, applied at the two sites it governs.** Media turns are barred from
+  the std-reasoning `if` (`!turnCarriesMedia`) and `runsOnPooledSession` folds the same exemption, so a
+  media turn rides ChatSession with its KV in the pool like any std turn. No new mechanism; the fact simply
+  reached the site that had been missing it.
+- **Same-session proof, live.** Probe 08: 15/15 (was red) — red clip answered "Red", blue clip "Blue",
+  frames expanded 691→835 (+144). Its kept log pairs the lanes directly: video turns (835/1004 tokens) carry
+  no "Routing through reasoning" line; the two such lines sit only on media-free turns (691/694). Probe 17:
+  9/9 — the unpooled lane delivers too, and its §3 "no reuse" premise held untouched (it is the *session
+  pool* premise, not a lane premise; observed, not assumed). Probe 27: 20/20. Targeted suites 111/111.
+- **Gate.** `SessionRewindOnDivergenceTests`' structure scan pinned only half of the mirror; it caught my
+  edit red first (the stale wording), and both wordings are now pinned — fold-in and routing `if` — each
+  red-sampled on its own mutant: dropping `&& !turnCarriesMedia` from either site is red, which is exactly
+  the 11-07 regression. Probes 08/17 keep proving delivery live; the open-items row is rewritten to the
+  residual (the record rule still trusts `processor_class` consumed where it may ignore `input.videos`).
+- **What I got wrong first.** (1) I piped the background full-suite run through `tail` — the very trap the
+  11-11 memory names — and the harness reported exit 0 on a red suite; the re-run un-piped found the reds.
+  (2) Two full-suite passes went red on 5, then 3, *different* wall-clock tests (loading-gate deadline,
+  clock metering, sleep cadence, SQLite busy, hub reachability); every one green in isolation, and the same
+  window saw github:443 refuse for 75 s — environmental starvation of timing assertions under this box's
+  parallel load, named here rather than hidden (prior: 10-13 GUI-timing flake line). Not attributable to
+  this change: none of those suites touch media or the two pinned sites.
+- **Three questions.** Improved: media turns on reasoning checkpoints see their frames again, and
+  `video_input` publishes what was measured. Proved by: probes 08/17/27 green with the routing log pairing.
+  Gate red if it regresses: the two pinned wordings + probes 08/17.
+
 **11-11 the first full probe sweep since the 11-07 bump: 45/54 green, and the 9 reds fell into three named classes with two suspects cleared**
 
 - **What the sweep is.** `make probes` had not been run across the 11-07 bump (`ed99a84c`'s own words:

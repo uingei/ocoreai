@@ -3218,9 +3218,12 @@ extension EnginePool {
             /// correctly, so the lane, not the pool, is what cannot skip the prefill.
             /// One flag, three consumers: what the feed carries, whether a rewind is worth
             /// offering, and whether this turn's messages may enter the pool's ledger.
-            /// Mirrors the routing condition at `if mayRunReasoning, let rc = …` below.
+            /// Offering. Mirrors the routing condition at `if mayRunReasoning, let rc = …,
+            /// !turnCarriesMedia` below: a media turn rides ChatSession, and its KV lands in
+            /// the pooled session like any std turn.
             let runsOnPooledSession =
-                !routesAroundChatSession && !(mayRunReasoning && reasoningConfig != nil)
+                !routesAroundChatSession
+                && !(mayRunReasoning && reasoningConfig != nil && !turnCarriesMedia)
 
             /// This turn's message keys, computed once: they identify the conversation
             /// the KV cache will represent, for prefix matching at acquire and for the
@@ -4316,8 +4319,12 @@ extension EnginePool {
                 let reasoningConfigSnapshot = await handleRef.modelContainer.configuration
                     .reasoningConfig
 
-                if mayRunReasoning, let rc = reasoningConfigSnapshot {
-                    // Std reasoning only on unconstrained path (no tools, no schema).
+                if mayRunReasoning, let rc = reasoningConfigSnapshot, !turnCarriesMedia {
+                    // Std reasoning only on the unconstrained path (no tools, no schema) and
+                    // never with media: the snapshot below is `(role, content)` pairs, so a
+                    // media turn rebuilt here answers without the frames it accepted
+                    // (measured 11-11, probes 08/17). Media reaches the processor only through
+                    // ChatSession — the fact `bypassesPooledChatSession` already states.
                     // Upstream Executor.respond() gates reasoning behind mayRunReasoningPath:
                     //   mayRunReasoningPath = enabledToolDefinitions.isEmpty && request.schema == nil
                     // When tools or grammar schema are present, the constrained/tool path handles

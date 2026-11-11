@@ -239,12 +239,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   (attribution: 35 measured, the rest inferred — `CHANGELOG.md` sweep entry). Price the lane from its own
   turn or refuse to pool it as warm is the owner's design call; the reds state which traffic the surfaces
   cannot price.
-- **The video record assumes the processor consumed the frames** (Multimodal/) — probes 08/17 at HEAD:
-  adding a clip moved `prompt_tokens` by 0 and the answer asked for context, yet the ledger published
-  `video_input.available=true` — `recordVideoDelivery` counts decodable parts in a completed turn, not
-  tokens the model received. Both windows around the 11-07 bump cleared by reading (13+7 commits, none
-  video); it is the rule meeting a checkpoint that drops frames. Diagnosis round before any edit; until
-  then the aggregate may publish more than the engine delivered — invariant 2's own face.
+- **The video record still trusts the processor consumed the frames** (Multimodal/) — the 11-07 over-report
+  is closed at its root (media turns had been routed onto the std-reasoning lane, whose `(role, content)`
+  rebuild drops `Chat.Message.media`; probes 08/17 flipped green with the routing fix). Residual: the rule
+  itself — decodable parts in a completed turn, not tokens received — can still over-publish on a
+  checkpoint whose `processor_class` ignores `input.videos`; the color-naming gate covers only the probe
+  checkpoints (next row; `VideoDeliveryLedger`).
 - **A `tool_reference` inside a `tool_result` is billed but never enters the prompt** (Tools/) — probe 07:
   the same content as plain text reaches the model (908 tok, name retrieved); as a reference it prices 905
   tok and the answer says it found nothing — charges for bytes the model cannot see. Probe 34's

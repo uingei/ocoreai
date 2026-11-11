@@ -241,11 +241,22 @@ struct SessionRewindOnDivergenceTests {
         // the plain-chat route withholding messages nobody would ever re-feed: measured
         // 11-01, a warm plain turn answered "I do not have access to any information" about
         // a fact the same body answered cold. The floor is on the wording because the
-        // consequence is a lost conversation, not a slower one.
+        // consequence is a lost conversation, not a slower one. The media exemption is in
+        // the pin too: a media turn routed off the reasoning lane rides ChatSession with its
+        // KV in the pool, and the clause that keeps it there is the one that silently
+        // regressed on 11-07 (probes 08/17 red: frames accepted, zero tokens expanded).
         #expect(
             inferenceSource.contains(
-                "!(mayRunReasoning && reasoningConfig != nil)"),
-            "runsOnPooledSession must fold in the std-reasoning route; without it the plain turn on a reasoning checkpoint withholds a prefix nobody continues"
+                "!(mayRunReasoning && reasoningConfig != nil && !turnCarriesMedia)"),
+            "runsOnPooledSession must fold in the std-reasoning route, exempting only media-free turns; without the fold the plain turn on a reasoning checkpoint withholds a prefix nobody continues, without the exemption a media turn is booked to a lane that drops its frames"
+        )
+        // The mirror half: the routing `if` itself. The 11-07 defect was these two sites
+        // disagreeing — the lane predicate exempted media, the reasoning `if` did not — so
+        // both wordings are pinned and drift between them is red on the spot.
+        #expect(
+            inferenceSource.contains(
+                "if mayRunReasoning, let rc = reasoningConfigSnapshot, !turnCarriesMedia {"),
+            "the std-reasoning route must not run a media turn: its (role, content) rebuild drops Chat.Message.media — the same fact runsOnPooledSession states above"
         )
         // …and the ledger must be written by the same answer, or the loss returns one turn
         // later: an entry that lists messages its cache never held makes the next pooled
