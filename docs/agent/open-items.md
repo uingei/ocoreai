@@ -412,11 +412,13 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `make anchor-check` owns them (checked 77 → 80, drift 0). Sampled the rest rather than trusting them:
   `MLXBridge.swift:188` still resolves exactly (`:130` is the `configureGPUCacheOnce` it names), while
   `EngineInferenceSupport.swift:305` points at `:1427-1431` for a soft-nudge recipe and those lines are
-  `runSchemaGeneration` — the sentence and the line disagree today, and no gate reads either. Remaining
-  sites: `OpenAIModels.swift:1212`, `EngineInference.swift:2284`, `:2714`, `EngineInferenceSupport.swift:273`,
-  `PromptTokenAccountingTests.swift:24`, plus that one. The fix is the same marker conversion, one cite per
-  edit, in files on the hot path; owner call on spending that diff. Interim instrument at every bump that
-  touches this file: `make anchor-check` plus a grep of these seven.
+  `runSchemaGeneration` — the sentence and the line disagree today, and no gate reads either. Settled
+  11-11 for the two sites outside the file under live edit: both re-measured at the pin and de-numbered
+  (true sites: getter `Evaluate.swift:3111`, emits `MLXLanguageModel.swift:1467/1613/1825`; two of the
+  cited ranges were inverted outright — the numbers die, anchors own what numbers remain). The five
+  left sit in `EngineInference*.swift`, under another session's edit this hour: a cite read against
+  half-written code measures their WIP, not the project, so it waits for their commit, not for
+  authority. Interim: `make anchor-check` plus a grep of those five at every bump that touches the file.
 
 - **Upstream already ships a scripted engine; ours has to be re-judged when the planned half lands**
   (Engine/) — `MLXScriptedLM` is a published product at the pin, and its scripted tokenizer implements

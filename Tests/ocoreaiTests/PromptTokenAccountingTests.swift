@@ -20,9 +20,9 @@
 //! prefix vanished from anything a client bills or budgets with. Cause: upstream
 //! `GenerateCompletionInfo.promptTokenCount` is what the turn *prefilled*, and on a reuse turn
 //! that is only the suffix — upstream's total is `totalPromptTokenCount = cached + prefilled`
-//! (`Evaluate.swift:2984-2987`), which is what mlx-swift-lm itself emits as input tokens
-//! (`MLXLanguageModel.swift:1377`, `:1519`, `:1721`). We published the delta and kept the
-//! prefix in a separate field.
+//! (its getter in `Evaluate.swift`; the markers beside that doc comment in `OpenAIModels.swift`
+//! pin the sum and an emit site), which is what mlx-swift-lm itself emits as input tokens. We
+//! published the delta and kept the prefix in a separate field.
 //!
 //! ### Why exact values, and why the last test
 //! Probes 01 and 19 compare the wire's `cached_tokens` against the engine's reuse line, and both
