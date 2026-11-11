@@ -532,6 +532,15 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     and its absence is a red naming the remedy — no tree passes by having no consumer. Green 11-11,
     15 passed. Fails when: the SDK rejects our shape, any byte drifts on either face, or the tool-turn
     blank face stops being blank.
+- `57-tool-result-token-accounting.sh` — does a posted tool result occupy the next prompt? On the
+    shipped default checkpoint it does not: a ~2 500-token result bills **5** tokens on all three
+    faces while the control arm (same text, user role) bills ~2 488. Measured 11-12 the day the
+    weights were found on this host (`~/.ocoreai/models` — the row had claimed "absent" while its own
+    11-09 numbers came from a live serve). The gemma4 template's main loop skips `role:"tool"`
+    (jinja `:217`); results render only through the assistant `tool_calls` forward-scan (`:271`-`:315`),
+    so delta 5 convicts a lost `tool_calls` upstream of the template — whose hop, next round. While
+    open the three tool arms report `probe_xfail open`; a fix XPASSes this probe red to force the
+    promotion. Needs weights; a runner without them SKIPs.
 - `_lib.sh` — shared harness
 Fails when: —
 

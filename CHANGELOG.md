@@ -9,6 +9,32 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-12
 
+**11-12 probe 57 prices the deepest face of the tool loop: a ~2 500-token tool result bills 5 tokens
+on the shipped default checkpoint — and the "no weights on this host" claim died first**
+
+- The owner's "gemma-4-e2b-it-4bit 在的啊" convicted a whole row's premise by pointing at the
+  workspace anchor: the weights sit at `~/.ocoreai/models` (3.3 GB, complete) — the sweep that
+  claimed "the host holds no LLM weights at all" had searched the HF-hub convention, not the anchor
+  our own production code writes, and had contradicted the same row's 11-09 live numbers. With the
+  checkpoint loaded, the live measurement lands harder than the 690→693 that opened the row:
+  baseline 872 → 877 with a ~2 500-token tool result on all three faces (OpenAI×2, Anthropic),
+  while the control arm — the same text as user-role content — bills +2 488. The model never sees
+  what its call returned, from iteration one. The 11-12 morning's name-threading (`ff3e4a66`,
+  `3b7fda25`) is correct at its own level and moves zero of these tokens; the loss is *content*,
+  localized by the checkpoint's own `chat_template.jinja` (main loop skips `role:"tool"` at `:217`;
+  results render only via the assistant `tool_calls` forward-scan) to a lost assistant `tool_calls`
+  between our conversion and `Gemma4MessageGenerator` — whose hop is the next round's conviction.
+- Same-session proof: first live run of the new seat shipped here —
+  `bash scripts/probes/run.sh 57` → `3 passed, 0 failed, 4 measured, 3 known-open`: control arm
+  PASS (delta 2488, instrument alive), three tool arms XFAIL-open (delta 5 each). The `_lib.sh`
+  `probe_xfail` primitive is the ratchet: while open they count as known-open (honest red made
+  countable, never a silent pass), and a fix XPASSes the probe red to force promotion. Row
+  rewritten around the measurement: `open-items.md` "A tool result bills 5 tokens…".
+- The gate that reddens on regression: probe 57's control (instrument death) and its fix-day XPASS;
+  a weightless runner takes the SKIP branch. `docs-check` re-run green this round except P4's
+  `releases_published`, still red on GitHub's anonymous rate-limit of this egress IP (response body
+  quoted in the morning entry), not a stale claim.
+
 **11-12 the MTP lane was blind to its own tool results — the `(role, content)` snapshot had made this
 morning's name-threading inert there; the lane's message list becomes a Sendable pair**
 

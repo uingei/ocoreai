@@ -46,27 +46,25 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   seam), on boot, or retire `ttl_days` from schema and config (also a promise change). Until then every
   "retention" claim about sessions reads as unenforced.
 
-- **The tool-result name now threads on both MLX lanes; the rendered-token verdict and its probe seat still wait on weights** (Engine/, Handlers/) —
-  the 11-09 symptom (a ~1 550-token `role:"tool"` result moved `input_tokens` 690→693 on `/v1/messages`
-  and `prompt_tokens` to 688 on `/v1/chat/completions`; an orphan tool message reads *below* baseline)
-  was convicted at our call site 11-10, and `ff3e4a66` shipped the first leg: upstream
-  `Chat.Message.tool(_:id:name:)` gets the name at the wire conversion, via `toolResultNamesByID`
-  (caller-supplied name wins, else id→name from the turn's own `tool_calls`). **That commit's
-  "the MTP lane names from the call in scope" is convicted 11-12 by a re-read of its own snapshot:**
-  the lane crossed the `perform` boundary as `(role, content)` pairs, so the appended name and
-  `tool_call_id` — and the caller's assistant `tool_calls` — were dropped before any template saw
-  them; the threaded name was inert on that lane. Fixed same-turn: `MTPMessagePair` (a Sendable pair
-  carrying `toolCallID`/`name`/`toolCalls`, `chatMessage` its one rebuild site) and `mtpMessagePairs`
-  (metadata read from the wire DTO — upstream `Chat.Message.Tool` is write-only outside its module),
-  so the per-iteration and think-then-call prompts both reach the template whole. Gate:
-  `ToolResultNameTests` 5/5, red-sampled by re-introducing the flatten drop. Open: (i) the render leg
-  has no verdict — the host holds no LLM weights, and the probe seat this row demanded still has no
-  seat (the 11-09 numbers remain a session's, not a script's); a correct name is a strict gain on
-  either template shape (name-binding, or an id-scan like ollama's `gemma4_e2b_chat_template.jinja2`
-  fixture resolving `tool_call_id`→name itself). (ii) Named fresh 11-12: the MTP loop never re-appends
-  its own assistant tool-call turn — only think-then-call text, steers and tool results are appended —
-  so from iteration 2 a tool result arrives orphaned; pairing it is a prompt-byte change the board
-  should price, not an append to this commit.
+- **A tool result bills 5 tokens on the shipped default checkpoint — the loss is content, and it is upstream of the template** (Engine/, Handlers/) —
+  measured live 11-12 by probe 57 with the product's default checkpoint loaded: baseline 872 → 877
+  with a ~2 500-token `role:"tool"` result on **all three faces** (OpenAI ladder-name, OpenAI
+  caller-name, Anthropic `tool_result`), while the control arm — the same text block as user-role
+  content — bills **+2 488**. The model never sees what its own call returned, from the *first*
+  iteration, not just from the second as earlier believed. Two claims died getting here: (a) "the
+  host holds no LLM weights" — false; they sit at the workspace anchor `~/.ocoreai/models`
+  (gemma-4-e2b-it-4bit, 3.3 GB, complete), which is where the 11-09 live numbers already came from
+  — the row contradicted its own evidence; (b) name-threading was the smaller leg:
+  `ff3e4a66` + `3b7fda25` label the metadata correctly on both lanes (gates green) and move **zero**
+  of these tokens, exactly as their own pair-level gates implied. Localization from the checkpoint's
+  own `chat_template.jinja`: the main loop *skips* `role:"tool"` (`:217`) — results render only via
+  the assistant `tool_calls` forward-scan (`:271`-`:315`), so delta 5 convicts a **lost assistant
+  `tool_calls`** between our `Chat.Message.assistant(_:toolCalls:)` conversion and
+  `Gemma4MessageGenerator`. Which hop, next round — the cheapest next arm is the raw dict the
+  generator actually receives. Gate: probe 57 (control guards the instrument; the three tool arms
+  report `probe_xfail open` and XPASS red on the day a fix lands, forcing promotion). Still open
+  beside it: the MTP loop never re-appends its own assistant tool-call turn (only think-then-call
+  text, steers, results), so the pairing question arrives with the content fix, not after it.
 - **Durability is priced twice, and the second price indicts the mechanism, not the message** (Tools/, eval/) —
   the pre-write gate (refuses valid→broken syntax, keeps old bytes: **110/110 corruptions stopped, zero silent
   damage**) cost the frozen set **2.17 tasks/52 (p=0.0146)** at bare reason, and still **1.83 (p=0.0266)** with the
