@@ -5,25 +5,19 @@ where a number is unmeasured it says so, and where a fix is blocked by the host 
 which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes a rule in `AGENTS.md` or
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
-- **A `tool_reference` inside a `tool_result` is blanked to `"no output"` and billed** (Models/, Handlers/) —
-  measured 11-10, the first live sampling of probe 07 §2c (`111c120f` shipped the instrument with
-  "numbers still owed"): with the arms nonce-isolated and WHOLE (`input_tokens + cache_read_input_tokens`)
-  compared, the arms land 905 / 908 / 905 floor–control–subject: the name costs its 3 tokens as text and
-  zero as a reference. Live disambiguation the same round: the handler's own `Assembled prompt [messages]`
-  disclosure is **identical for floor and subject** (4 messages, promptTokens 744), and an un-nonce'd
-  subject turn's model answer is the literal fold copy `"no output"` —
-  the fold site is `AnthropicModels.swift:328`'s text-only filter (the earlier round's `:264`-adjacent
-  pointer; the 59-vs-899 token gap that first fired §2c belonged to the row below, not to this fold). The
-  field carries or refuses by name, never silence (`AnthropicModels.swift:479` already does refuse
-  top-level unknowns by name). The field's honest set is three-way, not two — the earlier "render or
-  refuse, never silence" wording (this morning's round) was convicted by re-read after the `~/references`
-  update: vllm and sglang carry the block into the tool message (cites at `07 §2c` header); **Strata
-  renders a resolvable reference in place and silently drops an unresolvable one and answers 200**, its
-  documented reason being that a gone MCP server must not fail the rest of the session
-  (`../references/Strata/serve/frontend.py:664-673`, stance paragraph `:226-228`); sglang's GLM template
-  refuses the unresolvable by name. Owner call (routed 11-10, `CHANGELOG.md` dff9e099 round) now prices a
-  third shape: render-if-resolvable, and choose the unresolvable's exit between Strata's drop and the
-  template's refusal.
+- **The nameless `tool_reference` exits by silent drop — a guard side-effect, not a picked exit**
+  (Models/) — the defect this row described (billed-but-invisible; `111c120f` shipped the instrument, its
+  nonce-isolated WHOLE arms landed 905/908/905) closed 11-11: references render `Available tool:
+  <tool_name>` at the one accessor the guard and the prompt share (`AnthropicModels.swift:342`), live 15/15
+  on probe 07 with the name echoed like the TEXT control; the closed-log row carries the numbers and the
+  splash precedent. What the shipped guard chose **without a decision**: a reference with no `tool_name`
+  contributes nothing (`AnthropicModels.swift:341`) — Strata's documented drop (a gone MCP server must not
+  fail the session, `../references/Strata/serve/frontend.py:664-673`), while sglang's GLM template refuses
+  the unresolvable by name; the field's three exits (carry / render / refuse — vllm and sglang cites at
+  `07 §2c` header) collapsed to render-and-drop. A face named for the first time, unmeasured: a delivered
+  name absent from the turn's `tools[]` still renders `Available tool: <name>` — availability asserted for a
+  tool nothing measured. Owner call: keep Strata's drop or refuse by name, and whether an unknown name owes
+  a refusal instead of an assertion.
 - **A warm re-send of an identical anonymous conversation bills the server's own previous turn**
   (Engine/, Handlers/) — measured 11-10 against a live serve, three `/v1/messages` re-fires of ONE
   stateless conversation: cold `input=899, cache_read=0`; warm `input=59, cache_read=908`, next re-send
