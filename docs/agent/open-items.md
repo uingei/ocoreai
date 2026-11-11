@@ -236,7 +236,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `/kv-cache` residency and the admission price all stay `not_observed`/fallback for it, while a
   tools-bearing turn on the same server prices 26.7 MB/1651 tok (measured 11-11, one boot three shapes;
   green 10-25 on the same shape puts the window at the 11-07 bump). Corroborated by probes 19/29/31/32/35
-  (attribution: 35 measured, the rest inferred — `CHANGELOG.md` sweep entry). Price the lane from its own
+  (attribution: 35 measured, the rest inferred — `CHANGELOG.md` sweep entry; all five counts re-measured
+  identical on the 11-11 HEAD after the media/wire fixes — the class sits untouched below them). Price the lane from its own
   turn or refuse to pool it as warm is the owner's design call; the reds state which traffic the surfaces
   cannot price.
 - **The video record still trusts the processor consumed the frames** (Multimodal/) — the 11-07 over-report
