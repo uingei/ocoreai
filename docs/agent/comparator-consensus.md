@@ -158,12 +158,12 @@ hold them, because a second home for a decision is the thing this corpus keeps c
   tool list) stays the same, so the prompt cache does too", with a membership guard so an unknown name is left out
   rather than failing the session; `sglang/python/sglang/srt/parser/glm53_chat_template.py:135-140` **refuses** when
   it cannot render one ("Rendering a `tool_reference` requires `tools`"). A third behaviour exists only in trees that
-  never parse the block. Ours is that third: `Sources/ocoreai/Models/AnthropicModels.swift:328` keeps
-  `type == "text"` from a `tool_result`'s content, so the reference's bytes are billed into the prompt and the tool
-  it names never arrives — while an unknown *top-level* block is refused by name two functions earlier (`:479`), so
-  the silent path is the nested one. The verdict on which of the two honest shapes we owe is the owner's; the probe
-  that prices it (`scripts/probes/07-anthropic-blocks.sh` §2c, three arms of one request) is written and its numbers
-  are owed, so this row claims the disagreement, not a fix.
+  never parse the block; ours was that third until 11-11, when the one accessor the guard and the prompt share
+  started rendering `Available tool: <tool_name>` (`Sources/ocoreai/Models/AnthropicModels.swift:333`; probe 07
+  measured the name entering the prompt, 911 vs the 905 floor, and the model echoing it like the TEXT arm). What
+  the shipped guard chose without a decision: a nameless reference contributes nothing — Strata's drop — and a
+  delivered name absent from the turn's `tools[]` still renders as available; the exit for those two faces is the
+  owner's (`open-items.md`). An unknown *top-level* block is refused by name (`:498`).
 - **Whether an edit tool keeps the file's line endings or normalizes them** — forced on any tree whose
   read surface shows LF while the file may hold CRLF. Three trees **splice**: pi d448c51e (#11751)
   deleted its own `detectLineEnding` / `restoreLineEndings` pair — the flatten, whole-file one ending —
