@@ -141,8 +141,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   is the one face still unnamed. Same window: #747's `RotatingKVCache` mask fix is **inert here** while
   `keep == 0`, which is every path we reach — `makeKVCacheConfiguration` (`MLXBridge.swift:896`) passes
   `strategy` + `rewind` only, and `Capacity.init` is the sole route to `keep > 0`, defaulting to 4, so
-  setting a capacity silently pins 4 tokens. Upstream's `restart:` tool loop is still uncapped
-  (`ChatSession.swift:1226`), so the stall item above keeps its premise. Instrument: `make drift` prints
+  setting a capacity silently pins 4 tokens. Upstream `mlx-swift-lm`'s `restart:` tool loop is still
+  uncapped (`ChatSession.swift:1226`), so the stall item above keeps its premise. Instrument: `make drift` prints
   the axis; `make anchor-check` re-points the markers into the files #581 touched — 13 of them per
   `api.github.com` pulls/581, of which our cites reach two: 27 markers into `ChatSession.swift`, 9 into
   `Evaluate.swift` (re-grepped 11-06; anchor-check prints the set).
@@ -152,8 +152,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   A flapping host premise, so re-test that one line before the hand; nothing was re-resolved blind. Owner call
   unchanged: the bump is a hand, not a gate.
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
-  and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). Upstream answered the rest at the
-  11-07 pin: #608 put mid-turn steering *in* `ChatSession` (`steer(_:policy:)` applies at a complete-text or
+  and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). Upstream `mlx-swift-lm`
+  answered the rest at the 11-07 pin: #608 put mid-turn steering *in* `ChatSession` (`steer(_:policy:)` applies at a complete-text or
   step boundary, keeps emitted output and completed tools, reports `GenerateStopReason.steered` per yielded
   step plus a `Generation.steering` event; the `db2e7bf`/`observe(to:using:)` seam this row cited yesterday
   was only the hook — and `991266ad3`, which an earlier copy named, is that same day's #710, a prefill-buffer
