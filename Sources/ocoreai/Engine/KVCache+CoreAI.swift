@@ -3,9 +3,10 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 // Provenance: aligned with coreai-models InferenceEngines/KVCache+CoreAI.swift @ 78413ae — #74's
-//   resolvingDynamicDimensions is in this copy (:271, :387, :470); two commits landed on the upstream
-//   file after that baseline and this copy is pre-fix on the fp8 mapping, so no "anchor current" claim
-//   here — `make drift` prints the live count, the verdict rows live in
+//   resolvingDynamicDimensions is in this copy (:271, :387, :470). fp8 mapping: #356's element width
+//   (byteWidth) was already here; #328's real MPS types (mpsDataType) ported 11-12 — ocoreai keeps a
+//   nearest-type fallback where upstream fatalErrors (root: zero fatalError). CoreAI-gated, ported
+//   pending CI xcode-27 verification, not claimed until run. Verdict rows:
 //   docs/agent/coreai-fork-window-log.md.
 // Adjudicated: 09e7125
 
@@ -620,10 +621,13 @@ extension NDArray.ScalarType {
         case .bfloat16: return .bFloat16
         case .float32: return .float32
         case .int8: return .int8
-        case .float8e5m2, .float8e4m3fn, .float8e8m0fn, .float4e2m1fn:
-            return .float16
-        // Types not directly supported by MPS — fall back to nearest MPS type
-        case .bool, .uint8, .uint16, .uint32, .int16, .int32, .int64, .uint64, .uint128:
+        case .float8e4m3fn: return .float8e4m3
+        case .float8e5m2: return .float8e5m2
+        // The expansion is a bitwise identity copy, so a same-width type is enough.
+        case .uint8, .float8e8m0fn: return .uInt8
+        // Types not directly supported by MPS — fall back to nearest MPS type. ocoreai keeps a
+        // fallback where upstream fatalErrors (root: zero fatalError); float4e2m1fn is sub-byte.
+        case .bool, .uint16, .uint32, .int16, .int32, .int64, .uint64, .uint128, .float4e2m1fn:
             return .float16
         case .cfloat16: return .float32
         case .cfloat32: return .float32
