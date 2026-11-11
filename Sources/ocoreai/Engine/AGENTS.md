@@ -27,14 +27,14 @@ signed bundle (nested code object ⇒ CodeSign dies). Gate: `MetalShaderLibraryT
   Publish the measured number as `prefixReuse` on `/v1/models/:model/kv-cache` and the misses as
   `reuseRefusals`: a lane that builds its own cache (guided gen, MTP) is booked as the refusal it was.
 - Polling: `EnginePool.waitForLoading` is the worked instance of the root's one-poll-interval rule
-  (`EngineInference.swift:172`).
+  (`EnginePool.swift:767`).
 
 ## An edited resend rewinds; it does not re-prefill
 The pool may not *answer* a conversation that diverged from its resident cache
 (`canReusePooledSession`) — but that is not a reason to discard the cache. `rewindHistoryEnd`
-(`SessionPool.swift:1526`, called at `SessionPool.swift:683`) decides whether the cache can be
+(`SessionPool.swift:1591`, called at `SessionPool.swift:687`) decides whether the cache can be
 rewound onto the conversation that arrived and hands the boundary to the caller as
-`AcquireResult.rewind`; the fork itself is `EngineInference.swift:3224`, the only such site,
+`AcquireResult.rewind`; the fork itself is `EngineInference.swift:3275`, the only such site,
 because the transcript cannot cross into the pool actor — upstream `mlx-swift-lm` `Chat.Message`
 (`Libraries/MLXLMCommon/Chat.swift:14`) is not `Sendable` and carries `UserInput.Image`
 (`Libraries/MLXLMCommon/UserInput.swift:131`). The pool judges, the caller forks.
@@ -63,14 +63,14 @@ the reply). Pre/post numbers: `CHANGELOG.md`.
 
 ## Steering is delivered at the request seam
 `mergingSteeredTurn` (`Sources/ocoreai/Handlers/ChatHandler.swift`) folds a queued steer into the head
-of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:3044`,
-`:3675`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
+of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:3079`,
+`:3815`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
 delivers on the next request, or its contract is fiction (wire guide: `Handlers/AGENTS.md` § Endpoint Promises).
 
 ## Video is disclosed where a turn completes, not where bytes arrive
 `/v1/models` may say `video_input=delivered` only once a turn that carried frames has *completed*:
-the single record site is `recordVideoDelivery` (`EngineInference.swift:3273`), called from the
-completion path (`EngineInference.swift:4725`), and the prompt size in its evidence line is upstream's
+the single record site is `recordVideoDelivery` (`EngineInference.swift:3424`), called from the
+completion path (`EngineInference.swift:4968`), and the prompt size in its evidence line is upstream's
 `completionInfo.promptTokenCount` — never a bytes/4 heuristic.
 Counting at the media hand-off instead would claim video for turns that never produced an answer;
 reading `processor_class` would claim it for checkpoints whose processor ignores `input.videos`
@@ -88,10 +88,10 @@ The server-wide row (`/v1/capabilities` → `video_input`) is the *same* measure
 so no publisher re-words it (a router that assembles its own evidence sentence is a second truth).
 Both are measured-only: `not_observed` is a fact about this process, never a claim about the
 checkpoint. Gate: `CapabilityMeasurementHonestyTests`.
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3424 items: videoInputCount, promptTokens -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3427 items: videoInputCount, promptTokens -->
 
 ## Known defect, deliberately unfixed — do not "fix" it blind
-`_applyBitmask` (`EngineInference.swift:1409`) multiplies by `-Float.leastNormalMagnitude`
+`_applyBitmask` (`EngineInference.swift:1423`) multiplies by `-Float.leastNormalMagnitude`
 (≈ −1.18e-38, i.e. no mask) while its own doc says −inf, and `return`s on the first out-of-range
 index instead of `continue`ing. Its only caller is `@available(macOS 27.0, *)`
 `_runConstrainedDecoding`, so no host here can execute it. Land the fix on macOS 27 with a run, or
@@ -105,7 +105,7 @@ in the header plus a row in
 count is recomputed from the header.
 
 ## Line cites are gated, not trusted
-Every `file:line` this area leans on is asserted by 20 markers in `docs/agent/engine-line-cites.md`,
+Every `file:line` this area leans on is asserted by markers in `docs/agent/engine-line-cites.md`,
 parked one hop out: a marker is a byte of rule the model never reads. Move code, get `make anchor-check` to name the cite that drifted.
 
 ## The scripted lane — a contract verdict with no model resident

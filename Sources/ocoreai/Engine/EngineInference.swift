@@ -4305,7 +4305,7 @@ extension EnginePool {
 
                 // SAFETY: [Chat.Message] is non-Sendable — snapshot as Sendable
                 // message pairs before entering @Sendable closure, exactly like
-                // MTP path (L1763) and guided gen (L905).
+                // the MTP path (:3835) and guided gen (:2024).
                 var stdMsgPairs: [(role: String, content: String)] = newMessages.map {
                     (role: $0.role.rawValue, content: $0.content)
                 }

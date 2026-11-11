@@ -2,7 +2,7 @@
 // Licensed under MIT.
 /// ThinkingTelemetry — post-inference quality signal emitter for ThinkingBudget calibration.
 ///
-/// Call sites: ChatHandler:L625, ChatHandler:L1070, DirectInferenceClient:L408.
+/// Call sites: ChatHandler:1307, ChatHandler:2097, DirectInferenceClient:664.
 /// The quality signal feeds into ThinkingBudget.recordQuality() for adaptive calibration.
 ///
 
@@ -35,10 +35,9 @@ struct ThinkingQualityInput {
 /// and dispatches it to ``ThinkingBudget`` for adaptive calibration.
 ///
 /// ### Integration points:
-/// - ChatHandler nonStream (L560): after agentResult + self-correction
-/// - ChatHandler stream (L898): after self-correction task
-/// - DirectInferenceClient.stream (L280): after streaming loop
-/// - DirectInferenceClient.complete (L420): after agentResult or tokenStream
+/// - ChatHandler nonStream (:1307): after agentResult + self-correction
+/// - ChatHandler stream (:2097): after self-correction task
+/// - DirectInferenceClient.doStreamInference (:664): after streaming loop
 enum ThinkingTelemetry {
 
     /// Log a quality signal for a session.

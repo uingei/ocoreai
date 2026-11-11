@@ -238,8 +238,8 @@ struct InferenceOptions: Codable {
     /// Mirrors ChatHandler (the HTTP wire contract):
     /// `tools` non-empty ⇒ `hasNativeTools = true`, which keeps the engine
     /// OFF the macOS-27 FM `LanguageModelSession` one-shot guided path
-    /// (L2261 guard, EngineInference.swift) and ON the ChatSession tool
-    /// **loop** (ChatSession.swift:1163 "loop can restart on tool calls":
+    /// (EngineInference.swift:2588 guard) and ON the ChatSession tool
+    /// **loop** (ChatSession.swift:1318 "loop can restart on tool calls":
     // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1318 loop can restart on tool calls
     /// emit → dispatch → feed result → continue). `declaredToolNames`
     /// carries the OpenAI `tools[]` whitelist contract (P0-3).

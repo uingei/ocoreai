@@ -152,7 +152,7 @@ func enforceContextWindow(
             sessionId: sessionId
         )
         // Re-estimate the compacted transcript. If it now fits, Phase 4
-        // proceeds on the compacted transcript (mirrors ChatHandler L332).
+        // proceeds on the compacted transcript (mirrors ChatHandler :505).
         if compacted.estimatedTokens <= (cap ?? 0) {
             transcript = compacted.messages
         }
