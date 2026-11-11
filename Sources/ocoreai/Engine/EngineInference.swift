@@ -118,6 +118,123 @@ nonisolated func toolResultNamesByID(in messages: [Message]) -> [String: String]
     return names
 }
 
+/// Convert ocoreai ``ToolCall`` to upstream MLXLMCommon ``ToolCall``.
+/// Top-level free function so it doesn't capture EnginePool self — avoids
+/// Sendable taint in the inference body closure for WiredMemoryTicket.
+nonisolated func mLXToolCall(from tc: ToolCall) -> MLXLMCommon.ToolCall {
+    func parseArgs(_ args: String) -> [String: any Sendable] {
+        let data = args.data(using: .utf8) ?? Data()
+        guard
+            let obj = try? JSONSerialization.jsonObject(with: data, options: [])
+                as? [String: Any]
+        else {
+            return [:]
+        }
+        var result: [String: any Sendable] = [:]
+        for (key, value) in obj {
+            switch value {
+            case let s as String: result[key] = s
+            case let d as Double: result[key] = d
+            case let i as Int: result[key] = i
+            case let b as Bool: result[key] = b
+            case let dict as [String: Any]: result[key] = _convJSONDict(dict)
+            default: break
+            }
+        }
+        return result
+    }
+    func _convJSONDict(_ dict: [String: Any]) -> any Sendable {
+        var result: [String: any Sendable] = [:]
+        for (k, v) in dict {
+            result[k] = _convJSON(v)
+        }
+        return result
+    }
+    func _convJSON(_ value: Any) -> any Sendable {
+        switch value {
+        case let s as String: return s
+        case let d as Double: return d
+        case let i as Int: return i
+        case let b as Bool: return b
+        case let dict as [String: Any]: return _convJSONDict(dict)
+        case let arr as [Any]:
+            let mapped = arr.map { _convJSON($0) }
+            // [any Sendable] conforms to Sendable
+            return mapped as any Sendable
+        default: return "null"
+        }
+    }
+    return MLXLMCommon.ToolCall(
+        function: MLXLMCommon.ToolCall.Function(
+            name: tc.function.name,
+            arguments: parseArgs(tc.function.arguments)
+        ),
+        id: tc.id
+    )
+}
+
+/// The MTP lane's message list in a form that crosses the `perform` boundary.
+/// `[Chat.Message]` is non-Sendable and its `Tool` metadata is unreadable outside
+/// the upstream module, so a `(role, content)` snapshot re-sent tool results with
+/// their `tool_call_id`/`name` and assistant turns with their `tool_calls` stripped.
+/// `chatMessage` is the one place a pair becomes a message again.
+nonisolated struct MTPMessagePair: Sendable {
+    let role: String
+    let content: String
+    var toolCallID: String?
+    var name: String?
+    var toolCalls: [MLXLMCommon.ToolCall]?
+
+    init(
+        role: String, content: String,
+        toolCallID: String? = nil, name: String? = nil,
+        toolCalls: [MLXLMCommon.ToolCall]? = nil
+    ) {
+        self.role = role
+        self.content = content
+        self.toolCallID = toolCallID
+        self.name = name
+        self.toolCalls = toolCalls
+    }
+
+    var chatMessage: Chat.Message {
+        let messageRole = Chat.Message.Role(rawValue: role) ?? .system
+        switch messageRole {
+        case .tool:
+            return Chat.Message.tool(content, id: toolCallID, name: name)
+        case .assistant where toolCalls != nil:
+            return Chat.Message.assistant(content, toolCalls: toolCalls)
+        default:
+            return Chat.Message(role: messageRole, content: content)
+        }
+    }
+}
+
+/// The wire history enters the MTP lane as pairs. Index pairing is sound because
+/// `rendered` is a pure map over `wire` — the only mutation between them,
+/// `attachPerceptionMedia`, adds media to an existing message, never a message.
+/// Metadata reads from the wire DTO because upstream's `Chat.Message.Tool` is
+/// write-only outside its module.
+nonisolated func mtpMessagePairs(
+    from wire: [Message], rendered: [Chat.Message], names: [String: String]
+) -> [MTPMessagePair] {
+    zip(wire, rendered).map { dto, msg in
+        switch msg.role {
+        case .tool:
+            let tid = dto.toolCallID
+            return MTPMessagePair(
+                role: msg.role.rawValue, content: msg.content, toolCallID: tid,
+                name: tid.flatMap { dto.name ?? names[$0] })
+        case .assistant where dto.toolCalls?.isEmpty == false:
+            return MTPMessagePair(
+                role: msg.role.rawValue, content: msg.content,
+                toolCalls: dto.toolCalls?.map { mLXToolCall(from: $0) })
+        default:
+            return MTPMessagePair(role: msg.role.rawValue, content: msg.content)
+        }
+    }
+}
+
 extension EnginePool {
     // MARK: - Denial honesty (tool-result contract)
 
@@ -756,63 +873,6 @@ extension EnginePool {
 
         metrics.inferenceMs = metrics.overallMs
         continuation.finish()
-    }
-
-    // MARK: - MLX ToolCall Conversion
-
-    /// Convert ocoreai ``ToolCall`` to upstream MLXLMCommon ``ToolCall``.
-    /// Top-level free function so it doesn't capture EnginePool self — avoids
-    /// Sendable taint in the inference body closure for WiredMemoryTicket.
-    nonisolated func mLXToolCall(from tc: ToolCall) -> MLXLMCommon.ToolCall {
-        func parseArgs(_ args: String) -> [String: any Sendable] {
-            let data = args.data(using: .utf8) ?? Data()
-            guard
-                let obj = try? JSONSerialization.jsonObject(with: data, options: [])
-                    as? [String: Any]
-            else {
-                return [:]
-            }
-            var result: [String: any Sendable] = [:]
-            for (key, value) in obj {
-                switch value {
-                case let s as String: result[key] = s
-                case let d as Double: result[key] = d
-                case let i as Int: result[key] = i
-                case let b as Bool: result[key] = b
-                case let dict as [String: Any]: result[key] = _convJSONDict(dict)
-                default: break
-                }
-            }
-            return result
-        }
-        func _convJSONDict(_ dict: [String: Any]) -> any Sendable {
-            var result: [String: any Sendable] = [:]
-            for (k, v) in dict {
-                result[k] = _convJSON(v)
-            }
-            return result
-        }
-        func _convJSON(_ value: Any) -> any Sendable {
-            switch value {
-            case let s as String: return s
-            case let d as Double: return d
-            case let i as Int: return i
-            case let b as Bool: return b
-            case let dict as [String: Any]: return _convJSONDict(dict)
-            case let arr as [Any]:
-                let mapped = arr.map { _convJSON($0) }
-                // [any Sendable] conforms to Sendable
-                return mapped as any Sendable
-            default: return "null"
-            }
-        }
-        return MLXLMCommon.ToolCall(
-            function: MLXLMCommon.ToolCall.Function(
-                name: tc.function.name,
-                arguments: parseArgs(tc.function.arguments)
-            ),
-            id: tc.id
-        )
     }
 
     // MARK: - CoreAI Constrained Decoding
@@ -3551,9 +3611,9 @@ extension EnginePool {
                         }
                     }
                     log.info("Routing through MTP speculative decoding")
-                    let messagePairs: [(role: String, content: String)] = mlxMessages.map {
-                        (role: $0.role.rawValue, content: $0.content)
-                    }
+                    let messagePairs: [MTPMessagePair] = mtpMessagePairs(
+                        from: nonSystemMessages, rendered: mlxMessages,
+                        names: toolNamesByID)
 
                     // SAFETY: an unload on another task can release the container across the
                     // await boundary since the gate above — hoist to a local, bail gracefully.
@@ -3582,14 +3642,12 @@ extension EnginePool {
                     // thread wiredMemoryTicket through generate().
 
                     // Build initial messages outside lock
-                    var mtpMessages: [Chat.Message] = messagePairs.map { pair in
-                        Chat.Message(
-                            role: Chat.Message.Role(rawValue: pair.role) ?? .system,
-                            content: pair.content
-                        )
-                    }
+                    var mtpMessages: [MTPMessagePair] = messagePairs
                     // Strip trailing empty assistant message — mirrors upstream MLXChatExample
-                    if let last = mtpMessages.last, last.role == .assistant, last.content.isEmpty {
+                    if let last = mtpMessages.last,
+                        last.role == Chat.Message.Role.assistant.rawValue,
+                        last.content.isEmpty
+                    {
                         mtpMessages.removeLast()
                     }
 
@@ -3663,11 +3721,11 @@ extension EnginePool {
                     {
                         // Phase 1: all work inside perform{} to avoid Sendable boundary issues
                         do {
-                            let phase1Pairs = mtpMessages.map { m -> (String, String) in
-                                (m.role.rawValue, m.content)
-                            }
-                            // Snapshot for the @Sendable closure below: this lane prepares
-                            // its own LMInput, so its prompt owes the instructions prepend.
+                            // Snapshot for the @Sendable closure below — pairs are Sendable
+                            // as they stand, so the snapshot keeps their metadata. This
+                            // lane prepares its own LMInput, so its prompt owes the
+                            // instructions prepend.
+                            let phase1Pairs = mtpMessages
                             let phase1Instructions = systemInstructions
                             let phase1Result:
                                 (thinkingText: String, closed: Bool, tokenCount: Int) =
@@ -3677,13 +3735,7 @@ extension EnginePool {
                                         )
                                         let rebuiltPhase1Messages =
                                             promptMessagesCarryingInstructions(
-                                                phase1Pairs.map { pair in
-                                                    Chat.Message(
-                                                        role: Chat.Message.Role(rawValue: pair.0)
-                                                            ?? .system,
-                                                        content: pair.1
-                                                    )
-                                                },
+                                                phase1Pairs.map(\.chatMessage),
                                                 instructions: phase1Instructions
                                             )
                                         let phase1Processing = UserInput.Processing(
@@ -3778,8 +3830,8 @@ extension EnginePool {
                     // Append Phase 1 thinking as assistant message before tool dispatch
                     if let thinkingText = phase1ThinkingText {
                         mtpMessages.append(
-                            Chat.Message(
-                                role: .assistant,
+                            MTPMessagePair(
+                                role: Chat.Message.Role.assistant.rawValue,
                                 content: thinkingText
                             )
                         )
@@ -3832,8 +3884,8 @@ extension EnginePool {
                         let steers = SteerQueue.shared.drain(sessionKey: convKey)
                         if !steers.isEmpty {
                             mtpMessages.append(
-                                Chat.Message(
-                                    role: .user,
+                                MTPMessagePair(
+                                    role: Chat.Message.Role.user.rawValue,
                                     content: SteerQueue.renderAsUserText(steers)
                                 )
                             )
@@ -3849,11 +3901,10 @@ extension EnginePool {
                         // Per-iteration streaming inside a fresh perform { } — this is the
                         // short-lived lock equivalent to upstream ChatSession.respond() pattern.
                         let iterStream: AsyncStream<MLXLMCommon.Generation>
-                        // Snapshot messages as raw pairs — [Chat.Message] is non-Sendable.
-                        // Convert to (role, content) pairs and reconstruct inside perform.
-                        let iterationPairs = mtpMessages.map { m -> (String, String) in
-                            (m.role.rawValue, m.content)
-                        }
+                        // Snapshot for the @Sendable closure below — the var can't be
+                        // captured, but MTPMessagePair is Sendable, so the snapshot is a
+                        // plain copy that keeps every pair's metadata.
+                        let iterationPairs = mtpMessages
                         // Snapshot for the @Sendable closure below (same prepend as phase 1).
                         let iterationInstructions = systemInstructions
                         let snapMtpToolAwareContext = mtpToolAwareContext
@@ -3890,11 +3941,7 @@ extension EnginePool {
                                 )
                                 // Reconstruct Chat.Message from Sendable pairs
                                 let messages = promptMessagesCarryingInstructions(
-                                    iterationPairs.map { (role, content) in
-                                        Chat.Message(
-                                            role: Chat.Message.Role(rawValue: role) ?? .system,
-                                            content: content)
-                                    },
+                                    iterationPairs.map(\.chatMessage),
                                     instructions: iterationInstructions
                                 )
                                 let mtpProcessing = UserInput.Processing(
@@ -4232,11 +4279,15 @@ extension EnginePool {
                                                 .mapValues { $0.anyValue } as? [String: Any] ?? [:])
                                 )
                             }
-                            // Append tool result message for next iteration — the
-                            // name is in scope here, so this lane never guesses.
+                            // Append tool result message for next iteration — the name is
+                            // in scope here, so this lane never guesses. It rides in the
+                            // pair, so the next snapshot keeps it and the model sees which
+                            // tool answered.
                             mtpMessages.append(
-                                Chat.Message.tool(
-                                    result, id: toolCall.id, name: toolCall.function.name)
+                                MTPMessagePair(
+                                    role: Chat.Message.Role.tool.rawValue,
+                                    content: result,
+                                    toolCallID: toolCall.id, name: toolCall.function.name)
                             )
                         }
                         // This lane owns its iteration, so a terminal stall ends it rather

@@ -46,37 +46,27 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   seam), on boot, or retire `ttl_days` from schema and config (also a promise change). Until then every
   "retention" claim about sessions reads as unenforced.
 
-- **Tool turns contribute ~0 tokens on the checkpoint the product ships default — the seam is ours, the
-  instrument is gone** (Engine/, Handlers/) — on `gemma-4-e2b-it-4bit`, a well-formed `role:"tool"`
-  history contributes **~0 tokens on both compat faces**: measured 11-09 against a live serve, a ~1 550-token
-  tool result moved `input_tokens` from a 690 baseline to **693 on `/v1/messages`** and the `prompt_tokens`
-  to **688 on `/v1/chat/completions`** (an orphan tool message reads *below* baseline). The symptom stands;
-  the mechanism this row blamed was convicted 11-10 by re-read at the `mlx-swift-lm` pin — the gap is our
-  call site, not a missing upstream seam. `Chat.Message.tool(_:id:name:)` takes a name *at our pin*
-  `4ab267996`
-  (`Chat.swift:112-122`), whose own comment names this failure mode ("others … render the function `name`
-  directly", `:57-63`); `addToolMetadata` writes `dictionary["name"]` for result turns (`:195-197`) and
-  `Gemma4MessageGenerator` calls it (`Gemma4.swift:2158`); our wire DTO already parses `name`
-  (`OpenAIModels.swift:663`). We simply never fill it: `EngineInference.swift:1882` passes `id:` only. So
-  routing (a) is one argument at a seam upstream already exports, not engine surgery (§ Adoption: consume
-  it). `/v1/messages` needs one rung more — the Anthropic DTO parses `tool_use_id` but not the block's
-  optional `name` (`AnthropicModels.swift:251,271`), so the name resolves id→name from the same
-  conversation's `tool_use` blocks: one resolver at the boundary that owns the conversation. **Two premises
-  stay unverified, and a second drop site is named for the first time.** (i) "the template binds by name,
-  so the branch cannot be found" was inference from a template read; the only gemma4-e2b template on this
-  host is ollama's fixture, which resolves `tool_call_id`→name *itself* by scanning the preceding
-  assistant `tool_calls` (`../references/ollama/model/renderers/testdata/gemma4_e2b_chat_template.jinja2:287-290`)
-  — so a name-only branch is unconfirmed, while a correct name is a strict gain on either shape. (ii) The
-  row's "the native loop is unaffected … nothing re-sends history" is wrong as written: the MTP lane
-  re-sends its history every iteration but flattens it to `(role, content)` pairs
-  (`EngineInference.swift:3834-3836`), which discards `tool_call_id` and any name before a template can see
-  either — so threading a name at `:4217` is inert until that snapshot carries metadata, and whether the
-  loop has been running blind to its own results on such a checkpoint is an open question the board's
-  passes do not answer (they score tool loops on a different face). Blocked on weights, not arithmetic:
-  `mlx-community/gemma-4-e2b-it-4bit` is absent here and the host holds no LLM weights at all, so no arm
-  runs today; the fix ships with its own probe (none is shipped — the 11-09 numbers came from a session,
-  not a script), and the dangling-`tool_result` half that landed 11-09 (`anthropicMappedConversation` fold,
-  probe 07 green, `AnthropicBlockHonestyTests` both directions) is the pattern that gate follows.
+- **The tool-result name now threads on both MLX lanes; the rendered-token verdict and its probe seat still wait on weights** (Engine/, Handlers/) —
+  the 11-09 symptom (a ~1 550-token `role:"tool"` result moved `input_tokens` 690→693 on `/v1/messages`
+  and `prompt_tokens` to 688 on `/v1/chat/completions`; an orphan tool message reads *below* baseline)
+  was convicted at our call site 11-10, and `ff3e4a66` shipped the first leg: upstream
+  `Chat.Message.tool(_:id:name:)` gets the name at the wire conversion, via `toolResultNamesByID`
+  (caller-supplied name wins, else id→name from the turn's own `tool_calls`). **That commit's
+  "the MTP lane names from the call in scope" is convicted 11-12 by a re-read of its own snapshot:**
+  the lane crossed the `perform` boundary as `(role, content)` pairs, so the appended name and
+  `tool_call_id` — and the caller's assistant `tool_calls` — were dropped before any template saw
+  them; the threaded name was inert on that lane. Fixed same-turn: `MTPMessagePair` (a Sendable pair
+  carrying `toolCallID`/`name`/`toolCalls`, `chatMessage` its one rebuild site) and `mtpMessagePairs`
+  (metadata read from the wire DTO — upstream `Chat.Message.Tool` is write-only outside its module),
+  so the per-iteration and think-then-call prompts both reach the template whole. Gate:
+  `ToolResultNameTests` 5/5, red-sampled by re-introducing the flatten drop. Open: (i) the render leg
+  has no verdict — the host holds no LLM weights, and the probe seat this row demanded still has no
+  seat (the 11-09 numbers remain a session's, not a script's); a correct name is a strict gain on
+  either template shape (name-binding, or an id-scan like ollama's `gemma4_e2b_chat_template.jinja2`
+  fixture resolving `tool_call_id`→name itself). (ii) Named fresh 11-12: the MTP loop never re-appends
+  its own assistant tool-call turn — only think-then-call text, steers and tool results are appended —
+  so from iteration 2 a tool result arrives orphaned; pairing it is a prompt-byte change the board
+  should price, not an append to this commit.
 - **Durability is priced twice, and the second price indicts the mechanism, not the message** (Tools/, eval/) —
   the pre-write gate (refuses valid→broken syntax, keeps old bytes: **110/110 corruptions stopped, zero silent
   damage**) cost the frozen set **2.17 tasks/52 (p=0.0146)** at bare reason, and still **1.83 (p=0.0266)** with the

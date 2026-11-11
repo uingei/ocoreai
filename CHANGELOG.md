@@ -9,6 +9,37 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-12
 
+**11-12 the MTP lane was blind to its own tool results — the `(role, content)` snapshot had made this
+morning's name-threading inert there; the lane's message list becomes a Sendable pair**
+
+- `ff3e4a66` (01:19 today) threaded the tool-result `name` through both MLX lanes and claimed "The MTP
+  lane names from the call in scope". A re-read of that lane's own snapshot convicted the claim the same
+  day: the list crossed the `perform` boundary as `(role, content)` tuples at two sites (think-then-call
+  phase 1 and every tool iteration) and was rebuilt into bare messages inside, so the appended `name` and
+  `tool_call_id` — and the caller's assistant `tool_calls` — were dropped before any template saw them:
+  from iteration 2 the model re-read orphaned, unlabelled tool results. `MTPMessagePair` now carries
+  `toolCallID`/`name`/`toolCalls` across the boundary (`chatMessage` is the one rebuild site), and
+  `mtpMessagePairs` fills it from the wire DTO because upstream `Chat.Message.Tool.storage` is
+  `fileprivate` — metadata cannot be read back outside its module. Both flatten-and-rebuild pairs were
+  deleted, not patched. `mLXToolCall` moved to true file scope so the pure builder can reach it — its
+  own doc comment already claimed "Top-level free function"; the extension was where the body sat, not
+  what the contract said. The MTP prompt's rendered bytes change (labels the template never got before);
+  pooled sessions pay that as a one-time prefix divergence, not corruption.
+- Same-session proof: `ToolResultNameTests` 5/5 — the two new tests assert exact ids/names/calls on both
+  ladder rungs (correlation name; caller-supplied name wins) and the role sequence after rebuild.
+  Red-sampled by re-introducing the flatten drop into the builder: the five metadata assertions reddened
+  precisely while every role/content assertion stayed green — the gate bites the loss, not the change.
+  Restored: green. `FILTER=Tool|MTP|Chat` green; full `make test` reddened only the `ModelLoadProgress`
+  and `Profiling` wall-clock families — both green in isolation, load 4.9 under a concurrent 1.4 M-object
+  git fetch (the recorded "Loaded-host reds rotate cast" class, not a regression from this change).
+  `swift build` and `make format-check` green.
+- The gate that reddens on regression: `ToolResultNameTests` — if any future refactor reintroduces a
+  metadata-free snapshot on this lane. The render leg still owes its verdict: the host holds no LLM
+  weights, so whether a template binds the `name` or scans ids itself is unre-measured here, and the
+  probe seat the open item demanded is still seatless; the row "The tool-result name now threads on
+  both MLX lanes" in `open-items.md` carries the open half and the fresh finding that the loop never
+  re-appends its own assistant tool-call turn.
+
 **11-12 the gate-cost audit's one cut: `make links` + `scripts/link-check.sh` deleted — a red that means
 nothing is worse than no gate**
 
