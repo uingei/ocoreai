@@ -63,23 +63,30 @@ are passed through the adapter's config. Forking created these "divergences"; co
 ## Phases
 
 0. trait-gating — **done, proven.**
-1. Add `coreai-models` SPM dep (trait-gated), coexist with the fork, zero behaviour change.
+1. Consumability spike — **done, proven (11-12).** An isolated consumer depending on `coreai-models`
+   (path) + hummingbird `from: 2.25.0` resolved (exit 0) and **built `CoreAILM` clean** (58 s, only
+   benign upstream warnings). The feared hummingbird conflict does **not** occur: the root's `from`
+   overrides the transitive `exact: 2.22.0` (resolved 2.28.1) — **no patch needed**. xgrammar 0.2.2
+   matches. Next: add the dep to ocoreai itself (trait-gated), coexist with the fork, zero behaviour change.
 2. Write the adapter; route **one** engine variant (e.g. Sequential) through upstream behind a flag.
 3. Parity-verify on **CI xcode-27** against the fork; flip variant by variant.
 4. Delete the fork files once all variants migrate; residual divergences become thin patches.
 
 ## Risks / open owner decisions
 
-- **CI-only verification:** the CoreAI lane is macOS 27; it cannot run on the macOS 26 host. Every
-  phase gate is CI xcode-27. Parity tests (adapter vs fork) are the safety net.
+- **Verification split (refined):** the CoreAI lane *compiles* on the macOS 26 host with the Xcode 27.2
+  SDK (SDKROOT unset ⇒ `swift build` compiles CoreAI; the #412 port was compile-verified this way). Only
+  *runtime/behaviour* needs macOS 27 ⇒ CI xcode-27. So the adapter is compile-checkable locally; parity
+  tests (adapter vs fork) on CI are the behaviour safety net.
 - **Adapter mapping correctness** (IR ↔ upstream types) is the real new work and the real risk;
   constrained + multimodal routing in `EngineInference` needs careful mapping (both are upstream-shaped,
   but ocoreai's wiring is specific).
 - **Scope appetite:** this is a one-time architecture refactor of the CoreAI lane, not a quick win.
   Owner decides whether to invest now vs keep the fork and mechanize its maintenance (per-file diff +
   3-way merge) as the lower-risk alternative.
-- **Upstream consumability:** confirm `coreai-models` products (`CoreAILM`) expose the engine API the
-  adapter needs as public, and that its xgrammar pin coexists with ocoreai's. Phase 1 spike.
+- **Upstream consumability — RESOLVED by the Phase 1 spike:** `CoreAILM` resolves and builds as an SPM
+  dependency alongside ocoreai's hummingbird 2.25+; no hummingbird patch required. Remaining: confirm the
+  specific engine API surface the adapter needs is public (read during Phase 2).
 
 ## What this is not
 
