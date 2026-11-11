@@ -17,12 +17,11 @@
 //   GPUErrorHolder/ErrorRecordingCommandQueue (CoreAIPipelinedEngine+Metal.swift), so a failed command
 //   buffer ends the stream instead of yielding unwritten logits. Pending CI xcode-27 verification (CLT
 //   compiles this out; not claimed until run). Upstream HEAD anchor for absorbed content: 54e6163.
-//   Adjudicated: 12f3700 (#490 read 11-09 — the second named port, same premise as #412's: our
-//   `:859` keeps the lazy `penaltyState == nil` init and `:1387` the in-place reset, which is exactly
-//   the shape upstream found carrying one request's penalty/window/history into the next, plus a
-//   penalty-less cached sampler wrongly reused. Adopt = #490's sampler check + `forGeneration`
-//   reuse-if-idle + idle tracking here and in Engine/RepetitionPenaltyGPUState.swift; not absorbed
-//   blind on an unverifiable lane. Row: coreai-fork-window-log.md § Window read 11-09)
+//   Absorbed: #490 12f3700 (ported 11-12 — penalty state per generation: `forGeneration`
+//   reuse-if-idle + `penaltyStateIdle` sentinel tracking + the cached-sampler penalty-stage rebuild;
+//   `getOrCreateSampler` no longer creates penalty state, `runCompletion` does. Constrained path
+//   matches upstream: no penalty setup. Compile-verified SDK 27.2; runtime pending CI xcode-27.
+//   Row: coreai-fork-window-log.md § Window read 11-09)
 
 #if canImport(CoreAI)
 import CoreAI
@@ -555,6 +554,8 @@ private struct EngineImpl: ~Copyable {
     // engine. Owns a per-depth ring of Float16 penalty buffers read by the
     // composite sampler's penalty stage.
     var penaltyState: RepetitionPenaltyGPUState?
+    // No step using `penaltyState` is in flight; set by the end-of-generation sentinel and reset() (#490).
+    var penaltyStateIdle = true
 
     // State
     var processedTokenCount: Int = 0
@@ -854,28 +855,19 @@ private struct EngineImpl: ~Copyable {
                     "Temperature changed mid-generation (\(existingTemp) -> \(temperature ?? 0)). Call reset() first."
                 )
             }
-            return existingSampler
+            // The penalty stage is compiled into the graph; rebuild when this request needs it (#490).
+            let cachedPenaltyEnabled =
+                (existingSampler as? MPSGraphCompositeSampler)?.penaltyEnabled ?? false
+            if cachedPenaltyEnabled || !config.needsRepetitionPenalty {
+                return existingSampler
+            }
         }
 
-        // Create penalized sampler if repetition penalty is configured
-        // (aligned with upstream coreai-models CoreAIPipelinedEngine.#176).
-        // needsRepetitionPenalty implies repetitionPenalty != nil (InferenceStubs:155-160),
-        // so `if let` here is behavior-preserving.
-        if config.needsRepetitionPenalty, let penalty = config.repetitionPenalty {
-            if config.temperature == 0 {
-                throw InferenceRuntimeError.invalidArgument(
-                    "Repetition penalty with greedy sampling is not supported on pipelined engine. "
-                        + "Use temperature > 0, or use a sequential engine.")
-            }
-            if penaltyState == nil {
-                penaltyState = try RepetitionPenaltyGPUState(
-                    device: device,
-                    vocabSize: self.config.vocabSize,
-                    pipelineDepth: pipelineDepth,
-                    penalty: penalty,
-                    windowSize: config.repetitionPenaltyWindow
-                )
-            }
+        // Penalty state is created per generation in runCompletion (#490), not cached here.
+        if config.needsRepetitionPenalty, config.temperature == 0 {
+            throw InferenceRuntimeError.invalidArgument(
+                "Repetition penalty with greedy sampling is not supported on pipelined engine. "
+                    + "Use temperature > 0, or use a sequential engine.")
         }
 
         let newSampler = try MPSGraphSamplerFactory.makeSampler(
@@ -1172,6 +1164,7 @@ private struct EngineImpl: ~Copyable {
         maxTokens: Int?,
         yieldingTo continuation: AsyncThrowingStream<InferenceEngine.TokenId, Error>.Continuation
     ) async throws {
+        let sampler = sampler.normalized()
         let gpuSampler = try getOrCreateSampler(for: sampler)
         gpuErrors.reset()
 
@@ -1179,6 +1172,18 @@ private struct EngineImpl: ~Copyable {
         continuation.onTermination = { _ in
             isCancelled.store(true, ordering: .relaxed)
         }
+
+        // Each generation starts with empty penalty history; the old state is reused only when idle (#490).
+        penaltyState = try RepetitionPenaltyGPUState.forGeneration(
+            reusing: penaltyState,
+            existingIsIdle: penaltyStateIdle,
+            device: device,
+            vocabSize: config.vocabSize,
+            pipelineDepth: pipelineDepth,
+            penalty: sampler.needsRepetitionPenalty ? sampler.repetitionPenalty : nil,
+            windowSize: sampler.repetitionPenaltyWindow
+        )
+        penaltyStateIdle = false
 
         let contextLeftAfterPrompt = config.maxContextLength - processedTokenCount - prompt.count
         guard contextLeftAfterPrompt >= 1 else {
@@ -1244,14 +1249,15 @@ private struct EngineImpl: ~Copyable {
         // continuation.yield has returned before the caller calls finish().
         // We use a bare command buffer instead of the sampler to avoid the shared
         // MPSGraphExecutableExecutionDescriptor issue in MPSGraphCompositeSampler.
-        await withCheckedContinuation { (sentinelCont: CheckedContinuation<Void, Never>) in
+        penaltyStateIdle = await withCheckedContinuation {
+            (sentinelCont: CheckedContinuation<Bool, Never>) in
             do {
                 let queue = pipelineQueue
                 guard let cmdBuf = queue.makeCommandBuffer() else {
-                    sentinelCont.resume()
+                    sentinelCont.resume(returning: false)
                     return
                 }
-                cmdBuf.addCompletedHandler { _ in sentinelCont.resume() }
+                cmdBuf.addCompletedHandler { _ in sentinelCont.resume(returning: true) }
                 cmdBuf.commit()
             }
         }
@@ -1398,9 +1404,9 @@ private struct EngineImpl: ~Copyable {
         step = 0
         cachedSampler = nil
         cachedSamplerTemperature = nil
-        // Clear the GPU penalty ring so a new conversation doesn't inherit
-        // penalty state from the previous one (aligned with upstream reset()).
-        penaltyState?.reset()
+        // Steps still in flight hold their own reference; a new generation allocates fresh (#490).
+        penaltyState = nil
+        penaltyStateIdle = true
         // Zero SSM states so the next conversation starts from a clean slate.
         additionalStates?.reset()
         span.end()

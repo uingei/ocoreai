@@ -2,6 +2,8 @@
 //
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
+// Provenance: coreai-models Samplers/RepetitionPenaltyGPUState.swift.
+//   Absorbed: #490 12f3700 (forGeneration reuse-if-idle + matches + defaultWindowSize, ported 11-12).
 
 import Foundation
 import Metal
@@ -26,6 +28,8 @@ import Metal
 /// CoreAIPipelinedEngine — all 27.0-gated).
 @available(macOS 27.0, iOS 27.0, *)
 final class RepetitionPenaltyGPUState: @unchecked Sendable {
+    static let defaultWindowSize = 256
+
     let penaltyBuffers: [MTLBuffer]
     let vocabSize: Int
     let pipelineDepth: Int
@@ -44,7 +48,7 @@ final class RepetitionPenaltyGPUState: @unchecked Sendable {
         self.vocabSize = vocabSize
         self.pipelineDepth = pipelineDepth
         self.penalty = Float16(penalty)
-        self.windowSize = windowSize ?? 256
+        self.windowSize = windowSize ?? Self.defaultWindowSize
 
         let bufferSize = vocabSize * MemoryLayout<Float16>.size
         var buffers: [MTLBuffer] = []
@@ -128,7 +132,38 @@ final class RepetitionPenaltyGPUState: @unchecked Sendable {
         }
     }
 
-    /// Reset all state (called on engine reset).
+    /// State for a new generation: nil without a penalty, `existing` reset when idle and matching, else a new one.
+    static func forGeneration(
+        reusing existing: RepetitionPenaltyGPUState?,
+        existingIsIdle: Bool,
+        device: MTLDevice,
+        vocabSize: Int,
+        pipelineDepth: Int,
+        penalty: Double?,
+        windowSize: Int?
+    ) throws -> RepetitionPenaltyGPUState? {
+        guard let penalty else { return nil }
+        if let existing, existingIsIdle,
+            existing.matches(
+                vocabSize: vocabSize, pipelineDepth: pipelineDepth, penalty: penalty,
+                windowSize: windowSize)
+        {
+            existing.reset()
+            return existing
+        }
+        return try RepetitionPenaltyGPUState(
+            device: device, vocabSize: vocabSize, pipelineDepth: pipelineDepth, penalty: penalty,
+            windowSize: windowSize)
+    }
+
+    /// Whether this state was built for the given shape, penalty and window.
+    func matches(vocabSize: Int, pipelineDepth: Int, penalty: Double, windowSize: Int?) -> Bool {
+        self.vocabSize == vocabSize && self.pipelineDepth == pipelineDepth
+            && self.penalty == Float16(penalty)
+            && self.windowSize == (windowSize ?? Self.defaultWindowSize)
+    }
+
+    /// Restores neutral buffers and empty history. Requires no step in flight.
     func reset() {
         for buf in penaltyBuffers {
             let ptr = buf.contents().assumingMemoryBound(to: Float16.self)
