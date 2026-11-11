@@ -9,6 +9,27 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-11
 
+**11-11 the generated-client question closed the field's way — no client artifact, the canonical SDK is the consumer, and its first pass caught a real face-divergence**
+
+- **What improved.** § Adoption's open artifact ("a generated client is still missing") was dug as a
+  decision, not read as backlog: `vllm` ships no client — `openai >= 2.25.0` sits in its test deps
+  (requirements/common.txt:21) and `from openai import OpenAI` is the entrypoint-test consumer
+  (tests/entrypoints/**). The compat promise is therefore provable, not ownable: probe 56 boots the
+  scripted lane (no weights) and drives typed non-stream and streamed calls through real
+  openai-python — host import first, throwaway venv else, absence a red not a skip — comparing every
+  field against literals this file owns. 15/15 green on both turn faces.
+- **What the first pass taught.** My first expectation — the SDK should read the turn's text on the
+  tool-turn face — redded against the engine, and the engine was right: `contentWireFallback` blanks
+  `message.content` when calls are present (the corrective-echo incident's rule, unit-tested in
+  `ReasoningContentWireTests`), while the streamed face still ships the narration deltas. The probe
+  was rewritten to assert the DOCUMENTED contract (blank face + exact calls/usage + streamed text),
+  and the shipped stream-vs-non-stream asymmetry is now written where a reader learns it from a green
+  instead of an incident. Expectation adjudicated against the promise's home, not wish-reverted.
+- **Three questions.** Improved: a public-contract claim became a gate instead of an artifact queue;
+  the root row no longer waits on anyone. Proved by: probe 56's 15 exact-value passes today.
+  Gate: probe 56 reddes on any shape or byte drift either face, or if the blank face stops being
+  blank; its missing-SDK red names the venv remedy.
+
 **11-11 three parked verdicts fell to the field's shipped shapes — references pay out as decided rows, not new knowledge**
 
 - **What improved.** Three items had been waiting on a hand; each was adjudicated by reading the

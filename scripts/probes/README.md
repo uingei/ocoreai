@@ -520,6 +520,18 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     Green 11-11, 13 passed on the scripted lane. Fails when: a token stops being refused, detection
     reports a path its fixture never had, a launch proceeds while the server line objects, or the
     env bytes or exit code drift.
+- `56-openai-sdk-consumer.sh` — does the canonical OpenAI Python SDK consume our wire unmodified?
+    The generated-client question was ruled by the field's shape, not answered with an artifact: vllm
+    ships no client either — it pins `openai >= 2.25.0` and lets `from openai import OpenAI` be the
+    test consumer. Both turn faces ride the scripted lane (no weights): §1 the tool turn asserts what
+    the server DOCUMENTS (`contentWireFallback` blanks `message.content` when calls are present — the
+    corrective-echo rule — while calls, args, usage and `finish_reason: tool_calls` carry exact values,
+    and the streamed face still shows the narration deltas: a shipped asymmetry, recorded so a reader
+    learns it from a green, not an incident); §2 the answer turn carries the text itself byte-exact,
+    non-stream and streamed. The SDK subject is host-first, throwaway-venv else (`openai>=2.25.0,<3`),
+    and its absence is a red naming the remedy — no tree passes by having no consumer. Green 11-11,
+    15 passed. Fails when: the SDK rejects our shape, any byte drifts on either face, or the tool-turn
+    blank face stops being blank.
 - `_lib.sh` — shared harness
 Fails when: —
 

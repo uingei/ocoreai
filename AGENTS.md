@@ -42,7 +42,7 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 <!-- claim:tags_published>=1 :: git ls-remote --refs --tags https://github.com/uingei/ocoreai.git | grep -c 'refs/tags/v' -->
 - **Agents are a channel they cannot find:** `/v1/capabilities` serves `endpoints[]`, `skills/ocoreai/` is
   published (probe 39 runs its markers), and `GET /openapi.json` renders the contract off that index; a
-  generated client is still missing. Owner call: a public contract is a promise.
+  no client ships — the canonical SDK consumes the wire itself, gated (probe 56).
 - **Intake is a surface:** a duplicate-work check before any outbound issue or PR, answer latency, and a
   verifiable first-screen privacy contract (mechanics + cites: `docs/agent/adoption-runbook.md`).
 - **#1 is bounded by distribution, not arithmetic** (the stars/day table and its audit:
