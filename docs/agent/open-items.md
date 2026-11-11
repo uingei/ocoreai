@@ -200,28 +200,24 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   python export-side RoPE precision fix — none touches a consumed surface. Third axis clean:
   `mlx-swift tag=0.33.0 pin=0.33.0`. (Instrument note this row carried — one
   verdict, exit **10** then **2** — closed: `closed-items-log.md`.)
-- **MTP acceptance is threaded, unused as a signal, and its named suite gates nothing** (Engine/, Tests/) —
+- **MTP acceptance is threaded and unused as a signal; its sounding suites are deleted** (Engine/, Tests/) —
   found by reading, not by a scan. ① The counters are real: `proposedDraftTokens`/`acceptedDraftTokens`
   (`EngineEvents.swift:105`) are threaded at `EngineInference.swift:3432`, `:4229` and read by
-  `ChatViewModel.swift:1189`. ② The suite that *sounds* like the gate is not one: `MTPAcceptanceRateTests.swift`
-  (14 tests in 3 suites, landed 08-05 as "behavioral tests" in `b1cfb64`) asserts arithmetic on literals declared
-  lines above
-  its own `#expect` (`:103-109` asserts a non-nil literal is non-nil), and its sibling
-  `GuidedGenerationIntegrationTests.swift` (13) asserts `!schema.isEmpty` on a schema literal it wrote and,
-  twice, asserts the literal `true` with the claim carried in the *message* —
-  `#expect(true, "GuidedGenerationLoop is a separate generation loop")` (`:137`, `:177`).
-  **27 tests read by hand; none calls production.** No doc, probe or CHANGELOG cites either name, so no claim
-  rests on them today — but they sit in the green `swift test` count the instrument's own S term reads.
+  `ChatViewModel.swift:1189`. ② Resolved 11-11: `b1cfb64`'s two "behavioral" suites (14+13), which
+  *sounded* like this gate, were independently re-read and deleted — every assertion judged its own
+  literals, none called production; the closed-log row carries that proof plus the real guided-gen gates
+  that stand. What stays ungated exactly as before the deletion: the threading itself — the flag row
+  below owes the one emit + one read.
   ③ The field spends that same counter as lane *policy*, not a published number: `mlx-serve` stops speculation
   mid-decode once per-draft acceptance falls under break-even and stays off for the request
   (`../references/mlx-serve/docs/performance.md:20`). Nobody else is moving on it: `MTPLX` — the tree our own
   lane is measured against, and the only comparator here whose HEAD was asked of the remote rather than the
   clone (`git ls-remote`, 11-04) — sits at `9882703f`, dated **10-03**, 32 d quiet with 0 commits in 14 d, so
   its row is current rather than stale and no new drafter behaviour is pending there. The movement is on our
-  own side of the boundary: pin 1's `#581` resumable Qwen MTP, one row above. Owner call, two halves: delete or repair the 27, and
-  whether our MTP lane should act on acceptance at all — the scripted engine already exists
-  (`Engine/ScriptedInference.swift` + probe 37), so a real gate is one emit and one read away, not a new
-  surface. Why no scan owns this: two attempts on 11-04 failed in opposite directions (one flagged 233 tests,
+  own side of the boundary: pin 1's `#581` resumable Qwen MTP, one row above. **Ruled 11-11:** the 27 are
+  deleted (②); whether the lane acts on acceptance *at all* rides the loop-flag flip — lane policy written
+  for a loop being retired pays twice — and the scripted engine makes the real gate one emit and one read
+  on the surviving seam, not a new surface. Why no scan owns this: two attempts on 11-04 failed in opposite directions (one flagged 233 tests,
   the other zero) because `extension String` in `Sources` makes a plain `String?` annotation look like a
   production reach — only reading, or a mutation that must go red, decides it.
 - **Rewind is landed; the reserve is visible and overridable, still untuned** (Engine/) — 1024 rows measured on

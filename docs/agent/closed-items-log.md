@@ -3,6 +3,18 @@
 > Material `AGENTS.md` § *Open* used to carry prose for although it was resolved, retracted or
 > judged a phantom gap. An open item is one that can still change a decision; a verdict is
 > history, and history kept in the injected layer costs every session.
+- **27 vacuous MTP/guided-gen "behavioral" tests deleted (11-11, adjudicated by independent re-read).**
+  `b1cfb64`'s two "behavioral" suites (14+13 tests) asserted arithmetic on literals declared lines above
+  their own `#expect`, `!schema.isEmpty` on their own schema literal, and `#expect(true, "…")` with the
+  claim in the *message* — zero production calls, verified by reading both files again this round rather
+  than trusting the discovery round. Nothing real was lost: guided-gen
+  carries working gates elsewhere (`GuidedIncompleteRecoveryTests` calls
+  `absorbGuidedGenerationPartialOutput`; `GrammarStopTokenPlumbingTests`, `LegacyConstrainedDecodingStrategyTests`
+  on the grammar seam), and the MTP counter threading this suite only *sounded* like it gated had no test
+  before either — the open row says so openly. What died is the inflated green `swift test` count
+  (invariant 1: a scan that stopped matching passes vacuously). Proof of harmlessness: zero repo-wide
+  references incl. CI scripts; compile is the deletion proof, as for the l10n keys.
+
 - **"MCP empty success" was a misread sweep red (11-11, same-day conviction).** The 11-11 sweep classed
   probe 34 §D as "success-shaped empty `tools/call`" — read off the section title and the FAIL label, not
   the body. The body was there in the sweep log: the tool ran and returned an honest anchor-naming error
