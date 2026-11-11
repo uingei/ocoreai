@@ -413,15 +413,15 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `MLXBridge.swift:188` still resolves exactly (`:130` is the `configureGPUCacheOnce` it names), while
   `EngineInferenceSupport.swift:305` points at `:1427-1431` for a soft-nudge recipe and those lines are
   `runSchemaGeneration` — the sentence and the line disagree today, and no gate reads either. Settled
-  11-11 for every site outside `EngineInference.swift`: the OpenAIModels/PromptTokenAccountingTests
-  pair re-measured and de-numbered (true sites: getter `Evaluate.swift:3111`, emits
-  `MLXLanguageModel.swift:1467/1613/1825`, two cited ranges were inverted outright), and
-  `EngineInferenceSupport.swift`'s six sites re-read — two claims convicted mid-read: its quoted
-  recovery phrase is gone upstream, and the sha that "landed" the contract is not an ancestor of the
-  pin (object present, merge-base exit 1 — landing places move), so provenance shas left the prose and
-  the live contract is the Throw-before-dispatch its anchor pins; four new anchors own every surviving
-  number. Only `EngineInference.swift`'s two sites remain, under another session's edit — a cite read
-  against half-written code measures their WIP; that half waits for their commit, not authority.
+  11-11: OpenAIModels/PromptTokenAccountingTests re-measured and de-numbered (two cited ranges were
+  inverted outright), and `EngineInferenceSupport.swift`'s six sites re-read — two claims convicted:
+  its quoted recovery phrase is gone upstream, and the sha that "landed" the contract is not an
+  ancestor of the pin (merge-base exit 1; object present), so provenance shas left the prose and the
+  live contract is the Throw-before-dispatch its anchor pins; four new anchors own every surviving
+  number. Both `EngineInference.swift` sites were then adjudicated against HEAD, not the worktree:
+  claims TRUE, pointers stale (`:1386/1704`→catches now `:1198/:1539`; the two-channel range now
+  holds prewarm code, the `.reasoning`/`.response` destinations live elsewhere); the fix is
+  mechanical, waiting only because the file is another session's live copy, not for knowledge.
 
 - **Upstream already ships a scripted engine; ours has to be re-judged when the planned half lands**
   (Engine/) — `MLXScriptedLM` is a published product at the pin, and its scripted tokenizer implements
