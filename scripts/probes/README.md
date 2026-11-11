@@ -243,7 +243,11 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     only one a runner can check, and `make docs-check` has no server to check it against — or the
     counters `GET /v1/stats` advertises stop matching the turns that ran (§10, added 11-05 after the
     TTFB histogram was found with two producers: one streamed turn moved `ttfbSampleCount` by 2 while
-    `totalRequests` moved by 1, and no probe had ever read that face while a turn ran).
+    `totalRequests` moved by 1, and no probe had ever read that face while a turn ran) — or `GET /ready`
+    breaks its idle contract (§11, added 11-11: an advertised path never read live; the catalog's own
+    predicate `ready` ↔ `activeSessions=0`, a current stamp and `loadedModels` parity with `/v1/stats`
+    are judged; the busy face is untestable on this lane by construction — the scripted lane resolves
+    turns with no resident model, so the gauge has nothing to count).
 
 - `38-reasoning-effort-honesty.sh` — does a demanded `reasoning_effort` reach the checkpoint, or only the log?
     Two tiers, because only one runs without weights. §1 (scripted lane, CI seat, no Metal, no download):

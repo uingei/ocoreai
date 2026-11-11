@@ -30,6 +30,10 @@
 #      once; a streaming turn enters the TTFB histogram exactly once and a non-streaming one not at
 #      all. Those counters are advertised on `/v1/capabilities`, and nothing had read them while a
 #      turn ran until 11-05, which is how a histogram with two producers stayed green.
+#  11. `/ready`'s live contract: the predicate its own catalog entry promises (ready ↔ no session
+#      generating), a current timestamp, and `loadedModels` parity with `/v1/stats` from the same
+#      boot. The busy face is structurally scripted-dark — the lane resolves turns with no resident
+#      model, so there is nothing for the gauge to count — and stays the checkpoint tier's to witness.
 
 set -uo pipefail
 
@@ -306,9 +310,10 @@ stats_snap() {
   STATS_T="$(probe_json "$PROBE_BODY" ttfbSampleCount)"
   STATS_P="$(probe_json "$PROBE_BODY" totalPromptTokens)"
   STATS_G="$(probe_json "$PROBE_BODY" totalGeneratedTokens)"
+  STATS_L="$(probe_json "$PROBE_BODY" loadedModels)"
   local pair
   for pair in "totalRequests=$STATS_R" "ttfbSampleCount=$STATS_T" "totalPromptTokens=$STATS_P" \
-    "totalGeneratedTokens=$STATS_G"; do
+    "totalGeneratedTokens=$STATS_G" "loadedModels=$STATS_L"; do
     probe_require_int "GET /v1/stats ${pair%%=*}" "${pair#*=}"
   done
 }
@@ -365,6 +370,54 @@ if [ "$stream_status" = "200" ]; then
 else
   probe_fail "the streaming turn answered ${stream_status:-nothing} — §10b has no subject, so its" \
     "counter verdict would be a vacuous pass (probe rule: floor your own premises)"
+fi
+
+# 11 — GET /ready: the readiness path advertised in endpoints[] on /v1/capabilities and rendered in
+# openapi.json had no live seat until 11-11 — every probe that booted a server drove the chat
+# surface and read nothing here. The scripted lane decides its IDLE contract exactly, because
+# /v1/stats and /ready read the same engineSummary: the predicate the endpoint catalog itself
+# promises ("ready when no session is generating"), the timestamp's freshness, and the two
+# surfaces' loadedModels agreement all cost no Metal. The BUSY face is named, not skipped: it is
+# structurally unmeasurable on this lane — ScriptedInference resolves turns with no resident model
+# (EnginePool.swift:519-523), so activeSessions has nothing to count; measured 11-11: 10 concurrent
+# streamed turns, 300 /ready polls, zero busy. A busy-side witness therefore waits on the
+# checkpoint tier, which open-items.md already carries as the open tier question.
+probe_api GET /ready
+[ "${PROBE_STATUS:-0}" = "200" ] || probe_fail "GET /ready -> ${PROBE_STATUS:-0} — the path is" \
+  "advertised on /v1/capabilities and openapi.json, so an advertised route that cannot answer is" \
+  "the surface claiming more than the server delivers"
+READY_STATUS="$(probe_json "$PROBE_BODY" status)"
+READY_ACTIVE="$(probe_json "$PROBE_BODY" activeSessions)"
+READY_LOADED="$(probe_json "$PROBE_BODY" loadedModels)"
+READY_TS="$(probe_json "$PROBE_BODY" timestamp)"
+for pair in "activeSessions=$READY_ACTIVE" "loadedModels=$READY_LOADED" "timestamp=$READY_TS"; do
+  probe_require_int "GET /ready ${pair%%=*}" "${pair#*=}"
+done
+if [ "$READY_STATUS" = "ready" ] && [ "$READY_ACTIVE" = "0" ]; then
+  probe_ok "idle /ready reads ready at activeSessions=0 — the predicate the catalog promises" \
+    "holds on the live wire, not only in the in-process suite"
+else
+  probe_fail "idle /ready reads status=$READY_STATUS activeSessions=$READY_ACTIVE — expected" \
+    "ready/0; every turn above completed before this line ran, so a non-zero gauge here means a" \
+    "session finished on the wire and was never released in the pool"
+fi
+NOW_TS="$(date +%s)"
+TS_DRIFT=$(( NOW_TS - READY_TS )); [ "$TS_DRIFT" -lt 0 ] && TS_DRIFT=$(( -TS_DRIFT ))
+if [ "$READY_TS" -gt 0 ] && [ "$TS_DRIFT" -le 120 ]; then
+  probe_ok "the readiness stamp is current (drift ${TS_DRIFT}s) — an orchestrator acts on this" \
+    "within one poll, so a stale stamp reads exactly like a cached answer"
+else
+  probe_fail "the timestamp drift is ${TS_DRIFT}s (field read $READY_TS) — a readiness stamp that" \
+    "is not current tells a scheduler nothing it may act on"
+fi
+stats_snap
+if [ "$READY_LOADED" = "$STATS_L" ]; then
+  probe_ok "loadedModels equals /v1/stats from the same boot — one engineSummary, one answer on" \
+    "both surfaces"
+else
+  probe_fail "/ready says loadedModels=$READY_LOADED where /v1/stats says $STATS_L — both read" \
+    "the same summary on this lane (nothing loads or unloads at idle), so a divergence is a DTO" \
+    "mapping bug, not a racing load"
 fi
 
 probe_summary "$PROBE_NAME"

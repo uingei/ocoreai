@@ -388,9 +388,11 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   reads max-component-diff 1.7e-3 (cos 0.99987) beside a 3-short batch and 1.5e-3 (cos 0.99990) beside
   a 1 202-token sibling — the deviation does not grow with pad length, so it is reduction order in the padded
   batched 4-bit matmul, not pooling over pads; negligible for ranking, named because the query path
-  embeds alone while the index embeds in batches. ④ `/ready` shares the unread seat (advertised on
-  `/v1/capabilities`, in `openapi.json`, never probed); `/v1/stats` got its seat on 11-05 in probe 37
-  §10. Probe 51's §1-§2 run weight-free (a scripted boot answers them at the request boundary); only
+  embeds alone while the index embeds in batches. ④ `/v1/stats` got its seat on 11-05 in probe 37 §10;
+  `/ready` followed 11-11 in §11 — idle predicate, current stamp, `loadedModels` parity, all weight-free.
+  Its busy face has no scripted-lane seat *by construction*: the lane resolves turns with nothing
+  resident (`EnginePool.swift:519-523`; 10 concurrent streamed turns read zero busy across 300 polls),
+  so that witness waits on the tier question below. Probe 51's §1-§2 run weight-free (a scripted boot answers them at the request boundary); only
   its §3 needs the embedder's weights, so that leg waits on the tier question below and prints that it
   skipped when they are absent.
 
