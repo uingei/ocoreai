@@ -321,7 +321,7 @@ for dirpath, _sub, files in os.walk(ours):
             "{" not in x for x in PATH_RE.findall(head))
         if fork_licence or names_a_path:
             cands.append((path, head))
-rows, glue, nobase = [], 0, []
+rows, glue, nobase, deltas = [], 0, [], []
 for path, head in cands:
     name = os.path.basename(path)
     rel = os.path.relpath(path, ours)
@@ -353,6 +353,11 @@ for path, head in cands:
     start = ("已读至 " + read_to[:9]) if read_to else ("基线 " + base[:9])
     rows.append(("window", rel, start, n if n != "0" else "0",
                  src.split("/")[-1] + " | " + (new or "无")[:70]))
+    # CODE delta: baseline..HEAD on the upstream file, independent of the read-point. The table
+    # mode counts un-READ commits (can be 0 while code is frozen); this shows what the code owes.
+    if base:
+        ss = git("diff", "--shortstat", "%s..%s" % (base, ref), "--", src)
+        deltas.append((rel, base[:9], src.split("/")[-1], ss.strip() or "current (0 delta)"))
 if mode == "census":
     # 测试缝:一行一个事实,断言不必猜排版。
     print("#cand %d" % len(cands))
@@ -361,6 +366,17 @@ if mode == "census":
         print("#row %s %s %s %s %s" % (kind, rel, a, b, c))
     for rel, ever, tagged in nobase:
         print("#nobase %s %s %s" % (rel, ever, "sha" if tagged else "none"))
+elif mode == "delta":
+    # Per-file CODE debt (baseline..HEAD), the sync-targeting view: which forked files actually
+    # differ from upstream, vs the read-point count which can read 0 while the code is frozen.
+    owe = [d for d in deltas if not d[3].startswith("current")]
+    cur = [d for d in deltas if d[3].startswith("current")]
+    print("  per-file CODE delta (baseline..HEAD ≠ read-point): %d owe, %d current, %d no-baseline"
+          % (len(owe), len(cur), len(nobase)))
+    for rel, b, srcname, ss in sorted(owe):
+        print("  OWES    %-40s @%s  %s" % (rel, b, ss))
+    for rel, b, srcname, ss in sorted(cur):
+        print("  current %-40s @%s" % (rel, b))
 else:
     for kind, rel, a, b, c in rows:
         if kind == "unnamed":
@@ -400,7 +416,7 @@ coreai_fork_ledger() {
     echo "  coreai fork 台账   SKIP — $(printf '%s' "$res" | sed 's/^endpoint=[^ ]* //')"
     return 0
   fi
-  fork_ledger_py "$d" "$upref" "$(pwd)/Sources/ocoreai" table
+  fork_ledger_py "$d" "$upref" "$(pwd)/Sources/ocoreai" "${1:-table}"
   local srcline
   srcline="$(printf '%s\n' "$res" | sed -n 's/^endpoint=[^ ]* \(src=[a-z]*\).*/\1/p')"
   printf '  窗口终点 = %s（%s；镜像不是 GitHub 权威）\n' "$upref" "$srcline"
@@ -446,6 +462,13 @@ axis_owed() {
 if [ "$cmd" = "fork-census" ]; then
   fork_ledger_py "${2:-}" "${3:-}" "${4:-}" "${5:-census}"
   exit $?
+fi
+
+# Per-file CODE debt view (baseline..HEAD): which forked files actually differ from upstream.
+# The sync-targeting companion to the read-point table — report only, not a gate.
+if [ "$cmd" = "coreai-delta" ]; then
+  coreai_fork_ledger delta
+  exit 0
 fi
 
 # 测试缝：裁定表本身（退出码契约的一半住在这里）。

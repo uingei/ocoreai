@@ -161,10 +161,51 @@ struct UpstreamDriftWindowTests {
             "the axis grew its own HEAD resolution again — two resolvers is the defect this suite owns"
         )
         // One enumeration, or the table and the seam start telling different stories about who is a
-        // mirror — the same two-resolvers shape, one floor up.
+        // mirror — the same two-resolvers shape, one floor up. The mode is parameterized (table /
+        // delta / census), so pin the shared call, not a mode literal.
         #expect(
-            script.contains("fork_ledger_py \"$d\" \"$upref\" \"$(pwd)/Sources/ocoreai\" table"),
+            script.contains("fork_ledger_py \"$d\" \"$upref\" \"$(pwd)/Sources/ocoreai\""),
             "the printed table no longer runs the enumeration the census seam tests")
+    }
+
+    @Test("delta mode measures code baseline..HEAD, not the read-point")
+    func deltaUsesCodeBaseline() throws {
+        // A mirror whose read-point is already at HEAD (table reads 0 un-read) but whose code
+        // baseline lags an upstream change — delta must still report the debt the read-point hides.
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("drift-delta-\(UUID().uuidString.prefix(8))")
+        let up = base.appendingPathComponent("up")
+        let clone = base.appendingPathComponent("clone")
+        let file = "swift/Sources/Up/EngineThing.swift"
+        try Self.write("// v1\n", to: up.appendingPathComponent(file))
+        try Self.git(["init", "-q", "-b", "main", "."], in: up)
+        try Self.git(["config", "user.email", "t@t"], in: up)
+        try Self.git(["config", "user.name", "t"], in: up)
+        try Self.git(["add", "-A"], in: up)
+        try Self.git(["commit", "-qm", "c1"], in: up)
+        let baseline = try Self.git(["rev-parse", "--short", "HEAD"], in: up)
+        try Self.write("// v2 changed\n", to: up.appendingPathComponent(file))
+        try Self.git(["add", "-A"], in: up)
+        try Self.git(["commit", "-qm", "c2"], in: up)
+        let head = try Self.git(["rev-parse", "--short", "HEAD"], in: up)
+        try Self.git(["clone", "-q", up.path, clone.path], in: base)
+        let ours = base.appendingPathComponent("ours")
+        try Self.write(
+            """
+            // Copyright © 2026 uingei@163.com.
+            // Provenance: coreai-models — swift/Sources/Up/EngineThing.swift
+            //   Absorbed: #7 \(baseline)
+            // Adjudicated: \(head)
+
+            import Foundation
+
+            """,
+            to: ours.appendingPathComponent("Engine/CoreAIMechanism.swift"))
+        let (code, out) = try Self.runDelta(clone: clone, ref: head, ours: ours)
+        #expect(code == 0)
+        #expect(
+            out.contains("OWES"), "delta must report the code debt the read-point hides: \(out)")
+        #expect(out.contains("CoreAIMechanism.swift"))
     }
 
     // MARK: - Who counts as a mirror: the enumeration's own premise
@@ -176,6 +217,24 @@ struct UpstreamDriftWindowTests {
         p.executableURL = URL(fileURLWithPath: "/bin/bash")
         p.arguments = [
             "scripts/upstream-drift.sh", "fork-census", clone.path, ref, ours.path, "census",
+        ]
+        p.currentDirectoryURL = try repoRoot()
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = Pipe()
+        try p.run()
+        p.waitUntilExit()
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        return (p.terminationStatus, String(decoding: data, as: UTF8.self))
+    }
+
+    private static func runDelta(clone: URL, ref: String, ours: URL) throws -> (
+        code: Int32, out: String
+    ) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/bash")
+        p.arguments = [
+            "scripts/upstream-drift.sh", "fork-census", clone.path, ref, ours.path, "delta",
         ]
         p.currentDirectoryURL = try repoRoot()
         let out = Pipe()
