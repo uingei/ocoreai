@@ -139,7 +139,7 @@ verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name bel
 - **Stall: MTP stops hard, the std lane by consent** (Tools/, Engine/) — `LoopStallTerminationTests`;
   owner call: the terminal word for four faces.
 - **CoreAI / macOS 27 items unverifiable here** (Engine/) — `PlatformPremise.hasMacOS27`.
-- **A no-tool turn cannot be interrupted** (Engine/) — upstream #608 steer now sits at this pin; owner call.
+- **A no-tool turn cannot be interrupted** (Engine/) — #608 steer at this pin; adopt-then-retire ruled, flag-staged.
 - **Rewind landed; the reserve is untuned** (Engine/) — `SessionRewindOnDivergenceTests` + probe 27.
 - **`tools[]` gaps; two prefix questions await an owner** — `UI/AGENTS.md`, `ReuseRefusalLedger`.
 - **Multimodal: video publishes per-checkpoint; capture cannot stream headlessly** —

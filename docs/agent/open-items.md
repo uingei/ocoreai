@@ -158,8 +158,11 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   step plus a `Generation.steering` event; the `db2e7bf`/`observe(to:using:)` seam this row cited yesterday
   was only the hook — and `991266ad3`, which an earlier copy named, is that same day's #710, a prefill-buffer
   cache). Nothing of ours calls it: the four switch arms the bump added are inert until `SteerQueue` reaches
-  `session.steer` on the session's owning actor and the wire can take a steer mid-stream. Owner call — it is
-  also the row that decides whether the local lane keeps existing beside upstream's.
+  `session.steer` on the session's owning actor and the wire can take a steer mid-stream.
+  **Adjudicated 11-11 by the lane read: adopt, staged.** Upstream owns the loop the wrapper duplicates:
+  `restart:` at `ChatSession.swift:1319` threads `mtpDrafterContinuation` stepwise; `steer` is public
+  (`:1106`). Landing: an opt-in loop-selection flag (default local), flip on a paired board verdict plus
+  probe 21 `chat`-arm green, loser deleted whole. The stall row's terminal word stays the owner's.
 - **Thinking is uncounted on the tools lane** (Engine/) — probe 44 §2: 550 chars, no
   `reasoning_tokens`. Upstream counts only via the processor that also bounds the thought, and a
   bound there starves the tool call (§2b: 200→500 at 64 tokens). A count-only processor waits
@@ -178,7 +181,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   and change **nothing** until consumed: our MTP lane still drives its own token loop and `SteerQueue` still
   drains at the tool-result tail, so the MTP row, the stall row and the interrupt row above all wait on one
   decision — *adopt what upstream's `ChatSession` loop now owns, or keep maintaining the local lane beside
-  it*. The MTP half still deserves the acceptance row's read: a *resumable* drafter changes what that gate
+  it* — **ruled adopt-then-retire 11-11**, staged through the interrupt row's flag; what remains is
+  execution (the owner's push window per § Upstream 1), not decision.
+  The MTP half still deserves the acceptance row's read: a *resumable* drafter changes what that gate
   would measure. The window moved again 11-10 (+2 → `ec4c966`) and both commits were adjudicated the same
   round, and the same evening convicted half of that reading: `#774` (logprobs during speculative decoding)
   does stay unconsumed — our lane never requests them — but `#724` (greedy MTP verify batched to one GPU
