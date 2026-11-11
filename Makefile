@@ -5,7 +5,7 @@
 # Test:       test, test-ci, test-clt
 # Quality:    format, format-check, audit
 # Dev:        clean, metallib, help
-# CI:         ci-local (full local pipeline)
+# CI:         round-gates, push-ready, ci-status
 
 SHELL := /bin/bash
 
@@ -25,7 +25,7 @@ else
   endif
 endif
 
-.PHONY: all build release release-mac27 app dmg test test-ci test-clt probes format format-check audit docs-check anchor-check round-gates clean metallib help ci-local push-ready ci-status spell links install-hooks openapi sf-pin docs-budget drift
+.PHONY: all build release release-mac27 app dmg test test-ci test-clt probes format format-check audit docs-check anchor-check round-gates clean metallib help push-ready ci-status spell links install-hooks openapi sf-pin docs-budget drift
 
 all: build
 
@@ -292,7 +292,7 @@ test-ci:
 # registered and still 404s.
 #
 # Needs a real Metal device AND a model in ~/.ocoreai/models, so this is deliberately an
-# explicit step rather than part of ci-local: inside the agent sandbox MLX reports
+# explicit step and in no local aggregate: inside the agent sandbox MLX reports
 # "No Metal device available" and every probe fails at boot (docs/agent/build-gate-reality.md).
 probes:
 	@echo "🔬 Live probes against a freshly booted ocoreai serve..."
@@ -449,10 +449,11 @@ links:
 install-hooks:
 	pre-commit install
 
-## Every no-build gate a round owns, in one command. `ci-local` is the full pipeline but it
-## starts with `clean`, and a half-hour target gets skipped mid-round — which is exactly how five
-## line-cites survived a push after their files grew (docs-check only asks whether a cited path
-## exists; verifying the *line* is anchor-check's job, and nothing chained the two).
+## Every no-build gate a round owns, in one command. Anything that starts with `clean` or a
+## build gets skipped mid-round, and a half-hour aggregate is effectively no gate — which is
+## exactly how five line-cites survived a push after their files grew (docs-check only asks
+## whether a cited path exists; verifying the *line* is anchor-check's job, and nothing chained
+## the two). CI's own pipeline lives in .github/workflows/ci.yml — this file does not mirror it.
 round-gates: docs-check anchor-check audit spell
 	@echo "✅ round gates green — docs contract, line cites, swift patterns, spelling"
 
@@ -509,12 +510,6 @@ metallib:
 	@echo "🔧 Setting up MLX metallib..."
 	bash scripts/setup-metallib.sh
 
-## ── CI Pipeline (Local) ───────────────────────────────────────────
-
-ci-local: clean format-check audit docs-check anchor-check build test-ci
-	@echo ""
-	@echo "✅ Full CI pipeline passed locally"
-
 ## ── Help ───────────────────────────────────────────────────────────
 
 help:
@@ -547,4 +542,3 @@ help:
 	@echo ""
 	@echo "CI:"
 	@echo "  make test-ci        CI 同款全量门 (xcodebuild build-for-testing → xcrun xctest; swift test 有 metallib 路径缺陷)"
-	@echo "  make ci-local       Full local CI pipeline (clean → format → audit → build → test-ci)"

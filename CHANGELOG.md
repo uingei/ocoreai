@@ -9,6 +9,17 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-12
 
+**11-12 `make ci-local` deleted — the pipeline's one home is `ci.yml`, and the mirror had drifted both directions**
+
+- Applied the owner's rule (每个机制要挣回它的维护成本): `ci-local` had zero callers and zero doc
+  cites, its echo claimed parity CI never had (no governance job, no ubuntu text-gates, no probes
+  37–39) while its own help line omitted two steps it did run, and its body started with `clean` —
+  the foil this file's own `round-gates` comment recorded as the reason it gets skipped. The
+  affordances survive separately: `round-gates` (no-build), `test-ci` (CI-parity suite),
+  `push-ready` (tree state). The two comments that used it as a foil keep their *why*, re-pointed
+  at `.github/workflows/ci.yml` as the pipeline's one home. Gate: `make round-gates` green after
+  the cut (P5 target truth, audit recipe-parse, anchor drift 0).
+
 **11-12 a tool result now carries the name the model called — the fix the pin shipped upstream, landed the hour its file was released**
 
 - **What improved.** Both MLX message lanes dropped `name` when converting tool results, although
