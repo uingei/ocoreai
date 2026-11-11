@@ -351,6 +351,13 @@ probe_resolve_binary() {
   [ -n "$best" ] || return 1
   # stderr, because the path is the function's stdout contract and a caller captures it.
   printf 'resolved %s (dependency score %s)\n' "$best" "$best_score" >&2
+  # Staleness note: a probe scores the binary, not the source — measured 11-11, a red-sample
+  # restore re-ran probe 07 against the pre-restore binary and its FAILs read as an unflipped
+  # fix. Warn, never fail: pinning an older binary on purpose is legitimate via OCOREAI_BIN,
+  # which returns above and is provenance-owned by the caller.
+  if [ -n "$(find "$PROBE_REPO_ROOT/Sources" -name '*.swift' -newer "$best" -print -quit 2>/dev/null)" ]; then
+    printf 'STALE-BINARY WARNING: sources are newer than %s — rebuild before trusting a red or a green\n' "$best" >&2
+  fi
   printf '%s\n' "$best"
   return 0
 }
