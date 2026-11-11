@@ -117,7 +117,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — three `@available(macOS 27.0, *)` or
   SDK-gated sites (detail: `docs/agent/build-gate-reality.md`) ⇒ no blind fix and no claim of one; their
   suites now skip on this OS through `PlatformPremise.hasMacOS27` instead of reporting a red.
-- **The coreai fork's debt is 16 named open verdicts, not a drift window** (Engine/) — 8 of them from
+- **The coreai fork's debt is named open verdicts, not a drift window** (Engine/) — 8 of them from
   77a122f reading all 36 commits behind the four engine windows (7 absorbed, 21 n/a), 3 from the #388/#374
   read, 3 from the 11-05 read, 2 from the 11-06/11-09 reads (#412's GPU-error stop and #490's
   repetition-penalty carry-in: our `CoreAIPipelinedEngine.swift` still carries the pre-fix yield shape
@@ -132,7 +132,6 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   prose the reader will not guess at (two of those would be read *wrong*), so their window is not empty, it
   is unmeasurable until someone writes the canonical read-point; `make drift` prints both counts every
   round, and the eleven are listed with their sentences in that log's § Window read 11-05 (b).
-  <!-- claim:fork_verdicts_open=14 :: grep -c '^|.*\*\*open' docs/agent/coreai-fork-window-log.md -->
 - **The `+6` mlx-swift-lm window hands us a truth we cannot read until the bump** (Engine/) — read 11-05 in
   a local clone at `c8dabc6`: `GenerateCompletionInfo` gains `speculativeDecodingFallbackReason`
   (`Evaluate.swift:3083`) naming the five reasons a session with speculation configured ran plain
@@ -260,7 +259,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   collapsed); per-arm rows, the noise floor and the recipe: `scripts/eval/README.md` § the repeat recipe. The
   open half is a product call: the wire is caller-scoped (`Tools/ToolRegistry.swift:135` — no `tools[]`
   declared ⇒ no tools), while the app hands the whole registry over every turn
-  (`UI/ViewModels/ChatViewModel.swift:1098`: 40 declarations, 25,092 B, to a 4-bit checkpoint); no comparator
+  (`UI/ViewModels/ChatViewModel.swift` `toToolDefs()`: 40 declarations, 25,092 B, to a 4-bit checkpoint); no comparator
   does that (cites: `comparator-repos.md`). The field's answer, read 11-04, is not a smarter shortlist but a
   surface that is **reachable rather than resident**, and three trees reached for it independently: hermes
   ships 142 skills in `optional-skills/` that "are not copied to `~/.hermes/skills/` during setup" and are
@@ -496,7 +495,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   deterministic, not a race — the child receives the env at exec; cost = one scrub policy at the launchers that
   own a value plus the exception each needs (the probe needs its marker, the syntax checker needs `PATH`).
   Not claimed: that any checkpoint here has been observed reading a key — the finding is the code path and the
-  proved premise, not an incident. No root § Open line: the cap has 8 B of headroom, so the address stays here.
+  proved premise, not an incident. No root § Open line: the cap has no headroom to spare, so the address stays here.
 - **A wire route can point this box's camera, microphone and screen at a caller** (Handlers/, Multimodal/,
   Security/) — the same authority question as the bullet above, inbound instead of outbound. `POST
   /v1/multimodal/capture` takes `camera | microphone | screen` (`Handlers/MultimodalHandler.swift:24-28`), is keyed
@@ -523,9 +522,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   new subsystem. Not claimed: that any caller has done this — no consumer has a name here, which is why this is an
   address and not a diff.
 - **The per-guide byte cap does not reach the two largest docs in the repo** (scripts/eval/, scripts/probes/) —
-  `scripts/agents-md-contract.sh:258-261` builds the capped set from four globs (`Sources/**` + `Tests/**` +
-  `docs/**` AGENTS.md, plus `docs/agent/*.md`) at 38 945 B, so `scripts/eval/README.md` (77 077 B) and `scripts/probes/README.md` (54 644 B) are uncapped and are
-  3–8× the peer norm for a dev-tooling README (~9–26 KB across the 14 peers that have one; one 385 KB outlier).
+  `scripts/agents-md-contract.sh:309-312` builds the capped set from four globs (`Sources/**` + `Tests/**` +
+  `docs/**` AGENTS.md, plus `docs/agent/*.md`), so `scripts/eval/README.md` and `scripts/probes/README.md` are uncapped and
+  dwarf the peer norm for a dev-tooling README (~9–26 KB across the 14 peers that have one; one 385 KB outlier, measured 11-05).
   Both stayed on the 11-05 deletion pass, and for the invariant-1 reason: they are the declared single home of the
   noise band, set size and paired-flip floor. Owner call: extend the cap to tooling READMEs, or record that it
   deliberately does not reach them — the silence is what makes the two numbers unreadable as either normal or not.

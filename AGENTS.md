@@ -34,8 +34,8 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 - If upstream already has the answer, consume it or cite `file:line` — do not author a local variant.
 
 ## Adoption — the surface a stranger ranks
-- **A release is a cadence, not a green suite or one tag:** ours is 1 remote tag, 1 release
-  (`v0.1.16`) — cadence is the open item; the re-measurable field ceiling lives at
+- **A release is a cadence, not a green suite or one tag:** the surviving release is
+  `v0.1.16` — cadence is the open item; the re-measurable field ceiling lives at
   `long-horizon-goal.md` § Rung zero (audit-facts.sh is its instrument). The
   tag *is* the version (`scripts/version.sh` prints it), so no doc re-types one. `Core/UpdateCheck.swift` only
   *notifies*; build/publish must split.
@@ -135,7 +135,7 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
 
 ## Open — measured, unresolved
 Root owes the address only — area, instrument, whose call it waits on (evidence: `docs/agent/open-items.md`;
-verdicts: `closed-items-log.md`; `make audit` Class-J keeps every suite name below honest).
+verdicts: `closed-items-log.md`; `make docs-check` P6 keeps every suite name below honest).
 - **Stall: MTP stops hard, the std lane by consent** (Tools/, Engine/) — `LoopStallTerminationTests`;
   owner call: the terminal word for four faces.
 - **CoreAI / macOS 27 items unverifiable here** (Engine/) — `PlatformPremise.hasMacOS27`.
@@ -193,7 +193,7 @@ Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`, one dia
 | `Sources/ocoreai/Engine/**` | `Sources/ocoreai/Engine/AGENTS.md` | backend gates, metallib, KV/prefix accounting, steer seam, constrained decoding, rewind |
 | `Sources/ocoreai/UI/**` | `Sources/ocoreai/UI/AGENTS.md` | SwiftUI state authority, HIG duties, iOS-parity reality, focus discipline |
 | `Sources/ocoreai/Handlers/**`, `Router/`, `Models/`, `Wire/` | `Sources/ocoreai/Handlers/AGENTS.md` | DTO optionality, endpoint promises, discovery contract |
-| `Tests/**` | § Testing Quality below | exact-value assertions, scan floors, self-premise checks |
+| `Tests/**` | § Testing Quality above | exact-value assertions, scan floors, self-premise checks |
 | `scripts/eval/**` | `scripts/eval/README.md` | task success: does the agent finish real jobs |
 | `scripts/probes/**` | `scripts/probes/README.md` | live `/v1/*` wire-contract probes |
 | this file, `docs/**` | `scripts/agents-md-contract.sh` (`make docs-check`) | budgets, dead pointers, claim reproduction |
