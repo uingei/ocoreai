@@ -27,6 +27,7 @@ sweep `docs/agent/*.md`, so one hop out loses nothing.
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1684 reasoning: modelConfiguration.reasoningConfig.map -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1319 restart: while !pendingMessages.isEmpty { -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1106 public func steer( -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1982 throw RejectedToolCallError(rejection) -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2589 reasoning: context.configuration.reasoningConfig.map -->
 <!-- anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:37 capabilities: [.guidedGeneration, .toolCalling], -->
 <!-- anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:326 capabilities: [LanguageModelCapabilities.Capability] = [.guidedGeneration] -->

@@ -140,10 +140,10 @@ enum ThinkingBudgetPolicy {
 
 /// Bounded rejected-tool-call recovery policy on the standard ChatSession path.
 ///
-/// Upstream contract (mlx-swift-lm landed it in 604fae7, `ChatSession.swift:1422`):
-/// a rejected tool call is rolled back and thrown — recovery is the
-/// **caller's** responsibility ("the caller owns recovery"). ocoreai is
-/// that caller. `StdToolCallRecoveryTests` pins the boundaries (3 attempts,
+/// Upstream contract, re-read at the pin: a rejected tool call throws `RejectedToolCallError`
+/// **before any of the turn's calls dispatch** — recovery is the **caller's** job (an older quoted
+/// recovery phrase is gone upstream). ocoreai is that caller. `StdToolCallRecoveryTests` pins the
+/// boundaries (3 attempts,
 /// exact corrective prompt).
 ///
 /// Fork-vs-upstream disclosure: upstream retries zero times; the bound here
@@ -268,12 +268,14 @@ struct TokenBiasCache: @unchecked Sendable {
 /// Guided 生成 `incompleteOutput` 吸收判定 — 上游 canonical 对齐, `@testable` 可测 seam。
 ///
 /// 上游实证:
-///   - `GuidedGenerationLoop.swift:466` — maxTokens 耗尽且语法未终止时
+///   - `MLXGuidedGeneration/GuidedGenerationLoop.swift` — maxTokens 耗尽且语法未终止时
 ///     `throw GuidedGenerationError.incompleteOutput` (emit 已流式输出, 部分文本在)。
-///   - `MLXFoundationModels/MLXLanguageModel.swift:1386/1704` — canonical 下游处理:
-///     `catch GuidedGenerationError.incompleteOutput { incomplete = true }` 保留已产出,
+// anchor:mlx-swift-lm Libraries/MLXGuidedGeneration/GuidedGenerationLoop.swift:478 throw GuidedGenerationError.incompleteOutput
+///   - `MLXFoundationModels/MLXLanguageModel.swift` 的两处 `catch GuidedGenerationError.incompleteOutput` —
+// anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:1539 } catch GuidedGenerationError.incompleteOutput {
+///     canonical 下游处理: `incomplete = true` 保留已产出,
 ///     照常收尾, **不 throw**; prematureEOS 不在吸收清单(上游只 catch incompleteOutput)。
-///   - `GuidedGenerationError.swift:8-14` (pin 991266ad3, 全文件 15 行) — 上游对该错误的原文
+///   - `GuidedGenerationError.swift` (全文件 15 行) — 上游对该错误的原文
 ///     只描述结构: "Generation exhausted `maxTokens` before the grammar reached a stop state.
 ///     The output is incomplete"; `prematureEOS` :12-14 同样只声明 incomplete。上游 **不**在此
 ///     文件规定下游如何处理 ⇒ 吸收语义取自下面两条 emit 现场的实证, 不取自本文件。
@@ -302,13 +304,14 @@ func absorbGuidedGenerationPartialOutput(
 /// Completion-zone reserves for `GuidedGenerationLoop`, clamped to the request
 /// budget.
 ///
-/// Upstream recipe (`MLXLanguageModel.swift:1427-1431`): soft nudge starts
+/// Upstream recipe (`MLXLanguageModel.swift`'s `CompletionReserve.estimate` site): soft nudge starts
 /// `max(structural×3, maxTokens÷4)` tokens before the budget, hard force starts
 /// `structural×8` before it. With a modest `max_tokens` that formula pushes
 /// `hardReserve` to or past the whole budget, so *every* sampled step runs in the
-/// force-closing zone — the opposite of what the zones are for (upstream
-/// `GuidedGenerationLoop.swift:231-245`: hard = the last `hardReserve` tokens,
+/// force-closing zone — the opposite of what the zones are for (upstream's Soft/Hard-zone
+/// comment block in `GuidedGenerationLoop.swift`: hard = the last `hardReserve` tokens,
 /// i.e. hard < completion).
+// anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:1122 structuralReserve * 3, maxTokens / 4)
 ///
 /// Live, 10-13, gemma-4-e2b-it-4bit, `json_schema` `{"answer": integer}`:
 /// `max_tokens` 24 and 32 → `{"answer"\n  \n:1111…` until the budget, never
