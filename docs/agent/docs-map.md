@@ -7,6 +7,7 @@ Long form for § Documentation Map in `AGENTS.md`.
 | `AGENTS.md` (root) | Agent, every session | a convention or architecture fact drifted — keep lines accurate, add nothing dated |
 | `Sources/ocoreai/{Engine,UI,Handlers}/AGENTS.md` | Agent, inside that subtree | a rule that only bites inside one area belongs there, so it costs context only there |
 | `docs/agent/*.md` | Human + Agent, one hop away | when a verdict needs more than three lines, move it here and leave a pointer |
+| `docs/agent/coreai-consumption-refactor.md` | Human + Agent | proposal (owner decision, not implemented): consume coreai-models via trait-gated SPM instead of forking — change surface + phases |
 | `CHANGELOG.md` | Human | every user-visible change, with its commit |
 | `README.md` | Human | the product as it ships today; `make docs-check` P10 diffs it against the code that serves |
 | `README.zh.md` | Human | the faithful Chinese mirror of `README.md` — the only permitted Chinese file (P18) |
