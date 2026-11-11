@@ -1,9 +1,9 @@
 {
   "note": "versioned upstream drift baseline \u2014 values are SHAs (full or short, compare tolerant). scripts/upstream-drift.sh",
-  "checked_at_utc": "2026-11-09T10:39:53Z",
+  "checked_at_utc": "2026-11-11T16:01:11Z",
   "baselines": {
     "mlx-swift-lm": "4ab2679",
-    "coreai-models": "22b0eaa",
+    "coreai-models": "0bfb548",
     "codex": "f2ac998"
   },
   "sources": {
@@ -11,7 +11,7 @@
     "coreai-models": "apple/coreai-models",
     "codex": "openai/codex"
   },
-  "adopt_provenance": "11-09 round \u2014 full adopt: coreai-models window 1c7c71f..22b0eaa (+11) read and adjudicated row by row in docs/agent/coreai-fork-window-log.md \u00a7 'Window read 11-09': 3 commits touching mirror files judged there (#485 inert, #420 inert by pre-existing local ruling, #490 consume-when-verifiable \u2014 the second named port, now 16 named open verdicts in docs/agent/open-items.md), #416's image-file hunk inert at file level, and the other 8 n/a (docs, version bump, export-side python, llm-server Swift with zero mirror consumption). All 14 baselined per-file rows read 0; the 35 no-baseline mirrors are the other face, unchanged by this adopt. Same day, second adopt: mlx-swift-lm axis 991266a → 4ab2679, set to match the SPM pin (the script ignores the JSON value there — the pin is the baseline, upstream-drift.sh:221-234 — but the stale value showed '+6 deliberately LEFT, unread' to human readers while the pin sat three bumps ahead; the true window 991266a..pin is 32 commits, read bump-round by bump-round, and the 4 that a70ef531 (10-31) crossed un-audited — #731 #745 #746 #740 — got their per-commit verdicts the day this value moved: CHANGELOG 11-09 'the shipped pin had swallowed a window nobody read').",
+  "adopt_provenance": "11-09 round \u2014 full adopt: coreai-models window 1c7c71f..22b0eaa (+11) read and adjudicated row by row in docs/agent/coreai-fork-window-log.md \u00a7 'Window read 11-09': 3 commits touching mirror files judged there (#485 inert, #420 inert by pre-existing local ruling, #490 consume-when-verifiable \u2014 the second named port, now 16 named open verdicts in docs/agent/open-items.md), #416's image-file hunk inert at file level, and the other 8 n/a (docs, version bump, export-side python, llm-server Swift with zero mirror consumption). All 14 baselined per-file rows read 0; the 35 no-baseline mirrors are the other face, unchanged by this adopt. Same day, second adopt: mlx-swift-lm axis 991266a \u2192 4ab2679, set to match the SPM pin (the script ignores the JSON value there \u2014 the pin is the baseline, upstream-drift.sh:221-234 \u2014 but the stale value showed '+6 deliberately LEFT, unread' to human readers while the pin sat three bumps ahead; the true window 991266a..pin is 32 commits, read bump-round by bump-round, and the 4 that a70ef531 (10-31) crossed un-audited \u2014 #731 #745 #746 #740 \u2014 got their per-commit verdicts the day this value moved: CHANGELOG 11-09 'the shipped pin had swallowed a window nobody read').",
   "resolved_via": {
     "mlx-swift-lm": "api",
     "coreai-models": "api",

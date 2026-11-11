@@ -7,7 +7,22 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-11-11
+## [Unreleased] — 2026-09-05 → 2026-11-12
+
+**11-12 coreai-models +4 window adjudicated by file-level diff, not axis-word — n/a for consumed code, baseline advanced to `0bfb548`**
+
+- **What improved.** `make drift` exit 10 named a +4 window (`22b0eaa`..`0bfb548`). Each commit was
+  adjudicated by its actual `git diff --name-only` intersected with the mirrored upstream paths:
+  #503/#482/#483 are python export-side, #504 python packaging (no export surface here), and the RNG
+  consolidation #273/#421 is inert for consumed code — `WanPipeline.swift`'s only hunk is
+  `TorchRandomSource` → `CoreAIShared.TorchRandomSource` (module qualification, behaviour identical),
+  `SeededRandomNumberGenerator` a rename. No open verdict added; the 16 named ports are unchanged.
+- **Same-session output.** `api.github.com` confirmed HEAD `0bfb548`; after `adopt coreai-models`,
+  drift reads `coreai-models HEAD=0bfb548d1 0 new ✓ 与基线同点` (other axes untouched).
+- **Three questions.** Improved: the coreai axis window is closed with file evidence, not a keyword
+  guess. Proved by: the per-commit diffs + the drift re-read. Gate reds: `make drift` coreai axis if
+  the baseline regresses; the window-log row carries the evidence. Owed follow-up: the RNG mirrors'
+  come-from headers relabel `CoreAIDiffusionPipeline/RNG` → `CoreAIShared/RNG` at next touch.
 
 **11-11 the generated-client question closed the field's way — no client artifact, the canonical SDK is the consumer, and its first pass caught a real face-divergence**
 
