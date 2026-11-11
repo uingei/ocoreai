@@ -1,15 +1,43 @@
 # CoreAI lane: consume upstream, stop forking — a proposal
 
-Status: **proposal for owner decision**, not a decided plan. Evidence gathered 11-12; nothing here is
-implemented. The hand-ports already landed (fp8 #328, #412 pending CI) are patches on the *current*
-fork and stand regardless of this decision.
+Status: **proposal for owner decision — Phase 2 integration found a fundamental platform wall (below);
+consumption is gated on a delivery-model change.** Evidence gathered 11-12; the integration scaffolding
+was reverted, nothing here is implemented. The hand-ports already landed (fp8 #328, #412 pending CI)
+are patches on the *current* fork and stand regardless.
+
+## Phase 2 integration finding (11-12): the platform wall
+
+Integration into ocoreai itself (trait + dep + adapter skeleton, since reverted) exposed what the
+isolated spike could not: **CoreAILM is a macOS 27 product and cannot link into ocoreai's macOS 14
+target.** SwiftPM's platform check is manifest-level (`product.minPlatform ≤ target.platform`); even
+`-Xswiftc -target arm64-apple-macosx27.0` does not bypass it (`this target supports 14.0`). Contrast:
+mlx-swift-lm's floor is macOS 14, so the FM adapter links; coreai-models' floor is macOS 27, so it
+cannot. A second, solvable collision also surfaced (ocoreai's local `CXGrammar` C bridge renamed
+`CXGrammarFork` to avoid the target-name clash with upstream's) — but the platform wall is fundamental.
+
+**This corrects the proposal's premise:** the fork is *not* "an accident of the platform floor" — it is
+the mechanism that reconciles macOS 14 delivery with macOS 27 CoreAI. Source-level `@available(macOS 27)`
+gating compiles macOS 27 code into the macOS 14 single binary; product linking cannot. omlx/Bionic
+consume engines because they lack this "macOS 14 binary must also carry macOS 27 CoreAI" constraint.
+
+**Consumption therefore requires a delivery-model change — an owner decision:**
+1. **Keep the fork + mechanize maintenance** (per-file diff + 3-way merge + verbatim script-copy) —
+   respects the platform constraint, cuts the sync tax, no delivery change. The pragmatic path.
+2. Raise ocoreai's floor to macOS 27 — enables consumption, abandons macOS 14 delivery.
+3. Runtime-loaded engine extension (the Bionic model) — macOS 14 host binary dlopens a macOS 27 engine
+   library; high cost in Swift.
+
+The "no fork" north star is blocked by the platform floor unless the delivery model changes. Phases 0–1
+remain proven (trait-gating; CoreAILM consumable in a *macOS 27 consumer*); Phase 2 integration into the
+macOS 14 target is gated on the decision above.
 
 ## The proposal
 
 ocoreai's essence is `mlx-swift-lm + coreai-models + agent`. The MLX side already **consumes**
 upstream (SPM pin, MLX lane through upstream `ChatSession`); sync there is `bump pin`. The CoreAI
-side **forks** ~9000 lines instead — an accident of the platform floor, not a necessity. Make CoreAI
-symmetric with MLX:
+side **forks** ~9000 lines instead. The fork is the platform-floor workaround (see the Phase 2 finding
+above), not mere inertia — but it carries a perpetual hand-sync tax. The aspiration is to make CoreAI
+symmetric with MLX *if the delivery model allows*:
 
 - `coreai-models` becomes a **trait-gated SPM dependency** (macOS 27 lane only).
 - ocoreai owns the **IR + agent + a thin adapter**, not engine internals.
@@ -90,6 +118,9 @@ are passed through the adapter's config. Forking created these "divergences"; co
 
 ## What this is not
 
-Not a commitment to implement, and not a claim the refactor is cheap. It is the grounded target
-architecture the evidence points to: **the best sync is no fork.** The decision is whether to spend
-the one-time refactor to reach it.
+Not a commitment to implement, and not a claim the refactor is cheap or even currently feasible. The
+"best sync is no fork" aspiration is **blocked by the macOS 14 platform floor** (Phase 2 finding):
+consuming CoreAILM requires a macOS 27 delivery target ocoreai does not have. The realistic default is
+**keep the fork and mechanize its maintenance**; consumption stays a north star gated on an explicit
+delivery-model decision (raise the floor, or runtime-load the engine). The evidence and change surface
+above are kept so that decision, if taken, starts from measured ground rather than guesswork.
