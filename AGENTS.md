@@ -219,8 +219,8 @@ against upstream first). Which doc each audience reads, and when: `docs/agent/do
 - **One cwd, several sessions:** stage explicit paths and commit only this session's files — never
   `git add -A`/`git add .`, which sweeps in another session's half-work.
 - Verification is three layers: grep → compile → read the matched lines; a single-layer check is
-  speculation. `swift build` exit 0 before any completion claim; findings cite `file:line`; label
-  inference as inference.
+  speculation. `swift build` exit 0 before any completion claim; findings cite `file:line`; living
+  prose cites symbols; label inference as inference.
 - Before writing a symbol, grep for the mechanism that already exists; before calling a missing upstream
   API, check § Upstream.
 - **Footprint ladder — take the highest rung that solves it:** consume upstream → extend an existing seam →
