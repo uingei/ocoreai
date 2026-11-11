@@ -9,6 +9,26 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-12
 
+**11-12 the gate-cost audit's one cut: `make links` + `scripts/link-check.sh` deleted — a red that means
+nothing is worse than no gate**
+
+- The audit ran three tests per gate: can it redden, has it reddened with an acted-on cause, does
+  anything call it. `make links` failed all three by its own Makefile comment's testimony: not in
+  CI (so a local run saves no CI red), egress-throttled to "10-13 of 28" answers from this host
+  (its red is noise, and an ignored red trains people to ignore reds), and its offline-decidable
+  half already has its enforcement home in docs-check P19 — a second home for a decided decision.
+  Its only live caller was P19's own red-path, which told the reader to run `make links`; that
+  remedy was re-pointed at a manual curl in the same commit (a cut must re-home the remedy, not
+  orphan it — my first "zero references" reading was wrong and the P19 text is the correction).
+  The three `OCOREAI_LINK_*` knobs died with the script.
+  Acquitted on evidence, not by default: `spell` (a recorded red — main sat red since `f820d93`
+  until the two payloads were pinned in `.codespellrc`), `release-artifact-check` (rare surface ≠
+  can't bite; published-byte parity is the costliest claim), `docs-type-existence` (premised floor,
+  CI seat, zero reds is not the conviction criterion — vacuity is). Two undiscoverable non-gates
+  stay kept and named here: `collapse-discriminators.sh` (the margin-probe hunt's arm A–F
+  instrument, needs a weights host to run) and `verify-installed-release.sh` (the only instrument
+  that judges installed == released — the open item's future read-back).
+
 **11-12 `make ci-local` deleted — the pipeline's one home is `ci.yml`, and the mirror had drifted both directions**
 
 - Applied the owner's rule (每个机制要挣回它的维护成本): `ci-local` had zero callers and zero doc

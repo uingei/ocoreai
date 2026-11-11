@@ -25,7 +25,7 @@ else
   endif
 endif
 
-.PHONY: all build release release-mac27 app dmg test test-ci test-clt probes format format-check audit docs-check anchor-check round-gates clean metallib help push-ready ci-status spell links install-hooks openapi sf-pin docs-budget drift
+.PHONY: all build release release-mac27 app dmg test test-ci test-clt probes format format-check audit docs-check anchor-check round-gates clean metallib help push-ready ci-status spell install-hooks openapi sf-pin docs-budget drift
 
 all: build
 
@@ -435,12 +435,6 @@ openapi: build
 ## text gate of this repo spends an arm64 minute any more.
 spell:
 	bash scripts/spell-check.sh
-
-## Opt-in outbound-link probe. NOT in round-gates and NOT in CI: it needs egress, and egress to
-## github.com from this host is flaky (a throttled run answers 10-13 of 28). What CI enforces is
-## the offline-decidable half — P19 in docs-check, which refuses any URL a human has not verified.
-links:
-	bash scripts/link-check.sh
 
 ## Opt-in local hooks from .pre-commit-config.yaml. Needs pre-commit on PATH
 ## (python3 -m pip install --user pre-commit); nothing here is required to contribute, CI runs

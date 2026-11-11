@@ -1088,11 +1088,12 @@ if knob_unwired:
 knob_pairs = len(knob_doc_named) - len(knob_unwired)
 
 # ── P19: every outbound link a doc points at was verified to resolve ─────────────────────────
-# Why this is offline: the live probe (scripts/link-check.sh, `make links`) is honest but cannot be
-# a blocking gate here — egress to github.com from this host is flaky, and on the day this gate was
-# written a throttled run answered 13 of 28 URLs and an earlier version of the probe called that
-# GREEN, hiding the two dead links it existed to catch. A lock that needs the network to know it is
-# red is the gitleaks pattern. So the network part stays opt-in, and what CI checks is decidable
+# Why this is offline: a live probe existed, and it could not be a blocking gate — egress to
+# github.com from this host is flaky, and on the day this gate was written a throttled run answered
+# 13 of 28 URLs and an earlier version of the probe called that GREEN, hiding the two dead links it
+# existed to catch. A lock that needs the network to know it is red is the gitleaks pattern. The
+# probe was deleted once this message was its only caller; the network part stays a manual curl
+# from whoever P19 reddens, and what CI checks is decidable
 # offline: a doc may only cite a URL a human confirmed, on a stated date.
 #
 # The defect that started it (verified, same host, 10-27): README.md and README.zh.md both cited
@@ -1124,8 +1125,8 @@ VERIFIED_URLS = {
     "https://github.com/uingei/ocoreai/actions/workflows/ci.yml": "10-27",
     "https://github.com/uingei/ocoreai/actions/workflows/ci.yml/badge.svg": "10-27",
     # Fetched 10-29. Two earlier attempts from this host returned no answer at 75 s and one answered
-    # in 68 s, so a stall here is github.com throttling, not a dead path — the same reading
-    # scripts/link-check.sh records for its own serial setting.
+    # in 68 s, so a stall here is github.com throttling, not a dead path — which is why the serial
+    # setting and the slow-low reads are recorded here rather than retried in parallel.
     "https://github.com/uingei/ocoreai/actions/workflows/package.yml": "10-29",
     "https://github.com/uingei/ocoreai/actions/workflows/package.yml/badge.svg": "10-29",
     "https://github.com/uingei/ocoreai/security/advisories/new": "10-27",
@@ -1159,8 +1160,8 @@ if len(cited_urls) < env_int("OCOREAI_URL_FLOOR"):
                 % (len(cited_urls), env_int("OCOREAI_URL_FLOOR")))
 _unlisted = sorted(u for u in cited_urls if u not in VERIFIED_URLS)
 if _unlisted:
-    fail.append("P19 %d outbound link(s) in the docs were never verified to resolve: %s — check them "
-                "with `make links` (needs egress) and add the ones that resolve, with today's date"
+    fail.append("P19 %d outbound link(s) in the docs were never verified to resolve: %s — curl each "
+                "one (needs egress; a stall is throttling, re-read it slow before calling it dead) and add the ones that resolve, with today's date"
                 % (len(_unlisted), ", ".join(_unlisted[:5])))
 _stale = sorted(u for u in VERIFIED_URLS if u not in cited_urls)
 if _stale:
