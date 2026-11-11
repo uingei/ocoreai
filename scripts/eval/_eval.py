@@ -292,7 +292,7 @@ def main():
         ws, model, session_id, needed = sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
         t = task(sys.argv[6])
         specs = tool_specs(set(needed.split()))
-        names = ", ".join(sorted((s.get("function") or {}).get("name", "?") for s in specs))
+        names = ", ".join(sorted(spec_name(s) or "?" for s in specs))
         head = (
             t["prompt"]
             + "\n\nWorkspace directory (absolute): "
