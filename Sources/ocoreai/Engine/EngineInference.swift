@@ -104,6 +104,20 @@ func promptMessagesCarryingInstructions(
     return [Chat.Message(role: .system, content: instructions)] + messages
 }
 
+/// id → name from the turn's own assistant `tool_calls`, so a tool result carries
+/// the name the model called even when the client sends none (Anthropic's
+/// tool_result has no name field at all). A caller-supplied `name` wins; this
+/// is the correlation rung below it, never a second truth.
+nonisolated func toolResultNamesByID(in messages: [Message]) -> [String: String] {
+    var names: [String: String] = [:]
+    for message in messages where message.role == "assistant" {
+        for call in message.toolCalls ?? [] {
+            names[call.id] = call.function.name
+        }
+    }
+    return names
+}
+
 extension EnginePool {
     // MARK: - Denial honesty (tool-result contract)
 
@@ -1861,6 +1875,7 @@ extension EnginePool {
         }
 
         let nonSystemMessages = messages.filter { $0.role != "system" }
+        let toolNamesByID = toolResultNamesByID(in: nonSystemMessages)
 
         var mlxMessages: [Chat.Message] = nonSystemMessages.map { msg in
             let role: Chat.Message.Role =
@@ -1876,10 +1891,12 @@ extension EnginePool {
                 return Chat.Message.assistant("", toolCalls: mlxTCs)
             }
 
-            // Tool result — use factory with id param for tool call correlation
+            // Tool result — id correlates the call; name tells the model WHICH tool
+            // answered (upstream `Chat.Message.tool` carries it into the rendered
+            // message, and an unlabelled result reads as noise on multi-call turns).
             if msg.role == "tool", let tid = msg.toolCallID {
                 let contentStr = contentToString(msg.content).0
-                return Chat.Message.tool(contentStr, id: tid)
+                return Chat.Message.tool(contentStr, id: tid, name: msg.name ?? toolNamesByID[tid])
             }
 
             // Default: content-based construction via general init
@@ -4215,9 +4232,11 @@ extension EnginePool {
                                                 .mapValues { $0.anyValue } as? [String: Any] ?? [:])
                                 )
                             }
-                            // Append tool result message for next iteration
+                            // Append tool result message for next iteration — the
+                            // name is in scope here, so this lane never guesses.
                             mtpMessages.append(
-                                Chat.Message.tool(result, id: toolCall.id)
+                                Chat.Message.tool(
+                                    result, id: toolCall.id, name: toolCall.function.name)
                             )
                         }
                         // This lane owns its iteration, so a terminal stall ends it rather

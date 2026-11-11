@@ -9,6 +9,31 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-12
 
+**11-12 a tool result now carries the name the model called — the fix the pin shipped upstream, landed the hour its file was released**
+
+- **What improved.** Both MLX message lanes dropped `name` when converting tool results, although
+  `Chat.Message.tool(_:id:name:)` at the pin carries it into the metadata and the generator emits
+  `name` when present (upstream `Chat.swift`, both read at the line this session). Client history
+  over `/v1/chat/completions` and the Anthropic face (whose `tool_result` has no name field at all)
+  therefore handed the model an answer with no author on multi-call turns. Now: caller-supplied
+  `name` first, else the id → name correlation the turn itself contains (`toolResultNamesByID`,
+  resolved once per request), else nil — one ladder, no second truth. The MTP lane names from the
+  call in scope, where it never had to guess.
+- **Same-session output.** `ToolResultNameTests` 3/3 (map exact-value, multi-turn, DTO round trip
+  with absent-name-stays-nil). The `FILTER=Tool` regression pass (607 tests, 128 suites) first
+  redded exactly one item — `AnthropicThinkingAndToolChannelTests`' **quoted-literal gate**, which
+  pins the engine's mapping line so a rename cannot leave three files' comments silently wrong.
+  That is the gate doing its designed job; the quote was synced to the new line (same intent, now
+  pinning the name threading too) and is green. Fourteen anchors moved by the +19 lines were
+  re-pointed (88 checked, drift 0). One caught-by-my-own-suite placement error: the helper first
+  landed inside `extension EnginePool` and was invisible to `@testable` callers — its test failed
+  to compile it into scope, and it moved to file scope.
+- **Three questions.** Improved: the prompt the model reads names which tool answered, on both
+  engine lanes and both wire routes. Proved by: 3/3 unit, 607-test regression green, drift 0.
+  Gate: `ToolResultNameTests` reddes if the ladder drops a rung; the quoted engine line reddes if
+  the mapping is renamed away. The template-printing leg past the generator waits a host with
+  weights — stated, not claimed.
+
 **11-12 coreai-models +4 window adjudicated by file-level diff, not axis-word — n/a for consumed code, baseline advanced to `0bfb548`**
 
 - **What improved.** `make drift` exit 10 named a +4 window (`22b0eaa`..`0bfb548`). Each commit was

@@ -473,8 +473,9 @@ struct AnthropicSharedAssemblySourceTests {
         let s = try source("Sources/ocoreai/Engine/EngineInference.swift")
         #expect(s.contains("case \"tool\": .tool"), "the template path needs the tool role")
         #expect(
-            s.contains("Chat.Message.tool(contentStr, id: tid)"),
-            "results pair with calls by id on the engine side")
+            s.contains(
+                "Chat.Message.tool(contentStr, id: tid, name: msg.name ?? toolNamesByID[tid])"),
+            "results pair with calls by id, and carry the name the model called")
         #expect(
             s.contains("Chat.Message.assistant(\"\", toolCalls: mlxTCs)"),
             "calls reach the template as structured calls")
