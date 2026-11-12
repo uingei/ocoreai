@@ -103,7 +103,10 @@ off, no homepage, `VISION.md` absent, 0 watchers (`subscribers_count`, 11-09). E
    withdrawn with its tag; `v0.1.15`'s version-anchor tag followed it off the remote — 11-09: `tags_remote=1`.
    The asset's `download_count` is a cumulative counter (5 at 11-09), so the 11-07 "downloaded within the hour"
    cannot be re-derived from it and stands as diary inference.
-<!-- claim:releases_published=1 :: curl -sL --max-time 15 api.github.com/repos/uingei/ocoreai/releases | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 9**9)' -->
+<!-- The else-branch names the reason instead of a bare sentinel: on 11-12 the anonymous rate-limit
+     made this claim print 9**9 (387420489) and the red row read like a value drift, costing a
+     mis-read round — a failing report owes the cause, not the symptom (§ Error Handling). -->
+<!-- claim:releases_published=1 :: curl -sL --max-time 15 api.github.com/repos/uingei/ocoreai/releases | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else "UNAVAILABLE:"+str(d)[:70])' -->
    Why this claim is `=` where the repo's other pins are `>=` (a stated ruling, 11-06, after a round
    argued the opposite and the next round pinned it anyway): `docs-check` is not on the publish path,
    so the first published release reds nothing that gates shipping — it generates the to-do that
