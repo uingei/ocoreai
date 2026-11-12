@@ -118,7 +118,9 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_FLOOR_DIARY_PAIRED:=40}"   # CHANGELOG entries whose heading was found above their first bullet
 : "${OCOREAI_FLOOR_CLAIM_SHARED_IDS:=3}"  # P4b's premise: claim ids written in more than one doc
 #   (5 today — the licence counts, `spm_deps`, `global_rate_set`, mirrored across root + the README pair)
-: "${OCOREAI_AGENTS_MAX_AREA:=53197}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
+: "${OCOREAI_AGENTS_MAX_AREA:=53668}"  # each Sources/**/AGENTS.md or docs/agent/*.md (measured 10-27:
+#   RAISED 11-12, visibly: the `harmony` registry row (a disk↔row debt, owner revision same day — rows are
+#   added when a live cite reaches for a tree) landed on a cap pinned to the file's own old size.
 #   RAISED 10-28, visibly, per the rule at the head of this file: "Rung zero — adoption" plus the 10-28
 #   adoption audit (CHANGELOG `adoption-audit-10-28`) carried long-horizon-goal.md to 15,609 B, past the file
 #   this cap was pinned to. What binds is our chain budget (B2, 32 KiB) and the root ratchet (B1), and

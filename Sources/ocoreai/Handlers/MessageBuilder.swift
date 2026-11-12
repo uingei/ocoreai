@@ -48,7 +48,10 @@ struct MessageBuilderContext {
 ///
 /// vllm routes both to the developer channel (`entrypoints/openai/responses/harmony.py:128`,
 /// `entrypoints/openai/parser/harmony_utils.py:436`) and sglang admits both as generic
-/// message roles (`srt/entrypoints/openai/protocol.py:727-729`). `developer` is the role
+/// message roles (`srt/entrypoints/openai/protocol.py:727-729`). Both are secondary for the
+/// semantics: the role set is defined by the format's own tree — `openai/harmony`
+/// `src/chat.rs:44-52` carries `system` and `developer` as first-class roles beside
+/// user/assistant/tool, read 11-12 at its `abd677f`. `developer` is the role
 /// OpenAI's current spec uses in place of `system`.
 nonisolated let instructionMessageRoles: Set<String> = ["system", "developer"]
 

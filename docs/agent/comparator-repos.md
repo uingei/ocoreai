@@ -38,6 +38,13 @@ Contains: the same compat axis, second opinion — discriminated `delta.type` un
   which makes two serving trees generating their HTTP contract beside opencode's codegen package.
 Borrow: consumed, cited by file:line; permission-as-data is the honest shape for CI rights at scale
 
+- `harmony` — openai/harmony: the gpt-oss response format itself (Rust core, Py/JS bindings); 4 538 stars,
+dormant since 04-08 — a format library's lifecycle, not a harness cadence.
+Contains: the role set (`src/chat.rs:44-52`: user/assistant/system/developer/tool) that our
+`MessageBuilder.swift` developer-channel decision now cites at the primary (was vllm/sglang secondary;
+read 11-12 at `abd677f`).
+Borrow: primary cite for role semantics only; no code adoption
+
 - `omlx` — MLX serving project, 23 108 stars — the closest published *distribution* analogue to us: a Python
   MLX server in a native SwiftUI menubar app
 Contains: per-model serving knobs, and the four-part install machine — DMG, in-app auto-update, a
