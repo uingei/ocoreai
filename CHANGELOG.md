@@ -9,6 +9,8 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-12
 
+**11-12 cadence's unscripted link finally scripted — `make ship` cuts the next tag; publish stays CI's, push stays the operator's** — what improved: Goal § Rung 1's open item is cadence, and the field study (ollama/codex = human pushes `v*` tags into a green pipeline; goose = machine version-bump PR) showed the only missing ring here was "after merges land, someone bumps the number" — ci.yml's ten-step `v*` leg, `scripts/version.sh` and `scripts/release-notes.sh` were all already proven at `v0.1.16`. `scripts/ship.sh` (+ `make ship` gate on `push-ready`): refuses on a dirty tree / HEAD-not-on-origin / an already-published number / a stale local tag (the `v0.1.14`–`v0.1.15` shape), else tags `patch+1` locally and renders the machine-compiled notes; the outward verb needs `SHIP_PUSH=1`. Same-turn proof: refusal sampled live twice (dirty-tree, already-published-number), the green path is one operator push away — this commit's push makes `v0.1.17` the first tag-per-merge. Gate: the refusal branches are the gate (each is an exit-1 a reader acts on); publish regression stays judged by the ci.yml job's read-back sha-parity.
+
 **11-12 probe 57 prices the deepest face of the tool loop: a ~2 500-token tool result bills 5 tokens
 on the shipped default checkpoint — and the "no weights on this host" claim died first**
 

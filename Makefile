@@ -487,6 +487,12 @@ push-ready:
 ci-status:
 	@bash scripts/ci-status.sh
 
+# Cadence (Goal § Rung 1): cut the next tag for the ci.yml `v*` leg. The machine does every local step
+# and refuses loudly; the one outward verb (push) is the operator's — see scripts/ship.sh for the shape.
+ship:
+	@$(MAKE) --no-print-directory push-ready
+	@bash scripts/ship.sh
+
 # Shrink-only ratchet: re-pin the root cap to the file's current size. Refuses to raise it —
 # text goes in only when text comes out.
 docs-budget:
@@ -528,6 +534,9 @@ help:
 	@echo "  make format-check   Check format compliance (exit 1 if dirty)"
 	@echo "  make audit          Run static audit (failure pattern check)"
 	@echo "  make openapi        Regenerate openapi.json from the built binary (a test asserts it matches)"
+	@echo ""
+	@echo "Release:"
+	@echo "  make ship           Cut the next vX.Y.Z tag for the CI publish leg (push stays yours)"
 	@echo ""
 	@echo "Dev:"
 	@echo "  make clean          Remove build artifacts"
