@@ -69,8 +69,8 @@ delivers on the next request, or its contract is fiction (wire guide: `Handlers/
 
 ## Video is disclosed where a turn completes, not where bytes arrive
 `/v1/models` may say `video_input=delivered` only once a turn that carried frames has *completed*:
-the single record site is `recordVideoDelivery` (`EngineInference.swift:3424`), called from the
-completion path (`EngineInference.swift:4968`), and the prompt size in its evidence line is upstream's
+the single record site is `recordVideoDelivery` (`EngineInference.swift:3100`), called from the
+completion path (`EngineInference.swift:4646`), and the prompt size in its evidence line is upstream's
 `completionInfo.promptTokenCount` — never a bytes/4 heuristic.
 Counting at the media hand-off instead would claim video for turns that never produced an answer;
 reading `processor_class` would claim it for checkpoints whose processor ignores `input.videos`

@@ -19,7 +19,9 @@
   (route truth is `V1EndpointCatalog` + its set-equality test), `Middleware/` for auth + 404 shape.
 - **Engine** — `Engine/EnginePool.swift` (orchestrator: model pool, LRU, HardwareRouter pressure
   eviction), `Engine/EngineInference.swift` (dispatch; MLX and CoreAI branches inline under the
-  single `#if canImport(CoreAI)` gate — there is no `BackendProtocol`), `Engine/SessionPool.swift`
+  single `#if canImport(CoreAI)` gate — there is no `BackendProtocol`),
+  `Engine/EngineInferenceGuided.swift` (the grammar-constrained lane, a real `EnginePool` method
+  whose parameters name every input), `Engine/SessionPool.swift`
   (message-level feed dedupe; whether a prefill was skipped is upstream's decision, surfaced as
   `cachedPromptTokenCount`), `Engine/GuidedGeneration/ConstrainedGenerationCapable.swift` (grammar
   on both paths), `Engine/CoreAIPipelinedEngine.swift` (GPU constrained decoding, MPS samplers),
