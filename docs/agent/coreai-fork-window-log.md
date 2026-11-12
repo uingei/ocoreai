@@ -202,7 +202,7 @@ verdict (the 16 named ports are unchanged); the axis baseline advances to `0bfb5
 
 | commit | verdict | why |
 |---|---|---|
-| `04bbe25` #482/#483 — DiffusionGemma RoPE inv_freq float32 | **n/a** | `python/.../diffusion_gemma.py` + its python test only; export-side, no export surface here (§ Upstream 2). |
-| `2bec348` #504 — install flash kmeans alongside coreai-opt | **n/a** | `python/pyproject.toml` + `uv.lock`; python packaging. |
+| `04bbe25` #482/#483 — DiffusionGemma RoPE inv_freq float32 | **n/a** | `coreai-models` `python/.../diffusion_gemma.py` + its python test only; export-side, no export surface here (§ Upstream 2). |
+| `2bec348` #504 — install flash kmeans alongside coreai-opt | **n/a** | `coreai-models` `python/pyproject.toml` + `uv.lock`; python packaging. |
 | `e7b356c` #273/#421 — consolidate RNG into CoreAIShared | **inert for consumed code; provenance relabel owed** | File-level: `WanPipeline.swift`'s only hunk is `TorchRandomSource(seed:)` → `CoreAIShared.TorchRandomSource(seed:)` (module qualification, behaviour byte-identical); `SeededRandomNumberGenerator.swift` is a rename (2 lines). ocoreai flattened the modules and redefined the types locally, so the move changes no consumed code. Owed: the RNG mirrors' come-from headers (`CoreAIDiffusionPipeline/RNG` → `CoreAIShared/RNG`) relabel at next touch — a header update, not a port. |
-| `0bfb548` #503 — sort ALL_PRESET_NAMES | **n/a** | `python/.../presets.py` + its python test; export-side. |
+| `0bfb548` #503 — sort ALL_PRESET_NAMES | **n/a** | `coreai-models` `python/.../presets.py` + its python test; export-side. |
