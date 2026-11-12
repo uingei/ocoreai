@@ -27,6 +27,15 @@ for pat in 'TODO' 'catch {}' 'try!' 'fatalError'; do
 done
 echo "--- god functions ---"
 grep -n "func runInferenceBody" Sources/ocoreai/Engine/EngineInference.swift; wc -l Sources/ocoreai/Engine/EngineInference.swift
+echo "--- maintenance cost (per-commit tax, last 300 commits; prints, no verdict) ---"
+# Field base measured 11-12 on the same heuristic: no-product-code commits codex 27% / ollama 28% /
+# opencode 36% / goose 55%; changelog co-touch 0 / 1 / 11 / 4 per 300 (ours measured 100%, CHANGELOG
+# 11-12). The row is a ruler, not a gate: a rising tax says where attention went, not that it was wrong.
+git log -300 --name-only --format='%x40' | awk '
+/^@/{ if(n>0){t++; if(!code)nc++; if(cl)ct++} n=0; code=0; cl=0; next }
+NF{ n++; if($0 ~ /^(Sources|Tests)\//) code=1; if($0 ~ /CHANGELOG|[Rr]elease.[Nn]otes/) cl=1 }
+END{ if(n>0){t++; if(!code)nc++; if(cl)ct++}
+     printf "  ours: commits=%d no-product-code=%d%% changelog-tax=%d%%  (field base: 27-55%% / 0-4%%)\n", t, nc*100/t, ct*100/t }'
 echo "--- env count contract ---"
 echo "env.example keys: $(grep -cE '^[A-Z_]+=' .env.example 2>/dev/null) | OCOREAI_ prefix only (undercount if multi-prefix): $(grep -rhoE 'OCOREAI_[A-Z_]+' Sources/ | sort -u | wc -l | tr -d ' ')"
 grep -n "environment variables\|contract" Tests/ocoreaiTests/EnvKeysDocumentationTests.swift 2>/dev/null | head -3
