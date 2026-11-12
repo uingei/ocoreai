@@ -88,7 +88,7 @@ The server-wide row (`/v1/capabilities` → `video_input`) is the *same* measure
 so no publisher re-words it (a router that assembles its own evidence sentence is a second truth).
 Both are measured-only: `not_observed` is a fact about this process, never a claim about the
 checkpoint. Gate: `CapabilityMeasurementHonestyTests`.
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3061 items: videoInputCount, promptTokens -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3063 items: videoInputCount, promptTokens -->
 
 ## Known defect, deliberately unfixed — do not "fix" it blind
 `_applyBitmask` (`EngineInference.swift:1423`) multiplies by `-Float.leastNormalMagnitude`

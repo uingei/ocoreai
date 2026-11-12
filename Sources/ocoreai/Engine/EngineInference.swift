@@ -55,6 +55,24 @@ func promptMessagesCarryingInstructions(
     return [Chat.Message(role: .system, content: instructions)] + messages
 }
 
+// Phase-probe arithmetic: Duration to milliseconds — both components are required, and the
+// remainder must be scaled to milliseconds; dividing it by 10^9 (as this line first did)
+// reports nanoseconds beside a seconds term, which is how the 10-13 probe printed values
+// like "421375ms" for what took 0.42 ms. Matches TimingHooks.overallMs (Profiling).
+nonisolated func elapsedMs(_ d: Duration) -> Int {
+    let c = d.components
+    return Int(c.seconds) * 1_000 + Int(c.attoseconds / 1_000_000_000_000_000)
+}
+
+// P-S2: Fetch perception context via MainActor to bridge @MainActor PerceptionEngine into
+// the nonisolated inference body. String result is trivially Sendable — safe to capture in
+// @Sendable closures. Zero captures, so it lives at file scope, not nested in the host.
+func fetchPerceptionContext() async -> String {
+    await MainActor.run {
+        PerceptionEngine.shared.contextText()
+    }
+}
+
 /// id → name from the turn's own assistant `tool_calls`, so a tool result carries
 /// the name the model called even when the client sends none (Anthropic's
 /// tool_result has no name field at all). A caller-supplied `name` wins; this
@@ -2055,24 +2073,8 @@ extension EnginePool {
             // session side) versus everything before it (prompt build, perception,
             // tool surface, memory). Only logged when it actually hurts.
             let preAcquireStart = ContinuousClock.now
-            func elapsedMs(_ d: Duration) -> Int {
-                let c = d.components
-                // 1 ms = 10^15 attoseconds. Both components are required, and the
-                // remainder must be scaled to milliseconds — dividing it by 10^9
-                // (as this line first did) reports nanoseconds beside a seconds term,
-                // which is how the probe printed values like "421375ms" for what
-                // took 0.42 ms. Matches TimingHooks.overallMs (Profiling).
-                return Int(c.seconds) * 1_000 + Int(c.attoseconds / 1_000_000_000_000_000)
-            }
-            // P-S2: Fetch perception context via MainActor to bridge @MainActor
-            // PerceptionEngine into the nonisolated inference body.
-            // String result is trivially Sendable — safe to capture in @Sendable closures.
-            @Sendable
-            func fetchPerceptionContext() async -> String {
-                await MainActor.run {
-                    PerceptionEngine.shared.contextText()
-                }
-            }
+            // elapsedMs / fetchPerceptionContext: zero-capture helpers, promoted to file
+            // scope (next to promptMessagesCarryingInstructions) in the decomposition pass.
             // A caller that sends no conversation id (any OpenAI-compatible client)
             // must not collapse onto one shared session: a ChatSession carries its KV
             // and transcript, so a single "ephemeral" key made independent requests

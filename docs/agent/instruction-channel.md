@@ -33,9 +33,9 @@ message feed it renders (`:1805`), and the role switch under that filter admits 
 `developer` case (`Chat.swift:124-124`), so `developer` never matched either: it arrived as
 something the *user* said.
 
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1874 switch messages.first(where: -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1888 nonSystemMessages = messages.filter -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1896 default: .user -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1892 switch messages.first(where: -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1906 nonSystemMessages = messages.filter -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1914 default: .user -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:120-124 public enum Role -->
 
 `MessageBuilder.buildMessages` inserted this server's own prompt at index 0 and left the client's

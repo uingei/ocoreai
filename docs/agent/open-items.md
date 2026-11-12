@@ -532,3 +532,13 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   is filed because it is cheap: aliasing `qwen4_exp` onto `Qwen35Configuration` would silently drop the
   `indexer_*/ple_*` weights and answer anyway — the surface claiming more than the engine delivered
   (invariant 2).
+- **The MTP branch's decomposition is frozen; its gate is one fetch away** (Engine/) — step 4 of the
+  decomposition whose steps 2-3/5 landed. A 750-line read (11-13) says the branch is not move-only: it
+  nils and writes back the outer `chatSession`/`pooledSession` across the pool handoff, and its two early
+  returns skip the tail's seven-variable writeback, so an honest move needs an outcome-struct and a
+  pool-slot contract, beyond the compiler-verified move-only recipe the other cuts used. The deeper
+  blocker is the gate: the lane's honest proof is a live drafter verifying on this host, and the weights
+  were never here. The pin row above names the way out exactly — the pin tree registers `qwen3_8*`, so
+  fetching `mlx-community/Qwen3.8-27B-MTP-4bit` + Qwen3.8-27B (owner action) gives the lane its first
+  live gate, after which the branch moves the way the guided lane did. Until then it stays nested: a big
+  move that cannot run its own gate is a claim, not a fix (invariant 1).

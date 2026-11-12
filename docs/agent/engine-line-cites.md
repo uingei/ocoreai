@@ -4,18 +4,18 @@ The host injects root `AGENTS.md` plus every `AGENTS.md` to the cwd, truncated a
 32 KiB (B2, `scripts/agents-md-contract.sh`). `make anchor-check` and `make docs-check` P3 both
 sweep `docs/agent/*.md`, so one hop out loses nothing.
 
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:324 Task.sleep(until: deadline -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1459 Float.leastNormalMagnitude -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:2713 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3450 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:342 Task.sleep(until: deadline -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1477 Float.leastNormalMagnitude -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:2715 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3452 SteerQueue.shared.drain -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInferenceSupport.swift:116 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4067 components: thinkingComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4061 answerOnly: true -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3553 components: mtpGenComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4069 components: thinkingComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4063 answerOnly: true -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3555 components: mtpGenComponents -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:889 case "affine" -->
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1591 static func rewindHistoryEnd -->
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:687 Self.rewindHistoryEnd( -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:2909 rewind.source.session.fork( -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:2911 rewind.source.session.fork( -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:955 let kvCacheRewindReserveTokens = kvCacheRewindReserveResolution -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:14 public struct Message { -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/UserInput.swift:131 public struct Image { -->
