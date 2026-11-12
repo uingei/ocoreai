@@ -2037,60 +2037,6 @@ extension EnginePool {
         let handleRef = mlxHandle
         let log = self.logger
 
-        // extract stop-sequence matching into shared helper.
-        // Previously duplicated 5× inside runInferenceBody (MTP reasoning/response,
-        // MTP no-reasoning, standard reasoning/response, standard no-reasoning).
-        // Returns (shouldBreak: Bool, updatedAccumulated: String).
-        // `segment` = the chunk arriving now; `accumulated` = the whole reply INCLUDING it
-        // (every caller appends before calling), so what the client already holds is
-        // `accumulated.count - segment.count`.
-        // Contract (OpenAI/vllm: the stop text is NOT part of the returned content):
-        // cut at the EARLIEST occurrence anywhere in the reply, hand over only the text
-        // that is both new and precedes the cut, then report `.stopSequence`.
-        // Extra .done fields (promptTokPerSec, reasoningTokenCount, draft metrics) propagated
-        // with nil defaults so callers that don't track them still compile.
-        @Sendable func checkStopSequence(
-            segment: String,
-            accumulated: String,
-            eventKind: @escaping @Sendable (String) -> InferenceEvent.Kind,
-            tokenCount: Int?,
-            tokenFallback: Int,
-            promptTokPerSec: Double? = nil,
-            reasoningTokenCount: Int? = nil
-        ) -> (Bool, String) {
-            if requestStopSequences.isEmpty {
-                continuation.yield(.init(kind: eventKind(segment)))
-                return (false, accumulated)
-            }
-            let alreadyEmitted = max(0, accumulated.count - segment.count)
-            guard
-                let hit = Self.firstStopOccurrence(
-                    in: accumulated, sequences: requestStopSequences)
-            else {
-                continuation.yield(.init(kind: eventKind(segment)))
-                return (false, accumulated)
-            }
-            let kept = String(accumulated[..<hit.range.lowerBound])
-            if kept.count > alreadyEmitted {
-                let fresh = String(kept.dropFirst(alreadyEmitted))
-                if !fresh.isEmpty {
-                    continuation.yield(.init(kind: eventKind(fresh)))
-                }
-            }
-            let tc = tokenCount ?? tokenFallback
-            let tokPerSec: Double? =
-                tc > 0 ? Double(tc) / (Double(metrics.overallMs) / 1000.0) : nil
-            continuation.yield(
-                .init(
-                    kind: .done(
-                        StopReason.stopSequence,
-                        tokenCount: tc,
-                        tokPerSec: tokPerSec,
-                        promptTokPerSec: promptTokPerSec,
-                        reasoningTokenCount: reasoningTokenCount)))
-            return (true, kept)
-        }
-
         // runInferenceBody: session acquisition → generation → pool release
         /// When useGuidedGeneration is true, routes through GuidedGenerationLoop
         /// for grammar-constrained output (tool calls, JSON schema).
@@ -2446,7 +2392,10 @@ extension EnginePool {
                                     accumulated: fullText,
                                     eventKind: { .reasoning($0) },
                                     tokenCount: nil,
-                                    tokenFallback: 0
+                                    tokenFallback: 0,
+                                    requestStopSequences: requestStopSequences,
+                                    continuation: continuation,
+                                    metrics: metrics,
                                 ).0
                             {
                                 hit = true
@@ -2468,7 +2417,10 @@ extension EnginePool {
                                         accumulated: fmAccumulated,
                                         eventKind: { .reasoning($0) },
                                         tokenCount: nil,
-                                        tokenFallback: 0
+                                        tokenFallback: 0,
+                                        requestStopSequences: requestStopSequences,
+                                        continuation: continuation,
+                                        metrics: metrics,
                                     ).0 {
                                         hit = true
                                         break
@@ -2479,7 +2431,10 @@ extension EnginePool {
                                         accumulated: fmAccumulated,
                                         eventKind: { .text($0) },
                                         tokenCount: nil,
-                                        tokenFallback: 0
+                                        tokenFallback: 0,
+                                        requestStopSequences: requestStopSequences,
+                                        continuation: continuation,
+                                        metrics: metrics,
                                     ).0 {
                                         hit = true
                                         break
@@ -2495,7 +2450,10 @@ extension EnginePool {
                             accumulated: fmAccumulated,
                             eventKind: { .text($0) },
                             tokenCount: nil,
-                            tokenFallback: 0
+                            tokenFallback: 0,
+                            requestStopSequences: requestStopSequences,
+                            continuation: continuation,
+                            metrics: metrics,
                         ).0 {
                             hit = true
                         }
@@ -3668,7 +3626,10 @@ extension EnginePool {
                                     tokenFallback: metrics.generatedTokenCount,
                                     promptTokPerSec: localPromptTokPerSec,
                                     reasoningTokenCount: phase1ReasoningTokenCount
-                                        + phase2ReasoningTokenCount
+                                        + phase2ReasoningTokenCount,
+                                    requestStopSequences: requestStopSequences,
+                                    continuation: continuation,
+                                    metrics: metrics,
                                 )
                                 if shouldBreakR {
                                     localAccumulatedText = newTextR
@@ -3691,7 +3652,10 @@ extension EnginePool {
                                     tokenFallback: metrics.generatedTokenCount,
                                     promptTokPerSec: localPromptTokPerSec,
                                     reasoningTokenCount: phase1ReasoningTokenCount
-                                        + phase2ReasoningTokenCount
+                                        + phase2ReasoningTokenCount,
+                                    requestStopSequences: requestStopSequences,
+                                    continuation: continuation,
+                                    metrics: metrics,
                                 )
                                 if shouldBreak3 {
                                     localAccumulatedText = newText3
@@ -4153,7 +4117,10 @@ extension EnginePool {
                                                 tokenCount: localStdTokenCount,
                                                 tokenFallback: localStdTokenIds.count,
                                                 promptTokPerSec: localStdPromptTokPerSec,
-                                                reasoningTokenCount: localStdReasoningTokenCount
+                                                reasoningTokenCount: localStdReasoningTokenCount,
+                                                requestStopSequences: requestStopSequences,
+                                                continuation: continuation,
+                                                metrics: metrics,
                                             )
                                             if shouldBreak {
                                                 localStdAccumulated = newText
@@ -4170,7 +4137,10 @@ extension EnginePool {
                                                 tokenCount: localStdTokenCount,
                                                 tokenFallback: localStdTokenIds.count,
                                                 promptTokPerSec: localStdPromptTokPerSec,
-                                                reasoningTokenCount: localStdReasoningTokenCount
+                                                reasoningTokenCount: localStdReasoningTokenCount,
+                                                requestStopSequences: requestStopSequences,
+                                                continuation: continuation,
+                                                metrics: metrics,
                                             )
                                             if shouldBreak2 {
                                                 localStdAccumulated = newText2
@@ -4392,7 +4362,10 @@ extension EnginePool {
                                         eventKind: { .text($0) },
                                         tokenCount: actualTokenCount,
                                         tokenFallback: metrics.generatedTokenCount,
-                                        promptTokPerSec: promptTokPerSec
+                                        promptTokPerSec: promptTokPerSec,
+                                        requestStopSequences: requestStopSequences,
+                                        continuation: continuation,
+                                        metrics: metrics,
                                     )
                                     if shouldBreakS3 {
                                         localStdAccumulated = newText3
@@ -4416,7 +4389,10 @@ extension EnginePool {
                                         eventKind: { .reasoning($0) },
                                         tokenCount: actualTokenCount,
                                         tokenFallback: metrics.generatedTokenCount,
-                                        promptTokPerSec: promptTokPerSec
+                                        promptTokPerSec: promptTokPerSec,
+                                        requestStopSequences: requestStopSequences,
+                                        continuation: continuation,
+                                        metrics: metrics,
                                     )
                                     if shouldBreakR2 {
                                         lastStopReason = .stopSequence
@@ -4745,6 +4721,66 @@ extension EnginePool {
 
         metrics.inferenceMs = metrics.overallMs
         continuation.finish()
+    }
+
+    // extract stop-sequence matching into shared helper (all five lanes).
+    // Previously duplicated 5× inside runInferenceBody (MTP reasoning/response,
+    // MTP no-reasoning, standard reasoning/response, standard no-reasoning).
+    // Returns (shouldBreak: Bool, updatedAccumulated: String).
+    // `segment` = the chunk arriving now; `accumulated` = the whole reply INCLUDING it
+    // (every caller appends before calling), so what the client already holds is
+    // `accumulated.count - segment.count`.
+    // Contract (OpenAI/vllm: the stop text is NOT part of the returned content):
+    // cut at the EARLIEST occurrence anywhere in the reply, hand over only the text
+    // that is both new and precedes the cut, then report `.stopSequence`.
+    // Extra .done fields (promptTokPerSec, reasoningTokenCount, draft metrics) propagated
+    // with nil defaults so callers that don't track them still compile.
+    // nonisolated on purpose: the lanes call this from inside `modelContainer.perform`
+    // closures where actor isolation cannot follow, so the three request-level values it
+    // used to capture (sequences, continuation, metrics) travel as parameters.
+    nonisolated func checkStopSequence(
+        segment: String,
+        accumulated: String,
+        eventKind: @escaping @Sendable (String) -> InferenceEvent.Kind,
+        tokenCount: Int?,
+        tokenFallback: Int,
+        promptTokPerSec: Double? = nil,
+        reasoningTokenCount: Int? = nil,
+        requestStopSequences: [String],
+        continuation: AsyncThrowingStream<InferenceEvent, Error>.Continuation,
+        metrics: PerRequestMetrics
+    ) -> (Bool, String) {
+        if requestStopSequences.isEmpty {
+            continuation.yield(.init(kind: eventKind(segment)))
+            return (false, accumulated)
+        }
+        let alreadyEmitted = max(0, accumulated.count - segment.count)
+        guard
+            let hit = Self.firstStopOccurrence(
+                in: accumulated, sequences: requestStopSequences)
+        else {
+            continuation.yield(.init(kind: eventKind(segment)))
+            return (false, accumulated)
+        }
+        let kept = String(accumulated[..<hit.range.lowerBound])
+        if kept.count > alreadyEmitted {
+            let fresh = String(kept.dropFirst(alreadyEmitted))
+            if !fresh.isEmpty {
+                continuation.yield(.init(kind: eventKind(fresh)))
+            }
+        }
+        let tc = tokenCount ?? tokenFallback
+        let tokPerSec: Double? =
+            tc > 0 ? Double(tc) / (Double(metrics.overallMs) / 1000.0) : nil
+        continuation.yield(
+            .init(
+                kind: .done(
+                    StopReason.stopSequence,
+                    tokenCount: tc,
+                    tokPerSec: tokPerSec,
+                    promptTokPerSec: promptTokPerSec,
+                    reasoningTokenCount: reasoningTokenCount)))
+        return (true, kept)
     }
 
     // MARK: - Static helpers (CoreAI path)
