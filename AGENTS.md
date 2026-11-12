@@ -65,7 +65,7 @@ swift test                           # full suite; needs Metal
 make test                            # same, but names $OCOREAI_METALLIB first — else MLX dies mid-run
 make test FILTER=<Regex>             # one suite (swift-testing half: the XCTest helper SEGVs on filter)
 make test-clt [FILTER=<Regex>]       # CLT route, serial — runs both halves
-make docs-check                      # docs contract: ~3 s, no build
+make docs-check                      # docs contract: ~5-10 s, no build
 bash scripts/eval/run.sh               # task-success scoreboard: verifies the WORKSPACE, not the prose
 ```
 - Gate tiering: **sandbox** → app-target build + non-Metal suites; **escalation** → `make test-clt`
