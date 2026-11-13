@@ -174,13 +174,21 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   would measure. The window moved again 11-10 (+2 → `ec4c966`) and both commits were adjudicated the same
   round, and the same evening convicted half of that reading: `#774` (logprobs during speculative decoding)
   does stay unconsumed — our lane never requests them — but `#724` (greedy MTP verify batched to one GPU
-  readback) lands **on a consumed path**: `EngineInference.swift:3914` calls upstream
-  `generate(mtpDrafter:)` (checkout `Evaluate.swift:2559`), whose verify loop IS the
+  readback) lands **on a consumed path**: the MTP branch of `EngineInference.swift` calls upstream
+  `generate(mtpDrafter:)` (checkout `Evaluate.swift:2627`), whose verify loop IS the
   `MTPSpeculativeTokenIterator` #724 rewrote — "drives its own token loop" meant the tool-loop wrapper, not
-  the verify. So the next bump carries a measured 1.25–6.4× verify speedup (greedy + stateless processor —
-  the board's and eval's temperature), e2e 27.7→28.5 tok/s Qwen3.5-4B-4bit block-2 (M2), parity claims
-  exact; the bump itself waits its protocol turn (test-ci is the CI tier — owner's push window). #724
-  simultaneously weighs the adopt-vs-keep call: upstream's loop is not just owning more, it is owning more
+  the verify. The window later moved to +8 (api.github-authoritative HEAD `635290754`), its tail (+6)
+  judged 11-13 — the four new public symbols (`PythonLiteralParser`/`ModelTypeRegistry`/
+  `EmbeddingGemma2`/`MLXLogger`) have zero consumers under `Sources/`, the two `Evaluate.swift` commits
+  touch no line of the `generate()` signature, `#711` changes only the load side of the Qwen3.5-family
+  targets (helpful side) — and 11-13 **took the bump**: pin `635290754`, both lockfiles paired, notices
+  regenerated, its 24 shifted upstream anchors repointed; #724's verify speedup (e2e
+  27.7→28.5 tok/s Qwen3.5-4B-4bit block-2, M2) is consumed by this. Resolve never used raw https: the
+  project-local mirror (gitignored `.swiftpm/configuration/mirrors.json` → `~/references/mlx-swift-lm`)
+  is this host's resolve path and stays out of `Package.resolved` (canonical location + full sha
+  recorded). The host's raw github-https did break 11-13 — it reaches consumers like docs-check's
+  `tags_published` claim (honest host-red, runners unaffected); `test-ci` stays the CI-tier
+  authority (owner's push window). #724 simultaneously weighs the adopt-vs-keep call: upstream's loop is not just owning more, it is owning more
   *faster*. coreai-models' +3 window judged
   same round too: an RNG file-move (our `Video/RandomSource`/`TorchRandomSource`/`SeededRandomNumberGenerator`
   mirrors' come-from relabels to `CoreAIShared/RNG` at next re-read), a python packaging chore, and a

@@ -19,16 +19,16 @@ sweep `docs/agent/*.md`, so one hop out loses nothing.
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:955 let kvCacheRewindReserveTokens = kvCacheRewindReserveResolution -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:14 public struct Message { -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/UserInput.swift:131 public struct Image { -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2128 func fork(history -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2098 func fork(history -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:361 func requirePlan -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/KVCache.swift:997 var maxTrimCount -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2200 func saveCache -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1354 templateMessages = leadingMessages -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1684 reasoning: modelConfiguration.reasoningConfig.map -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1319 restart: while !pendingMessages.isEmpty { -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1106 public func steer( -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1982 throw RejectedToolCallError(rejection) -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2589 reasoning: context.configuration.reasoningConfig.map -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2170 func saveCache -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1336 templateMessages = leadingMessages -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1666 reasoning: modelConfiguration.reasoningConfig.map -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1301 restart: while !pendingMessages.isEmpty { -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1089 public func steer( -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1952 throw RejectedToolCallError(rejection) -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2657 reasoning: context.configuration.reasoningConfig.map -->
 <!-- anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:37 capabilities: [.guidedGeneration, .toolCalling], -->
 <!-- anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:326 capabilities: [LanguageModelCapabilities.Capability] = [.guidedGeneration] -->
 <!-- anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:722 model.capabilities.contains(.vision) -->

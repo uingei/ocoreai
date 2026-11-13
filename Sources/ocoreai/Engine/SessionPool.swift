@@ -198,7 +198,7 @@ enum ConversationIdentity {
 /// Upstream persists raw KV state only and says the caller owns the transcript:
 /// "A restored raw cache therefore uses fragment-based continuation"
 /// (`ChatSession.swift:1804-1790`) — the session continues from whatever tokens the
-// anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2192 A restored raw cache therefore uses
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2162 A restored raw cache therefore uses
 /// file happens to hold and cannot check them against a chat template. Accepting one
 /// without proof re-attaches a previous conversation's context to a new request, so
 /// this manifest is the proof, and no manifest means no reuse.
@@ -663,7 +663,7 @@ actor MLXSessionPool {
                 // token-level common prefix, and upstream verifies the trim landed before
                 // trusting it (the verify-and-downgrade block that opens at
                 // ChatSession.swift:1285). Editing a past turn is the most common state change a
-                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1533 Verify and downgrade to a rebuild
+                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1515 Verify and downgrade to a rebuild
                 // coding-agent UI makes, and every such turn used to re-prefill everything:
                 // measured 10-21 (probe 27, gemma-4-e2b-it-4bit, one session) a warm
                 // appended turn reused 734 of 758 tokens while the edited resend reused 0.
@@ -761,12 +761,12 @@ actor MLXSessionPool {
                 // `ChatSession.generateParameters` when a stream starts
                 // (`ChatSession.swift:371`, capture list at `:1037-1043`), so a reused
                 // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:431 public var generateParameters
-                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1171 generateParameters = parameters
+                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1153 generateParameters = parameters
                 // session that keeps turn 1's parameters answers turn 2 under turn 1's
                 // `max_tokens`/`temperature`/`seed` — measured, and named in
                 // ``staleSamplingFields``. Cache-affecting changes stay upstream's job
                 // (`ChatSession.swift:1244-1248` rebuilds from its retained transcript).
-                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1250 rebuild the cache from it
+                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1232 rebuild the cache from it
                 let overriddenFields = Self.staleSamplingFields(
                     before: pooled.session.generateParameters,
                     after: genParams
@@ -1225,7 +1225,7 @@ actor MLXSessionPool {
     ///
     /// Upstream persists raw KV state and leaves the transcript to the caller
     /// (`ChatSession.swift:1804-1790`): a restored session continues from whatever
-    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2192 A restored raw cache therefore uses
+    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2162 A restored raw cache therefore uses
     /// tokens the file happens to hold, with no chat template to reconcile against.
     /// Accepting one without proof grafts a previous conversation's context onto a
     /// new request, so every refusal here is also a deletion — a snapshot this build

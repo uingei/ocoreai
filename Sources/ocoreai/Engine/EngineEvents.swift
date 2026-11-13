@@ -90,7 +90,7 @@ struct InferenceEvent {
         /// `cachedPromptTokens` (when non-nil) = prompt tokens served by a reused KV-cache
         /// prefix, upstream `GenerateCompletionInfo.cachedPromptTokenCount`, which ChatSession
         /// attributes from its own cache-reuse decision (it landed in 604fae7;
-        // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1687 base.cachedPromptTokenCount = cachedPromptTokenCount
+        // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1669 base.cachedPromptTokenCount = cachedPromptTokenCount
         /// `0` = whole prompt prefilled (no reuse) — a known value, not
         /// "unknown"; nil = path without a GenerateCompletionInfo (guided/FM/CoreAI).
         case done(

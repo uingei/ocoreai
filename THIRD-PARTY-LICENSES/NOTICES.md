@@ -5,8 +5,8 @@ ocoreai's own code is MIT (see LICENSE). This product additionally ships:
 ## 1. Apple-derived source (BSD-3-Clause)
 
 - Verbatim license text: `Apple-coreai-models.txt`, byte-compared against upstream `apple/coreai-models`' `LICENSE` by `scripts/collect-third-party-licenses.sh` whenever that clone is reachable.
-- 49 files under `Sources/` retain Apple's copyright notice together with its verbatim "BSD-3-clause ... can be found in the LICENSE file" header. Detection: `git grep -l "Copyright 2026 Apple Inc" -- Sources`.
-- Of those, 35 name `coreai-models` in the header; the rest are Apple-authored files from other Apple trees (e.g. the XGrammar C bridge under `Sources/lib/CXGrammar/`), covered by the same BSD-3 text. `git grep -il coreai-models -- Sources` is deliberately NOT used as the count: 61 hits include files that only mention the reference repo in a comment.
+- 50 files under `Sources/` retain Apple's copyright notice together with its verbatim "BSD-3-clause ... can be found in the LICENSE file" header. Detection: `git grep -l "Copyright 2026 Apple Inc" -- Sources`.
+- Of those, 36 name `coreai-models` in the header; the rest are Apple-authored files from other Apple trees (e.g. the XGrammar C bridge under `Sources/lib/CXGrammar/`), covered by the same BSD-3 text. `git grep -il coreai-models -- Sources` is deliberately NOT used as the count: 62 hits include files that only mention the reference repo in a comment.
 - The repo root `LICENSE` is MIT and covers only ocoreai's own code; here the BSD-3 conditions live in `NOTICES.md` + `Apple-coreai-models.txt`, next to this file. In the shipped app the folder sits at `ocoreai.app/Contents/Resources/THIRD-PARTY-LICENSES/`, and the GUI renders it under Settings → About → Third-Party Notices.
 
 ## 2. Linked SwiftPM dependencies
@@ -17,7 +17,7 @@ ocoreai's own code is MIT (see LICENSE). This product additionally ships:
 | eventsource | 1.4.2 | MIT | eventsource.txt |
 | hummingbird | 2.26.0 | Apache-2.0 | hummingbird.txt |
 | mlx-swift | 0.33.0 | MIT | mlx-swift.txt |
-| mlx-swift-lm | rev 4ab267996c83 | MIT | mlx-swift-lm.txt |
+| mlx-swift-lm | rev 635290754327 | MIT | mlx-swift-lm.txt |
 | swift-algorithms | 1.2.1 | Apache-2.0 | swift-algorithms.txt |
 | swift-asn1 | 1.7.1 | Apache-2.0 | swift-asn1.txt |
 | swift-async-algorithms | 1.1.5 | Apache-2.0 | swift-async-algorithms.txt |

@@ -460,7 +460,7 @@ struct ConstraintTemplateCacheTests {
     ///
     /// This suite asserts closure through the mask rather than through
     /// `isTerminated`, because measured on lm's vendored xgrammar v0.1.30 (pin
-    /// `4ab267996`, byte-identical to the pin this was first measured at) a completed JSON value
+    /// `635290754`, byte-identical to the pin this was first measured at) a completed JSON value
     /// leaves `isTerminated` false while the
     /// mask admits exactly `<eos>`: the flag reports an empty rule stack, the mask
     /// reports "nothing but EOS is admissible", and only the second is a promise a

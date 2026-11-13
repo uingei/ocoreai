@@ -1861,7 +1861,7 @@ extension EnginePool {
         // keeps the message it was given, with the resolved media URL inside it, and
         // re-feeds that whole transcript to `processor.prepare` on every later turn of the
         // conversation (ChatSession.swift:1354 — `templateMessages = leadingMessages +
-        // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1354 templateMessages = leadingMessages
+        // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1336 templateMessages = leadingMessages
         // currentConversation.messages`; gated by `make anchor-check`). Bytes deleted here therefore cost the
         // conversation its own history: measured 10-16, a clip posted as a data URL was
         // answered correctly on turn 1 ("Red", +79 prompt tokens) and every turn after it
@@ -2745,7 +2745,7 @@ extension EnginePool {
             // `reasoning_content` empty there. A grammar IS the pair that cannot compose with
             // thinking — the constrained loop truncates thinking tokens (the `.alwaysOn` guard
             // below) — so a schema still suppresses the flag.
-            // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1684 reasoning: modelConfiguration.reasoningConfig.map
+            // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1666 reasoning: modelConfiguration.reasoningConfig.map
             let mayRunReasoning =
                 (registeredToolSpecs ?? []).isEmpty && options.grammarSchema == nil
             let thinkingFlagApplies = options.grammarSchema == nil
@@ -2902,7 +2902,7 @@ extension EnginePool {
                 if let rewind = acquired.rewind, rewind.historyEnd < mlxMessages.count {
                     // The pool refused this conversation but left a resumable cache behind:
                     // `fork(history:)` (ChatSession.swift:1741) gives back a session that
-                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2128 func fork(history
+                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2098 func fork(history
                     // holds *this* transcript and keeps only the KV rows its prompt starts
                     // with, so an edited resend stops costing a full re-prefill. The pool
                     // could not do this itself — `[Chat.Message]` is not `Sendable`, so the
@@ -3574,7 +3574,7 @@ extension EnginePool {
                         // arrives split with delimiters stripped. A second emitter would scan answer
                         // text that can no longer contain a delimiter, holding back any prefix that
                         // looks like one.
-                        // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2589 reasoning: context.configuration.reasoningConfig.map
+                        // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2657 reasoning: context.configuration.reasoningConfig.map
                         mtpGenerationLoop: for try await generation in iterStream {
                             if Task.isCancelled || cancellation.isCancelled {
                                 // Inline emit .done(.cancelled) — same as std cancel path (L2379).
