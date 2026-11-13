@@ -33,9 +33,10 @@
 #      knob unset (Sources/lib/CXGrammar/xgrammar_c_bridge.cpp:138, max_whitespace_cnt = nullopt).
 #      Measured 10-30 in §5b: the whitespace axis is CLOSED on this lane (max run 11 against Apple's
 #      32, because the guided loop applies upstream's WhitespaceTokenBias at -200), and what still
-#      fails is a 126-character repeat run. Document closure is therefore recorded as XFAIL while
-#      open, XPASS (red) once it closes so a fix cannot pass silently, and §5b reddens if
-#      whitespace ever does run past 32 here — that is the day #368 becomes ours to port.
+#      fails is a 126-character repeat run. The closure rule held: XFAIL while open, XPASS (red)
+#      once closed so a fix could not pass silently — §5 PROMOTED to probe_ok 11-13 after two
+#      consecutive 6/6 boots, and §5b reddens if whitespace ever does run past 32 here — that is
+#      the day #368 becomes ours to port.
 #   6. The shape a client really sends: `response_format` + `tools[]` in ONE turn, k=3, against the
 #      control of the same request with `tools` removed. This USED to deliver 0/3 on both shapes —
 #      every turn ending `finish=tool_calls`, one of them a schema-valid but semantically absurd
@@ -198,10 +199,15 @@ sys.stdout.write("%s finish=%s completion=%s maxWSrun=%d maxRepeatRun=%d tail=%r
     esac
   done
 done
+# Promoted from xfail 11-13 (this file's own rule: XPASS means promote, so a fix cannot pass
+# silently): two consecutive boots closed 6/6. Attribution failed honestly: the same-day
+# post-bump sweep still ran this xfail open (so not the pin bump), and the lane-pricing round
+# re-proved byte-identical generation on this path — what remains is unnamed. An unattributed
+# closure gated by a hard probe_ok is still a gate.
 if [ "$OPEN_BAD" -gt 0 ]; then
-  probe_xfail open "open-ended json_object: $OPEN_BAD/$OPEN_TOTAL turn(s) never closed the document — the face answers 200 with bytes no client can parse and the only tell is finish_reason (measured$OPEN_NOTES)"
+  probe_fail "open-ended json_object: $OPEN_BAD/$OPEN_TOTAL turn(s) never closed the document — the face answers 200 with bytes no client can parse and the only tell is finish_reason (measured$OPEN_NOTES)"
 else
-  probe_xfail fixed "open-ended json_object closed $OPEN_TOTAL/$OPEN_TOTAL — promote §5 to probe_ok and delete this xfail"
+  probe_ok "open-ended json_object closed $OPEN_TOTAL/$OPEN_TOTAL — parseable every turn"
 fi
 
 # §5b — the whitespace axis, measured instead of imported. coreai-models #368 caps whitespace

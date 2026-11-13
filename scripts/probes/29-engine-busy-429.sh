@@ -17,12 +17,12 @@
 # process by design, so the wait is bounded and the refusal names when to come back.
 #
 # ### What is asserted
-#   1. Refusal shape: with a long turn *verified to be generating* (the probe waits for the
-#      first streamed token before firing the second request), the second request gets **429**,
-#      not 500,
-#      with `error_code: engine_busy`, `type: rate_limit_error` (the name both OpenAI and
-#      Anthropic SDKs branch on) and a `Retry-After` header, so the client needs no
-#      string-parse to know it may try again.
+#   1. Refusal shape: the second request gets **429**, not 500, with `error_code: engine_busy`,
+#      `type: rate_limit_error` (the name both OpenAI and Anthropic SDKs branch on) and a
+#      `Retry-After` header read from the refusal response's own headers, so the client needs
+#      no string-parse to know it may try again. The premise — that a turn was in flight — is
+#      certified by the refusal costing the full queue window (t=0 would mean nothing held the
+#      lock); a first streamed token, when it arrives, is corroboration, not the premise.
 #   2. The refusal costs nothing to the turn in flight: the long request still completes 200.
 #   3. Queue-and-serve: with a short turn in flight (inside OCOREAI_ENGINE_BUSY_WAIT), the
 #      overlapping request is served with a real completion — saturation is waited out, not
@@ -40,8 +40,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HERE/_lib.sh"
 PROBE_NAME="engine-busy-429"
 
-# 3 s keeps both legs deterministic: a 512-token turn overruns it (refusal shape), an
-# 8-token turn fits inside it (queued and served).
+# 3 s: a padded-prompt turn overruns it on engine clock (refusal shape, with the premise
+# retried), an 8-token turn fits inside it (queued and served).
 : "${OCOREAI_ENGINE_BUSY_WAIT:=3}"
 export OCOREAI_ENGINE_BUSY_WAIT
 
@@ -70,80 +70,88 @@ body_stream() {  # body_stream <max_tokens> <prompt>
 
 # ── leg 1 + 2: long turn in flight ⇒ 429 with Retry-After, and the turn survives ──────────
 HDR="$(mktemp -t ocoreai-29-hdr.XXXXXX)"
+HDR_REFUSAL="$(mktemp -t ocoreai-29-hdr-refusal.XXXXXX)"
 LONG_OUT="$(mktemp -t ocoreai-29-long.XXXXXX)"
 SHORT_OUT="$(mktemp -t ocoreai-29-short.XXXXXX)"
 
-# The long turn is streamed and the probe waits for its FIRST TOKEN before firing the second
-# request. That gate is the premise, and it is not cosmetic: fired 0.4 s after the long
-# request's POST, the second request was served a normal completion, because the guard is
-# taken late in the pipeline (after prompt assembly) and the short turn reaches it first —
-# HTTP arrival order is not lock arrival order. Measured 10-22, same construction: the
-# overlap was +220 ms of queue, not a refusal.
-(
-  curl -sS -N -m 180 -X POST "$PROBE_BASE/v1/chat/completions" ${auth_args[@]+"${auth_args[@]}"} \
-    -H 'Content-Type: application/json' -H 'Accept: text/event-stream' -D "$HDR" \
-    --data "$(body_stream 512 'Count from 1 to 400, one number per line.')" > "$LONG_OUT" 2>&1
-) &
-LONG_PID=$!
-
-started=0
-for _ in $(seq 1 300); do
-  if grep -q '^data:' "$LONG_OUT" 2>/dev/null; then started=1; break; fi
-  kill -0 "$LONG_PID" 2>/dev/null || break
-  sleep 0.1
-done
-if [ "$started" = "1" ]; then
-  probe_ok "the long turn is generating (first SSE token seen) — the lock is held by it"
-else
-  probe_fail "the long turn never emitted a token, so nothing was in flight and the legs" \
-    " below would certify nothing: $(head -c 200 "$LONG_OUT")"
-fi
-
-B_START_MS=$(($(date +%s) * 1000))
-if probe_api POST /v1/chat/completions "$(body 8 'Say OK.')"; then
+# The busy turn is PHYSICAL work, not a token budget: the shipped reasoning face caps a
+# counting turn wherever it likes, and measured 11-13 the same construction held the lock for
+# 30 s on one boot and released it inside 1 s on the next. A padded prompt (~2 100 tokens) buys
+# seconds of prefill on the engine clock before any token can come out, and the whole
+# experiment RETRIES — the premise is re-measured, never asserted. Firing happens on the first
+# SSE token or at a 2 s cap: firing at 0.4 s once let the short turn reach the lock first
+# (measured 10-22 — HTTP arrival order is not lock arrival order), and by 2 s the padded turn
+# holds it.
+LONG_PROMPT="$(probe_pad_text 40) Now: count from 1 to 400, one number per line."
+busy_proven=0
+for attempt in 1 2 3; do
+  : > "$LONG_OUT"
+  (
+    curl -sS -N -m 180 -X POST "$PROBE_BASE/v1/chat/completions" ${auth_args[@]+"${auth_args[@]}"} \
+      -H 'Content-Type: application/json' -H 'Accept: text/event-stream' -D "$HDR" \
+      --data "$(body_stream 512 "$LONG_PROMPT")" > "$LONG_OUT" 2>&1
+  ) &
+  LONG_PID=$!
+  for _ in $(seq 1 20); do
+    grep -q '^data:' "$LONG_OUT" 2>/dev/null && break
+    kill -0 "$LONG_PID" 2>/dev/null || break
+    sleep 0.1
+  done
+  B_START_MS=$(($(date +%s) * 1000))
+  PROBE_HDR_FILE="$HDR_REFUSAL"
+  if ! probe_api POST /v1/chat/completions "$(body 8 'Say OK.')"; then
+    PROBE_HDR_FILE=""
+    probe_note "attempt $attempt: the overlapping request never answered — retrying"
+    wait "$LONG_PID" 2>/dev/null || true
+    continue
+  fi
+  PROBE_HDR_FILE=""
   B_WAIT_MS=$(( $(($(date +%s) * 1000)) - B_START_MS ))
-  if [ "$PROBE_STATUS" = "429" ]; then
-    probe_ok "overlapping request got 429 while the engine was occupied (was: 500 app_error)"
-    # Premise floor: a 429 returned at t=0 would mean nothing was in flight, i.e. the probe
-    # measured its own race rather than capacity. The wait IS the evidence of contention.
-    if [ "$B_WAIT_MS" -ge 2000 ]; then
-      probe_ok "the refusal came after ${B_WAIT_MS}ms — it waited out the queue window first"
-    else
-      probe_fail "the refusal came after only ${B_WAIT_MS}ms (window is ${OCOREAI_ENGINE_BUSY_WAIT}s)" \
-        " — no turn was in flight, so this leg certified nothing"
-    fi
+  # The refusal's own wait is the contention evidence: the queue window cannot elapse
+  # without a lock holder, and a refusal at t=0 certifies nothing.
+  if [ "$PROBE_STATUS" = "429" ] && [ "$B_WAIT_MS" -ge 2000 ]; then
+    busy_proven=1
+    probe_ok "429 after ${B_WAIT_MS}ms (attempt $attempt) — it waited out the queue window" \
+      " against a turn that held the lock"
+    break
+  fi
+  probe_note "attempt $attempt: status $PROBE_STATUS after ${B_WAIT_MS}ms — the busy turn" \
+    " released the lock too early for this boot; retrying the premise"
+  wait "$LONG_PID" 2>/dev/null || true
+done
+
+if [ "$busy_proven" = "1" ]; then
+  case "$PROBE_BODY" in
+    *engine_busy*) probe_ok "payload carries error_code engine_busy" ;;
+    *) probe_fail "payload lacks error_code engine_busy — clients would still be" \
+      " string-parsing: $PROBE_BODY" ;;
+  esac
+  case "$PROBE_BODY" in
+    *rate_limit_error*) probe_ok "payload speaks the SDK's own type (rate_limit_error)" ;;
+    *) probe_fail "payload type is not rate_limit_error — SDKs branch on type, not message:" \
+      " $PROBE_BODY" ;;
+  esac
+  if grep -qi '^retry-after:' "$HDR_REFUSAL"; then
+    probe_ok "429 names when to come back" \
+      " ($(grep -i '^retry-after:' "$HDR_REFUSAL" | tr -d '\r')) — read off the refusal's own response"
   else
-    probe_fail "overlapping request got $PROBE_STATUS, expected 429 — capacity must not be" \
-      "reported as a server error (the client's backoff keys on the status): $PROBE_BODY"
+    probe_fail "429 without Retry-After — the client is told to retry but not when. Headers were:"
+    sed 's/^/        /' "$HDR_REFUSAL"
   fi
 else
-  probe_fail "overlapping request never answered: $PROBE_BODY"
-fi
-
-case "$PROBE_BODY" in
-  *engine_busy*) probe_ok "payload carries error_code engine_busy" ;;
-  *) probe_fail "payload lacks error_code engine_busy — clients would still be string-parsing:" \
-    " $PROBE_BODY" ;;
-esac
-case "$PROBE_BODY" in
-  *rate_limit_error*) probe_ok "payload speaks the SDK's own type (rate_limit_error)" ;;
-  *) probe_fail "payload type is not rate_limit_error — SDKs branch on type, not message:" \
-    " $PROBE_BODY" ;;
-esac
-if grep -qi '^retry-after:' "$HDR"; then
-  probe_ok "429 names when to come back ($(grep -i '^retry-after:' "$HDR" | tr -d '\r'))"
-else
-  probe_fail "429 without Retry-After — the client is told to retry but not when. Headers were:"
-  sed 's/^/        /' "$HDR"
+  probe_fail "3 attempts never held the lock for the ${OCOREAI_ENGINE_BUSY_WAIT}s window —" \
+    " capacity cannot be judged against a turn that never existed on this boot"
 fi
 
 wait "$LONG_PID"
 SSE_CHUNKS="$(grep -c '^data:' "$LONG_OUT" 2>/dev/null)"; SSE_CHUNKS="${SSE_CHUNKS:-0}"
-if grep -q '\[DONE\]' "$LONG_OUT" 2>/dev/null; then
-  probe_ok "the turn in flight was unharmed by the refusal ($SSE_CHUNKS streamed chunks, [DONE])"
-else
+if [ "$busy_proven" = "1" ] && ! grep -q '\[DONE\]' "$LONG_OUT" 2>/dev/null; then
   probe_fail "the request in flight never reached [DONE] ($SSE_CHUNKS chunks) — refusing a" \
     " second caller must not disturb the first"
+elif [ "$busy_proven" = "1" ]; then
+  probe_ok "the turn in flight was unharmed by the refusal ($SSE_CHUNKS streamed chunks, [DONE])"
+else
+  probe_note "in-flight survival not judged — no refusal was ever produced (§1 premise failed)"
 fi
 
 # ── leg 3: a short turn in flight ⇒ the overlap is waited out, not exported ───────────────

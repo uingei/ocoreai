@@ -675,6 +675,11 @@ probe_api() {
   if [ -n "$body" ]; then
     args+=(-H 'Content-Type: application/json' --data "$body")
   fi
+  # Header assertions must read the refused response's OWN headers: a probe that
+  # greps whatever file a concurrent stream writes into certifies the wrong response.
+  if [ -n "${PROBE_HDR_FILE:-}" ]; then
+    args+=(-D "$PROBE_HDR_FILE")
+  fi
   local raw
   if ! raw="$(curl "${args[@]}" "$PROBE_BASE${path}" 2>&1)"; then
     PROBE_STATUS="000"

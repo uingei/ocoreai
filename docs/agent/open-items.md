@@ -224,9 +224,11 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **Reasoning-lane traffic is priced, still not warm** (Engine/) — the no-tools lane pays its own
   turn into `KVCachePriceLedger` (never the never-fed session); residency honestly stays
   `not_observed` — probe 35 §2-3. The owner's pooling call covers the rest: the lane frees its
-  cache, so no-tools traffic cold-prefills every turn (probe 19 red) and emits no pooled per-turn
-  lines (probe 32's `promptHash` leg); 29/31 stay red with one defect each beyond the class;
-  guided/MTP lanes log `not priced`, not a price.
+  cache, so no-tools traffic cold-prefills every turn (probe 19 red) and writes none of the
+  pooled branch's per-turn lines — probe 31's `StdTurn` control and probe 32's `promptHash`
+  read exactly those. Probe 29 is green since 11-14: its two reds were the instrument's own
+  blindness (header read off the wrong response, a busy turn that was a token budget not physical
+  work), not the wire. guided/MTP lanes log `not priced`, not a price.
 - **The video record still trusts the processor consumed the frames** (Multimodal/) — the 11-07 over-report
   is closed at its root (media turns had been routed onto the std-reasoning lane, whose `(role, content)`
   rebuild drops `Chat.Message.media`; probes 08/17 flipped green with the routing fix). Residual: the rule
