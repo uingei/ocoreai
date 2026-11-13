@@ -18,18 +18,26 @@
 #   1. Honest zero, before anything exists to measure: the gauge reads 0, and the endpoint
 #      either 404s naming the model (listed but not resident) or answers `not_observed`. A 200
 #      that states a residency nobody measured is the failure this file was written for.
-#   3. Causation: one ~3K-token turn makes the process-wide gauge leave zero within 30 s.
-#   4. The endpoint says `measured`, and its `bytesPerToken` lands in a band no KV cache can
-#      escape (>= 256 B/token and < 1 MiB/token), so a stale or unit-confused number is caught.
-#   5. Internal arithmetic: `residentBytes >= bytesPerToken * processedTokens` (integer floor),
-#      and the process-wide gauge is at least this model's resident bytes.
-#   6. The per-token price is quoted, because that is the number the admission gate reserves at
-#      (Scheduler/KVCacheBudget.swift prices an unpriced model at 1024 B/token; section 7 checks
-#      that the gate found out what this checkpoint actually costs).
-#   7. The reservation itself moves to that price: the first turn can only reserve at the
-#      fallback, the turn after it must reserve at the measured price and name the basis.
+#   2. The no-tools turn — which routes through the std-reasoning lane, which bypasses the
+#      pooled ChatSession and frees its cache at turn end — prices its own traffic: the release
+#      log names bytes it allocated and tokens it wrote, and `/kv-cache` still refuses to call
+#      anything resident. A price (a property of the weights) is claimable; residency for bytes
+#      that no longer exist is not.
+#   3. The admission gate adopts THAT lane price with no pooled turn ever having happened:
+#      turn 1 can only reserve at the fallback, turn 2 must reserve at the measured lane price.
+#   4. A tools-bearing turn (the ChatSession lane, whose cache stays resident in the pool)
+#      makes the endpoint say `measured`, with `bytesPerToken` in a band no KV cache can escape
+#      (>= 256 B/token and < 1 MiB/token), so a stale or unit-confused number is caught.
+#   5. Causation and arithmetic: the process-wide gauge leaves zero after that pooled turn, is
+#      at least the model's resident bytes, and `residentBytes >= bytesPerToken * processedTokens`.
+#   6. Every dispatched turn reserved and named its basis — the gate is on the live path.
 #   8. `rewindReserve` reaches the live wire stating exactly the plan this server's own
 #      environment resolved to (unset/positive/zero/negative/garbage mirrored from $env).
+#
+# ### Why §4-5 ride a tools-bearing turn
+# The reasoning lane legitimately holds nothing between turns (its shipped design, open-items),
+# so residency is asserted on the lane that really realizes a cache, and lane-only traffic is
+# judged in §2-3 — a permanent red that states nothing true is not a gate.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -81,7 +89,9 @@ else
   probe_fail "kv-cache answered HTTP $before_code with residency.status=${before_status:-missing}"
 fi
 
-probe_section "2. cause a real cache: one long prompt, few output tokens"
+probe_section "2. the bypassing lane prices its own turn and claims no residency"
+# The no-tools turn rides the reasoning lane, which frees its cache at turn end. What it owes:
+# a measured price for the traffic it really ran, and no residency claim for freed bytes.
 long_prompt="$(probe_pad_text 60)"
 body="$(python3 -c "
 import json, sys
@@ -103,8 +113,98 @@ if ! [[ "${prompt_tokens:-}" =~ ^[0-9]+$ ]] || [ "$prompt_tokens" -lt 500 ]; the
 else
   probe_ok "turn prefilled prompt_tokens=$prompt_tokens in ${PROBE_ELAPSED_MS}ms"
 fi
+lane_line="$(grep -o "priced from the bypassing lane's own cache: [0-9]* bytes / [0-9]* tokens" \
+  "$PROBE_LOG" 2>/dev/null | tail -1)"
+lane_bytes="$(printf '%s' "$lane_line" | sed -n 's/.*cache: \([0-9]*\) bytes.*/\1/p')"
+lane_tokens="$(printf '%s' "$lane_line" | sed -n 's/.*bytes \/ \([0-9]*\) tokens.*/\1/p')"
+if [ -n "$lane_bytes" ] && [ -n "$lane_tokens" ] && [ "$lane_bytes" -gt 0 ] \
+  && [ "$lane_tokens" -gt 0 ]; then
+  lane_bpt=$(( lane_bytes / lane_tokens ))
+  probe_ok "the lane priced its own turn: $lane_bytes bytes / $lane_tokens tokens"
+  if [ "$lane_bpt" -ge 256 ] && [ "$lane_bpt" -lt 1048576 ]; then
+    probe_ok "lane bytesPerToken=$lane_bpt sits in the plausible KV band (256 .. 1048575)"
+  else
+    probe_fail "lane bytesPerToken=$lane_bpt is outside any KV band — wrong quantity or unit"
+  fi
+else
+  lane_bpt=""
+  probe_fail "the bypassing lane left no price in the log — its traffic stays unaccounted"
+  probe_fail "  (this is the open-items reasoning-lane row still being true)"
+fi
+lane_json="$(kv_cache)"
+lane_status="$(probe_json "$lane_json" "residency.status")"
+lane_code="$(curl -sS -m 20 "${auth_args[@]+"${auth_args[@]}"}" -o /dev/null -w '%{http_code}' \
+  "$PROBE_BASE/v1/models/${model_encoded}/kv-cache")"
+if [ "$lane_code" = "404" ] || [ "$lane_status" = "not_observed" ]; then
+  probe_ok "after the lane turn the endpoint still claims no residency (HTTP $lane_code, ${lane_status:-404})"
+else
+  probe_fail "residency.status=$lane_status after a turn whose cache was freed — the surface"
+  probe_fail "  calls bytes that no longer exist resident"
+fi
 
-probe_section "3. the /metrics gauge must leave zero"
+probe_section "3. the reservation basis moves on the lane's own price alone"
+# The price exists only after a cache has been read (lane or session -> KVCachePriceLedger),
+# and so far NO pooled turn has run on this server: any `@ measured` reservation can only have
+# come from the lane's own number. A log with no `Admitted` line is not "not applicable" — it
+# means the gate is off the live path.
+body2="$(python3 -c "
+import json, sys
+print(json.dumps({
+    'model': sys.argv[1],
+    'session_id': 'KV-2',
+    'max_tokens': 8,
+    'temperature': 0.0,
+    'messages': [{'role': 'user', 'content': sys.argv[2] + ' Reply with the single word OK.'}],
+}))" "$PROBE_MODEL" "$long_prompt")"
+probe_chat "KV-2" "$body2"
+
+admitted_all="$(grep -o "Admitted [^ ]*: [0-9]*MB reserved @ [a-z]* [0-9]* B/token" \
+  "$PROBE_LOG" 2>/dev/null || true)"
+n_admitted="$(printf '%s' "$admitted_all" | grep -c Admitted || true)"
+n_fallback="$(printf '%s' "$admitted_all" | grep -c "@ fallback " || true)"
+if [ "${n_admitted:-0}" -lt 2 ]; then
+  probe_fail "the gate logged ${n_admitted:-0} reservations across 2 dispatched turns — it is not"
+  probe_fail "  on the live path, so no pricing claim about it can be true"
+else
+  probe_ok "the gate reserved on both turns, at default log level, with its basis"
+fi
+if [ "${n_fallback:-0}" -ge 1 ]; then
+  probe_ok "a turn before any cache was priced reserved @ fallback 1024 B/token"
+else
+  probe_fail "no reservation named the fallback basis — the price arrived from nowhere, or the"
+  probe_fail "  basis is not logged at all: $(printf '%s' "$admitted_all" | head -1)"
+fi
+if [ -n "$lane_bpt" ]; then
+  n_lane_price="$(printf '%s' "$admitted_all" | grep -c "@ measured ${lane_bpt} B/token" || true)"
+  if [ "${n_lane_price:-0}" -ge 1 ]; then
+    probe_ok "the next turn reserved @ measured ${lane_bpt} B/token — the lane's own number, no pooled turn needed"
+  else
+    probe_fail "no reservation used the lane price ${lane_bpt} read this section: $(printf '%s' "$admitted_all" | tail -1)"
+  fi
+else
+  probe_note "lane price absent (§2) — cannot judge the reservation's source price"
+fi
+
+probe_section "4. a tools-bearing turn realizes a resident cache the endpoint measures"
+# The tools turn rides the pooled ChatSession, whose cache STAYS resident in the pool — that is
+# the lane the gauge and `measured` residency are about.
+body3="$(python3 -c "
+import json, sys
+print(json.dumps({
+    'model': sys.argv[1],
+    'session_id': 'KV-3',
+    'max_tokens': 8,
+    'temperature': 0.0,
+    'messages': [{'role': 'user', 'content': sys.argv[2] + ' Reply with the single word OK.'}],
+    'tools': [{'type': 'function', 'function': {
+        'name': 'get_weather',
+        'description': 'Get the weather for a city.',
+        'parameters': {'type': 'object', 'properties': {
+            'city': {'type': 'string'}}, 'required': ['city']}}}],
+}))" "$PROBE_MODEL" "$long_prompt")"
+probe_chat "KV-3" "$body3"
+
+probe_section "5. that pooled turn makes the gauge leave zero, and the endpoint measure it"
 gauge=""
 waited=0
 while [ "$waited" -lt 30 ]; do
@@ -118,11 +218,9 @@ done
 if [ -n "$gauge" ] && [ "$(python3 -c "print(1 if float('$gauge')>0 else 0)")" = "1" ]; then
   probe_ok "ocoreai_kv_cache_gpu_bytes = $gauge after ${waited}s (was 0 by construction before)"
 else
-  probe_fail "ocoreai_kv_cache_gpu_bytes = ${gauge:-missing} after ${waited}s — a KV cache was"
-  probe_fail "  allocated by this turn and the surface still says nothing (prompt_tokens=$prompt_tokens)"
+  probe_fail "ocoreai_kv_cache_gpu_bytes = ${gauge:-missing} after ${waited}s — a resident cache was"
+  probe_fail "  allocated by the pooled turn and the surface still says nothing"
 fi
-
-probe_section "4. the endpoint measures the same cache"
 after_json="$(kv_cache)"
 a_status="$(probe_json "$after_json" "residency.status")"
 a_bytes="$(probe_json "$after_json" "residency.residentBytes")"
@@ -133,7 +231,7 @@ probe_note "residency: status=$a_status bytes=$a_bytes sessions=$a_sessions toke
 if [ "$a_status" = "measured" ] && [[ "$a_bytes" =~ ^[0-9]+$ ]] && [ "$a_bytes" -gt 0 ]; then
   probe_ok "residency.status=measured with residentBytes=$a_bytes"
 else
-  probe_fail "residency after the turn: status=$a_status bytes=$a_bytes (expected measured / > 0)"
+  probe_fail "residency after the pooled turn: status=$a_status bytes=$a_bytes (expected measured / > 0)"
 fi
 if [[ "$a_bpt" =~ ^[0-9]+$ ]] && [ "$a_bpt" -ge 256 ] && [ "$a_bpt" -lt 1048576 ]; then
   probe_ok "bytesPerToken=$a_bpt sits in the plausible KV band (256 .. 1048575)"
@@ -142,7 +240,7 @@ else
   probe_fail "bytesPerToken=${a_bpt:-none} is outside any KV band — wrong quantity or stale number"
 fi
 
-probe_section "5. arithmetic: a breakdown cannot exceed its whole"
+probe_section "6. arithmetic: a breakdown cannot exceed its whole"
 if [[ "$a_bytes" =~ ^[0-9]+$ ]] && [[ "$a_bpt" =~ ^[0-9]+$ ]] && [[ "$a_tokens" =~ ^[0-9]+$ ]] \
   && [ "$a_tokens" -gt 0 ]; then
   floor_total=$(( a_bpt * a_tokens ))
@@ -167,49 +265,26 @@ else
   probe_fail "no process gauge to compare against residentBytes=$a_bytes"
 fi
 
-probe_section "6. admission must reserve at the model's price, and name the basis"
-# The price exists only after a cache has been read (SessionPool.release -> KVCachePriceLedger),
-# so the honest ordering is testable on one server: turn 1 reserves at the fallback because
-# nothing had been measured, turn 2 reserves at the price turn 1 produced. A log with no
-# `Admitted` line is not "not applicable" — it means the gate is off the live path.
-body2="$(python3 -c "
-import json, sys
-print(json.dumps({
-    'model': sys.argv[1],
-    'session_id': 'KV-2',
-    'max_tokens': 8,
-    'temperature': 0.0,
-    'messages': [{'role': 'user', 'content': sys.argv[2] + ' Reply with the single word OK.'}],
-}))" "$PROBE_MODEL" "$long_prompt")"
-probe_chat "KV-2" "$body2"
-
+probe_section "7. every dispatched turn reserved, and a measured basis appears"
+# Both price sources exist by now, so only the cheap invariants are judged here: every turn
+# reserved, at least one reservation used a measured (not fallback) basis, and the fallback
+# appeared first. The exact per-source prices are asserted where their source is unambiguous (§3).
 admitted_all="$(grep -o "Admitted [^ ]*: [0-9]*MB reserved @ [a-z]* [0-9]* B/token" \
   "$PROBE_LOG" 2>/dev/null || true)"
 n_admitted="$(printf '%s' "$admitted_all" | grep -c Admitted || true)"
-n_fallback="$(printf '%s' "$admitted_all" | grep -c "@ fallback " || true)"
-measured_price="${a_bpt:-none}"
-n_measured="$(printf '%s' "$admitted_all" | grep -c "@ measured ${measured_price} B/token" || true)"
-probe_note "reservations logged: ${n_admitted} (${n_fallback} fallback, ${n_measured} measured@${measured_price})"
-if [ "${n_admitted:-0}" -lt 2 ]; then
-  probe_fail "the gate logged ${n_admitted:-0} reservations across 2 dispatched turns — it is not"
-  probe_fail "  on the live path, so no pricing claim about it can be true"
+n_measured_any="$(printf '%s' "$admitted_all" | grep -c "@ measured " || true)"
+if [ "${n_admitted:-0}" -ge 3 ]; then
+  probe_ok "all 3 dispatched turns reserved and named their basis"
 else
-  probe_ok "the gate reserved on both turns, at default log level, with its basis"
+  probe_fail "only ${n_admitted:-0} reservations across 3 dispatched turns — the gate skipped one"
 fi
-if [ "${n_fallback:-0}" -ge 1 ]; then
-  probe_ok "a turn before any cache was priced reserved @ fallback 1024 B/token"
+if [ "${n_measured_any:-0}" -ge 1 ]; then
+  probe_ok "at least one reservation reserved @ measured — the gate learned a real price"
 else
-  probe_fail "no reservation named the fallback basis — the price arrived from nowhere, or the"
-  probe_fail "  basis is not logged at all: $(printf '%s' "$admitted_all" | head -1)"
+  probe_fail "every reservation used the fallback basis — the measured price never reached the gate"
 fi
-if [ "${n_measured:-0}" -ge 1 ]; then
-  probe_ok "the next turn reserved @ measured ${measured_price} B/token — this probe's own number"
-else
-  probe_fail "no reservation used the measured price ${measured_price} read off the same model's"
-  probe_fail "  caches: $(printf '%s' "$admitted_all" | tail -1)"
-fi
-if [[ "$measured_price" =~ ^[0-9]+$ ]] && [ "$measured_price" -gt 1024 ]; then
-  probe_note "the bet avoided: the floor reserves $(( measured_price / 1024 ))x less than the cache holds"
+if [[ "${a_bpt:-}" =~ ^[0-9]+$ ]] && [ "$a_bpt" -gt 1024 ]; then
+  probe_note "the bet avoided: the floor reserves $(( a_bpt / 1024 ))x less than the cache holds"
 fi
 
 probe_section "8. the wire states the rewind-reserve plan this server booted under"

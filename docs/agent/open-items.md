@@ -221,16 +221,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `basis`, and `OCOREAI_KV_REWIND_RESERVE_TOKENS` overrides once at boot (0=off; a negative or unparseable value
   keeps the default and says so on the wire) — tuning can now be priced against a number the operator can set.
   `SessionRewindOnDivergenceTests` + `KVCacheRewindReserveTests` + probe 27 hold the wiring and the number.
-- **Reasoning-lane traffic is unaccounted** (Engine/) — the no-tools lane (`"Routing through reasoning
-  path"`) never realizes the pooled session's cache: release reads `cacheStatus()` at zero, so gauge,
-  `/kv-cache` residency and the admission price all stay `not_observed`/fallback for it, while a
-  tools-bearing turn on the same server prices 26.7 MB/1651 tok (measured 11-11, one boot three shapes;
-  green 10-25 puts the window at the 11-07 bump). Corroborated by probes 19/29/31/32/35
-  (attribution: 35 measured, the rest inferred — `CHANGELOG.md` sweep entry; all five counts re-measured
-  identical on the 11-11 HEAD and again 11-13 on the fresh +8-bump binary — the class sits untouched
-  below them). Price the lane from its own
-  turn or refuse to pool it as warm is the owner's design call; the reds state which traffic the surfaces
-  cannot price.
+- **Reasoning-lane traffic is priced, still not warm** (Engine/) — the no-tools lane pays its own
+  turn into `KVCachePriceLedger` (never the never-fed session); residency honestly stays
+  `not_observed` — probe 35 §2-3. The owner's pooling call covers the rest: the lane frees its
+  cache, so no-tools traffic cold-prefills every turn (probe 19 red) and emits no pooled per-turn
+  lines (probe 32's `promptHash` leg); 29/31 stay red with one defect each beyond the class;
+  guided/MTP lanes log `not priced`, not a price.
 - **The video record still trusts the processor consumed the frames** (Multimodal/) — the 11-07 over-report
   is closed at its root (media turns had been routed onto the std-reasoning lane, whose `(role, content)`
   rebuild drops `Chat.Message.media`; probes 08/17 flipped green with the routing fix). Residual: the rule

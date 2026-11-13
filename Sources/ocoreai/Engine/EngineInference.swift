@@ -3003,6 +3003,11 @@ extension EnginePool {
                 )
             }
 
+            // The reasoning lane's measured price, read only by the bypass branch of
+            // `SessionPool.release`; a pooled turn is priced at the session itself.
+            var lanePricedBytes: Int?
+            var lanePricedTokens: Int?
+
             // releasePoolSlot: RAII helper to release the pooled ChatSession
             // and nil it out. Safe to call multiple times — pooledSession == nil
             // on subsequent calls (no-op). Used by all inference paths including
@@ -3021,7 +3026,10 @@ extension EnginePool {
                         modelId: modelId,
                         conversationId: convKey,
                         assistantMessage: nil,
-                        mediaFiles: spooledMedia
+                        mediaFiles: spooledMedia,
+                        laneRunsOnPooledSession: runsOnPooledSession,
+                        lanePricedBytes: lanePricedBytes,
+                        lanePricedTokens: lanePricedTokens
                     )
                 }
             }
@@ -3043,7 +3051,10 @@ extension EnginePool {
                         conversationId: convKey,
                         promptMessages: poolPromptKeys,
                         assistantMessage: historyKey,
-                        mediaFiles: spooledMedia
+                        mediaFiles: spooledMedia,
+                        laneRunsOnPooledSession: runsOnPooledSession,
+                        lanePricedBytes: lanePricedBytes,
+                        lanePricedTokens: lanePricedTokens
                     )
                 }
             }
@@ -3110,7 +3121,9 @@ extension EnginePool {
                                 pooled: pooled,
                                 modelId: modelId,
                                 conversationId: convKey,
-                                assistantMessage: nil
+                                assistantMessage: nil,
+                                // Its own cache scope: a planned zero from this session states nothing.
+                                laneRunsOnPooledSession: false
                             )
                         }
                     }
@@ -3174,7 +3187,9 @@ extension EnginePool {
                                 pooled: pooled,
                                 modelId: modelId,
                                 conversationId: convKey,
-                                assistantMessage: nil
+                                assistantMessage: nil,
+                                // Its own cache scope: a planned zero from this session states nothing.
+                                laneRunsOnPooledSession: false
                             )
                         }
                     }
@@ -3945,6 +3960,10 @@ extension EnginePool {
                     // GenerateCompletionInfo.cachedPromptTokenCount, landed in 604fae7).
                     // nil = no .info before termination (e.g. early cancel).
                     let cachedPromptTokenCount: Int?
+                    // The lane's cache priced before it was freed — the only measured
+                    // price this traffic will ever have. nil without `.info`: no claim.
+                    let laneCacheBytes: Int?
+                    let laneCacheTokens: Int?
                 }
 
                 // SAFETY: [Chat.Message] is non-Sendable — snapshot as Sendable
@@ -4062,8 +4081,13 @@ extension EnginePool {
                                 thinkingEnabled: thinkingEnabled,
                                 answerOnly: true
                             )
+                            // The identical array the iterator builds when `cache:` is nil
+                            // (Evaluate.swift:995) — holding the handle makes this turn's
+                            // bytes readable before the cache is freed.
+                            let laneCache = try context.model.newCache(parameters: genParams)
                             let (stdTokenStream, stdTokenTask) = try MLXLMCommon.generateTokensTask(
                                 input: stdInput,
+                                cache: laneCache,
                                 parameters: genParams,
                                 context: context,
                                 components: thinkingComponents,
@@ -4197,6 +4221,24 @@ extension EnginePool {
                             // Skill pattern: deterministic cleanup after stream exhaustion
                             await stdTokenTask.value
 
+                            // The cache holds the prompt plus every token written; `.info`
+                            // named both. No `.info` (cancel, stop sequence) claims no price.
+                            var laneCacheBytes: Int?
+                            var laneCacheTokens: Int?
+                            if let lanePromptTokens = localPromptTokenCount {
+                                let laneHeld =
+                                    lanePromptTokens
+                                    + (localStdTokenCount ?? localStdTokenIds.count)
+                                let laneStatus = KVCacheStatus(
+                                    cache: laneCache,
+                                    phase: .realized,
+                                    processedTokenCount: laneHeld)
+                                if laneStatus.memoryBytes > 0 {
+                                    laneCacheBytes = laneStatus.memoryBytes
+                                    laneCacheTokens = laneHeld
+                                }
+                            }
+
                             return StandardReasoningResult(
                                 stoppedBySequence: localStdStoppedBySeq,
                                 stopReason: localStdStopReason,
@@ -4214,7 +4256,9 @@ extension EnginePool {
                                 accumulatedText: localStdAccumulated.isEmpty
                                     ? nil : localStdAccumulated,
                                 promptTokenCount: localPromptTokenCount,
-                                cachedPromptTokenCount: localCachedPromptTokenCount
+                                cachedPromptTokenCount: localCachedPromptTokenCount,
+                                laneCacheBytes: laneCacheBytes,
+                                laneCacheTokens: laneCacheTokens
                             )
                         }
                     } catch {
@@ -4242,6 +4286,8 @@ extension EnginePool {
                     metrics.generatedTokenCount += stdResult.tokenIds.count
                     // Capture assistant text for pool message history tracking
                     stdAccumulated = stdResult.accumulatedText
+                    lanePricedBytes = stdResult.laneCacheBytes
+                    lanePricedTokens = stdResult.laneCacheTokens
 
                     // Upstream: emit diagnostic metadata about generation state.
                     if !stdResult.stoppedBySequence, !Task.isCancelled {

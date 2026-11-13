@@ -945,6 +945,11 @@ actor MLXSessionPool {
     ///     used to extend the message history for prefix matching on the next turn.
     ///     Convert the assistant `Chat.Message` to `MessageHistoryKey` before calling across actor boundary.
     ///     Pass nil for guided gen / tool paths or when generation was cancelled.
+    ///   - laneRunsOnPooledSession: false when the lane generated around this session
+    ///     (`bypassesPooledChatSession`) — a planned zero read off a never-fed session
+    ///     would read like an empty cache.
+    ///   - lanePricedBytes / lanePricedTokens: the bypassing lane's measured price,
+    ///     recorded, never published as residency (the lane holds nothing between turns).
     func release(
         pooled: PooledChatSession,
         modelId: String,
@@ -952,6 +957,9 @@ actor MLXSessionPool {
         promptMessages: [MessageHistoryKey]? = nil,
         assistantMessage: MessageHistoryKey? = nil,
         mediaFiles: [URL] = [],
+        laneRunsOnPooledSession: Bool = true,
+        lanePricedBytes: Int? = nil,
+        lanePricedTokens: Int? = nil,
     ) async {
         let key = poolKey(modelId: modelId, conversationId: conversationId)
         // Clear tools + toolDispatch + additionalContext to prevent cross-session leakage.
@@ -965,43 +973,72 @@ actor MLXSessionPool {
         // reused pooled session could serve stale cache state.
         await pooled.session.synchronize()
 
-        // Price this session's cache while its lock is free. `cacheStatus()` comes back
-        // `.realized` once a turn has run, and its per-layer `memoryBytes` are allocated
-        // bytes read off the cache's own arrays — the only per-model KV price that is not a
-        // guess. A failed read claims nothing: the entry keeps 0, which reads as
-        // `not_observed` rather than as a zero-byte cache.
-        var measuredBytes = 0
-        var measuredTokens = 0
-        do {
-            let residency = KVCacheResidency(status: try await pooled.session.cacheStatus())
-            measuredBytes = residency.residentBytes
-            measuredTokens = residency.processedTokens
-            // Symmetry: a read that succeeds states its number too, so a session that
-            // entered the pool without ever passing this gate is detectable in the log.
-            logger.info(
-                """
-                KV residency [\(modelId)] priced at release: \(measuredBytes) bytes / \
-                \(measuredTokens) tokens
-                """
-            )
-            if measuredBytes == 0 {
-                // Upstream answers this as cacheStatus() only reports allocated bytes for a
-                // `.kvcache`; any other cache state (streaming / finished / planned) yields a
-                // zero-byte reading that reads on the surface exactly like an empty cache.
+        // Two price sources that never overlap: a turn that ran here pays from its
+        // realized cache (allocated bytes off the cache's own arrays — the only per-model
+        // KV price that is not a guess); a bypassing lane never fed this session, so it
+        // pays with the number read off its own freed cache. A failed read claims nothing:
+        // the entry keeps 0, which reads as `not_observed` rather than as a zero-byte cache.
+        var residentBytes = 0
+        var residentTokens = 0
+        var priceBytes = 0
+        var priceTokens = 0
+        if laneRunsOnPooledSession {
+            do {
+                let residency = KVCacheResidency(status: try await pooled.session.cacheStatus())
+                residentBytes = residency.residentBytes
+                residentTokens = residency.processedTokens
+                priceBytes = residentBytes
+                priceTokens = residentTokens
+                // Symmetry: a read that succeeds states its number too, so a session that
+                // entered the pool without ever passing this gate is detectable in the log.
+                logger.info(
+                    """
+                    KV residency [\(modelId)] priced at release: \(residentBytes) bytes / \
+                    \(residentTokens) tokens
+                    """
+                )
+                if residentBytes == 0 {
+                    // Upstream answers this as cacheStatus() only reports allocated bytes for a
+                    // `.kvcache`; any other cache state (streaming / finished / planned) yields a
+                    // zero-byte reading that reads on the surface exactly like an empty cache.
+                    logger.warning(
+                        """
+                        KV residency [\(modelId)] read zero bytes after a completed turn — the \
+                        cache reported no allocation, so the gauge and /kv-cache stay \
+                        not_observed (0 tokens held: \(residentTokens))
+                        """
+                    )
+                }
+            } catch {
                 logger.warning(
                     """
-                    KV residency [\(modelId)] read zero bytes after a completed turn — the \
-                    cache reported no allocation, so the gauge and /kv-cache stay \
-                    not_observed (0 tokens held: \(measuredTokens))
+                    KV residency [\(modelId)] not measured: \(error.localizedDescription) — \
+                    the gauge and /kv-cache stay not_observed for this session; a model never \
+                    priced keeps the admission gate's fallback basis
                     """
                 )
             }
-        } catch {
-            logger.warning(
+        } else if let laneBytes = lanePricedBytes, let laneTokens = lanePricedTokens,
+            laneBytes > 0, laneTokens > 0
+        {
+            // The price joins the ledger — it is a property of the weights — but residency
+            // stays 0, because the lane frees its cache: calling these bytes resident
+            // would be the same over-report from the other side.
+            priceBytes = laneBytes
+            priceTokens = laneTokens
+            logger.info(
                 """
-                KV residency [\(modelId)] not measured: \(error.localizedDescription) — \
-                the gauge and /kv-cache stay not_observed for this session; a model never \
-                priced keeps the admission gate's fallback basis
+                KV residency [\(modelId)] priced from the bypassing lane's own cache: \
+                \(laneBytes) bytes / \(laneTokens) tokens — the lane holds nothing between \
+                turns, so the gauge and /kv-cache stay not_observed by construction
+                """
+            )
+        } else {
+            logger.info(
+                """
+                KV residency [\(modelId)] not priced: the bypassing lane left no measurement \
+                (no `.info` arrived) — the gauge and /kv-cache stay not_observed and the \
+                admission gate keeps its fallback basis
                 """
             )
         }
@@ -1009,8 +1046,8 @@ actor MLXSessionPool {
         // One read, two consumers: a model never priced keeps the fallback and says so.
         await KVCachePriceLedger.shared.record(
             modelId: modelId,
-            residentBytes: measuredBytes,
-            processedTokens: measuredTokens)
+            residentBytes: priceBytes,
+            processedTokens: priceTokens)
 
         // The ledger records what the KV cache provably represents after this turn.
         // Before this, nothing ever wrote the prompt side into it — only the assistant
@@ -1026,8 +1063,8 @@ actor MLXSessionPool {
         // unprovable turn claims nothing: reuse still happens, it just hands the full
         // history back to ChatSession, which reconciles it against its own transcript.
         var entryToPool = pooled
-        entryToPool.residentKVBytes = measuredBytes
-        entryToPool.residentKVTokens = measuredTokens
+        entryToPool.residentKVBytes = residentBytes
+        entryToPool.residentKVTokens = residentTokens
         if let promptMessages, let assistantMessage,
             !promptMessages.contains(where: { $0.hasMedia || $0.hasToolTraffic })
         {
