@@ -1,0 +1,19 @@
+diff --git a/Sources/ocoreai/Skills/SystemPromptBuilder.swift b/Sources/ocoreai/Skills/SystemPromptBuilder.swift
+index 09bcda15..6bf446ad 100644
+--- a/Sources/ocoreai/Skills/SystemPromptBuilder.swift
++++ b/Sources/ocoreai/Skills/SystemPromptBuilder.swift
+@@ -61,9 +61,14 @@ actor SystemPromptBuilder {
+     /// mode for an agent product, so the rule is stated operationally rather than
+     /// as a value: claiming an action requires having called the tool and seen the
+     /// result. (Paired with ``noToolsDirective`` for the zero-tool case.)
++    /// The ordering sentence is its own measured face: stably-failing board tasks called the
++    /// edit tools repeatedly, dispatched zero `exec_command`, and declared done — `PostWriteSyntax`
++    /// only decides files that fail to compile, so a compiling off-by-one shipped as "fixed".
+     static let toolActionDirective =
+         "Assume the user wants code changes or tool actions that solve their problem: "
+         + "use your tools to actually implement changes and run commands, don't just describe what you would do. "
++        + "Before you call a change finished, run it with exec_command — compile it, run its test, or re-read "
++        + "the file you wrote: a file tool's OK only means the bytes were saved, never that the code works. "
+         + "When you finish, report what changed and how you verified it. "
+         + "Claiming an action requires having called the tool and seen its result: never say you "
+         + "searched, fetched, ran, read, or changed anything unless a tool result in this "

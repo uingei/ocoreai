@@ -1,0 +1,24 @@
+diff --git a/Sources/ocoreai/Skills/SystemPromptBuilder.swift b/Sources/ocoreai/Skills/SystemPromptBuilder.swift
+index 09bcda15..66e793da 100644
+--- a/Sources/ocoreai/Skills/SystemPromptBuilder.swift
++++ b/Sources/ocoreai/Skills/SystemPromptBuilder.swift
+@@ -61,9 +61,19 @@ actor SystemPromptBuilder {
+     /// mode for an agent product, so the rule is stated operationally rather than
+     /// as a value: claiming an action requires having called the tool and seen the
+     /// result. (Paired with ``noToolsDirective`` for the zero-tool case.)
++    /// The verification sentence is a measured face: free-form "run it before calling it
++    /// done" gained 45:11 on the frozen set k=6 but the regression veto named two stable-pass
++    /// tasks (`make-failing-test-pass` 6/6→2/6, `edit-rename-key-keep-value` 6/6→3/6) —
++    /// unbounded "run it" sends a small model editing against its own check output. This
++    /// phrasing binds verification to the command that showed the problem, the shape
++    /// mini-swe-agent's workflow uses (`config/mini.yaml` step 4: re-run the reproduction).
++    /// The compile-decidable half stays `PostWriteSyntax`'s.
+     static let toolActionDirective =
+         "Assume the user wants code changes or tool actions that solve their problem: "
+         + "use your tools to actually implement changes and run commands, don't just describe what you would do. "
++        + "If a command showed the problem you are fixing — a test that fails, an error you were asked to fix — "
++        + "run that same command again after your change, and only call it fixed if it now succeeds. "
++        + "If it still fails, say so plainly and say what it reports. "
+         + "When you finish, report what changed and how you verified it. "
+         + "Claiming an action requires having called the tool and seen its result: never say you "
+         + "searched, fetched, ran, read, or changed anything unless a tool result in this "

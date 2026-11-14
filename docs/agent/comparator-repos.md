@@ -1,19 +1,14 @@
 # Comparator repositories — who is good at what
 
-> Long form behind § *Upstream Audit Dependencies* 5. Cells are a **dated snapshot** read off the
-> local clone; re-measure the diary column **from the disk**, so the command cannot itself go stale — the
-> hand-typed list it used to carry named 24 trees while 27 sat in `~/references`, i.e. the instrument that
-> exists to catch a stale cell was the stalest thing in the file (11-04):
+> Long form behind § *Upstream Audit Dependencies* 5. Cells are **dated snapshots** off the local
+> clone; re-measure the diary column **from the disk**, so the command cannot itself go stale:
 > `for r in $(ls "$HOME/references"); do printf "%s=%s\n" "$r" "$(grep -c -- "$r" CHANGELOG.md)"; done`
 > — nothing re-derives these lists since 10-28 (P16 was deleted as prose-shape), so a stale cell is
-> yours to notice. Coupling re-derives two ways and both are printed, because they answer different questions:
-> `` git grep -lE '`<tree>`|references/<tree>' -- Sources Tests `` counts **cite coupling** (a backticked name
-> or a path into its clone); the looser `git grep -l <tree> -- Sources Tests` counts **name mentions** and is
-> substring-naive both ways (the 458/7 count pair and the `-w` lesson: consensus § What the corpus did not know,
-> bullet 5). A **pin** is a build input (`Package.swift:43`); everything else is a comparator.
-> Context economy across the field — each tree's own `AGENTS.md` set against the 32 768 B our loader injects
-> at — is a cross-tree claim with a denominator, so per § *How to use* 4 it is not homed here: the table and
-> the re-derive command are in `comparator-consensus.md` § The injected ruleset.
+> yours to notice. Coupling re-derives two ways, both printed: `git grep -lE '`<tree>`|references/<tree>'`
+> counts **cite coupling**, the loose `git grep -l <tree>` counts **name mentions** and is
+> substring-naive both ways (`-w` lesson: consensus § What the corpus did not know, bullet 5).
+> A **pin** is a build input (`Package.swift:43`); everything else is a comparator. The field-wide
+> context-economy table (§ *How to use* 4): consensus § The injected ruleset.
 
 Each entry is one clone under `~/references/`: what it holds, the axis worth borrowing, how far the audit got.
 
@@ -477,6 +472,19 @@ Borrow: confirmation, nothing taken — our verifier is a shell rc an answer can
   same confirmation SWE-bench's row already holds once). Typed verifiers are an axis only if the board's scope
   grows, which is the owner's call.
 
+- `harbor` — the Terminal-Bench authors' eval/optimize framework (+133 commits/14 d); unread until 11-14.
+Contains/Borrow: external-task supply if the board ever wants one — read when that problem is live.
+
+- `SWE-ReX` — sandboxed-shell runtime interface, dormant since 2026-05; registered 11-14, zero prior cites.
+  Adjacent to our exec/eval domain; read only when a live cite reaches for it.
+
+- `HyperAgents` — 145 files, placeholder README, zero commits since 2026-04: no axis, no verdict;
+  removal candidate.
+
+- `agent-client-protocol` — Zed's ACP schema tree (Rust); registry debt only — verdicts already sit in
+  `comparator-consensus.md` and `CHANGELOG.md`. Contains: how an external editor becomes a harness
+  consumer (§ Adoption); the `/v1` ↔ ACP differential is the read that makes it a plan.
+
 - `OSWorld` — the computer-use eval (1 668 commits since 2023-10): the 11-02/03 work is per-task honesty
   audits landing from `*-reviewed` branches — `#682` verifies the guest's key-repeat policy before trusting
   input, `#683` preserves an incomplete cleanup's retry, `#684` compares all folder messages — each fix a score
@@ -585,16 +593,14 @@ Borrow: header and proxy semantics only — where a trust boundary reads a forwa
 
 1. Where a tree has the answer, cite `file:line` rather than authoring a local variant, and land the change
    with its upstream line, our line, and the gate that goes red.
-2. Re-derive coupling both ways (§ header) **from the disk's tree list**, with `-w` on the name measure — bare
-   `pi` matches `Float.pi` (458 files) and bare `cline` matches "decline" (7), so the count is wrong in both
-   directions without it. The dated counts, the trees that score zero, and why this instruction has twice
-   disagreed with its own command are a self-measurement with a denominator, so they live once in
-   `comparator-consensus.md` § What the corpus did not know about itself (bullet 5).
-3. **A resolved cite is not a verified claim.** 11-04 read 64 cites here and in `competitor-iteration-paths.md`
-   off their mirrors: no claim about what a tree does was false, five positions were stale, and one had become a
-   blank line every gate passed. Which instrument sees which half, and why the answer is an inline quote rather
-   than a second scanner: `competitor-iteration-paths.md` § What that gate does not see.
+2. Re-derive coupling both ways (§ header) **from the disk's tree list**, `-w` on the name measure — bare
+   `pi` matches `Float.pi` (458 files), bare `cline` matches "decline" (7): wrong both ways without it.
+   Dated counts, zero rows and this instruction's own misses live once in `comparator-consensus.md`
+   § What the corpus did not know about itself (bullet 5).
+3. **A resolved cite is not a verified claim.** An 11-04 read of 64 cites off their mirrors found no false
+   claim but five stale positions and one blank line every gate passed. Which instrument sees which half, and
+   why an inline quote beats a second scanner: `competitor-iteration-paths.md` § What that gate does not see.
 4. **This file answers "what does tree X hold". A claim that the *field* does Y is a different question with a
-   different denominator**, so it does not live here: `scripts/comparator-consensus.sh` measures it off the
-   same mirrors, `comparator-consensus.md` holds the verdicts and `comparator-innovation.md` who holds one
-   alone. Adding a tree? Add it to the disk, not to a typed list, and the instruments pick it up.
+   different denominator**, so it does not live here: `scripts/comparator-consensus.sh` measures it,
+   `comparator-consensus.md` holds the verdicts, `comparator-innovation.md` who holds one alone.
+   Adding a tree? Add it to the disk, not to a typed list, and the instruments pick it up.
