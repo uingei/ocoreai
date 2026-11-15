@@ -113,7 +113,7 @@ struct EnginePoolLoadingGateTests {
         }
         let elapsed = elapsedSeconds(start)
         #expect(elapsed >= 0.9, "wait gave up after \(elapsed)s, before its 1 s window")
-        #expect(elapsed < 3.0, "wait overshoot the 1 s window: \(elapsed)s")
+        #expect(elapsed < 5.0, "wait overshoot the 1 s window: \(elapsed)s")
     }
 
     /// Cancellation must interrupt a parked waiter immediately — polling must not

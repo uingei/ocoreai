@@ -225,8 +225,8 @@ struct SessionRewindOnDivergenceTests {
                 separatedBy: "laneRunsOnPooledSession: runsOnPooledSession"
             ).count - 1
         #expect(
-            lanePassed == 1,
-            "acquire must be told whether this turn runs on the pooled session; found \(lanePassed)"
+            lanePassed == 3,
+            "the flag feeds acquire + both releases; found \(lanePassed)"
         )
         let laneGated =
             poolSource.components(
