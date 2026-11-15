@@ -1,0 +1,131 @@
+diff --git a/Sources/ocoreai/Tools/ExecNotFoundHint.swift b/Sources/ocoreai/Tools/ExecNotFoundHint.swift
+new file mode 100644
+index 00000000..4072e503
+--- /dev/null
++++ b/Sources/ocoreai/Tools/ExecNotFoundHint.swift
+@@ -0,0 +1,89 @@
++// Copyright © 2026 uingei@163.com.
++// Licensed under MIT.
++/// The 127 honesty suffix — a `command not found` report gains the PATH fact that decides it.
++///
++/// Measured 11-14 on the frozen set (both prompt variants, same task): a 2B model writes
++/// `python` where the host ships `python3`, reads the bare 127 as "this approach fails",
++/// and abandons or spins; README § known-failure has quoted this class since 10-22. The fix
++/// sits in the result, not the prompt: a path is a fact, an instruction would be a promise.
++///
++/// Discipline (shared with `PostWriteSyntax`): pure lookup, nothing executes; undecidable
++/// returns nil and the report stays byte-identical.
++import Foundation
++
++enum ExecNotFoundHint: Sendable {
++
++    /// Pull the command name out of zsh/bash's fixed 127 wording; nothing parseable = nil.
++    ///
++    /// The two shells put the name on opposite sides of the phrase (`zsh: command not found:
++    /// python` / `bash: python: command not found`), so both orders are tried — and the bound
++    /// lives here, in the only function that reads the wording, rather than being doubled in
++    /// the PATH scan.
++    static let maxNameLength = 12
++
++    static func failedCommand(inStderr stderr: String) -> String? {
++        for line in stderr.split(separator: "\n") {
++            guard let range = line.range(of: "command not found") else { continue }
++            let after = line[range.upperBound...].trimmingCharacters(in: .whitespaces)
++            let before = line[line.startIndex ..< range.lowerBound]
++                .trimmingCharacters(in: .whitespaces)
++            // zsh carries the name after (": python"), bash before ("python:"); trim the
++            // colon either side, and never mistake the shell's own "zsh:1:" prefix for it.
++            let colon = CharacterSet(charactersIn: ": ")
++            let afterTokens = after.split(separator: " ")
++                .map { $0.trimmingCharacters(in: colon) }
++                .filter { !$0.isEmpty }
++            let beforeTokens = before.split(separator: " ")
++                .map { $0.trimmingCharacters(in: colon) }
++                .filter { !$0.isEmpty }
++            let shells: Set<String> = ["zsh", "bash", "sh", "fish"]
++            let candidates = afterTokens + beforeTokens.reversed().filter { !shells.contains($0) }
++            if let name = candidates.first, !name.contains("/"), name.count <= maxNameLength {
++                return name
++            }
++        }
++        return nil
++    }
++
++    /// A PATH entry that starts with `name`, is longer, and executable (python→python3).
++    /// Bounded at +4 chars so a short name cannot resolve to an arbitrary tool.
++    static func candidate(for name: String, pathEntries: [String]) -> String? {
++        for dir in pathEntries where !dir.isEmpty {
++            guard
++                let entries = try? FileManager.default
++                    .contentsOfDirectory(atPath: dir).sorted()
++            else { continue }
++            for entry in entries
++            where entry.hasPrefix(name) && entry != name && entry.count <= name.count + 4 {
++                let full = dir + "/" + entry
++                var isDir: ObjCBool = false
++                if FileManager.default.fileExists(atPath: full, isDirectory: &isDir),
++                    !isDir.boolValue,
++                    FileManager.default.isExecutableFile(atPath: full)
++                {
++                    return full
++                }
++            }
++        }
++        return nil
++    }
++
++    /// States the path fact and hands the choice back; never claims the re-run succeeds.
++    /// Both exec lanes come through here, so neither can promise a shape the other lacks.
++    static func suffix(exitCode: Int32, stderr: String) -> String? {
++        suffix(
++            exitCode: exitCode,
++            stderr: stderr,
++            pathEntries: (ProcessInfo.processInfo.environment["PATH"] ?? "")
++                .split(separator: ":").map(String.init))
++    }
++
++    static func suffix(exitCode: Int32, stderr: String, pathEntries: [String]) -> String? {
++        guard exitCode == 127,
++            let name = failedCommand(inStderr: stderr),
++            let full = candidate(for: name, pathEntries: pathEntries)
++        else { return nil }
++        return
++            "ocoreai: `\(name)` is not on PATH here, but `\((full as NSString).lastPathComponent)` exists at \(full) — if that is the tool you meant, re-run the same command with it."
++    }
++}
+diff --git a/Sources/ocoreai/Tools/ExecSessions.swift b/Sources/ocoreai/Tools/ExecSessions.swift
+index 448e1277..33af302c 100644
+--- a/Sources/ocoreai/Tools/ExecSessions.swift
++++ b/Sources/ocoreai/Tools/ExecSessions.swift
+@@ -514,7 +514,14 @@ actor ExecSessionManager {
+             parts.append(err)
+         }
+         parts.append("end of process output")
+-        parts.append("exit code: \(session.completed ? session.exitCode : -1)")
++        let code: Int32 = session.completed ? session.exitCode : -1
++        parts.append("exit code: \(code)")
++        // The same 127 fact the pinned lane states — one contract for both exec surfaces.
++        if session.completed,
++            let hint = ExecNotFoundHint.suffix(exitCode: code, stderr: session.stderr)
++        {
++            parts.append(hint)
++        }
+         return parts.joined(separator: "\n")
+     }
+ 
+diff --git a/Sources/ocoreai/Tools/ExecTools.swift b/Sources/ocoreai/Tools/ExecTools.swift
+index 378505ac..c78d4d0a 100644
+--- a/Sources/ocoreai/Tools/ExecTools.swift
++++ b/Sources/ocoreai/Tools/ExecTools.swift
+@@ -133,7 +133,10 @@ enum ExecTools {
+                 }
+             }
+         }
+-        let report = format(result)
++        var report = format(result)
++        if let hint = ExecNotFoundHint.suffix(exitCode: result.exitCode, stderr: result.stderr) {
++            report += "\n" + hint
++        }
+         return cwdNote.map { "\($0)\n\(report)" } ?? report
+         #else
+         _ = (command, cwd, timeoutSeconds)

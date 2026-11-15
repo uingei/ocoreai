@@ -1,0 +1,124 @@
+diff --git a/Tests/ocoreaiTests/ExecNotFoundHintTests.swift b/Tests/ocoreaiTests/ExecNotFoundHintTests.swift
+new file mode 100644
+index 00000000..2490c1d3
+--- /dev/null
++++ b/Tests/ocoreaiTests/ExecNotFoundHintTests.swift
+@@ -0,0 +1,118 @@
++// Copyright © 2026 uingei@163.com.
++// Licensed under MIT.
++/// ExecNotFoundHint — the 127 honesty suffix, gated offline with a PATH fixture.
++///
++/// Exact-value coverage: the parsed command name, the candidate rule (prefix + longer +
++/// executable + bounded), the byte-identical report when undecidable, and the standing
++/// proof that the hint never executes (the fixture binary leaves no trace).
++import Foundation
++import Testing
++
++@testable import ocoreai
++
++@Suite("ExecNotFoundHint — 127 suffix (exact values)")
++struct ExecNotFoundHintTests {
++
++    /// Fresh fixture dir containing named files with the given exec bits; nothing is run.
++    private func fixture(_ files: [String: Bool]) throws -> String {
++        let dir = FileManager.default.temporaryDirectory
++            .appendingPathComponent("hint-fixture-\(UUID().uuidString.prefix(8))")
++        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
++        for (name, executable) in files {
++            let url = dir.appendingPathComponent(name)
++            try "#!/bin/sh\necho ran > \"\(dir.path)/ran-marker\"\n".write(
++                to: url, atomically: true, encoding: .utf8)
++            try FileManager.default.setAttributes(
++                [.posixPermissions: executable ? 0o755 : 0o644], ofItemAtPath: url.path)
++        }
++        return dir.path
++    }
++
++    // MARK: - name parsing (the only reader of the 127 wording)
++
++    @Test(
++        "zsh and bash wording parse to the same name",
++        arguments: [
++            ("zsh:1: command not found: python", "python"),
++            ("bash: python: command not found", "python"),
++            ("zsh: command not found: pip", "pip"),
++        ])
++    func parsesNames(line: String, expected: String) {
++        #expect(ExecNotFoundHint.failedCommand(inStderr: line) == expected)
++    }
++
++    @Test(
++        "unparseable or absent wording yields nil",
++        arguments: [
++            "",
++            "zsh:1: no such file or directory: python",
++            "Traceback: KeyError",
++        ])
++    func unparsableYieldsNil(stderr: String) {
++        #expect(ExecNotFoundHint.failedCommand(inStderr: stderr) == nil)
++    }
++
++    // MARK: - candidate rule
++
++    @Test("prefix + longer + executable resolves; exact and non-executables do not")
++    func candidateRule() throws {
++        let dir = try fixture(["python": true, "python2": false, "python3": true])
++        #expect(ExecNotFoundHint.candidate(for: "python", pathEntries: [dir]) == dir + "/python3")
++        #expect(ExecNotFoundHint.candidate(for: "python2", pathEntries: [dir]) == nil)
++        // Bounded at name+4: "py" may reach "python" (+4) but never "python3" (+5).
++        #expect(ExecNotFoundHint.candidate(for: "py", pathEntries: [dir]) == dir + "/python")
++        let far = try fixture(["python3": true])
++        #expect(ExecNotFoundHint.candidate(for: "py", pathEntries: [far]) == nil)
++    }
++
++    @Test("direction: a shorter neighbour is never a candidate")
++    func direction() throws {
++        let dir = try fixture(["python": true, "python3": true])
++        #expect(ExecNotFoundHint.candidate(for: "python3", pathEntries: [dir]) == nil)
++    }
++
++    @Test("missing PATH directory is skipped, not an error")
++    func missingDir() {
++        #expect(
++            ExecNotFoundHint.candidate(
++                for: "python",
++                pathEntries: ["/nonexistent-\(UUID().uuidString.prefix(6))", ""]) == nil)
++    }
++
++    // MARK: - suffix
++
++    @Test("127 + parseable + candidate ⇒ the exact fact sentence")
++    func suffixHappy() throws {
++        let dir = try fixture(["python3": true])
++        let out = ExecNotFoundHint.suffix(
++            exitCode: 127,
++            stderr: "zsh:1: command not found: python",
++            pathEntries: [dir])
++        #expect(
++            out == "ocoreai: `python` is not on PATH here, but `python3` exists at \(dir)/python3 "
++                + "— if that is the tool you meant, re-run the same command with it.")
++    }
++
++    @Test("the hint never executes: the fixture binary leaves no marker")
++    func neverExecutes() throws {
++        let dir = try fixture(["python3": true])
++        _ = ExecNotFoundHint.suffix(
++            exitCode: 127,
++            stderr: "zsh:1: command not found: python",
++            pathEntries: [dir])
++        #expect(
++            !FileManager.default.fileExists(atPath: dir + "/ran-marker"),
++            "suffix read PATH directories only — the fixture script must not have run")
++    }
++
++    @Test(
++        "every undecidable face yields nil (report stays byte-identical)",
++        arguments: [
++            (Int32(1), "zsh:1: command not found: python"),  // right text, wrong code
++            (Int32(127), "zsh:1: no such file or directory: python"),  // right code, other wording
++            (Int32(127), "zsh:1: command not found: python"),  // candidate absent (empty PATH)
++        ])
++    func undecidableFaces(exitCode: Int32, stderr: String) {
++        #expect(ExecNotFoundHint.suffix(exitCode: exitCode, stderr: stderr, pathEntries: []) == nil)
++    }
++}

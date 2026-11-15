@@ -16,3 +16,4 @@ ts	proposal	base_commit	valid_runs	scores_base	scores_variant	b	c	p	decision	tra
 20261114-162118	verify-order-before-done	a074d6bf	6/6	28/30/27/26/29/27	32/35/33/34/36/34	7	44	0.0	revert	/var/folders/dy/hh313rts3g3b7hdwzzw7mwrr0000gn/T/ocoreai-autoab-XXXXXX.1n5p0UFjhd/verify-order-before-done
 20261114-170902	verify-order-before-done	a074d6bf	6/6	28/30/27/26/29/27	32/33/33/33/35/35	11	45	0.0	revert	/var/folders/dy/hh313rts3g3b7hdwzzw7mwrr0000gn/T/ocoreai-autoab-XXXXXX.k7xdzC8NHx/verify-order-before-done
 20261114-205247	verify-rerun-command	a074d6bf	6/6	28/30/27/26/29/27	25/28/29/28/26/30	21	20	1.0	revert	/var/folders/dy/hh313rts3g3b7hdwzzw7mwrr0000gn/T/ocoreai-autoab-XXXXXX.U6GihjpQLk/verify-rerun-command
+20261115-123645	exec-notfound-path-hint	939ab424	6/6	27/27/28/30/28/28	29/26/27/28/28/27	12	9	0.6636	revert	/var/folders/dy/hh313rts3g3b7hdwzzw7mwrr0000gn/T/ocoreai-autoab-XXXXXX.AIq4MVNWQR/exec-notfound-path-hint

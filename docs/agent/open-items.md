@@ -81,7 +81,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   scenario 14, 18/18 mutations), so a base root written before 11-09 is refused, not trusted; the loop still takes
   its base from `OCOREAI_AUTOAB_BASE` rather than measuring one per invocation — self-baselining costs +k board
   runs per loop and is the owner's call. `edit-noop-split-strip`'s McNemar row (`20261109-213417` refused on the
-  old rule) is next round's claim, not this one's.
+  old rule) is next round's claim, not this one's. Verify's next rung is harness-side — owner's
+  call (touches the approval promise); three 11-14/15 adjudications pinned the prompt side (`autoloop.tsv`).
 - **The frozen board cannot seed a CRLF file, so no byte-fidelity class is priceable there**
   (scripts/eval/) — `grep -c '\\r'` is 0 across `tasks.json` (45) and `tasks-edit-repair.json` (52), so
   `edit_file`'s line-ending rung (`FileTools.Endings`, 11-10) has no task that can move: a
