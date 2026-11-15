@@ -367,3 +367,21 @@ number that moved:
    camera has to trust an authenticated route onto someone's hardware, which is the same owner's question the
    unconfined child process is (§ *Where the field confines a child*) and is not answered by anything in this corpus.
    Both tails are owner calls, not tasks; what was missing was the measurement, and now it exists.
+
+## Forward ledger — predictions with expiry, not essays
+
+The owner's 11-15 revision makes this library an intelligence system: rows are judgments with a falsifier and
+a review date, never reports. One row is admitted only when it can change an ocoreai decision; a closed row
+states what happened and why the call was right or wrong. Cap: the smallest set that covers the live calls —
+none is filed here on 11-15 because the two that were live (harness-side verification; the plugin-manifest
+surface) are both already recorded at their decision seats (`open-items.md`, the adoption line), and a ledger
+that duplicates a decision seat is a second home. What this ledger holds instead: **expiring watch items** —
+
+- `SSD-expert loading / multi-Mac sharding` (mlx-serve, 11-14): the first shipped route to models larger than
+  one Mac's RAM on this platform. Fact: shipped there; absent here. Falsifier for taking it seriously: our own
+  users never ask above-RAM models (no intake signal by review). Review 2027-02-15; action now: none (the
+  intake surface reports the ask, we do not guess it).
+- `agent-plugins.org plugin.schema 1.0.0` (pstack, 11-15): a manifest standard a marketplace already ships
+  against; our `skills/ocoreai/` carries SKILL.md only. Verdict: experiment (cheap — read `agent-compatibility`,
+  file one compliant manifest, see if anything discovers us). Falsifier: after filing, zero discovery/installs
+  one review later ⇒ observe, don't retry blind. Review 2027-01-15.
