@@ -61,9 +61,9 @@ An App Store build installed from the DMG starts the GUI only (Fast Path); the H
 explicit opt-in — run `OCOREAI_ENABLE_HTTP=1 /Applications/ocoreai.app/Contents/MacOS/ocoreai`
 (measured: a bridge log line, `/health` 200, and a completed `/v1/chat/completions` turn).
 
-> ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. **Auth is off unless** the `OCOREAI_API_KEYS` env var is set; **no TLS**. Token-bucket rate limiting is on by default: global **200 req/s** (burst 300), per-model 30/s (burst 45), per-IP 20/s (burst 30) — set once at `App.swift:718`, enforced by `Middleware/RateLimitMiddleware.swift`.
+> ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. **Auth is off unless** the `OCOREAI_API_KEYS` env var is set; **no TLS**. Token-bucket rate limiting is on by default: global **200 req/s** (burst 300), per-model 30/s (burst 45), per-IP 20/s (burst 30) — set once at `App.swift:720`, enforced by `Middleware/RateLimitMiddleware.swift`.
 <!-- claim:global_rate_set=1 :: grep -c 'globalRate: 200' Sources/ocoreai/App.swift -->
-<!-- anchor:. Sources/ocoreai/App.swift:718 globalRate: 200 -->
+<!-- anchor:. Sources/ocoreai/App.swift:720 globalRate: 200 -->
 
 > 🛠️ **Dev release** — This is a development build. Production use requires additional hardening (see Security section below).
 
