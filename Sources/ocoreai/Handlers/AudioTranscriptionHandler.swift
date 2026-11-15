@@ -609,20 +609,7 @@ func audioTranscriptionsHandler(
 private func transcriptionJSON(
     _ value: some Encodable, status: HTTPResponse.Status
 ) throws -> Response {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-    // Encode before the body closure: Hummingbird's writer closure is `@Sendable` and
-    // `some Encodable` is not, while `Data` is — the same shape `json(...)` in
-    // `MultimodalHandler.swift` uses, so this target has one way to answer with JSON.
-    let data = try encoder.encode(value)
-    var headers: HTTPFields = [:]
-    headers[.contentType] = "application/json"
-    return Response(
-        status: status,
-        headers: headers,
-        body: .init { writer in
-            try await writer.write(ByteBuffer(data: data))
-            try await writer.finish(nil)
-        }
-    )
+    // One encoder for the wire (`Response.json`) rather than a second here: a duplicate
+    // is how a header or encoding change lands in one target and not the other.
+    try Response.json(value, status: status)
 }

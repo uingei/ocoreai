@@ -12,11 +12,18 @@
 //! already disproved.
 //!
 //! The header alone is a claim, so the second half of this suite scans the emit site: every
-//! capture leg must route through `captureWireResponse`, and the file must not grow a second
-//! JSON encoder. It did have one (`fileprivate extension Response.json`), which silently
-//! swallowed header arguments — the leg that runs on a denied host went through it, so the
-//! header a reader could see being set was never the header being sent. Root found by
-//! searching, floor on its own hit count (§ Testing Quality).
+//! capture leg must route through `captureWireResponse`, and the file that puts frame bytes on
+//! the wire must not own an encoder. It did (`fileprivate extension Response.json`), one that
+//! silently swallowed header arguments — the leg that runs on a denied host bound to it, so the
+//! header a reader could see being set was never the header being sent. Root found by searching,
+//! floor on its own hit count (§ Testing Quality).
+//!
+//! Scope, stated because the first version of this file overstated it: several handlers still
+//! hold a private `JSONEncoder` for their own response shapes (completions, Anthropic messages,
+//! chat, model download, lifecycle). "One JSON-encoding home repo-wide" is therefore NOT this
+//! invariant, and a scan of `Response.json` declarations alone is blind to any helper that
+//! encodes under another name — so the scan here is on the mechanism (`JSONEncoder(`), scoped
+//! to the file that carries bytes. Folding the per-handler encoders is a separate cleanup.
 
 import Foundation
 import HTTPTypes
@@ -147,10 +154,10 @@ struct CaptureNoStoreWireTests {
         // screen (frame / no-frame) = 7 legs, plus the shared gate refusal = 8 today. Below
         // 7 a leg exists that does not pass through the header at all.
         let tight = Self.squeezed(Self.codeOnly(lane))
-        let builderSites = Self.occurrences(of: "captureWireResponse(CaptureResponse(", in: tight)
         // Floor 7: camera (frame / no-frame), microphone (sample / started / not-started),
-        // screen (frame / no-frame) = 7 legs, plus the shared gate refusal = 8 today. Below
-        // 7 a leg exists that does not pass through the header at all.
+        // screen (frame / no-frame) = 7 legs, plus the gate refusal all three share = 8 today.
+        // Below 7 a leg exists that never passes through the header.
+        let builderSites = Self.occurrences(of: "captureWireResponse(CaptureResponse(", in: tight)
         #expect(
             builderSites >= 7,
             "only \(builderSites) captureWireResponse sites — a capture leg now encodes its own response, so nothing guarantees no-store on it"
@@ -164,11 +171,13 @@ struct CaptureNoStoreWireTests {
             "\(bypassed) CaptureResponse encoded directly — it would leave without no-store")
     }
 
-    @Test("no second Response.json encoder exists to swallow a header argument")
-    func noDecoysEncoder() throws {
+    @Test("one `Response.json` declaration — a same-named local one shadowed the header")
+    func oneResponseJSONDeclaration() throws {
         // The decoy was real: a `fileprivate static func json` in MultimodalHandler.swift
-        // that took no header argument. Calls in that file bound to it, so the header being
-        // set visibly was not the header being sent.
+        // taking no header argument. Calls in that file bound to it, so the header being set
+        // visibly was not the header being sent. This scans DECLARATIONS of that name, which
+        // is the shadowing hazard; it deliberately does not claim to find every encoder
+        // (see the file header — helpers under other names exist and are another cleanup).
         let root = try Self.repoRoot()
         let sources = root.appendingPathComponent("Sources/ocoreai")
         guard
@@ -184,6 +193,19 @@ struct CaptureNoStoreWireTests {
         }
         #expect(
             homes == ["Sources/ocoreai/Router/ChatCompletionsRouter.swift"],
-            "JSON-encoding lives in more than one file: \(homes)")
+            "more than one `Response.json` declaration — a second can shadow the first: \(homes)")
+    }
+
+    @Test("the file that puts frame bytes on the wire owns no encoder of its own")
+    func byteCarrierDoesNotOwnEncoder() throws {
+        // Mechanism, not name: `JSONEncoder(` is what an encoder looks like whatever the
+        // helper is called. A file that builds its own response also owns its own headers,
+        // and that is exactly where a directive goes missing.
+        let text = Self.codeOnly(
+            try Self.read("Sources/ocoreai/Handlers/MultimodalHandler.swift"))
+        let owned = Self.occurrences(of: "JSONEncoder(", in: text)
+        #expect(
+            owned == 0,
+            "MultimodalHandler.swift builds \(owned) JSONEncoder(s) — the frame-carrying file must encode through the shared Response.json so the header rides along")
     }
 }
