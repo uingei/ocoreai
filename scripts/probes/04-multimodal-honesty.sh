@@ -29,6 +29,9 @@
 #     `screenStatus` said `ready`;
 #   • no capture leg (camera / microphone / screen) returns `success: true` with a null
 #     `dataURL`;
+#   • every capture leg answers `cache-control: no-store` — the body carries the frame or the
+#     sample itself as a `data:` URL, so a stored answer keeps the user's pixels alive past
+#     the request, and a stored *refusal* would still say "refused" after the grant;
 #   • `/v1/multimodal/speak` refuses whitespace-only text instead of reporting success for
 #     a turn that synthesizes nothing;
 #   • the endpoint index describes the status payload honestly (it must name permissions);
@@ -266,12 +269,17 @@ probe_section "POST /v1/multimodal/capture — success:true only when bytes came
 CAPTURE_CEILING_MS="${OCOREAI_PROBE_CAPTURE_CEILING_MS:-15000}"
 export OCOREAI_PROBE_CURL_TIMEOUT="${OCOREAI_PROBE_CAPTURE_TIMEOUT:-45}"
 CAPTURE_VERDICTS=""
+HDR_CAPTURE="$(mktemp -t ocoreai-04-hdr.XXXXXX)"
+probe_atexit 'rm -f "$HDR_CAPTURE"'
 SCREEN_LEG_VERDICT="no-answer"
 SCREEN_LEG_MS=0
 SCREEN_LEG_MSG=""
 for kind in camera microphone screen; do
   leg_start="$(now_ms)"
+  : > "$HDR_CAPTURE"
+  PROBE_HDR_FILE="$HDR_CAPTURE"
   probe_api POST /v1/multimodal/capture "{\"type\":\"${kind}\"}"
+  PROBE_HDR_FILE=""
   leg_ms=$(( $(now_ms) - leg_start ))
   status="${PROBE_STATUS:-000}"
   if [ "$status" = "000" ]; then
@@ -281,6 +289,16 @@ for kind in camera microphone screen; do
   if [ "$status" != "200" ]; then
     push CAPTURE_VERDICTS "FAIL|${kind} capture -> ${status}: $(probe_json "$PROBE_BODY" 'error.message')"
     continue
+  fi
+  # Read off this leg's OWN headers: the body carries the frame or the sample as a `data:`
+  # URL, so an intermediary that stores one keeps the user's pixels past the request, and a
+  # stored refusal still answers "refused" after the grant. CaptureNoStoreWireTests pins the
+  # builder; this pins the wire, including the refused leg a denied host actually answers.
+  hdr_seen="$(grep -i '^cache-control:' "$HDR_CAPTURE" | tr -d '\r' | head -1)"
+  if printf '%s' "$hdr_seen" | grep -qi 'no-store'; then
+    push CAPTURE_VERDICTS "OK|${kind} answered cache-control: ${hdr_seen#*: } — its body carries captured bytes"
+  else
+    push CAPTURE_VERDICTS "FAIL|${kind} answered '${hdr_seen:-no cache-control header}' — a capture body holds the frame/sample itself, so any intermediary that stores it keeps the user's pixels after the request ended"
   fi
   dataURL="$(probe_json "$PROBE_BODY" 'dataURL')"
   success="$(probe_json "$PROBE_BODY" 'success')"
@@ -490,8 +508,9 @@ fi
 
 # ── 6. premise floor ──────────────────────────────────────────────────────────
 # Status shape (4 toggles + 4 permissions + 5 verdicts + counts + limitations) plus the
-# index notes plus three capture legs plus three speak refusals plus the screen delivery
-# evidence and its post-capture cross-check is ~32 verdicts. 22 is far under that and far
+# index notes plus three capture legs plus their three no-store header reads plus three speak
+# refusals plus the screen delivery evidence and its post-capture cross-check is ~35 verdicts.
+# 22 is far under that and far
 # above zero: a payload that stopped carrying facts, or an analysis that stopped matching,
 # fails instead of passing vacuously.
 if [ "$CHECKS" -ge 22 ]; then

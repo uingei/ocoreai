@@ -44,7 +44,7 @@ import Logging
 
 /// Encode any `Encodable` to JSON Response with status `.ok`.
 extension Response {
-    fileprivate static func json(
+    static func json(
         _ value: some Encodable,
         encoder: JSONEncoder = {
             let enc = JSONEncoder()
@@ -52,9 +52,14 @@ extension Response {
             return enc
         }(),
         status: HTTPResponse.Status = .ok,
+        extraHeaders: HTTPFields? = nil,
     ) throws -> Self {
-        var headers: HTTPFields = [:]
-        headers[.contentType] = "application/json"
+        var headers: HTTPFields = [.contentType: "application/json"]
+        if let extraHeaders {
+            for field in extraHeaders {
+                headers[field.name] = field.value
+            }
+        }
         let data = try encoder.encode(value)
         return Response(
             status: status,

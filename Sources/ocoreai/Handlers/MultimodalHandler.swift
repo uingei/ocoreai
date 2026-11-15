@@ -157,6 +157,13 @@ func makeMultimodalStatusResponse(
     )
 }
 
+/// Every capture-leg response is built here, so no leg can ship without `no-store`: the
+/// payload carries raw frame/audio bytes as a `data:` URL, and a cached refusal would keep
+/// answering "refused" after the user grants the channel.
+func captureWireResponse(_ response: CaptureResponse) throws -> Response {
+    try Response.json(response, extraHeaders: [.cacheControl: "no-store"])
+}
+
 /// Handle multimodal capture (camera frame, audio recording, or screen)
 func multimodalCaptureHandler(
     request: CaptureRequest,
@@ -180,14 +187,14 @@ func multimodalCaptureHandler(
             await MainActor.run {
                 MultimodalState.shared.cameraSnapshot = frameURL
             }
-            return try await Response.json(
+            return try captureWireResponse(
                 CaptureResponse(
                     dataType: "image/jpeg",
                     dataURL: frameURL,
                     message: "Frame captured",
                 ))
         }
-        return try await Response.json(
+        return try captureWireResponse(
             CaptureResponse(
                 dataType: "image/jpeg",
                 dataURL: nil,
@@ -209,7 +216,7 @@ func multimodalCaptureHandler(
         }
         logger.info("Multimodal: toggling microphone recording")
         if let audioData = await audioIO.toggleRecording() {
-            return try await Response.json(
+            return try captureWireResponse(
                 CaptureResponse(
                     dataType: "audio/caf",
                     dataURL: audioData,
@@ -221,14 +228,14 @@ func multimodalCaptureHandler(
         // recorder never started (denied / no device) say so instead of implying a
         // recording is running.
         if await audioIO.isRecording {
-            return try await Response.json(
+            return try captureWireResponse(
                 CaptureResponse(
                     dataType: "audio/caf",
                     dataURL: nil,
                     message: "Recording started — call capture again to collect the sample",
                 ))
         }
-        return try await Response.json(
+        return try captureWireResponse(
             CaptureResponse(
                 dataType: "audio/caf",
                 dataURL: nil,
@@ -252,14 +259,14 @@ func multimodalCaptureHandler(
             await MainActor.run {
                 MultimodalState.shared.screenSnapshot = frameURL
             }
-            return try await Response.json(
+            return try captureWireResponse(
                 CaptureResponse(
                     dataType: "image/png",
                     dataURL: frameURL,
                     message: "Screen captured",
                 ))
         }
-        return try await Response.json(
+        return try captureWireResponse(
             CaptureResponse(
                 dataType: "image/png",
                 dataURL: nil,
@@ -297,7 +304,7 @@ private func captureGate(
         // reading `unknown` after this refusal quotes a permission the leg just disproved.
         await MainActor.run { ScreenDeliveryRecord.failed(reason: reason, latencyMs: nil) }
     }
-    return try await Response.json(
+    return try captureWireResponse(
         CaptureResponse(dataType: dataType, dataURL: nil, message: "Capture refused — \(reason)"))
 }
 
@@ -325,7 +332,7 @@ func multimodalSpeakHandler(
     logger: Logger,
 ) async throws -> Response {
     guard await MultimodalState.shared.speakerEnabled else {
-        return try await Response.json(
+        return try Response.json(
             CaptureResponse(
                 success: false,
                 dataType: "tts",
@@ -337,7 +344,7 @@ func multimodalSpeakHandler(
     // request used to answer `success: true` having queued nothing.
     let text = request.text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else {
-        return try await Response.json(
+        return try Response.json(
             CaptureResponse(
                 success: false,
                 dataType: "tts",
@@ -349,7 +356,7 @@ func multimodalSpeakHandler(
     // talk (a system with no installed voices synthesizes nothing).
     let voiceCount = await MainActor.run { MultimodalDeviceFacts.voiceCount() }
     if voiceCount == 0 {
-        return try await Response.json(
+        return try Response.json(
             CaptureResponse(
                 success: false,
                 dataType: "tts",
@@ -361,7 +368,7 @@ func multimodalSpeakHandler(
         "Multimodal: speaking text (\(text.count) chars, \(voiceCount.map(String.init) ?? "?") voices)"
     )
     await AudioIO.shared.speak(text)
-    return try await Response.json(
+    return try Response.json(
         CaptureResponse(
             success: true,
             dataType: "tts",
@@ -406,26 +413,5 @@ func multimodalStatusHandler(
         facts: togglesAndFacts.facts,
         hearing: hearing,
     )
-    return try await Response.json(result)
-}
-
-/// Encode any Encodable to JSON Response
-extension Response {
-    fileprivate static func json(
-        _ value: some Encodable,
-    ) async throws -> Self {
-        var headers: HTTPFields = [:]
-        headers[.contentType] = "application/json"
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        let data = try encoder.encode(value)
-        return Response(
-            status: .ok,
-            headers: headers,
-            body: .init { writer in
-                try await writer.write(ByteBuffer(data: data))
-                try await writer.finish(nil)
-            },
-        )
-    }
+    return try Response.json(result)
 }
