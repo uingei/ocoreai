@@ -86,7 +86,7 @@ cd "$(dirname "$0")/.."
 
 ## ── pinned budgets (a raise must be a visible edit in the diff) ──────────────
 # docs/agent/build-gate-reality.md and the "named, unused" comparator cells (splash, deepseek-harness).
-: "${OCOREAI_AGENTS_MAX_ROOT:=21408}"   # pinned 11-15 by `make docs-budget`
+: "${OCOREAI_AGENTS_MAX_ROOT:=21406}"   # pinned 11-15 by `make docs-budget`
                                      # `make docs-budget` may only lower it (B1 stays a ratchet)
 # Two standing instructions about this corpus, kept here because they decide edits:
 #  - docs/agent/build-gate-reality.md's dated block is load-bearing mechanism, not forensics — read it

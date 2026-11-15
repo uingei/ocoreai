@@ -63,8 +63,8 @@ swift build -c release                 # production build
 swift build --traits appStore        # App Store route
 swift test                           # full suite; needs Metal
 make test                            # same, but names $OCOREAI_METALLIB first — else MLX dies mid-run
-make test FILTER=<Regex>             # one suite (swift-testing half: the XCTest helper SEGVs on filter)
-make test-clt [FILTER=<Regex>]       # CLT route, serial — runs both halves
+make test FILTER=<Regex>             # one suite by name (one test target — no half to skip)
+make test-clt [FILTER=<Regex>]       # CLT route, serial — same target, whole suite
 make docs-check                      # docs contract: ~5-10 s, no build
 bash scripts/eval/run.sh               # task-success scoreboard: verifies the WORKSPACE, not the prose
 ```
