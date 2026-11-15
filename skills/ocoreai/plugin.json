@@ -1,0 +1,22 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "ocoreai",
+  "displayName": "ocoreai",
+  "description": "An agent made for open models. Natively local on Apple silicon: sees, hears, speaks and codes in one binary, on an OpenAI-compatible wire that says honestly what the engine delivered.",
+  "version": "0.1.16",
+  "author": {
+    "name": "uingei"
+  },
+  "homepage": "https://github.com/uingei/ocoreai",
+  "repository": "https://github.com/uingei/ocoreai",
+  "license": "MIT",
+  "keywords": [
+    "local-first",
+    "apple-silicon",
+    "mlx",
+    "open-models",
+    "coding-agent",
+    "openai-compatible"
+  ],
+  "skills": ["./SKILL.md"]
+}

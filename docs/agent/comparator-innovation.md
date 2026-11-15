@@ -382,6 +382,7 @@ that duplicates a decision seat is a second home. What this ledger holds instead
   users never ask above-RAM models (no intake signal by review). Review 2027-02-15; action now: none (the
   intake surface reports the ask, we do not guess it).
 - `agent-plugins.org plugin.schema 1.0.0` (pstack, 11-15): a manifest standard a marketplace already ships
-  against; our `skills/ocoreai/` carries SKILL.md only. Verdict: experiment (cheap — read `agent-compatibility`,
-  file one compliant manifest, see if anything discovers us). Falsifier: after filing, zero discovery/installs
-  one review later ⇒ observe, don't retry blind. Review 2027-01-15.
+  against. Verdict: experiment — RUN same day: `skills/ocoreai/plugin.json` filed, required/type-checked
+  against the schema mirror in-tree. Marketplace submission is an outbound owner window; the discovery
+  measurement still decides. Falsifier: after submission, zero discovery/installs by review ⇒ observe,
+  don't retry blind. Review 2027-01-15.
