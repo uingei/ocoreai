@@ -147,16 +147,16 @@ verdicts: `closed-items-log.md`; `make docs-check` P6 keeps every suite name bel
 - **The board scores 6 of the 40 advertised tools; full-surface is `OCOREAI_EVAL_TOOLS=all`** (scripts/eval/)
   — every row prices its `tools[]` bytes; the curated 6 is the headline, ruled by the paired rows.
 - **The tool surface is still ungated against the loaded model** (UI/, Engine/) — owner call; `reasoning_effort`'s gate (`ReasoningEffortHonestyTests` + probe 38) is the pattern to extend.
-- **The surviving release is ad-hoc signed** (CI/) — `v0.1.16` survived 11-07 with read-back sha-parity,
-  probe 41 proves the byte-identical build serves; Gatekeeper's download path stays unjudged — owner call.
-- **A corpus costs injection; the tail is disclosed, not gated** — injected bytes cost a 2B checkpoint
-  double-digit pp; the fall-off is named to the model and on `/v1/capabilities` (`make docs-check` prints
-  `deepest-chain=`). Owner: gate by capacity — cites: `docs/agent/open-items.md`.
+- **The surviving release is ad-hoc signed** (CI/) — Gatekeeper's download path stays unjudged — owner call;
+  instrument: probe 41; the sha-parity diary: `long-horizon-goal.md` § Rung zero.
+- **A corpus costs injection; the tail is disclosed, not gated** — the fall-off is named to the model and on
+  `/v1/capabilities` (`make docs-check` prints `deepest-chain=`). Owner: gate by capacity — measured pp and
+  arms: `docs/agent/open-items.md`.
 
 ## Upstream Audit Dependencies
 Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`, one diary, one home.
 1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract, currently `635290754`;
-   `Package.swift` keeps the pin and a pointer, never a per-commit diary. Bump protocol: audit the
+   P8 compares this quote against the manifest, so a bump that forgets this line goes red. Bump protocol: audit the
    consumption surface → bump `.revision` → `make audit` (both lockfiles) → `swift build` +
    `make test-ci` green → `CHANGELOG.md`. Upstream sources live under
    `Libraries/`, not `Sources/`; clone-vs-pin is `git merge-base --is-ancestor`, and the built checkout's
