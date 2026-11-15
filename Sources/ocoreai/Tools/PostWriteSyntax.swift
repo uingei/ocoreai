@@ -126,6 +126,8 @@ enum PostWriteSyntax: Sendable {
         let errPipe = Pipe()
         proc.standardError = errPipe
         proc.standardOutput = Pipe()
+        // Strip server secrets — python inherits the full parent env otherwise.
+        proc.environment = ChildProcessEnv.sanitized()
         do {
             try proc.run()
         } catch {

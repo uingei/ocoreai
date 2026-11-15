@@ -225,6 +225,8 @@ enum SessionWorkspace {
         proc.standardOutput = outHandle
         proc.standardError = errHandle
         proc.standardInput = FileHandle.nullDevice
+        // Strip server secrets — git inherits the full parent env otherwise.
+        proc.environment = ChildProcessEnv.sanitized()
         try proc.run()
         proc.waitUntilExit()
         let stdout = (try? String(contentsOf: outURL, encoding: .utf8)) ?? ""

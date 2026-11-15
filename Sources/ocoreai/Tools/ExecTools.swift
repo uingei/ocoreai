@@ -214,6 +214,9 @@ enum ExecTools {
         proc.standardError = errHandle
         proc.standardInput = FileHandle.nullDevice
 
+        // Strip server secrets — shell commands run with full parent env otherwise.
+        proc.environment = ChildProcessEnv.sanitized()
+
         do {
             try proc.run()
         } catch {

@@ -167,7 +167,8 @@ enum HearingEngineProbe {
             let process = Process()
             process.executableURL = executable
             process.arguments = [HearingSelfProbe.flag, fixture.path]
-            var env = ProcessInfo.processInfo.environment
+            // Start from sanitized env (strips server secrets), then add the probe marker.
+            var env = ChildProcessEnv.sanitized()
             env[HearingSelfProbe.environmentMarker] = "1"
             process.environment = env
             if let handle = FileHandle(forWritingAtPath: outPath.path) {

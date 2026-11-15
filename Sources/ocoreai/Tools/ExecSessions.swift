@@ -285,6 +285,8 @@ actor ExecSessionManager {
         proc.standardOutput = outHandle
         proc.standardError = errHandle
         proc.standardInput = stdinPipe
+        // Strip server secrets — interactive shells inherit the full parent env otherwise.
+        proc.environment = ChildProcessEnv.sanitized()
         let owner = SessionProc(process: proc, stdinHandle: stdinPipe.fileHandleForWriting)
 
         do {

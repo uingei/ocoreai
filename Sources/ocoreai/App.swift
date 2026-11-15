@@ -678,6 +678,8 @@ public final class OcoreaiEngine {
         task.launchPath = "/usr/sbin/lsof"
         task.arguments = ["-i:\(port)", "-sTCP:LISTEN", "-Fp"]
         task.standardOutput = pipe
+        // Strip server secrets — lsof inherits the full parent env otherwise.
+        task.environment = ChildProcessEnv.sanitized()
         task.launch()
         task.waitUntilExit()
         let data = try? pipe.fileHandleForReading.readToEnd()

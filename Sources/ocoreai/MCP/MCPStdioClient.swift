@@ -259,6 +259,10 @@ actor MCPStdioClient {
             self?.onChildExit(proc)
         }
 
+        // Strip server secrets (OCOREAI_API_KEYS, OCOREAI_ADMIN_KEYS) —
+        // MCP servers are third-party code that receive the env at exec.
+        proc.environment = ChildProcessEnv.sanitized()
+
         try proc.run()
         return proc
     }
