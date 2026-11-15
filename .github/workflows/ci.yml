@@ -114,7 +114,11 @@ jobs:
       # repo never had, because nothing else in the fleet greps the docs.
       - name: AGENTS.md contract
         run: |
-          bash scripts/agents-md-contract.sh check \
+          # The published-surface claims (tags_published, releases_published) read https, which is
+          # a premise the runner has and a laptop often does not — so they are skipped locally and
+          # MUST run here. The contract reddens if this flag is missing under CI, so the skip cannot
+          # quietly become non-coverage.
+          OCOREAI_CLAIMS_NET=1 bash scripts/agents-md-contract.sh check \
             || { echo "::error::failed step: AGENTS.md contract (docs gate)"; exit 1; }
 
       # Zero try!/as!/fatalError/assert, print() only on a CLI surface, and the Class-I licence

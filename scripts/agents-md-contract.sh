@@ -681,8 +681,20 @@ if bad_anchors:
     fail.append("P3 %d anchor(s) past end of file: %s" % (len(bad_anchors), "; ".join(bad_anchors)))
 
 # ── P4 claims reproduce ──────────────────────────────────────────────────────
-ok_claims, bad_claims = 0, []
+# Two claims read the *published* surface over https (`tags_published` in AGENTS.md,
+# `releases_published` in long-horizon-goal.md), so their premise is this host's network rather
+# than the tree: measured 11-15, 6 of 11 local runs went red on a `git ls-remote` timeout no edit
+# could fix, and push-ready → ship runs this contract, so cadence sat hostage to a flake. They
+# stay CHECKED, not deleted — CI sets OCOREAI_CLAIMS_NET=1, running under CI without it is a red,
+# and an id that stops existing is a red, so a skip cannot rot into silent non-coverage.
+NET_CLAIM_IDS = {"tags_published", "releases_published"}
+CLAIMS_NET = os.environ.get("OCOREAI_CLAIMS_NET") == "1"
+claim_ids = {cid for _s, cid, _o, _e, _c in claims}
+ok_claims, bad_claims, net_skipped = 0, [], []
 for src, cid, op, expect, cmd in sorted(claims):
+    if cid in NET_CLAIM_IDS and not CLAIMS_NET:
+        net_skipped.append("%s %s %d" % (cid, op, expect))
+        continue
     try:
         out = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, timeout=30)
         got = out.stdout.strip().splitlines()
@@ -697,6 +709,20 @@ for src, cid, op, expect, cmd in sorted(claims):
         ok_claims += 1
     else:
         bad_claims.append("%s %s %d: command returns %d  [%s]" % (cid, op, expect, got, cmd))
+
+# The skip is honest only while CI really runs these and the ids really exist.
+if CLAIMS_NET and net_skipped:
+    fail.append("P4 OCOREAI_CLAIMS_NET=1 yet %d network claim(s) were skipped: %s"
+                % (len(net_skipped), "; ".join(net_skipped)))
+if not CLAIMS_NET and os.environ.get("CI", "").lower() in ("1", "true"):
+    fail.append("P4 CI must set OCOREAI_CLAIMS_NET=1 — %d published-surface claim(s) would go"
+                " unchecked: %s" % (len(net_skipped), "; ".join(net_skipped)))
+missing_net = sorted(NET_CLAIM_IDS - claim_ids)
+if missing_net:
+    fail.append("P4 net-claim id(s) named here no longer exist in any doc, so their coverage is"
+                " gone: %s" % ", ".join(missing_net))
+net_total = len(NET_CLAIM_IDS & claim_ids)
+net_checked = net_total - len(net_skipped)
 
 if bad_claims:
     fail.append("P4 %d claim(s) do not reproduce: %s" % (len(bad_claims), "; ".join(bad_claims)))
@@ -1282,6 +1308,10 @@ print("  language  english-md=%d (floor %d)  mirror-cjk=%d (floor %d)  diary-exc
       % (len(lang_zero), env_int("OCOREAI_FLOOR_LANG_SCANNED"),
          len(CJK_RE.findall(read(MIRROR))) if os.path.exists(MIRROR) else -1,
          env_int("OCOREAI_FLOOR_ZH_MIRROR_CJK"), len(DIARY)))
+print("  scope     no build, no tests; line-cites are NOT verified here — anchor-check's"
+      " (make anchor-check / make round-gates)  net-claims=%d/%d checked%s"
+      % (net_checked, net_total,
+         "" if CLAIMS_NET else " locally (CI sets OCOREAI_CLAIMS_NET=1)"))
 print("  scan      gateable-refs=%d (floor %d)  claims=%d/%d ok (floor %d)  suites=%d  routing=%d  upstream-trees=%d  knobs=%d/%d (floors %d/%d)"
       % (len(hard_refs), env_int("OCOREAI_AGENTS_FLOOR_REFS"), ok_claims, len(claims),
          env_int("OCOREAI_AGENTS_FLOOR_CLAIMS"), len(suites), len(routing), len(clones),
