@@ -50,7 +50,7 @@ public enum ApprovalPolicy: String, Sendable, Equatable, CaseIterable, Codable {
 
 // MARK: - 决策（codex ReviewDecision 语义）
 
-/// 用户对单个高危调用的裁决。对齐 codex `ReviewDecision`（`protocol.rs:4053`）：
+/// 用户对单个高危调用的裁决。对齐 codex `ReviewDecision`（`protocol.rs:4583`）：
 /// `Approved` / `ApprovedForSession` / `Denied{rejection}`。
 public enum ApprovalDecision: Sendable, Equatable {
     /// 本次放行

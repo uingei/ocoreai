@@ -124,8 +124,7 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
 - A scan-based test asserts its own premises: find the root by searching, not by fixed
   `deletingLastPathComponent()` hops.
 - A fix gates every consumer of the value it changed, not just the emit site.
-- Anything that proves behaviour against a live server ships as a script in `scripts/probes/`, so the
-  claim outlives the session that made it.
+- Anything that proves behaviour against a live server ships as a script in `scripts/probes/`.
 - One scoreboard run is a sample: set size, spread, noise band and the paired-flip floor each live in
   `scripts/eval/README.md`.
 - Process-global state (workspace anchor, `OCOREAI_*`, a `shared` sensor) is leased, never
@@ -155,7 +154,7 @@ verdicts: `closed-items-log.md`; `make docs-check` P6 keeps every suite name bel
 ## Upstream Audit Dependencies
 Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`.
 1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract, currently `635290754`;
-   P8 compares this quote against the manifest, so a bump that forgets this line goes red. Bump protocol: audit the
+   P8 compares this quote against the manifest. Bump protocol: audit the
    consumption surface → bump `.revision` → `make audit` (both lockfiles) → `swift build` +
    `make test-ci` green → `CHANGELOG.md`. Upstream sources live under
    `Libraries/`, not `Sources/`; clone-vs-pin is `git merge-base --is-ancestor`, and the built checkout's
@@ -187,6 +186,7 @@ Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`.
 - `docs/agent/systemone-decisions.md` — upstream's System 1 decision API and the cheapest honest slice.
 - `docs/agent/long-horizon-goal.md` — the ladder and what kills it.
 - `docs/agent/adoption-runbook.md` — what the leaders run to be installed, cite per part.
+- `docs/agent/references-conformance-matrix.md` — full `~/references` audit: cite/verdict/priority.
 
 ## Routing table — working in X → read this first
 | Area | Read | Covers |

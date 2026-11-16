@@ -1,0 +1,131 @@
+# References conformance matrix — the whole of `~/references` against ocoreai
+
+> **Why this file exists (11-16):** the owner ruled that the standard is the shipped practice of the
+> `~/references` trees (root `AGENTS.md` § Upstream), and then ruled that a local review must not be
+> presented as a full one. This is the full one: every domain ocoreai actually ships, adjudicated
+> against named trees at named lines, with ocoreai's own site and gate on the other side. The goal is
+> the size of the gap, not a clean score — an unverified row says *unverified*.
+>
+> **Evidence rule for this file:** every upstream cite below was read this session at these HEADs —
+> `sglang 8cb94fcc3f` `vllm d07b7db978` `codex 75fc67e8f4` `omlx bf28cd6c` `harmony abd677f`
+> (mlx-swift-lm read at the pin `635290754` inside `.build/checkouts`). An ocoreai cite is a `file`
+> (+`line` where quoted) or a named gate. Trees move daily: re-read a cite before repeating it
+> (memory: comparator cites are content-unverified).
+>
+> **Verdicts:** ✅ conforms · ⚠️ deviates (priority attached) · ❓ unverified · ⛔ not applicable at
+> this scale. **Priority:** P1 = a surface can mislead or silently lose content; P2 = shipped behavior
+> the field has and we lack; P3 = depth/efficiency — measure before adopting (no blind copying).
+
+## 1. Architecture
+
+| Standard | ocoreai | Verdict |
+|---|---|---|
+| Serving trees are rebuilding a generated-contract HTTP front over an engine boundary: vllm Rust front-end over the ZMQ engine (`vllm rust/README.md:3,5` self-labels experimental); sglang ships `sglang-server` as PyO3 + **generated** API types (`rust/sglang-api-codegen`) | Single Swift binary; boundaries are logical: HTTP/Handlers → EnginePool (actor) → lane; `/openapi.json` renders off the endpoint index | ⛔ process-splitting does not transfer to a local single-box product; the transferable part (contract generated from one index, not retyped) is ✅ — `Handlers/AGENTS.md` discovery contract, docs-check |
+
+## 2. Code quality / error taxonomy
+
+| Standard | ocoreai | Verdict |
+|---|---|---|
+| vllm keeps one exception taxonomy for the whole server — 16 typed classes in `vllm/exceptions.py`, mapped to HTTP at the boundary | `AppError` is the one taxonomy; refusals carry `param:` field-paths (this round's `tool_history_unpaired` follows it); tiered warning logs with `error_code` metadata | ✅ same shape |
+| Cites in living comments must reproduce | **Convicted this audit:** `Approval.swift:53` cites `protocol.rs:4053` for `ReviewDecision`; upstream at `75fc67e8f4` has it at `:4583` (`:4053` is an exec-event struct). Fixed this round | ✅ after fix (paid-in-example of the principle) |
+
+## 3. Agent loop — interrupt / steer / stall
+
+| Standard | ocoreai | Verdict |
+|---|---|---|
+| codex defines a **two-tier interrupt**: `Interrupt` unconditional, `InterruptIfNoPendingInput { turn_id }` only if nothing is queued (`codex protocol.rs:729-734`) | `/v1/steer` merges at turn head; a **no-tool turn cannot be interrupted** at this pin (#608 steer-at-pin, adopt-then-retire ruled, flag-staged — `AGENTS.md` § Open); stall termination owned by `LoopStallTerminationTests` awaiting the terminal-word call | ⚠️ P2 — the missing tier is exactly codex's queued-input guard; when the steer pin lands, adopt the two-tier semantics rather than a single unconditional cancel |
+
+## 4. Tool calling
+
+| Standard | ocoreai | Verdict |
+|---|---|---|
+| History pairing rejected on the OpenAI face: orphan / id-not-pending / non-tool-while-pending; trailing unanswered legal (`sglang serving_chat.py:300-330`, walker head re-read `:300-303` today: `pending`/`unpaired_ids`) | `ToolHistory.pairingViolation` both faces, refusal at both handlers; `ToolHistoryPairingTests` + probe 57 arm 6 | ✅ (this round) |
+| `parallel_tool_calls:false` filters to index 0 **only when explicitly false** (`vllm tool_calls_utils.py:22-38`) | `ToolCallWire.limitsToSingleCall` (`== false`, not nil) + Anthropic-face `disable_parallel_tool_use` mapping | ✅ same rule, both faces |
+| finish_reason resolution: calls made + engine "stop" → `tool_calls` (`vllm tool_calls_utils.py:41-59`) | `ToolCallWire.resolveFinishReason` called at `ChatHandler.swift:1235` | ✅ |
+| Per-format **streaming** tool-call detectors, 40+ formats incl. a dedicated gemma4 detector with its own marker syntax (`sglang function_call/gemma4_detector.py:15-18` `<|tool_call>` / `<tool_call|>` / `<|"|>`) | MLX/ChatSession lane consumes upstream's declared format (`Gemma4.swift:2872,2880 toolCallFormat: .gemma4`, pin `635290754`); CoreAI lane uses the vendored `ToolCallParser`; **MTP lane: tool-call turn not re-appended** (open residual) | ⚠️ P2 — our marker literals are verified for two lanes, not the MTP one; the MTP row in `open-items.md` is the carry |
+
+## 5. Model adaptation
+
+| Standard | ocoreai | Verdict |
+|---|---|---|
+| Role vocabulary is closed at 5 (user/assistant/system/developer/tool) (`harmony src/chat.rs:44-52`, read at `abd677f`) | `MessageBuilder` developer-channel decision cites harmony as primary (registry confirms, cite re-verified today) | ✅ |
+| A stubbed component stays runtime-detectable (the tokenizer-backend pattern) | `tokenizerBackend: real\|heuristic` on `/v1/capabilities` + assertion tests | ✅ (ours is the pattern § Code Conventions names) |
+| Lane must not silently erase tool metadata before the template | tool-metadata history refuses the flat std lane (11-16), probe 57 arms 2–4 bill it | ✅ |
+
+## 6. Context management
+
+| Standard | ocoreai | Verdict |
+|---|---|---|
+| Compaction is model-summarized, hook-wrapped, pending-input-retaining (`codex core/src/compact.rs:1-30`: `CompactionSummary`, pre/post-compact hooks, `is_retained_pending_mail`) | `ConversationCompaction.swift` is deterministic rule-based (header documents the deliberate no-LLM-round-trip choice) and keeps tool-call units atomic (`ConversationCompactionTests:143`) | ⚠️ P3 — a real divergence with a stated reason (hot-path cost). Settle it on the board (`scripts/eval`), not by taste; rule-not-summary may also be *better* locally — measure both directions |
+| KV prefix sharing is the engine's core asset: `sglang mem_cache/radix_cache.py` (839 lines), cross-request prefix hits | Pool keyed by leading-user hash + per-session KV; **cold prefills from turn two** are the disclosed residual (`open-items.md` tool-result row); cross-conversation pollution closed 11-16 (probe 57 arm 5, +15) | ⚠️ P2 — we hold sessions, we do not share prefixes; the honest ceiling is set (residual row named), the fix is a real build |
+
+## 7. Inference / scheduler
+
+| Standard | ocoreai | Verdict |
+|---|---|---|
+| sglang: continuous batching, decode-retract stress switches (`scheduler.py:460-462` `TEST_RETRACT*`), and — directly comparable — a **native MLX/MPS backend with an overlap scheduler** (`is_mps()` + `SchedulerMlxOverlapMixin`, `scheduler.py:438-447`) | SchedulerActor + AdmissionGate + MemoryTracker (`MemoryTracker.swift:36`) + OOMGuard; sessions run serially through the pool | ⚠️ P3 (investigate, don't port): overlap-between-schedule-and-execute is the one scheduler idea with an Apple-GPU proof in the field; our lanes are single-stream by design. Measure GPU-idle on a realistic long coding turn before deciding |
+
+## 8. Computer use / approvals
+
+| Standard | ocoreai | Verdict |
+|---|---|---|
+| Four-tier approval policy with a **model-decides** default: `AskForApproval::{UnlessTrusted, OnRequest(default), Granular(fields), Never}` (`codex protocol.rs:1191-1213`); per-decision `ReviewDecision` incl. approve-for-session (`:4583`) | `ApprovalPolicy{interactive, auto, never}` maps the codex axes explicitly — `interactive`≈OnRequest (ask only on high-risk), `auto`≈sandbox-allow, `never`≈Never — and states *why* `untrusted`/`granular` are deliberately unbuilt (no subprocess sandbox or rule surface to hang them on; `Approval.swift:40-44`); decision enum aligns `ReviewDecision` incl. session scope; destructive truth has one home (`isDestructive` → `securityPrecheck`, `DestructiveApprovalGateTests`) | ✅ with one residual: codex's OnRequest lets **the model** raise the ask; ours raises it from the rule (`isDestructive`) — a smaller divergence than first assessed, and this audit's own lesson (read the exact site before convicting). Residual P3 |
+
+## 9. Media
+
+| Standard | ocoreai | Verdict |
+|---|---|---|
+| Refuse-by-name what the engine cannot carry (the invariant-2 rule the trees enforce via typed validation errors) | `ChatMedia.uncarried` refuses, audio refusal typed, `MediaSpool` lifetime + probe 08, video publishes per-checkpoint | ✅ on the enforcement pattern |
+| Deep multimodal parity (image fetch limits, per-modality token budgets) vs sglang's multimodal pipeline | not compared side-by-side this round | ❓ unverified |
+
+## 10. API compatibility
+
+| Standard | ocoreai | Verdict |
+|---|---|---|
+| **Anthropic-face tool_result conversion is lenient in both trees:** `vllm anthropic/serving.py:687 "tool_call_id": block.tool_use_id or ""`, `sglang anthropic/serving.py:507 block.tool_use_id or block.id or ""` — neither runs the OpenAI-face pairing rejection on this face | We refuse unpaired pairing on **both** faces (this round), which matches Anthropic's *own* published rule (every `tool_use` answered by `tool_result` in the next user turn) but is **stricter than both comparator servers** | ⚠️ P3, owner-visible: stricter ≠ unsafe (it prevents the silent-fold 200), but it is a deliberate divergence from the trees' observed behavior. Keep until a real client complains; then this row is the decision record |
+| OpenAI-face compat judged by spec + trees + live requests | probes 01–57 + wire suites cover the faces at this pin | ✅ breadth gated; row-level spec audit of rarely-hit fields ❓ |
+
+## 11. Testing
+
+| Standard | ocoreai | Verdict |
+|---|---|---|
+| Two serving trees: permissions-as-data CI (sglang `CI_PERMISSIONS.json`, 123 workflows), big e2e suites | 349 test files, 57 live-`/v1/*` probes + runner (65 files in `scripts/probes/`), tiered gate discipline, `make audit` | ✅ — and the live-probe harness is at least field-equal; CI rights are single-owner scale (not the 123-workflow shape) |
+
+## 12. Reliability
+
+| Standard | ocoreai | Verdict |
+|---|---|---|
+| sglang ships a soft/hard **watchdog** with explicit feed/disable (`utils/watchdog.py:26-57`) — a stuck loop is *detected*, not just bounded | Deadline discipline is a project rule and real (poll-capped ticks, `EnginePool.swift:741-759`); watchdog-named code exists in HeadlessServer/App sites | ✅ bounded-wait shape present; whether every generation loop feeds or dies loudly end-to-end ❓ spot-verified at the pool only |
+
+## 13. Performance
+
+Row 6 (prefix sharing) and row 7 (overlap) carry the two real gaps. Cold prefill and pool accounting are measured, not guessed (probe 57). Warmup parity with `_prewarm_*` paths (sglang `scheduler.py:454-457`): ❓ unverified for our Metal path.
+
+## 14. UX
+
+| Standard | ocoreai | Verdict |
+|---|---|---|
+| The closest distribution analogue runs DMG + in-app auto-update + `~/.omlx/bin/omlx` shim + brew tap whose optional-kernel flag **degrades instead of failing** (`omlx README.md:50-58`, re-read today) | `UpdateCheck` only notifies; build/publish split is the open cadence item; App-Store trait route exists | ⚠️ P2 = the standing ladder (rung 2), not a new finding — this audit re-confirms the four parts are real and we ship none of them end-to-end yet |
+| HIG is authority on anything user-visible | five non-happy states gated per `UI/AGENTS.md` | ✅ pattern |
+
+## 15. DX
+
+`skills/ocoreai/` published + probe 39, `/v1/capabilities` + `/openapi.json` — ✅ present. No canonical client ships (open § Adoption) vs ollama/omlx single-binary-command ergonomics and the two trees' generated API packages: ⚠️ P2, ledgered, bounded by distribution.
+
+## 16. AX (accessibility)
+
+No GUI comparator in the trees (codex is a TUI; servers are headless) — HIG is the only authority. ocoreai's SwiftUI carries 127 `accessibility*` call sites (counted today); per-screen VoiceOver reality is **❓ unverified** — no gate walks it. P3.
+
+## What this audit convicted (fixed or routed this round)
+
+1. **Fixed:** stale upstream cite `Approval.swift:53` (`protocol.rs:4053` → `:4583`).
+2. **Recorded divergence, decision kept:** both faces' pairing refusal is stricter than vllm/sglang's Anthropic-face leniency — kept, documented at row 10.
+3. **Priority queue the matrix generates, in order:** ① interrupt two-tier semantics with the steer pin (row 3), ② `tools[]`-vs-model gate (already ledgered; row 10's honesty family), ③ prefix-sharing/prewarm measurement (rows 6/13), ④ MTP marker-literal verification (row 4), ⑤ eval head-to-head: rule-compaction vs summary-compaction (row 6), ⑥ model-raised approval asks (row 8 residual), ⑦ AX walk + ⑧ the distribution quartet (row 14).
+4. **Rows left ❓ on purpose:** deep multimodal parity, rarely-hit wire fields, whole-pipeline watchdog coverage, Metal warmup, per-screen AX — *unverified is a verdict, not a pass*.
+
+## Maintenance
+
+This file is a dated snapshot, not a ratchet: refresh a row's cites when you touch its area; a
+row whose upstream cite nobody re-read this quarter is inference (root § Upstream). `make
+docs-check` keeps pointers alive; re-measuring the whole matrix is an owner-sized task, and the
+honest cadence is one-domain-deep per round, not a quarterly sweep.
