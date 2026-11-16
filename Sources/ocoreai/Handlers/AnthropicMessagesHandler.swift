@@ -63,6 +63,36 @@ func anthropicMessagesHandler(
 
     let modelId = request.model
 
+    // The pairing walk runs on the RAW request blocks, before any conversion: by the
+    // time `toInternalMessages` has run, an unattachable `tool_result` has already
+    // folded to text and the break is invisible to a scanner. The fold stays for what
+    // it renders honestly; what it must not do is spare the caller a named refusal —
+    // sglang's walker (`serving_chat.py:300-330`) rejects this history on the OpenAI
+    // face too, and a silently reinterpreted tool loop is the same 200-over-lost-
+    // content shape refused 11-16. Cheapest check here: DTO only, before any guard,
+    // detection or scheduler reservation.
+    if let pair = ToolHistory.pairingViolation(in: request.messages) {
+        logger.warning(
+            "Tool history refused (Anthropic face): \(pair.kind) at messages[\(pair.messageIndex)] (id \(pair.toolCallID ?? "<none>"))",
+            metadata: ["error_code": .string("tool_history_unpaired")])
+        let remediation: String
+        switch pair.kind {
+        case .orphaned:
+            remediation =
+                "A tool_result block must answer a tool_use block in the preceding assistant turn; this one answers none, so the fold would reinterpret it as prose. After compaction, omit results whose call is no longer in the history."
+        case .mismatched:
+            remediation =
+                "A tool_result's tool_use_id matches no open tool_use in the preceding assistant turn, so the fold would reinterpret it as prose. Answer the call that is actually open."
+        case .unanswered:
+            remediation =
+                "The preceding assistant turn's tool_use blocks were never answered, and this message cuts that run off; Anthropic requires the next user message to carry a tool_result for every tool_use."
+        }
+        throw AppError.invalidParameter(
+            param: "messages[\(pair.messageIndex)].content",
+            message: remediation,
+            value: pair.toolCallID)
+    }
+
     // Capture content guard early — used for both input and output safety
     let streamGuard: ContentGuard? = await OcoreaiEngine.shared.activeContentGuard
 

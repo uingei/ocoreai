@@ -34,8 +34,7 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
 - If upstream already has the answer, consume it or cite `file:line` — do not author a local variant.
 
 ## Adoption — the surface a stranger ranks
-- **A release is a cadence, not a green suite or one tag:** the surviving release is
-  `v0.1.16` — cadence is the open item; the re-measurable field ceiling lives at
+- **A release is a cadence, not a green suite or one tag:** cadence is the open item; the re-measurable field ceiling lives at
   `long-horizon-goal.md` § Rung zero (audit-facts.sh is its instrument). The
   tag *is* the version (`scripts/version.sh` prints it), so no doc re-types one. `Core/UpdateCheck.swift` only
   *notifies*; build/publish must split.
@@ -123,12 +122,12 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   parameterized traversal, boundary cases. Reject `count > N` where N is knowable; never pin a constant
   copied from the code under test.
 - A scan-based test asserts its own premises: find the root by searching, not by fixed
-  `deletingLastPathComponent()` hops, and floor its own hit count.
+  `deletingLastPathComponent()` hops.
 - A fix gates every consumer of the value it changed, not just the emit site.
 - Anything that proves behaviour against a live server ships as a script in `scripts/probes/`, so the
   claim outlives the session that made it.
 - One scoreboard run is a sample: set size, spread, noise band and the paired-flip floor each live in
-  `scripts/eval/README.md` (one home apiece).
+  `scripts/eval/README.md`.
 - Process-global state (workspace anchor, `OCOREAI_*`, a `shared` sensor) is leased, never
   set: `.serialized` orders a suite's *own* tests, not suites against each other, and a lease never spans
   live I/O. Gate: `ProcessGlobalLeaseDisciplineTests`.
@@ -154,13 +153,13 @@ verdicts: `closed-items-log.md`; `make docs-check` P6 keeps every suite name bel
   arms: `docs/agent/open-items.md`.
 
 ## Upstream Audit Dependencies
-Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`, one diary, one home.
+Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`.
 1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract, currently `635290754`;
    P8 compares this quote against the manifest, so a bump that forgets this line goes red. Bump protocol: audit the
    consumption surface → bump `.revision` → `make audit` (both lockfiles) → `swift build` +
    `make test-ci` green → `CHANGELOG.md`. Upstream sources live under
    `Libraries/`, not `Sources/`; clone-vs-pin is `git merge-base --is-ancestor`, and the built checkout's
-   cleanliness is asserted by `scripts/probes/_lib.sh`, not by prose.
+   cleanliness is asserted by `scripts/probes/_lib.sh`.
 2. **`coreai-models`** — Apple's reference tree, consumed as header-stamped forks (BSD-3; types
    redefined locally — upstream demands macOS 27). Each file's header carries its upstream baseline;
    `make drift` reports the un-adjudicated window. Python/export-side commits: no export surface here.
@@ -171,14 +170,16 @@ Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`, one dia
    `docs/agent/agent-interface-guidelines.md`.
 5. **Comparators** — the trees in `docs/agent/comparator-repos.md`, diffusion in
    `docs/agent/comparator-consensus.md`, comparator-evolution.md, comparator-innovation.md: nothing linked or
-   redistributed; a borrowed verdict stays inference
-   until a `file:line` says otherwise. `codex` is one since 11-03 (owner: no longer an authority; window
-   reported, not owed). Shipped order + fix cost: `docs/agent/competitor-iteration-paths.md`.
+   redistributed; a borrowed verdict without a `file:line` stays inference. `codex` is one since 11-03
+   (owner: no longer an authority; window reported, not owed).
+   Shipped order + fix cost: `docs/agent/competitor-iteration-paths.md`.
 - **OpenAI / Anthropic compatibility** is judged as vllm and sglang judge it: the spec, their
   implementation, real requests, observed behaviour — not our convenience.
 - **A mirror proves content, never HEAD.** `api.github.com` is authoritative for HEAD and compare windows.
-- **Host-local is not project evidence**: `~/references/*`, `~/wiki/*`, `.hermes/` are colour, not verdicts.
-  Repo-binding verdicts live in `CHANGELOG.md`. Codex-host facts: `docs/agent/codex-runtime.md`.
+- **The standard is `~/references`' shipped practice, not this tree's habit**: where prior judgment or the
+  existing implementation conflicts with what those project trees ship (read at HEAD, cited `file:line`),
+  references win; deviation needs an owner reason, never implementation-legacy. `~/wiki/*`, `.hermes/`
+  stay colour; repo verdicts: `CHANGELOG.md`; Codex-host: `docs/agent/codex-runtime.md`.
 
 ## Read on demand — detail one hop away
 - `docs/agent/instruction-channel.md` — who delivers the caller's `system`/`developer` text and what its
@@ -249,12 +250,12 @@ against upstream first). Which doc each audience reads, and when: `docs/agent/do
 - **A file's lifetime is the lifetime of the thing that cites it.** Bytes outliving their request need an
   owner, a pin in flight, and collection by idle TTL + byte budget. `MediaSpool`; gates:
   `MediaLifetimeTests` + probe 08.
-- **Comments say the *why* the code cannot, in 1–3 lines.** No bug history, dates or audit trails inside
-  source comments — that is the commit message. One logical change per commit.
+- **Comments say the *why* the code cannot, in 1–3 lines.** No bug history, dates or audit trails —
+  that is the commit message. One logical change per commit.
 - **A lock lives at the cheapest rung that bites:** hook → `make` → CI, priced in runner-seconds (text
   gates go to ubuntu; arm64 minutes are the expensive seat). A gate blocks only when a red means someone
-  acted on something false; prose-shape checks are deleted, not downgraded, and a new one names the red
-  it was sampled against and the reader whose action it changes (`CONTRIBUTING.md`). **Gate count is never
+  acted on something false; a new one names the red it was sampled against and the reader whose action
+  it changes (`CONTRIBUTING.md`). **Gate count is never
   the deliverable, and no gate is installable** — see § Adoption.
 - **No defensive clutter; no guard for a failure nobody observed.** Validate once at the boundary that owns
   the value and pass typed values inward; quote the failure (a probe line, a red test, a scoreboard row)

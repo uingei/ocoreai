@@ -696,6 +696,96 @@ struct Message: Codable {
     }
 }
 
+/// The tool-call/result pairing contract both wire faces enforce at the request
+/// boundary, walking the history the way sglang's shipped walker does
+/// (`serving_chat.py:300-330`, read at reference HEAD 11-16): every result answers a
+/// call of the run opened immediately before it, nothing may cut into an unanswered
+/// run, and a run left open at the END is legal — that is what the completion is
+/// being asked to answer (sglang's own leniency, not ours).
+enum ToolHistory {
+    struct Violation: Sendable {
+        enum Kind: Sendable {
+            /// A result arrives with no assistant run open to declare it.
+            case orphaned
+            /// A run is open but this id answers none of its calls.
+            case mismatched
+            /// A non-result message cuts into a run with calls still unanswered.
+            case unanswered
+        }
+        let messageIndex: Int
+        let toolCallID: String?
+        let kind: Kind
+    }
+
+    /// The one walk, over per-message events normalized from either face's DTO.
+    /// sglang's leniency for id-less *calls* is kept (an open with no id declares
+    /// nothing checkable); a *result* with no id answers nothing and must mismatch —
+    /// both faces' specs make the result's id required.
+    private static func walk(
+        count: Int,
+        isResult: (Int) -> Bool,
+        answers: (Int) -> [String],
+        opens: (Int) -> [String]
+    ) -> Violation? {
+        var open: Set<String>?
+        for i in 0 ..< count {
+            if isResult(i) {
+                guard var pending = open else {
+                    return Violation(messageIndex: i, toolCallID: answers(i).first, kind: .orphaned)
+                }
+                for id in answers(i) {
+                    guard pending.remove(id) != nil else {
+                        return Violation(messageIndex: i, toolCallID: id, kind: .mismatched)
+                    }
+                }
+                open = pending
+                continue
+            }
+            if let pending = open, !pending.isEmpty {
+                return Violation(messageIndex: i, toolCallID: nil, kind: .unanswered)
+            }
+            let opened = opens(i).filter { !$0.isEmpty }
+            open = opened.isEmpty ? nil : Set(opened)
+        }
+        return nil
+    }
+
+    /// OpenAI face: `role:"tool"` messages answer, assistant `tool_calls` open a run.
+    static func pairingViolation(in messages: [Message]) -> Violation? {
+        walk(
+            count: messages.count,
+            isResult: { messages[$0].role == "tool" },
+            answers: { messages[$0].toolCallID.map { [$0] } ?? [""] },
+            opens: {
+                messages[$0].role == "assistant" ? (messages[$0].toolCalls ?? []).map(\.id) : []
+            }
+        )
+    }
+
+    /// Anthropic face, walked on the RAW blocks so the refusal lands before
+    /// `toInternalMessages` folds an unattachable `tool_result` back to text and the
+    /// break becomes invisible: a `user` message carrying `tool_result` blocks
+    /// answers, an `assistant` message's `tool_use` blocks open a run.
+    static func pairingViolation(in messages: [AnthropicMessage]) -> Violation? {
+        func blocks(_ i: Int) -> [AnthropicContentBlock] {
+            guard case .blocks(let b)? = messages[i].content else { return [] }
+            return b
+        }
+        return walk(
+            count: messages.count,
+            isResult: {
+                messages[$0].role == "user" && blocks($0).contains { $0.type == "tool_result" }
+            },
+            answers: { i in blocks(i).filter { $0.type == "tool_result" }.map { $0.toolUseId ?? "" }
+            },
+            opens: { i in
+                messages[i].role == "assistant"
+                    ? blocks(i).filter { $0.type == "tool_use" }.compactMap(\.id) : []
+            }
+        )
+    }
+}
+
 /// Content polymorphism: plain text or multi-part content array.
 ///
 /// Decodes as ``String`` → ``.text``, as ``[ContentPart]`` → ``.parts``.

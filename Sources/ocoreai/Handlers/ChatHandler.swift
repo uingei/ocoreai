@@ -263,6 +263,36 @@ func chatCompletionsHandler(
             value: first.type)
     }
 
+    /// An unpaired `role:"tool"` result renders into nothing (orphaned — no assistant
+    /// `tool_calls` claims it) or into an `unknown`-labelled block (id matches no open
+    /// call); both measured live 11-16 as a 200 over a prompt that silently lost or
+    /// mislabelled the caller's content. A non-result message cutting into an
+    /// unanswered run breaks the same rendering. The three kinds are sglang's shipped
+    /// walker (`serving_chat.py:300-330`); a run left open at the END stays legal there
+    /// and here — it is what the completion is asked to answer. One pass, the DTO
+    /// alone, beside the media refusal it mirrors.
+    if let pair = ToolHistory.pairingViolation(in: request.messages) {
+        logger.warning(
+            "Tool history refused: \(pair.kind) at messages[\(pair.messageIndex)] (id \(pair.toolCallID ?? "<none>"))",
+            metadata: ["error_code": .string("tool_history_unpaired")])
+        let message: String
+        switch pair.kind {
+        case .orphaned:
+            message =
+                "A role:\"tool\" message must follow an assistant message with matching tool_calls; this result follows none, so the prompt would silently drop it. After compaction, omit results whose call is no longer in the history."
+        case .mismatched:
+            message =
+                "tool_call_id does not match an unanswered tool call from the preceding assistant turn, so the prompt would render this result under a wrong name. Send the result against the call that is actually open."
+        case .unanswered:
+            message =
+                "An earlier assistant turn's tool_calls were never answered, and this message cuts that run off; the prompt would render the call with no result. Answer every tool_call with a role:\"tool\" message before continuing, or drop the unanswered call."
+        }
+        throw AppError.invalidParameter(
+            param: "messages[\(pair.messageIndex)].tool_call_id",
+            message: message,
+            value: pair.toolCallID)
+    }
+
     /// Audio attached to a chat turn cannot reach a model as waveform in this build —
     /// `ChatAudioIngestion` carries the measurement (no `UserInputProcessor` at the pinned
     /// revision consumes `input.audios`) and the two honest routes that remain: hear it

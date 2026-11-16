@@ -28,7 +28,7 @@
 # `Chat.Message(role:content:)`, erasing `tool_calls` and the result pairing before the
 # template ever sees them.
 #
-# ### What is measured (five arms)
+# ### What is measured (six arms)
 #   1. CONTROL: a ~2 500-token block as user-role content must bill >= 400 extra
 #      prompt tokens. This guards the instrument itself; if it reddens, nothing
 #      downstream means anything.
@@ -43,6 +43,12 @@
 #      reconciles, so an unprovable turn must not be pooled at all. Measured 11-16: the
 #      forked resend billed 3 092 tokens (the previous conversation's result block plus
 #      its own 736) before the release-site rule landed.
+#   6. Malformed tool history is refused with a named 400, and legal shapes stay 200.
+#      Measured 11-16 before the boundary refusal: an orphan result answered 200/686
+#      (its content silently gone) and a mismatched id answered 200/1033 (labelled
+#      `unknown`). The three refusals and the two legal shapes follow sglang's shipped
+#      walker (`serving_chat.py:300-330`) — including its leniency that a run left
+#      open at the END is what the completion is asked to answer.
 #
 # Needs a real Metal device AND the default checkpoint's weights (this host holds
 # them at ~/.ocoreai/models; a runner without them takes the SKIP branch below).
@@ -175,5 +181,67 @@ if [ "$delta" -lt 200 ]; then
 else
   probe_fail "cross-conversation KV: forked resend billed $delta over base — it inherited a previous conversation's cached KV (an unprovable turn was pooled with an empty ledger)"
 fi
+
+# Arm 6 — malformed tool history refused by name, legal shapes kept. Before the
+# boundary refusal this was a 200 over a silently dropped or `unknown`-labelled result
+# (measured 11-16: orphan 200/686, mismatch 200/1033). The refused/legal split is
+# sglang's walker's own shape, checked on both faces.
+python3 - <<'PY'
+import json, os
+res = os.environ["RESULT_BLOCK"]; pre = os.environ["PREAMBLE"]; model = os.environ["MODEL"]
+call = {"id": "c1", "type": "function",
+        "function": {"name": "read_file", "arguments": "{\"path\":\"a.txt\"}"}}
+def w(name, msgs):
+    json.dump({"model": model, "messages": msgs, "max_tokens": 1, "temperature": 0},
+              open(os.environ["TMPD"] + "/" + name, "w"))
+def anth(name, msgs):
+    json.dump({"model": model, "messages": msgs, "max_tokens": 1},
+              open(os.environ["TMPD"] + "/" + name, "w"))
+w("bad_orphan.json", [{"role": "user", "content": pre},
+                      {"role": "tool", "content": res, "tool_call_id": "c1"}])
+w("bad_mismatch.json", [{"role": "user", "content": pre},
+                        {"role": "assistant", "content": "", "tool_calls": [call]},
+                        {"role": "tool", "content": res, "tool_call_id": "ghost"}])
+w("bad_unanswered.json", [{"role": "user", "content": pre},
+                          {"role": "assistant", "content": "", "tool_calls": [call]},
+                          {"role": "user", "content": "and now?"}])
+w("ok_trailing.json", [{"role": "user", "content": pre},
+                       {"role": "assistant", "content": "", "tool_calls": [call]}])
+anth("bad_anth_orphan.json",
+     [{"role": "user", "content": pre},
+      {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "ghost",
+                                    "content": res}]}])
+anth("ok_anth_trailing.json",
+     [{"role": "user", "content": pre},
+      {"role": "assistant", "content": [{"type": "tool_use", "id": "c1", "name": "read_file",
+                                         "input": {"path": "a.txt"}}]}])
+PY
+
+post_code() {  # $1 path, $2 body → HTTP status; body left in $TMPD/resp.json
+  curl -s --max-time 300 -o "$TMPD/resp.json" -w '%{http_code}' -X POST "$PROBE_BASE$1" \
+    -H 'Content-Type: application/json' --data @"$2"
+}
+check_refused() {  # $1 label, $2 path, $3 body
+  local code; code=$(post_code "$2" "$3")
+  if [ "$code" = "400" ] && grep -qiE 'tool_call_id|tool_result|tool_use' "$TMPD/resp.json"; then
+    probe_ok "$1: malformed tool history refused with a named 400"
+  else
+    probe_fail "$1: got HTTP $(head -c 160 "$TMPD/resp.json") — malformed tool history must be a named 400, not a 200 over content the prompt dropped"
+  fi
+}
+check_accepted() {  # $1 label, $2 path, $3 body — sglang-legal shapes stay legal
+  local code; code=$(post_code "$2" "$3")
+  if [ "$code" = "200" ]; then
+    probe_ok "$1: sglang-legal shape accepted at 200"
+  else
+    probe_fail "$1: got HTTP $(head -c 160 "$TMPD/resp.json") — a legal history was refused"
+  fi
+}
+check_refused "openai-orphan" /v1/chat/completions "$TMPD/bad_orphan.json"
+check_refused "openai-mismatch" /v1/chat/completions "$TMPD/bad_mismatch.json"
+check_refused "openai-mid-unanswered" /v1/chat/completions "$TMPD/bad_unanswered.json"
+check_refused "anthropic-orphan" /v1/messages "$TMPD/bad_anth_orphan.json"
+check_accepted "openai-trailing-call" /v1/chat/completions "$TMPD/ok_trailing.json"
+check_accepted "anthropic-trailing-use" /v1/messages "$TMPD/ok_anth_trailing.json"
 
 probe_summary "57-tool-result-token-accounting"
