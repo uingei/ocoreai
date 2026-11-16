@@ -158,7 +158,7 @@ AXES = [
     # script and the pathset must not be what hides it. Measured today the widening changes nothing here
     # (2/24 either way), which is the useful result: the binding constraint is the *vocabulary*
     # (`doc-sync`, `generate-docs`, `verify-config-catalog`), not the file type — our own
-    # `make docs-check` re-derives figures into prose under a name this pattern does not know, so `ours:
+    # the retired `make docs-check` re-derived figures into prose under a name this pattern does not know, so `ours:
     # no` means "we do not use their words", not "we have nothing".
     ("generates docs from source (code)",  "SRC",  "shippable",
      r"gen[-_]config[-_]catalog|verify[-_]config[-_]catalog|doc[-_]sync|docs?[-_]generator|generate[-_]docs?",

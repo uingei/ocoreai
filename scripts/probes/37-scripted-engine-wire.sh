@@ -260,7 +260,7 @@ else
 fi
 
 # 9 — the injected context quotes one number about the tool surface; this is the seat that can check it,
-# because the count is a property of a running server and `make docs-check` runs without one.
+# because the count is a property of a running server, and every prose check runs without one.
 # The phrasing around the number is prose and gets rewritten (it drifted from "measures 6 of the 43
 # tools" to "scores 6 of the 40 advertised tools" and this scan silently found nothing), so match on
 # the shape that carries the fact — "6 of [the] N [advertised|registered] tools" — not on one wording.

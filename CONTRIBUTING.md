@@ -64,20 +64,22 @@ silently the day the toolchain updates — `make toolchain-check`
 (`scripts/toolchain-contract.sh`) exists because exactly that happened on 10-14.
 
 The docs layer is held to the same standard, because `AGENTS.md` is injected into the model's
-context on every session: a stale number there is not a typo, it is a wrong instruction.
-`make docs-check` (`scripts/agents-md-contract.sh`) budgets the injected files (shrink-only),
-resolves every path and `file:line` anchor they name, re-runs every
-`<!-- claim:id OP N :: command -->` marker, and fails when a scan's own hit count drops below its
-floor. Write a claim together with its instrument, on the same line: `>=` for a floor that must not
-shrink (attribution, endpoint rows), `<=` for a ceiling that must not grow (`print`, `try!`, `TODO`),
-and `=` only for facts that move when the doc itself is edited (a pin, a budget).
+context on every session: a stale number there is not a typo, it is a wrong instruction. The
+standard is now carried by convention plus the code-shaped tests that survive it
+(`InstructionBudgetSingleSourceTests` binds the cap sentence to `WorkspaceContext`;
+`DependencyPinStatementTests` binds the pin quote to the manifest); the bespoke machinery that
+re-ran every path, anchor and `<!-- claim:id OP N :: command -->` marker — `make docs-check`,
+`make anchor-check` and their scripts — was **retired 11-16** on the owner's ruling after reading
+the consumed trees: mlx-swift-lm verifies its docs by *building* them, coreai-models' CI is
+compile+test+format, and no tree greps its own prose. Where a doc quotes a number, keep the
+re-greppable command beside it — a claim without an instrument is an instruction nobody can
+re-check; re-checking is now the touching reader's job, and the `claim:` markers stay as the record
+of each instrument's shape.
 
-A cite into a comparator tree is a weaker promise than an `anchor:` marker, and the tools say so in
-opposite voices: markers resolve only for the pinned trees (`mlx-swift-lm`, `mlx-swift`, this repo),
-because a mirror's HEAD moves by design and a runner has no checkout of it, while
-`scripts/upstream-cite-check.sh` greets every bare comparator cite as resolved once the *line exists*.
-So `make anchor-check` green covers none of those cites — re-read the window before repeating one, and
-write the struct or function beside its range so a line that moved is catchable by eye.
+A cite into a comparator tree is a promise with an expiry date: a mirror's HEAD moves by design.
+Re-read the window before repeating a cite, and write the struct or function beside any line
+number so a moved line is catchable by eye — living prose cites symbols; line numbers survive only
+as frozen findings.
 
 **Red is for a claim someone acts on; a warning is for everything else.** The test is not "can this be
 checked" but "who is misled when it breaks": a wire field, a tool result, a README sentence, an injected
@@ -86,27 +88,18 @@ rule is asymmetric on purpose — invariant 1 cuts at the gates too, so a check 
 real work is decoration with an exit code, and a red that blocks a correctness fix taxes the fix, not
 the rot.
 
-**The tiers, named** (`scripts/agents-md-contract.sh` implements this split; a check's own header says
-which tier it is):
+**The tiers, named** (after the 11-16 retirement, two tiers remain):
 
-- **Blocking** — B1/B2 (injected bytes; the host truncates the chain at 32 KiB, so an over-budget guide
-  silently loses its tail), P1 scan floors, P2/P3/P12 pointers and anchors, P4 claim reproduction,
-  P5/P6/P7/P9 named gates, suites and routing targets, P8 the pin agreement, P10/P10b README vs the
-  served surface, P11 exact `XxxTests`(N) counts, P14 probe-index parity, P18 language, P19 outbound
-  links. Each has a recorded red, not just a rationale: `§`-references that outlived the heading they
-  named, five drifted suite counts (one claiming more coverage than its file holds), and two README
-  links pointing at repositories that do not exist.
-- **Signal** — one warning, the host-local reference note: a cite into `~/references` is colour, never
-  a verdict. Printed as one line per check, never per finding.
-- **Deleted, not demoted** — a warning that is on every run is noise, and noise trains people to
-  skim the gate. Deleted rather than left as signals: 10-27 the corpus byte cap, P14's table column
-  counts and orphan docs; 10-28 the whole prose-shape family — P13 (dated stamps and line walls inside
-  `AGENTS.md`), P15 (corpus line walls), P16 (comparator coupling: diary coverage, two hand-copied
-  lists, a zero-coupling equality), P17 (area-guide scan floors), P20 (verbatim-duplicate bullets) —
-  plus P18's diary CJK ceilings, because a ratchet that blocks the owner writing their own log in
-  their own language is friction, not a contract: the diary is *excluded* from the English rule now.
-  Net 10-28: 27 `fail` sites and five check ids out of `scripts/agents-md-contract.sh`, 70,401 →
-  55,926 bytes of gate script, and its report is 10 lines where it was 12.
+- **Blocking** — what a compiler, a test, a live probe or the runtime itself can decide: build +
+  suites, `make audit` (code patterns, lockfile sync, dead type names in architecture prose,
+  makefile parse), swift-format, the pinned toolchain contract, the live probes, and the runtime
+  32 KiB chain cap that *names its cuts* (`WorkspaceContext`). Every injected rule is enforced by
+  code or honored by a reader; nothing greps prose any more — the P-/B- tier's whole history
+  (floors, anchors, claim re-runs, byte ratchets, and the 10-28 deletion of the prose-shape family)
+  is the record of how much maintenance one cannot afford to rent.
+- **Deleted, not demoted** — kept as the standing rule: a check that only detects prose shape is
+  friction, and friction trains readers to skim. New checks belong to the Blocking list's kinds
+  only.
 
 Three duties come with that:
 

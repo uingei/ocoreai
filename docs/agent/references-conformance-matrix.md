@@ -20,7 +20,7 @@
 
 | Standard | ocoreai | Verdict |
 |---|---|---|
-| Serving trees are rebuilding a generated-contract HTTP front over an engine boundary: vllm Rust front-end over the ZMQ engine (`vllm rust/README.md:3,5` self-labels experimental); sglang ships `sglang-server` as PyO3 + **generated** API types (`rust/sglang-api-codegen`) | Single Swift binary; boundaries are logical: HTTP/Handlers → EnginePool (actor) → lane; `/openapi.json` renders off the endpoint index | ⛔ process-splitting does not transfer to a local single-box product; the transferable part (contract generated from one index, not retyped) is ✅ — `Handlers/AGENTS.md` discovery contract, docs-check |
+| Serving trees are rebuilding a generated-contract HTTP front over an engine boundary: vllm Rust front-end over the ZMQ engine (`vllm rust/README.md:3,5` self-labels experimental); sglang ships `sglang-server` as PyO3 + **generated** API types (`rust/sglang-api-codegen`) | Single Swift binary; boundaries are logical: HTTP/Handlers → EnginePool (actor) → lane; `/openapi.json` renders off the endpoint index | ⛔ process-splitting does not transfer to a local single-box product; the transferable part (contract generated from one index, not retyped) is ✅ — `Handlers/AGENTS.md` discovery contract |
 
 ## 2. Code quality / error taxonomy
 
@@ -118,11 +118,21 @@ No GUI comparator in the trees (codex is a TUI; servers are headless) — HIG is
 
 ## 17. The docs themselves — UX / DX / AX (owner ruling 11-16: the doc suite is a product surface with three readers)
 
+> **The principle in full (owner, 11-16, elevated from audit axis to standing rule — root § Three
+> readers carries the ≤3-line form):** UX, DX and AX are core dimensions of ocoreai's whole product
+> and engineering quality, running through design, architecture, implementation, interaction,
+> documentation, testing, release and maintenance. Every significant design and engineering decision
+> must weigh its real effect on all three. Pursue their joint improvement — not local optimization,
+> and not a surface gain for one bought by sacrificing another. Judge quality by real usage
+> experience, development efficiency, agent execution capability and verifiable results. Do not
+> introduce unnecessary complexity for the sake of formal UX/DX/AX completeness. They are not
+> add-on features; they are the baseline from design to delivery.
+
 | Axis | Standard (tree@line, read today) | ocoreai (site/gate) | Verdict |
 |---|---|---|---|
-| **UX** — a stranger reads | the install quartet is real and degrades not fails (`omlx README.md:50-58`); privacy contract verifiable on the first screen (adoption-runbook's rule, from the trees' intake practice) | README: DMG double-click + `curl … install.sh` + `uninstall.sh` **dry-run by default** (`README.md:24-31,77`); P10 diffs README against the code that serves (`docs-map.md:12`) | ⚠️ P2 — structure ✅, but the README promises a DMG whose surviving release is ad-hoc signed and Gatekeeper-unjudged (row 14's open item): the doc currently claims more Gatekeeper-trust than measured. Same ledger row, now flagged as a **doc** promise too |
+| **UX** — a stranger reads | the install quartet is real and degrades not fails (`omlx README.md:50-58`); privacy contract verifiable on the first screen (adoption-runbook's rule, from the trees' intake practice) | README: DMG double-click + `curl … install.sh` + `uninstall.sh` **dry-run by default** (`README.md:24-31,77`); README-vs-served-surface is kept re-greppable by convention (the P10 diff retired 11-16 with the bespoke docs gates) | ⚠️ P2 — structure ✅, but the README promises a DMG whose surviving release is ad-hoc signed and Gatekeeper-unjudged (row 14's open item): the doc currently claims more Gatekeeper-trust than measured. Same ledger row, now flagged as a **doc** promise too |
 | **DX** — a contributor reads | intake rules live in-tree, cited (vllm `AGENTS.md` intake — registry cites `:8,21,27,35,39`); onboarding is a contract, not folklore | `CONTRIBUTING.md` (three questions, floor/ceiling), `docs-map.md` audience table, `make push-ready`/`make audit` as the single onboarding verb; refusals carry field-path + remediation so a wire error is self-teaching (this round's `tool_history_unpaired`) | ✅ |
-| **AX** — an agent reads | codex's loader: hierarchy walk that stops at the project root (`agents_md.rs:10-18`), a byte budget that when cut **says so to the model** with trim-or-raise guidance (`:51`, `:162-166`), zero-budget/untrusted gates (`:65`) | `WorkspaceContext` implements the same discovery/order/budget semantics by name ("codex-style loader", `:16,:186`); per-doc fate `whole\|truncated\|dropped` is named, "the last two used to be silent" (`:167`) — silent-cut is fixed, the same rule invariant 2 states; budget equality pinned 3-ways (`:25-27`); `skills/ocoreai/SKILL.md:2-5` routes on name+description (the field's only fields a router reads) | ✅ with the disclosed pressure: deepest chain 32 298/32 768 = **99% spent**; the cost is disclosed to the model and on `/v1/capabilities`, gated only as a capacity question (`AGENTS.md` § Open — owner item) |
+| **AX** — an agent reads | codex's loader: hierarchy walk that stops at the project root (`agents_md.rs:10-18`), a byte budget that when cut **says so to the model** with trim-or-raise guidance (`:51`, `:162-166`), zero-budget/untrusted gates (`:65`) | `WorkspaceContext` implements the same discovery/order/budget semantics by name ("codex-style loader", `:16,:186`); per-doc fate `whole\|truncated\|dropped` is named, "the last two used to be silent" (`:167`) — silent-cut is fixed, the same rule invariant 2 states; budget equality test-bound (`InstructionBudgetSingleSourceTests`, code ↔ root prose since the 11-16 gate retirement); `skills/ocoreai/SKILL.md:2-5` routes on name+description (the field's only fields a router reads) | ✅ with the disclosed pressure: deepest chain 32 298/32 768 = **99% spent**; the cost is disclosed to the model and on `/v1/capabilities`, gated only as a capacity question (`AGENTS.md` § Open — owner item) |
 
 ## What this audit convicted (fixed or routed this round)
 
@@ -134,6 +144,7 @@ No GUI comparator in the trees (codex is a TUI; servers are headless) — HIG is
 ## Maintenance
 
 This file is a dated snapshot, not a ratchet: refresh a row's cites when you touch its area; a
-row whose upstream cite nobody re-read this quarter is inference (root § Upstream). `make
-docs-check` keeps pointers alive; re-measuring the whole matrix is an owner-sized task, and the
-honest cadence is one-domain-deep per round, not a quarterly sweep.
+row whose upstream cite nobody re-read this quarter is inference (root § Upstream). Keeping its
+pointers alive is the touching reader's job (the bespoke docs gates retired 11-16); re-measuring
+the whole matrix is an owner-sized task, and the honest cadence is one-domain-deep per round, not
+a quarterly sweep.

@@ -84,10 +84,6 @@ jobs:
   # ceiling measured at 715 s a push, most of it building the pinned swift-format and running
   # `swift package resolve`, neither of which a git/grep/python gate needs. Same scripts, same
   # verdicts, cheap seat.
-  # The premise is pinned, not inherited: `OCOREAI_AGENTS_NO_HOST_REFS=1` judges the docs as a host
-  # with no comparator trees, because on 10-28 that premise was what decided a P2 red — 25 cites had
-  # drifted into dead pointers on a fresh clone while every check on a tree-rich host stayed green. A
-  # gate whose premises come from the box it runs on is exactly what invariant 1 is about.
   # What did NOT come to CI, deliberately: the pinned swift-format build (no ubuntu image ships a
   # Swift toolchain, so moving it would invent an untested path) and the toolchain/Metal probe. Both
   # bite in `make push-ready` now, the cheapest rung that bites, on the host whose toolchain produced
@@ -97,29 +93,16 @@ jobs:
     name: "Text gates (ubuntu)"
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      OCOREAI_AGENTS_NO_HOST_REFS: "1"
     steps:
-      # Every `<!-- claim:... -->` in AGENTS.md is re-run here, so a claim's command may not read
-      # state a clean checkout need not hold. Measured 10-29 over two pushes of the same claim:
-      # `git tag | grep -c '^v'` printed 1 in every local mode and 0 here, and `fetch-tags: true`
-      # left the annotation byte-identical — why the runner differs is *not* settled (a local
-      # `--depth 1 --no-tags` clone fetched with `--tags` does return `v0.1.14`), so the exit is the
-      # portable command, not a deeper guess: claims that read git state ask the remote (`ls-remote`).
+      # The `<!-- claim: … -->` markers in AGENTS.md record their instruments now — the contract
+      # script that re-ran them retired 11-16. The portable-command finding survives there: claims
+      # that read git state must ask the remote (`ls-remote`), not the checkout.
       - uses: actions/checkout@v4
 
-      # The injected context layer is code: budget it (shrink-only), resolve every path it names,
-      # re-run every `<!-- claim:... -->` number, and check the routing table against the guides on
-      # disk. Its first run here caught three drifted counts and four map rows pointing at files the
-      # repo never had, because nothing else in the fleet greps the docs.
-      - name: AGENTS.md contract
-        run: |
-          # The published-surface claims (tags_published, releases_published) read https, which is
-          # a premise the runner has and a laptop often does not — so they are skipped locally and
-          # MUST run here. The contract reddens if this flag is missing under CI, so the skip cannot
-          # quietly become non-coverage.
-          OCOREAI_CLAIMS_NET=1 bash scripts/agents-md-contract.sh check \
-            || { echo "::error::failed step: AGENTS.md contract (docs gate)"; exit 1; }
+      # The AGENTS.md contract step was retired 11-16 (owner ruling, after reading the consumed
+      # trees): mlx-swift-lm verifies docs by BUILDING them, coreai-models runs compile+test+format
+      # only, and no tree greps its own prose. The injection cap is enforced at runtime by
+      # WorkspaceContext, which names every cut.
 
       # Zero try!/as!/fatalError/assert, print() only on a CLI surface, and the Class-I licence
       # patterns that travel with the binary (AGENTS.md § Build / Test / Lint).
@@ -128,14 +111,9 @@ jobs:
           bash scripts/audit.swift_patterns.sh \
             || { echo "::error::failed step: static audit (code patterns)"; exit 1; }
 
-      # docs-check asks whether `file:line` is inside the file; this asks whether the line is the
-      # code the doc claims. 15 cites were wrong on 10-17 with docs-check green. Local cites are
-      # enforced (floor 6); upstream ones report as skipped where no dependency tree exists, so a
-      # host with neither ~/references nor checkouts neither false-fails nor passes silently.
-      - name: Line-cite anchors
-        run: |
-          bash scripts/anchor-check.sh \
-            || { echo "::error::failed step: line-cite anchors"; exit 1; }
+      # The line-cite anchor step retired with the same ruling; the convention it enforced
+      # survives as a written rule: living prose cites symbols, line numbers only for frozen
+      # findings (a symbol reference greps itself back to truth without a gate).
 
       # xcodebuild reads the WORKSPACE copy, swift build reads the ROOT one; they drifted for three
       # pin bumps and only this check ever said so.

@@ -4,7 +4,7 @@
 > The ladder owns *order and falsifiability*; this file owns *mechanics* — what each mechanism is, which
 > tree ships it, and `file:line` in a local clone. Every number is a dated snapshot with the command that
 > re-measures it; a stale cell is yours to notice.
-> Cites are written `../references/<tree>/<path>:<line>` because that is the form `make anchor-check`
+> Cites are written `../references/<tree>/<path>:<line>`; the gate that checked that form retired 11-16 —
 > resolves and verifies, and because a bare `README.md:20` would silently resolve against our own README.
 
 ## The leaderboard (stars are the only ranking GitHub publishes for a repo)

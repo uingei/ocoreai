@@ -12,9 +12,9 @@
 //! cites 214 and 124 lines off. Every version check in this repo compares *names*
 //! (`ThirdPartyNoticesTests`), so both drifted through CI green.
 //!
-//! So the manifest is now read three ways: prose ↔ pin (`exact:` / `revision:`), pin ↔
-//! `Package.resolved`, and its file:line cites by `make anchor-check` (which gained
-//! `Package.swift` in its scan set). Each assertion floors its own premises, because a regex
+//! So the manifest is read by two red gates: prose ↔ pin (`exact:` / `revision:`) and pin ↔
+//! `Package.resolved`; its file:line cites had a third reader, `make anchor-check`, until that
+//! retired 11-16. Each assertion floors its own premises, because a regex
 //! that stopped matching would otherwise report a clean bill of health for a file it read
 //! nothing of.
 

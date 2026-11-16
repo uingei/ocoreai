@@ -123,7 +123,7 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 > 模型 id 里的 `/` 可原样书写（`org/name`），也可写成 `%2F`。
 
 
-> 其余路由在设了 `OCOREAI_API_KEYS` 之后一律要 API key —— **包括 `GET /v1/perception`**：它不在 `AuthRoutePolicy.publicPaths` 里，所以是带鉴权的。该集合是这份名单的唯一真源，两者分叉时 `make docs-check` 的 P10 会判红。
+> 其余路由在设了 `OCOREAI_API_KEYS` 之后一律要 API key —— **包括 `GET /v1/perception`**：它不在 `AuthRoutePolicy.publicPaths` 里，所以是带鉴权的。该集合是这份名单的唯一真源 —— 文档须与其保持可 grep 一致（P10 随 bespoke 文档门于 11-16 退役）。
 
 ---
 

@@ -128,9 +128,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `strategy` + `rewind` only, and `Capacity.init` is the sole route to `keep > 0`, defaulting to 4, so
   setting a capacity silently pins 4 tokens. Upstream `mlx-swift-lm`'s `restart:` tool loop is still
   uncapped (`ChatSession.swift:1226`), so the stall item above keeps its premise. Instrument: `make drift` prints
-  the axis; `make anchor-check` re-points the markers into the files #581 touched — 13 of them per
+  the axis; the markers for the files #581 touched live in `docs/agent/engine-line-cites.md` (the anchor gate retired 11-16) — 13 per
   `api.github.com` pulls/581, of which our cites reach two: 27 markers into `ChatSession.swift`, 9 into
-  `Evaluate.swift` (re-grepped 11-06; anchor-check prints the set).
+  `Evaluate.swift` (re-grepped 11-06; re-grep before repeating).
   Premise flipped 11-06, the same day it was written: Metal is restored (that day's `toolchain-check` →
   `metal=ok-probed`), and git-over-https — read dead (curl 28/HTTP2 framing) earlier the same day — answered
   again that evening (`git ls-remote --heads https://github.com/ml-explore/mlx-swift-lm` exit 0, refs listed).
@@ -271,8 +271,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   Owner call: which tier the scripted lane may run in, and whether a nightly takes the checkpoint tiers.
 
 - **The chain ceiling, now that the drop speaks** (Skills/, docs/). The disclosure half closed
-  10-28 (`closed-items-log.md`): `make docs-check` prints `deepest-chain=N/CAP` and re-derives the
-  `comparator-repos.md` row from the tree. Open: (a) whether injection should be **gated by
+  10-28 (`closed-items-log.md`); the gate that printed `deepest-chain=N/CAP` retired 11-16 and the cap
+  now reports itself at runtime — `WorkspaceContext` names every cut. Open: (a) whether injection should be **gated by
   capacity** — owner call; (b) the disclosure's own **behaviour verdict** (telling a 2B model its
   instructions were cut may itself cost points; the board has not priced that arm); (c) no UI surface
   reports it yet. The next rule written into `Sources/ocoreai/Engine/AGENTS.md` truncates its own tail
@@ -401,8 +401,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   the bump `128f49f1d → b8d4935ab` changed mlx-swift-lm's `MLXFoundationModels/MLXLanguageModel.swift`,
   and three cites into it (`EnginePool.swift` :313 / :558 / :667) had drifted *before* the bump too: the
   referents are :37 (the doc example), :307 (the `[.guidedGeneration]` default) and :675 (the `.vision`
-  gate). Those three now read `anchor:mlx-swift-lm` markers in `docs/agent/engine-line-cites.md`, so
-  `make anchor-check` owns them (checked 77 → 80, drift 0). Sampled the rest rather than trusting them:
+  gate). Those three now read `anchor:mlx-swift-lm` markers in `docs/agent/engine-line-cites.md`;
+  the anchor gate that owned them retired 11-16 (last full pass: checked 80, drift 0). Sampled the rest rather than trusting them:
   `MLXBridge.swift:188` still resolves exactly (`:130` is the `configureGPUCacheOnce` it names), while
   `EngineInferenceSupport.swift:305` points at `:1427-1431` for a soft-nudge recipe and those lines are
   `runSchemaGeneration` — the sentence and the line disagree today, and no gate reads either. Settled
@@ -514,13 +514,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   decisions at one gate (`captureGate` plus the response builder), each with a shipped shape above and none of them a
   new subsystem. Not claimed: that any caller has done this — no consumer has a name here, which is why this is an
   address and not a diff.
-- **The per-guide byte cap does not reach the two largest docs in the repo** (scripts/eval/, scripts/probes/) —
-  `scripts/agents-md-contract.sh:309-312` builds the capped set from four globs (`Sources/**` + `Tests/**` +
-  `docs/**` AGENTS.md, plus `docs/agent/*.md`), so `scripts/eval/README.md` and `scripts/probes/README.md` are uncapped and
+- **No byte cap reaches the two largest docs in the repo now** (scripts/eval/, scripts/probes/) —
+  the per-guide cap retired 11-16 with the contract script (`git show` has its four-glob set), so `scripts/eval/README.md` and `scripts/probes/README.md` are uncapped and
   dwarf the peer norm for a dev-tooling README (~9–26 KB across the 14 peers that have one; one 385 KB outlier, measured 11-05).
   Both stayed on the 11-05 deletion pass, and for the invariant-1 reason: they are the declared single home of the
-  noise band, set size and paired-flip floor. Owner call: extend the cap to tooling READMEs, or record that it
-  deliberately does not reach them — the silence is what makes the two numbers unreadable as either normal or not.
+  noise band, set size and paired-flip floor. Owner call: cut them, or record that their length is the deliberate cost
+  of being the declared single home — leaving the two numbers unreadable as either normal or not.
 - **The pin serves 2 of 3 Qwen generations; Flash-Next is the missing architecture, not a missing config**
   (Engine/, Upstream Pin-1) — measured at the `mlx-swift-lm` checkout `4ab2679`: `qwen3_8*` is registered
   (`LLMModelFactory.swift:73-75`), so Qwen3.8-27B loads today with its companion drafter

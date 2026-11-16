@@ -9,10 +9,10 @@ Long form for § Documentation Map in `AGENTS.md`.
 | `docs/agent/*.md` | Human + Agent, one hop away | when a verdict needs more than three lines, move it here and leave a pointer |
 | `docs/agent/coreai-consumption-refactor.md` | Human + Agent | proposal (owner decision, not implemented): consume coreai-models via trait-gated SPM instead of forking — change surface + phases |
 | `CHANGELOG.md` | Human | every user-visible change, with its commit |
-| `README.md` | Human | the product as it ships today; `make docs-check` P10 diffs it against the code that serves |
+| `README.md` | Human | the product as it ships today; keep its promises re-greppable against the code that serves (the P10 diff retired 11-16 with the bespoke docs gates) |
 | `README.zh.md` | Human | the faithful Chinese mirror of `README.md` — the only permitted Chinese file (P18) |
 | `ARCHITECTURE.md` | Human | the shape of the layers, for a reader who will not read the code first |
-| `CONTRIBUTING.md` | Human + Agent | the three questions, floor/ceiling semantics, the docs contract's operator rules |
+| `CONTRIBUTING.md` | Human + Agent | the three questions, floor/ceiling semantics |
 | `scripts/probes/README.md` | Human + Agent | one row per live probe: what it asserts, what it measured, which shape goes red |
 | `openapi.json` | Machine (a generated client, an agent harness) | never by hand — `make openapi` writes it from the built binary, and `OpenAPIContractTests` fails the suite when git and the render differ |
 

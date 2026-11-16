@@ -4,8 +4,8 @@
 # ### Why this exists (10-29, entry 53)
 # A round that deletes 770 unreferenced lines is worthless if the number grows back, and "no line is
 # gratuitous" is the kind of sentence that rots silently in a README. So the count is measured and
-# floored: `AGENTS.md` carries `<!-- claim:unreferenced_decls_ours<=N -->`, re-run by `make docs-check`
-# on this host and by `Text gates (ubuntu)` — the sampled red is the 770 lines this scan found.
+# floored: `AGENTS.md` carries `<!-- claim:unreferenced_decls_ours<=N -->`; the docs gates that re-ran
+# it retired 11-16, so this scan is the instrument a touching reader re-runs — sampled red: the 770 lines.
 #
 # ### What counts as a reference
 # A name occurs in the INDEX, which is every tracked file minus comments. A reference is a CALLER, not

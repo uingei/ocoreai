@@ -13,7 +13,7 @@
 
 ## Build and verify
 - `swift build -c release` (exit 0 is the minimum completion claim) · `make test` (names
-  `$OCOREAI_METALLIB` first) · `make docs-check` when docs or gates change · `make audit` · `make spell`.
+  `$OCOREAI_METALLIB` first) · `make audit` · `make spell`.
 - Verification is three layers: grep → compile → read the matched lines. One layer is speculation.
   Findings cite `file:line`; label inference as inference.
 - A gate you did not run is not green. Prefer a live `serve` + `curl` over an inference about behaviour.

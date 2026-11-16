@@ -144,7 +144,7 @@ Known boundaries (as of this commit, not aspirations):
 
 > Public (no auth): `/health`, `/ready`, `/v1/models`, `/v1/tools`, `/v1/capabilities`, `/v1/stats`, `/metrics`, `/openapi.json` — the discovery surface, matching `AuthRoutePolicy.publicPaths`. Admin key (`OCOREAI_ADMIN_KEYS`) required for all `PATCH`/`DELETE`.
 
-> Everything else needs an API key once `OCOREAI_API_KEYS` is set — **including `GET /v1/perception`**, which is keyed because it is absent from `AuthRoutePolicy.publicPaths`. That set is the one home for this list; P10 of `make docs-check` fails if the two diverge.
+> Everything else needs an API key once `OCOREAI_API_KEYS` is set — **including `GET /v1/perception`**, which is keyed because it is absent from `AuthRoutePolicy.publicPaths`. That set is the one home for this list — keep the doc re-greppable against it.
 
 > **Measured, never inferred.** `GET /v1/models` carries per-model disclosure keys — `vlm`, `contextLength`, `capabilities`, `videoInput`/`videoEvidence`, `toolCallDelivery`/`toolCallEvidence` (`parsed` | `prose_only` | `not_observed`),
 > `reasoningEffort` (`honored` | `template_ignores` | `not_observed` — a word your request sends that the

@@ -3,7 +3,7 @@
 > The long form behind § *Build / Test / Lint* → "Distribution licenses" in `AGENTS.md`.
 > Regenerate with `scripts/collect-third-party-licenses.sh`; texts live in
 > `THIRD-PARTY-LICENSES/`, gated by `ThirdPartyNoticesTests` + `scripts/audit.swift_patterns.sh`
-> (Class-I). Every count below is a `<!-- claim:… -->` marker that `make docs-check` re-runs,
+> (Class-I). Every count below was a `<!-- claim:… -->` marker the retired docs contract re-ran (11-16) —
 > so none of them can rot silently (invariant 1).
 
 **Distribution licenses (CI-gated):** the artifact is MIT **plus** third-party code under its own terms, and BSD-3 cl.1/cl.2 / Apache-2.0 §4 attach to the notice, so those texts must travel with the binary. Composition (every number machine-checked below): Apple-derived = files carrying Apple's verbatim BSD-3 header, all 49 of them (35 name `coreai-models`, the rest

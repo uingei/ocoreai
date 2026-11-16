@@ -2,12 +2,14 @@
 
 > Injected into every session, so it carries **rules and pointers only**: a root rule is ≤3 lines
 > (what + the one-line evidence + the gate). Dated incidents, measurements and round verdicts live in
-> `CHANGELOG.md` or `docs/agent/`; nothing enforces that split but the byte cap. If this file
-> and the code disagree, the code is the fact: fix whichever is wrong.
+> `CHANGELOG.md` or `docs/agent/`. If this file and the code disagree, the code is the fact: fix
+> whichever is wrong. Staying short is discipline, not a gate: mlx-swift-lm governs its whole repo
+> with an 83-line `AGENTS.md`, so length here is a choice, not a cost of business.
 >
-> **Why there is a budget:** *our* cap, not a host's loan: the injector spends at most 32 KiB on the
-> chain (this file + every `AGENTS.md` to the cwd), so past it a rule is not deferred, it is never read.
-> Three homes, one number, one test (`maxDocBytes`, B2's pin, this sentence).
+> **The cap is real even though the ratchet is gone:** the injector spends at most 32 KiB on the
+> chain (this file + every `AGENTS.md` to the cwd) and *names every cut it makes*
+> (`WorkspaceContext.maxDocBytes`; `InstructionBudgetSingleSourceTests` binds this sentence to it);
+> past the cap a rule is not deferred, it is never read.
 
 ## Identity
 - An agent made for open models, natively local on Apple silicon: it sees, hears, speaks and codes, in one binary.
@@ -22,10 +24,14 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
    a gate that infers its own premises from the environment rots the day the toolchain moves; a scan
    that stopped matching passes vacuously unless it floors its own hit count; a doc whose numbers
    nobody re-greps drifts.
-2. **The surface never claims more than the engine delivered.** Anything a user can read — `/v1/models`,
-   `/v1/capabilities`, the dashboard, a tool result, a composer string — must be measured, and must
-   degrade honestly where the backend is absent. A file tool's `OK` is durability, not validity: the
+2. **The surface never claims more than the engine delivered.** Anything a user can read (a wire
+   field, the dashboard, a tool result) must be measured, and must degrade honestly where the backend is absent. A file tool's `OK` is durability, not validity: the
    verdict travels in one result (`OK-but-invalid`). When authority is unclear: run it and read the answer.
+
+## Three readers — UX · DX · AX (owner ruling 11-16: a principle, not a feature)
+Every significant decision — design, architecture, docs, tests, release — prices its real effect on
+user, developer and agent experience; gains must be joint, never one bought by another, and are
+judged by measured use, not checklist completeness; full text: the matrix § 17.
 
 ## Contribution policy
 - Every line in git is reviewable, AI or not; "it came from the model" excuses nothing.
@@ -44,8 +50,7 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
   no client ships — the canonical SDK consumes the wire itself, gated (probe 56).
 - **Intake is a surface:** a duplicate-work check before any outbound issue or PR, answer latency, and a
   verifiable first-screen privacy contract (mechanics + cites: `docs/agent/adoption-runbook.md`).
-- **#1 is bounded by distribution, not arithmetic** (the stars/day table and its audit:
-  `docs/agent/adoption-runbook.md`): never call the headline unreachable by math, and
+- **#1 is bounded by distribution, not arithmetic** (stars/day table: same runbook): never call the headline unreachable by math, and
   never chase it: spend on a tag per merge and on a harness consuming us.
 
 ## Architecture
@@ -64,7 +69,6 @@ swift test                           # full suite; needs Metal
 make test                            # same, but names $OCOREAI_METALLIB first — else MLX dies mid-run
 make test FILTER=<Regex>             # one suite by name (one test target — no half to skip)
 make test-clt [FILTER=<Regex>]       # CLT route, serial — same target, whole suite
-make docs-check                      # docs contract: ~5-10 s, no build
 bash scripts/eval/run.sh               # task-success scoreboard: verifies the WORKSPACE, not the prose
 ```
 - Gate tiering: **sandbox** → app-target build + non-Metal suites; **escalation** → `make test-clt`
@@ -93,16 +97,16 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   `@unchecked Sendable` declaration carries a justification comment.
 - A continuation wrapped around an SDK callback needs a deadline, **and the caller owns the callback
   object's lifetime**: a delegate the framework does not retain parks the request forever.
-- A polling loop sleeps one poll interval, never the deadline; deadline-sleeping inside `while` parks the
-  waiter for the whole window and is correct only in a single-shot watchdog.
+- A polling loop sleeps one poll interval, never the deadline; deadline-sleeping inside `while` parks
+  the waiter — single-shot watchdogs excepted.
 
 ### Compile-time gates
 - `#if canImport(X)` must name the dependency the block actually uses: gating on a framework the code does
   not import silently deletes working code on every platform missing it, while the log keeps claiming the
   capability. Never gate a capability surface on a backend axis — `canImport(CoreAI)` says nothing about
-  Metal, vision, tokenizers or the ANE (worked instance: the Engine guide).
-- A stub that replaces a real component must be detectable at runtime, not only at compile time: expose the
-  flag (`tokenizerBackend: real|heuristic` on `/v1/capabilities`) and assert it.
+  Metal, vision, tokenizers or the ANE.
+- A stub that replaces a real component must be detectable at runtime, not only at compile time: expose
+  the flag (`tokenizerBackend` on `/v1/capabilities`) and assert it.
 
 ### Error Handling
 - `precondition`/`preconditionFailure` are for structural invariants and upstream-verbatim surfaces only;
@@ -133,7 +137,7 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
 
 ## Open — measured, unresolved
 Root owes the address only — area, instrument, whose call it waits on (evidence: `docs/agent/open-items.md`;
-verdicts: `closed-items-log.md`; `make docs-check` P6 keeps every suite name below honest).
+verdicts: `closed-items-log.md`; every suite name below is greppable in `Tests/`).
 - **Stall: MTP stops hard, the std lane by consent** (Tools/, Engine/) — `LoopStallTerminationTests`;
   owner call: the terminal word for four faces.
 - **CoreAI / macOS 27 items unverifiable here** (Engine/) — `PlatformPremise.hasMacOS27`.
@@ -148,22 +152,22 @@ verdicts: `closed-items-log.md`; `make docs-check` P6 keeps every suite name bel
 - **The surviving release is ad-hoc signed** (CI/) — Gatekeeper's download path stays unjudged — owner call;
   instrument: probe 41; the sha-parity diary: `long-horizon-goal.md` § Rung zero.
 - **A corpus costs injection; the tail is disclosed, not gated** — the fall-off is named to the model and on
-  `/v1/capabilities` (`make docs-check` prints `deepest-chain=`). Owner: gate by capacity — measured pp and
+  `/v1/capabilities` (`WorkspaceContext` reports each doc's fate under the cap). Owner: gate by capacity — measured pp and
   arms: `docs/agent/open-items.md`.
 
 ## Upstream Audit Dependencies
 Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`.
 1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract, currently `635290754`;
-   P8 compares this quote against the manifest. Bump protocol: audit the
+   `DependencyPinStatementTests` compares this quote against the manifest. Bump protocol: audit the
    consumption surface → bump `.revision` → `make audit` (both lockfiles) → `swift build` +
    `make test-ci` green → `CHANGELOG.md`. Upstream sources live under
    `Libraries/`, not `Sources/`; clone-vs-pin is `git merge-base --is-ancestor`, and the built checkout's
    cleanliness is asserted by `scripts/probes/_lib.sh`.
 2. **`coreai-models`** — Apple's reference tree, consumed as header-stamped forks (BSD-3; types
    redefined locally — upstream demands macOS 27). Each file's header carries its upstream baseline;
-   `make drift` reports the un-adjudicated window. Python/export-side commits: no export surface here.
-3. **Apple Developer Documentation** — DocC for intent and semantics, the SDK's
-   `.swiftinterface` for exact signatures and `@available` gates, live execution for behaviour.
+   `make drift` reports the un-adjudicated window.
+3. **Apple Developer Documentation** — DocC for intent, the SDK's `.swiftinterface` for exact
+   signatures and `@available` gates, live execution for behaviour.
 4. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: on
    anything user-visible it is the authority; no topic covers agents ⇒
    `docs/agent/agent-interface-guidelines.md`.
@@ -197,7 +201,7 @@ Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`.
 | `Tests/**` | § Testing Quality above | exact-value assertions, scan floors, self-premise checks |
 | `scripts/eval/**` | `scripts/eval/README.md` | task success: does the agent finish real jobs |
 | `scripts/probes/**` | `scripts/probes/README.md` | live `/v1/*` wire-contract probes |
-| this file, `docs/**` | `scripts/agents-md-contract.sh` (`make docs-check`) | budgets, dead pointers, claim reproduction |
+| this file, `docs/**` | `scripts/docs-type-existence.sh` (in `make audit`) | dead type names in architecture prose |
 
 Areas without a guide (Scheduler, MCP, Tools, Skills, Multimodal, Video, Security): § Code Conventions
 plus the code; three dated notes ⇒ give one an `AGENTS.md` and a row here (a guide costs context only
@@ -214,13 +218,13 @@ function-calling contracts — test with a live model), `Parsers/*` (marker lite
 against upstream first). Which doc each audience reads, and when: `docs/agent/docs-map.md`.
 
 ## Working here
-- **Direct commits to `main`**, no branch ritual; CI on macos-26 (`make test-ci`) is the authority.
-  `make docs-check` green when touching this file, `docs/**` or a guide; `make push-ready` checks the
-  tree: clean, pushed, paired, cites. `CHANGELOG.md` records every user-visible change.
+- **Direct commits to `main`**; CI on macos-26 (`make test-ci`) is the authority.
+  Docs carry no bespoke gate (retired 11-16): when touching this file or a guide, keep its pointers
+  alive and its length chosen, not ratcheted. `make push-ready` checks the tree: clean, pushed,
+  paired. `CHANGELOG.md` records every user-visible change.
 - **One cwd, several sessions:** stage explicit paths and commit only this session's files — never
   `git add -A`/`git add .`, which sweeps in another session's half-work.
-- Verification is three layers: grep → compile → read the matched lines; a single-layer check is
-  speculation. `swift build` exit 0 before any completion claim; findings cite `file:line`; living
+- Verification is three layers: grep → compile → read the matched lines. `swift build` exit 0 before any completion claim; findings cite `file:line`; living
   prose cites symbols; label inference as inference.
 - Before writing a symbol, grep for the mechanism that already exists; before calling a missing upstream
   API, check § Upstream.
@@ -239,8 +243,7 @@ against upstream first). Which doc each audience reads, and when: `docs/agent/do
   end in a recovery affordance. Pattern: `MetalShaderLibrary`.
 - **Decide state by authority, and put the scope in the key.** Engine actors own engine/model truth;
   `SessionManager` + SQLite own durable sessions; SwiftUI owns this window's presentation; a wire client
-  owns its own view. Persisted keys declare their scope (global | session | model | window); a wrong
-  scope is what makes one session's setting bleed into another.
+  owns its own view. Persisted keys declare their scope (global | session | model | window).
 - **Respect the person using it.** Never navigate, refocus, open a pane or announce because something
   *happened* in the background — offer, don't hijack. **Name a destructive route only where the caller's
   own argument asks for it:** `edit_file` offers `rm` solely when `newString` is empty, since in an ordinary

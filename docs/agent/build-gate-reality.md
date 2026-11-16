@@ -81,7 +81,7 @@ state to wire statement is invisible to any static reading of either side.** Bot
 individually correct; only the pair fails. So the standing gate for capability surfaces is a
 live assertion about the pair (`scripts/probes/`), not a test of the handler alone.
 
-## Anchors for the cites above (`make anchor-check`)
+## Anchors for the cites above (`make anchor-check` — retired 11-16; the markers remain as comments)
 
 <!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml:126-128 Infra: verify MetalToolchain installed -->
 <!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml:137 xcodebuild build-for-testing -->

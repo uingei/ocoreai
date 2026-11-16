@@ -78,7 +78,7 @@ skills 1682/820, memory 801/431, MCP 1014/607), while plan mode ranks in no tree
    nothing extra there.
 
 **The meta-lesson.** Reading references is not the scarce act; keeping the claims they produce true is.
-The gate is `scripts/upstream-cite-check.sh` (in `make anchor-check`): floor 120 on its own scan, every
+The gate was `scripts/upstream-cite-check.sh` (in `make anchor-check`; both retired 11-16): floor 120 on its own scan, every
 cite resolves in a clone/checkout/`.upstream-external-cites.json`, line numbers fit, and an out-of-set
 cite carries the sha it was verified at.
 
@@ -89,7 +89,7 @@ claim about what a tree does was false, and five positions were stale** (`mlx-se
 `docs/config-catalog.md` 359 → 378; and `ollama`'s quoted pin values, `b11669` → `b11963` and
 `a341b492…` → `57731b00e8…`), one of them a *blank* line.
 Every gate stayed green on that blank line, because each one checks a different half: `make drift` reads the
-HEAD window, `anchor-check` checks the line-number range and prints its own blind spot
+HEAD window, `anchor-check` (retired 11-16) checked the line-number range and printed its own blind spot
 (`prose cites (no marker, content unverifiable): 515 across 328 scanned file(s)`), and the bare-cite scanner
 scans `Sources/`, never `docs/`. So a mirror refresh can move a sentence and the file keeps citing it at a
 line that says something else. The fix is not a second scanner — an `anchor:` marker carries the quoted

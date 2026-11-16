@@ -104,9 +104,9 @@ in the header plus a row in
 `docs/agent/coreai-fork-window-log.md` (rule + queue: `docs/agent/coreai-fork-adjudication.md`); the
 count is recomputed from the header.
 
-## Line cites are gated, not trusted
+## Line cites are marked, not trusted
 Every `file:line` this area leans on is asserted by markers in `docs/agent/engine-line-cites.md`,
-parked one hop out: a marker is a byte of rule the model never reads. Move code, get `make anchor-check` to name the cite that drifted.
+parked one hop out: a marker is a byte of rule the model never reads. The anchor gate retired 11-16 with the consumed trees as the standard; living prose cites symbols, and moving code means re-grepping its cites by hand.
 
 ## The scripted lane — a contract verdict with no model resident
 `OCOREAI_SCRIPTED_ENGINE` (a script path) replaces the *model*, never the wire: `ScriptedInference`
@@ -129,7 +129,7 @@ so framing and accounting claims decide at k=1 in seconds instead of a Metal loa
   `MTLCreateSystemDefaultDevice() != nil`; full suite + live `serve` need escalation.
 - A sudden `CompileMetalFile` failure here is a stale shader node + unwritable module cache, not a
   regression: one unsandboxed build fixes it. Do not revert engine code to "fix" it.
-- Claims in this file are re-proved by `make docs-check` from the repo root.
+- Claims here carry `<!-- claim: id OP N :: command -->` instruments; the docs gates that re-ran them retired 11-16 — re-run one when you touch what it counts.
 <!-- claim:coreai_engine_files>=14 :: ls Sources/ocoreai/Engine | grep -c '^CoreAI' -->
 
 ## The two lanes, and where each line lives

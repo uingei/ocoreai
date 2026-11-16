@@ -53,8 +53,9 @@
 ## What deliberately does not live here
 
 - **Per-file line counts and ungated `file:NNN` cites.** They rotted twice and no gate read them.
-  Line numbers in this repo are pinned by `make anchor-check` (marker syntax) or resolved by
-  `scripts/upstream-cite-check.sh`; a type named in this file must exist — audit Class-K checks it.
+  Line numbers in this repo are conventions, not gates (the anchor machinery retired 11-16 — the
+  consumed trees verify docs by compiling them): living prose cites symbols. A type named in this
+  file must exist — audit Class-K checks that, and it is the doc claim still enforced.
 - **Dated findings, fix narratives and round verdicts** → `CHANGELOG.md`.
 - **Capability statements a user can read** → `/v1/capabilities` and the dashboard, backed by
   measurement; `AGENTS.md` invariant 2 governs their wording.

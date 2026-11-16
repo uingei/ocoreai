@@ -4,7 +4,7 @@
 # Why. ARCHITECTURE.md was a 2026-07-26 review that survived its own subject: it diagrammed
 # `BackendProtocol.swift` after that file had been deleted (2123143), and recommended a CoreAI
 # capability matrix with `supportsGrammar: false` in §7 while §5 recorded CoreAI-native grammar.
-# Line numbers have `make anchor-check`; nothing checked *names*. A doc that names a dead type
+# Line numbers had an anchor gate until the 11-16 retirement; nothing ever checked *names*. A doc that names a dead type
 # teaches the next session an architecture that does not exist.
 #
 # Rule: every CamelCase identifier in the architecture docs ending in Protocol|Bridge|Pool|Manager|

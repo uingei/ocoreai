@@ -240,7 +240,7 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     broken script answers 200 with an empty turn instead of naming its cause, or
     `scripts/eval/run.sh` stops refusing to score a scripted run, AGENTS.md's quoted advertised-tool
     count (40) stops matching `GET /v1/tools` — the injected file's number about the tool surface is the
-    only one a runner can check, and `make docs-check` has no server to check it against — or the
+    only one a live runner can check — the prose gates that re-grepped it retired 11-16 without a server to ask — or the
     counters `GET /v1/stats` advertises stop matching the turns that ran (§10, added 11-05 after the
     TTFB histogram was found with two producers: one streamed turn moved `ttfbSampleCount` by 2 while
     `totalRequests` moved by 1, and no probe had ever read that face while a turn ran) — or `GET /ready`

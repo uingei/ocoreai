@@ -351,7 +351,7 @@ struct PersistHopSourceTests {
 
     /// Code lines only. Prose is allowed to *name* a shape a gate forbids — that is how a
     /// doc comment explains what regressed — while code is not allowed to bring it back. Same
-    /// rule `make docs-check` applies to its `<!-- claim: … -->` greps.
+    /// rule the retired `docs-check` applied to its `<!-- claim: … -->` greps.
     private static func codeLines(_ text: String) -> [String] {
         text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init).filter {
             line in

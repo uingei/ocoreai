@@ -5,7 +5,7 @@
 # Test:       test, test-ci, test-clt
 # Quality:    format, format-check, audit
 # Dev:        clean, metallib, help
-# CI:         round-gates, push-ready, ci-status
+# CI:         push-ready, ci-status
 
 SHELL := /bin/bash
 
@@ -25,7 +25,7 @@ else
   endif
 endif
 
-.PHONY: all build release release-mac27 app dmg test test-ci test-clt probes format format-check audit docs-check anchor-check round-gates clean metallib help push-ready ci-status spell install-hooks openapi sf-pin docs-budget drift
+.PHONY: all build release release-mac27 app dmg test test-ci test-clt probes format format-check audit clean metallib help push-ready ci-status spell install-hooks openapi sf-pin drift
 
 all: build
 
@@ -130,8 +130,8 @@ toolchain-check:
 	echo "✅ contract holds on at least one route — the build/test targets pin it explicitly"
 
 ## swift-format resolution — no CI seat since 10-28 (building the pinned formatter cost ~4 arm64
-## minutes a push to lock style), so this target is where the style gate lives: round-gates and
-## push-ready. A host without it on PATH ships it only under `xcrun`, and "swift-format: No such file
+## minutes a push to lock style), so this target is where the style gate lives: the no-build set,
+## `make push-ready`. A host without it on PATH ships it only under `xcrun`, and "swift-format: No such file
 ## or directory" once made the gate unreachable locally — which is how drift reached CI unseen.
 SF_CACHE = $(HOME)/.cache/ocoreai-swift-format-$(SF_PIN)
 SF_LOCAL = $(SF_CACHE)/repo/.build/release/swift-format
@@ -371,20 +371,6 @@ audit:
 	@# and never the line they died on; the reader is whoever diagnoses a leg without a token.
 	bash scripts/ci-annotate.sh --selftest
 
-## Two passes, one command. anchor-check.sh verifies the cites that carry an `anchor:` marker;
-## upstream-cite-check.sh verifies the *bare* `path.ext:NN` cites in Sources/ comments (173 on
-## 10-22) against the reference clones, package checkouts and .upstream-external-cites.json —
-## 4 of them named a path or line that did not exist, so this layer needed its own gate.
-## Verifies every file:line cite in AGENTS.md / area guides / docs and the upstream cites in
-## code comments against the file it names (working tree, or the pinned upstream revision).
-## Line numbers are how the agent navigates, and they move under every edit and bump: 15 of
-## them were wrong on 10-17 with `make docs-check` green, because a cite inside a file is not
-## the same claim as a cite pointing at the code.
-anchor-check:
-	@echo "🎯 Verifying line cites in docs and code comments..."
-	bash scripts/anchor-check.sh
-	bash scripts/upstream-cite-check.sh
-
 ## Four upstream axes, one command. Three HEAD axes (mlx-swift-lm revision pin, coreai-models
 ## and codex reference axes) against .upstream-baseline.json, plus the mlx-swift *tag* axis —
 ## that one is judged against the newest release tag, because `exact:` means unreleased commits
@@ -412,16 +398,15 @@ sf-pin:
 	echo "✅ built $(SF_PIN) → $(SF_LOCAL) (format-check and format now run CI's ruleset)"
 
 
-## ── Docs Contract ──────────────────────────────────────────────────
+## ── Docs ───────────────────────────────────────────────────────────
 
-# AGENTS.md (and the area guides) are injected into the model's context on every session, so they
-# are code, not notes: budget them, resolve every path they name, and re-run every number they
-# claim. Sub-second, needs no build, runs inside the agent sandbox — so there is no excuse to skip
-# it. Its first run here failed on three stale counts and four dead map rows: nothing else greps
-# the docs.
-docs-check:
-	bash scripts/agents-md-contract.sh check
-# The OpenAPI contract is a generated artefact, so it needs a command that produces it and a
+# The bespoke docs gates (agents-md-contract.sh, anchor-check.sh, upstream-cite-check.sh) were
+# retired 11-16 on the owner's ruling after reading the consumed trees: mlx-swift-lm verifies docs
+# by BUILDING them (`scripts/verify-docs.sh`, DocC warnings-as-errors), coreai-models' CI is
+# compile+test+format only, and no tree in ~/references greps its own prose. The standing rules
+# that replace a gate: the injected chain stays small by convention (the 32 KiB cap is enforced at
+# runtime by WorkspaceContext, which names every cut), living prose cites symbols not lines, and
+# the pinned-build contract lives in `make audit` (lockfile sync). The OpenAPI contract is a generated artefact, so it needs a command that produces it and a
 # test that notices it was not. `OpenAPIContractTests` fails the suite when the committed
 # openapi.json differs from what the binary renders; this target is the other half — the route
 # itself serves the same render, so nothing here trusts the file.
@@ -443,28 +428,12 @@ spell:
 install-hooks:
 	pre-commit install
 
-## Every no-build gate a round owns, in one command. Anything that starts with `clean` or a
-## build gets skipped mid-round, and a half-hour aggregate is effectively no gate — which is
-## exactly how five line-cites survived a push after their files grew (docs-check only asks
-## whether a cited path exists; verifying the *line* is anchor-check's job, and nothing chained
-## the two). CI's own pipeline lives in .github/workflows/ci.yml — this file does not mirror it.
-round-gates: docs-check anchor-check audit spell
-	@echo "✅ round gates green — docs contract, line cites, swift patterns, spelling"
-
 # A round is not finished while it lives only in this checkout: CI on macos-26 is the stated
 # authority, and an unpushed commit has been verified by nobody but this box. Two days of uncommitted
 # work escaped every gate that exists, so this one checks the tree instead of the text.
 push-ready:
-	@# A pure reformat moved 19 line-cites in three files and every local gate stayed green, because
-	@# round-gates (which does check them) is not the target anyone runs before pushing. A gate that
-	@# exists off the path taken is not a gate: verify the cites here, where the tree is verified.
-	@bash scripts/anchor-check.sh || { echo "::error::line-cite drift — repoint the cite or fix the code"; exit 1; }
-	@# The text gates lost their arm64 seat on 10-28 (715 s a push to re-read text), so this is where
-	@# they bite before a push: the docs contract judged with the RUNNER's premise — no ~/references —
-	@# because a docs claim that only passes on a tree-rich host is the very defect that gate exists to
-	@# catch; then the pattern audit, the style lock and the route contract. None compiles the product.
-	@OCOREAI_AGENTS_NO_HOST_REFS=1 bash scripts/agents-md-contract.sh check \
-	  || { echo "::error::docs contract — budget, cite, claim or routing drift"; exit 1; }
+	@# 11-16: the docs-contract and line-cite legs retired with their scripts (owner ruling; the
+	@# consumed trees run compile+test+format and nothing else). What remains is code-shaped truth.
 	@bash scripts/audit.swift_patterns.sh || { echo "::error::code-pattern audit"; exit 1; }
 	@$(MAKE) --no-print-directory format-check || { echo "::error::swift-format"; exit 1; }
 	@$(MAKE) --no-print-directory toolchain-check || { echo "::error::no route produces the delivery shape"; exit 1; }
@@ -492,11 +461,6 @@ ci-status:
 ship:
 	@$(MAKE) --no-print-directory push-ready
 	@bash scripts/ship.sh
-
-# Shrink-only ratchet: re-pin the root cap to the file's current size. Refuses to raise it —
-# text goes in only when text comes out.
-docs-budget:
-	bash scripts/agents-md-contract.sh budget
 
 ## ── Dev Tools ──────────────────────────────────────────────────────
 
@@ -527,10 +491,6 @@ help:
 	@echo "Quality:"
 	@echo "  make format         Format all Swift files"
 	@echo "  make sf-pin         Build the swift-format version CI pins, so format-check stops being advisory"
-	@echo "  make docs-check     AGENTS.md budget + refs + claims + routing (no build needed)"
-	@echo "  make anchor-check   every file:line cite points at the code it claims (no build)"
-	@echo "  make round-gates    docs-check + anchor-check + audit in one no-build pass (run it every round)"
-	@echo "  make docs-budget    Lower the AGENTS.md size cap (shrink-only)"
 	@echo "  make format-check   Check format compliance (exit 1 if dirty)"
 	@echo "  make audit          Run static audit (failure pattern check)"
 	@echo "  make openapi        Regenerate openapi.json from the built binary (a test asserts it matches)"
