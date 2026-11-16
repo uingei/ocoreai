@@ -1,20 +1,31 @@
 # ocoreai — project context for AI agents
 
 > Injected into every session, so it carries **rules and pointers only**: a root rule is ≤3 lines
-> (what + the one-line evidence + the gate). Dated incidents, measurements and round verdicts live in
-> `CHANGELOG.md` or `docs/agent/`. If this file and the code disagree, the code is the fact: fix
-> whichever is wrong. Staying short is discipline, not a gate: mlx-swift-lm governs its whole repo
-> with an 83-line `AGENTS.md`, so length here is a choice, not a cost of business.
+> (what + the one-line evidence + the gate). Dated incidents and measurements live in
+> `CHANGELOG.md` and `docs/agent/`. If this file and the code disagree, the code is the fact: fix
+> whichever is wrong.
 >
-> **The cap is real even though the ratchet is gone:** the injector spends at most 32 KiB on the
-> chain (this file + every `AGENTS.md` to the cwd) and *names every cut it makes*
+> **The cap is real:** the injector spends at most 32 KiB on the chain (this file + every
+> `AGENTS.md` to the cwd) and *names every cut it makes*
 > (`WorkspaceContext.maxDocBytes`; `InstructionBudgetSingleSourceTests` binds this sentence to it);
 > past the cap a rule is not deferred, it is never read.
 
+## How we work — pstack (owner ruling 11-17)
+- Engineering discipline is the pstack plugin: the operator starts rigorous tasks with
+  `/pstack:poteto-mode` (install `pstack@cursor-plugins`; model budget via `/pstack:setup-pstack`).
+  Its principles live in its own skill leaves and are deliberately **not re-typed here** — a rule
+  with two homes drifts through one.
+- The same ruling retires the old default "one-pass in this thread, no sub-agent": delegates run as
+  `poteto-agent`s under pstack's routing, and the owner still reviews every commit.
+- Replies, commits and prose follow pstack's unslop / technical-writing; a comment says the *why*
+  the code cannot, ≤3 lines, no dates and no bug history — that is the commit message.
+- What pstack cannot own and this file must: the two invariants, the repo rules below, and every
+  gate named here.
+
 ## Identity
-- An agent made for open models, natively local on Apple silicon: it sees, hears, speaks and codes, in one binary.
-- Deepest slice: the coding/computer agent (Execute → Verify → Recover); perception and multimodal are
-  product surfaces, not demos.
+- An agent made for open models, natively local on Apple silicon: it sees, hears, speaks and codes,
+  in one binary. Deepest slice: the coding/computer agent (Execute → Verify → Recover); perception
+  and multimodal are product surfaces, not demos.
 - Stack: Swift 6.2 · SwiftPM · Hummingbird 2 · SwiftUI · SQLite + FTS5. Two engines:
   MLX Metal GPU + CoreAI (§ Upstream 2).
 
@@ -33,25 +44,58 @@ Every significant decision — design, architecture, docs, tests, release — pr
 user, developer and agent experience; gains must be joint, never one bought by another, and are
 judged by measured use, not checklist completeness; full text: the matrix § 17.
 
-## Contribution policy
-- Every line in git is reviewable, AI or not; "it came from the model" excuses nothing.
-- An improvement answers *the three questions* (what improved, what same-session output proves it, which
-  gate goes red if it regresses); missing the third makes it a claim. Full text: `CONTRIBUTING.md`.
-- If upstream already has the answer, consume it or cite `file:line` — do not author a local variant.
+## Build / Test / Lint
+```bash
+swift build -c release                 # production build
+swift build --traits appStore          # App Store route
+swift test                             # full suite; needs Metal
+make test                              # same, but names $OCOREAI_METALLIB first — else MLX dies mid-run
+make test FILTER=<Regex>               # one suite by name (one test target — no half to skip)
+make test-clt [FILTER=<Regex>]         # CLT route, serial — same target, whole suite
+bash scripts/eval/run.sh               # task-success scoreboard: verifies the WORKSPACE, not the prose
+```
+- Gate tiering: **sandbox** → app-target build + non-Metal suites; **escalation** → `make test-clt`
+  + `make probes` (live `/v1/*`); **CI only** → `xcodebuild` (`test-ci`, iOS build).
+- CLT SDK ≠ CLT compiler: an unpinned `SDKROOT` breaks even the manifest, and on the CLT route every
+  `canImport(CoreAI)` block compiles out. `make toolchain-check` settles Metal by *compiling a kernel*,
+  never by `metal --version`.
+- **A gate you did not run is not green; a stated fix that cannot run is no exit.** `make push-ready` runs
+  the no-build set, `make audit` parses every recipe. Red is for a claim a reader acts on; a check that
+  only detects prose shape is deleted, not demoted. **Prefer a live `serve` + `curl` over an inference about behaviour.**
+- Style: `swift-format` (`.swift-format`, pinned) via `make format-check`; no other linter.
+- Licenses travel with the binary: MIT **plus** third-party terms (BSD-3 cl.1/cl.2, Apache-2.0 §4).
+  Adding a dependency, bumping a pin or vendoring a header ⇒ re-run
+  `scripts/collect-third-party-licenses.sh` and commit it. Gates: `ThirdPartyNoticesTests` +
+  `scripts/audit.swift_patterns.sh` Class-I; composition: `docs/agent/third-party-notices.md`.
 
-## Adoption — the surface a stranger ranks
-- **A release is a cadence, not a green suite or one tag:** cadence is the open item; the re-measurable field ceiling lives at
-  `long-horizon-goal.md` § Rung zero (audit-facts.sh is its instrument). The
-  tag *is* the version (`scripts/version.sh` prints it), so no doc re-types one. `Core/UpdateCheck.swift` only
-  *notifies*; build/publish must split.
-<!-- claim:tags_published>=1 :: git ls-remote --refs --tags https://github.com/uingei/ocoreai.git | grep -c 'refs/tags/v' -->
-- **Agents are a channel they cannot find:** `/v1/capabilities` serves `endpoints[]`, `skills/ocoreai/` is
-  published (probe 39 runs its markers), and `GET /openapi.json` renders the contract off that index; a
-  no client ships — the canonical SDK consumes the wire itself, gated (probe 56).
-- **Intake is a surface:** a duplicate-work check before any outbound issue or PR, answer latency, and a
-  verifiable first-screen privacy contract (mechanics + cites: `docs/agent/adoption-runbook.md`).
-- **#1 is bounded by distribution, not arithmetic** (stars/day table: same runbook): never call the headline unreachable by math, and
-  never chase it: spend on a tag per merge and on a harness consuming us.
+## Code Conventions
+- Concurrency: strict, `Sendable` enforced — UI is `@MainActor`, engine state is actor-isolated,
+  cross-actor calls `await`; every `@unchecked Sendable` declaration carries a justification comment.
+  A continuation wrapped around an SDK callback needs a deadline **and the caller owns the callback
+  object's lifetime**; a polling loop sleeps one poll interval, never the deadline.
+- Compile-time gates: `#if canImport(X)` must name the dependency the block actually uses, and never
+  gates a capability surface on a backend axis — `canImport(CoreAI)` says nothing about Metal, vision,
+  tokenizers or the ANE. A stub that replaces a real component exposes its flag and is assertable at
+  runtime (`tokenizerBackend` on `/v1/capabilities`).
+- Errors: `precondition` is for structural invariants only, new code adds none; zero `try!`, `as!`,
+  `fatalError`, `assert`; `try?` needs a real fallback on the next line. A failure report names the
+  cause in the framework's own words, `unknown` before the first attempt (`ScreenDeliveryHonestyTests` + probes 04/26).
+- Tests assert exact values a caller can observe (a wire field, a file's bytes, an exit code),
+  parameterized, with boundary cases; reject `count > N` where N is knowable; a scan-based test
+  floors its own hit count and finds its root by searching, not by fixed path hops; anything proving
+  behaviour against a live server ships in `scripts/probes/`.
+- Process-global state (workspace anchor, `OCOREAI_*`, a `shared` sensor) is leased, never set, and a
+  lease never spans live I/O (`ProcessGlobalLeaseDisciplineTests`).
+- One home per decision, and a side effect is gated where it is declared: `ToolEntry.isDestructive` is
+  the only destructive truth and `securityPrecheck` asks from it (∪ blacklist for names nothing
+  registers) — a hand-copied matcher list leaves mutating tools unasked (`DestructiveApprovalGateTests`).
+  Name a destructive route only where the caller's own argument asks for it: `edit_file` offers `rm`
+  solely when `newString` is empty (`EditMismatchRecoveryTests`).
+- A file's lifetime is the lifetime of the thing that cites it: bytes outliving their request need an
+  owner, a pin in flight, and collection by idle TTL + byte budget (`MediaSpool`; `MediaLifetimeTests` + probe 08).
+- One resolver, one ladder: precedence as data, a candidate trusted only once probed, a failed *read*
+  falling to the next rung, a failed *authoritative write* surfacing or rolling back, bounded retries
+  ending in a recovery affordance. Pattern: `MetalShaderLibrary`.
 
 ## Architecture
 HTTP/Handlers → Router/Middleware · Engine: `EnginePool`(actor) → `EngineInference` → MLX | CoreAI ·
@@ -61,108 +105,27 @@ Scheduler: SchedulerActor, AdmissionGate, MemoryTracker, OOMGuard · SwiftUI: Ch
 - The two lanes reach the wire by different routes (MLX through upstream `ChatSession`, MTP around it);
   where each line lives is `Sources/ocoreai/Engine/AGENTS.md`.
 
-## Build / Test / Lint
-```bash
-swift build -c release                 # production build
-swift build --traits appStore        # App Store route
-swift test                           # full suite; needs Metal
-make test                            # same, but names $OCOREAI_METALLIB first — else MLX dies mid-run
-make test FILTER=<Regex>             # one suite by name (one test target — no half to skip)
-make test-clt [FILTER=<Regex>]       # CLT route, serial — same target, whole suite
-bash scripts/eval/run.sh               # task-success scoreboard: verifies the WORKSPACE, not the prose
-```
-- Gate tiering: **sandbox** → app-target build + non-Metal suites; **escalation** → `make test-clt`
-  + `make probes` (live `/v1/*`); **CI only** → `xcodebuild` (`test-ci`, iOS build).
-- CLT SDK ≠ CLT compiler: an unpinned `SDKROOT` breaks even the manifest, and on the CLT route every
-  `canImport(CoreAI)` block compiles out. `make toolchain-check` settles Metal by *compiling a kernel*,
-  never by `metal --version`.
-- **A gate you did not run is not green; a stated fix that cannot run is no exit.** `make push-ready` runs
-  the no-build set, `make audit` parses every recipe. Red is for a claim a reader acts on (prose-shape checks
-  are deleted; counts printed carry no verdict, off-pin checks stay advisory). **Prefer a live `serve` +
-  `curl` over an inference about behaviour.**
-- Style: `swift-format` (`.swift-format`, pinned) via `make format-check`; no other linter.
-- Licenses travel with the binary: MIT **plus** third-party terms (BSD-3 cl.1/cl.2, Apache-2.0 §4). Adding
-  a dependency, bumping a pin or vendoring a header ⇒ re-run `scripts/collect-third-party-licenses.sh`
-  and commit it. Gates: `ThirdPartyNoticesTests` + `scripts/audit.swift_patterns.sh` Class-I;
-  composition: `docs/agent/third-party-notices.md`.
-<!-- claim:apple_derived_files>=49 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | wc -l -->
-<!-- claim:notice_files>=38 :: ls THIRD-PARTY-LICENSES | wc -l -->
-
-## Code Conventions
-
-### Concurrency
-- Strict concurrency, `Sendable` enforced: UI is `@MainActor`, engine state actor-isolated, cross-actor
-  calls `await`.
-- `EnginePool` is an actor with `@unchecked Sendable` perform-isolated mutable state; every
-  `@unchecked Sendable` declaration carries a justification comment.
-- A continuation wrapped around an SDK callback needs a deadline, **and the caller owns the callback
-  object's lifetime**: a delegate the framework does not retain parks the request forever.
-- A polling loop sleeps one poll interval, never the deadline; deadline-sleeping inside `while` parks
-  the waiter — single-shot watchdogs excepted.
-
-### Compile-time gates
-- `#if canImport(X)` must name the dependency the block actually uses: gating on a framework the code does
-  not import silently deletes working code on every platform missing it, while the log keeps claiming the
-  capability. Never gate a capability surface on a backend axis — `canImport(CoreAI)` says nothing about
-  Metal, vision, tokenizers or the ANE.
-- A stub that replaces a real component must be detectable at runtime, not only at compile time: expose
-  the flag (`tokenizerBackend` on `/v1/capabilities`) and assert it.
-
-### Error Handling
-- `precondition`/`preconditionFailure` are for structural invariants and upstream-verbatim surfaces only;
-  new code adds none. Zero `try!`, `as!`, `fatalError`, `assert` outside comments. `try?` needs
-  a real fallback on the next line. `print()` only on CLI/stdout product surface.
-<!-- claim:precondition_sites<=14 :: git grep -nE 'precondition(Failure)?\(' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
-<!-- claim:precondition_files<=11 :: git grep -nE 'precondition(Failure)?\(' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | cut -d: -f1 | sort -u | wc -l -->
-<!-- claim:try_excl_comments<=0 :: git grep -n 'try!' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
-<!-- claim:fatalerror_as<=0 :: git grep -nE 'fatalError\(| as! ' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
-<!-- claim:print_sites<=2 :: git grep -nE '(^|[^A-Za-z0-9_.])print\(' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
-- Failure reports name the cause, not the symptom: a failing MCP server's stderr travels inside the
-  refusal, screen capture says `blocked` in the framework's words, `unknown` before the first attempt
-  (`ScreenDeliveryHonestyTests` + probes 04/26).
-
-### Testing Quality
-- Gold standard: exact values a caller can observe (a wire field, a file's bytes, an exit code),
-  parameterized traversal, boundary cases. Reject `count > N` where N is knowable; never pin a constant
-  copied from the code under test.
-- A scan-based test asserts its own premises: find the root by searching, not by fixed
-  `deletingLastPathComponent()` hops.
-- A fix gates every consumer of the value it changed, not just the emit site.
-- Anything that proves behaviour against a live server ships as a script in `scripts/probes/`.
-- One scoreboard run is a sample: set size, spread, noise band and the paired-flip floor each live in
-  `scripts/eval/README.md`.
-- Process-global state (workspace anchor, `OCOREAI_*`, a `shared` sensor) is leased, never
-  set: `.serialized` orders a suite's *own* tests, not suites against each other, and a lease never spans
-  live I/O. Gate: `ProcessGlobalLeaseDisciplineTests`.
-
-## Open — measured, unresolved
-Root owes the address only — area, instrument, whose call it waits on (evidence: `docs/agent/open-items.md`;
-verdicts: `closed-items-log.md`; every suite name below is greppable in `Tests/`).
-- **Stall: MTP stops hard, the std lane by consent** (Tools/, Engine/) — `LoopStallTerminationTests`;
-  owner call: the terminal word for four faces.
-- **CoreAI / macOS 27 items unverifiable here** (Engine/) — `PlatformPremise.hasMacOS27`.
-- **A no-tool turn cannot be interrupted** (Engine/) — #608 steer at this pin; adopt-then-retire ruled, flag-staged.
-- **Rewind landed; the reserve is untuned** (Engine/) — `SessionRewindOnDivergenceTests` + probe 27.
-- **`tools[]` gaps; two prefix questions await an owner** — `UI/AGENTS.md`, `ReuseRefusalLedger`.
-- **Multimodal: video publishes per-checkpoint; capture cannot stream headlessly** —
-  `VideoDeliveryLedger`; `screenStatus` needs a delivered frame.
-- **The board scores 6 of the 40 advertised tools; full-surface is `OCOREAI_EVAL_TOOLS=all`** (scripts/eval/)
-  — every row prices its `tools[]` bytes; the curated 6 is the headline, ruled by the paired rows.
-- **The tool surface is still ungated against the loaded model** (UI/, Engine/) — owner call; `reasoning_effort`'s gate (`ReasoningEffortHonestyTests` + probe 38) is the pattern to extend.
-- **The surviving release is ad-hoc signed** (CI/) — Gatekeeper's download path stays unjudged — owner call;
-  instrument: probe 41; the sha-parity diary: `long-horizon-goal.md` § Rung zero.
-- **A corpus costs injection; the tail is disclosed, not gated** — the fall-off is named to the model and on
-  `/v1/capabilities` (`WorkspaceContext` reports each doc's fate under the cap). Owner: gate by capacity — measured pp and
-  arms: `docs/agent/open-items.md`.
+## Adoption — the surface a stranger ranks
+- **A release is a cadence, not a green suite or one tag:** cadence is the open item; the re-measurable
+  field ceiling lives at `long-horizon-goal.md` § Rung zero (audit-facts.sh is its instrument). The tag
+  *is* the version (`scripts/version.sh` prints it), so no doc re-types one; `Core/UpdateCheck.swift`
+  only *notifies* — build/publish must split.
+- **Agents are a channel they cannot find:** `/v1/capabilities` serves `endpoints[]`, `skills/ocoreai/`
+  is published (probe 39 runs its markers), `GET /openapi.json` renders the contract off that index;
+  no client ships yet — the canonical SDK consumes the wire itself, gated (probe 56).
+- **Intake is a surface:** duplicate-work check before any outbound issue or PR, answer latency, a
+  verifiable first-screen privacy contract; **#1 is bounded by distribution, not arithmetic** — never
+  call the headline unreachable by math, never chase it: spend on a tag per merge and on a harness
+  consuming us (mechanics + stars/day table: `docs/agent/adoption-runbook.md`).
 
 ## Upstream Audit Dependencies
 Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`.
-1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract, currently `635290754`;
-   `DependencyPinStatementTests` compares this quote against the manifest. Bump protocol: audit the
-   consumption surface → bump `.revision` → `make audit` (both lockfiles) → `swift build` +
-   `make test-ci` green → `CHANGELOG.md`. Upstream sources live under
-   `Libraries/`, not `Sources/`; clone-vs-pin is `git merge-base --is-ancestor`, and the built checkout's
-   cleanliness is asserted by `scripts/probes/_lib.sh`.
+1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract; the number lives in the
+   manifest, never re-typed here, and `DependencyPinStatementTests` binds the manifest's prose and pins
+   to `Package.resolved`. Bump protocol: audit the consumption surface → bump `.revision` →
+   `make audit` (both lockfiles) → `swift build` + `make test-ci` green → `CHANGELOG.md`. Upstream
+   sources live under `Libraries/`, not `Sources/`; clone-vs-pin is `git merge-base --is-ancestor`, and
+   the built checkout's cleanliness is asserted by `scripts/probes/_lib.sh`.
 2. **`coreai-models`** — Apple's reference tree, consumed as header-stamped forks (BSD-3; types
    redefined locally — upstream demands macOS 27). Each file's header carries its upstream baseline;
    `make drift` reports the un-adjudicated window.
@@ -171,107 +134,71 @@ Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`.
 4. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: on
    anything user-visible it is the authority; no topic covers agents ⇒
    `docs/agent/agent-interface-guidelines.md`.
-5. **Comparators** — the trees in `docs/agent/comparator-repos.md`, diffusion in
-   `docs/agent/comparator-consensus.md`, comparator-evolution.md, comparator-innovation.md: nothing linked or
-   redistributed; a borrowed verdict without a `file:line` stays inference. `codex` is one since 11-03
-   (owner: no longer an authority; window reported, not owed).
-   Shipped order + fix cost: `docs/agent/competitor-iteration-paths.md`.
+5. **Comparators** — the trees in `docs/agent/comparator-repos.md` (+ diffusion/comparator docs):
+   nothing linked or redistributed; a borrowed verdict without a `file:line` stays inference. The
+   standard is `~/references`' **shipped practice**, not this tree's habit: where those trees (read at
+   HEAD, cited `file:line`) conflict with in-tree precedent, references win; deviation needs an owner
+   reason, never implementation-legacy. `~/wiki/*`, `.hermes/` stay colour.
 - **OpenAI / Anthropic compatibility** is judged as vllm and sglang judge it: the spec, their
   implementation, real requests, observed behaviour — not our convenience.
 - **A mirror proves content, never HEAD.** `api.github.com` is authoritative for HEAD and compare windows.
-- **The standard is `~/references`' shipped practice, not this tree's habit**: where prior judgment or the
-  existing implementation conflicts with what those project trees ship (read at HEAD, cited `file:line`),
-  references win; deviation needs an owner reason, never implementation-legacy. `~/wiki/*`, `.hermes/`
-  stay colour; repo verdicts: `CHANGELOG.md`; Codex-host: `docs/agent/codex-runtime.md`.
 
-## Read on demand — detail one hop away
-- `docs/agent/instruction-channel.md` — who delivers the caller's `system`/`developer` text and what its
-  cache costs.
-- `docs/agent/systemone-decisions.md` — upstream's System 1 decision API and the cheapest honest slice.
-- `docs/agent/long-horizon-goal.md` — the ladder and what kills it.
-- `docs/agent/adoption-runbook.md` — what the leaders run to be installed, cite per part.
-- `docs/agent/references-conformance-matrix.md` — full `~/references` audit: cite/verdict/priority.
+## Open — measured, unresolved
+Root owes the address only — area, instrument, whose call it waits on; full evidence: `docs/agent/open-items.md`.
+- Loop stall stops hard, and the std lane only by consent — owner call: the terminal word (`LoopStallTerminationTests`).
+- A no-tool turn cannot be interrupted (#608 steer at this pin) — ruled adopt-then-retire, flag-staged.
+- The tool surface is ungated against the loaded model — owner call; `reasoning_effort`'s gate
+  (`ReasoningEffortHonestyTests` + probe 38) is the pattern to extend.
+- The surviving release is ad-hoc signed; Gatekeeper's download path stays unjudged — owner call (probe 41).
+- CoreAI / macOS 27 items unverifiable on this host — `PlatformPremise.hasMacOS27`.
+
+## Documentation Map — Agent-facing vs Human-facing
+Text *injected into the model's context at runtime* is **Agent-facing**: a change alters model
+behaviour, so it owes a behaviour verdict (priced by the board — `scripts/eval/README.md`). Text read
+by people or future agents is **Human-facing** (map: `docs/agent/docs-map.md`). The three
+runtime-injected surfaces, where a word is a behaviour change: `Skills/SystemPromptBuilder.swift`
+(structure gated, behaviour not), `ToolEntry.swift` + `Tool*.swift` (`description`/schema are
+function-calling contracts — test with a live model), `Parsers/*` (marker literals are contracts;
+pair against upstream first).
 
 ## Routing table — working in X → read this first
+Read-on-demand topics: `docs/agent/instruction-channel.md` (who delivers `system`/`developer` text and
+its cache cost), `systemone-decisions.md` (upstream's decision API), `long-horizon-goal.md` (the ladder
+and what kills it), `adoption-runbook.md`, `references-conformance-matrix.md` (the full `~/references` audit).
+
 | Area | Read | Covers |
 |---|---|---|
 | `Sources/ocoreai/Engine/**` | `Sources/ocoreai/Engine/AGENTS.md` | backend gates, metallib, KV/prefix accounting, steer seam, constrained decoding, rewind |
 | `Sources/ocoreai/UI/**` | `Sources/ocoreai/UI/AGENTS.md` | SwiftUI state authority, HIG duties, iOS-parity reality, focus discipline |
 | `Sources/ocoreai/Handlers/**`, `Router/`, `Models/`, `Wire/` | `Sources/ocoreai/Handlers/AGENTS.md` | DTO optionality, endpoint promises, discovery contract |
-| `Tests/**` | § Testing Quality above | exact-value assertions, scan floors, self-premise checks |
+| `Tests/**` | § Code Conventions above | exact-value assertions, scan floors, self-premise checks |
 | `scripts/eval/**` | `scripts/eval/README.md` | task success: does the agent finish real jobs |
 | `scripts/probes/**` | `scripts/probes/README.md` | live `/v1/*` wire-contract probes |
 | this file, `docs/**` | `scripts/docs-type-existence.sh` (in `make audit`) | dead type names in architecture prose |
 
 Areas without a guide (Scheduler, MCP, Tools, Skills, Multimodal, Video, Security): § Code Conventions
-plus the code; three dated notes ⇒ give one an `AGENTS.md` and a row here (a guide costs context only
-inside it).
-
-## Documentation Map — Agent-facing vs Human-facing
-Text *injected into the model's context at runtime* is **Agent-facing**: a change alters model
-behaviour, so it owes a behaviour verdict (priced by the board — `scripts/eval/README.md`). Text read by
-people or future agents is **Human-facing** (map: `docs/agent/docs-map.md`).
-
-The three runtime-injected surfaces, where a word is a behaviour change: `Skills/SystemPromptBuilder.swift`
-(structure gated, behaviour not), `ToolEntry.swift` + `Tool*.swift` (`description`/schema are
-function-calling contracts — test with a live model), `Parsers/*` (marker literals are contracts; pair
-against upstream first). Which doc each audience reads, and when: `docs/agent/docs-map.md`.
+plus the code.
 
 ## Working here
-- **Direct commits to `main`**; CI on macos-26 (`make test-ci`) is the authority.
-  Docs carry no bespoke gate (retired 11-16): when touching this file or a guide, keep its pointers
-  alive and its length chosen, not ratcheted. `make push-ready` checks the tree: clean, pushed,
-  paired. `CHANGELOG.md` records every user-visible change.
-- **One cwd, several sessions:** stage explicit paths and commit only this session's files — never
-  `git add -A`/`git add .`, which sweeps in another session's half-work.
-- Verification is three layers: grep → compile → read the matched lines. `swift build` exit 0 before any completion claim; findings cite `file:line`; living
-  prose cites symbols; label inference as inference.
-- Before writing a symbol, grep for the mechanism that already exists; before calling a missing upstream
-  API, check § Upstream.
-- **Footprint ladder — take the highest rung that solves it:** consume upstream → extend an existing seam →
-  opt-in flag/trait → tool or skill → new module → new core/agent-facing surface. A new surface needs a
-  consumer that exists today.
-- **Refused even when well-built**: a guard for a failure nobody quoted;
-  a test that only detects change; a second home for a decision; a new core tool where a file tool or a
-  skill already does it — only that last clause is machine-decidable, hence the ceiling below.
-<!-- claim:core_tools<=43 :: git grep -h 'ToolEntry\.typed(' -- Sources/ocoreai/Tools | grep -vE '^[[:space:]]*(//|\*)' | wc -l -->
-- **One home per decision, and a side effect is gated where it is declared:** `ToolEntry.isDestructive` is
-  the only destructive truth and `securityPrecheck` asks from it (∪ blacklist for names nothing registers) —
-  a hand-copied matcher list leaves mutating tools unasked. Gate: `DestructiveApprovalGateTests`.
-- **One resolver, one ladder:** precedence as data, a candidate trusted only once probed, a failed *read*
-  falling to the next rung, a failed *authoritative write* surfacing or rolling back, bounded retries that
-  end in a recovery affordance. Pattern: `MetalShaderLibrary`.
-- **Decide state by authority, and put the scope in the key.** Engine actors own engine/model truth;
-  `SessionManager` + SQLite own durable sessions; SwiftUI owns this window's presentation; a wire client
-  owns its own view. Persisted keys declare their scope (global | session | model | window).
+- **Direct commits to `main`**; CI on macos-26 (`make test-ci`) is the authority. Stage explicit paths
+  and commit only this session's files — never `git add -A`/`git add .`: several sessions share this
+  cwd. One logical change per commit; `CHANGELOG.md` records every user-visible change.
+- **Every claim answers the three questions** (what improved · what same-session output proves it ·
+  which gate goes red if it regresses) — the contract lives in `CONTRIBUTING.md`; missing the third
+  makes it a claim. Where upstream already has the answer, consume it or cite `file:line`; do not
+  author a local variant.
+- Verification is three layers: grep → compile → read the matched lines. `swift build` exit 0 before
+  any completion claim; findings cite `file:line`; living prose cites symbols; label inference as inference.
+- Before writing a symbol, grep for the mechanism that already exists. **Footprint ladder — take the
+  highest rung that solves it:** consume upstream → extend an existing seam → opt-in flag/trait → tool
+  or skill → new module → new core/agent-facing surface. A new surface needs a consumer that exists today.
 - **Respect the person using it.** Never navigate, refocus, open a pane or announce because something
-  *happened* in the background — offer, don't hijack. **Name a destructive route only where the caller's
-  own argument asks for it:** `edit_file` offers `rm` solely when `newString` is empty, since in an ordinary
-  mismatch that offer turns a typo into an unrecoverable delete. Gate: `EditMismatchRecoveryTests`. HIG
-  is authority on anything user-visible; the five non-happy states owe honest copy and a way out
-  (`Sources/ocoreai/UI/AGENTS.md`).
-- **A file's lifetime is the lifetime of the thing that cites it.** Bytes outliving their request need an
-  owner, a pin in flight, and collection by idle TTL + byte budget. `MediaSpool`; gates:
-  `MediaLifetimeTests` + probe 08.
-- **Comments say the *why* the code cannot, in 1–3 lines.** No bug history, dates or audit trails —
-  that is the commit message. One logical change per commit.
-- **A lock lives at the cheapest rung that bites:** hook → `make` → CI, priced in runner-seconds (text
-  gates go to ubuntu; arm64 minutes are the expensive seat). A gate blocks only when a red means someone
-  acted on something false; a new one names the red it was sampled against and the reader whose action
-  it changes (`CONTRIBUTING.md`). **Gate count is never
-  the deliverable, and no gate is installable** — see § Adoption.
-- **No defensive clutter; no guard for a failure nobody observed.** Validate once at the boundary that owns
-  the value and pass typed values inward; quote the failure (a probe line, a red test, a scoreboard row)
-  before writing its guard. For a speculative race or security edge: name mode, likelihood and cost and
-  get the owner's buy-in.
-<!-- claim:unreferenced_decls_ours<=0 :: bash scripts/unreferenced-decls.sh -->
-- Default is one-pass in this thread, no sub-agent unless the owner asks (the owner reviews every
-  commit).
-
-## Taste test before you hand off
-- Does every piece of state live with its authority, at the narrowest scope that can still be right?
-- Can any sentence a user can read promise more than the engine measured?
-- Does each resolver/fallback have one home, a validated ladder, and a bounded, recoverable end?
-- Is the hot path still cheap under *realistic* content — long transcript, warm KV, a real model — not the
-  empty demo?
-- Did the user, developer and agent reading this each end up better off?
+  *happened* in the background — offer, don't hijack. HIG is authority on anything user-visible; the
+  five non-happy states owe honest copy and a way out (`Sources/ocoreai/UI/AGENTS.md`).
+- **A lock lives at the cheapest rung that bites:** hook → `make` → CI, priced in runner-seconds. A gate
+  blocks only when a red means someone acted on something false, and a new one names the red it was
+  sampled against and the reader whose action it changes (`CONTRIBUTING.md`). **Gate count is never the
+  deliverable, and no gate is installable** — see § Adoption.
+- **No defensive clutter:** validate once at the boundary that owns the value; quote the failure (a
+  probe line, a red test, a scoreboard row) before writing its guard. For a speculative race or
+  security edge: name mode, likelihood and cost and get the owner's buy-in.

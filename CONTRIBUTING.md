@@ -1,8 +1,13 @@
 # Contributing to ocoreai
 
-Thanks for your interest. ocoreai is a dual-channel ML inference runtime for
-macOS — MLX (GPU) and CoreAI (ANE) with dynamic hardware routing via
-`HardwareRouter`.
+Thanks for your interest. ocoreai is an agent made for open models, natively local on
+Apple silicon — it sees, hears, speaks and codes in one binary, on two engines: MLX
+(Metal GPU) and CoreAI (ANE).
+
+Working discipline is the pstack plugin (owner ruling 11-17): rigorous tasks start with
+`/pstack:poteto-mode`, delegates run as `poteto-agent`s, and prose follows its
+unslop/technical-writing skills. What pstack cannot own — this repo's evidence contract,
+gate tiering and wire duties — is below and in `AGENTS.md`.
 
 ## Quick Start
 
@@ -67,7 +72,9 @@ The docs layer is held to the same standard, because `AGENTS.md` is injected int
 context on every session: a stale number there is not a typo, it is a wrong instruction. The
 standard is now carried by convention plus the code-shaped tests that survive it
 (`InstructionBudgetSingleSourceTests` binds the cap sentence to `WorkspaceContext`;
-`DependencyPinStatementTests` binds the pin quote to the manifest); the bespoke machinery that
+`DependencyPinStatementTests` binds `Package.swift`'s own prose to its pins and the
+resolved lockfile — the root doc names that gate but no longer re-types the pinned
+number, which had no reader); the bespoke machinery that
 re-ran every path, anchor and `<!-- claim:id OP N :: command -->` marker — `make docs-check`,
 `make anchor-check` and their scripts — was **retired 11-16** on the owner's ruling after reading
 the consumed trees: mlx-swift-lm verifies its docs by *building* them, coreai-models' CI is
@@ -216,15 +223,13 @@ refactor(coreai): split model compilation from inference
 chore: bump MLX to 0.22
 ```
 
-### Risk Labels
+### Risk, per pstack autonomy (owner ruling 11-17)
 
-Before committing a risky change, self-assess the risk:
-
-| Risk | Meaning | Requires |
-|---|---|---|
-| **Low** | Rollback is a revert; no user action needed | N/A |
-| **Medium** | Users may need to update config/behavior | Rollback plan stated in the commit body |
-| **High** | Security-critical, breaking API, hardware behavior change | Rollback plan + observable failure symptoms + feature flag if possible |
+Reversible work proceeds without asking; a rollback plan for anything a user may need to
+update goes in the commit body. **Always pause** for irreversible or owner-held writes:
+force-push to shared branches, deploys, data deletion, security-critical or
+breaking-API change, promises to users, anything outward-facing the owner hasn't
+authorized — the owner holds security, destructive routes, promises and push windows.
 
 ### The Route
 
@@ -239,4 +244,4 @@ Before architecture-sensitive changes, read:
 
 ## Questions?
 
-Open an issue or discuss in the existing PR.
+Open an issue — work lands on `main` directly, so there is rarely an open PR to discuss in.
