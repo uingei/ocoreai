@@ -112,9 +112,17 @@ Row 6 (prefix sharing) and row 7 (overlap) carry the two real gaps. Cold prefill
 
 `skills/ocoreai/` published + probe 39, `/v1/capabilities` + `/openapi.json` — ✅ present. No canonical client ships (open § Adoption) vs ollama/omlx single-binary-command ergonomics and the two trees' generated API packages: ⚠️ P2, ledgered, bounded by distribution.
 
-## 16. AX (accessibility)
+## 16. Accessibility (SwiftUI a11y) — not to be confused with the docs-AX axis in § 17
 
 No GUI comparator in the trees (codex is a TUI; servers are headless) — HIG is the only authority. ocoreai's SwiftUI carries 127 `accessibility*` call sites (counted today); per-screen VoiceOver reality is **❓ unverified** — no gate walks it. P3.
+
+## 17. The docs themselves — UX / DX / AX (owner ruling 11-16: the doc suite is a product surface with three readers)
+
+| Axis | Standard (tree@line, read today) | ocoreai (site/gate) | Verdict |
+|---|---|---|---|
+| **UX** — a stranger reads | the install quartet is real and degrades not fails (`omlx README.md:50-58`); privacy contract verifiable on the first screen (adoption-runbook's rule, from the trees' intake practice) | README: DMG double-click + `curl … install.sh` + `uninstall.sh` **dry-run by default** (`README.md:24-31,77`); P10 diffs README against the code that serves (`docs-map.md:12`) | ⚠️ P2 — structure ✅, but the README promises a DMG whose surviving release is ad-hoc signed and Gatekeeper-unjudged (row 14's open item): the doc currently claims more Gatekeeper-trust than measured. Same ledger row, now flagged as a **doc** promise too |
+| **DX** — a contributor reads | intake rules live in-tree, cited (vllm `AGENTS.md` intake — registry cites `:8,21,27,35,39`); onboarding is a contract, not folklore | `CONTRIBUTING.md` (three questions, floor/ceiling), `docs-map.md` audience table, `make push-ready`/`make audit` as the single onboarding verb; refusals carry field-path + remediation so a wire error is self-teaching (this round's `tool_history_unpaired`) | ✅ |
+| **AX** — an agent reads | codex's loader: hierarchy walk that stops at the project root (`agents_md.rs:10-18`), a byte budget that when cut **says so to the model** with trim-or-raise guidance (`:51`, `:162-166`), zero-budget/untrusted gates (`:65`) | `WorkspaceContext` implements the same discovery/order/budget semantics by name ("codex-style loader", `:16,:186`); per-doc fate `whole\|truncated\|dropped` is named, "the last two used to be silent" (`:167`) — silent-cut is fixed, the same rule invariant 2 states; budget equality pinned 3-ways (`:25-27`); `skills/ocoreai/SKILL.md:2-5` routes on name+description (the field's only fields a router reads) | ✅ with the disclosed pressure: deepest chain 32 298/32 768 = **99% spent**; the cost is disclosed to the model and on `/v1/capabilities`, gated only as a capacity question (`AGENTS.md` § Open — owner item) |
 
 ## What this audit convicted (fixed or routed this round)
 
