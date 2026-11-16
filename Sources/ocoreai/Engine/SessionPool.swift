@@ -1059,9 +1059,18 @@ actor MLXSessionPool {
         // Trust it only when the turn completed with an answer and the prompt was
         // plain text. A tool round-trip renders control text into the prompt that this
         // list cannot name, and a ledger longer than the cache would make the next turn
-        // skip prefill for tokens that were never cached — silent context loss. An
-        // unprovable turn claims nothing: reuse still happens, it just hands the full
-        // history back to ChatSession, which reconciles it against its own transcript.
+        // skip prefill for tokens that were never cached — silent context loss.
+        //
+        // An unprovable turn claims nothing — and a session that filled its ChatSession
+        // under such a turn may not sit in the pool claiming an empty ledger: an empty
+        // ledger is a vacuous hit for every later same-key conversation, and upstream
+        // ChatSession appends the new transcript after the old conversation rather than
+        // reconciling it (measured 11-16: a forked resend billed 3 092 tokens — the
+        // previous conversation's 2 500-token tool result plus its own 736 — against a
+        // true prompt of 736). The claim "ChatSession reconciles it against its own
+        // transcript" is what this site believed until that measurement; it is false.
+        // The session is discarded, so the next turn starts clean — the cost every
+        // tool-history turn already paid on the bypassing lane.
         var entryToPool = pooled
         entryToPool.residentKVBytes = residentBytes
         entryToPool.residentKVTokens = residentTokens
@@ -1069,7 +1078,17 @@ actor MLXSessionPool {
             !promptMessages.contains(where: { $0.hasMedia || $0.hasToolTraffic })
         {
             entryToPool.messageHistory = promptMessages + [assistantMessage]
+        } else if promptMessages != nil {
+            logger.info(
+                "Not pooling session for \(key): this turn filled the ChatSession under a prompt the ledger cannot describe (tool or media traffic) — an empty ledger would hand this cache to every later same-key turn"
+            )
+            pool[key] = nil
+            releaseMedia(of: [pooled])
+            deleteCachedSession(key: key)
+            return
         } else {
+            // An early release (bypassing lane) hands back a slot whose ChatSession never
+            // generated: the conversation really is empty, so an empty ledger is honest.
             entryToPool.messageHistory = []
         }
 

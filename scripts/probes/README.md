@@ -532,15 +532,16 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     and its absence is a red naming the remedy — no tree passes by having no consumer. Green 11-11,
     15 passed. Fails when: the SDK rejects our shape, any byte drifts on either face, or the tool-turn
     blank face stops being blank.
-- `57-tool-result-token-accounting.sh` — does a posted tool result occupy the next prompt? On the
-    shipped default checkpoint it does not: a ~2 500-token result bills **5** tokens on all three
-    faces while the control arm (same text, user role) bills ~2 488. Measured 11-12 the day the
-    weights were found on this host (`~/.ocoreai/models` — the row had claimed "absent" while its own
-    11-09 numbers came from a live serve). The gemma4 template's main loop skips `role:"tool"`
-    (jinja `:217`); results render only through the assistant `tool_calls` forward-scan (`:271`-`:315`),
-    so delta 5 convicts a lost `tool_calls` upstream of the template — whose hop, next round. While
-    open the three tool arms report `probe_xfail open`; a fix XPASSes this probe red to force the
-    promotion. Needs weights; a runner without them SKIPs.
+- `57-tool-result-token-accounting.sh` — does a posted tool result occupy the next prompt? Five
+    real arms since the 11-16 fix: control (user-role text bills its length), the three tool faces
+    (each must bill >= 400 for a ~2 500-token result; measured +2 307 each on the default
+    checkpoint), and cross-conversation KV (a forked resend sharing the leading user message must
+    bill about its own length — it must NOT inherit a previous conversation's KV; +15 measured).
+    The defect it prices was the std-reasoning lane's `(role, content)` snapshot erasing
+    `tool_calls` before the template (delta was **5**); the dig also killed the pool's
+    "ChatSession reconciles" belief (it appends) — see the CHANGELOG round and `SessionPool.swift`
+    at the release site. Needs weights; a runner without them SKIPs. Fails when: a tool result
+    stops reaching the prompt, or a turn is pooled with a KV it cannot account for.
 - `_lib.sh` — shared harness
 Fails when: —
 

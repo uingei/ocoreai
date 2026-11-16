@@ -477,7 +477,8 @@ struct AnthropicSharedAssemblySourceTests {
                 "Chat.Message.tool(contentStr, id: tid, name: msg.name ?? toolNamesByID[tid])"),
             "results pair with calls by id, and carry the name the model called")
         #expect(
-            s.contains("Chat.Message.assistant(\"\", toolCalls: mlxTCs)"),
-            "calls reach the template as structured calls")
+            s.contains("Chat.Message.assistant(contentToString(msg.content).0, toolCalls: mlxTCs)"),
+            "calls reach the template as structured calls, with the caller's content riding beside them"
+        )
     }
 }

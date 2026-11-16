@@ -1914,10 +1914,12 @@ extension EnginePool {
                 default: .user
                 }
 
-            // Assistant with tool calls — use factory with toolCalls param
+            // Assistant with tool calls — use factory with toolCalls param. The caller's
+            // visible content rides with the calls (an OpenAI turn may carry both);
+            // upstream drops only an EMPTY text part for a tool-call assistant.
             if let tcs = msg.toolCalls, !tcs.isEmpty {
                 let mlxTCs = tcs.map { mLXToolCall(from: $0) }
-                return Chat.Message.assistant("", toolCalls: mlxTCs)
+                return Chat.Message.assistant(contentToString(msg.content).0, toolCalls: mlxTCs)
             }
 
             // Tool result — id correlates the call; name tells the model WHICH tool
@@ -2746,8 +2748,16 @@ extension EnginePool {
             // thinking — the constrained loop truncates thinking tokens (the `.alwaysOn` guard
             // below) — so a schema still suppresses the flag.
             // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1666 reasoning: modelConfiguration.reasoningConfig.map
+            // A history carrying tool metadata cannot ride the reasoning lane: that lane
+            // snapshots `(role, content)` pairs (below), which erases `tool_calls` and the
+            // result pairing, and the template renders results only through the assistant's
+            // forward-scan — probe 57 measured a ~2 500-token result billing 5 tokens.
+            // Same exclusion as media above: refuse the flat lane, render through ChatSession.
+            let historyCarriesToolMetadata =
+                messages.contains { $0.role == "tool" || ($0.toolCalls?.isEmpty == false) }
             let mayRunReasoning =
-                (registeredToolSpecs ?? []).isEmpty && options.grammarSchema == nil
+                (registeredToolSpecs ?? []).isEmpty
+                && options.grammarSchema == nil && !historyCarriesToolMetadata
             let thinkingFlagApplies = options.grammarSchema == nil
 
             // Snapshot reasoningConfig once here (replaces the second actor hop at L1807

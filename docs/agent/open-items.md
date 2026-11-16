@@ -46,25 +46,22 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   seam), on boot, or retire `ttl_days` from schema and config (also a promise change). Until then every
   "retention" claim about sessions reads as unenforced.
 
-- **A tool result bills 5 tokens on the shipped default checkpoint — the loss is content, and it is upstream of the template** (Engine/, Handlers/) —
-  measured live 11-12 by probe 57 with the product's default checkpoint loaded: baseline 872 → 877
-  with a ~2 500-token `role:"tool"` result on **all three faces** (OpenAI ladder-name, OpenAI
-  caller-name, Anthropic `tool_result`), while the control arm — the same text block as user-role
-  content — bills **+2 488**. The model never sees what its own call returned, from the *first*
-  iteration, not just from the second as earlier believed. Two claims died getting here: (a) "the
-  host holds no LLM weights" — false; they sit at the workspace anchor `~/.ocoreai/models`
-  (gemma-4-e2b-it-4bit, 3.3 GB, complete), which is where the 11-09 live numbers already came from
-  — the row contradicted its own evidence; (b) name-threading was the smaller leg:
-  `ff3e4a66` + `3b7fda25` label the metadata correctly on both lanes (gates green) and move **zero**
-  of these tokens, exactly as their own pair-level gates implied. Localization from the checkpoint's
-  own `chat_template.jinja`: the main loop *skips* `role:"tool"` (`:217`) — results render only via
-  the assistant `tool_calls` forward-scan (`:271`-`:315`), so delta 5 convicts a **lost assistant
-  `tool_calls`** between our `Chat.Message.assistant(_:toolCalls:)` conversion and
-  `Gemma4MessageGenerator`. Which hop, next round — the cheapest next arm is the raw dict the
-  generator actually receives. Gate: probe 57 (control guards the instrument; the three tool arms
-  report `probe_xfail open` and XPASS red on the day a fix lands, forcing promotion). Still open
-  beside it: the MTP loop never re-appends its own assistant tool-call turn (only think-then-call
-  text, steers, results), so the pairing question arrives with the content fix, not after it.
+- **A tool result billed 5 tokens on the default checkpoint — closed 11-16; three residuals beside it** (Engine/) —
+  convicted and fixed: the std-reasoning lane (the unconstrained no-tools route) snapshots history
+  as `(role, content)` pairs and rebuilds `Chat.Message(role:content:)`, erasing `tool_calls` and
+  the result pairing before the template — whose main loop skips `role:"tool"` — ever sees them.
+  Discriminator: declaring `tools[]` billed the full block; an assistant with `tool_calls` on the
+  no-tools route billed zero. Two sites: `mayRunReasoning` now refuses tool-metadata history (the
+  media precedent — refuse the flat lane), and the DTO conversion keeps the assistant's content
+  beside its calls. Probe 57 promoted, green: three faces +2 307, control +2 488. The dig also
+  convicted a shipped pool belief — a filled tool/media turn returned to the pool behind an empty
+  ledger on the word that "ChatSession reconciles it against its own transcript"; it APPENDS, so
+  the next `anon:`-key conversation inherited the old KV (measured 3 092 vs a true 736). The
+  release site now discards a turn that cannot account for its own KV; probe 57 arm 5 pins it
+  (+15). Residuals: (a) guided-gen flattens history the same way — same class, unquoted, so
+  named-not-guarded; (b) the MTP loop still never re-appends its own assistant tool-call turn;
+  (c) a tool loop pays cold prefills from turn two, bought against warm-and-wrong (the append is
+  measured; the duplicate-loop shape is inference). Gate: probe 57, five real arms.
 - **Durability is priced twice, and the second price indicts the mechanism, not the message** (Tools/, eval/) —
   the pre-write gate (refuses valid→broken syntax, keeps old bytes: **110/110 corruptions stopped, zero silent
   damage**) cost the frozen set **2.17 tasks/52 (p=0.0146)** at bare reason, and still **1.83 (p=0.0266)** with the

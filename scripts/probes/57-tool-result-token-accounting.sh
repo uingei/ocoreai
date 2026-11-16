@@ -21,20 +21,28 @@
 # only through the forward-scan that an assistant message carrying `tool_calls` runs
 # over its following tool messages (`:271`-`:315`, calling `format_tool_response_block`
 # per result). A delta of 5 therefore says the assistant message reached the template
-# WITHOUT its `tool_calls`, or the scan found none. Which hop drops them — our
-# `Chat.Message.assistant(_:toolCalls:)` conversion, the pool's raw-dict path, or
-# `Gemma4MessageGenerator` — is the next round's conviction, not this probe's claim.
+# WITHOUT its `tool_calls`, or the scan found none. Convicted 11-16 by discriminator:
+# the same payload WITH `tools[]` declared billed the full block (the ChatSession lane
+# renders intact), while an assistant carrying `tool_calls` on the no-tools route
+# billed ZERO — the std-reasoning lane snapshots `(role, content)` pairs and rebuilds
+# `Chat.Message(role:content:)`, erasing `tool_calls` and the result pairing before the
+# template ever sees them.
 #
-# ### What is measured (four arms)
+# ### What is measured (five arms)
 #   1. CONTROL: a ~2 500-token block as user-role content must bill >= 400 extra
 #      prompt tokens. This guards the instrument itself; if it reddens, nothing
 #      downstream means anything.
 #   2-4. The same block as a tool result (OpenAI face, ladder-resolved name; OpenAI
 #      face, caller-supplied name; Anthropic face, `tool_result` block): billed delta
-#      >= 400 promotes each arm to a real check. While the defect is open they report
-#      XFAIL through `probe_xfail` — a counted known-open, never a silent pass — and
-#      the day a fix lands the "fixed" verdict XPASSes THIS probe red, forcing the
-#      promotion instead of letting the gate rot into pinning the broken shape.
+#      >= 400. These ran XFAIL until the 11-16 fix (the std-reasoning lane's
+#      `(role, content)` snapshot dropped `tool_calls`; the gate now refuses that lane
+#      for tool-metadata history) and are promoted to real checks here.
+#   5. Cross-conversation KV: after a tool turn returns its ChatSession to the pool, a
+#      DIFFERENT conversation sharing the leading user message (the `anon:` key) must
+#      not inherit that session's KV — upstream ChatSession appends rather than
+#      reconciles, so an unprovable turn must not be pooled at all. Measured 11-16: the
+#      forked resend billed 3 092 tokens (the previous conversation's result block plus
+#      its own 736) before the release-site rule landed.
 #
 # Needs a real Metal device AND the default checkpoint's weights (this host holds
 # them at ~/.ocoreai/models; a runner without them takes the SKIP branch below).
@@ -132,9 +140,9 @@ check_tool_arm() {  # $1 = label, $2 = face path, $3 = body, $4 = base body
   w=$(prompt_tokens "$2" "$3")
   delta=$(( w - b ))
   if [ "$delta" -ge 400 ]; then
-    probe_xfail fixed "$1: tool result billed $delta tokens — FIXED: promote this arm to probe_ok and re-point the open-items row at the fix commit"
+    probe_ok "$1: ~2 500-token tool result billed $delta tokens — the prompt carries what the model asked for"
   else
-    probe_xfail open "$1: ~2 500-token tool result billed only $delta tokens — content never reaches the prompt (the control arm bills thousands for the same text)"
+    probe_fail "$1: ~2 500-token tool result billed only $delta tokens — REGRESSION: the tool exchange never reaches the prompt (check the reasoning-lane gate for tool-metadata history)"
   fi
 }
 
@@ -144,5 +152,28 @@ anth_body "$TMPD/tool.json" tool
 check_tool_arm "openai-face-ladder-name" /v1/chat/completions "$TMPD/ladder.json" "$TMPD/base_oai.json"
 check_tool_arm "openai-face-caller-name" /v1/chat/completions "$TMPD/named.json" "$TMPD/base_oai.json"
 check_tool_arm "anthropic-face-tool-result" /v1/messages "$TMPD/tool.json" "$TMPD/base_anth.json"
+
+# Arm 5 — cross-conversation KV. Every arm above shares the same leading user message,
+# so they share the pool's `anon:` key. A tool turn must NOT leave its filled ChatSession
+# in the pool behind an empty ledger: the next conversation on that key would vacuously
+# "hit" it, and upstream ChatSession APPENDS the new transcript after the old
+# conversation — the fork below would bill the previous arm's result block. A forked
+# resend therefore has to bill about its own length (< 200 over base), never thousands.
+python3 - <<'PY'
+import json, os
+pre = os.environ["PREAMBLE"]; model = os.environ["MODEL"]
+msgs = [{"role": "user", "content": pre},
+        {"role": "assistant", "content": "A different conversation entirely, with nothing to add."}]
+json.dump({"model": model, "messages": msgs, "max_tokens": 1, "temperature": 0},
+          open(os.environ["TMPD"] + "/forked.json", "w"))
+PY
+w=$(prompt_tokens /v1/chat/completions "$TMPD/forked.json")
+b=$(prompt_tokens /v1/chat/completions "$TMPD/base_oai.json")
+delta=$(( w - b ))
+if [ "$delta" -lt 200 ]; then
+  probe_ok "cross-conversation KV: forked resend billed $delta over base — no foreign tool context inherited"
+else
+  probe_fail "cross-conversation KV: forked resend billed $delta over base — it inherited a previous conversation's cached KV (an unprovable turn was pooled with an empty ledger)"
+fi
 
 probe_summary "57-tool-result-token-accounting"
