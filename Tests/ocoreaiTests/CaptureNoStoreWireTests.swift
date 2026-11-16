@@ -206,6 +206,7 @@ struct CaptureNoStoreWireTests {
         let owned = Self.occurrences(of: "JSONEncoder(", in: text)
         #expect(
             owned == 0,
-            "MultimodalHandler.swift builds \(owned) JSONEncoder(s) — the frame-carrying file must encode through the shared Response.json so the header rides along")
+            "MultimodalHandler.swift builds \(owned) JSONEncoder(s) — the frame-carrying file must encode through the shared Response.json so the header rides along"
+        )
     }
 }
