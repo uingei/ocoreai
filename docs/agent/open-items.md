@@ -551,3 +551,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   fetching `mlx-community/Qwen3.8-27B-MTP-4bit` + Qwen3.8-27B (owner action) gives the lane its first
   live gate, after which the branch moves the way the guided lane did. Until then it stays nested: a big
   move that cannot run its own gate is a claim, not a fix (invariant 1).
+- **The prose layer is under owner suspension until repair, one surface per round** (docs/, owner ruling 11-17) — after two
+  same-day false claims in committed prose (the DependencyPin root-reads fiction; the registry-absence list in `ecc5f6cb`,
+  convicted by the owner's "六棵树外有"), the owner ruled docs and comments are claims and pointers, not evidence, until
+  they say repaired. The repair is not a full sweep (matrix § Maintenance names that as owner-sized): one surface per
+  round with its named instrument — live prose through `make audit` (cite-check, anchor-check, `docs-type-existence`);
+  matrix rows by re-reading the cite at its tree's HEAD, one domain deep; registry cells by site re-read, the post-11-04
+  additions (aider, SWE-agent, mini-swe-agent, unsloth, nginx, llm.c, nanochat, autoresearch) never swept; CHANGELOG
+  stays a dated diary whose live claims only the named instruments re-derive. Every red found is reported, not repaired
+  silently. Restoration is the owner's declaration only — "done" is never self-declared (invariant 2).
