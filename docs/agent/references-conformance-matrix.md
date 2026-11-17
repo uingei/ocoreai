@@ -15,8 +15,10 @@
 > **Verdicts:** ✅ conforms · ⚠️ deviates (priority attached) · ❓ unverified · ⛔ not applicable at
 > this scale. **Tiebreaker (owner ruling 11-17):** converged following is the default; a row deviates
 > legitimately only when a local or Apple premise carries the deviation, and then the row names it.
-> The audited "field" is the six trees this file reads at HEAD; the rest of `~/references` is a library,
-> not an instrument — reading a tree's first page is the unit that promotes it. **Priority:** P1 = a surface can mislead or silently lose content; P2 = shipped behavior
+> The audited "field" is layered: the six trees this matrix reads at HEAD (live cites), the 49 typed
+> dated entries of `comparator-repos.md` (the rest of the disk audited spot-wise), and
+> `scripts/comparator-consensus.sh` for field-wide claims — freshly-read-at-HEAD is the six's property,
+> never a verdict that the others were un-audited. **Priority:** P1 = a surface can mislead or silently lose content; P2 = shipped behavior
 > the field has and we lack; P3 = depth/efficiency — measure before adopting (no blind copying).
 
 ## 1. Architecture
