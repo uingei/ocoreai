@@ -3752,6 +3752,11 @@ extension EnginePool {
                                     case .stop: .eos
                                     case .length: .maxTokens
                                     case .cancelled: .cancelled
+                                    case .interrupted:
+                                        // Upstream #798: only `interrupt(response:)` emits it, unreachable
+                                        // until we wire that API; both are user-requested stops, and the
+                                        // retain-vs-rollback split is decided when the API is wired.
+                                        .cancelled
                                     case .steered:
                                         // Upstream #608: the step yielded to steering and continues, so the
                                         // turn has not ended — the prior reason stands (same arm, std lane).
@@ -4249,6 +4254,11 @@ extension EnginePool {
                                         case .stop: .eos
                                         case .length: .maxTokens
                                         case .cancelled: .cancelled
+                                        case .interrupted:
+                                            // Upstream #798: only `interrupt(response:)` emits it,
+                                            // unreachable until that API is wired; user-requested stop,
+                                            // like `.cancelled` — see the MTP site's arm for the split.
+                                            .cancelled
                                         case .steered:
                                             // Upstream #608: a step handed off to mid-turn steering, so the
                                             // turn has not ended — the prior reason stands. Unreachable until
@@ -4536,6 +4546,11 @@ extension EnginePool {
                                         case .stop: .eos
                                         case .length: .maxTokens
                                         case .cancelled: .cancelled
+                                        case .interrupted:
+                                            // Upstream #798: only `interrupt(response:)` emits it,
+                                            // unreachable until that API is wired; user-requested stop,
+                                            // like `.cancelled` — see the MTP site's arm for the split.
+                                            .cancelled
                                         case .steered:
                                             // Upstream #608: the step yielded to steering and a successor
                                             // continues the turn, so this is not the turn's end — the prior

@@ -149,9 +149,15 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   was only the hook — and `991266ad3`, which an earlier copy named, is that same day's #710, a prefill-buffer
   cache). Nothing of ours calls it: the four switch arms the bump added are inert until `SteerQueue` reaches
   `session.steer` on the session's owning actor and the wire can take a steer mid-stream.
+  **11-17 the bump to `bf5a5d438` carried #798:** steer now ends a step at the next safe point *inside a
+  thought* (upstream app on M5 Max: 0.22-0.30 s steer-to-new-text on Qwen3.8-27B where pre-#798 measured
+  6.9-8.1 s; every cut append-only on the cache), and `interrupt(response:)` ends a whole response at that
+  safe point with the reply recorded — no rollback, `GenerateStopReason.interrupted`. Our three new switch
+  arms map it to `.cancelled` and stay unreachable until the API is wired; the cancel half of this row's
+  adopt plan now has an upstream route, the queued-input guard (codex's second tier) stays ours to design.
   **Adjudicated 11-11 by the lane read: adopt, staged.** Upstream owns the loop the wrapper duplicates:
-  `restart:` at `ChatSession.swift:1319` threads `mtpDrafterContinuation` stepwise; `steer` is public
-  (`:1106`). Landing: an opt-in loop-selection flag (default local), flip on a paired board verdict plus
+  `restart:` at `ChatSession.swift:1327` threads `mtpDrafterContinuation` stepwise; `steer` is public
+  (`:1094`), `interrupt(response:)` at `:1117`, read at this checkout. Landing: an opt-in loop-selection flag (default local), flip on a paired board verdict plus
   probe 21 `chat`-arm green, loser deleted whole. The stall row's terminal word stays the owner's.
 - **Thinking is uncounted on the tools lane** (Engine/) — probe 44 §2: 550 chars, no
   `reasoning_tokens`. Upstream counts only via the processor that also bounds the thought, and a

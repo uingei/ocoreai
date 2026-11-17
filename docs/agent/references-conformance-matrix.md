@@ -38,7 +38,7 @@
 
 | Standard | ocoreai | Verdict |
 |---|---|---|
-| codex defines a **two-tier interrupt**: `Interrupt` unconditional, `InterruptIfNoPendingInput { turn_id }` only if nothing is queued (`codex protocol.rs:729-734`) | `/v1/steer` merges at turn head; a **no-tool turn cannot be interrupted** at this pin (#608 steer-at-pin, adopt-then-retire ruled, flag-staged — `AGENTS.md` § Open); stall termination owned by `LoopStallTerminationTests` awaiting the terminal-word call | ⚠️ P2 — the missing tier is exactly codex's queued-input guard; when the steer pin lands, adopt the two-tier semantics rather than a single unconditional cancel |
+| codex defines a **two-tier interrupt**: `Interrupt` unconditional, `InterruptIfNoPendingInput { turn_id }` only if nothing is queued (`codex protocol.rs:729-734`) | `/v1/steer` merges at turn head; a **no-tool turn cannot be interrupted** by our wiring yet, but the pin moved under the claim: #798 at `bf5a5d438` ships safe-point steer inside thoughts plus `interrupt(response:)` (reply recorded, no rollback), verified upstream on M5 Max at 0.22-0.30 s (`open-items.md` steer row; adopt-then-retire ruled, flag-staged — `AGENTS.md` § Open); stall termination owned by `LoopStallTerminationTests` awaiting the terminal-word call | ⚠️ P2 — upstream's half of the two tiers now exists at our pin; codex's queued-input guard stays the half we must author, wire it as the second tier, not as an unconditional cancel |
 
 ## 4. Tool calling
 

@@ -37,10 +37,10 @@ let package = Package(
         // ships no stable API; we want HEAD, not a floor). Bump protocol:
         // `git log <old>..origin/main` -> audit consumer impact -> bump .revision ->
         // `swift build` + `swift test` (make test-ci). The per-bump audit trail lives
-        // in CHANGELOG.md; AGENTS.md keeps only the current pin and the transferable rules.
+        // in CHANGELOG.md; AGENTS.md references the pin and never re-types the number.
         // (docs/agent/upstream-audit-log.md was written once and deleted the same session:
         //  CHANGELOG.md already carries the round-by-round verdicts — one diary, one home.)
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "635290754"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "bf5a5d438"),
         // mlx-swift: pinned exact 0.33.0 (resolved revision 7ede4fd6d). This sentence is
         // gated against the pin below and against Package.resolved by
         // DependencyPinStatementTests — this sentence named 0.32.2 as the pin long after
