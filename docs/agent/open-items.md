@@ -61,7 +61,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   (+15). Residuals: (a) guided-gen flattens history the same way — same class, unquoted, so
   named-not-guarded; (b) the MTP loop still never re-appends its own assistant tool-call turn;
   (c) a tool loop pays cold prefills from turn two, bought against warm-and-wrong (the append is
-  measured; the duplicate-loop shape is inference). Gate: probe 57, five real arms.
+  measured; the duplicate-loop shape is inference). (b) closed 11-17: the MTP tool loop now enters the
+  calling assistant turn before any result (upstream `ChatSession.swift:1959` shape), the boundary
+  records an unpaired history loudly, and `MTPToolLoopHistoryTests` gates the pair (incl. the exact
+  pre-fix orphan shape); the live arm on a serve with a drafter checkpoint stays the escalation tier —
+  this host serves the owner's session and loading a 12B+ mtp checkpoint would contend with it.
+  Gate: probe 57, five real arms, plus `MTPToolLoopHistoryTests`.
 - **Durability is priced twice, and the second price indicts the mechanism, not the message** (Tools/, eval/) —
   the pre-write gate (refuses valid→broken syntax, keeps old bytes: **110/110 corruptions stopped, zero silent
   damage**) cost the frozen set **2.17 tasks/52 (p=0.0146)** at bare reason, and still **1.83 (p=0.0266)** with the

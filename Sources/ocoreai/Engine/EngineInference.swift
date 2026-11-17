@@ -204,6 +204,41 @@ nonisolated func mtpMessagePairs(
     }
 }
 
+/// Upstream's ChatSession restart-loop shape (ChatSession.swift:1959): the assistant
+/// turn that emitted the calls enters the history before any result answers them, so
+/// the next iteration's template renders paired tool blocks.
+nonisolated func mtpToolBoundaryHistory(
+    pairs: [MTPMessagePair],
+    answerText: String,
+    toolCalls: [MLXLMCommon.ToolCall]
+) -> [MTPMessagePair] {
+    var updated = pairs
+    updated.append(
+        MTPMessagePair(
+            role: Chat.Message.Role.assistant.rawValue,
+            content: answerText,
+            toolCalls: toolCalls))
+    return updated
+}
+
+/// Every tool result must answer a call an earlier assistant turn of the same history
+/// made. Returns the first orphaned `tool_call_id`, nil when sound — the shape the loop
+/// records so a lost calling turn cannot ride into a template silently.
+nonisolated func mtpHistoryOrphan(_ pairs: [MTPMessagePair]) -> String? {
+    var answered: Set<String> = []
+    for pair in pairs {
+        if pair.role == Chat.Message.Role.assistant.rawValue, let calls = pair.toolCalls {
+            for call in calls {
+                if let id = call.id { answered.insert(id) }
+            }
+        } else if pair.role == Chat.Message.Role.tool.rawValue {
+            let id = pair.toolCallID ?? "<nil>"
+            if !answered.contains(id) { return id }
+        }
+    }
+    return nil
+}
+
 extension EnginePool {
     // MARK: - Denial honesty (tool-result contract)
 
@@ -3490,6 +3525,7 @@ extension EnginePool {
                         // Reset per-iteration state
                         var iterationToolCalls: [MLXLMCommon.ToolCall] = []
                         var toolCallDetected = false
+                        var iterationAnswerText = ""
 
                         // Per-iteration streaming inside a fresh perform { } — this is the
                         // short-lived lock equivalent to upstream ChatSession.respond() pattern.
@@ -3671,6 +3707,7 @@ extension EnginePool {
                                 metrics.incrementGenerated()
                                 // `.chunk` is the answer channel: reasoning never reaches it.
                                 localAccumulatedText += text
+                                iterationAnswerText += text
                                 let (shouldBreak3, newText3) = checkStopSequence(
                                     segment: text,
                                     accumulated: localAccumulatedText,
@@ -3810,6 +3847,13 @@ extension EnginePool {
                             break
                         }
 
+                        // Upstream ChatSession restart-loop shape: the calling turn enters
+                        // the history before any result, or the next template render sees
+                        // tool blocks whose calls were erased from the history.
+                        mtpMessages = mtpToolBoundaryHistory(
+                            pairs: mtpMessages,
+                            answerText: iterationAnswerText,
+                            toolCalls: iterationToolCalls)
                         // Dispatch collected tool calls and accumulate results
                         for toolCall in iterationToolCalls {
                             // Use toolDispatchClosure if available (dispatches via ToolRegistry)
@@ -3887,6 +3931,11 @@ extension EnginePool {
                                     role: Chat.Message.Role.tool.rawValue,
                                     content: result,
                                     toolCallID: toolCall.id, name: toolCall.function.name)
+                            )
+                        }
+                        if let orphan = mtpHistoryOrphan(mtpMessages) {
+                            log.warning(
+                                "MTP loop history unpaired at iteration \(mtpToolLoopCount): tool result \(orphan) has no assistant call"
                             )
                         }
                         // This lane owns its iteration, so a terminal stall ends it rather
