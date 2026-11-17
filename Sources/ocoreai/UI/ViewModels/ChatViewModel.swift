@@ -1130,8 +1130,12 @@ final class ChatState {
             // omission, never a product choice). Native-side contract:
             // InferenceOptions.toolRouting → hasNativeTools → ChatSession tool
             // loop (the same engine path the HTTP wire proves live).
-            let toolSurface: [ToolDef]? =
+            let fullSurface: [ToolDef]? =
                 await OcoreaiEngine.shared.activeToolRegistry?.toToolDefs()
+            // Opt-in curation (`settings.toolSurface.curation.enabled`, default off =
+            // the P0-3 semantics above unchanged); the off/on split is `apply`'s, tested.
+            let toolSurface = ToolSurfaceCuration.apply(
+                fullSurface, enabled: SettingsStore.shared.toolSurfaceCurationEnabled)
 
             let request = InferenceRequest(
                 modelId: model,

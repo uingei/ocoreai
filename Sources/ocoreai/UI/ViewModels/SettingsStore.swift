@@ -177,6 +177,13 @@ final class SettingsStore {
         set { defaults.set(newValue, forKey: Key.updatePlanEnabled.rawValue) }
     }
 
+    /// tools[] 收窄 opt-in（**默认 false** = 全 registry 语义不变；政策是 eval 实测臂，
+    /// 翻默认属 owner 裁决。见 `ToolSurfaceCuration`）。
+    var toolSurfaceCurationEnabled: Bool {
+        get { defaults.bool(forKey: Key.toolSurfaceCurationEnabled.rawValue) }
+        set { defaults.set(newValue, forKey: Key.toolSurfaceCurationEnabled.rawValue) }
+    }
+
     /// True when the user has explicitly set the specDecoding enabled control
     /// (UserDefaults key present). When false, the engine must keep whatever the
     /// authored config declares for that dimension rather than defaulting it.
@@ -646,6 +653,9 @@ final class SettingsStore {
 
         // Plan（update_plan opt-in，对齐 codex `#41744`）
         case updatePlanEnabled = "settings.updatePlan.enabled"
+
+        // tools[] 收窄（ToolSurfaceCuration opt-in，默认 false）
+        case toolSurfaceCurationEnabled = "settings.toolSurface.curation.enabled"
 
         // App
         case appLocale = "settings.app.locale"
