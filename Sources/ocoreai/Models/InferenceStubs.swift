@@ -278,6 +278,10 @@ struct InferenceOptions: Codable {
     /// tools and json_schema — this field lets the engine route tools to
     /// the loop while keeping json_schema on guided.
     var hasNativeTools: Bool = false
+    /// Mid-turn steering (upstream #608/#798): the std lane submits queued SteerQueue
+    /// entries to the live `ChatSession.steer` at generation boundaries instead of waiting
+    /// for a tool-step boundary. Opt-in; false keeps today's boundary-only semantics.
+    var midTurnSteer: Bool = false
     /// When true, enable reasoning/chain-of-thought mode.
     /// Passed as additionalContext["enable_thinking"] to ChatSession.
     /// Three-state (mirrors upstream mlx-swift-lm `thinkingEnabled: Bool?`):
@@ -377,7 +381,7 @@ struct InferenceOptions: Codable {
         declaredToolNames: [String]? = nil,
         declaredToolSpecsJSON: String? = nil,
         forcedContinuation: [Int32]? = nil,
-        headless: Bool = false
+        headless: Bool = false, midTurnSteer: Bool = false
     ) {
         self.maxTokens = maxTokens
         self.includeLogits = includeLogits
@@ -392,6 +396,7 @@ struct InferenceOptions: Codable {
         self.declaredToolSpecsJSON = declaredToolSpecsJSON
         self.forcedContinuation = forcedContinuation
         self.headless = headless
+        self.midTurnSteer = midTurnSteer
     }
 
     init() {}

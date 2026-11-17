@@ -184,6 +184,13 @@ final class SettingsStore {
         set { defaults.set(newValue, forKey: Key.toolSurfaceCurationEnabled.rawValue) }
     }
 
+    /// mid-turn steer opt-in（**默认 false**，flag-staged per 11-11 adopt 裁决；
+    /// 翻默认要 paired board + probe 21 chat arm 绿。见 `InferenceOptions.midTurnSteer`）。
+    var midTurnSteerEnabled: Bool {
+        get { defaults.bool(forKey: Key.midTurnSteerEnabled.rawValue) }
+        set { defaults.set(newValue, forKey: Key.midTurnSteerEnabled.rawValue) }
+    }
+
     /// True when the user has explicitly set the specDecoding enabled control
     /// (UserDefaults key present). When false, the engine must keep whatever the
     /// authored config declares for that dimension rather than defaulting it.
@@ -656,6 +663,9 @@ final class SettingsStore {
 
         // tools[] 收窄（ToolSurfaceCuration opt-in，默认 false）
         case toolSurfaceCurationEnabled = "settings.toolSurface.curation.enabled"
+
+        // mid-turn steer（flag-staged，默认 false）
+        case midTurnSteerEnabled = "settings.steer.midTurn.enabled"
 
         // App
         case appLocale = "settings.app.locale"

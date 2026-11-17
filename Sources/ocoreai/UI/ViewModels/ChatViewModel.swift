@@ -1149,6 +1149,7 @@ final class ChatState {
                 sessionId: inferenceSessionId ?? "chat-\(UUID().uuidString.prefix(8))",
                 cancellation: cancellation,
                 reasoningEffort: samplingCfg.reasoningEffort,
+                midTurnSteer: SettingsStore.shared.midTurnSteerEnabled,
             )
 
             // Stream via Fast Path

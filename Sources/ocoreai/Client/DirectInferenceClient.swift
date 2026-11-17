@@ -55,6 +55,9 @@ struct InferenceRequest {
     /// Reasoning effort (codex-aligned words) for model chat templates (e.g. Qwen3.8).
     let reasoningEffort: String?
 
+    /// Opt-in mid-turn steering for this turn (see `InferenceOptions.midTurnSteer`).
+    let midTurnSteer: Bool
+
     init(
         modelId: String,
         messages: [Message],
@@ -70,6 +73,7 @@ struct InferenceRequest {
         reasoning: Bool? = nil,
         reasoningLevel: String? = nil,
         reasoningEffort: String? = nil,
+        midTurnSteer: Bool = false,
     ) {
         self.modelId = modelId
         self.messages = messages
@@ -85,6 +89,7 @@ struct InferenceRequest {
         self.reasoning = reasoning
         self.reasoningLevel = reasoningLevel
         self.reasoningEffort = reasoningEffort
+        self.midTurnSteer = midTurnSteer
     }
 }
 
@@ -409,6 +414,7 @@ extension DirectInferenceClient {
             reasoningEffort: request.reasoningEffort,
             declaredToolNames: toolRouting.declaredToolNames,
             declaredToolSpecsJSON: toolRouting.declaredToolSpecsJSON,
+            midTurnSteer: request.midTurnSteer,
         )
 
         // Phase 5: Dispatch inference
@@ -794,6 +800,7 @@ extension DirectInferenceClient {
             reasoningEffort: request.reasoningEffort,
             declaredToolNames: toolRouting.declaredToolNames,
             declaredToolSpecsJSON: toolRouting.declaredToolSpecsJSON,
+            midTurnSteer: request.midTurnSteer,
         )
 
         // Phase 5: Dispatch inference — direct stream via generateFromMessages

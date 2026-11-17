@@ -4466,6 +4466,30 @@ extension EnginePool {
                                                 reasoningTokenCount: 0)))
                                     break
                                 }
+                                // #608/#798 opt-in (#798 ships): queued steers enter the live
+                                // session at any generation boundary, upstream applies them at
+                                // its safe point; a rejection re-queues, nothing is ever dropped.
+                                if options.midTurnSteer,
+                                    SteerQueue.shared.pendingCount(sessionKey: convKey) > 0
+                                {
+                                    let queued = SteerQueue.shared.drain(sessionKey: convKey)
+                                    var requeueFrom = queued.count
+                                    for (i, steer) in queued.enumerated() {
+                                        do {
+                                            try chatSession.steer(steer.text)
+                                        } catch {
+                                            requeueFrom = i
+                                            logger.error(
+                                                "mid-turn steer rejected: \(error)"
+                                            )
+                                            break
+                                        }
+                                    }
+                                    for steer in queued[requeueFrom...] {
+                                        SteerQueue.shared.enqueue(
+                                            sessionKey: convKey, text: steer.text)
+                                    }
+                                }
                                 switch generation {
                                 case .chunk(let text):
                                     if actualTokenCount == nil {
@@ -4578,13 +4602,19 @@ extension EnginePool {
                                     self.logger.warning(
                                         "Standard ChatSession path: rejected tool call — reason=\(rejection.reason.rawValue) tool=\((rejection.toolName.map { String($0) } ?? "nil")) detail=\((rejection.detail.map { String($0) } ?? "nil"))"
                                     )
-                                case .steering:
-                                    // Upstream #608: `.applied`/`.failed` only ever follow a
-                                    // `session.steer` submission, and ours still rides SteerQueue at the
-                                    // request seam, so nothing here can produce one — relaying it would
-                                    // advertise a mid-turn steer the wire cannot yet accept. The arm where
-                                    // that changes is this one.
-                                    break
+                                case .steering(let event):
+                                    // Reachable now via the `options.midTurnSteer` submission:
+                                    // applied is silence (the model has it), failed re-queues the
+                                    // verbatim text so the loop-end flush returns it to the user.
+                                    if case .failed(let failure) = event {
+                                        for text in failure.instructions {
+                                            SteerQueue.shared.enqueue(
+                                                sessionKey: convKey, text: text)
+                                        }
+                                        logger.error(
+                                            "mid-turn steer not applied (\(failure.reason)), returned to composer path"
+                                        )
+                                    }
                                 }
                             }
 
