@@ -746,7 +746,7 @@ func bootstrapBuiltInTools(
     try? await registry.register(SpeakClient.toolEntry())
 
     // ── generate_video ─────────────────────────────────────────────────────
-    // 视频生成轴(五要素④)的 agent 可触面: 复用已 absorb 的视频基设
+    // 视频生成轴的 agent 可触面: 复用已 absorb 的视频基设
     //   WanPipeline(coreai-models conformer, 27 门控面)→ [CGImage]
     //   + VideoWriter(coreai-models Output, 纯 AVFoundation)→ mp4/gif/apng/webp。
     // 低于 floor / 无 CoreAI / 权重未部署 → 诚实上报, 不静默失败。

@@ -1,6 +1,6 @@
 // Copyright 2026 uingei@163.com.
 // Licensed under MIT.
-/// 视频生成轴(五要素④)的 agent 可触面 — 一个工具 `generate_video`。
+/// 视频生成轴的 agent 可触面 — 一个工具 `generate_video`。
 /// 形态先例 = SpeechTools(transcribe_audio/speak) + view_screen「基设已建、
 /// 补 agent 面」: 纯核对(规范化/clamp/报告)= 离线可测; 真实 I/O 收口一个
 /// seam, 测试注入 fake,不触 CoreAI、不需要 .aimodel。
