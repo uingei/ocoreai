@@ -108,7 +108,7 @@ Row 6 (prefix sharing) and row 7 (overlap) carry the two real gaps. Cold prefill
 
 | Standard | ocoreai | Verdict |
 |---|---|---|
-| The closest distribution analogue runs DMG + in-app auto-update + `~/.omlx/bin/omlx` shim + brew tap whose optional-kernel flag **degrades instead of failing** (`omlx README.md:50-58`, re-read today) | `UpdateCheck` only notifies; build/publish split is the open cadence item; App-Store trait route exists | ⚠️ P2 = the standing ladder (rung 2), not a new finding — this audit re-confirms the four parts are real and we ship none of them end-to-end yet |
+| The closest distribution analogue runs DMG + in-app auto-update + `~/.omlx/bin/omlx` shim + brew tap whose optional-kernel flag **degrades instead of failing** (`omlx README.md:50-58`, re-read today) | `UpdateCheck` only notifies; build/publish split is the open cadence item; App-Store trait route exists | ⚠️ P2 = the standing ladder (rung 2), not a new finding — this audit re-confirms the four parts are real and we ship none of them end-to-end yet. **11-17 category collision:** LM Studio shipped Bionic, a separate app self-labeled "the AI agent for getting real work done with open models — coding, research, complex work with documents and files" (`lmstudio.ai/docs-md/bionic`, read 11-17) — the closest category rival to our tagline in the field; it carries a cloud escape hatch (Secure Cloud, ZDR, credits), which is their promise-choice against our natively-local one and is **not** a gap to close (owner's local axis) |
 | HIG is authority on anything user-visible | five non-happy states gated per `UI/AGENTS.md` | ✅ pattern |
 
 ## 15. DX
@@ -141,7 +141,7 @@ No GUI comparator in the trees (codex is a TUI; servers are headless) — HIG is
 
 1. **Fixed:** stale upstream cite `Approval.swift:53` (`protocol.rs:4053` → `:4583`).
 2. **Recorded divergence, decision kept:** both faces' pairing refusal is stricter than vllm/sglang's Anthropic-face leniency — kept, documented at row 10.
-3. **Priority queue the matrix generates, in order:** ① interrupt two-tier semantics with the steer pin (row 3), ② `tools[]`-vs-model gate (already ledgered; row 10's honesty family), ③ prefix-sharing/prewarm measurement (rows 6/13), ④ MTP marker-literal verification (row 4 — **closed 11-17**: the defect was not a drifted literal but the missing calling-turn append; fixed and gated, live arm escalated), ⑤ eval head-to-head: rule-compaction vs summary-compaction (row 6), ⑥ model-raised approval asks (row 8 residual), ⑦ AX walk + ⑧ the distribution quartet (row 14).
+3. **Priority queue the matrix generates, in order:** ① interrupt two-tier semantics with the steer pin (row 3), ② `tools[]`-vs-model gate (already ledgered; row 10's honesty family; **field evidence 11-17:** LM Studio Bionic gates its session model picker by task fit — tool and image support the task needs (`lmstudio.ai/docs-md/bionic/models`, read 11-17, web-only source, overview tier); the owner's call stands), ③ prefix-sharing/prewarm measurement (rows 6/13), ④ MTP marker-literal verification (row 4 — **closed 11-17**: the defect was not a drifted literal but the missing calling-turn append; fixed and gated, live arm escalated), ⑤ eval head-to-head: rule-compaction vs summary-compaction (row 6), ⑥ model-raised approval asks (row 8 residual), ⑦ AX walk + ⑧ the distribution quartet (row 14).
 4. **Rows left ❓ on purpose:** deep multimodal parity, rarely-hit wire fields, whole-pipeline watchdog coverage, Metal warmup, per-screen AX — *unverified is a verdict, not a pass*.
 
 ## Maintenance
