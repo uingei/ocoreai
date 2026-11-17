@@ -13,7 +13,10 @@
 > (memory: comparator cites are content-unverified).
 >
 > **Verdicts:** ✅ conforms · ⚠️ deviates (priority attached) · ❓ unverified · ⛔ not applicable at
-> this scale. **Priority:** P1 = a surface can mislead or silently lose content; P2 = shipped behavior
+> this scale. **Tiebreaker (owner ruling 11-17):** converged following is the default; a row deviates
+> legitimately only when a local or Apple premise carries the deviation, and then the row names it.
+> The audited "field" is the six trees this file reads at HEAD; the rest of `~/references` is a library,
+> not an instrument — reading a tree's first page is the unit that promotes it. **Priority:** P1 = a surface can mislead or silently lose content; P2 = shipped behavior
 > the field has and we lack; P3 = depth/efficiency — measure before adopting (no blind copying).
 
 ## 1. Architecture
