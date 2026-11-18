@@ -1,3 +1,5 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
 /// Opt-in per-turn tool-surface curation — decides which measured arm a native turn is
 /// handed, and off means byte-identical to the old full-registry behavior.
 ///
