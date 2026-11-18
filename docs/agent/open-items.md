@@ -264,7 +264,11 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   open half is a product call: the wire is caller-scoped (`Tools/ToolRegistry.swift:135` — no `tools[]`
   declared ⇒ no tools), while the app hands the whole registry over every turn
   (`UI/ViewModels/ChatViewModel.swift` `toToolDefs()`: 40 declarations, 25,092 B, to a 4-bit checkpoint); no comparator
-  does that (cites: `comparator-repos.md`). The field's answer, read 11-04, is not a smarter shortlist but a
+  does that (cites: `comparator-repos.md`). Wiring read 11-19: `ToolSurfaceCuration.apply` has one caller, the GUI view
+  model, and the board drives the wire lane (`GET /v1/tools`), never `SettingsStore` — a paired board verdict on the
+  flag is structurally unreachable, so the flip waits on the owner accepting the wire-lane arms (same checkpoint, same
+  six names) as evidence, or on the GUI-driving harness the repo does not have (§ "GUI e2e proves the window, not the
+  driving"). The field's answer, read 11-04, is not a smarter shortlist but a
   surface that is **reachable rather than resident**, and three trees reached for it independently: hermes
   ships 142 skills in `optional-skills/` that "are not copied to `~/.hermes/skills/` during setup" and are
   installed by a `hermes skills install` verb
