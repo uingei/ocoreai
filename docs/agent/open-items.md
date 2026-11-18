@@ -466,40 +466,23 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   config seat is the owner's. ② Jev's answer half is read from both stacks, unwritten until the answer
   position scores (probe 49; `systemone-decisions.md` § Shape C). ③ drop the `contextLength` alias
   (+ probe 03's clash check) the release after it landed.
-- **A child process inherits the server's whole environment, keys included** (Tools/, MCP/, Security/) —
-  found by reading the seven `Process()` sites, and the premise proved by running it: a Foundation `Process`
-  whose `environment` is never set hands the parent's env to the child (sentinel set here, `env | grep -c` in
-  the child printed 1). Six sites leave it unset — `Tools/ExecTools.swift:191`, `Tools/ExecSessions.swift:278`,
-  `Tools/PostWriteSyntax.swift:123`, `SQLite/SessionWorkspace.swift:209`, `App.swift:677`,
-  `MCP/MCPStdioClient.swift:246` — and the seventh starts *from* the full parent env and adds a marker
-  (`Multimodal/HearingEngineProbe.swift:170-172`). In reach: this server's own bearer keys
-  (`OCOREAI_API_KEYS`/`OCOREAI_ADMIN_KEYS`, `Middleware/AuthMiddleware.swift:48-49`) and whatever the launching
-  shell exported. What is already held: the shell faces are approval-gated (`ExecTools.swift:26` →
-  ApprovalBroker) and every tool result is redacted on the **return** path (`Security/SecretRedactor.swift`,
-  applied at `Tools/ToolRegistry.swift:697`, gated by `SecretRedactorTests` + `ToolResultWireDeliveryTests`).
-  Redaction cannot cover the **handover**: an MCP server is third-party code that holds the bytes the moment it
-  starts, from a command handed to `MCPBridge.connectEndpoint` (`MCP/MCPBridge.swift:931`, reached at `:286`)
-  with no approval concept in its path. Precedent, same defect class: harness2 `742d48f` — "Every launcher
-  except the improver passed the whole host environment to agent subprocesses, keys included" — fixed by
-  scrubbing at every launcher with per-launcher exceptions named in the message and in `docs/SETUP.md`.
-  Three shipped precedents for the same boundary, read off the mirrors 11-04 (§ *Where the field confines a child*
-  in `comparator-consensus.md` holds the axis): TensorFold spawns the MCP child under `/usr/bin/sandbox-exec -p
-  <profile>` with per-config read roots and **refuses** when no profile can be built, naming the way out, while the
-  spawn spec itself carries `sandboxed: true|false` (`TensorFold/app/electron/agent/mcp-process.ts:173-186`);
-  Rapid-MLX declines to *grade* an agent it cannot confine
-  (`Rapid-MLX/scripts/benchmark_glm53_real_tasks.py:226-228`); and deepseek-harness is the one that treats it as a
-  product surface — four `packages/sandbox/*` packages (95 tracked files today) confining a subprocess to a
-  **file-effect** policy of `read-only` / `workspace-write` / `danger-full-access` with per-platform backends, where
-  a denied call "can retry through a user-approved one-time escalation" and the same paragraph states the limit
-  instead of hiding it: *"Confinement is same-world only: it shares the host kernel and filesystem"*
-  (`../references/deepseek-harness/packages/sandbox/README.md:12`). None is a scrubber, so none answers the
-  handover alone — the third one is the shape of the boundary, the first two are the shape of the refusal.
-  Owner call (§ Working here: a security edge names mode, likelihood and cost first, and no guard gets written
-  on an unobserved failure): mode = a user registers an MCP server the way READMEs tell them to; likelihood =
-  deterministic, not a race — the child receives the env at exec; cost = one scrub policy at the launchers that
-  own a value plus the exception each needs (the probe needs its marker, the syntax checker needs `PATH`).
-  Not claimed: that any checkpoint here has been observed reading a key — the finding is the code path and the
-  proved premise, not an incident. No root § Open line: the cap has no headroom to spare, so the address stays here.
+- **An MCP child is confined by nothing; its env was the closed half** (Tools/, MCP/, Security/) —
+  the handover that survives the scrub: an MCP server is third-party code holding whatever argv and
+  working directory its config hands it, started by `MCPBridge.connectEndpoint`
+  (`MCP/MCPBridge.swift:931`, reached at `:286`) with no approval concept in its path; the server's
+  keys now leave its env (`Security/ChildProcessEnv`, and the closed-log row names its two test
+  gates), but no file or network boundary confines the child. Shipped shapes read off the mirrors
+  (cites re-read at their trees 11-18): TensorFold starts the MCP child under a platform sandbox and
+  throws when no profile can be built, naming the way out
+  (`../references/TensorFold/app/electron/agent/mcp-process.ts:173-186`); deepseek-harness makes the
+  boundary a product surface — `read-only` / `workspace-write` / `danger-full-access` with a
+  user-approved one-time escalation for a denied call, and states its own limit in the same
+  paragraph ("Confinement is same-world only",
+  `../references/deepseek-harness/packages/sandbox/README.md:12`). Owner call (§ Working here:
+  mode = a user registers an MCP server the way the READMEs tell them to; likelihood = deterministic
+  once a server misbehaves — the child holds whatever filesystem the server process holds; cost =
+  one boundary at the one launcher that starts third-party code). None of it observed as an
+  incident, so this stays an address, not a diff.
 - **A wire route can point this box's camera, microphone and screen at a caller** (Handlers/, Multimodal/,
   Security/) — the same authority question as the bullet above, inbound instead of outbound. `POST
   /v1/multimodal/capture` takes `camera | microphone | screen` (`Handlers/MultimodalHandler.swift:24-28`), is keyed
