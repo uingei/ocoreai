@@ -213,10 +213,13 @@ off, no homepage, `VISION.md` absent, 0 watchers (`subscribers_count`, 11-09). E
    (`cmd/launch/claude.go:15`), Rapid-MLX's `launch <agent>` over 17 profiles with a reversible private profile
    and a merge that documents how it avoids deleting the user's own entries (`rapid_mlx/agents/isolated.py:23`,
    `config_merge.py:1-15`), openclaw's plugin-swap line.
-   Ours is a documented copy-step (`README.md:152`, `:156` — `cp -R skills/ocoreai ~/.codex/skills/`), which is
-   honest and current but asks the reader to wire the env themselves. A CLI verb is a new core surface ⇒ owner
-   call, though the consumer exists today (any Claude Code/Codex install), so this is the ladder's cheapest
-   unpaid rung-6 part.
+   Ours now ships the launcher: `ocoreai connect <harness>` points the installed harness's
+   `ANTHROPIC_BASE_URL` at the probed bridge, writes no config file, and the child's exit is the whole undo —
+   the live half is judged by probe 55, and the launcher's env went through the same child-process ruling as
+   every other spawn site. The README's agent section leads with it, so the shape the stranger reads matches
+   the shape that ships. What rung 6 still owes is not a verb: probe 40 run to an outside witness (a
+   stranger's agent handed only the skill finds the server and finishes the task), and the generated-client
+   decision, which is a promise and stays the owner's.
 7. **Editors as clients (ACP)** — the rung `docs/agent/open-items.md` already cites: goose ships
    `agent-client-protocol` 2.2.0 and hermes-agent an `acp_adapter`; a third surface is a new core
    surface, so it waits on the owner.
