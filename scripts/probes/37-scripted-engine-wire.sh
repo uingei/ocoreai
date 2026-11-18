@@ -24,8 +24,8 @@
 #   7. A broken script fails loudly: the cause reaches the client (5xx off, diagnostic on), never a
 #      quiet empty turn that looks finished.
 #   8. Static floor: the scoreboard still refuses a scripted backend.
-#   9. The tool count AGENTS.md quotes is this server's: the injected file says how many tools the wire
-#      advertises, so a tool added or left unregistered must move the sentence, not age inside it.
+#   9. (retired — see the note before where it sat; numbers left the injected root doc by rule, and
+#      this seat read nothing else.)
 #  10. `/v1/stats` accounting: one turn moves the request counter once and the declared token counts
 #      once; a streaming turn enters the TTFB histogram exactly once and a non-streaming one not at
 #      all. Those counters are advertised on `/v1/capabilities`, and nothing had read them while a
@@ -259,25 +259,12 @@ else
     "published as a task-success score, which is the one thing this tier must never allow"
 fi
 
-# 9 — the injected context quotes one number about the tool surface; this is the seat that can check it,
-# because the count is a property of a running server, and every prose check runs without one.
-# The phrasing around the number is prose and gets rewritten (it drifted from "measures 6 of the 43
-# tools" to "scores 6 of the 40 advertised tools" and this scan silently found nothing), so match on
-# the shape that carries the fact — "6 of [the] N [advertised|registered] tools" — not on one wording.
-DOC_TOOLS="$(sed -nE 's/.*6 of (the )?([0-9]+)( (advertised|registered))? tools.*/\2/p' \
-  "$PROBE_REPO_ROOT/AGENTS.md" | head -1)"
-probe_require_int "the tool count AGENTS.md quotes" "${DOC_TOOLS:-}"
-probe_api GET /v1/tools
-ADVERTISED="$(printf '%s' "$PROBE_BODY" \
-  | python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("data", [])))')"
-probe_require_int "GET /v1/tools entries" "$ADVERTISED"
-if [ "${DOC_TOOLS:-x}" = "${ADVERTISED:-y}" ]; then
-  probe_ok "AGENTS.md quotes $DOC_TOOLS advertised tools — the injected number is this server's"
-else
-  probe_fail "AGENTS.md quotes ${DOC_TOOLS:-?} advertised tools, /v1/tools answers ${ADVERTISED:-?} — a" \
-    "tool landed or stopped registering and the injected context still describes the old surface; fix" \
-    "the sentence in AGENTS.md or the registration, whichever is wrong"
-fi
+# 9 — retired, and the note is the record so the tier says it every run rather than only in history:
+# this seat compared the tool count quoted in the injected root doc against a live `/v1/tools`; the
+# root doc now moves every measured number out of itself by rule, so the quote it read no longer
+# exists and a check on a retired premise is deleted, not demoted. `/v1/tools` itself keeps live
+# seats in probes 11/12/21/40/44.
+probe_note "§9 retired: the injected root doc quotes no tool count anymore, so this seat has no subject"
 
 # 10 — the counters `/v1/capabilities` advertises ("Structured inference counters and gauges") must
 # move exactly once per turn. `/v1/stats` was a published promise no probe had read while a turn ran
