@@ -51,6 +51,17 @@ public enum ChildProcessEnv {
         "OCOREAI_TOKEN",
     ]
 
+    /// Strip only the named secrets and keep everything else. For launchers that
+    /// must carry the operator's own environment by design — `ocoreai connect`
+    /// hands a harness the caller's config, so a full whitelist would break its
+    /// contract; the secrets are what must never ride. The secret list has one
+    /// home: `deniedKeys`, which both this and `sanitized` read.
+    public static func removingSecrets(
+        from source: [String: String] = ProcessInfo.processInfo.environment
+    ) -> [String: String] {
+        source.filter { !deniedKeys.contains($0.key) }
+    }
+
     /// Return a sanitised environment dictionary for child processes.
     ///
     /// - Parameter source: the source environment (default: `ProcessInfo.processInfo.environment`).

@@ -117,6 +117,19 @@ struct HarnessConnectTests {
         let empty = HarnessConnect.environmentForLaunch(
             baseURL: "http://x:1", incoming: ["ANTHROPIC_API_KEY": ""])
         #expect(empty["ANTHROPIC_API_KEY"] == HarnessConnect.synthesizedAPIKey)
+        // The server's own keys are not part of the caller's contract: a launcher must not
+        // hand them to a child (same ruling `ChildProcessEnv` applies at every other site).
+        let leaked = HarnessConnect.environmentForLaunch(
+            baseURL: "http://x:1",
+            incoming: [
+                "PATH": "/usr/bin", "OCOREAI_API_KEYS": "sk-server", "OCOREAI_ADMIN_KEYS": "sk-admin",
+                "OCOREAI_BEARER": "sk-bearer", "OCOREAI_TOKEN": "sk-token",
+            ])
+        #expect(leaked["PATH"] == "/usr/bin")
+        #expect(leaked["OCOREAI_API_KEYS"] == nil)
+        #expect(leaked["OCOREAI_ADMIN_KEYS"] == nil)
+        #expect(leaked["OCOREAI_BEARER"] == nil)
+        #expect(leaked["OCOREAI_TOKEN"] == nil)
     }
 
     @Test("the plan is four exact lines per server state — the user reads the whole verdict")

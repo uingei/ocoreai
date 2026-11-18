@@ -159,13 +159,15 @@ enum HarnessConnect {
         ]
     }
 
-    /// The child's environment: inherited plus the measured contract. A caller-supplied key is
-    /// kept — severing a real credential is probe 53's job (it must prove one possible source),
-    /// not connect's, where the base URL alone already routes every request here.
+    /// The child's environment: inherited minus the server's own secrets, plus the measured
+    /// contract. A caller-supplied key is kept — severing a real credential is probe 53's job (it
+    /// must prove one possible source), not connect's, where the base URL alone already routes
+    /// every request here. The server's keys are not the caller's contract: the connect launcher
+    /// scrubs them like every other spawn site.
     static func environmentForLaunch(baseURL: String, incoming: [String: String]) -> [String:
         String]
     {
-        var env = incoming
+        var env = ChildProcessEnv.removingSecrets(from: incoming)
         env["ANTHROPIC_BASE_URL"] = baseURL
         let existingKey = env["ANTHROPIC_API_KEY"] ?? ""
         if existingKey.isEmpty {
