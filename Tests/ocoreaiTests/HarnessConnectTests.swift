@@ -122,7 +122,8 @@ struct HarnessConnectTests {
         let leaked = HarnessConnect.environmentForLaunch(
             baseURL: "http://x:1",
             incoming: [
-                "PATH": "/usr/bin", "OCOREAI_API_KEYS": "sk-server", "OCOREAI_ADMIN_KEYS": "sk-admin",
+                "PATH": "/usr/bin", "OCOREAI_API_KEYS": "sk-server",
+                "OCOREAI_ADMIN_KEYS": "sk-admin",
                 "OCOREAI_BEARER": "sk-bearer", "OCOREAI_TOKEN": "sk-token",
             ])
         #expect(leaked["PATH"] == "/usr/bin")

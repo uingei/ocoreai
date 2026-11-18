@@ -5,7 +5,6 @@
 // mechanism shipped before any gate read it; this suite is the red it owed.
 import Foundation
 import Testing
-
 @_spi(ChildProcessEnv) import ocoreai
 
 @Suite("ChildProcessEnv")
