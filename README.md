@@ -150,6 +150,20 @@ Known boundaries (as of this commit, not aspirations):
 > `reasoningEffort` (`honored` | `template_ignores` | `not_observed` — a word your request sends that the
 > checkpoint measurably never reads is refused 400 with the remedy, never answered 200 as if it had landed) — and `GET /v1/capabilities` publishes the same measurements aggregated, plus `tokenizerBackend` (`real`/`heuristic`) and the endpoint index. Nothing is inferred from an architecture name or a linked framework: an unmeasured capability is an explicit `not_observed`/`unknown`, never a silent absence, and unloading a model resets its claims. Model ids contain `/`, and `/v1/models/:model/…` accepts them verbatim (`org/name`) as well as percent-encoded (`org%2Fname`).
 
+#### The measured gallery
+
+The table below is a copy of one `GET /v1/models` against a server that had **measured** these
+checkpoints — every verdict word is defined in the paragraph above, and an empty cell means
+not-yet-observed, never unsupported. Until the first measured refresh the block carries a placeholder and `models.json` is absent.
+Both committed copies are regenerated, never hand-edited:
+`bash scripts/gen-model-gallery.sh http://127.0.0.1:8080` writes the README block and its
+machine-readable twin `models.json`, and `ModelGallerySyncTests` goes red if the two drift,
+if a verdict leaves the wire vocabulary, or if the pair is ever half-written.
+
+<!-- gallery:start -->
+No measured rows committed yet — run the command above against a measured server.
+<!-- gallery:end -->
+
 ---
 
 ### Drive it from another agent

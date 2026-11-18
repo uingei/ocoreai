@@ -360,11 +360,14 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **A measured gallery is the one adoption surface we can win outright** (README/, Handlers/) — the leaders
   advertise model support as adjectives while `/v1/models` already publishes per-checkpoint measured verdicts
   (`vlm`, `contextLength`, `toolCallDelivery`, `reasoningEffort`, `videoInput`) and `scripts/eval/` scores a
-  task board (count: `_eval.py count`, never re-typed here); owed is the artefact — a generated README table
-  plus `models.json` (absent), refreshed by a probe with its
-  command beside it (precedent: pi publishes its catalog from CI behind a compatibility gate,
-  `../references/pi/.github/workflows/publish-model-catalog.yml:1-14`). Owner call: publishing a catalog is
-  promising it stays true, and the refresh probe going red on a stale row is the instrument.
+  task board (count: `_eval.py count`, never re-typed here). The artefact landed 11-19: the README carries a
+  gallery section, `scripts/gen-model-gallery.sh` is its refresh command (it copies one `GET /v1/models`
+  verbatim and refuses an unmeasured server, so a row the server never measured cannot be written), and
+  `ModelGallerySyncTests` gates the committed pair (README block vs `models.json`, cell-for-cell, verdict
+  words bound to the ledger sources, placeholder-or-consistent never half, comparator witnessed against
+  synthetic drift). Owed: the rows themselves — a refresh run against a server that has measured checkpoints
+  (this host has no resident measured set and no server on 8080 as of 11-19), which is an owner act beside
+  publishing, since publishing a catalog is promising it stays true.
 
 - **`/v1/embeddings` had no probe seat; its declared fields have one now** (Handlers/, Engine/) —
   measured 11-05 against the cached canonical embedder with real weights, on a live server. What is sound:
