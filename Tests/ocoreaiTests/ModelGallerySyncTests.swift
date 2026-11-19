@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ModelGallerySyncTests.swift — the committed gallery is one GET's two copies, or a placeholder.
+/// ModelGallerySyncTests.swift — the committed gallery is two copies of one GET, or a placeholder.
 ///
 /// README's gallery block and `models.json` are both renders of one `GET /v1/models`
 /// (`scripts/gen-model-gallery.sh`); a published table that rots is the surface claiming more
