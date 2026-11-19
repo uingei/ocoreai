@@ -2018,11 +2018,10 @@ extension EnginePool {
             }
         }
 
-        // b2: Delivery of perception media (image bytes/audio) — attach to the
-        // last user message so VLMs receive actual pixels/audio. The LLM-only
-        // rejection at L1448 (hasMultimodalContent) already guards user-attached
-        // media; perception media is only injected for VLMs (loaded.isVlm), so
-        // the same guarantee holds here. Text/OCR frames stay on the system
+        // Delivery of perception media (image bytes/audio) — attach to the last user
+        // message so VLMs receive actual pixels/audio. `hasMultimodalContent` already
+        // refuses LLM-only turns, and perception media is injected only for VLMs
+        // (loaded.isVlm), so the same guarantee holds here. Text/OCR frames stay on the system
         // path via contextText() — see mediaContentParts() doc.
         if loaded.isVlm {
             let perceptionMedia = await MainActor.run {
@@ -2098,8 +2097,8 @@ extension EnginePool {
         ///
         /// Bridge: when tools are registered, we pass them to ChatSession along with
         /// a toolDispatch closure that routes ToolCall → ToolRegistry.call() and back.
-        /// This activates the ChatSession's built-in tool-dispatch agent loop (L748 restart)
-        /// instead of relying solely on the local AgentLoop coordinator.
+        /// This activates ChatSession's own tool-dispatch agent loop instead of relying
+        /// solely on the local AgentLoop coordinator.
         func runInferenceBody(wiredMemoryTicket: MLX.WiredMemoryTicket?) async throws {
             // Phase timing for the stretch a client waits before generation even
             // starts. Live probe (10-13) measured the first request of every fresh
@@ -2224,9 +2223,8 @@ extension EnginePool {
             // images empty) still enters the FM text path where its audio_url
             // bytes are silently dropped. Widen the gate to ALL media kinds:
             // any message with images/videos/audios routes to the else-path
-            // ChatSession (streamDetails(to: newMessages)), which carries
-            // ChatMessageMedia.audios through upstream respond()
-            // (ChatSession.swift L714/718 → executor) intact.
+            // ChatSession (`streamDetails(to: newMessages)`), which carries
+            // ChatMessageMedia.audios through upstream respond() intact.
             let hasMediaContent = mlxMessages.contains {
                 !$0.images.isEmpty || !$0.videos.isEmpty || !$0.audios.isEmpty
             }
@@ -2237,13 +2235,10 @@ extension EnginePool {
             // records the result in the transcript but does
             // NOT continue — the final model answer stays empty and
             // `full.content` is a THROWing
-            // init. The ChatSession path (L2749
-            // `chatSession.tools = registeredToolSpecs` +
-            // `chatSession.toolDispatch = toolDispatchClosure` →
-            // MLXLMCommon "loop can restart on tool calls", L1003) IS the
-            // loop the code comments (L2156/L2583) describe as the intended
-            // route. json_schema (no tools) stays on FM guided — that is
-            // guided's real job (schema-constrained single-shot output).
+            // init. The ChatSession path (`chatSession.toolDispatch = toolDispatchClosure`)
+            // IS the loop that restarts on tool calls — MLXLMCommon owns it.
+            // json_schema (no tools) stays on FM guided: schema-constrained
+            // single-shot output is guided's real job.
             let hasNativeTools = options.hasNativeTools
             if #available(macOS 27.0, iOS 27.0, *), let mlxLM = loaded.mlxLanguageModel,
                 !hasMediaContent, !hasNativeTools
