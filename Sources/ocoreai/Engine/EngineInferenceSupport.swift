@@ -39,11 +39,11 @@ struct MTPDrafterModelWrapper: @unchecked Sendable {
 /// no-tools turn spent 255 tokens inside the thought channel and the caller
 /// received the thought as the answer with `finish_reason=length` (probe 44 §1).
 /// Upstream's `ThinkingBudgetProcessor` is the only thing that both bounds and
-/// counts a thought (`Libraries/MLXLMCommon/ThinkingBudget.swift:486`), and it
+/// counts a thought, and it
 /// requires a budget transition — which only Qwen declares. `.immediate` is
 /// upstream's app-side opt-in and fires only once the ceiling is reached: it
 /// closes the span with the model's own delimiter and adds nothing
-/// (`ThinkingBudget.swift:83`).
+/// (`ReasoningBudgetTransition.immediate`).
 ///
 /// Orthogonal to this repo's own `ThinkingBudget` actor, which *proposes* a budget
 /// adaptively from session history; this type is the hard ceiling generation cannot pass.
@@ -339,7 +339,7 @@ func guidedCompletionReserves(
 /// concrete cause (a `GuidedGenerationError`, an OOM, a timeout), so clients could
 /// not distinguish a grammar exhaustion from a memory failure. This preserves the
 /// underlying `localizedDescription` while keeping the `Inference failed:` prefix
-/// clients already parse. Mirrors the pipelined catch at L1020, which composes
+/// clients already parse. Mirrors the catch in `_runPipelinedConstrainedDecoding`, which composes
 /// `error.localizedDescription` into its message.
 ///
 /// `@testable` surface: a pure function of the thrown error, unit-testable without a model.
@@ -411,9 +411,8 @@ func makeMLXImage(from urlString: String) -> MLXLMCommon.UserInput.Image? {
             let base64Data = String(urlString[urlString.index(after: lastComma)...])
             guard let data = Data(base64Encoded: base64Data) else { return nil }
             // Decode via CGImageSource with auto-orient so EXIF orientation
-            // is baked into pixel data before CIImage consumes it (CIImage
-            // ignores EXIF orientation, causing rotated output.  Aligns with
-            // mlx-swift-examples ChatView.swift L105-128.)
+            // is baked into pixel data before CIImage consumes it: CIImage
+            // ignores EXIF orientation, which would rotate the output.
             guard let source = CGImageSourceCreateWithData(data as CFData, nil),
                 let cgImage = CGImageSourceCreateImageAtIndex(
                     source,
@@ -478,9 +477,8 @@ func makeMLXAudio(from urlString: String) -> (
 /// `(input, spooledURL)` shape, and the same lifetime rule: the spool file belongs to
 /// the conversation, not to this request.
 ///
-/// Why this exists: before this, the extraction at L1704-1708 did
-/// `URL(string: videoUrl)` → `.url(dataURL)` directly. Upstream
-/// `MediaProcessing.asProcessedSequence` wraps it in `AVAsset(url:)`, which
+/// Why this exists: `URL(string: videoUrl)` → `.url(dataURL)` hands the data: URL to upstream
+/// `MediaProcessing.asProcessedSequence`, which wraps it in `AVAsset(url:)` — it
 /// cannot decode a data: URL — the video is silently dropped (zero video
 /// tokens; the model answers boilerplate as if no video is present). Decoding
 /// to a real file makes the bytes reachable by AVFoundation — the same fix the audio

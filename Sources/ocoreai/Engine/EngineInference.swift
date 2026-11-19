@@ -34,8 +34,8 @@ import FoundationModels
 
 /// The prompt a lane builds for itself, with this turn's instructions in front of it.
 ///
-/// Upstream `ChatSession` renders its `instructions` as a leading `.system` message
-/// (`ChatSession.swift:1069-1070`), and these lanes filter every `system` role out of the
+/// Upstream `ChatSession` keeps its `instructions` out of the message feed — they ride the
+/// template render as a separate input — and these lanes filter every `system` role out of the
 /// feed they build (`nonSystemMessages`) so the text can be handed to ChatSession on its
 /// own. A lane that prepares its own `LMInput` around ChatSession and skips this prepend
 /// feeds the conversation and drops the instructions: measured 11-01 on a resident
@@ -204,9 +204,9 @@ nonisolated func mtpMessagePairs(
     }
 }
 
-/// Upstream's ChatSession restart-loop shape (ChatSession.swift:1959): the assistant
-/// turn that emitted the calls enters the history before any result answers them, so
-/// the next iteration's template renders paired tool blocks.
+/// Upstream's ChatSession restart-loop shape (`.assistant("", toolCalls:)` ahead of the
+/// first dispatched result): the assistant turn that emitted the calls enters the history
+/// before any result answers them, so the next iteration's template renders paired tool blocks.
 nonisolated func mtpToolBoundaryHistory(
     pairs: [MTPMessagePair],
     answerText: String,
@@ -2378,7 +2378,7 @@ extension EnginePool {
                     // enable_thinking 默认 ON）→ thinking-only 输出时 SDK 的 String 投影
                     // content 合法地为空，token 全在 reasoning。上游 MLXLanguageModel
                     // 把 thinking/response 作为独立 channel 事件（destination .reasoning /
-                    // .response，MLXLanguageModel.swift:699-712），SDK 对应产出
+                    // .response），SDK 对应产出
                     // Transcript.Entry.reasoning（macOS 27）+ usage.output.reasoningTokenCount。
                     // 三仓（coreai-models / mlx-swift-lm / codex）消费面共识：thinking 是
                     // 独立事件流，不丢弃、不默认关。ocoreai 非 FM 路也 emit .reasoning ——
@@ -2892,7 +2892,7 @@ extension EnginePool {
             ///
             /// Guided gen and MTP already answer no here. The std-reasoning lane must too:
             /// it renders its own `LMInput` and calls `generateTokensTask` with `cache:`
-            /// unset (`Evaluate.swift:2647`), so its prompt starts from an empty cache and
+            /// unset (upstream defaults that parameter to nil), so its prompt starts from an empty cache and
             /// anything withheld from it is simply not in the model's context — measured
             /// 11-01, where a warm plain turn forgot a fact its cold twin answered. The same
             /// conversation on the `ChatSession` route reused 768 of 789 tokens and answered
@@ -2956,7 +2956,7 @@ extension EnginePool {
                     let forked = await rewind.source.session.fork(
                         history: Array(mlxMessages[0 ..< rewind.historyEnd]))
                     // A fork inherits the parent's configuration, and sampling lives on the
-                    // session rather than the call (`ChatSession.swift:371`), so a fork that
+                    // session rather than the call (the anchor names `generateParameters`), so a fork that
                     // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:431 public var generateParameters
                     // keeps last turn's knobs answers this turn under them — the same drift
                     // `staleSamplingFields` names on the pool-hit path.
@@ -4852,7 +4852,7 @@ extension EnginePool {
             )
 
             // Propagate error if caught — preserve the underlying cause (aligned
-            // with the pipelined catch at L1020: a generic "inference failed" loses
+            // with the catch in `_runPipelinedConstrainedDecoding`: a generic "inference failed" loses
             // the GuidedGenerationError/OOM/timeout distinction clients need).
             if let caughtError {
                 continuation.yield(
