@@ -44,6 +44,11 @@ enum ScriptedInference {
         /// Declared counts, published as-is: they describe the script, not a measurement.
         var promptTokens: Int?
         var generatedTokens: Int?
+        /// Speculation telemetry, declared like the counts above. Omitting them claims nothing: the
+        /// `.done` slots stay nil exactly as a real turn without an active drafter leaves them.
+        var proposedDraftTokens: Int?
+        var acceptedDraftTokens: Int?
+        var passthroughReason: String?
 
         struct Call: Decodable {
             var id: String = ""
@@ -70,10 +75,14 @@ enum ScriptedInference {
             finishReason = try c.decodeIfPresent(String.self, forKey: .finishReason) ?? "eos"
             promptTokens = try c.decodeIfPresent(Int.self, forKey: .promptTokens)
             generatedTokens = try c.decodeIfPresent(Int.self, forKey: .generatedTokens)
+            proposedDraftTokens = try c.decodeIfPresent(Int.self, forKey: .proposedDraftTokens)
+            acceptedDraftTokens = try c.decodeIfPresent(Int.self, forKey: .acceptedDraftTokens)
+            passthroughReason = try c.decodeIfPresent(String.self, forKey: .passthroughReason)
         }
 
         private enum CodingKeys: String, CodingKey {
             case segments, reasoning, toolCalls, finishReason, promptTokens, generatedTokens
+            case proposedDraftTokens, acceptedDraftTokens, passthroughReason
         }
     }
 
@@ -178,7 +187,10 @@ enum ScriptedInference {
                             kind: .done(
                                 reason,
                                 tokenCount: script.generatedTokens,
-                                promptTokenCount: script.promptTokens)))
+                                promptTokenCount: script.promptTokens,
+                                proposedDraftTokens: script.proposedDraftTokens,
+                                acceptedDraftTokens: script.acceptedDraftTokens,
+                                passthroughReason: script.passthroughReason)))
                 case .failure(let error):
                     continuation.yield(InferenceEvent(kind: .error(String(describing: error))))
                 }

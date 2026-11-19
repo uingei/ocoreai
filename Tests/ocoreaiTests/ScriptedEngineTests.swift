@@ -54,6 +54,9 @@ struct ScriptedEngineTests {
         #expect(script.finishReason == "eos")
         #expect(script.promptTokens == nil)
         #expect(script.generatedTokens == nil)
+        #expect(script.proposedDraftTokens == nil)
+        #expect(script.acceptedDraftTokens == nil)
+        #expect(script.passthroughReason == nil)
     }
 
     @Test("the turn is the script, in order, with the declared counts")
@@ -84,7 +87,7 @@ struct ScriptedEngineTests {
         guard
             case .done(
                 let reason, let tokenCount, let promptTokenCount, _, _, _,
-                let cachedPromptTokens, _, _, _) = got[4]
+                let cachedPromptTokens, let proposed, let accepted, let passthrough) = got[4]
         else {
             throw SubmissionFailure("last event is not .done: \(got[4])")
         }
@@ -93,6 +96,37 @@ struct ScriptedEngineTests {
         #expect(promptTokenCount == 7)
         // Invariant 2: a replay reuses no prefix, so it must not arrive owning a cache claim.
         #expect(cachedPromptTokens == nil)
+        // The same rule for speculation: a script that declares no drafter owns no acceptance.
+        #expect(proposed == nil)
+        #expect(accepted == nil)
+        #expect(passthrough == nil)
+    }
+
+    @Test("declared speculation telemetry arrives verbatim at the seam the app reads")
+    func declaredDraftTelemetryRidesDone() async throws {
+        let lease = ProcessGlobalLease(envKeys: [Self.envKey])
+        defer { lease.release() }
+        _ = try writeScript(
+            """
+            {"segments":["A"],"promptTokens":9,"generatedTokens":20,
+             "proposedDraftTokens":120,"acceptedDraftTokens":74,
+             "passthroughReason":"drafter-family-mismatch"}
+            """,
+            lease: lease)
+        let got = try await collect()
+        guard
+            case .done(
+                _, let tokenCount, _, _, _, _, _,
+                let proposed, let accepted, let passthrough) = got.last
+        else {
+            throw SubmissionFailure("last event is not .done: \(String(describing: got.last))")
+        }
+        #expect(tokenCount == 20)
+        #expect(proposed == 120, "the declared count must ride as-is to the .done slot")
+        #expect(accepted == 74)
+        #expect(
+            passthrough == "drafter-family-mismatch",
+            "the name of a silent fallback is exactly what this seam must be able to carry")
     }
 
     @Test("an unknown finishReason is a named error, never an empty turn")

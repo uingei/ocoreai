@@ -30,7 +30,7 @@ claim coverage → 1.0. The product surface grows only where a gate already meas
 | B′ | tasks that can produce a cell | set size, pass/fail split, noise band: `scripts/eval/README.md` (not restated here — a figure in two homes drifts) | `_repeat_stats.py` on the base root |
 | C | cost of one verdict | minutes; the floor is inference throughput, so ≤3 min/proposal is throughput-bound, not orchestration | `stat -f %m` on the run dirs → deltas |
 | G | goal-post write surface | **0** (allow = 1 prefix, protected = 15 judgement paths) | `scripts/eval/autoloop-allow.txt` / `autoloop-protected.txt`, gated by `scripts/eval/_autoab_selftest.py` + `_autoab_mutate.py` |
-| S | claim coverage | incomplete: doc claims + probe-index reproduce; gap = MTP acceptance (counters exist, **no gate reads them** — the suite with that name asserts on its own literals, `open-items.md`); truncation disclosed, ungated | `make docs-check` + rung 3 |
+| S | claim coverage | incomplete: doc claims + probe-index reproduce; the MTP-acceptance gap closed 11-19 weight-free (script-declared telemetry rides the same `.done` slots the real engine fills, read by `ScriptedEngineTests`; the real engine's fill waits the live drafter, `open-items.md`); truncation disclosed, ungated | `ScriptedEngineTests` + probe 37 + rung 3 |
 
 
 **Why B is the constraint**: stable-pass tasks give *no* upward evidence yet *can* trip the regression veto,

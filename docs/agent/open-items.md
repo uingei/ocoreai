@@ -210,8 +210,13 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   `ChatViewModel.swift:1189`. ② Resolved 11-11: `b1cfb64`'s two "behavioral" suites (14+13), which
   *sounded* like this gate, were independently re-read and deleted — every assertion judged its own
   literals, none called production; the closed-log row carries that proof plus the real guided-gen gates
-  that stand. What stays ungated exactly as before the deletion: the threading itself — the flag row
-  below owes the one emit + one read.
+  that stand. The threading's one emit + one read landed 11-19 weight-free: the script may declare
+  `proposedDraftTokens`/`acceptedDraftTokens`/`passthroughReason` and `ScriptedInference.stream()`
+  rides them as-is into the same three `.done` slots the real engine fills and `DirectInferenceClient`
+  destructures; `ScriptedEngineTests` pins both boundaries (declared arrives verbatim, undeclared
+  stays nil — a script that names no drafter owns no acceptance). Measured, still ungated: the REAL
+  engine's fill of those slots (it needs the live drafter named below); what stays open is lane policy
+  on acceptance, which the ruling keeps with the loop-flag flip.
   ③ The field spends that same counter as lane *policy*, not a published number: `mlx-serve` stops speculation
   mid-decode once per-draft acceptance falls under break-even and stays off for the request
   (`../references/mlx-serve/docs/performance.md:20`). Nobody else is moving on it: `MTPLX` — the tree our own
