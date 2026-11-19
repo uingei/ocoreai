@@ -166,6 +166,36 @@ No measured rows committed yet — run the command above against a measured serv
 
 ---
 
+### Call it from your code
+
+Both snippets are the shapes a gated probe asserts against exact values —
+`scripts/probes/56-openai-sdk-consumer.sh` boots a server and drives the canonical OpenAI SDK
+over them (the way vLLM proves its own wire: the promise is a proven claim, not a client we
+maintain). With `OCOREAI_API_KEYS` set, send the key as `Authorization: Bearer <key>` (curl)
+or `api_key` (SDK); unset means no auth.
+
+```bash
+curl -s http://127.0.0.1:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"<an id from GET /v1/models>","messages":[{"role":"user","content":"Hello"}]}'
+```
+
+```python
+from openai import OpenAI  # pip install 'openai>=2.25.0,<3' — the same pin the probe gates with
+
+client = OpenAI(base_url="http://127.0.0.1:8080/v1", api_key="unset-means-nothing")
+reply = client.chat.completions.create(
+    model="<an id from GET /v1/models>",
+    messages=[{"role": "user", "content": "Hello"}],
+)
+print(reply.choices[0].message.content)
+```
+
+`GET /openapi.json` renders the whole contract off the endpoint index above;
+`GET /v1/capabilities` publishes the live backend and endpoint list.
+
+---
+
 ### Drive it from another agent
 
 `skills/ocoreai/` is a published skill that teaches an outside harness — Claude Code, Codex, or any agent that
