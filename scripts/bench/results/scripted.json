@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "lane": "scripted",
+  "publish_status": "internal preparation \u2014 external publication needs release authorization",
+  "regenerate": "make bench",
+  "generated_at": "2026-11-19T22:23:52+0800",
+  "tree": {
+    "commit": "efe3442460f126679429499af2addcaab2860d7f",
+    "dirty_paths": 3
+  },
+  "host": {
+    "chip": "Apple M5 Max",
+    "arch": "arm64",
+    "macos": "26.6.2",
+    "kernel": "25.6.0",
+    "python": "3.9.6"
+  },
+  "toolchain": "/usr/bin/swift",
+  "binary": {
+    "path": "/Users/uingei/ocoreai/.build/out/Products/Release/ocoreai",
+    "size_bytes": 99491320
+  },
+  "conditions": {
+    "repeats": 3,
+    "script": {
+      "segments": 200,
+      "prompt_tokens": 512,
+      "generated_tokens": 1664
+    },
+    "prompt_sha256": "1303361b145bca06",
+    "prompt_bytes": 719,
+    "request_params": {
+      "temperature": "omitted \u2014 server default applies; the scripted lane emits declared tokens, so sampling is not exercised on this lane",
+      "seed": "n/a \u2014 no sampling on this lane"
+    },
+    "limiter_note": "scripted lane emits pre-declared tokens: tok_s is HTTP/SSE plumbing overhead, not model throughput"
+  },
+  "metrics": {
+    "tok_s": {
+      "median": 68847.813,
+      "samples": [
+        19646.244,
+        68847.813,
+        69806.71
+      ]
+    },
+    "ttft_ms": {
+      "median": 8.133,
+      "samples": [
+        68.546,
+        7.929,
+        8.133
+      ]
+    },
+    "req_latency_ms": {
+      "median": 20.603,
+      "samples": [
+        21.779,
+        20.603,
+        20.597
+      ]
+    },
+    "prompt_tokens_server": 512
+  },
+  "server_stats_raw": {
+    "activeSessions": 0,
+    "avgInferenceSeconds": 0.014797389000000001,
+    "avgTTFBSeconds": 0.0003,
+    "loadedModels": 0,
+    "timestamp": 1795098232,
+    "totalGeneratedTokens": 9984,
+    "totalInferenceSeconds": 0.088784334,
+    "totalPromptTokens": 3072,
+    "totalRequests": 6,
+    "ttfbSampleCount": 3
+  },
+  "correctness": {
+    "stream_bytes_match": true,
+    "usage_equals_declared": true
+  }
+}

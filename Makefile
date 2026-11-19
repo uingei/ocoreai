@@ -25,7 +25,7 @@ else
   endif
 endif
 
-.PHONY: all build release release-mac27 app dmg test test-ci test-clt probes format format-check audit clean metallib help push-ready ci-status spell install-hooks openapi sf-pin drift
+.PHONY: all build release release-mac27 app dmg test test-ci test-clt probes bench format format-check audit clean metallib help push-ready ci-status spell install-hooks openapi sf-pin drift
 
 all: build
 
@@ -297,6 +297,18 @@ test-ci:
 probes:
 	@echo "🔬 Live probes against a freshly booted ocoreai serve..."
 	bash scripts/probes/run.sh
+
+# The third instrument: probes say the wire tells the truth, eval says the agent finishes
+# real jobs, bench says how fast and at what token cost — as a committed, machine-readable
+# artifact a third party regenerates with this one command (scripts/bench/README.md).
+# The scripted lane weights nothing and needs no Metal device, so it runs on any host that
+# builds the binary; the measured-weight lane (live serve + checkpoint) is the planned
+# second mode, unmeasured until it lands — the artifact records its absence rather than a
+# number (invariant 2). Numbers here are internal preparation; publishing them externally
+# is a release act and needs the owner's authorization.
+bench:
+	@echo "📊 Reproducible benchmark artifact (scripted lane; zero weights)..."
+	bash scripts/bench/run.sh
 
 # swift-format is the only style gate — aligned with upstream
 # (mlx-swift-lm / coreai-models ship no swiftlint; .swift-format is
