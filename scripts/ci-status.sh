@@ -53,6 +53,34 @@ if not runs:
     print("❌ no check-runs for %s@%s — CI has not seen this commit, or the scan rotted"
           % (repo, sha[:7])); raise SystemExit(2)
 
+# The contract is the MAIN push, but /commits/{sha}/check-runs answers for every ref whose head is
+# this sha — a queued-then-cancelled tag-push leg reddened a commit whose own main run concluded
+# all-green. Verdict from main's runs only; other refs' legs print as ignored, never counted.
+def run_id(r):
+    m = re.search(r"/actions/runs/(\d+)", r.get("html_url") or "")
+    return int(m.group(1)) if m else -1
+
+try:
+    with urllib.request.urlopen(
+            "https://api.github.com/repos/%s/actions/runs?head_sha=%s&branch=main&per_page=100"
+            % (repo, sha), timeout=20) as resp:
+        main_ids = {x["id"] for x in json.load(resp).get("workflow_runs", [])}
+except Exception as exc:
+    print("ci-status: COULD NOT ASK — main run list unreadable (%s; unauthenticated is 60 req/h)"
+          % type(exc).__name__); raise SystemExit(2)
+if not main_ids:
+    print("ci-status: COULD NOT ASK — %s has no main-branch run; a suite on another ref "
+          "is not the declared authority" % sha[:9]); raise SystemExit(2)
+kept, ignored = {}, []
+for r in runs:
+    rid = run_id(r)
+    if rid not in main_ids:
+        ignored.append(r); continue
+    prev = kept.get(r.get("name", "?"))
+    if prev is None or rid > run_id(prev):
+        kept[r.get("name", "?")] = r
+runs = sorted(kept.values(), key=lambda r: r.get("name", ""))
+
 # Skippable by design: the DMG leg exists only for a tag push.
 def step_seconds(st):
     import datetime
@@ -77,6 +105,9 @@ for r in sorted(runs, key=lambda r: r.get("name", "")):
         unknown += 1
     else:
         bad.append("%s=%s" % (name, concl))
+for r in sorted(ignored, key=lambda r: r.get("name", "")):
+    print("  %-42s ignored — run %s is not a main push: %s"
+          % (r.get("name", "?")[:42], run_id(r), r.get("html_url")))
 # A green leg can swallow a red: a step with `continue-on-error` concludes success while its own
 # annotation says failure, which is how a step that had never produced an artefact sat failing on
 # every run of the authority leg. Opt-in because the price is one call per green leg.
