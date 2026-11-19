@@ -146,7 +146,7 @@ Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`.
 ## Open — measured, unresolved
 Root owes the address only — area, instrument, whose call it waits on; full evidence: `docs/agent/open-items.md`.
 - Loop stall stops hard, and the std lane only by consent — owner call: the terminal word (`LoopStallTerminationTests`).
-- A no-tool turn cannot be interrupted (#608 steer at this pin) — ruled adopt-then-retire, flag-staged.
+- A no-tool turn steers and stops flag-staged (both #608/#798 halves on the std lane) — owner call: the default flip; bypass lanes keep rollback.
 - The tool surface is ungated against the loaded model — owner call; `reasoning_effort`'s gate
   (`ReasoningEffortHonestyTests` + probe 38) is the pattern to extend.
 - The surviving release is ad-hoc signed; Gatekeeper's download path stays unjudged — owner call (probe 41).

@@ -3747,9 +3747,9 @@ extension EnginePool {
                                     case .length: .maxTokens
                                     case .cancelled: .cancelled
                                     case .interrupted:
-                                        // Upstream #798: only `interrupt(response:)` emits it, unreachable
-                                        // until we wire that API; both are user-requested stops, and the
-                                        // retain-vs-rollback split is decided when the API is wired.
+                                        // Upstream #798: `ChatSession.interrupt()` is the only emitter and
+                                        // this lane bypasses ChatSession, so a user stop here keeps the
+                                        // consumer-cancel rollback — permanent shape, not unwired.
                                         .cancelled
                                     case .steered:
                                         // Upstream #608: the step yielded to steering and continues, so the
@@ -4249,14 +4249,14 @@ extension EnginePool {
                                         case .length: .maxTokens
                                         case .cancelled: .cancelled
                                         case .interrupted:
-                                            // Upstream #798: only `interrupt(response:)` emits it,
-                                            // unreachable until that API is wired; user-requested stop,
-                                            // like `.cancelled` — see the MTP site's arm for the split.
+                                            // Upstream #798: `ChatSession.interrupt()` is the only emitter
+                                            // and this flat token route builds its own cache outside a
+                                            // ChatSession response — permanent shape, not unwired.
                                             .cancelled
                                         case .steered:
                                             // Upstream #608: a step handed off to mid-turn steering, so the
-                                            // turn has not ended — the prior reason stands. Unreachable until
-                                            // we call `session.steer`; no wire word is invented for it.
+                                            // turn has not ended — the prior reason stands. This route calls
+                                            // no `session.steer`; no wire word is invented for it.
                                             localStdStopReason
                                         }
                                     // MTP speculative decoding metrics (upstream Evaluate.swift)
@@ -4427,6 +4427,7 @@ extension EnginePool {
                     // (file scope) — pinned by StdToolCallRecoveryTests exact values.
                     var stdRetryMessages: [MLXLMCommon.Chat.Message] = newMessages
                     let maxStdRejectedAttempts = StdToolCallRecovery.maxAttempts
+                    var interruptSubmitted = false
                     for stdRejectedAttempt in 1 ... maxStdRejectedAttempts {
                         do {
                             guard let chatSession else {
@@ -4444,26 +4445,44 @@ extension EnginePool {
                                     to: stdRetryMessages
                                 )
                             {
-                                if Task.isCancelled || cancellation.isCancelled {
-                                    let cancelTokPerSec =
-                                        (actualTokenCount ?? 0) > 0
-                                        ? Double(actualTokenCount ?? 0)
-                                            / (Double(metrics.overallMs) / 1000.0)
-                                        : nil
-                                    continuation.yield(
-                                        .init(
-                                            kind: .done(
-                                                StopReason.cancelled,
-                                                tokenCount: actualTokenCount ?? 0,
-                                                tokPerSec: cancelTokPerSec,
-                                                promptTokPerSec: promptTokPerSec,
-                                                reasoningTokenCount: 0)))
-                                    break
+                                if Task.isCancelled || cancellation.isCancelled, !interruptSubmitted
+                                {
+                                    // #798 cancel half, same opt-in as the submit below: a user stop
+                                    // asks upstream to end at its safe point keeping the reply, then
+                                    // drains to the normal end so the release books a turn whose KV
+                                    // matches its transcript. Consumer-cancel below stays the rollback.
+                                    if options.midTurnSteer {
+                                        do {
+                                            try chatSession.interrupt()
+                                            interruptSubmitted = true
+                                        } catch {
+                                            logger.error(
+                                                "mid-turn interrupt rejected: \(error) — stop takes the rollback route"
+                                            )
+                                        }
+                                    }
+                                    if !interruptSubmitted {
+                                        let cancelTokPerSec =
+                                            (actualTokenCount ?? 0) > 0
+                                            ? Double(actualTokenCount ?? 0)
+                                                / (Double(metrics.overallMs) / 1000.0)
+                                            : nil
+                                        continuation.yield(
+                                            .init(
+                                                kind: .done(
+                                                    StopReason.cancelled,
+                                                    tokenCount: actualTokenCount ?? 0,
+                                                    tokPerSec: cancelTokPerSec,
+                                                    promptTokPerSec: promptTokPerSec,
+                                                    reasoningTokenCount: 0)))
+                                        break
+                                    }
                                 }
                                 // #608/#798 opt-in (#798 ships): queued steers enter the live
                                 // session at any generation boundary, upstream applies them at
                                 // its safe point; a rejection re-queues, nothing is ever dropped.
-                                if options.midTurnSteer,
+                                // A submitted stop stops accepting new input, not drains the stale queue.
+                                if options.midTurnSteer, !interruptSubmitted,
                                     SteerQueue.shared.pendingCount(sessionKey: convKey) > 0
                                 {
                                     let queued = SteerQueue.shared.drain(sessionKey: convKey)
@@ -4565,9 +4584,9 @@ extension EnginePool {
                                         case .length: .maxTokens
                                         case .cancelled: .cancelled
                                         case .interrupted:
-                                            // Upstream #798: only `interrupt(response:)` emits it,
-                                            // unreachable until that API is wired; user-requested stop,
-                                            // like `.cancelled` — see the MTP site's arm for the split.
+                                            // Upstream #798: emitted when the cancel route above called
+                                            // `interrupt()`. The reply is recorded upstream, so the split
+                                            // landed as retain; on the wire it stays a user-requested stop.
                                             .cancelled
                                         case .steered:
                                             // Upstream #608: the step yielded to steering and a successor

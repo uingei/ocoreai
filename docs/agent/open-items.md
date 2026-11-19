@@ -141,24 +141,21 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   again that evening (`git ls-remote --heads https://github.com/ml-explore/mlx-swift-lm` exit 0, refs listed).
   A flapping host premise, so re-test that one line before the hand; nothing was re-resolved blind. Owner call
   unchanged: the bump is a hand, not a gate.
-- **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
-  and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). Upstream `mlx-swift-lm`
-  answered the rest at the 11-07 pin: #608 put mid-turn steering *in* `ChatSession` (`steer(_:policy:)` applies at a complete-text or
-  step boundary, keeps emitted output and completed tools, reports `GenerateStopReason.steered` per yielded
-  step plus a `Generation.steering` event; the `db2e7bf`/`observe(to:using:)` seam this row cited yesterday
-  was only the hook — and `991266ad3`, which an earlier copy named, is that same day's #710, a prefill-buffer
-  cache). Nothing of ours calls it: the four switch arms the bump added are inert until `SteerQueue` reaches
-  `session.steer` on the session's owning actor and the wire can take a steer mid-stream.
-  **11-17 the bump to `bf5a5d438` carried #798:** steer now ends a step at the next safe point *inside a
-  thought* (upstream app on M5 Max: 0.22-0.30 s steer-to-new-text on Qwen3.8-27B where pre-#798 measured
-  6.9-8.1 s; every cut append-only on the cache), and `interrupt(response:)` ends a whole response at that
-  safe point with the reply recorded — no rollback, `GenerateStopReason.interrupted`. Our three new switch
-  arms map it to `.cancelled` and stay unreachable until the API is wired; the cancel half of this row's
-  adopt plan now has an upstream route, the queued-input guard (codex's second tier) stays ours to design.
-  **Adjudicated 11-11 by the lane read: adopt, staged.** Upstream owns the loop the wrapper duplicates:
-  `restart:` at `ChatSession.swift:1327` threads `mtpDrafterContinuation` stepwise; `steer` is public
-  (`:1094`), `interrupt(response:)` at `:1117`, read at this checkout. Landing: an opt-in loop-selection flag (default local), flip on a paired board verdict plus
-  probe 21 `chat`-arm green, loser deleted whole. The stall row's terminal word stays the owner's.
+- **A no-tool turn steers and stops, both halves flag-staged** (Engine/) — upstream #608/#798 at the
+  `bf5a5d438` pin owns mid-turn input: `steer(_:policy:)` ends a step at the next safe point *inside a
+  thought* (upstream-app measured 0.22-0.30 s steer-to-new-text vs 6.9-8.1 s pre-#798), and
+  `interrupt(response:)` ends a response there with the reply recorded, no rollback,
+  `GenerateStopReason.interrupted`. Both halves reached the std `ChatSession` lane behind one opt-in
+  (`InferenceOptions.midTurnSteer`): steers submit at any generation boundary (11-18), and a user stop
+  calls `interrupt()` from the consuming loop and drains to the stream's normal end (11-20), so the
+  retain-vs-rollback split landed as **retain** — the pooled release books a turn whose KV matches the
+  transcript upstream recorded, where consumer-cancel had rolled the transcript back under a pool
+  history the release had already extended (shape read of both sites, not a live number). Still open,
+  none of it decision: the flip-to-default is the owner's (paired board verdict + probe 21 `chat`-arm
+  green, loser deleted whole — the 11-11 adopt ruling); the wire lane has no `midTurnSteer` caller
+  (GUI only today); the queued-input guard (codex's second tier) stays ours to design; and the lanes
+  that bypass `ChatSession` (MTP, the flat token route) keep consumer-cancel's rollback — their
+  `.interrupted` arms are permanent shape, not unwired. The stall row's terminal word stays the owner's.
 - **Thinking is uncounted on the tools lane** (Engine/) — probe 44 §2: 550 chars, no
   `reasoning_tokens`. Upstream counts only via the processor that also bounds the thought, and a
   bound there starves the tool call (§2b: 200→500 at 64 tokens). A count-only processor waits

@@ -61,11 +61,17 @@ one fork site, one decision home, reserve at every resolver exit), `SessionIsola
 mismatch, precedence, round trip), probe 27 (live server: reuse asserted, replaced fact absent from
 the reply). Pre/post numbers: `CHANGELOG.md`.
 
-## Steering is delivered at the request seam
+## Steering is delivered at the request seam — and mid-turn when opted in
 `mergingSteeredTurn` (`Sources/ocoreai/Handlers/ChatHandler.swift`) folds a queued steer into the head
-of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:3079`,
-`:3815`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
-delivers on the next request, or its contract is fiction (wire guide: `Handlers/AGENTS.md` § Endpoint Promises).
+of the *next* request; the tool-dispatch loop and the GUI composer flush stay on that queue. Mid-turn
+delivery is one opt-in (`SettingsStore.midTurnSteerEnabled` → `InferenceOptions.midTurnSteer`, default
+off): the std `ChatSession` lane submits queued steers **and a user stop** (`ChatSession.interrupt()`)
+from inside the consuming loop — `ChatSession` is documented non-thread-safe, so no watcher Task may
+call either — and stops taken this way retain the reply upstream records (`.interrupted` maps to
+`.cancelled`); consumer-cancel's rollback stays the flag-off shape, as it stays the only shape on the
+lanes that bypass `ChatSession` (MTP, the flat token route). Every accept-then-deliver surface must
+name the line that delivers on the next request, or its contract is fiction
+(wire guide: `Handlers/AGENTS.md` § Endpoint Promises).
 
 ## Video is disclosed where a turn completes, not where bytes arrive
 `/v1/models` may say `video_input=delivered` only once a turn that carried frames has *completed*:
