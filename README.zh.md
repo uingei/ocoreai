@@ -125,11 +125,49 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 
 > 其余路由在设了 `OCOREAI_API_KEYS` 之后一律要 API key —— **包括 `GET /v1/perception`**：它不在 `AuthRoutePolicy.publicPaths` 里，所以是带鉴权的。该集合是这份名单的唯一真源 —— 文档须与其保持可 grep 一致（P10 随 bespoke 文档门于 11-16 退役）。
 
+#### 实测画廊
+
+下表是对**已实测**这些 checkpoint 的服务做一次 `GET /v1/models` 的拷贝 —— 每个裁决词的定义见上文段落，空格子只表示尚未观测，绝不表示不支持。在第一次带实测数据的刷新之前，此块保持占位，`models.json` 不存在。
+两份已提交的拷贝都是再生成的，从不手改：
+`bash scripts/gen-model-gallery.sh http://127.0.0.1:8080` 写出 README 块及其机器可读孪生 `models.json`，`ModelGallerySyncTests` 会在两者漂移、某个裁决词离开 wire 词表、或这对文件只写了一半时判红。
+
+尚无已实测的行被提交 —— 对一个已实测的服务运行上面的命令。
+
+---
+
+### 从你的代码调用它
+
+两段代码都是被门控 probe 按精确值断言的形状 ——
+`scripts/probes/56-openai-sdk-consumer.sh` 自起服务，用它驱动规范的 OpenAI SDK
+（vLLM 证明自己的 wire 也是这个方式：承诺是被证明的断言，不是我们维护的客户端）。设了 `OCOREAI_API_KEYS` 时，密钥走 `Authorization: Bearer <key>`（curl）或 `api_key`（SDK）；不设即无认证。
+
+```bash
+curl -s http://127.0.0.1:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"<an id from GET /v1/models>","messages":[{"role":"user","content":"Hello"}]}'
+```
+
+```python
+from openai import OpenAI  # pip install 'openai>=2.25.0,<3' — 与 probe 门控所用的同一 pin
+
+client = OpenAI(base_url="http://127.0.0.1:8080/v1", api_key="unset-means-nothing")
+reply = client.chat.completions.create(
+    model="<an id from GET /v1/models>",
+    messages=[{"role": "user", "content": "Hello"}],
+)
+print(reply.choices[0].message.content)
+```
+
+`GET /openapi.json` 把整份契约从上面的端点索引渲染出来；
+`GET /v1/capabilities` 发布实时的后端与端点列表。
+
 ---
 
 ### 让另一个 Agent 来驱动
 
-`skills/ocoreai/` 是一份对外发布的 skill，教外部 harness——Claude Code、Codex，或任何读 Markdown 文件的 agent——驱动本服务：端点索引、agent 循环契约，以及把 `not_observed` 与 `supported` 分开的诚实词表都在里面。它是被执行验证的，不是被采信的：`bash scripts/probes/run.sh 39` 自起一个服务、跑完每一条文档化的调用，命中的 marker 少于自己的下界就判红。安装：`cp -R skills/ocoreai ~/.codex/skills/`（其他宿主见 `skills/README.md`）。不想读文档的客户端可以直接从 `GET /v1/capabilities` → `endpoints[]` 枚举同一套接口，那份索引由构建门钉在路由上。
+`skills/ocoreai/` 是一份对外发布的 skill，教外部 harness——Claude Code、Codex，或任何读 Markdown 文件的 agent——驱动本服务：端点索引、agent 循环契约，以及把 `not_observed` 与 `supported` 分开的诚实词表都在里面。它是被执行验证的，不是被采信的：`bash scripts/probes/run.sh 39` 自起一个服务、跑完每一条文档化的调用，命中的 marker 少于自己的下界就判红。Claude Code 一步安装：`/plugin install ocoreai --marketplace uingei/ocoreai`（仓库经 `.claude-plugin/` 就是自己的 plugin marketplace；这条命令行是 `claude plugin validate` 规定的那条）。其他宿主：`cp -R skills/ocoreai ~/.codex/skills/`（见 `skills/README.md`）。不想读文档的客户端可以直接从 `GET /v1/capabilities` → `endpoints[]` 枚举同一套接口，那份索引由构建门钉在路由上。
+
+站在这台机器上可以跳过安装：`ocoreai connect claude-code` 会把已安装 harness 的 `ANTHROPIC_BASE_URL` 指向这座桥启动 —— 不写任何配置文件，子进程退出就是全部撤销，`--dry-run` 只打印计划不 exec（`scripts/probes/55-connect-harness-launch.sh` 用替身 harness 裁决这条启动）。
 
 连文档都不读的客户端可以直接拿契约：仓库根的 `openapi.json`，或者向运行中的服务 `GET /openapi.json`。两者是同一份生成结果——`make openapi`
 用刚构建出的二进制重新生成该文件（`ocoreai --openapi`），而只要 git 里的文件与渲染结果除了版本号还有任何差异，`OpenAPIContractTests`
