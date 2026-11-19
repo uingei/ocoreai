@@ -1,5 +1,7 @@
 # syntax-regression-gate
 
+problem: write-durability-gate-cost
+
 **Claim (one sentence):** moving the syntax truth before the write — a file that compiles/parses
 today is not rewritten into bytes that do not, with the compiler's own line in the refusal — kills
 the 11-08 failure class where `edit_lines` replaced a whole valid `page.py` with the orphan fragment

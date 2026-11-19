@@ -1,5 +1,7 @@
 # verify-before-done
 
+problem: claim-without-verify
+
 **Claim (one sentence):** making the verify duty operational — "before you say done, verify with a tool" —
 instead of report-shaped ("report how you verified") moves the write/repair tasks where the model currently
 persists wrong bytes and claims done (board 11-08: `out.txt` missing the suffix, `b.txt` missing `-2`,

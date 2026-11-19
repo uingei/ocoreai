@@ -1,5 +1,7 @@
 # exec-notfound-path-hint
 
+problem: exec-127-recovery-hint
+
 Claim: when `exec_command` exits 127, naming the PATH neighbour that exists
 (`python3` at its full path) turns "this approach fails" into a re-runnable fact, so the
 tasks lost to `python`-vs-`python3` recover without any prompt sentence. Measured face:

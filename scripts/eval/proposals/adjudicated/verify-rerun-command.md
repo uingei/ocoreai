@@ -1,5 +1,7 @@
 # verify-rerun-command
 
+problem: claim-without-verify
+
 Claim: binding verification to the command that *showed* the problem — "run that same
 command again after your change, only call it fixed if it now succeeds" — keeps the
 claim-without-verify gain of `verify-order-before-done` (45:11 discordant on the frozen

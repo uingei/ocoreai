@@ -1,5 +1,7 @@
 # verify-order-before-done
 
+problem: claim-without-verify
+
 Claim: adding an ordering clause to `toolActionDirective` — run the change with
 `exec_command` before calling it finished, because a file tool's `OK` only means the
 bytes were saved — moves the multi-step claim-without-verify face: stably-failing board

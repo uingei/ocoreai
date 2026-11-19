@@ -332,9 +332,17 @@ def main():
                        "bare re-run buys it again; a revised payload gets a new stem or an "
                        "explicit path" % os.path.relpath(path, HERE))
     for path in adj:
-        if os.path.splitext(os.path.basename(path))[0] not in measured_stems:
-            bad.append("%s is parked in adjudicated/ with no measured verdict — that is how a live "
-                       "proposal escapes the queue" % os.path.relpath(path, HERE))
+        stem = os.path.splitext(os.path.basename(path))[0]
+        # A `X-tests.patch` test companion archived beside its adjudicated X was consumed with
+        # the proposal (fad3a8f3's source+test pair); the ledger keys the source stem, so the
+        # companion carries no row of its own. A revised payload gets no such passage — `-v2`
+        # is not a `-tests` companion and must hold its own measured row.
+        if stem in measured_stems or (
+            stem.endswith("-tests") and stem[: -len("-tests")] in measured_stems
+        ):
+            continue
+        bad.append("%s is parked in adjudicated/ with no measured verdict — that is how a live "
+                   "proposal escapes the queue" % os.path.relpath(path, HERE))
     archive_calls = [l for l in script.splitlines() if "archive_proposal" in l]
     if not any("keep" in l and "$decision" in l for l in archive_calls):
         bad.append("autoab.sh no longer gates archive_proposal on a measured verdict on the same "

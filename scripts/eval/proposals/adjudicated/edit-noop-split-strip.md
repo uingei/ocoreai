@@ -1,5 +1,7 @@
 # edit-noop-split-strip — price the merged split by removing it
 
+problem: edit-mismatch-refusal-value
+
 `2f63a64c` split the 5-word `oldString == newString` refusal into two states (file already
 holds the text vs. wrong quote), and the CHANGELOG row that shipped it stated the honest
 limit itself: *"the board verdict is next round's autoab row, not this entry's claim."* The
