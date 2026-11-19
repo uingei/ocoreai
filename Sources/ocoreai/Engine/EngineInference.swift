@@ -442,7 +442,7 @@ extension EnginePool {
                 let engine = try await loaded.getCachedEngine()
                 // Grammar request → route to the constrained path by ENGINE
                 // CAPABILITY, aligned with upstream coreai-models
-                // CoreAILanguageModel.respondConstrained (L582-596):
+                // `CoreAILanguageModel.respondConstrained`:
                 //   ConstrainedGenerationCapable (GPU pipelined, #170)
                 //     → PipelinedConstrainedDecodingStrategy
                 //       (xgrammar bitmask applied inside the MPSGraph sampler
@@ -533,14 +533,14 @@ extension EnginePool {
                 // We replicate that segmentation here so CoreAI path no longer
                 // bypasses reasoning segmentation and tool-call detection.
                 // Upstream: ThinkTagParser defaults to ``; open/close
-                // markers resolved at model init from tokenizer token ids
-                // (CoreAILanguageModel.swift L384-388). Use upstream defaults
+                // markers come from `detectThinkingFormat(using:)`, which feeds the
+                // `ThinkTagParser` the generation loop builds. Use upstream defaults
                 // unless model-specific detection is available.
                 // Detect primedInside: Qwen3-thinking / DeepSeek-R1 prefill the opening
                 // delimiter into the prompt, so the first generated token is already
                 // reasoning content. Without this, the entire thought block is misrouted
                 // to .text events.
-                // Upstream coreai-models ThinkTagParser defaults (L42/L256) and the
+                // Upstream coreai-models `ThinkTagParser` defaults and the
                 // Qwen3.5 chat template both use the short `think`/`think` markers
                 // (byte-verified: 3c 74 68 69 6e 6b 3e / 3c 2f 74 68 69 6e 6b 3e).
                 let openMarker = "<think" + ">"
@@ -570,7 +570,7 @@ extension EnginePool {
                 // (CoreAI path doesn't provide per-token reasoning boundaries.)
                 var accumulatedReasoningChars = 0
                 // Decode in batches to reduce detokenize overhead — mirrors MLX path
-                // batch detokenize strategy (ChatHandler L778 decodeBatchSize = 8).
+                // batch detokenize strategy (`decodeBatchSize` in `ChatHandler`).
                 let decodeBatchSize = 8
                 // Native stop sequence detection — no MLX fallback needed.
                 // upstream CoreAIExecutor.respondVanilla() does the same text-level check
@@ -888,7 +888,7 @@ extension EnginePool {
     /// but the decode loop runs on the GPU pipelined engine — the xgrammar
     /// bitmask is applied inside the MPSGraph sampler (no ~296KB logits CPU
     /// round-trip per token). Aligned with upstream coreai-models
-    /// `CoreAILanguageModel.respondConstrained` (L582-596), which routes to
+    /// `CoreAILanguageModel.respondConstrained`, which routes to
     /// `PipelinedConstrainedDecodingStrategy` when the engine is
     /// `ConstrainedGenerationCapable`.
     ///
@@ -1715,7 +1715,7 @@ extension EnginePool {
         #endif
 
         // Vision capability guard: reject multimodal input for LLM-only models.
-        // Aligns with MLXLanguageModel Executor.respond() L950-965 — the adapter
+        // Aligns with the `.vision` capability guard in upstream `MLXLanguageModel` respond — the adapter
         // is the only place that can enforce .vision before loading any weights.
         if !loaded.isVlm, messages.contains(where: \.hasMediaPart) {
             continuation.yield(
@@ -1895,9 +1895,9 @@ extension EnginePool {
         // These are deliberately NOT deleted when the request ends. Upstream ChatSession
         // keeps the message it was given, with the resolved media URL inside it, and
         // re-feeds that whole transcript to `processor.prepare` on every later turn of the
-        // conversation (ChatSession.swift:1354 — `templateMessages = leadingMessages +
+        // conversation — `templateMessages = leadingMessages +
         // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1336 templateMessages = leadingMessages
-        // currentConversation.messages`; gated by `make anchor-check`). Bytes deleted here therefore cost the
+        // currentConversation.messages` (the anchor carries the number). Bytes deleted here therefore cost the
         // conversation its own history: measured 10-16, a clip posted as a data URL was
         // answered correctly on turn 1 ("Red", +79 prompt tokens) and every turn after it
         // failed with `500 … The operation could not be completed`, permanently, while the
@@ -1916,9 +1916,8 @@ extension EnginePool {
         defer { MediaSpool.unpin(spooledMedia) }
 
         // Extract system prompt for ChatSession's instructions: channel.
-        // Upstream L186/L219: instructions are prepended as .system messages
-        // inside ChatSession — passing them via messages: triggers duplicate
-        // tokenization (upstream L319-322).
+        // Upstream prepends instructions itself (`leadingMessages.append(.system(instructions))`)
+        // — passing the same text via `messages:` too puts it in the rendered prompt twice.
         //
         // P-S1 fix: Append perception context to system instructions so
         // multimodal environment awareness flows through the correct path

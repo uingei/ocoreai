@@ -181,8 +181,7 @@ enum StdToolCallRecovery {
         .user(correctivePrompt)
     }
 
-    // reasonCode 取上游 `RejectedToolCall.Reason.rawValue`(pin c6446cf,
-    // Libraries/MLXLMCommon/Tool/RejectedToolCall.swift:13)的原始字符串 —
+    // reasonCode 取上游 `RejectedToolCall.Reason.rawValue` 的原始字符串 —
     // 与引擎日志同源, 不另造映射。
 
     /// Context-aware corrective prompt (live-evidence variant).
