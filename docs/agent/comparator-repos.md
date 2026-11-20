@@ -220,6 +220,13 @@ Contains: MTP drafter/acceptance behaviour against our `_runInferenceWithMessage
   measurement (MLX peak over each chunk's end state, reset per prompt) and narrows the width before refusing.
 Borrow: consumed — pricing from measurement landed as `Engine/KVCacheResidency.swift` + probe 35 (bytes read
   off the cache, not a constant); narrow-before-refuse still has no ocoreai seam
+Re-read 11-20 at `eb580fce`, which convicted this row of more than staleness: the tree is now a product
+  shipping the flagship — first screen "The fastest way to run Qwen 3.8 on a Mac", Qwen 3.8 Flash Next
+  125B-A6B on native MTP (`README.md:5,15`), a receipts board with a version/machine/date on every number
+  (`:19-36`), and its own honesty line at its version boundary: the image path rides the compiled verifier
+  while "that sampled comparison has not yet been repeated for images" (`:34`). Our pin's inability was
+  re-measured the same day (`qsa`/`ngram` zero times in the built checkout) — the gap and its owner decision
+  keep their one home in the `Qwen3.8-Flash-Next` row; this row's addition is the "a small tree ships it" pressure.
 
 - `vllm-metal` — Metal backend for vllm
 Contains/Borrow: touched, mostly out of stack for a Swift-native engine; where the Jev axis was first
@@ -588,6 +595,78 @@ Contains: it is the frontend our own middleware names — `Sources/ocoreai/Middl
 Borrow: header and proxy semantics only — where a trust boundary reads a forwarded-for header, this tree is
   the authority for what the header means; registered so the five-clone sweep closes with a verdict on every
   disk tree, not a shrug.
+
+- `foundation-models-utilities` — Apple's utilities package over the Foundation Models framework
+  (`apple/foundation-models-utilities`, Apache-2.0; HEAD `6c5a04c` 10-30), registered 11-20 on the owner's
+  deep-research read, zero prior cites
+Contains: the package's load-bearing half is `ChatCompletionsLanguageModel` — it "can communicate with any
+  server that uses the chat completions REST API" (`README.md:47`), i.e. Apple's `LanguageModelSession`
+  pointed at *any* OpenAI-compatible server (`Sources/FoundationModelsUtilities/LanguageModels/ChatCompletionsLanguageModel.swift:23`):
+  appends `/v1/chat/completions` unless the base URL already carries a version (`:632`), sends
+  `stream_options {include_usage: true}` (`:731`), `response_format` and `tool_choice` (`:729-732`); plus
+  history helpers (`RollingWindow`, `DropCompletedToolCalls`, `SummarizeHistory`) and a `skills/` tree that
+  teaches foreign coding agents the package. Its tests are a served-side expectation checklist: SSE edge
+  cases, tool calling, usage reporting, error handling, structured output
+  (`Tests/FoundationModelsUtilitiesTests/LanguageModelsTests/ChatCompletionsTests+*.swift`).
+Borrow: **a consumer channel our wire already fits** — our `streamOptions.includeUsage` emits the final-SSE
+  usage chunk (`Handlers/ChatHandler.swift:2023-2024`), `responseFormat` parses (`Models/OpenAIModels.swift`),
+  probes 12/54 hold delivery; what is missing is a live round-trip of *this* client against us and the
+  publication by which an FM-based iOS app finds us. Verdict and ownership: `references-problem-map.md`
+  § Field-solved here 1; the shipped-`skills/` pattern behind rung 6 gains its third pin-adjacent tree here.
+
+- `gemini-cli` — Google's terminal agent, maintained for enterprise Code Assist (HEAD `d4cb1713f` 11-19),
+  registered 11-20 on the owner's deep-research read, zero prior cites
+Contains: a first screen of demotions — free tier and AI Pro/Ultra moved to Antigravity CLI on 06-18
+  (`README.md:14`), "Not optimized for Gemini 4+" (`:15`), and the load-bearing line: "Don't use Gemini CLI
+  to benchmark Gemini models — its harness isn't tuned for Gemini 4+ and produces unrepresentative scores"
+  (`:16`).
+Borrow: one cite — a peer writing in its own README that a harness drifted from its model produces
+  confidently unrepresentative scores is § Open's tool-surface premise stated by Google. The tree is not a
+  benchmark instrument here (its README says so); the consequence keeps its one home in § Open.
+
+- `mlx-lm` — Apple's Python MLX LM package (HEAD `2d4df8d` 11-19), registered 11-20 because the clone sat on
+  disk unregistered since the corpus began
+Contains: generation, LoRA/full fine-tuning, quantize-to-Hub and `mx.distributed` over MLX (`README.md:3-14`)
+  — the Python sibling of our pin 1.
+Borrow: nothing to take — fine-tuning is out of stack (the `nanochat`/`llm.c` verdict), serving is Swift;
+  it stays readable as upstream's Python-side reference when a model-family behaviour needs a second
+  implementation to cross-check against.
+
+- `mlx-swift` — the Swift array framework pin 1 itself sits on (HEAD `00afc1d` 11-17), registered 11-20 —
+  139 CHANGELOG hits as the substrate, never a row of its own
+Contains: the MLX Swift API; model code it explicitly delegates — "LLM and VLM implementations are available
+  in mlx-swift-lm" (`README.md:15`).
+Borrow: nothing beyond pin 1; registered so the sweep answers for the substrate checkout when the pin row
+  moves (§ Upstream 1 owns that mechanics).
+
+- `oh-my-pi` — `can1357/oh-my-pi` (Stencil Labs, **a fork of `pi`**; HEAD `63bfb67d16` 11-20), registered
+  11-20 on the owner's deep-research read — named once by `Strata`'s row as a hosted harness, never read
+Contains: "A coding agent with the IDE wired in" (`README.md:6`): 31 built-in tools, 14 LSP ops, 28 DAP ops,
+  ~80k lines of Rust core (`:31`, the tree's own claim); LSP is a multiplexed daemon — one language-server
+  process per identity plus instance index, reserve→open→attach with a token, per-session request-id remap,
+  `initialize` answered from cache for later sessions, diagnostics/registrations/progress replayed, a
+  detached session's documents closed, watched-file changes forwarded (`packages/coding-agent/src/daemon/modules/lsp.ts:3-12`);
+  the agent sees `diagnostics`/`hover`/`definition`/`references`/`rename`/`symbols`/`evaluate` as tool ops
+  (read off the tool sources). Shelf packages, one line each: `mnemopi` (local SQLite memory engine),
+  `snapcompact` (bitmap-frame context compression for vision), `metaharness` (benchmark runners + Harbor run
+  storage + live dashboard), `natives` (Rust bindings: PTY, shell, grep, audio, WebRTC).
+Borrow: **a problem that exists here unsolved** — zero `lsp`/`dap`/`sourcekit` symbols under
+  `Sources/ocoreai/Tools/` measured 11-20; our post-edit feedback is a full build plus the edit-repair
+  round trip. The remedy is a new agent-facing surface ⇒ owner call under § Adoption's ladder, whose rung 1
+  the ladder itself names: sourcekit-lsp exists to consume. Lineage note: `pi`'s row and this one share a
+  ancestry — deferred tools live there, IDE feedback here.
+
+- `evals` — `openai/evals` (HEAD `8eac7a7` **2026-04-14**, dormant here), registered 11-20 — the five doc
+  hits on the bare word were `pi`'s and cline's packages, which the registry grep could not tell apart
+Contains: an eval corpus as a registry (datasets under Git-LFS, `README.md:19-26`) whose hosted successor is
+  the Dashboard (`README.md:3`).
+Borrow: axis only — our board scores its own workspace's tasks; a shared corpus needs consumers we do not
+  have, and the verifier-honesty floors already keep their one home in the SWE-bench row.
+
+- `cursor-plugins` — the owner's own plugin repository (installs this workspace's pstack plugins; HEAD
+  `0b46ec39` 11-19), registered 11-20 to close the disk sweep
+Contains/Borrow: not a comparator, never will be — it is the tooling § How we work runs on; the row exists
+  so "the registry answers for every clone on disk" keeps no hole.
 
 ## How to use this file
 
