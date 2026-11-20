@@ -15,6 +15,17 @@ k repeats; recovery from a tool error, a stall, a model swap) · **efficiency** 
 Acceptance = task success, outcome correctness, execution reliability, cost per successful task. Explicitly
 not acceptance: lines of code, commit count, supported model count, architectural complexity.
 
+**The owner's re-aim (11-20): the far side of this ladder is to become the benchmark and the reference
+implementation for Apple-Silicon-native AI agents.** Stated per this file's own law, the two words get
+disk-measurable truth tests, no slogan: **benchmark** = a published number of ours that others publish
+against (owner's release act above Rung zero; the receipt shape the corpus ships is in
+`references-problem-map.md` § Field-solved here); **reference implementation** = something outside this
+repo consumes `/v1` or the published skill without our coaching (instruments: `api.github.com`
+subscribers/forks, and any named external consumer recorded in a CHANGELOG round). Both halves ride
+rungs 1 and 6 of § Rung zero — the re-aim ranks an end that ladder already contains; it adds no rung,
+and today's parity measurement (530 commits/30 d vs peers' 542–608, `measured 11-20`) says the gap to
+that end is distribution, not engineering.
+
 ## The objective (the instrument)
 
 Make ocoreai a machine that converts *change* → *fact* cheaply and cannot move its own goal posts:
