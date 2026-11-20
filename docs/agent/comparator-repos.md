@@ -81,6 +81,11 @@ Contains: two engine families (llama.cpp + MLX C) behind one local API, each pin
   § Shape C).
 Borrow: consumed for the lane shape (stars: the runbook's leaderboard); the published-logits seam stays the
   owner call — their lane proves it possible, it does not make ours exist
+Re-checked 11-20 against our own tree (the self-research convicted this sentence's half): the decisions
+  lane does now exist here — `POST /v1/decisions` ships behind `DecisionsHandler` with
+  `DecisionsContractTests`, probe 49 and its openapi entry — while the published-logits seam
+  (`/v1/systemone`-shape) has zero routes, measured. The logits half of this sentence stands; the
+  "does not make ours exist" half was overtaken by our own code.
 
 - `llama.cpp` — **the corpus's deepest evolution record, and the tree both rows above now consume**: 12 174
   commits since the squashed `2023-03-10 Initial release`, 8 383 tags, 700 commits in 30 d — cloned here since
