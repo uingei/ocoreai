@@ -24,9 +24,10 @@ repo consumes `/v1` or the published skill without our coaching (instruments: `a
 subscribers/forks, and any named external consumer recorded in a CHANGELOG round). Both halves ride
 rungs 1 and 6 of § Rung zero — the re-aim ranks an end that ladder already contains; it adds no rung,
 and today's parity measurement (530 commits/30 d vs peers' 542–608, `measured 11-20`) says the gap to
-that end is distribution, not engineering. The owner's same-day follow-up fixed the criterion: **what is
-wanted is best practice, not uniqueness** — each axis is held to the corpus's best shipped practice, and
-`comparator-innovation.md` is a diffusion instrument, never a goal to chase.
+that end is distribution, not engineering. The owner's same-day follow-ups fixed the criterion: **what is
+wanted is best practice, not uniqueness** — each axis is held to the corpus's best practice, whose strict
+definition and three questions live at `comparator-repos.md` § *How to use* 5; the three ledgers narrow
+candidates and never substitute for the effect test.
 
 ## The objective (the instrument)
 

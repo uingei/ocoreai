@@ -699,3 +699,16 @@ Contains/Borrow: not a comparator, never will be — it is the tooling § How we
    different denominator**, so it does not live here: `scripts/comparator-consensus.sh` measures it,
    `comparator-consensus.md` holds the verdicts, `comparator-innovation.md` who holds one alone.
    Adding a tree? Add it to the disk, not to a typed list, and the instruments pick it up.
+5. **"Best practice" is a strict term, not a compliment (owner ruling 11-20).** A mechanism qualifies only when,
+   on a named axis, it is shipped in a real product, **and** reproducible comparative evidence shows it beats the
+   feasible alternatives **net** (complexity, upkeep, perf cost, side effects), **and** the axis is a problem
+   ocoreai actually has at a cost worth paying. Three questions: **Shipped?** (actually running in a real
+   product) · **Proven better?** (a controlled comparison, never a lone favorable number) · **Relevant?** (the
+   problem is ours and the gain is worth the cost). **Adoption is not effectiveness:** a diffusion count or a
+   consensus row proves someone copied it, not that it works (the rule `comparator-innovation.md` already
+   prints: "a printed count carries no verdict"); a gate that went red proves it caught something, not that the
+   mechanism beats its alternatives. The three ledgers therefore **narrow candidates and never substitute for
+   the effect test**: consensus = has the field converged, innovation = who influenced whom, problem map = do we
+   have the problem. Keep the three tiers distinct — **worth-studying** (relevant + shipped somewhere) licenses
+   reading and prototyping; **proven-effective-without-controls** licenses a local before/after on our own
+   board; only **proven-net-advantage** licenses adoption as a default.
