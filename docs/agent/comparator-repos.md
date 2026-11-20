@@ -65,6 +65,12 @@ Borrow: consumed; `prompt-surface-diff` is the pattern § Documentation Map woul
   red it must catch — the gate layer is frozen, so it is a named pattern, not a task. The tier is an axis with
   a consumer today (our one published skill, `skills/ocoreai/`), the refusal block is invariant 2 as shipped
   product copy rather than a guardrail.
+Re-anchored 11-20 (the corpus-wide cite sweep found the named file gone): the standalone
+  `prompt-surface-diff.yml` no longer exists — the machine is now the committed snapshot
+  `tests/fixtures/prompt_surface/` rendered by `scripts/ci/prompt_surface.py`, its blocking seat is
+  `tests/ci/test_prompt_surface.py`, and the PR summary rides as a step of
+  `.github/workflows/repo-guards.yml` (python lane, advisory-only comment; the test is the red). The
+  row's reading — a stale snapshot fails a test — survives the rename intact.
 
 - `ollama` — Go server; the root pin files `LLAMA_CPP_VERSION=b11963`, `MLX_C_VERSION=57731b00e8…`, both
   changed since the 11-02 read while this row still quoted the old values (see § How to use 3)
@@ -293,6 +299,11 @@ Borrow: ACP is a new core surface (ladder rung 6) ⇒ an owner call, not an audi
   debt**: no `BackendProtocol` here by decision (root § Architecture), `tools[]` carry schemas because the wire
   promises them (`ToolCallWireContractTests`), and deferred tools already have one home (`pi`'s `tool_search`,
   § Open's tool-surface row.
+Re-anchored 11-20 at `3b3d838ed` (the corpus-wide cite sweep): the tree rebranded — first screen is now
+  "Open Intelligence Kit (oi-kit) and goose" — and the three cited crates are renamed
+  `crates/oi-kit-{context-management,download-manager,local-inference}`; the axis verdicts stand, the
+  `goose-*` paths in the row above read against those. `agent-client-protocol = 2.2.0` still sits at
+  `Cargo.toml:23` verbatim (measured).
 
 - `opencode` — TypeScript monorepo; `packages/{protocol,schema,httpapi-codegen,http-recorder,session-ui,desktop,tui}`
 Contains: contract-first wire — the HTTP API is a spec and the SDK is generated from it
