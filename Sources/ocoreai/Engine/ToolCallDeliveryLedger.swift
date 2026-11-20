@@ -119,6 +119,16 @@ struct ToolCallDeliveryLedger: Sendable {
         Self.status(of: deliveries[modelId])
     }
 
+    /// Resolve a model id against a snapshot. The `/v1/models` publisher and the enforcement
+    /// gate share THIS ladder: weights can be listed under the bare id but recorded under a
+    /// hub prefix, and two ladders would drift into a row saying `prose_only` while the gate
+    /// says pass.
+    static func record(for modelId: String, in deliveries: [String: ToolCallDeliveryRecord])
+        -> ToolCallDeliveryRecord?
+    {
+        [modelId, "hf:" + modelId, "mscope:" + modelId].lazy.compactMap { deliveries[$0] }.first
+    }
+
     /// Status for a record taken out of a snapshot. The wire layer reads the
     /// dictionary (`/v1/models` takes one snapshot for a whole page), so the
     /// vocabulary is derived here rather than re-spelled at each publisher.

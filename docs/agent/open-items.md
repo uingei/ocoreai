@@ -281,7 +281,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   score, who pays a wrong pick) plus the composer half. The pattern to extend is the knob already gated: render the checkpoint's template
   with a sentinel at load, record it (`ReasoningEffortLedger`), publish on `/v1/models`, refuse a demanded
   word 400 naming the knob and both exits — codex's `code_mode_warning.rs:6-24` shape, fail-open pinned.
-  `ReasoningEffortHonestyTests` + probe 38.
+  `ReasoningEffortHonestyTests` + probe 38. Refusal half built 11-21 behind `settings.toolsSurface.enforce`
+  (default OFF): a declaring request against a model this server measured `prose_only` gets the 400 naming
+  both exits; the flag flip and the shortlist question above stay the owner's (`ToolSurfaceHonestyTests`).
 - **Weight-free probes exist; only three hold a CI seat, and no checkpoint tier does.** The scripted lane
   holds 37 (wire contract), 38 §1 (a refusal) and 39 §1/§1b (the skill's markers); §2 of 38/39/40 needs
   weights, so on a runner it takes its skip branch.

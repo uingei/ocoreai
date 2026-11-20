@@ -191,6 +191,14 @@ final class SettingsStore {
         set { defaults.set(newValue, forKey: Key.midTurnSteerEnabled.rawValue) }
     }
 
+    /// Enforcement of the measured tool-surface negative (default **false**): ON refuses a
+    /// declaring /v1 request against a `prose_only` model. Flip needs the owner's call
+    /// (open-items § tool-surface). See `ToolCallWire.surfaceRefusal`.
+    var toolsSurfaceEnforce: Bool {
+        get { defaults.bool(forKey: Key.toolsSurfaceEnforce.rawValue) }
+        set { defaults.set(newValue, forKey: Key.toolsSurfaceEnforce.rawValue) }
+    }
+
     /// True when the user has explicitly set the specDecoding enabled control
     /// (UserDefaults key present). When false, the engine must keep whatever the
     /// authored config declares for that dimension rather than defaulting it.
@@ -666,6 +674,9 @@ final class SettingsStore {
 
         // mid-turn steer（flag-staged，默认 false）
         case midTurnSteerEnabled = "settings.steer.midTurn.enabled"
+
+        // tool-surface 拒绝（ToolCallWire.surfaceRefusal opt-in，默认 false）
+        case toolsSurfaceEnforce = "settings.toolsSurface.enforce"
 
         // App
         case appLocale = "settings.app.locale"

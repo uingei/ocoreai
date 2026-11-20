@@ -186,6 +186,37 @@ enum ToolCallWire {
         )
     }
 
+    /// The surface decision as a pure function: a declaring caller is refused ONLY on the
+    /// observed negative (`prose_only` — a completed tool-declaring turn here left a
+    /// call-shaped answer unparsed). A delivered call proves the chain; `not_observed` is an
+    /// unmeasured fact, and an unmeasured fact is never a refusal (`ReasoningEffortLedger`'s
+    /// asymmetry). Opt-in only: the seat asks its caller for the flag vote.
+    static func refuseSurface(declared: Bool, status: String) -> Bool {
+        declared && status == ToolCallDeliveryLedger.statusProseOnly
+    }
+
+    /// Refuse a declaring request this server has MEASURED failing, shaped after codex's
+    /// `code_mode_warning` like the reasoning-effort refusal: knob, the ledger's own evidence
+    /// sentence, both exits. Publication already carries the same fact on `/v1/models`; this
+    /// is its enforcement half, opt-in via `settings.toolsSurface.enforce`.
+    static func surfaceRefusal(
+        modelId: String, declaredToolCount: Int, record: ToolCallDeliveryRecord?
+    ) -> AppError? {
+        guard
+            refuseSurface(
+                declared: declaredToolCount > 0,
+                status: ToolCallDeliveryLedger.status(of: record))
+        else { return nil }
+        return .invalidRequest(
+            "'\(modelId)' has not delivered a structured tool_call on this server: "
+                + "\(record?.evidenceLine ?? "no turn produced a tool call on this server") — "
+                + "a declared tools[] would spend the caller's turn under a belief this "
+                + "checkpoint has already contradicted. "
+                + "Drop tools[] for this model, or pick one whose /v1/models row reports "
+                + "toolCallDelivery=\"parsed\"."
+        )
+    }
+
     /// JSON-ish quoting for messages that echo a client's value.
     private static func quoted(_ value: String) -> String { "\"\(value)\"" }
 }

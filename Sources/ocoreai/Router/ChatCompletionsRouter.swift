@@ -259,11 +259,10 @@ func buildRouter(
             // Function-calling disclosure, measured the same way: what a declaring
             // turn against THIS model produced in THIS process. `not_observed` is
             // published rather than omitted, so silence cannot be read as capability.
-            let toolKey = [objects[i].id, "hf:" + objects[i].id, "mscope:" + objects[i].id]
-                .first { toolLedger[$0] != nil }
-            objects[i].toolCallDelivery = ToolCallDeliveryLedger.status(
-                of: toolKey.flatMap { toolLedger[$0] })
-            objects[i].toolCallEvidence = toolKey.flatMap { toolLedger[$0]?.evidenceLine }
+            let toolRecord = ToolCallDeliveryLedger.record(
+                for: objects[i].id, in: toolLedger)
+            objects[i].toolCallDelivery = ToolCallDeliveryLedger.status(of: toolRecord)
+            objects[i].toolCallEvidence = toolRecord?.evidenceLine
             // Thinking-control disclosure, measured the same way and published even when it is
             // the negative: a client choosing whether to send `reasoning_effort` must be able
             // to tell "this checkpoint ignores it" from "this server has not looked".
@@ -635,6 +634,7 @@ func buildRouter(
             semanticSearch: semanticSearch,
             messageBuilder: messageBuilder,
             logger: logger,
+            toolsSurfaceEnforced: SettingsStore.shared.toolsSurfaceEnforce,
         )
     }
 
@@ -706,6 +706,7 @@ func buildRouter(
             semanticSearch: semanticSearch,
             messageBuilder: messageBuilder,
             logger: logger,
+            toolsSurfaceEnforced: SettingsStore.shared.toolsSurfaceEnforce,
         )
     }
 

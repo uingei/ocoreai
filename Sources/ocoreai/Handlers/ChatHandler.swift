@@ -172,6 +172,7 @@ func chatCompletionsHandler(
     semanticSearch: SemanticSearch?,
     messageBuilder: MessageBuilder,
     logger: Logger,
+    toolsSurfaceEnforced: Bool = false,
 ) async throws -> Response {
     /// Numeric domain gate — first line, before model resolution, before the safety guards,
     /// before the scheduler reserves anything.
@@ -238,6 +239,27 @@ func chatCompletionsHandler(
             "\(refusal)",
             metadata: ["error_code": .string("reasoning_effort_unsupported")])
         throw refusal
+    }
+
+    /// Tool-surface gate, opt-in (`settings.toolsSurface.enforce`, default OFF): a caller that
+    /// declares tools[] against a checkpoint this server has MEASURED leaving every declaring
+    /// turn in the prose is refused with both exits — the enforcement half of the fact
+    /// `/v1/models` already publishes as `toolCallDelivery`. A delivered call and a never-
+    /// observed model both pass through; flag OFF keeps today byte-identical. Same seat as
+    /// the reasoning-effort gate, before the safety guards and the scheduler.
+    if toolsSurfaceEnforced {
+        let refusal = ToolCallWire.surfaceRefusal(
+            modelId: modelId,
+            declaredToolCount: request.tools?.count ?? 0,
+            record: ToolCallDeliveryLedger.record(
+                for: modelId, in: await enginePool.toolCallDeliverySnapshot())
+        )
+        if let refusal {
+            logger.warning(
+                "\(refusal)",
+                metadata: ["error_code": .string("tool_surface_unsupported")])
+            throw refusal
+        }
     }
 
     /// NOTE: Empty-messages guard is in the router (ChatCompletionsRouter:148).
