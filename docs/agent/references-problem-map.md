@@ -36,6 +36,14 @@ Rows added, so the registry again answers for every clone on disk.
    the exact stranger in `long-horizon-goal.md`. The package also teaches foreign hosts through
    `skills/` — the shipped-skill pattern now has three pin-adjacent trees (mlx-swift-lm, coreai-models,
    this), which raises the field count behind runbook § rung-6 without changing its owner-call status.
+   Premise check the same day, which half-killed the candidate: the round-trip cannot run on this host
+   for a reason that is not ours — the package's manifest requires `.macOS("27.0")` (`Package.swift:19`,
+   measured) against this host's 26.6.2 (measured `sw_vers`), the same premise as the CoreAI/macOS-27
+   row, and building an external tree's code needs the owner's explicit word (the harness refused the
+   compile-attempt for a read-only comparator, correctly). The client's source carries zero
+   `@available(macOS 27` gates (measured) — the block is the manifest and the framework, not their file.
+   The curl-level half of the contract is already gated (probes 12/54/22/56); the client-parser half
+   waits on a 27 host, not on a decision.
 2. **`oh-my-pi` names a problem we have and do not solve: IDE-grade feedback inside the loop.**
    Measured both sides. There: LSP as a multiplexed daemon module — one language-server process per
    identity and instance, per-session request-id remap, cached `initialize`, replayed diagnostics,
