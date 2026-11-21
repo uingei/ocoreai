@@ -4428,6 +4428,8 @@ extension EnginePool {
                     var stdRetryMessages: [MLXLMCommon.Chat.Message] = newMessages
                     let maxStdRejectedAttempts = StdToolCallRecovery.maxAttempts
                     var interruptSubmitted = false
+                    // At most one degenerate-recovery steer per request (invariant 2).
+                    var degenerateSteerUsed = false
                     for stdRejectedAttempt in 1 ... maxStdRejectedAttempts {
                         do {
                             guard let chatSession else {
@@ -4631,8 +4633,25 @@ extension EnginePool {
                                 }
                             }
 
-                            // Emit final .done event with prompt throughput + MTP telemetry
-                            if !Task.isCancelled {
+                            // Invariant 2: a turn that delivered at most one token under a budget that
+                            // asked for more is not an answer. Compute the shape here, BEFORE the
+                            // terminal .done, so a tool-declaring (agent) turn gets one bounded
+                            // recovery steer below instead of leaving as a plain-success .done.
+                            let degenerateSuspected = DegenerateTurn.isSuspected(
+                                tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
+                                stopReason: lastStopReason,
+                                requestedMaxTokens: genParams.maxTokens
+                            )
+                            let willSteerDegenerate = DegenerateTurn.shouldSteer(
+                                suspected: degenerateSuspected,
+                                toolsDeclared: registeredToolSpecs?.isEmpty == false,
+                                alreadySteered: degenerateSteerUsed,
+                                attemptsRemain: stdRejectedAttempt < maxStdRejectedAttempts
+                            )
+                            // Emit final .done event with prompt throughput + MTP telemetry. Suppressed
+                            // on the steer iteration so the wire never sees two .done — the recovery
+                            // re-entry below emits the single authoritative one.
+                            if !Task.isCancelled, !willSteerDegenerate {
                                 continuation.yield(
                                     .init(
                                         kind: .done(
@@ -4650,11 +4669,6 @@ extension EnginePool {
                             }
                             logger.info(
                                 "StdTurn: \(convKey) fed=\(newMessages.count) of \(mlxMessages.count) divergence=\(divergenceIndex) tokens=\(actualTokenCount ?? metrics.generatedTokenCount) reason=\(String(describing: lastStopReason)) upstreamPrompt=\(String(describing: localPromptTokenCount)) upstreamCached=\(String(describing: localCachedPromptTokenCount)) firstTokenMs=\(metrics.firstTokenMs) overallMs=\(metrics.overallMs)"
-                            )
-                            let degenerateSuspected = DegenerateTurn.isSuspected(
-                                tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
-                                stopReason: lastStopReason,
-                                requestedMaxTokens: genParams.maxTokens
                             )
                             if degenerateSuspected {
                                 // Invariant 2: a turn that delivered at most one token under a budget that
@@ -4703,6 +4717,29 @@ extension EnginePool {
                                     steps: 4,
                                     baseParameters: genParams,
                                     logger: logger)
+                            }
+                            if willSteerDegenerate {
+                                // Recover, don't launder: the collapsed turn's accumulation and
+                                // accounting are cleared so the recovery turn's output is the
+                                // authoritative answer, not concatenated onto the one-token stop, and
+                                // its suppressed .done is emitted by this re-entry. Mirror of the
+                                // rejected-tool-call corrective (`stdRetryMessages = [corrective]`,
+                                // pinned by StdToolCallRecoveryTests) — the session already holds the
+                                // committed user turn, so re-entering with only the steer does not
+                                // double-feed.
+                                degenerateSteerUsed = true
+                                localStdAccumulated = ""
+                                lastStopReason = nil
+                                actualTokenCount = nil
+                                localPromptTokenCount = nil
+                                localCachedPromptTokenCount = nil
+                                logger.warning(
+                                    "Degenerate tool turn on \(convKey) — re-entering once with a recovery steer instead of returning a one-token success (invariant 2)"
+                                )
+                                stdRetryMessages = [
+                                    MLXLMCommon.Chat.Message.user(DegenerateTurn.recoveryText)
+                                ]
+                                continue
                             }
                             // Capture assistant text for pool message history tracking
                             if !localStdAccumulated.isEmpty {

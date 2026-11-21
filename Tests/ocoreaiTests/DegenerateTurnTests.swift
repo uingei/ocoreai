@@ -120,4 +120,42 @@ struct DegenerateTurnTests {
         }
         #expect(hits == 6)  // tokens {0,1} x budgets {nil, 2, 200}
     }
+
+    // MARK: - Recovery steer gating (the agent-loop Recover path)
+
+    @Test func steerOnlyWhenSuspectedToolTurnHasOneSlotLeft() {
+        // The only shape that recovers: a suspected degenerate, tool-declaring turn, not yet
+        // steered, with a loop slot left.
+        #expect(
+            DegenerateTurn.shouldSteer(
+                suspected: true, toolsDeclared: true, alreadySteered: false, attemptsRemain: true))
+    }
+
+    @Test func everyOtherShapeDoesNotSteer() {
+        // A healthy turn, a plain-chat turn, an already-steered turn, and a turn with no slot left
+        // are all left to surface as-is — none of them recovers.
+        #expect(
+            !DegenerateTurn.shouldSteer(
+                suspected: false, toolsDeclared: true, alreadySteered: false, attemptsRemain: true))
+        #expect(
+            !DegenerateTurn.shouldSteer(
+                suspected: true, toolsDeclared: false, alreadySteered: false, attemptsRemain: true),
+            "a plain-chat one-token answer is legitimate and must not be re-prompted")
+        #expect(
+            !DegenerateTurn.shouldSteer(
+                suspected: true, toolsDeclared: true, alreadySteered: true, attemptsRemain: true),
+            "at most one steer per request")
+        #expect(
+            !DegenerateTurn.shouldSteer(
+                suspected: true, toolsDeclared: true, alreadySteered: false, attemptsRemain: false),
+            "never consume the loop's last rejected-call slot")
+    }
+
+    @Test func recoveryTextIsNonEmptyAndNamesBothExits() {
+        // The steer must actually say something, and must leave a genuinely short correct answer
+        // standing (so a legitimate `OK` is not punished) while naming the two real exits.
+        #expect(!DegenerateTurn.recoveryText.isEmpty)
+        #expect(DegenerateTurn.recoveryText.contains("tool"))
+        #expect(DegenerateTurn.recoveryText.lowercased().contains("blank"))
+    }
 }

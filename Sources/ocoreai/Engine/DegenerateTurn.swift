@@ -75,4 +75,29 @@ enum DegenerateTurn {
         // An unset budget means the engine default, which is > 1 token.
         return (requestedMaxTokens ?? Int.max) > tokenCeiling
     }
+
+    /// Whether the agent/tool loop should re-enter one bounded recovery turn for a suspected
+    /// degenerate turn, instead of returning it as a plain success.
+    ///
+    /// Scoped deliberately, because ``isSuspected`` cannot tell a real early EOS from a legitimate
+    /// one-token answer (`OK`, `42`): only a **tool-declaring** turn (an agent that owed a tool call
+    /// or a real answer) is recovered, **at most once**, and never when the steer would consume the
+    /// loop's last rejected-call slot. A plain-chat one-token answer is left untouched.
+    static func shouldSteer(
+        suspected: Bool,
+        toolsDeclared: Bool,
+        alreadySteered: Bool,
+        attemptsRemain: Bool
+    ) -> Bool {
+        suspected && toolsDeclared && !alreadySteered && attemptsRemain
+    }
+
+    /// The steer the recovery turn carries. It must not ask for a blank, must leave a genuinely
+    /// short correct answer standing (so a legitimate `OK` is not punished twice), and must name the
+    /// two exits — emit the tool call, or answer in full — so the next turn's bytes differ from the
+    /// collapsed turn's and break the per-process greedy tie that produced the early EOS.
+    static let recoveryText =
+        "Your previous turn produced no usable output — it ended immediately. Do not emit a blank. "
+        + "Either call the tool the task requires, or answer it in full now. If your intended answer "
+        + "was genuinely one short token, state that token plainly."
 }
