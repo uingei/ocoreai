@@ -17,6 +17,7 @@ import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(HERE))  # repo root: the protection list is repo-relative
 sys.path.insert(0, HERE)
 os.environ["PYTHONDONTWRITEBYTECODE"] = "1"  # inherited by every subprocess below: a judge read
 # from stale bytecode is a judge that passed while the file on disk said otherwise
@@ -34,7 +35,6 @@ REQUIRED_PROTECTED = [
     "scripts/eval/_verifier_selftest.py",
     "scripts/eval/_repeat_stats.py",
     "scripts/eval/run.sh",
-    "scripts/agents-md-contract.sh",
 ]
 
 
@@ -165,11 +165,16 @@ def main():
     for handle in (empty, allow_scripts, allow_docs):
         os.unlink(handle.name)
 
-    # 6 — the protection list still lists the goal posts.
+    # 6 — the protection list still lists the goal posts, and every goal post it lists exists:
+    # an entry left behind by a retired script protects nothing yet keeps the assertion above
+    # green for a mechanism that is gone (the agents-md-contract.sh entry, found 11-22).
     listed = gate.read_list(PROTECTED)
     missing = [p for p in REQUIRED_PROTECTED if p not in listed]
     if missing:
         bad.append("autoloop-protected.txt no longer lists: %s" % ", ".join(missing))
+    gone = [p for p in listed if not os.path.isfile(os.path.join(ROOT, p))]
+    if gone:
+        bad.append("autoloop-protected.txt lists retired paths: %s" % ", ".join(sorted(gone)))
     if "Sources/" not in gate.read_list(ALLOW):
         bad.append("autoloop-allow.txt no longer allows Sources/ — the loop can propose nothing")
 

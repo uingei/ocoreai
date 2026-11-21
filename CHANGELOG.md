@@ -7,7 +7,16 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-11-21
+## [Unreleased] — 2026-09-05 → 2026-11-22
+
+**11-22 autoloop 保护清单清掉死条目，并补上「列出的必须存在」的锁** — 改了什么：
+`autoloop-protected.txt` 与 `_autoab_selftest.py` 的 `REQUIRED_PROTECTED` 仍列着 11-16 退役删除的
+`scripts/agents-md-contract.sh`；`_autoab_gate.py` 的 `check_paths` 是纯字符串匹配，死条目永不命中，
+第 6 节断言因此空转 green。owner 裁定本轮处理（两文件自声明 human act，编辑即 human act 的授权）。
+新增存在性锁：保护清单每一项必须在磁盘上存在。什么证明它：先加锁跑一次 →
+`FAIL autoloop-protected.txt lists retired paths: scripts/agents-md-contract.sh`，exit 1——锁对真实
+rot 当场红过；删条目复跑 → exit 0，22 scenarios 全过。门禁：该存在性断言本身（未来任何 retire
+留下清单里的死脚本即红）。
 
 **11-21 失败的 `/v1/messages` 流不再装作干净轮 — 五个失败出口回到 Anthropic spec 形状** — 改了什么：
 流式 handler 此前把引擎的 `.error` 事件**丢在地板上**（只 log 后照常跑成功尾），wire 给引擎自己认作失败的

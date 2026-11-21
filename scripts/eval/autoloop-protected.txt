@@ -15,7 +15,6 @@ scripts/eval/autoloop-protected.txt
 scripts/eval/run.sh
 scripts/eval/repeat.sh
 scripts/probes/_lib.sh
-scripts/agents-md-contract.sh
 scripts/audit.swift_patterns.sh
 scripts/eval/_conditions.py
 scripts/eval/_conditions_selftest.py
