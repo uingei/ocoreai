@@ -456,12 +456,10 @@ struct AnthropicSharedAssemblySourceTests {
     @Test("usage prefers the engine's measured prompt count")
     func usageReportsMeasurement() throws {
         let s = try source(handlerSource)
-        // Three sites: non-stream, the stream's success tail, and `emitFailure` — a failed
-        // turn still reports a prompt count, so it must size it through the same home.
-        #expect(
-            s.components(separatedBy: "PromptTokenAccounting.renderedPromptTokens(").count - 1 == 3,
-            "every exit — including the failure exit — must size input_tokens through the one accounting home"
-        )
+        // The exact per-face accounting count is gated once, by
+        // PromptTokenAccountingTests.everyHopReportsOnePrompt. A second count in a second
+        // suite is how the two gates disagreed when the failure exit landed (11-21): one
+        // moved, one did not, and each red blamed the other.
         #expect(
             !s.contains("inputTokens: observedPromptTokens ??"),
             "input_tokens must not publish the prefilled suffix alone — the reused prefix is part of the prompt it counts"

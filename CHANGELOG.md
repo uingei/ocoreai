@@ -9,6 +9,20 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-22
 
+**11-22 main 连续两次 push CI 红的根因：同一个计数住了两个门，修一漏一** — 改了什么：11-21 失败出口那轮
+（`adc90b50`）把第三处 `PromptTokenAccounting.renderedPromptTokens(` 内联进 `emitFailure`，并把
+`AnthropicThinkingAndToolChannelTests.usageReportsMeasurement` 的同文件计数写成 3，而
+`PromptTokenAccountingTests.everyHopReportsOnePrompt` 仍是 2（每响应模式恰一次）——两个门对同一事实各执一数，
+main 两次 push 在两条 matrix leg 各红一边。现在流式模式的三处读取收编为一个 `accountedPromptTokens()`
+home：成功尾与五个 `emitFailure` 出口读同一函数，同一轮次结构上不可能出现两个数字；
+`usageReportsMeasurement` 删除重复计数，只留它独有的 banned-shape 检查——计数由 `everyHopReportsOnePrompt`
+单门所有（§ One home per decision 也涵盖计数断言）。什么证明它：改前本地复现 `3 == 2` 红、`2 == 3` 反向红
+（两个门各自定罪过一次），改后两套 132 测试绿、`rg` 证实 Tests/ 里该计数断言只剩一处；全量
+`make test` 3622 测试仅两红，均为 open 行 "Loaded-host reds rotate cast" 的 wall-clock cast
+（`SleepSteerWakeTests`/`MCPStderrDiagnosisTests`，同轮 CI 两 leg 皆绿，隔离复跑见当轮）。门禁：
+`everyHopReportsOnePrompt`（该文件任何 accounting 调用增减即红）+ `usageReportsMeasurement` 的
+banned-shape（裸发 prefill 后缀即红）。
+
 **11-22 autoloop 保护清单清掉死条目，并补上「列出的必须存在」的锁** — 改了什么：
 `autoloop-protected.txt` 与 `_autoab_selftest.py` 的 `REQUIRED_PROTECTED` 仍列着 11-16 退役删除的
 `scripts/agents-md-contract.sh`；`_autoab_gate.py` 的 `check_paths` 是纯字符串匹配，死条目永不命中，

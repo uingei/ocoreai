@@ -898,6 +898,16 @@ private func streamAnthropicResponse(
         var observedPromptTokens: Int? = nil
         var observedCachedPromptTokens: Int? = nil
 
+        /// The one accounting home this mode sizes its prompt through. Read at emit time: the
+        /// engine fills the observations as the stream runs, so a mid-stream failure accounts
+        /// what it actually observed (none observed → the pre-flight estimate).
+        func accountedPromptTokens() -> Int {
+            PromptTokenAccounting.renderedPromptTokens(
+                observedPrefilled: observedPromptTokens,
+                cachedPromptTokens: observedCachedPromptTokens,
+                fallback: inputTokenCount)
+        }
+
         /// One home for this face's failure exit. The turn is over: no `message_delta`, so
         /// no terminal `stop_reason` is claimed for a turn the engine did not finish
         /// (invariant 2), and the stream still ends so a client waiting on `message_stop`
@@ -914,10 +924,7 @@ private func streamAnthropicResponse(
             writeSSEEvent(
                 continuation,
                 event: AnthropicStreamEvent.messageStop(
-                    totalPromptTokens: PromptTokenAccounting.renderedPromptTokens(
-                        observedPrefilled: observedPromptTokens,
-                        cachedPromptTokens: observedCachedPromptTokens,
-                        fallback: inputTokenCount),
+                    totalPromptTokens: accountedPromptTokens(),
                     cacheRead: observedCachedPromptTokens,
                     outputTokens: totalOutputTokens))
         }
@@ -1120,13 +1127,9 @@ private func streamAnthropicResponse(
             }
 
             /// Same number, both hops: the terminal event and the metrics counter report one
-            /// prompt, not an estimate and a measurement of it. Needed on both exits, so it
-            /// is computed above the branch.
-            let observedInputTokens = PromptTokenAccounting.renderedPromptTokens(
-                observedPrefilled: observedPromptTokens,
-                cachedPromptTokens: observedCachedPromptTokens,
-                fallback: inputTokenCount,
-            )
+            /// prompt, not an estimate and a measurement of it. The failure exit reads the same
+            /// helper against these same final observations, so one turn keeps one number.
+            let observedInputTokens = accountedPromptTokens()
 
             if let engineFailure {
                 /// The turn leaves through the spec's failure exit: closed blocks, `error`
