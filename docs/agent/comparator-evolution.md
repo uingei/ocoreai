@@ -55,8 +55,9 @@ touches, not one) and cutting them by what the path says the file is for.
   tree in this corpus is `../references/openclaw/config/assertion-safety-baseline.txt` — 1 623 touches, 2 381 lines,
   header: *"Per-file counts of production type assertions without a `// SAFETY: invariant`. Ratchet: counts may only
   shrink."*, read by `../references/openclaw/test/scripts/check-assertion-safety-ratchet.test.ts`. That is our own
-  B1 shrink-only-ratchet shape (`scripts/agents-md-contract.sh`) turned on a code property: the debt is a number, the
-  number may only fall, and a test owns the direction.
+  B1 shrink-only-ratchet shape (the `agents-md-contract.sh` family, retired 11-16; the budget there is now a fixed
+  runtime cap, `WorkspaceContext.maxDocBytes`, which names every cut) turned on a code property: the debt is a
+  number, the number may only fall, and a test owns the direction.
 - **The loop is a minority of effort now.** `loop/context` — context compaction, memory, sessions, rewind, budget —
   clears 10 % in **3 of 13**: `deepseek-harness` 14, `opencode` 12, `openclaw` 11. Not dead: `codex` sits at 9 % and
   its hottest source file is still the loop, `../references/codex/codex-rs/core/src/session/mod.rs` (193 touches).

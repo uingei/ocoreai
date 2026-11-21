@@ -22,8 +22,8 @@ Read for consensus, the corpus first failed to agree with its own inventory. Fiv
   cloned here since the corpus began and had no row; it has one now.
 - **The sentence that claimed completeness named an instrument that cannot see the thing.** "26 on disk, 26 rows
   here, counted by the P1 scan" — P1 derives the tree set from *the registry's own bullets*
-  (`scripts/agents-md-contract.sh:388-390`) against a floor of 16 and never reads `~/references`; a missing row is
-  exactly what it cannot report. The clones it does glob are used to resolve cites, not to count trees.
+  (`scripts/agents-md-contract.sh:388-390`, a script the 11-16 retirement deleted) against a floor of 16 and never read `~/references`; a missing row was
+  exactly what it could not report. The clones it did glob were used to resolve cites, not to count trees.
 - **The command written to catch a stale cell was the stalest thing in the file:** the diary one-liner hand-typed
   24 tree names while 27 sat in the directory. It derives from the disk now, so a tree that arrives without a row
   is visible on the next run.
@@ -489,8 +489,9 @@ the file — the reason the row-by-row cites above are the artefact and the coun
   wrote "`openclaw` ships seven `packages/sandbox/*`" — wrong tree (it is `deepseek-harness`) and wrong count (four
   packages, 92 tracked files). Neither number was obtainable from what I had: the evidence dump aggregates paths
   across trees without labelling the owner, so the count was a guess dressed as a measurement, and no gate in this
-  repo could have caught it — `upstream-cite-check.sh` proves a cited line exists, not that it belongs to the tree I
-  named. `git ls-files | grep -c` in the named tree is 200 ms and settled it. Comparator cites are
+  repo could have caught it — `upstream-cite-check.sh` (retired 11-16) proved a cited line exists, not that it belongs
+  to the tree I named; today even the existence check is gone. `git ls-files | grep -c`
+  in the named tree is 200 ms and settled it. Comparator cites are
   content-unverified-by-construction; this is the second time that distinction has saved a false claim here.
 
 - **A recommendation I had already given rested on four cites; re-reading them cut two.** On 11-09 the owner asked

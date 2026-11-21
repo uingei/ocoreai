@@ -290,10 +290,12 @@ that catches a drifted cite; where a number moved since the last read it is stat
    (`ServerAuthGate.swift:9-35`). Filed against the existing authority owner call, not opened as a task.
 6. **The shrink-only ratchet, twice, independently.** `openclaw` runs it over production type assertions
    (`config/assertion-safety-baseline.txt`, 1 619 touches in 60 d) and over mock factories; we run it over
-   the injected-byte budget (`scripts/agents-md-contract.sh:76` — `make docs-budget` "lower[s] the pinned
-   root cap … (refuses to raise it)"). Same shape, different property, and the shape came from the same
-   place in the end (harness2's digest map taught the manifest, the manifest taught the ratchet). A
-   convergent invention is the one class of innovation claim this corpus can actually support.
+   the injected-byte budget until the 11-16 gate retirement — `make docs-budget` lowered the pinned root
+   cap and refused to raise it. That budget is not a ratchet today: a fixed 32 KiB cap enforced at runtime
+   (`WorkspaceContext.maxDocBytes`) which names every cut. Same shape, different property, and the shape
+   came from the same place in the end (harness2's digest map taught the manifest, the manifest taught the
+   ratchet). A convergent invention is the one class of innovation claim this corpus can actually support,
+   and on our side the convergence is now historical.
 7. **`qwen4_exp` (Qwen3.8 Flash Next) arrived in five of our trees inside the mirror windows, and all
    five built it the same way.** ollama `mlxrunner/model/qwen4_exp/` (`config.go:116`,
    `ple_mapping_unix.go`) plus its memory-efficiency pass `c053d1e` (#18078: mixed quantization by

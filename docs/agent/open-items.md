@@ -557,7 +557,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   same-day false claims in committed prose (the DependencyPin root-reads fiction; the registry-absence list in `ecc5f6cb`,
   convicted by the owner's "六棵树外有"), the owner ruled docs and comments are claims and pointers, not evidence, until
   they say repaired. The repair is not a full sweep (matrix § Maintenance names that as owner-sized): one surface per
-  round with its named instrument — live prose through `make audit` (cite-check, anchor-check, `docs-type-existence`);
+  round with its named instrument — live prose through `make audit` (`docs-type-existence`; the cite-check and
+  anchor-check legs retired 11-16 with their scripts);
   matrix rows by re-reading the cite at its tree's HEAD, one domain deep; registry cells by site re-read, the post-11-04
   additions (aider, SWE-agent, mini-swe-agent, unsloth, nginx, llm.c, nanochat, autoresearch) never swept; CHANGELOG
   stays a dated diary whose live claims only the named instruments re-derive. Every red found is reported, not repaired
