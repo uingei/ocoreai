@@ -747,6 +747,14 @@ struct AnthropicCountTokensResponse: Encodable {
 
 // MARK: - SSE Streaming
 
+/// The payload of Anthropic's stream `error` event: the spec event is
+/// `{"type":"error","error":{"type","message"}}`, and a client learns what happened only
+/// from `error.message` (sglang reproduces the same object, protocol.py:25-36).
+struct AnthropicErrorPayload: Encodable {
+    let type: String
+    let message: String
+}
+
 /// Anthropic SSE stream event
 struct AnthropicStreamEvent: Encodable {
     let type: String
@@ -761,11 +769,22 @@ struct AnthropicStreamEvent: Encodable {
     var contentBlock: AnthropicAssistantContent? = nil
     /// Namespaced carrier for measured tool outcomes (`message_delta` only).
     var ocoreai: OcoreaiTurn? = nil
+    /// Carried by `error` only: the spec payload a client parses (`AnthropicErrorPayload`).
+    var error: AnthropicErrorPayload? = nil
 
     enum CodingKeys: String, CodingKey {
         case type, index, message, delta, usage
         case contentBlock = "content_block"
         case ocoreai
+        case error
+    }
+
+    /// The failure event, carrying what a client parses: `{type:"error", error:{type,
+    /// message}}`. Nothing else rides it — the spec frame has no usage.
+    static func errorEvent(type: String, message: String) -> AnthropicStreamEvent {
+        AnthropicStreamEvent(
+            type: "error", index: nil, message: nil, delta: nil, usage: nil,
+            error: AnthropicErrorPayload(type: type, message: message))
     }
 
     /// Stream start event

@@ -546,6 +546,16 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     at the release site. Needs weights; a runner without them SKIPs. Fails when: a tool result
     stops reaching the prompt, a turn is pooled with a KV it cannot account for, or an unpaired
     tool history is served as a 200 again.
+- `58-anthropic-stream-error.sh` — does a failed `/v1/messages` stream SAY it failed? Weight-free:
+    a scripted script with an unknown `finishReason` yields `.error` after real text, which is the
+    shape an engine failure takes on this face. Read 11-21 the handler logged that event, ran its
+    normal tail, and shipped `message_delta(stop_reason:"end_turn")` for a turn the engine named as
+    an error; the four other failure exits emitted `{"type":"error"}` with no `error` payload and
+    left blocks unclosed. Arms: error event with Anthropic's `{type:"api_error",message}` payload,
+    no `message_delta`, every opened block closed, last frame `message_stop`, and non-stream parity
+    (`stop_reason:"error"` stays not-a-success). Green 11-21, 9 passed. Fails when: a failed turn
+    claims a clean finish again, the error event loses its payload, or the failure exit stops
+    closing blocks or terminating the stream.
 - `_lib.sh` — shared harness
 Fails when: —
 

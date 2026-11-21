@@ -875,8 +875,54 @@ private func streamAnthropicResponse(
     let streamGuard = contentGuard
 
     _ = Task {
+        /// Hoisted out of the `do` because the catch exit below also reaches them: a stream
+        /// that threw after `message_start` still owes the client a closed content block and
+        /// a readable `error` event (sglang's `_flush_on_error`, serving.py:967-982, gives
+        /// the same guarantee — close open blocks, emit the spec error, end with
+        /// `message_stop`; a strict client rejects a block that never stopped).
+        let requestId = "msg-\(UUID().uuidString.prefix(8))"
+        let messageStart = AnthropicStreamEvent.messageStart(
+            message: AnthropicMessageResponse(
+                id: requestId,
+                content: [],
+                model: modelId,
+                stopReason: nil,
+                // Nothing has been prefilled at this event, so there is no cache measurement
+                // to report yet — the terminal event carries the engine's number.
+                usage: AnthropicUsage.split(
+                    totalPromptTokens: inputTokenCount, cacheRead: nil, outputTokens: 0),
+            ))
+        var messageStartSent = false
+        var emitter = AnthropicStreamEmitter()
+        var totalOutputTokens = 0
+        var observedPromptTokens: Int? = nil
+        var observedCachedPromptTokens: Int? = nil
+
+        /// One home for this face's failure exit. The turn is over: no `message_delta`, so
+        /// no terminal `stop_reason` is claimed for a turn the engine did not finish
+        /// (invariant 2), and the stream still ends so a client waiting on `message_stop`
+        /// is not left hanging.
+        func emitFailure(message: String) {
+            if !messageStartSent {
+                writeSSEEvent(continuation, event: messageStart)
+                messageStartSent = true
+            }
+            for event in emitter.close() { writeSSEEvent(continuation, event: event) }
+            writeSSEEvent(
+                continuation,
+                event: AnthropicStreamEvent.errorEvent(type: "api_error", message: message))
+            writeSSEEvent(
+                continuation,
+                event: AnthropicStreamEvent.messageStop(
+                    totalPromptTokens: PromptTokenAccounting.renderedPromptTokens(
+                        observedPrefilled: observedPromptTokens,
+                        cachedPromptTokens: observedCachedPromptTokens,
+                        fallback: inputTokenCount),
+                    cacheRead: observedCachedPromptTokens,
+                    outputTokens: totalOutputTokens))
+        }
+
         do {
-            let requestId = "msg-\(UUID().uuidString.prefix(8))"
             let startTime = ContinuousClock.now
 
             await handle.markActive()
@@ -889,20 +935,14 @@ private func streamAnthropicResponse(
                 turnToken: turnKey,
             )
 
-            var totalOutputTokens = 0
             var accumulatedTokens: [Int32] = []
             var prevDecodedText = ""
             var finishReason = "stop"
-            /// Engine-measured prompt tokens — see the non-stream declaration of the same
-            /// name: `message_start`/`message_stop` must carry the number the OpenAI face
-            /// carries for the same prompt.
-            var observedPromptTokens: Int? = nil
-            /// Reused KV-cache prefix — added back so `input_tokens` is the rendered prompt,
-            /// as it is on the OpenAI face.
-            var observedCachedPromptTokens: Int? = nil
+            /// Set when the engine names this turn a failure. The turn then leaves through
+            /// `emitFailure`, never through the success tail below.
+            var engineFailure: String? = nil
             var deliveredToolCalls: [ToolCall] = []
             var streamToolResults: [ToolResultMeta] = []
-            var emitter = AnthropicStreamEmitter()
             /// `tool_choice.disable_parallel_tool_use:true` → the client takes one call,
             /// not a list. Checked against what has already been emitted, so it holds
             /// across tool-loop passes (same rule as the OpenAI face, one home).
@@ -912,19 +952,8 @@ private func streamAnthropicResponse(
             /// delivery ledger (`parseToolCalls` is all-or-nothing on the whole answer).
             var answerText = ""
 
-            // Emit message_start event
-            let startResponse = AnthropicMessageResponse(
-                id: requestId,
-                content: [],
-                model: modelId,
-                stopReason: nil,
-                // Nothing has been prefilled at this event, so there is no cache measurement
-                // to report yet — the terminal event carries the engine's number.
-                usage: AnthropicUsage.split(
-                    totalPromptTokens: inputTokenCount, cacheRead: nil, outputTokens: 0),
-            )
-            let messageStart = AnthropicStreamEvent.messageStart(message: startResponse)
             writeSSEEvent(continuation, event: messageStart)
+            messageStartSent = true
 
             // Consume tokens and stream deltas
             do {
@@ -958,13 +987,10 @@ private func streamAnthropicResponse(
                                 logger.warning(
                                     "Anthropic streaming output blocked: \(checkResult.triggeredCategories)"
                                 )
-                                let errorEvent = AnthropicStreamEvent(
-                                    type: "error", index: nil, message: nil, delta: nil,
-                                    usage: AnthropicStreamUsage(
-                                        outputTokens: totalOutputTokens,
-                                        inputTokens: inputTokenCount),
+                                emitFailure(
+                                    message:
+                                        "Output blocked by content-safety guard (categories: \(checkResult.triggeredCategories))"
                                 )
-                                writeSSEEvent(continuation, event: errorEvent)
                                 continuation.finish()
                                 return
                             }
@@ -987,13 +1013,10 @@ private func streamAnthropicResponse(
                                 logger.warning(
                                     "Anthropic streaming output blocked (.text): \(checkResult.triggeredCategories)"
                                 )
-                                let errorEvent = AnthropicStreamEvent(
-                                    type: "error", index: nil, message: nil, delta: nil,
-                                    usage: AnthropicStreamUsage(
-                                        outputTokens: totalOutputTokens,
-                                        inputTokens: inputTokenCount),
+                                emitFailure(
+                                    message:
+                                        "Output blocked by content-safety guard (.text, categories: \(checkResult.triggeredCategories))"
                                 )
-                                writeSSEEvent(continuation, event: errorEvent)
                                 continuation.finish()
                                 return
                             }
@@ -1020,6 +1043,11 @@ private func streamAnthropicResponse(
                             totalOutputTokens = doneTokenCount
                         }
                     case .error(let errorMsg):
+                        // Record and let the stream drain. This used to log-and-fall-through:
+                        // the loop ended, the success tail ran, and the wire shipped
+                        // `content_block_stop → message_delta(end_turn) → message_stop` for a
+                        // turn the engine itself named as an error (measured 11-21, probe 58).
+                        engineFailure = errorMsg
                         logger.error("Stream generation error: \(errorMsg)")
                     case .toolCall(let tc):
                         // Deliver it: `content_block_start` naming a `tool_use` block, then
@@ -1056,13 +1084,10 @@ private func streamAnthropicResponse(
                                 logger.warning(
                                     "Anthropic streaming output blocked (.reasoning): \(checkResult.triggeredCategories)"
                                 )
-                                let errorEvent = AnthropicStreamEvent(
-                                    type: "error", index: nil, message: nil, delta: nil,
-                                    usage: AnthropicStreamUsage(
-                                        outputTokens: totalOutputTokens,
-                                        inputTokens: inputTokenCount),
+                                emitFailure(
+                                    message:
+                                        "Output blocked by content-safety guard (.reasoning, categories: \(checkResult.triggeredCategories))"
                                 )
-                                writeSSEEvent(continuation, event: errorEvent)
                                 continuation.finish()
                                 return
                             }
@@ -1094,129 +1119,140 @@ private func streamAnthropicResponse(
                 throw AppError.inferenceFailed(error.localizedDescription)
             }
 
-            /// The calls this stream delivers: the ones the engine emitted as events, and
-            /// as a fallback the dialect parsed out of the settled answer. The fallback is
-            /// not optional on this face: a calls-only grammar makes the model *write* the
-            /// call in plain JSON (measured 10-19 — 35 text deltas spelling
-            /// `"name": "get_weather"`, then `end_turn`, and no `.toolCall` at all), and
-            /// `/v1/chat/completions` already recovers exactly this with the same
-            /// `parseToolCalls` at its own stream end (ChatHandler L1727).
-            let streamToolCalls: [ToolCall] =
-                if !deliveredToolCalls.isEmpty {
-                    []
-                } else if request.tools?.isEmpty == false {
-                    parseToolCalls(from: answerText) ?? []
-                } else {
-                    []
-                }
-            if !streamToolCalls.isEmpty {
-                /// The held-back text IS the payload — ship it as blocks, not as prose
-                /// sitting next to the structured call the client will execute.
-                emitter.discardPendingText()
-            }
-            for call in streamToolCalls {
-                if singleCallOnly, !deliveredToolCalls.isEmpty { break }
-                deliveredToolCalls.append(call)
-                for event in emitter.emitToolCall(
-                    id:
-                        call.id.isEmpty ? "toolu_\(UUID().uuidString.prefix(8))" : call.id,
-                    name: call.function.name,
-                    arguments: call.function.arguments
-                ) {
-                    writeSSEEvent(continuation, event: event)
-                }
-            }
-            /// Prose that never resolved into a call is released here, at the last moment.
-            for event in emitter.flushText() { writeSSEEvent(continuation, event: event) }
-            /// A turn that produced nothing still gets one empty text block: strict SDKs
-            /// index `content[0]` after opening the stream (vllm serving.py:879-883).
-            for event in emitter.ensureSomeBlock() { writeSSEEvent(continuation, event: event) }
-            for event in emitter.close() { writeSSEEvent(continuation, event: event) }
-
-            // The verdict for this turn is computed with `streamStopReason`, below.
-
-            /// `tool_call_delivery` for `/v1/models`, measured on this face too
-            /// (`ToolCallDeliveryLedger`); `parsed` = a `tool_use` block reached the client.
-            let declaredNamesForDelivery = request.tools?.map { $0.function.name } ?? []
-            if !declaredNamesForDelivery.isEmpty {
-                await enginePool.recordToolCallDelivery(
-                    modelId: modelId,
-                    outcome: deliveredToolCalls.isEmpty
-                        ? ToolCallDeliveryLedger.classifyTurn(
-                            text: answerText, declaredNames: declaredNamesForDelivery)
-                        : .parsed,
-                    calledNames: deliveredToolCalls.map { $0.function.name }
-                )
-            }
-
-            // Emit message_delta — Anthropic carries stop_reason here, and SDKs key
-            // on it; message_stop alone leaves the turn without a terminal reason.
-            // Same rule as the non-stream path on this face and both faces of the OpenAI
-            // wire: `tool_calls`→`tool_use` only for a turn that called and stopped on its
-            // own, and `length`→`max_tokens` when the budget cut it.
-            let streamStopReason = openAIToAnthropicStopReason(
-                ToolCallWire.resolveFinishReason(
-                    engineReason: finishReason,
-                    toolCallsMade: !deliveredToolCalls.isEmpty))
-            let streamToolChoiceVerdict = unsatisfiedToolChoice(
-                demanded: request.toolChoice,
-                toolCallsMade: !deliveredToolCalls.isEmpty,
-                finishReason: streamStopReason,
-                contentEmpty: answerText.isEmpty)
-            if let streamToolChoiceVerdict {
-                let demandLine =
-                    "SSE tool_choice=\(streamToolChoiceVerdict.demanded) demanded a tool call and "
-                    + "none was produced — no call fabricated; message_delta carries "
-                    + "tool_choice_unsatisfied (stop_reason=\(streamToolChoiceVerdict.finishReason))"
-                logger.warning("\(demandLine)")
-            }
-            let deltaEvent = AnthropicStreamEvent.messageDelta(
-                stopReason: streamStopReason,
-                outputTokens: totalOutputTokens,
-                ocoreai: OcoreaiTurn.assemble(
-                    toolResults: streamToolResults,
-                    toolChoiceUnsatisfied: streamToolChoiceVerdict),
-            )
-            writeSSEEvent(continuation, event: deltaEvent)
-
-            // Emit message_stop with final usage. `message_start` had to carry the
-            // handler's estimate (nothing had been prefilled yet); the terminal event
-            // carries what the engine measured, which is the number a client budgets on
-            // and the one `/v1/chat/completions` reports as `prompt_tokens`.
             /// Same number, both hops: the terminal event and the metrics counter report one
-            /// prompt, not an estimate and a measurement of it.
+            /// prompt, not an estimate and a measurement of it. Needed on both exits, so it
+            /// is computed above the branch.
             let observedInputTokens = PromptTokenAccounting.renderedPromptTokens(
                 observedPrefilled: observedPromptTokens,
                 cachedPromptTokens: observedCachedPromptTokens,
                 fallback: inputTokenCount,
             )
-            /// Same cross-check as this face's non-stream path: the claim already streamed, so
-            /// the audit line arrives as one more `text_delta` (clients concatenate blocks) and
-            /// the persisted row stores the corrected answer.
-            let streamTurnMutations = await ToolMutationLedger.shared.since(
-                mutationBaseline, turnToken: turnKey)
-            let streamTurnAttempts = await ToolAttemptLedger.shared.since(
-                attemptBaseline, turnToken: turnKey)
-            if deliveredToolCalls.isEmpty, finishReason == "stop",
-                let notice = ClaimVsAudit.notice(
-                    text: answerText, mutations: streamTurnMutations, attempts: streamTurnAttempts
-                )
-            {
-                writeSSEEvent(
-                    continuation,
-                    event: .textDelta(index: 0, text: "\n\n" + notice))
-                answerText += "\n\n" + notice
-                logger.info(
-                    "Claim/audit mismatch corrected on /v1/messages stream: \(streamTurnMutations.count) successful mutation(s)"
-                )
-            }
 
-            let finalEvent = AnthropicStreamEvent.messageStop(
-                totalPromptTokens: observedInputTokens,
-                cacheRead: observedCachedPromptTokens,
-                outputTokens: totalOutputTokens,
-            )
-            writeSSEEvent(continuation, event: finalEvent)
+            if let engineFailure {
+                /// The turn leaves through the spec's failure exit: closed blocks, `error`
+                /// with `{type,message}`, `message_stop`. No `message_delta`, so no terminal
+                /// `stop_reason` — and no tool-call parse of a partial answer, which could
+                /// fabricate a block from bytes the engine never finished writing.
+                emitFailure(message: "engine error: \(engineFailure)")
+            } else {
+                /// The calls this stream delivers: the ones the engine emitted as events, and
+                /// as a fallback the dialect parsed out of the settled answer. The fallback is
+                /// not optional on this face: a calls-only grammar makes the model *write* the
+                /// call in plain JSON (measured 10-19 — 35 text deltas spelling
+                /// `"name": "get_weather"`, then `end_turn`, and no `.toolCall` at all), and
+                /// `/v1/chat/completions` already recovers exactly this with the same
+                /// `parseToolCalls` at its own stream end (ChatHandler L1727).
+                let streamToolCalls: [ToolCall] =
+                    if !deliveredToolCalls.isEmpty {
+                        []
+                    } else if request.tools?.isEmpty == false {
+                        parseToolCalls(from: answerText) ?? []
+                    } else {
+                        []
+                    }
+                if !streamToolCalls.isEmpty {
+                    /// The held-back text IS the payload — ship it as blocks, not as prose
+                    /// sitting next to the structured call the client will execute.
+                    emitter.discardPendingText()
+                }
+                for call in streamToolCalls {
+                    if singleCallOnly, !deliveredToolCalls.isEmpty { break }
+                    deliveredToolCalls.append(call)
+                    for event in emitter.emitToolCall(
+                        id:
+                            call.id.isEmpty ? "toolu_\(UUID().uuidString.prefix(8))" : call.id,
+                        name: call.function.name,
+                        arguments: call.function.arguments
+                    ) {
+                        writeSSEEvent(continuation, event: event)
+                    }
+                }
+                /// Prose that never resolved into a call is released here, at the last moment.
+                for event in emitter.flushText() { writeSSEEvent(continuation, event: event) }
+                /// A turn that produced nothing still gets one empty text block: strict SDKs
+                /// index `content[0]` after opening the stream (vllm serving.py:879-883).
+                for event in emitter.ensureSomeBlock() { writeSSEEvent(continuation, event: event) }
+                for event in emitter.close() { writeSSEEvent(continuation, event: event) }
+
+                // The verdict for this turn is computed with `streamStopReason`, below.
+
+                /// `tool_call_delivery` for `/v1/models`, measured on this face too
+                /// (`ToolCallDeliveryLedger`); `parsed` = a `tool_use` block reached the client.
+                let declaredNamesForDelivery = request.tools?.map { $0.function.name } ?? []
+                if !declaredNamesForDelivery.isEmpty {
+                    await enginePool.recordToolCallDelivery(
+                        modelId: modelId,
+                        outcome: deliveredToolCalls.isEmpty
+                            ? ToolCallDeliveryLedger.classifyTurn(
+                                text: answerText, declaredNames: declaredNamesForDelivery)
+                            : .parsed,
+                        calledNames: deliveredToolCalls.map { $0.function.name }
+                    )
+                }
+
+                // Emit message_delta — Anthropic carries stop_reason here, and SDKs key
+                // on it; message_stop alone leaves the turn without a terminal reason.
+                // Same rule as the non-stream path on this face and both faces of the OpenAI
+                // wire: `tool_calls`→`tool_use` only for a turn that called and stopped on its
+                // own, and `length`→`max_tokens` when the budget cut it.
+                let streamStopReason = openAIToAnthropicStopReason(
+                    ToolCallWire.resolveFinishReason(
+                        engineReason: finishReason,
+                        toolCallsMade: !deliveredToolCalls.isEmpty))
+                let streamToolChoiceVerdict = unsatisfiedToolChoice(
+                    demanded: request.toolChoice,
+                    toolCallsMade: !deliveredToolCalls.isEmpty,
+                    finishReason: streamStopReason,
+                    contentEmpty: answerText.isEmpty)
+                if let streamToolChoiceVerdict {
+                    let demandLine =
+                        "SSE tool_choice=\(streamToolChoiceVerdict.demanded) demanded a tool call and "
+                        + "none was produced — no call fabricated; message_delta carries "
+                        + "tool_choice_unsatisfied (stop_reason=\(streamToolChoiceVerdict.finishReason))"
+                    logger.warning("\(demandLine)")
+                }
+                let deltaEvent = AnthropicStreamEvent.messageDelta(
+                    stopReason: streamStopReason,
+                    outputTokens: totalOutputTokens,
+                    ocoreai: OcoreaiTurn.assemble(
+                        toolResults: streamToolResults,
+                        toolChoiceUnsatisfied: streamToolChoiceVerdict),
+                )
+                writeSSEEvent(continuation, event: deltaEvent)
+
+                // Emit message_stop with final usage. `message_start` had to carry the
+                // handler's estimate (nothing had been prefilled yet); the terminal event
+                // carries what the engine measured, which is the number a client budgets on
+                // and the one `/v1/chat/completions` reports as `prompt_tokens`.
+                /// Same cross-check as this face's non-stream path: the claim already
+                /// streamed, so the audit line arrives as one more `text_delta` (clients
+                /// concatenate blocks) and the persisted row stores the corrected answer.
+                let streamTurnMutations = await ToolMutationLedger.shared.since(
+                    mutationBaseline, turnToken: turnKey)
+                let streamTurnAttempts = await ToolAttemptLedger.shared.since(
+                    attemptBaseline, turnToken: turnKey)
+                if deliveredToolCalls.isEmpty, finishReason == "stop",
+                    let notice = ClaimVsAudit.notice(
+                        text: answerText, mutations: streamTurnMutations,
+                        attempts: streamTurnAttempts
+                    )
+                {
+                    writeSSEEvent(
+                        continuation,
+                        event: .textDelta(index: 0, text: "\n\n" + notice))
+                    answerText += "\n\n" + notice
+                    logger.info(
+                        "Claim/audit mismatch corrected on /v1/messages stream: \(streamTurnMutations.count) successful mutation(s)"
+                    )
+                }
+
+                let finalEvent = AnthropicStreamEvent.messageStop(
+                    totalPromptTokens: observedInputTokens,
+                    cacheRead: observedCachedPromptTokens,
+                    outputTokens: totalOutputTokens,
+                )
+                writeSSEEvent(continuation, event: finalEvent)
+            }
 
             // Record metrics
             let dur = startTime.duration(to: ContinuousClock.now)
@@ -1241,12 +1277,16 @@ private func streamAnthropicResponse(
             )
 
         } catch {
-            // On error, write a single error event
-            let errorEvent = AnthropicStreamEvent(
-                type: "error", index: nil, message: nil, delta: nil,
-                usage: AnthropicStreamUsage(outputTokens: 0, inputTokens: 0),
-            )
-            writeSSEEvent(continuation, event: errorEvent)
+            // A cancellation is the caller walking away — the stream ends silently rather
+            // than reporting an `api_error` for a turn the client itself abandoned. Anything
+            // else gets the same failure sequence the in-loop exits use.
+            if Task.isCancelled {
+                logger.info("Anthropic stream cancelled")
+            } else {
+                logger.error("Stream token consumption failed: \(error)")
+                emitFailure(
+                    message: "stream failed: \(error.localizedDescription)")
+            }
         }
         continuation.finish()
     }

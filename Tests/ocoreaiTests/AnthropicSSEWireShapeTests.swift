@@ -66,4 +66,21 @@ struct AnthropicSSEWireShapeTests {
     func reasonMapping(openAI: String, anthropic: String) {
         #expect(openAIToAnthropicStopReason(openAI) == anthropic)
     }
+
+    /// The spec's `error` event is `{"type":"error","error":{"type","message"}}` (sglang
+    /// protocol.py:25-36), and `error.message` is the only place a client learns what
+    /// happened. Measured 11-21 (probe 58): this server's SSE failure exits emitted
+    /// `{"type":"error"}` with no payload — an error event no client can read.
+    @Test("error event carries the spec {type,message} payload and nothing else")
+    func errorEventShape() {
+        let e = json(
+            AnthropicStreamEvent.errorEvent(type: "api_error", message: "engine said no"))
+        #expect(e["type"] as? String == "error")
+        let err = e["error"] as? [String: Any]
+        #expect(err?["type"] as? String == "api_error")
+        #expect(err?["message"] as? String == "engine said no")
+        #expect(e.keys.contains("usage") == false)
+        #expect(e.keys.contains("index") == false)
+        #expect(e.keys.contains("delta") == false)
+    }
 }

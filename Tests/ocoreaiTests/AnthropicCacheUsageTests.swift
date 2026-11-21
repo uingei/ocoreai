@@ -133,10 +133,11 @@ struct AnthropicCacheUsageTests {
         #expect(bypasses == 0, "hand-built AnthropicUsage bypasses the split")
         let splits = AnthropicCacheUsageTests.count(of: "AnthropicUsage.split(", in: source)
         #expect(splits == 2, "expected the non-stream and message_start assemblies, got \(splits)")
-        // Both legs report the engine's measurement, not the pre-flight estimate.
+        // All three legs report the engine's measurement, not the pre-flight estimate:
+        // non-stream, the stream terminal event, and the failure exit's `message_stop`.
         #expect(
             AnthropicCacheUsageTests.count(of: "cacheRead: observedCachedPromptTokens", in: source)
-                == 2)
+                == 3)
     }
 
     /// The placeholder comment is gone, and the scan proves it can see the key it replaced.

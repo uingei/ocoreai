@@ -456,9 +456,11 @@ struct AnthropicSharedAssemblySourceTests {
     @Test("usage prefers the engine's measured prompt count")
     func usageReportsMeasurement() throws {
         let s = try source(handlerSource)
+        // Three sites: non-stream, the stream's success tail, and `emitFailure` — a failed
+        // turn still reports a prompt count, so it must size it through the same home.
         #expect(
-            s.components(separatedBy: "PromptTokenAccounting.renderedPromptTokens(").count - 1 == 2,
-            "both response modes must size input_tokens through the one accounting home"
+            s.components(separatedBy: "PromptTokenAccounting.renderedPromptTokens(").count - 1 == 3,
+            "every exit — including the failure exit — must size input_tokens through the one accounting home"
         )
         #expect(
             !s.contains("inputTokens: observedPromptTokens ??"),
