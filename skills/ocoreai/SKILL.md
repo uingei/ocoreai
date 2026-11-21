@@ -113,7 +113,7 @@ These need one ready model; probe 39 runs them when it has one and prints its ow
 does not, so nobody reads the contract lane as a measurement. `@model` is replaced by the first
 `state:"ready"` id from `/v1/models`.
 
-<!-- exec-model: GET /v1/models 200 | state | contextLength | reasoningEffort | toolCallDelivery | videoInput -->
+<!-- exec-model: GET /v1/models 200 | state | max_model_len | reasoningEffort | toolCallDelivery | videoInput -->
 <!-- exec-model: POST /v1/chat/completions {"model":"@model","messages":[{"role":"user","content":"Say OK."}],"max_tokens":16} 200 | "finish_reason" | total_tokens -->
 <!-- exec-model: POST /v1/chat/completions {"model":"@model","messages":[{"role":"user","content":"List the files."}],"tools":[{"type":"function","function":{"name":"read_file","description":"Read a file","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}}}],"max_tokens":64} 200 | "choices" -->
 <!-- exec-model: POST /v1/messages {"model":"@model","max_tokens":16,"messages":[{"role":"user","content":"Say OK."}]} 200 | "stop_reason" | content -->

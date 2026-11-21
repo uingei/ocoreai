@@ -369,7 +369,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   exact-id face (`71119c6`, cell in `comparator-repos.md`) is the third.
 - **A measured gallery is the one adoption surface we can win outright** (README/, Handlers/) — the leaders
   advertise model support as adjectives while `/v1/models` already publishes per-checkpoint measured verdicts
-  (`vlm`, `contextLength`, `toolCallDelivery`, `reasoningEffort`, `videoInput`) and `scripts/eval/` scores a
+  (`vlm`, `max_model_len`, `toolCallDelivery`, `reasoningEffort`, `videoInput`) and `scripts/eval/` scores a
   task board (count: `_eval.py count`, never re-typed here). The artefact landed 11-19: the README carries a
   gallery section, `scripts/gen-model-gallery.sh` is its refresh command (it copies one `GET /v1/models`
   verbatim and refuses an unmeasured server, so a row the server never measured cannot be written), and
@@ -471,14 +471,15 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   and the fourth pass owned the box exclusively (my earlier "box load" attribution is corrected: the
   suite-internal pool alone suffices). Wanted: a controlled clock (`ClockToolsTests`), a quiet lane
   (`make test-clt`), or the anchor's scope. Owner.
-- **The 11-02 compat sweep left one owner call, one dated debt and one seatless surface**
+- **The 11-02 compat sweep left one owner call and one seatless surface; its dated debt is paid**
   (Middleware/, Router/, Security/) — the swept axes landed (spec-name `error.type`; `max_model_len`
-  aliased one release, 11-02(110)); ① the eight hand-built error bodies render through
+  aliased one release, 11-02(110), and the alias deleted 11-22 on its stated date — wire DTO, gallery
+  script/test keys, published-skill prose all read `max_model_len`; probe 03 fails on the alias
+  *returning*, `ModelsWireShapeTests` on the retired key reaching the wire); ① the eight hand-built error bodies render through
   `AppError.response` since 11-03 (probe 50, `MiddlewareEnvelopeDisciplineTests`), though the keyword
   guard sharing that family reaches no wire still — `SafetyConfig` defaults `enabled: false`, so a
   config seat is the owner's. ② Jev's answer half is read from both stacks, unwritten until the answer
-  position scores (probe 49; `systemone-decisions.md` § Shape C). ③ drop the `contextLength` alias
-  (+ probe 03's clash check) the release after it landed.
+  position scores (probe 49; `systemone-decisions.md` § Shape C). ③ paid 11-22, see the row header.
 - **An MCP child is confined by nothing; its env was the closed half** (Tools/, MCP/, Security/) —
   the handover that survives the scrub: an MCP server is third-party code holding whatever argv and
   working directory its config hands it, started by `MCPBridge.connectEndpoint`

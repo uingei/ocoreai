@@ -41,7 +41,7 @@ if not ready:
              "empty gallery; load/measure at least one checkpoint first")
 
 # The wire's own keys, projected verbatim; absent stays absent, inferred never rides.
-KEYS = ["id", "contextLength", "vlm", "capabilities",
+KEYS = ["id", "max_model_len", "vlm", "capabilities",
         "toolCallDelivery", "toolCallEvidence",
         "reasoningEffort", "videoInput", "videoEvidence"]
 models = [{k: r[k] for k in KEYS if k in r} for r in ready]
@@ -58,7 +58,7 @@ def cell(m, k):
     return str(m.get(k, "—"))
 
 header = "| model | vlm | context | tool calls | reasoning_effort | video |\n|---|---|---|---|---|---|"
-rows = [f"| `{cell(m,'id')}` | {cell(m,'vlm')} | {cell(m,'contextLength')} | "
+rows = [f"| `{cell(m,'id')}` | {cell(m,'vlm')} | {cell(m,'max_model_len')} | "
         f"{cell(m,'toolCallDelivery')} | {cell(m,'reasoningEffort')} | {cell(m,'videoInput')} |"
         for m in models]
 block = "\n".join([

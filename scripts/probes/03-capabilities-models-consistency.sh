@@ -420,23 +420,22 @@ probe_section "models surface must not promise what count-tokens denies"
 probe_api GET /v1/models
 MODELS_BODY="$PROBE_BODY"   # reused below: the capability rows have to agree with these rows
 LIMIT="${OCOREAI_PROBE_MODEL_LIMIT:-2}"
-# `max_model_len` is the key vllm and sglang publish and we now publish; `contextLength` is the
-# one-release alias carrying the same number. This is the consumer-side gate for that promise:
-# a row whose two spellings disagree hands one client two budgets for one window.
-ALIAS_CLASH="$(python3 - "$PROBE_BODY" <<'PY'
+# `max_model_len` is the key vllm and sglang publish and we publish. The older `contextLength`
+# alias was retired on its one-release promise; this is the consumer-side gate that keeps the
+# retired spelling off: a revived alias re-creates the two-spellings-of-one-number failure mode.
+ALIAS_RETURNED="$(python3 - "$PROBE_BODY" <<'PY'
 import json, sys
 try:
     data = json.loads(sys.argv[1]).get("data", [])
 except Exception:
     sys.exit(0)
 for m in data:
-    key, alias = m.get("max_model_len"), m.get("contextLength")
-    if key is not None and alias is not None and key != alias:
-        print("%s max_model_len=%s contextLength=%s" % (m.get("id", ""), key, alias))
+    if m.get("contextLength") is not None:
+        print(m.get("id", ""))
 PY
 )"
-if [ -n "$ALIAS_CLASH" ]; then
-  probe_fail "one row publishes two different ceilings: $(printf '%s' "$ALIAS_CLASH" | tr '\n' ';')"
+if [ -n "$ALIAS_RETURNED" ]; then
+  probe_fail "the retired contextLength alias is back on the wire: $(printf '%s' "$ALIAS_RETURNED" | tr '\n' ' ')"
 fi
 READY_LIST="$(python3 - "$PROBE_BODY" "$LIMIT" <<'PY'
 import json, sys

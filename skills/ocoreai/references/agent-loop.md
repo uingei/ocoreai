@@ -30,7 +30,7 @@ already committed to, the session rewinds rather than pretending (`SessionRewind
 | `toolCallDelivery` | `parsed` \| `prose_only` \| `not_observed` | `prose_only` ⇒ this checkpoint writes tool calls as *text*: expect no `tool_calls` array and parse or don't use tools. `not_observed` ⇒ no turn like this has run yet. `ToolCallDeliveryLedger.swift:78-80` |
 | `reasoningEffort` | `honored` \| `template_ignores` \| `not_observed` | `template_ignores` ⇒ a `reasoning_effort` word you send is dropped by the checkpoint's own template; asking anyway is refused with the remedy (`EnginePool.swift:237`, probe 38) |
 | `videoInput` | `delivered` \| `not_observed` | per checkpoint, not global: `delivered` means a turn here actually carried frames (`VideoDeliveryLedger.swift:68-69`) |
-| `vlm`, `contextLength` | bool, int | the ceiling you must fit prompts under |
+| `vlm`, `max_model_len` | bool, int | the ceiling you must fit prompts under |
 
 ## The approval boundary
 

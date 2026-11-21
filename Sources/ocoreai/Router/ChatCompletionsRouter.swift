@@ -199,14 +199,14 @@ func buildRouter(
                 vlm: r.isVlm,
                 weightsDir: r.weightsDir.path
             )
-            object.setContextCeiling(r.contextLength)
+            object.maxModelLen = r.contextLength
             objects.append(object)
         }
         for m in loaded {
             let rawId = m["id"] ?? ""
             guard !rawId.isEmpty, seen.insert(rawId).inserted else { continue }
             var object = ModelObject(id: rawId, state: m["state"] ?? "ready")
-            object.setContextCeiling(Int(m["max_context_length"] ?? ""))
+            object.maxModelLen = Int(m["max_context_length"] ?? "")
             objects.append(object)
         }
         // 3.5) 内嵌 embedder — /v1/embeddings 是常开路由，能力必须可发现：
@@ -219,7 +219,7 @@ func buildRouter(
             state: embedCached ? "ready" : "download_required",
             capabilities: ["embed"]
         )
-        embedderRow.setContextCeiling(EmbeddingService.canonicalContextLength)
+        embedderRow.maxModelLen = EmbeddingService.canonicalContextLength
         objects.append(embedderRow)
         // Default-model discoverability: clients must not guess who the
         // server-wide default is via trial requests — flag it directly.
@@ -1247,23 +1247,11 @@ struct ModelObject: Codable {
     /// a server-side guess; absent config → field omitted (unknown ≠ 0).
     /// Clients size prompts from this instead of trial-request probing
     /// (same discoverability contract as `capabilities` / `defaultModel`).
-    /// The references' name for the served ceiling (`max_model_len`), from the same measured value
-    /// as `contextLength`: `vllm/vllm/entrypoints/serve/engine/protocol.py:112` and
-    /// `sglang/python/sglang/srt/entrypoints/openai/protocol.py:94` both publish it under this key,
-    /// so a client that sizes a prompt from it used to see nothing. Set through
-    /// ``setContextCeiling(_:)`` so one value cannot reach two keys unequally;
-    /// `ModelsWireShapeTests` asserts the two agree and that both are present.
+    /// The references' name for the served ceiling: `vllm/vllm/entrypoints/serve/engine/protocol.py:112`
+    /// and `sglang/python/sglang/srt/entrypoints/openai/protocol.py:94` both publish this key. The
+    /// older `contextLength` alias left the wire on its one-release promise; `ModelsWireShapeTests`
+    /// and probe 03 keep the retired key off.
     var maxModelLen: Int? = nil
-    /// Deprecated spelling of `maxModelLen`, kept one release for clients against the published
-    /// skill. New callers read `max_model_len`; the value is always the other one's.
-    var contextLength: Int? = nil
-
-    /// The one place the ceiling is written: both keys, one value, or the alias becomes a second
-    /// truth about the model.
-    mutating func setContextCeiling(_ tokens: Int?) {
-        maxModelLen = tokens
-        contextLength = tokens
-    }
     /// ocoreai extension: what THIS server has measured with video, in a closed
     /// vocabulary — `delivered` (a turn carrying video parts completed against this
     /// model in this process) or `not_observed` (nothing has yet, which is NOT a
@@ -1309,7 +1297,6 @@ struct ModelObject: Codable {
         case ownedBy = "owned_by"
         case state, vlm, weightsDir, capabilities, defaultModel
         case maxModelLen = "max_model_len"
-        case contextLength
         case videoInput, videoEvidence, toolCallDelivery, toolCallEvidence
         case reasoningEffort, loadProgress
     }

@@ -146,7 +146,7 @@ Known boundaries (as of this commit, not aspirations):
 
 > Everything else needs an API key once `OCOREAI_API_KEYS` is set — **including `GET /v1/perception`**, which is keyed because it is absent from `AuthRoutePolicy.publicPaths`. That set is the one home for this list — keep the doc re-greppable against it.
 
-> **Measured, never inferred.** `GET /v1/models` carries per-model disclosure keys — `vlm`, `contextLength`, `capabilities`, `videoInput`/`videoEvidence`, `toolCallDelivery`/`toolCallEvidence` (`parsed` | `prose_only` | `not_observed`),
+> **Measured, never inferred.** `GET /v1/models` carries per-model disclosure keys — `vlm`, `max_model_len`, `capabilities`, `videoInput`/`videoEvidence`, `toolCallDelivery`/`toolCallEvidence` (`parsed` | `prose_only` | `not_observed`),
 > `reasoningEffort` (`honored` | `template_ignores` | `not_observed` — a word your request sends that the
 > checkpoint measurably never reads is refused 400 with the remedy, never answered 200 as if it had landed) — and `GET /v1/capabilities` publishes the same measurements aggregated, plus `tokenizerBackend` (`real`/`heuristic`) and the endpoint index. Nothing is inferred from an architecture name or a linked framework: an unmeasured capability is an explicit `not_observed`/`unknown`, never a silent absence, and unloading a model resets its claims. Model ids contain `/`, and `/v1/models/:model/…` accepts them verbatim (`org/name`) as well as percent-encoded (`org%2Fname`).
 

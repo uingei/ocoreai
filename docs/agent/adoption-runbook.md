@@ -162,7 +162,7 @@ read `GET /v1/capabilities`, invariant 2 cuts both ways):
   `scripts/model-catalog-minimum-version.mjs`). vllm gives each feature its own page and documents how to
   extend it (`../references/vllm/docs/features/reasoning_outputs.md:441`).
 - Our equivalent needs no new machinery and is invariant-2 native: `/v1/models` already publishes
-  per-checkpoint *measured* verdicts (`vlm`, `contextLength`, `toolCallDelivery`, `reasoningEffort`,
+  per-checkpoint *measured* verdicts (`vlm`, `max_model_len`, `toolCallDelivery`, `reasoningEffort`,
   `videoInput`) and `scripts/eval/` holds a 39-task scoreboard. A generated README table plus `models.json` (absent),
   refreshed by a probe with its command beside it, puts a measured gallery where strangers look — the
   leaders' galleries are adjectives, so here honesty is also the louder surface.

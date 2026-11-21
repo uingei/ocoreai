@@ -68,11 +68,11 @@ Measured on the scripted lane (no weights resident), so they are contract facts,
   "gpuCacheGB":…,"modelIds":[…],"specializedModels":…}}`
 - `GET /ready` → `{"status":"ready","loadedModels":…,"activeSessions":…,"timestamp":…}`
 - `GET /v1/models` → `{"object":"list","data":[{id, object, created, owned_by, state, max_model_len,
-  contextLength, vlm, weightsDir, reasoningEffort, toolCallDelivery, videoInput}]}` — `created`/`owned_by`
+  vlm, weightsDir, reasoningEffort, toolCallDelivery, videoInput}]}` — `created`/`owned_by`
   are OpenAI's own keys (stable across polls: the weights directory's creation date, else the instant this
   server came to know the row); the context ceiling is published as `max_model_len`, the name vllm and
-  sglang both use, with `contextLength` as a one-release alias carrying the same number (an unknown
-  ceiling omits **both** — never 0). The rest are ocoreai extensions and stay camelCase. A `state:"loading"`
+  sglang both use (an unknown ceiling omits the key — never 0; the older `contextLength` alias is
+  retired and never returns). The rest are ocoreai extensions and stay camelCase. A `state:"loading"`
   row also carries `loadProgress` (`elapsedSeconds`, `downloading`, and the byte fields only once a hub
   transfer measured them). `data` is empty on a machine with no
   cached checkpoint, so **assert structure here and model rows only where a model is ready** (that split

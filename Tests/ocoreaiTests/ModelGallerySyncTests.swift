@@ -33,11 +33,17 @@ struct ModelGallerySyncTests {
 
     private struct GalleryModel: Decodable {
         let id: String
-        var contextLength: Int?
+        var maxModelLen: Int?
         var vlm: Bool?
         var toolCallDelivery: String?
         var reasoningEffort: String?
         var videoInput: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case id
+            case maxModelLen = "max_model_len"
+            case vlm, toolCallDelivery, reasoningEffort, videoInput
+        }
     }
 
     private struct GalleryFile: Decodable {
@@ -116,7 +122,7 @@ struct ModelGallerySyncTests {
     }
 
     private static func expectedRow(for model: GalleryModel) -> String {
-        "| `\(model.id)` | \(cell(model.vlm)) | \(cell(model.contextLength)) | "
+        "| `\(model.id)` | \(cell(model.vlm)) | \(cell(model.maxModelLen)) | "
             + "\(cell(model.toolCallDelivery)) | \(cell(model.reasoningEffort)) | \(cell(model.videoInput)) |"
     }
 
@@ -208,7 +214,7 @@ struct ModelGallerySyncTests {
         let rows = try #require(top["models"] as? [[String: Any]])
         // The script's own KEYS projection — a key outside it cannot come from a script run.
         let allowed: Set<String> = [
-            "id", "contextLength", "vlm", "capabilities",
+            "id", "max_model_len", "vlm", "capabilities",
             "toolCallDelivery", "toolCallEvidence",
             "reasoningEffort", "videoInput", "videoEvidence",
         ]
@@ -223,7 +229,7 @@ struct ModelGallerySyncTests {
     @Test("the drift comparator itself goes red on synthetic drift")
     func gateIsNotVacuous() throws {
         let model = GalleryModel(
-            id: "a/b", contextLength: 4096, vlm: true, toolCallDelivery: "parsed",
+            id: "a/b", maxModelLen: 4096, vlm: true, toolCallDelivery: "parsed",
             reasoningEffort: "honored", videoInput: nil)
         let row = Self.expectedRow(for: model)
         // Same pair: no report. This also pins the exact row shape the script emits.
@@ -233,7 +239,7 @@ struct ModelGallerySyncTests {
             "row projection drifted: \(row)")
         // One absent cell in json while the README shows a word: report.
         let stripped = GalleryModel(
-            id: "a/b", contextLength: 4096, vlm: true, toolCallDelivery: "parsed",
+            id: "a/b", maxModelLen: 4096, vlm: true, toolCallDelivery: "parsed",
             reasoningEffort: nil, videoInput: nil)
         #expect(!Self.driftReport(rows: [row], models: [stripped]).isEmpty)
         // Extra README row with no twin: report.

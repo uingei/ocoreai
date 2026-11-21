@@ -9,6 +9,17 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-22
 
+**11-22 open 行的到期债处置：`contextLength` alias 按承诺删除，消费面一层不漏** — 改了什么：11-02(110) 承诺
+「落地一个 release 后删」的 `contextLength` alias（`max_model_len` 的旧拼写）如期删除，五层同步——wire DTO
+（`ModelObject.contextLength` + CodingKeys + `setContextCeiling` 双键 setter；单键直写 `maxModelLen`，setter
+前提随 alias 消失）、gallery 链（`gen-model-gallery.sh` KEYS 与行渲染、`ModelGallerySyncTests` 的
+Decodable/allowed-keys/合成 pair）、发布面 skill 三文件（`SKILL.md` marker、`references/wire.md`、
+`agent-loop.md`）、README 披露 keys 文案、adoption-runbook 与 open-items 行（③ 改写为已付）。什么证明它：
+`swift build` exit 0；`ModelsWireShapeTests.ceilingPublishedUnderReferencesName` 现在断言 retired key
+到达 wire 即红、反射计数 17→16 随属性删除；probe 03 原「两拼写互相矛盾」检查改为「alias 回归即红」的
+消费面检查（`bash -n` 两脚本绿）；两套件复跑 verdict 见同轮。门禁：`ceilingPublishedUnderReferencesName`
+（wire 面）+ probe 03 `ALIAS_RETURNED`（消费面）+ `ModelGallerySyncTests`（gallery 投影）。
+
 **11-22 main 连续两次 push CI 红的根因：同一个计数住了两个门，修一漏一** — 改了什么：11-21 失败出口那轮
 （`adc90b50`）把第三处 `PromptTokenAccounting.renderedPromptTokens(` 内联进 `emitFailure`，并把
 `AnthropicThinkingAndToolChannelTests.usageReportsMeasurement` 的同文件计数写成 3，而
