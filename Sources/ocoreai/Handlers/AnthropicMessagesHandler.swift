@@ -52,6 +52,7 @@ func anthropicMessagesHandler(
     semanticSearch: SemanticSearch?,
     messageBuilder: MessageBuilder,
     logger: Logger,
+    toolsSurfaceEnforced: Bool = false,
 ) async throws -> Response {
     /// Numeric domain gate, first line — the Anthropic sibling of the one in
     /// ``chatCompletionsHandler``. Before this, a negative `max_tokens` on this wire reached
@@ -62,6 +63,29 @@ func anthropicMessagesHandler(
     }
 
     let modelId = request.model
+
+    /// Capability gates at the same pre-scheduler seat as ``chatCompletionsHandler``: this
+    /// face reaches the same engine, so an embedder must not hang a load here and a declaring
+    /// request against a measured `prose_only` checkpoint must not spend a turn on this wire.
+    if let refusal = EmbeddingService.generationRefusal(
+        modelId: modelId, usedEndpoint: "/v1/messages")
+    {
+        throw refusal
+    }
+    if toolsSurfaceEnforced {
+        let refusal = ToolCallWire.surfaceRefusal(
+            modelId: modelId,
+            declaredToolCount: request.tools?.count ?? 0,
+            record: ToolCallDeliveryLedger.record(
+                for: modelId, in: await enginePool.toolCallDeliverySnapshot())
+        )
+        if let refusal {
+            logger.warning(
+                "\(refusal)",
+                metadata: ["error_code": .string("tool_surface_unsupported")])
+            throw refusal
+        }
+    }
 
     // The pairing walk runs on the RAW request blocks, before any conversion: by the
     // time `toInternalMessages` has run, an unattachable `tool_result` has already

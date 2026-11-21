@@ -516,6 +516,7 @@ func buildRouter(
             semanticSearch: semanticSearch,
             messageBuilder: messageBuilder,
             logger: logger,
+            toolsSurfaceEnforced: SettingsStore.shared.toolsSurfaceEnforce,
         )
     }
 

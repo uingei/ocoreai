@@ -1471,6 +1471,18 @@ actor EmbeddingService {
         "mlx-community/LFM2.5-Embedding-350M",
     ]
 
+    /// The refusal one home. Every generation-bearing face (`/v1/chat/completions`,
+    /// `/v1/messages`, `/v1/completions`) reaches the same non-generating container with the
+    /// same id, so each asks this function at its pre-scheduler seat and only the caller's
+    /// own endpoint name differs in the answer.
+    nonisolated static func generationRefusal(modelId: String, usedEndpoint: String) -> AppError? {
+        guard embedderModelIds.contains(modelId) else { return nil }
+        return .invalidRequest(
+            "'\(modelId)' is an embedding model — it has no generation head. "
+                + "Call POST /v1/embeddings with {\"input\": \"...\"} instead of \(usedEndpoint)."
+        )
+    }
+
     /// Root of the HF hub cache for `name` ("org/model"), or nil when the
     /// platform has no hub cache at all. `homeDirectoryForCurrentUser` is
     /// macOS-only (iOS compile error at CI run 37444773107); on iOS the

@@ -217,11 +217,10 @@ func chatCompletionsHandler(
     /// (live-observed 10-06: 90s no-return, tokenization fell back to
     /// heuristics). /v1/models lists it with `capabilities: ["embed"]`;
     /// misrouting gets an immediate actionable 400, never a silent hang.
-    if EmbeddingService.embedderModelIds.contains(modelId) {
-        throw AppError.invalidRequest(
-            "'\(modelId)' is an embedding model — it has no generation head. "
-                + "Call POST /v1/embeddings with {\"input\": \"...\"} instead of /v1/chat/completions."
-        )
+    if let refusal = EmbeddingService.generationRefusal(
+        modelId: modelId, usedEndpoint: "/v1/chat/completions")
+    {
+        throw refusal
     }
 
     /// Capability gate, measured per checkpoint: a caller that demands thinking control

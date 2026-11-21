@@ -87,6 +87,14 @@ func completionsHandler(
         )
     }
 
+    /// Capability gate at the same seat as the chat and messages faces: this route reaches
+    /// the same engine, so a listed embedder must not hang loading a non-generating container.
+    if let refusal = EmbeddingService.generationRefusal(
+        modelId: modelId, usedEndpoint: "/v1/completions")
+    {
+        throw refusal
+    }
+
     /// Content-safety input guard (parity with chat).
     if let contentGuard = await OcoreaiEngine.shared.activeContentGuard {
         let text = prompts.joined(separator: " ")

@@ -224,9 +224,54 @@ check_miss() {
 check_miss "messages miss" /v1/messages/no-such-subroute "anthropic" "None"
 check_miss "openai miss"   /no/such/route                 "openai"   "404"
 
+# ── 4) an embedder named by a generation route, refused on every face ──────────────────
+# The gate that keeps a generation request naming a listed embedder from loading a
+# non-generating container lived on `/v1/chat/completions` alone; `/v1/messages` and
+# `/v1/completions` reach the same pool with the same id. The refusal is one home
+# (`EmbeddingService.generationRefusal`); this leg reads each face's answer off parsed keys —
+# status, envelope shape, and the parsed error.message (raw-body substring matching is the
+# shape §4's design bans: a refusal's prose names the route it redirects to).
+probe_section "4) an embedder named by a generation route is refused on all three faces"
+EMBED_ID="mlx-community/LFM2.5-Embedding-350M-4bit"
+EMBED_PASSED=0
+check_embedder_refusal() {
+  local label="$1" uri="$2" body="$3" want_shape="$4"
+  probe_api POST "$uri" "$body"
+  local described
+  described="$(describe "$label")"
+  if [ "${PROBE_STATUS:-}" != "400" ]; then
+    probe_fail "$label -> ${PROBE_STATUS:-no response}, expected 400: $(printf '%s' "$PROBE_BODY" | head -c 200)" \
+      " — without the gate the request reaches the pool and loads a non-generating container (the live-observed hang)"
+    return
+  fi
+  case "$described" in
+    *"shape=$want_shape "*) ;;
+    *) probe_fail "$label: refusal in the wrong envelope ($described) — the face decides the shape"; return ;;
+  esac
+  local message
+  message="$(PROBE_BODY="$PROBE_BODY" python3 -c 'import json,os; print(json.loads(os.environ["PROBE_BODY"])["error"]["message"])' 2>/dev/null)"
+  local needle
+  for needle in "is an embedding model" "POST /v1/embeddings" "$uri"; do
+    case "$message" in
+      *"$needle"*) ;;
+      *) probe_fail "$label: error.message does not name '$needle' ($message)"; return ;;
+    esac
+  done
+  probe_ok "$label — 400 in $want_shape's envelope naming the embed route and the used endpoint"
+  EMBED_PASSED=$(( EMBED_PASSED + 1 ))
+}
+
+EMBED_CHAT="$(EMBED_ID="$EMBED_ID" python3 -c 'import json,os; print(json.dumps({"model": os.environ["EMBED_ID"], "max_tokens": 8, "messages": [{"role": "user", "content": "hi"}]}))')"
+EMBED_MSGS="$EMBED_CHAT"
+EMBED_COMPLETIONS="$(EMBED_ID="$EMBED_ID" python3 -c 'import json,os; print(json.dumps({"model": os.environ["EMBED_ID"], "max_tokens": 8, "prompt": "hi"}))')"
+
+check_embedder_refusal "chat/completions embedder" /v1/chat/completions "$EMBED_CHAT"        "openai"
+check_embedder_refusal "messages embedder"         /v1/messages         "$EMBED_MSGS"        "anthropic"
+check_embedder_refusal "completions embedder"      /v1/completions      "$EMBED_COMPLETIONS" "openai"
+
 # ── 5) floor ───────────────────────────────────────────────────────────────────────────
 probe_section "5) floor — every leg counted its own subjects"
-for row in "controls:3:$CONTROLS_PASSED" "blocks:3:$BLOCKED_PASSED" "misses:2:$MISSES_PASSED"; do
+for row in "controls:3:$CONTROLS_PASSED" "blocks:3:$BLOCKED_PASSED" "misses:2:$MISSES_PASSED" "embedders:3:$EMBED_PASSED"; do
   name="${row%%:*}"; rest="${row#*:}"; want="${rest%%:*}"; got="${rest##*:}"
   if [ "${got:-0}" -eq "$want" ]; then
     probe_ok "$name leg ran all $want of its subjects"

@@ -147,23 +147,28 @@ struct ToolSurfaceHonestyTests {
             .matches(in: text, range: NSRange(text.startIndex..., in: text)).count
     }
 
-    /// The enforcement decision has one producer and two flag reads (the two
-    /// `/v1/chat/completions lanes); the publication stays one home too. Floors run first so a
-    /// rename cannot pass vacuously.
-    @Test("the gate has one seat; the flag is read on exactly the two chat lanes")
+    /// The enforcement decision has one producer and one flag read per declaring generation
+    /// lane (the two `/v1/chat/completions lanes and `/v1/messages`); the publication stays
+    /// one home too. Floors run first so a rename cannot pass vacuously.
+    @Test("the gate has one seat; the flag is read on exactly the three declaring lanes")
     func wiringHasOneHome() throws {
         let handler = try Self.source("Sources/ocoreai/Handlers/ChatHandler.swift")
+        let anthropic = try Self.source("Sources/ocoreai/Handlers/AnthropicMessagesHandler.swift")
         let router = try Self.source("Sources/ocoreai/Router/ChatCompletionsRouter.swift")
         // Floors: the neighbors of this gate exist before anything counts.
         #expect(handler.contains("ReasoningEffortWire.refusal("))
+        #expect(anthropic.contains("func anthropicMessagesHandler("))
         #expect(router.contains("objects[i].toolCallDelivery = "))
         #expect(
             try Self.count(#"objects\[i\]\.toolCallDelivery = "#, in: router) == 1,
             "the delivery status keeps exactly one publisher — this gate adds no second column")
         #expect(try Self.count(#"ToolCallWire\.surfaceRefusal\("#, in: handler) == 1)
         #expect(
-            try Self.count(#"SettingsStore\.shared\.toolsSurfaceEnforce"#, in: router) == 2,
-            "both /v1/chat/completions lanes read the flag, no lane more")
+            try Self.count(#"ToolCallWire\.surfaceRefusal\("#, in: anthropic) == 1,
+            "the face whose turns feed the same ledger must ask the same refusal")
+        #expect(
+            try Self.count(#"SettingsStore\.shared\.toolsSurfaceEnforce"#, in: router) == 3,
+            "all three declaring lanes read the flag, no lane more")
     }
 }
 
@@ -350,6 +355,84 @@ struct ToolSurfaceEnforcementTests {
             #expect(
                 !message.contains("Drop tools[]"),
                 "a measured positive must never meet the refusal: \(message)")
+        }
+    }
+
+    // MARK: - The `/v1/messages` lane (same ledger, same flag, the other envelope route)
+
+    private func anthropicRequest(declaredTools: Bool) throws -> AnthropicMessageRequest {
+        let tools =
+            declaredTools
+            ? #","tools":[{"name":"probe_tool","description":"probe","input_schema":{"type":"object","properties":{}}}]"#
+            : ""
+        let json =
+            #"{"model":"\#(Self.model)","messages":[{"role":"user","content":"hi"}],"max_tokens":8\#(tools)}"#
+        return try JSONDecoder().decode(AnthropicMessageRequest.self, from: Data(json.utf8))
+    }
+
+    private func runAnthropic(
+        _ fixture: Fixture, declaredTools: Bool, enforced: Bool
+    ) async -> Outcome {
+        do {
+            let response = try await anthropicMessagesHandler(
+                request: try anthropicRequest(declaredTools: declaredTools),
+                enginePool: fixture.pool,
+                scheduler: fixture.scheduler,
+                metrics: fixture.metrics,
+                sessionCompressor: fixture.compressor,
+                semanticSearch: nil,
+                messageBuilder: fixture.builder,
+                logger: Logger(label: "test.tool-surface.anthropic"),
+                toolsSurfaceEnforced: enforced
+            )
+            return .served(status: Int(response.status.code))
+        } catch let error as AppError {
+            if case .invalidRequest(let message) = error {
+                return .threwInvalidRequest(message)
+            }
+            return .threwOther(String(reflecting: error))
+        } catch {
+            return .threwOther(String(reflecting: type(of: error)))
+        }
+    }
+
+    @Test("/v1/messages meets the same refusal: flag ON + prose_only + declared tools")
+    func messagesFaceRefusesADeclaringRequest() async throws {
+        let lease = try scriptedLane()
+        defer { lease.release() }
+        let fixture = try await Fixture.make(label: "test.tool-surface.msg-on")
+        defer { fixture.cleanup() }
+        await fixture.pool.recordToolCallDelivery(
+            modelId: Self.model, outcome: .proseOnly)
+        let outcome = await runAnthropic(fixture, declaredTools: true, enforced: true)
+        guard case .threwInvalidRequest(let message) = outcome else {
+            Issue.record("a declaring caller on /v1/messages must be refused, got \(outcome)")
+            return
+        }
+        #expect(message.contains(Self.model))
+        #expect(message.contains("Drop tools[]"), "exit one")
+        #expect(message.contains("toolCallDelivery=\"parsed\""), "exit two")
+    }
+
+    @Test("/v1/messages with the flag OFF: the ledger changes nothing about the same request")
+    func messagesFaceFlagOffBehavesAsToday() async throws {
+        let lease = try scriptedLane()
+        defer { lease.release() }
+        let seeded = try await Fixture.make(label: "test.tool-surface.msg-off-seeded")
+        defer { seeded.cleanup() }
+        await seeded.pool.recordToolCallDelivery(
+            modelId: Self.model, outcome: .proseOnly)
+        let unseeded = try await Fixture.make(label: "test.tool-surface.msg-off-clean")
+        defer { unseeded.cleanup() }
+        let withClaim = await runAnthropic(seeded, declaredTools: true, enforced: false)
+        let withoutClaim = await runAnthropic(unseeded, declaredTools: true, enforced: false)
+        #expect(
+            withClaim == withoutClaim,
+            "with the flag OFF the ledger must be unobservable: \(withClaim) vs \(withoutClaim)")
+        if case .threwInvalidRequest(let message) = withClaim {
+            #expect(
+                !message.contains("Drop tools[]"),
+                "the flag-OFF lane must never emit the refusal: \(message)")
         }
     }
 }
