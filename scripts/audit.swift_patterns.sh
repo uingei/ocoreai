@@ -725,6 +725,48 @@ else
     echo "  Clean (3 no-build-dir paths return empty in ${M_WAITED}s; .build and SourcePackages products still resolve)"
 fi
 
+# --- Class-N: every env name the child-process whitelist forwards has a reader ---
+# Its own red, sampled 11-22: a consumer sweep of `ChildProcessEnv.safeKeys` found two OCOREAI_* names
+# with zero readers and zero setters repo-wide — `OCOREAI_DEFAULT_MODEL_ID` whitelisted under a comment
+# claiming a "default model selection" the open-items row records as absent, and `OCOREAI_PYTHON` with
+# no reader while its only python consumer resolves hardcoded paths. The whitelist's rule is "add an
+# entry here with a reason"; a reason naming a dead knob teaches the next reader the knob exists.
+# Reader whose action changes: whoever adds or audits a safeKeys entry and needs the list to be live
+# plumbing, not a ledger of hopes. Tests/ is not a consumer set — a name proven only by a test is circular.
+echo ""
+echo "[Class-N: forwarded env names have a reader]"
+N_FILE="$ROOT/Sources/ocoreai/Security/ChildProcessEnv.swift"
+N_MIN=5
+if [ ! -f "$N_FILE" ]; then
+    echo "  X $N_FILE absent - the scan cannot see its own subject"
+    FAIL=1
+else
+    N_NAMES=$(sed -n '/let safeKeys/,/^    \]/p' "$N_FILE" | grep -oE '"OCOREAI_[A-Z0-9_]+"' | tr -d '"' | sort -u)
+    N_TOTAL=$(printf '%s\n' "$N_NAMES" | grep -c . || true)
+    echo "  scan: $N_TOTAL forwarded OCOREAI_* name(s), floor $N_MIN"
+    if [ "$N_TOTAL" -lt "$N_MIN" ]; then
+        echo "    scan premise unmet: the whitelist moved or the pattern stopped matching - a thin scan proves nothing"
+        FAIL=1
+    fi
+    N_BAD=0
+    for n in $N_NAMES; do
+        # The exclusion rides the pipe, not an option after the paths: BSD grep stops option parsing
+        # at the first operand, so `--exclude` there is read as a filename and the whitelist's own
+        # line matches itself — the shape this class caught on its own mutation test 11-22, together
+        # with its second self-hit: this script names the sample dead names in its header, so the
+        # instrument must not count as its own consumer either.
+        if ! grep -rl "$n" "$ROOT/Sources" "$ROOT/scripts" "$ROOT/Makefile" 2>/dev/null \
+            | grep -vE 'ChildProcessEnv\.swift|audit\.swift_patterns\.sh' | grep -q .; then
+            echo "  X $n is forwarded to every child but read by nothing - its reason comment is a claim nothing answers to"
+            N_BAD=$((N_BAD+1))
+            FAIL=1
+        fi
+    done
+    if [ "$N_BAD" -eq 0 ]; then
+        echo "  Clean ($N_TOTAL name(s), each with a reader outside the whitelist)"
+    fi
+fi
+
 if [ "$FAIL" -eq 0 ]; then
     echo "✅ All audits passed"
     exit 0

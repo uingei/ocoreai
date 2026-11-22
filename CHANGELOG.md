@@ -9,6 +9,19 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-22
 
+**11-22 转发的环境名有了读者:白名单两条死条目删除,两处引已退役机制的 prose 修在位,Class-N 钉住前提** —
+改了什么:对 `ChildProcessEnv.safeKeys` 与引用这些环境名的 prose 做消费者清扫。测得白名单里
+`OCOREAI_DEFAULT_MODEL_ID` 与 `OCOREAI_PYTHON` 全仓零读者零设者——前者注释声称的 "default model
+selection" 正是 open 行记录为不存在的旋钮(唯一 python 消费点走 `PostWriteSyntax` 的硬编码候选路径),
+两条删除。同轮修两处 prose: `WorkspaceContext.maxDocBytes` 注释仍声称 cap「in three homes」并引 11-16
+退役的 B2 门与已删的 `scripts/agents-md-contract.sh`(旁侧 `InstructionBudgetSingleSourceTests` 早已写明
+只剩两家),改题两家;open 行标题引的 `OCOREAI_AGENTS_MAX_AREA` 亦随 11-16 退役,标题改指幸存主语,
+其问题面归 'No byte cap reaches the two largest docs' 行。什么证明它:清扫逐名 grep 可复跑;新 Class-N
+变异闭合——插回死名 → 扫描 exit 1,撤下 → exit 0;`ChildProcessEnv` 套件 2 测绿,`swift build`、
+`make format-check`、`make audit` 绿。门禁:`scripts/audit.swift_patterns.sh` Class-N——每个转发的
+`OCOREAI_*` 名须在白名单文件与本仪器之外有读者,floor 5;仪器自己的两次假绿(BSD grep 在操作数后停止
+解析选项、仪器头注释自称消费者)与漏置的 `FAIL=1` 全部由变异测出,修在扫描里。
+
 **11-22 codex 退出 drift 轴位：只剩负面出口的仪器不留位** — 改了什么：11-03 业主裁定 codex 降为普通
 comparator 之后，它的轴窗口输出测得零消费者（无测试/CI/探针读那段打印），留在 `REPOS` 的剩余退出码
 影响全是负面——API 限流日把一次干净检查报成「检查没跑完」（exit 1），而 `adopt codex` 会把上千条未读

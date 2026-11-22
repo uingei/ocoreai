@@ -37,10 +37,8 @@ public enum ChildProcessEnv {
         "OCOREAI_ENABLE_HTTP",  // HTTP bridge toggle
         "OCOREAI_APPROVAL_POLICY",  // approval gate policy
         "OCOREAI_KV_REWIND_RESERVE_TOKENS",  // kv-cache rewind tuning
-        "OCOREAI_DEFAULT_MODEL_ID",  // default model selection
-        "OCOREAI_EVAL_TOOLS",  // eval board tool set
+        "OCOREAI_EVAL_TOOLS",  // eval board tool set (scripts/eval reads it in the child)
         "HF_ENDPOINT",  // HuggingFace mirror URL
-        "OCOREAI_PYTHON",  // python executable override
     ]
 
     /// Keys that are NEVER allowed, even if listed above — explicit deny list.

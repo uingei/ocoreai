@@ -416,7 +416,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   its §3 needs the embedder's weights, so that leg waits on the tier question below and prints that it
   skipped when they are absent.
 
-- **`OCOREAI_AGENTS_MAX_AREA` and P18 were both priced against the wrong enemy** (docs/) — P18 keeps docs
+- **P18 was priced against the wrong enemy** (docs/) — its sibling `OCOREAI_AGENTS_MAX_AREA`, the retired
+  contract script's per-guide cap, left with the bespoke docs gates 11-16; its surviving question is the
+  'No byte cap reaches the two largest docs' row. P18 keeps docs
   English by default with exactly one Chinese file (the owner's rule, and why this tree has no translation
   drift), but opencode ships 22 README locales (`../references/opencode/README.md:17-32`) and hermes-agent 3
   badge-linked, so the rule is a priced cap on a distribution channel, not a neutrality: deepseek-harness

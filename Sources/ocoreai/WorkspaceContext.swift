@@ -21,9 +21,9 @@
 import Foundation
 
 enum WorkspaceContext {
-    /// Our cap on the injected chain: 32 KiB, in three homes — here, B2's `OCOREAI_AGENTS_MAX_CHAIN` in
-    /// `scripts/agents-md-contract.sh`, and the budget sentence at the top of `AGENTS.md` — kept equal by
-    /// `InstructionBudgetSingleSourceTests`. It is a policy we chose, not a host's loan.
+    /// Our cap on the injected chain: 32 KiB, in two homes — here and the budget sentence at the top of
+    /// `AGENTS.md` — kept equal by `InstructionBudgetSingleSourceTests` (the docs contract's third pin left
+    /// with the bespoke docs gates, 11-16). It is a policy we chose, not a host's loan.
     static let maxDocBytes = 32 * 1024
 
     /// Our root marker: `.git` (compat: `agents_md.rs` defaults to the same).
