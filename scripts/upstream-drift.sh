@@ -323,7 +323,7 @@ for dirpath, _sub, files in os.walk(ours):
             "{" not in x for x in PATH_RE.findall(head))
         if fork_licence or names_a_path:
             cands.append((path, head))
-rows, glue, nobase, deltas = [], 0, [], []
+rows, glue, nobase, deltas, contents = [], 0, [], [], []
 for path, head in cands:
     name = os.path.basename(path)
     rel = os.path.relpath(path, ours)
@@ -360,6 +360,17 @@ for path, head in cands:
     if base:
         ss = git("diff", "--shortstat", "%s..%s" % (base, ref), "--", src)
         deltas.append((rel, base[:9], src.split("/")[-1], ss.strip() or "current (0 delta)"))
+    # CONTENT debt: lines the upstream file HAS at the read-point that our copy does not contain
+    # (comments and blanks excluded; whole-line membership, so re-wrapping shows as noise the
+    # human read filters — the header says so, and a declared ruling IS a missing line by design).
+    up_txt = git("show", "%s:%s" % (window, src))
+    if up_txt:
+        ours_txt = open(path, errors="ignore").read()
+        ours_lines = {l.strip() for l in ours_txt.splitlines()}
+        ours_lines.discard("")
+        miss = [l.strip() for l in up_txt.splitlines()
+                if l.strip() and not l.strip().startswith("//") and l.strip() not in ours_lines]
+        contents.append((rel, miss))
 if mode == "census":
     # 测试缝:一行一个事实,断言不必猜排版。
     print("#cand %d" % len(cands))
@@ -368,6 +379,20 @@ if mode == "census":
         print("#row %s %s %s %s %s" % (kind, rel, a, b, c))
     for rel, ever, tagged in nobase:
         print("#nobase %s %s %s" % (rel, ever, "sha" if tagged else "none"))
+elif mode == "content":
+    # "Did the sync really happen?" as a rerunnable command: per mirror, upstream lines the
+    # read-point HAS that our copy does not. Re-wrap and declared rulings (zero-fatalError,
+    # package->internal) legitimately show here — a count is a pointer for the human read,
+    # not a verdict. Sampled 11-23: the nine re-stamped mirrors show only such declared/format
+    # lines; a never-absorbed hunk shows as a block.
+    fm = sum(1 for _r, m in contents if m)
+    fl = sum(len(m) for _r, m in contents)
+    for rel, miss in sorted(contents):
+        if miss:
+            print("#content %s %d" % (rel, len(miss)))
+            for l in miss[:6]:
+                print("#miss %s %s" % (rel, l[:90]))
+    print("#contentfiles %d %d (mirrors with any absent line, total lines)" % (fm, fl))
 elif mode == "delta":
     # Per-file CODE debt (baseline..HEAD), the sync-targeting view: which forked files actually
     # differ from upstream, vs the read-point count which can read 0 while the code is frozen.
@@ -379,6 +404,9 @@ elif mode == "delta":
         print("  OWES    %-40s @%s  %s" % (rel, b, ss))
     for rel, b, srcname, ss in sorted(cur):
         print("  current %-40s @%s" % (rel, b))
+    if cur:
+        print("  (current = 上游自基线未动该文件,与 our-copy 是否含其全部内容无关;"
+              "内容面问 coreai-content,切片镜像的答案在那里)")
 else:
     for kind, rel, a, b, c in rows:
         if kind == "unnamed":
@@ -471,6 +499,13 @@ fi
 # The sync-targeting companion to the read-point table — report only, not a gate.
 if [ "$cmd" = "coreai-delta" ]; then
   coreai_fork_ledger delta
+  exit 0
+fi
+
+# The "is the fork really synced?" companion: which lines the upstream read-point has that our
+# copy lacks. Report only, like coreai-delta — declared rulings show here by design.
+if [ "$cmd" = "coreai-content" ]; then
+  coreai_fork_ledger content
   exit 0
 fi
 

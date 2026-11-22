@@ -241,3 +241,35 @@ What the re-stamp costs the report, honestly: the no-baseline bucket went 33 →
 19 unread commits that lived inside the unread bucket are now counted on the axis — visibility, not
 regression. Remaining queue: 25 no-baseline files (2 `*`), the newly-visible per-file windows above,
 the 10 OWES sync slabs from `coreai-delta`, and the two § 11-05 (b) warned cases.
+
+## Window read 11-23 — "is the fork really synced?" answered by line, and the ledger told to stop lying about `current`
+
+Premise written down and tested (the owner's question): a stamped mirror's content equals upstream at
+its read-point. Physical test in the clone: code-only diffs (comments and whitespace stripped) of the
+sampled mirrors against upstream at their read-points, plus a line-by-line presence check of every
+line #204 added.
+
+Measured:
+- #204's added lines in `StateHandler+Encode.swift`: **19/19 present**. The header's "the half is not
+  taken" was false — repaired at its site. What is missing is the `prompt` graph to call the encode
+  with; the #204 open row was about that entrypoint, so its verdict stays open.
+- The four deeply-sampled mirrors (40 / 4 / 12 / 2 upstream-only code lines) resolve line by line to:
+  re-wrap and whitespace; declared adaptations (`package`→`internal`, `CoreAIShared` flatten, the
+  zero-fatalError fallback, the struct wrapper); or declared slices (the 40 lines live verbatim in
+  `CoreAIEngine.swift`, exactly as this file's own header names). **Zero undeclared missing logic.**
+- The three "ported 11-12, pending CI" ports physically exist in the tree (`GPUErrorHolder` /
+  `ErrorRecordingCommandQueue`, `forGeneration` / `penaltyStateIdle`, the `float8e4m3` mapping).
+  Existence measured; behaviour stays gated on the CI xcode-27 tier (standing premise).
+
+The question became an instrument: `bash scripts/upstream-drift.sh coreai-content` (report-only, like
+`coreai-delta`) names every line the upstream read-point has that our copy lacks. Today's real tree:
+26 of 28 rows non-zero, 3 909 lines — read through the sampled lens: composed mirrors
+(`VLMBundleDetector`'s 99 is our own detector surface against `ModelBundle`), slice designs, re-wrap
+noise and declared rulings all show; a never-absorbed hunk shows as a block. A count is a pointer for
+the human read, never a verdict. `coreai-delta`'s `current` label got the same honesty in-file: it
+means upstream has not touched the file since baseline — `StateHandler.swift` reads `current` and is a
+slice; the content question is `coreai-content`'s.
+
+The answer, by three numbers: adjudicated windows — sync is line-true in the sampled set (zero
+undeclared misses); the axis's body — unread (exit 10, 19 commits, 25 unstamped files), and `make
+drift` never calls it synced; one prose claim that contradicted its own file — convicted and repaired.

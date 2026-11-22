@@ -7,7 +7,22 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased] — 2026-09-05 → 2026-11-22
+## [Unreleased] — 2026-09-05 → 2026-11-23
+
+**11-23 「coreai-models 真的同步了吗」按行回答,仪器也被抓出一句反话** — 改了什么:把上一轮的
+`Adjudicated:` 章当成 premise 直接测——在镜像 clone 里把四个深测镜像 vs 各自读点做去注释、空白归一
+的逐行对拍。测得:四文件的 upstream-only 代码行(40/4/12/2)全部归因到换行空白、已宣告适应
+(`package`→internal、`CoreAIShared` flatten、zero-fatalError fallback、struct 包裹)、或已宣告切片
+(InferenceOutputSequence 的 40 行逐字在 `CoreAIEngine.swift`,正是它自己头部指名的家);**零未宣告的
+缺失逻辑**。三笔 "ported 11-12, pending CI" 全部在树里(存在测得,行为仍等 CI xcode-27)。 convicted
+两处假话:① `StateHandler+Encode` 头写 "the half is not taken",而 #204 该文件半 19/19 全在——修在位,
+缺的只是 `prompt` 图的调用方(#204 的 open 裁决因此不变);② `coreai-delta` 的 `current` 把「上游自
+基线没动」说得像「内容一致」(StateHandler 标 current 实为切片)——仪器当场加脚注。问题固化成仪器
+`coreai-content`(report-only):点名每个上游读点有而我们缺的行;今日真树 26/28 行非零、3 909 行,
+按抽样透镜读=组合镜像自有面+切片+换行噪声+已裁决规则,漏吸收的 hunk 会以块出现——计数是给人的
+指针,不是判定。什么证明它:新合成测试钉死 verbatim→零报告、丢一行→点名那一行;四文件对拍脚本
+可复跑。门禁:`UpstreamDriftWindowTests.contentModeNamesAbsentLines`(含 totals 断言)+ delta 脚注
+不碰既有断言。裁决全文:§ Window read 11-23。
 
 **11-22 coreai-fork 台账把九个 prose 读点变成机器可读,#509 落一条真裁决** — 改了什么:清偿 § Window
 read 11-05 (b) 留的队列。九个镜像头把来处 sha 写在台账读不懂的 prose 句子里,被计入「无基线」;每个

@@ -209,6 +209,77 @@ struct UpstreamDriftWindowTests {
         #expect(out.contains("CoreAIMechanism.swift"))
     }
 
+    @Test("content mode names the lines our copy lacks at the read-point, and only those")
+    func contentModeNamesAbsentLines() throws {
+        // The owner's question — "is the fork really synced?" — as an asserted behavior: a
+        // verbatim copy reports nothing, a dropped line reports exactly that line.
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("drift-content-\(UUID().uuidString.prefix(8))")
+        let up = base.appendingPathComponent("up")
+        let clone = base.appendingPathComponent("clone")
+        try Self.write(
+            "let alpha = 1\nlet beta = 2\nlet gamma = 3\n",
+            to: up.appendingPathComponent("swift/Sources/Up/FileA.swift"))
+        try Self.write(
+            "let alpha = 1\nlet beta = 2\nlet gamma = 3\n",
+            to: up.appendingPathComponent("swift/Sources/Up/FileB.swift"))
+        try Self.git(["init", "-q", "-b", "main", "."], in: up)
+        try Self.git(["config", "user.email", "t@t"], in: up)
+        try Self.git(["config", "user.name", "t"], in: up)
+        try Self.git(["add", "-A"], in: up)
+        try Self.git(["commit", "-qm", "c1"], in: up)
+        let head = try Self.git(["rev-parse", "--short", "HEAD"], in: up)
+        try Self.git(["clone", "-q", up.path, clone.path], in: base)
+        let ours = base.appendingPathComponent("ours")
+        try Self.write(
+            """
+            // Copyright © 2026 uingei@163.com.
+            // Provenance: coreai-models — swift/Sources/Up/FileA.swift
+            //   Absorbed: #7 \(head)
+
+            let alpha = 1
+            let beta = 2
+            let gamma = 3
+
+            """,
+            to: ours.appendingPathComponent("Engine/VerbatimCopy.swift"))
+        try Self.write(
+            """
+            // Copyright © 2026 uingei@163.com.
+            // Provenance: coreai-models — swift/Sources/Up/FileB.swift
+            //   Absorbed: #7 \(head)
+
+            let alpha = 1
+            let gamma = 3
+
+            """,
+            to: ours.appendingPathComponent("Engine/DroppedLine.swift"))
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/bash")
+        p.arguments = [
+            "scripts/upstream-drift.sh", "fork-census", clone.path, head, ours.path, "content",
+        ]
+        p.currentDirectoryURL = try Self.repoRoot()
+        let outPipe = Pipe()
+        p.standardOutput = outPipe
+        p.standardError = Pipe()
+        try p.run()
+        p.waitUntilExit()
+        let out = String(
+            decoding: outPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        #expect(p.terminationStatus == 0)
+        #expect(
+            !out.contains("#content Engine/VerbatimCopy.swift"),
+            "a verbatim copy must report nothing: \(out)")
+        #expect(
+            out.contains("#content Engine/DroppedLine.swift 1"),
+            "the dropped line must be counted once: \(out)")
+        #expect(
+            out.contains("#miss Engine/DroppedLine.swift let beta = 2"),
+            "and named: \(out)")
+        #expect(out.contains("#contentfiles 1 1"), "and the totals must match: \(out)")
+    }
+
     // MARK: - Who counts as a mirror: the enumeration's own premise
 
     private static func runCensus(clone: URL, ref: String, ours: URL) throws -> (
