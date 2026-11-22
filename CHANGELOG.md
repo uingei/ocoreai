@@ -9,6 +9,17 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-22
 
+**11-22 审批等待不再记在工具头上——`durationMs` 从此只量执行窗** — 改了什么：open 行「`durationMs`
+把人的审批记到工具」裁定并支付（owner 开闸后处置）。派发时钟此前罩住整个 `ToolRegistry.call`，而审批
+broker 就在它内部被 await——人答 5 分钟，transcript chip 就显示工具跑了 5 分钟，chip 的名字承诺的是
+工具时间（invariant 2）。裁定取减法不加面：等待已由 pending-approval 面承载，codex #57207 同样分开
+归因；`call` 新增 `onExecutionStart`，从等待发生的那唯一家（`securityPrecheck` 之后）报出执行窗起点
+——被拒调用从不触发它，此时卡片退回全窗（拒绝即事件全部）；std 与 MTP 两条 lane 经 `ExecStartBox`
+读该 instant、有则优先作 `startedAt`。什么证明它：`ToolDurationAttributionTests` 三测——报点落在决策
+之后（`Instant` 序断言，非 wall-clock bound）、拒绝时保持沉默、两 lane pass-through 扫描带自身命中数
+floor（计数唯一 home 在本套件）；build exit 0，16 测试全绿复跑。门禁：同套件三测。open 行迁
+closed-log。
+
 **11-22 open 行的到期债处置：`contextLength` alias 按承诺删除，消费面一层不漏** — 改了什么：11-02(110) 承诺
 「落地一个 release 后删」的 `contextLength` alias（`max_model_len` 的旧拼写）如期删除，五层同步——wire DTO
 （`ModelObject.contextLength` + CodingKeys + `setContextCeiling` 双键 setter；单键直写 `maxModelLen`，setter

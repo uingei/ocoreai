@@ -160,10 +160,12 @@ struct InferenceEvent {
 
 /// Truthful outcome of one completed tool dispatch (see `Kind.toolResult`).
 ///
-/// `durationMs` is the **measured** wall time around the real
-/// `ToolRegistry.call` (not an estimate); `failure` is non-nil for denial or
-/// handler-level errors so the UI can distinguish "ran and failed" from
-/// "still running" instead of a call with a nil summary.
+/// `durationMs` is the **measured** wall time of the execution window — the instant
+/// `ToolRegistry.call` reports after the approval decision through completion, not an
+/// estimate, and not the human's thinking time at the prompt (codex #57207 attributes the
+/// approval wait apart; a call that never got approval falls back to the dispatch window).
+/// `failure` is non-nil for denial or handler-level errors so the UI can distinguish
+/// "ran and failed" from "still running" instead of a call with a nil summary.
 struct ToolResultMeta: Sendable, Codable {
     let id: String
     let name: String

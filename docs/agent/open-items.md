@@ -453,12 +453,6 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   unkeyed in the pool, so a refused family could route on another family's drafter. Keying is
   compile-enforced; the wire proof wants two checkpoints live — owner call.
 
-- **`durationMs` charges the human's approval to the tool** (Engine/, UI/) — the clock starts at
-  `Engine/EngineInference.swift:2955` and `Tools/ToolRegistry.swift:604` awaits the approval inside that
-  window, so a slow answer renders as a slow tool in the transcript
-  (`UI/Views/ChatView.swift:1473`). Codex #57207 attributes approval waits apart; paying it needs the wait
-  measured where it is awaited. Owner call: which number the chip owes.
-
 - **Memory is read by every request, written only behind `self_correction`** (SQLite/) — `ChatHandler.swift:944` reads, `addMemory` writes. Owner call: publish the flag, or gate the recall.
 
 - **Loaded-host reds rotate cast; wall-clock is one class, the anchor another** (Tests/) — magnitudes

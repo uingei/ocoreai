@@ -576,11 +576,16 @@ actor ToolRegistry {
     ///     waiting tool can tell whose input may end its wait. `nil` (an inbound MCP
     ///     `tools/call`, a proactive GUI read, a unit harness) means no conversation owns it,
     ///     and the tool must not claim session-scoped behaviour.
+    ///   - onExecutionStart: Called once with the clock instant the **execution window** opens —
+    ///     after the approval decision, so a human's thinking time is never billed to the tool
+    ///     (codex #57207 attributes the approval wait apart; the transcript chip is named for the
+    ///     tool). A denied call never fires it, and its caller times the whole denial if it wants one.
     /// - Returns: Tool result string
     /// - Throws: ``ToolError`` on validation or execution failure
     func call(
         _ name: String, arguments: String, caller: String = "unknown", headless: Bool = false,
-        conversationKey: String? = nil, turnToken: String? = nil
+        conversationKey: String? = nil, turnToken: String? = nil,
+        onExecutionStart: (@Sendable (ContinuousClock.Instant) -> Void)? = nil
     ) async throws -> String {
         // 0a. Exec-host state guard (absorbs codex #41454): a blocked exec host
         //      is refused BEFORE any hook/approval — asking the user for a call
@@ -602,6 +607,11 @@ actor ToolRegistry {
         // 0. Security preflight (PreToolUse hooks + approval broker gate) —
         //    shared with the external-MCP path (see `securityPrecheck`).
         try await securityPrecheck(toolName: name, arguments: arguments, headless: headless)
+
+        // The human (or hook) wait above is the person's time, not the tool's. From here the
+        // window is machine work, and that is the window the caller's duration is allowed to
+        // carry — a caller that reports one passes this instant to its timing home.
+        onExecutionStart?(ContinuousClock.now)
 
         // 1. Lookup
         guard let entry = tools[name] else {

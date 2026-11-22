@@ -21,6 +21,14 @@ import MLXVLM
 import CoreAI
 #endif
 
+/// One-shot box carrying the execution-window start `ToolRegistry.call` reports after the
+/// approval decision, so a tool card's duration is the tool's time, not the human's.
+/// Written once inside the awaited `call` and read only after it returns — the `await` is
+/// the happens-before edge, which is the whole Sendable justification for this unchecked box.
+private final class ExecStartBox: @unchecked Sendable {
+    var instant: ContinuousClock.Instant?
+}
+
 // MARK: - FoundationModels integration (macOS 27+)
 //
 // Imports MLXFoundationModels so we can access capability gates,
@@ -2655,18 +2663,23 @@ extension EnginePool {
                             "\(ToolResultMeta.callerHandoffMarker) \(dispName) is the caller's tool — the caller executes it and sends back the result]"
                     }
                     let dispStart = ContinuousClock.now
+                    let execStart = ExecStartBox()
                     let argsDict =
                         toolCall.function.arguments
                         .mapValues { $0.anyValue } as? [String: Any] ?? [:]
                     // Truthful completion event (codex `function_call_output` baseline): duration,
                     // failure and — on failure — the arguments that missed are decided in one home,
                     // `ToolResultPublisher.emit`, so the std and MTP lanes cannot diverge.
+                    // The duration opens at the registry's post-approval instant when it reports
+                    // one (the approval prompt is the human's time); a call refused before that
+                    // report keeps the dispatch window — denial was the whole event.
                     let emitToolResult: (String, String?) -> Void = {
                         summary, failure in
                         ToolResultPublisher.emit(
                             continuation,
                             id: dispId, name: dispName,
-                            summary: summary, failure: failure, startedAt: dispStart,
+                            summary: summary, failure: failure,
+                            startedAt: execStart.instant ?? dispStart,
                             arguments:
                                 failure == nil
                                 ? nil
@@ -2707,7 +2720,8 @@ extension EnginePool {
                             caller: "mlx_engine",
                             headless: headless,
                             conversationKey: convKey,
-                            turnToken: turnToken
+                            turnToken: turnToken,
+                            onExecutionStart: { execStart.instant = $0 }
                         )
                     } catch let error as ToolError {
                         logger.warning(
@@ -3858,6 +3872,7 @@ extension EnginePool {
                             // Use toolDispatchClosure if available (dispatches via ToolRegistry)
                             // Otherwise dispatch inline
                             let mtpDispStart = ContinuousClock.now
+                            let mtpExecStart = ExecStartBox()
                             var result: String
                             var dispatchFailure: String?
                             do {
@@ -3876,7 +3891,8 @@ extension EnginePool {
                                     result =
                                         try await toolRegistry?.call(
                                             toolCall.function.name, arguments: argsString,
-                                            conversationKey: convKey, turnToken: turnToken)
+                                            conversationKey: convKey, turnToken: turnToken,
+                                            onExecutionStart: { mtpExecStart.instant = $0 })
                                         ?? "[\(toolCall.function.name): tool registry not available]"
                                 }
                             } catch {
@@ -3912,7 +3928,8 @@ extension EnginePool {
                                     continuation,
                                     id: toolCall.id ?? "", name: toolCall.function.name,
                                     summary: ToolResultMeta.summary(result),
-                                    failure: dispatchFailure, startedAt: mtpDispStart,
+                                    failure: dispatchFailure,
+                                    startedAt: mtpExecStart.instant ?? mtpDispStart,
                                     arguments:
                                         dispatchFailure == nil
                                         ? nil
