@@ -3,6 +3,8 @@
 //
 // Ported copy-first from coreai-models (Apple, BSD-3-Clause) —
 // Sources/CoreAILanguageModels/TextGeneration/LogProbabilities.swift (8cec4f8).
+// Adjudicated: 8cec4f8 — canonical read-point per docs/agent/coreai-fork-window-log.md § Window read
+//   11-05 (b) (ported once at that state); upstream churn after it is the open window.
 // Per-token log probability with optional top-K alternatives, Accelerate
 // vectorized log-sum-exp. Aligned with the upstream three-repo discipline:
 // the algorithm is the main-axis source, not a local invention.

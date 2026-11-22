@@ -9,6 +9,20 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-22
 
+**11-22 coreai-fork 台账把九个 prose 读点变成机器可读,#509 落一条真裁决** — 改了什么:清偿 § Window
+read 11-05 (b) 留的队列。九个镜像头把来处 sha 写在台账读不懂的 prose 句子里,被计入「无基线」;每个
+sha 先在镜像 clone 验祖先(`git merge-base --is-ancestor` 九个全真)再重记为规范 `Adjudicated:` 行——
+章只把已确立的吸收点变成可读,不冒充新窗口裁决;两个 (b) 点名会读错的文件(ThinkTagParser 的 ahead-sha、
+DecisionsHandler 引他人 provenance)留在队列不碰。新增裁决一条:#509 在 `InferenceOutputSequence.swift`
+只有内部 `TokenCountStore` hunk,`Sources/` 零消费者(测得 grep),判 inert;#509 的 strategy 侧 hunk
+点名进 `VanillaDecodingStrategy` 未读窗口(stop-sequence 的 GPU-drain 修复是下一轮该先读的)。顺带付清
+11-12 owed 的 RNG 旧路径 relabel(全仓只有该镜像指名旧 `Samplers/` 路径,测得)。台账节 § Window read
+11-22;open 行的旧数(「36 unread/0 un-adjudicated」)按同轮复测修在行里。什么证明它:复跑
+`bash scripts/upstream-drift.sh` 打印九行窗口(两行 0),无基线 33→25、成行 20→28、带 `*` 应读 11→2,
+19 个此前藏在桶里的未读 commit 入账——可见性增加,不是回归。门禁:`UpstreamDriftWindowTests` 的
+fork-census 合成目录缝钉住 `Adjudicated:` 拼写与「已读至」行形(解析退化即红),每枚章的 sha 由
+merge-base 与实跑表逐行复核。
+
 **11-22 转发的环境名有了读者:白名单两条死条目删除,两处引已退役机制的 prose 修在位,Class-N 钉住前提** —
 改了什么:对 `ChildProcessEnv.safeKeys` 与引用这些环境名的 prose 做消费者清扫。测得白名单里
 `OCOREAI_DEFAULT_MODEL_ID` 与 `OCOREAI_PYTHON` 全仓零读者零设者——前者注释声称的 "default model

@@ -8,6 +8,9 @@
 //     CoreAILanguageModels/Bundle/LanguageBundle.swift — kind == .vlm check (L52-53),
 //                                                        visionConfig guard, componentKeys
 //   Upstream pin: coreai-models 7359dbc
+//   Adjudicated: 3efa838 — canonical read-point: this header's own #303 align note below is the
+//     named read (7359dbc was the earlier pin). Window tracks ModelBundle.swift (first named path);
+//     LanguageBundle.swift churn is NOT counted — § Window read 11-05 (b).
 //
 // ocoreai is NOT a SwiftPM-dependency on coreai-models (in-tree engine).
 //   This file provides the minimal VLM-bundle detection + component-path

@@ -14,6 +14,8 @@
 //   engine.reset() → engine.generate([tokens[0]], .greedy, options)
 //   collect output.logits → LogProbabilities.compute(logits: targets: topK:)
 //   first token logprob=nil, offset=0; rest decode + value + offset + topN alternatives
+// Adjudicated: b11ac19 — canonical read-point per docs/agent/coreai-fork-window-log.md § Window read
+//   11-05 (b) (ported once from that CompletionHandler state); its churn is the open window.
 //   echo → decode(allTokens); else text=""
 //   finish_reason="stop", object="text_completion"
 //

@@ -5,6 +5,8 @@
 // (copy-first; ocoreai adaptation: upstream's `package` helpers are `internal` here since
 // ocoreai is a single module. All pure Foundation, no CoreAI dependency — usable on
 // any macOS/iOS floor, so no availability gate).
+// Adjudicated: de31ba5 — canonical read-point per docs/agent/coreai-fork-window-log.md § Window read
+//   11-05 (b) (absorbed once at de31ba5); upstream churn after it is the open window.
 //
 /// Geometry, configuration, and endpoint detection for streaming offline speech
 /// transcription (Parakeet TDT / Whisper on CoreAI).

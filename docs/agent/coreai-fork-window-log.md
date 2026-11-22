@@ -206,3 +206,38 @@ verdict (the 16 named ports are unchanged); the axis baseline advances to `0bfb5
 | `2bec348` #504 — install flash kmeans alongside coreai-opt | **n/a** | `coreai-models` `python/pyproject.toml` + `uv.lock`; python packaging. |
 | `e7b356c` #273/#421 — consolidate RNG into CoreAIShared | **inert for consumed code; provenance relabel owed** | File-level: `WanPipeline.swift`'s only hunk is `TorchRandomSource(seed:)` → `CoreAIShared.TorchRandomSource(seed:)` (module qualification, behaviour byte-identical); `SeededRandomNumberGenerator.swift` is a rename (2 lines). ocoreai flattened the modules and redefined the types locally, so the move changes no consumed code. Owed: the RNG mirrors' come-from headers (`CoreAIDiffusionPipeline/RNG` → `CoreAIShared/RNG`) relabel at next touch — a header update, not a port. |
 | `0bfb548` #503 — sort ALL_PRESET_NAMES | **n/a** | `coreai-models` `python/.../presets.py` + its python test; export-side. |
+
+## Window read 11-22 — nine prose read-points became canonical, and #509 read on one mirror
+
+The § Window read 11-05 (b) queue minus the two it warned about: nine headers carried their
+absorption sha in prose the ledger could not parse. Each sha was first re-checked in the mirror
+clone (`git merge-base --is-ancestor <sha> c8e00c0`, nine for nine true), then re-stamped as one
+`Adjudicated:` line — no new window verdicts are claimed, the stamps only make the already-established
+absorption point machine-readable. The two warned cases stay stampless in the no-baseline list:
+`ThinkTagParser` (its prose sha names a commit ahead of our absorption) and `DecisionsHandler` (it
+cites `EngineLogprobs`' provenance, not its own).
+
+| file | stamped | window it now shows |
+|---|---|---|
+| `Engine/InputLayout.swift` | `27a66f9` (#227) | 2 unread (`df8f817` #388 …) |
+| `Engine/PrefillGraph.swift` | `156cdb6` (#204) | 1 unread (`82c3488`) |
+| `Multimodal/StreamingWindow.swift` | `de31ba5` | 0 — read, current |
+| `Engine/LogProbabilities.swift` | `8cec4f8` | 1 unread (continuous-batching scheduler) |
+| `Engine/EngineLogprobs.swift` | `b11ac19` (CompletionHandler) | 5 unread (batched llm-runner face …) |
+| `Engine/VLMBundleDetector.swift` | `3efa838` (#303, the header's own later align; `7359dbc` was the earlier pin) | 5 unread on `ModelBundle.swift`; `LanguageBundle` churn uncounted |
+| `Video/CoreAIDiffusionModelFunction.swift` | `ebb3e54` (#252) | 3 unread (`#559` …) |
+| `Engine/SeededRandomNumberGenerator.swift` | `6441c8c` (#265) | 2 unread; the e7b356c move counts once. The 11-12 owed RNG relabel is paid here (only mirror naming the old `Samplers/` path — grep: no other). |
+| `Engine/InferenceOutputSequence.swift` | `60e8605` (#509) | 0 — read, current |
+
+The one genuinely new read: `#509`'s hunk in `InferenceOutputSequence.swift` is an internal
+`TokenCountStore` feeding upstream's `DecodeOutcomeReporting`; zero consumers of
+`TokenCountStore`/`tokensGenerated`/`DecodeOutcomeReporting` in `Sources/` (measured grep) ⇒ **inert
+for this slice**. Named-not-guarded: #509's strategy-side hunks (engine release at a stop sequence,
+the unknown-id failover) land in `Engine/GuidedGeneration/VanillaDecodingStrategy.swift`, which is
+still a no-baseline mirror — that window is the queue, and the stop-sequence GPU-drain fix is the
+part a future read should weigh first.
+
+What the re-stamp costs the report, honestly: the no-baseline bucket went 33 → 25, rows 20 → 28, and
+19 unread commits that lived inside the unread bucket are now counted on the axis — visibility, not
+regression. Remaining queue: 25 no-baseline files (2 `*`), the newly-visible per-file windows above,
+the 10 OWES sync slabs from `coreai-delta`, and the two § 11-05 (b) warned cases.

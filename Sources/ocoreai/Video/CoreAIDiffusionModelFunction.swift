@@ -2,6 +2,8 @@
 //
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
+// Adjudicated: ebb3e54 — canonical read-point per docs/agent/coreai-fork-window-log.md § Window
+//   read 11-05 (b) (#252 fail-fast read); upstream churn after it is the open window.
 
 import Foundation
 

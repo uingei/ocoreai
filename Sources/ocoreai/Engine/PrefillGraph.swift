@@ -2,6 +2,8 @@
 // Absorbed from coreai-models 156cdb6 (#204) shared/PrefillGraph.swift
 // (copy-first; ocoreai adaptation: InferenceRuntimeError is @available-gated here,
 // so every function is gated too).
+// Adjudicated: 156cdb6 — canonical read-point per docs/agent/coreai-fork-window-log.md § Window read
+//   11-05 (b) (absorbed once at #204); upstream churn after it is the open window.
 //
 /// Shared lookup, validation and planning for the optional `prefill` entrypoint.
 ///

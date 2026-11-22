@@ -3,7 +3,11 @@
 //
 // coreai-models #265 (6441c8c) — "Add reproducible generation: seed and
 // system_fingerprint". Upstream: swift/Sources/CoreAILanguageModels/Samplers/
-// SeededRandomNumberGenerator.swift. Verbatim port (consume-not-reinvent):
+// SeededRandomNumberGenerator.swift — since e7b356c (#273/#421) the file lives at
+// swift/Sources/CoreAIShared/RNG/ (11-12 owed relabel, paid here).
+// Adjudicated: 6441c8c — canonical read-point per docs/agent/coreai-fork-window-log.md § Window
+//   read 11-05 (b); upstream churn after it is the open window (the e7b356c move counts once).
+// Verbatim port (consume-not-reinvent):
 // ocoreai already decodes the wire `seed` field and honors it on the MLX path
 // (MLXBridge `params.seed`), but the CoreAI CPU sampling path (CompositeSampler)
 // drew uniform randoms via `Float.random`, silently ignoring the seed.

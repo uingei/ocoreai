@@ -2,6 +2,8 @@
 //
 // Absorbed from coreai-models 27a66f9 (#227, fix #212).
 // BSD-3-Clause (Apple Inc.). Upstream: swift/Sources/CoreAILanguageModels/Handlers/InputLayout.swift.
+// Adjudicated: 27a66f9 — canonical read-point per docs/agent/coreai-fork-window-log.md § Window read
+//   11-05 (b) (absorbed once at #227); upstream churn after it is the open window.
 //
 // Ocoreai adaptation:
 //  - Uses ocoreai's `InferenceRuntimeError` (Engine/CoreAIStubs.swift, pure Foundation error enum,
