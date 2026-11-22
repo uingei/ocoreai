@@ -751,6 +751,15 @@ func buildRouter(
     routes.post("/v1/embeddings") { request, context in
         let embRequest = try await request.decode(
             as: EmbeddingsRequest.self, context: context)
+        // The named model is consulted before anything runs, guard included: a name this
+        // server does not serve as an embedder gets the refusal that names what does, never
+        // the canonical embedder's vectors under a 200 (the mirror of `generationRefusal`
+        // at the generation faces). An absent `model` means "accept what serves".
+        if let refusal = EmbeddingService.embedRefusal(
+            modelId: embRequest.model ?? "", usedEndpoint: "/v1/embeddings")
+        {
+            throw refusal
+        }
         guard let semanticSearch else {
             throw AppError.engineUnavailable
         }

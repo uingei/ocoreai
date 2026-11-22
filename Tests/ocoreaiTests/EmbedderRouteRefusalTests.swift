@@ -44,6 +44,35 @@ struct EmbedderRefusalHomeTests {
                 modelId: "mlx-community/Some-Chat-Checkpoint-4bit", usedEndpoint: "/v1/messages")
                 == nil)
     }
+
+    @Test(
+        "the embed face refuses a name it does not serve, naming the canonical embedder; any listed id and an absent name pass"
+    )
+    func embedFaceMirror() {
+        // The 11-22 ruling: a request that NAMES a model used to get the canonical
+        // embedder's vectors under a 200 — coordinates in a space the request never asked
+        // for. A named model is answered by what serves or by a refusal naming what serves.
+        let refusal = EmbeddingService.embedRefusal(
+            modelId: "text-embedding-3-small", usedEndpoint: "/v1/embeddings")
+        guard case .invalidRequest(let message)? = refusal else {
+            Issue.record("an unlisted model must be refused, got \(String(describing: refusal))")
+            return
+        }
+        #expect(
+            message
+                == "'text-embedding-3-small' is not an embedder this server runs. "
+                + "/v1/embeddings serves '\(EmbeddingService.canonicalModelId)' "
+                + "— name it, or omit `model` to accept what serves. A chat checkpoint has no embedding head."
+        )
+        // Listed embedder ids and the absent name all run the canonical embedder.
+        #expect(
+            EmbeddingService.embedRefusal(
+                modelId: "mlx-community/LFM2.5-Embedding-350M", usedEndpoint: "/v1/embeddings")
+                == nil)
+        #expect(
+            EmbeddingService.embedRefusal(
+                modelId: "", usedEndpoint: "/v1/embeddings") == nil)
+    }
 }
 
 @Suite("Embedder refusal — every generation face, in its own envelope", .serialized)
@@ -218,6 +247,53 @@ struct EmbedderRefusalPerFaceTests {
         }
         // The scan judges its own subjects: 3 faces or the leg is vacuous, not smaller.
         #expect(judged == 3, "the leg judged \(judged) of 3 faces")
+    }
+
+    @Test(
+        "the embed face 400s a name it does not serve ahead of any embedder; an absent name is consent"
+    )
+    func embedFaceRefusesBeforeTheGuard() async throws {
+        let db1 = Self.uuidPath()
+        let db2 = Self.uuidPath()
+        defer { Self.cleanupDBs(db1, db2) }
+        // This app boots with `semanticSearch: nil`, so the route's own availability guard
+        // answers 503: a 400 for a named unknown model proves the refusal sits ahead of any
+        // embedder, and a 503 for an absent name proves absent means consent, not refusal.
+        let judged: Int = try await Self.makeTestApp(db1, db2).test(.router) { client in
+            var judged = 0
+            var headers: HTTPFields = [:]
+            headers[.contentType] = "application/json"
+            let refused = try await client.execute(
+                uri: "/v1/embeddings", method: .post, headers: headers,
+                body: Self.jsonBody(#"{"model":"some/chat-checkpoint","input":"hi"}"#))
+            #expect(
+                refused.status == .badRequest,
+                "a named unlisted model must be refused with 400, got \(refused.status)")
+            let doc = try #require(Self.responseBody(from: refused))
+            let json = try #require(
+                Self.jsonObject(doc), "refusal body must be JSON: \(doc.prefix(200))")
+            let error = try #require(
+                json["error"] as? [String: Any],
+                "refusal must carry an error object: \(doc.prefix(200))")
+            let message = error["message"] as? String ?? ""
+            #expect(
+                message.contains("is not an embedder"),
+                "the refusal must name the cause: \(message)")
+            #expect(
+                message.contains(EmbeddingService.canonicalModelId),
+                "the refusal must name what does serve: \(message)")
+            judged += 1
+
+            let fellThrough = try await client.execute(
+                uri: "/v1/embeddings", method: .post, headers: headers,
+                body: Self.jsonBody(#"{"input":"hi"}"#))
+            #expect(
+                fellThrough.status == .serviceUnavailable,
+                "an absent name must reach the availability guard, got \(fellThrough.status)")
+            judged += 1
+            return judged
+        }
+        #expect(judged == 2, "the leg judged \(judged) of 2 arms")
     }
 }
 

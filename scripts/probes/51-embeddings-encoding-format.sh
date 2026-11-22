@@ -27,8 +27,9 @@
 #      worked. Weight-free.
 #   2) the refusal faces: an unknown `encoding_format` names itself, the bad value and both
 #      accepted words; a `dimensions` this embedder cannot answer names the value, the native
-#      width and the way out. Both are decided before the embedder is touched, so they judge
-#      on a runner with no weights and no Metal.
+#      width and the way out; a NAMED model the server does not serve as an embedder names
+#      itself and what does serve (absent `model` stays consent). All are decided before the
+#      embedder is touched, so they judge on a runner with no weights and no Metal.
 #   3) the shape pair — ONLY when the embedder's weights are cached, and it says so when they
 #      are not (the checkpoint tier has no CI seat; `docs/agent/open-items.md`): the same two
 #      texts through `float` and through `base64` must decode to the SAME little-endian float32
@@ -68,7 +69,7 @@ SHAPES_RAN=0
 
 # ── 1) control ─────────────────────────────────────────────────────────────────────────
 probe_section "1) control — the route refuses a wrong-typed input, so §2's 400s mean their own field"
-probe_api POST /v1/embeddings '{"model":"x","input":[1,2,3]}'
+probe_api POST /v1/embeddings '{"input":[1,2,3]}'
 if [ "$PROBE_STATUS" = "400" ]; then
   case "$PROBE_BODY" in
     *input*)
@@ -111,14 +112,21 @@ refusal() {
 # "on text-embedding-3 and later models", and nothing measured here says this embedder's cosine
 # survives cutting the post-layer-norm vector (its norm 1.000183 was measured whole, 11-05).
 refusal "unknown encoding_format 'msgpack'" \
-  '{"model":"x","input":"hi","encoding_format":"msgpack"}' \
+  '{"input":"hi","encoding_format":"msgpack"}' \
   "encoding_format" "msgpack" "'float'" "'base64'"
 refusal "dimensions=256" \
-  '{"model":"x","input":"hi","dimensions":256}' \
+  '{"input":"hi","dimensions":256}' \
   "dimensions=256" "1024" "Omit 'dimensions'"
 refusal "dimensions=0 (spec minimum: 1)" \
-  '{"model":"x","input":"hi","dimensions":0}' \
+  '{"input":"hi","dimensions":0}' \
   "dimensions" ">= 1"
+# The named model is a declared field too: a name this server does not serve as an embedder
+# used to be answered 200 with the canonical embedder's vectors (11-22: the response's `model`
+# was the only evidence, and a caller persisting vectors by request-name mixed two spaces
+# blind). Refused by name, the refusal naming what does serve.
+refusal "named unlisted model 'text-embedding-3-small'" \
+  '{"model":"text-embedding-3-small","input":"hi"}' \
+  "text-embedding-3-small" "is not an embedder" "LFM2.5-Embedding-350M-4bit"
 
 # ── 3) the shape pair, with weights ────────────────────────────────────────────────────
 probe_section "3) float and base64 are the same vectors (needs the embedder's cached weights)"
@@ -216,7 +224,7 @@ fi
 
 # ── 4) floor ───────────────────────────────────────────────────────────────────────────
 probe_section "4) floor — every leg counted its own subjects"
-for row in "control:1:$CTRL_PASSED" "refusals:3:$REFUSALS_PASSED" "$([ "$SHAPES_RAN" = 1 ] && printf 'shapes:3:%s' "$SHAPES_PASSED" || printf 'shapes:skipped')"; do
+for row in "control:1:$CTRL_PASSED" "refusals:4:$REFUSALS_PASSED""$([ "$SHAPES_RAN" = 1 ] && printf 'shapes:3:%s' "$SHAPES_PASSED" || printf 'shapes:skipped')"; do
   name="${row%%:*}"; rest="${row#*:}"
   if [ "$rest" = "skipped" ]; then
     probe_note "$name leg skipped with its reason printed above (§3) — not counted, not passed"

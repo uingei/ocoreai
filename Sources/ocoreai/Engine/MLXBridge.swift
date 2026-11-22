@@ -1483,6 +1483,22 @@ actor EmbeddingService {
         )
     }
 
+    /// The misrouting refusal for the other direction, asked at the `/v1/embeddings` seat.
+    /// A request that NAMES a model this server does not serve as an embedder used to be
+    /// answered 200 with the canonical embedder's vectors — embedding-space coordinates for a
+    /// request naming a different model, with only the response's `model` field as the
+    /// evidence, and any caller that persists vectors by request-name would mix two spaces
+    /// blind. An absent `model` means no preference (the canonical run); a named one is
+    /// answered with what actually serves or a refusal that names it.
+    nonisolated static func embedRefusal(modelId: String, usedEndpoint: String) -> AppError? {
+        guard !modelId.isEmpty, !embedderModelIds.contains(modelId) else { return nil }
+        return .invalidRequest(
+            "'\(modelId)' is not an embedder this server runs. "
+                + "\(usedEndpoint) serves '\(canonicalModelId)' — name it, or omit `model` "
+                + "to accept what serves. A chat checkpoint has no embedding head."
+        )
+    }
+
     /// Root of the HF hub cache for `name` ("org/model"), or nil when the
     /// platform has no hub cache at all. `homeDirectoryForCurrentUser` is
     /// macOS-only (iOS compile error at CI run 37444773107); on iOS the

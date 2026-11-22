@@ -9,6 +9,17 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-22
 
+**11-22 `/v1/embeddings` 的 `model` 字段从此被咨询：指名的未知模型得 400，不再张冠李戴** — 改了什么：
+open 行 ① 裁定并支付。此前指名任何模型——`text-embedding-3-small` 或 resident chat id——都由规范
+embedder 答 200，响应里只有 `model` 字段提示真正跑的模型；按请求名持久化向量的调用方会在盲中混合
+两个向量空间。裁定取镜像先例（生成面对 embedder 的 400 已有一家在 `generationRefusal`）：新增
+`EmbeddingService.embedRefusal`，在 route 入口、`semanticSearch` guard 之前咨询——不碰任何权重就能
+裁定；absent `model` 仍是 consent，列出的 embedder id 放行，其余 400 并指名真正 serves 的 id。连带
+修正 probe 51 现有臂（假名 `"model":"x"` 会先撞新拒绝——全部改为省略 model），refusals floor 3→4，
+probe README 行同步。什么证明它：`EmbedderRefusalHomeTests.embedFaceMirror`（逐字节钉死句子与三个
+pass 面）+ `embedFaceRefusesBeforeTheGuard`（无 embedder 启动下 400 证优先、503 证 consent，两臂
+floor）；四套件 19 测试绿；`bash -n` probe 51 绿。门禁：同两测 + probe 51 §2 新臂。
+
 **11-22 审批等待不再记在工具头上——`durationMs` 从此只量执行窗** — 改了什么：open 行「`durationMs`
 把人的审批记到工具」裁定并支付（owner 开闸后处置）。派发时钟此前罩住整个 `ToolRegistry.call`，而审批
 broker 就在它内部被 await——人答 5 分钟，transcript chip 就显示工具跑了 5 分钟，chip 的名字承诺的是

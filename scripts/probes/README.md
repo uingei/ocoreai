@@ -468,7 +468,9 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     server, scripted engine — §1 a token-id `input` still gets its 400 (the control that makes every 400
     below mean its own field), §2 the weight-free refusals: `encoding_format:"msgpack"` → 400 naming the
     field, the value and both accepted words, `dimensions:256` → 400 naming `dimensions=256`, the 1024 it
-    cannot truncate to and `Omit 'dimensions'`, `dimensions:0` → 400 (spec `minimum: 1`); §3 with the
+    cannot truncate to and `Omit 'dimensions'`, `dimensions:0` → 400 (spec `minimum: 1`), and a NAMED
+    model the server does not serve as an embedder → 400 naming what does serve (added 11-22,
+    refusals floor raised to 4; absent `model` stays consent); §3 with the
     embedder's cached weights asked the same two texts both ways and got **2 vectors × 1024 dim carrying
     the same float32 bits** in either encoding, `usage` agreeing (9 tokens), `dimensions:1024` accepted as
     the no-op it is — without the weights §3 prints its reason and is not counted. Two legs earned their

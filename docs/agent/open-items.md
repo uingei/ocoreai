@@ -386,11 +386,13 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   for a sentence repeated 120 times, and the batch total is their sum), batch `index`es and the summed
   `usage` are exact, and the three refusals
   name themselves (empty array, empty string, token-id array). What is open, none of it observed as an
-  incident: ① the request's `model` is never consulted — `text-embedding-3-small` *and* a resident
-  chat id both answer 200 with the canonical embedder's vectors, while the mirror case (a chat turn
-  naming an embedder) refuses with an actionable 400 at `Handlers/ChatHandler.swift:219`; the response
-  does name the model that ran, and this server has exactly one embedder, so no vector store can
-  silently mix two spaces — the owner call is whether a named-but-unavailable model owes a 400.
+  incident: ① **closed 11-22, owner opened the queue**: the named model is now consulted before
+  anything runs — a name this server does not serve as an embedder gets an actionable 400 naming
+  what does serve (`EmbeddingService.embedRefusal`, the mirror of `generationRefusal` at the
+  generation faces; absent `model` stays consent). A caller that persisted vectors by
+  request-name could no longer mix two spaces blind. Gates: `EmbedderRefusalHomeTests.embedFaceMirror`,
+  `embedFaceRefusesBeforeTheGuard` (boots without an embedder, so the 400 proves precedence),
+  probe 51 §2's new arm with the refusals floor raised to 4.
   ② **closed for the two fields 11-06 named, open for the third face**: `encoding_format` is honored
   and `dimensions` is refused by name (`embeddingsWireEncoding`; gates `EmbeddingsWireTests` + probe
   51), with the base64 string riding `embedding` — the fetched spec says `Embedding.embedding` is
