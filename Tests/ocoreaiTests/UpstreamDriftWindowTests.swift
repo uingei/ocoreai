@@ -19,7 +19,8 @@
 /// same-name counterpart upstream; the prefix scan reached 12, one file in both sets), sampled the
 /// same day by two commits that edited six such mirrors in one window. The exit code is only honest if
 /// the verdict table is measured too, so which axes exist is read off `REPOS=` and which of them owe a red
-/// is asked through the `axis-owed` seam (codex reports only since the owner's 11-03 ruling, root § Upstream 5).
+/// is asked through the `axis-owed` seam (every listed axis owes; codex's 11-03 report-only ruling survives
+/// as a retired line — its axis was removed 11-22, root § Upstream 5).
 ///
 /// The third premise is the code set itself. A contract of three numbers is worth whatever stops a
 /// fourth from leaving: `set -e` hands out the *failing command's* number, and `make` hands out its
@@ -796,8 +797,8 @@ struct UpstreamDriftWindowTests {
     }
 
     @Test(
-        "an unread window reddens only the axes we consume, and the demotion is the only exception")
-    func demotedAxisReportsWhileConsumedAxesStillOweARed() throws {
+        "every declared axis owes a red, and the retired codex line still answers the seam")
+    func allDeclaredAxesOweAndRetiredCodexStillAnswers() throws {
         let script = try String(
             contentsOf: try Self.repoRoot().appendingPathComponent("scripts/upstream-drift.sh"),
             encoding: .utf8)
@@ -814,13 +815,19 @@ struct UpstreamDriftWindowTests {
                 .replacingOccurrences(of: "\"", with: "")
             return clean.isEmpty ? nil : clean
         }
-        #expect(axes.count >= 3, "axes read off REPOS: \(axes) (floor 3)")
+        #expect(
+            axes.count >= 2,
+            "axes read off REPOS: \(axes) (floor 2; codex left the axis list 11-22)")
         var verdicts: [String: String] = [:]
         for axis in axes { verdicts[axis] = try Self.runAxisOwed(axis) }
-        #expect(verdicts["codex"] == "report-only", "codex owes a red again: \(verdicts)")
-        for axis in axes where axis != "codex" {
+        for axis in axes {
             #expect(verdicts[axis] == "owed", "\(axis) stopped owing a red: \(verdicts)")
         }
+        // The 11-03 demotion ruling stays recorded in the instrument, not only in prose: the axis is
+        // gone from REPOS, and `axis-owed codex` still answers report-only, so re-listing it means
+        // registering it against a known verdict instead of silently re-owing it.
+        #expect(
+            try Self.runAxisOwed("codex") == "report-only", "the retired codex line was deleted")
         // An axis nobody registered defaults to owed: defaulting the other way is how a newly added
         // upstream silently escapes the gate that exists to catch it.
         #expect(try Self.runAxisOwed("not-a-registered-axis") == "owed")

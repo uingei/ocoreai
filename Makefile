@@ -383,8 +383,8 @@ audit:
 	@# and never the line they died on; the reader is whoever diagnoses a leg without a token.
 	bash scripts/ci-annotate.sh --selftest
 
-## Four upstream axes, one command. Three HEAD axes (mlx-swift-lm revision pin, coreai-models
-## and codex reference axes) against .upstream-baseline.json, plus the mlx-swift *tag* axis —
+## Three upstream axes, one command. Two HEAD axes (mlx-swift-lm revision pin, coreai-models
+## reference axis) against .upstream-baseline.json, plus the mlx-swift *tag* axis —
 ## that one is judged against the newest release tag, because `exact:` means unreleased commits
 ## on main are not something any Swift consumer can take. The exit codes and the trap that enforces
 ## them have one home: the header of `scripts/upstream-drift.sh` (0 = nothing pending, 10 = a window
@@ -393,7 +393,7 @@ audit:
 ## a code calls the script. Needs network via git/gh or the ~/references clones; it never mutates the
 ## repo except through `adopt`.
 drift:
-	@echo "🛰 Checking upstream drift (3 HEAD axes + mlx-swift tag axis)..."
+	@echo "🛰 Checking upstream drift (2 HEAD axes + mlx-swift tag axis)..."
 	@bash scripts/upstream-drift.sh; rc=$$?; echo "drift-exit=$$rc"; exit $$rc
 
 ## A pin you cannot install is not a pin. CI builds $(SF_PIN) from the tag for exactly this reason

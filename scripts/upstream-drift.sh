@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# upstream-drift.sh — 三源上游 drift 持续跟进（mlx-swift-lm / coreai-models / codex）
+# upstream-drift.sh — 两源上游 drift 持续跟进（mlx-swift-lm / coreai-models）
 #
 # 用法：
 #   bash scripts/upstream-drift.sh          # 只读检查（不改文件）
@@ -14,7 +14,7 @@
 #     所以读码的自动化调本脚本；走 make 就读 stdout 的 `drift-exit=N`。
 #   bash scripts/upstream-drift.sh pairing [diary] [anchor]  # mlx bump 的裁决台账（每个 bump 跨过的 commit 须被点名）；
 #                                            同 0/10/1 三数契约；check 路自带台账判定（漏→10 粘住，读不到→1 填空表）
-#   bash scripts/upstream-drift.sh adopt                  # 把三源当前 HEAD 采纳为新基线（只改 state 文件）
+#   bash scripts/upstream-drift.sh adopt                  # 把两源当前 HEAD 采纳为新基线（只改 state 文件）
 #   bash scripts/upstream-drift.sh adopt coreai-models    # 只采纳这一条轴，其余轴的窗口如实留着
 #     轴名写错直接 exit 1 —— 静默采纳 0 条轴看起来像「全部办完」，正是这类工具最贵的错。
 #
@@ -26,9 +26,11 @@
 #   - 截断一律 `sed -n '1,Np'`，禁 `| head -N`：窗口 >64 KiB 时 head 提前关闭管道，
 #     写入端吃 SIGPIPE，pipefail 让脚本以 141 中止——退出码契约当场失效，读者只看到半张报告
 #     （10-29 实测：codex 窗口 >300 条 subject，`>/dev/null` 连三次 exit 141 而非 10）。
-#   - mlx-swift-lm = SPM pin（新 commit → bump 协议）；coreai-models = reference（逐条吸收裁决）；
-#     codex = 普通 comparator（11-03 业主裁定：不再是权威）。它的窗口照常打印，但不再置 DRIFT=10，
-#     所以一个未读的 codex 窗口不会把整次 `make drift` 判红 —— 红只欠两条真消费的轴。
+#   - mlx-swift-lm = SPM pin（新 commit → bump 协议）；coreai-models = reference（逐条吸收裁决）。
+#     红只欠这两条真消费的轴。codex 经 11-03 业主裁定降为普通 comparator，11-22 从轴位移除：它的窗口
+#     输出零消费者（测试/CI/探针都不读），剩下的退出码影响只有负面 —— 限流日把干净检查报成「检查没
+#     跑完」，而 `adopt codex` 会把未读窗口盖成已裁决。它的席位是 docs/agent/comparator-repos.md
+#     （按需 file:line 读）；`axis-owed codex` 的裁定行保留，重新列轴=在这张表登记。
 #   - 本机无 references/ clone → gh api 是正确通道，不依赖 git fetch
 #   - 退出码契约由 trap 执行，不由注释执行：见下面的 on_abnormal_exit。
 set -euo pipefail
@@ -55,7 +57,7 @@ trap on_abnormal_exit ERR
 
 STATE=".upstream-baseline.json"
 NOW_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-REPOS="mlx-swift-lm:ml-explore/mlx-swift-lm coreai-models:apple/coreai-models codex:openai/codex"
+REPOS="mlx-swift-lm:ml-explore/mlx-swift-lm coreai-models:apple/coreai-models"
 # 第四轴单列在文件末尾：mlx-swift 不是 HEAD 轴，是 tag 轴（判定单位不同，退出码语义也不同）。
 MLX_REPO="ml-explore/mlx-swift"
 cmd="${1:-check}"
@@ -74,7 +76,7 @@ tally_drift() { # tally_drift <0|1|10> —— 10 粘住；1 只填还没有事�
   return 0
 }
 
-# 本地镜像回落：无 DNS 的机器上 api() 必失败，三源会静默 skip（10-13 实测
+# 本地镜像回落：无 DNS 的机器上 api() 必失败，各轴会静默 skip（10-13 实测
 # `scripts/upstream-drift.sh check` = 三行 "api 失败，跳过"，每日自检空转）。
 # ~/references/<repo> 下的 clone 是同一 origin 的镜像，足以算 HEAD 与 base..head
 # 窗口；输出标 src=clone，避免把镜像 HEAD 误当成 GitHub 权威。
@@ -133,8 +135,8 @@ window_endpoint() { # window_endpoint <clone-dir> <axis-ref> → "endpoint=<sha>
 }
 
 # ── 第四轴：mlx-swift —— 判定单位是 tag，不是 HEAD ─────────────────────────
-# 三轴盯 HEAD 是对的：lm 是 revision pin（HEAD 前进 = 待裁决窗口），coreai-models/codex
-# 是参考轴。mlx-swift 不同：本仓对它下的是 `exact:` tag（Package.swift），main 上没打 tag
+# 两轴盯 HEAD 是对的：lm 是 revision pin（HEAD 前进 = 待裁决窗口），coreai-models 是参考轴。
+# mlx-swift 不同：本仓对它下的是 `exact:` tag（Package.swift），main 上没打 tag
 # 的 commit 任何 Swift 消费者都拿不到 —— 「HEAD 领先 N 条」在这里不是待办，只是下一次 tag
 # 的审计输入。判定单位换成立即：
 #   newest tag > pin  → ⚠ 已发布漂移，DRIFT=10（走 Package.swift 头注的 bump 协议）
@@ -221,7 +223,7 @@ for p in d.get("pins", []):
 baseline_note() { python3 -c 'import json; d=json.load(open("'"$STATE"'")); print("@"+d["checked_at_utc"])' 2>/dev/null || echo "缺失(首次)"; }
 base_sha() {
   # mlx-swift-lm 的基线 = Package.resolved 里的 SPM pin（pin 即采纳记录，单一真源）。
-  # json 里的旧值只对 coreai-models/codex 有效——读 json 报 pin 已吸收的漂移是
+  # json 里的旧值只对 coreai-models 有效——读 json 报 pin 已吸收的漂移是
   # 监控假警报（10-11 实锤：pin=7eb77ef==HEAD 仍天天报 +12 待裁决，淹没真窗口）。
   if [ "$1" = "mlx-swift-lm" ]; then
     python3 - <<'PY'
@@ -449,7 +451,8 @@ fi
 
 # 一条轴欠不欠一个红：0 = 我们真消费它（SPM pin、逐条吸收的 fork），未读窗口判红；
 # 非 0 = 普通 comparator，窗口只报告。11-03 业主裁定 codex 不再是权威（root § Upstream 5），
-# 于是它落到报告档；未登记的轴一律按欠债算 —— 新轴默认判红比默认放行便宜。
+# 11-22 它连轴位也撤了（REPOS 里没有它），这一行留着：`axis-owed codex` 仍答 report-only，
+# 裁定的记录住在仪器里而不是注释里；未登记的轴一律按欠债算 —— 新轴默认判红比默认放行便宜。
 # 测试缝：`axis-owed <name>` → "owed" | "report-only"（不碰网络）。
 axis_owed() {
   case "${1:-}" in
@@ -704,7 +707,7 @@ echo
 if [ "$cmd" = "adopt" ]; then
   ADOPT_OK=1
   # 部分采纳：一条轴逐条读完并裁决完，就该能只关这一条窗口。全量 adopt 会顺手把
-  # 没读过的轴（codex 的数百条）一并盖进基线，把「未读」伪装成「已裁决」。
+  # 没读过的轴一并盖进基线，把「未读」伪装成「已裁决」（codex 在轴位时正是这个形状）。
   shift || true
   SELECTED=("$@")
   if [ "${#SELECTED[@]}" -gt 0 ]; then
@@ -714,7 +717,7 @@ if [ "$cmd" = "adopt" ]; then
         [ "${pair%%:*}" = "$want" ] && known=1
       done
       if [ "$known" -eq 0 ]; then
-        echo "!! 未知轴 '$want'（可选：mlx-swift-lm / coreai-models / codex）— 未改动 $STATE"
+        echo "!! 未知轴 '$want'（可选：mlx-swift-lm / coreai-models）— 未改动 $STATE"
         exit 1
       fi
     done

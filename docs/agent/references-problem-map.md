@@ -104,7 +104,7 @@ detail; "registry (dated)" there means the problem statement is that row's, not 
 | coreai-models | Apple reference graph (pin 2) | consumed (pin) | § Upstream 2 |
 | foundation-models-utilities | FM framework needs a backend; teach foreign hosts | **yes — wire already fits; channel unadvertised** | new row + this §1, measured 11-20 |
 | hermes-agent | loop shape + ops + skills tier | yes, consumed | registry (dated) |
-| codex | first-party self-documentation; guardian context | registered axis | registry (dated), owner ruled comparator |
+| codex | first-party self-documentation; guardian context | on-demand file:line（drift 轴位 11-22 撤销） | registry (dated), owner ruled comparator |
 | claude-code | product-behaviour diary of a peer | tracking axis | registry (dated); CHANGELOG 11-02(112) |
 | qwen-code | workspace trust + vendored CUA + self-mod gate | axis, measured absence | registry (dated) |
 | cline | publish legs + SDK embedding | axis, no home today | registry (dated) |

@@ -9,6 +9,17 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-22
 
+**11-22 codex 退出 drift 轴位：只剩负面出口的仪器不留位** — 改了什么：11-03 业主裁定 codex 降为普通
+comparator 之后，它的轴窗口输出测得零消费者（无测试/CI/探针读那段打印），留在 `REPOS` 的剩余退出码
+影响全是负面——API 限流日把一次干净检查报成「检查没跑完」（exit 1），而 `adopt codex` 会把上千条未读
+提交盖成已裁决。codex 从 `scripts/upstream-drift.sh` 的 `REPOS`、`.upstream-baseline.json` 三处 key 与
+Makefile 轴数文案（四轴→三轴）撤下；`axis_owed` 保留休眠 `codex) return 1` 行，`axis-owed codex` 仍答
+report-only——11-03 裁定住在仪器里而不是注释里，重新列轴=对着已知裁定登记。codex 的席位是
+`docs/agent/comparator-repos.md`（按需 file:line 读），comparator 文档矩阵不动。什么证明它：复跑
+`make drift` 不再打印 codex 行、exit 仍 10（两条真轴窗口照旧待裁决）；`axis-owed codex` 答
+report-only。门禁：`UpstreamDriftWindowTests.allDeclaredAxesOweAndRetiredCodexStillAnswers`（轴 off
+`REPOS=` 读、floor 2、声明轴全欠、休眠行被删即红、未登记轴默认欠）。
+
 **11-22 `/v1/embeddings` 的 `model` 字段从此被咨询：指名的未知模型得 400，不再张冠李戴** — 改了什么：
 open 行 ① 裁定并支付。此前指名任何模型——`text-embedding-3-small` 或 resident chat id——都由规范
 embedder 答 200，响应里只有 `model` 字段提示真正跑的模型；按请求名持久化向量的调用方会在盲中混合
