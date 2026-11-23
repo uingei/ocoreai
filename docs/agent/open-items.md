@@ -5,6 +5,16 @@ where a number is unmeasured it says so, and where a fix is blocked by the host 
 which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes a rule in `AGENTS.md` or
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
+- **The root's comment rule and the tree's evidence practice contradict each other** (root § How we
+  work, Engine/ and every area). The root line says a comment carries "no dates and no bug history,
+  that is the commit message". The tree's shipped practice is the opposite on purpose: 416 comment
+  lines under `Sources/` carry a `measured <date>` or `read at reference HEAD <date>` anchor, and
+  the point of the date is that the number was re-checkable at a named point (invariant 1). A bulk
+  date-strip would trade a prose rule for the evidence the root's own invariants demand, so the
+  sweep declined it; the contradiction needs an owner edit of one of the two lines. Measured by the
+  whole-repo unslop sweep 11-23, whose no-comments phase kept every anchor and cut one comment
+  whose constraint the compiler already enforces (`ThinkTagParser.promptEndsInsideReasoning`).
+
 - **The nameless `tool_reference` exits by silent drop. A guard side-effect, not a picked exit**
   (Models/). The defect this row described (billed-but-invisible; `111c120f` shipped the instrument, its
   nonce-isolated WHOLE arms landed 905/908/905) closed 11-11: references render `Available tool:

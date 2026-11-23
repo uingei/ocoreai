@@ -112,8 +112,8 @@ struct ThinkTagParser {
     /// A parser started Outside would misroute the entire thought block.
     ///
     /// Upstream `coreai-models@684ae8e` does not ship this helper (see
-    /// `git log -S promptEndsInsideReasoning` → empty). ocoreai's
-    /// `EngineInference:299/797` still require it; do not remove.
+    /// `git log -S promptEndsInsideReasoning` → empty). ocoreai's call sites in
+    /// `EngineInference` require it, so a sync that drops it fails the build, not a review.
     static func promptEndsInsideReasoning(
         renderedPromptTail tail: String,
         openMarker: String,
