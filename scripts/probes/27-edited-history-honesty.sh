@@ -1,61 +1,61 @@
 #!/usr/bin/env bash
-# 27-edited-history-honesty.sh — when a caller rewrites the past, does the answer come from
+# 27-edited-history-honesty.sh, when a caller rewrites the past, does the answer come from
 # the history it actually sent, and what does that turn really pay?
 #
 # ### Why (AGENTS.md § Open "rewind 已接，储备是拍的常数")
-# An edited resend is the most common state change a coding-agent UI makes — fix a typo in
+# An edited resend is the most common state change a coding-agent UI makes. Fix a typo in
 # prompt 2 and send again. `SessionPool.canReusePooledSession` refuses it and builds a clean
 # session, because the pooled KV describes the *pre-edit* conversation. Probe 01 already
 # prices that turn (prompt_tokens/cached_tokens) and proves the refusal is named on
 # `/v1/models/:model/kv-cache`, but two things were never established by anything:
-#   1. CORRECTNESS — the whole justification for the refusal is that a stale cache would
+#   1. CORRECTNESS. The whole justification for the refusal is that a stale cache would
 #      leak the pre-edit context into the answer. Over HTTP, nothing ever checked that the
 #      refusal actually prevents the leak: it was a rule believed, not observed. If an
 #      edited resend can still answer with the replaced fact, that is a P0 correctness bug
 #      hiding behind a green token ledger.
-#   2. THE PRIZE — the reserve was a constant nobody had priced: § Open keeps whether 1024
+#   2. THE PRIZE. The reserve was a constant nobody had priced: § Open keeps whether 1024
 #      rows is the right size ("不随模型或内存水位调") pending samples, so this probe states
 #      the prize in tokens on the same run as the correctness check, and keeps the residual
 #      (what the reserve could not cover) visible instead of folding it into a pass.
 #
 # ### What is asserted
-#   1. The run's own premise: an appended warm turn reuses (`cached_tokens > 0`) — without
+#   1. The run's own premise: an appended warm turn reuses (`cached_tokens > 0`). Without
 #      it "the edit costs X" has no baseline (a probe that certifies nothing is the shape
 #      AGENTS.md invariant 1 is about).
 #   2. The codeword mechanism: the appended turn answers with the codeword it was given.
 #   3. THE EDIT IS OBSERVED: after the codeword turn is reworded, the answer must be the
 #      NEW codeword and the OLD one must not appear anywhere in the reply. This is the
-#      leak the refusal exists to prevent — and, once the cache is rewound instead of
+#      leak the refusal exists to prevent, and, once the cache is rewound instead of
 #      discarded, the leak the trim must not reintroduce: the rows between the shared
 #      prefix and the old answer have to be gone, not merely ignored.
 #   4. Honest accounting on that turn: `prompt_tokens >= cached_tokens`, and the reused part
 #      may not exceed what the warm appended turn reused (a rebuild that reports more reuse
 #      than the extension is the surface promising more than the engine delivered).
 #   4b. The edited turn REUSES: `cached_tokens > 0`. The pool refuses to answer a diverged
-#       conversation from a stale cache, but it no longer throws that cache away — it offers
+#       conversation from a stale cache, but it no longer throws that cache away. It offers
 #       the caller `ChatSession.fork(history:)` (ChatSession.swift:1652 at pin 48114eedf),
 #       which keeps the KV rows the new prompt still starts with. Without this leg the
 #       rewind could silently stop working and only latency would notice.
 #   5. The ledger records what actually happened: `historyDiverged == 0` (this edit was not
-#      refused) and `prefixReuse` publishes the reuse the usage field reported — cause, cost
+#      refused) and `prefixReuse` publishes the reuse the usage field reported. Cause, cost
 #      and gain on one surface, none of them inferred by this probe.
 #
 # ### What is measured (NOTE, not asserted)
-#   paid = prompt_tokens - cached_tokens on the edited turn, against the reused count of the
+#   paid = prompt_tokens. Cached_tokens on the edited turn, against the reused count of the
 #   appended turn. The reserve is requested (MLXBridge `kvCacheRewindReserveTokens`, 1024
-#   rows — pinned present by `SessionRewindOnDivergenceTests`), and what is left paid is
+#   rows. Pinned present by `SessionRewindOnDivergenceTests`), and what is left paid is
 #   the distance the reserve cannot cover: rows older than the reserve are gone, so an edit
 #   further back than 1024 tokens still re-prefills its prefix. That residual is the
 #   memory dial, not a correctness dial, which is why it is reported and not asserted.
 #
 # ### Which lane, and why it is declared
 # Every turn here declares one inert tool. A turn that registers a tool generates through the
-# pooled `ChatSession`, which is the route that continues a resident KV cache — the only route
+# pooled `ChatSession`, which is the route that continues a resident KV cache. The only route
 # on which an appended turn reuses anything, a ledger means anything, and a rewind has a cache
 # to rewind. A plain turn on a reasoning checkpoint renders its own `LMInput` and prefills a
 # fresh cache, so an expected `cached_tokens>0` there is a premise that cannot hold; asking
-# this lane to reuse is asking it to lie. What that lane owes instead — the whole feed, and
-# no claim of reuse — is priced by 01-prefix-accounting §F.
+# this lane to reuse is asking it to lie. What that lane owes instead. The whole feed, and
+# no claim of reuse. Is priced by 01-prefix-accounting §F.
 #
 # Run: bash scripts/probes/run.sh 27
 PROBE_NAME="27-edited-history-honesty"
@@ -66,7 +66,7 @@ OLD_WORD="MARLIN"
 NEW_WORD="SALMON"
 MAX_TOKENS=16
 # Chosen lane: an inert tool, never called (see the header). The bypass-lane turn below adds
-# `response_format` on top, which still routes it around the pooled session — that section
+# `response_format` on top, which still routes it around the pooled session, that section
 # depends on the lane, it does not depend on this turn being tool-free.
 PROBE_TOOLS_JSON='[{"type":"function","function":{"name":"edit_probe_noop","description":"Report a fixed status string. Call only when the user explicitly asks for a status report.","parameters":{"type":"object","properties":{},"required":[]}}}]'
 export PROBE_TOOLS_JSON
@@ -98,7 +98,7 @@ ask() {  # ask <label> <prompt_tokens_var> <messages-json...> ; sets ANS/PROMPT/
   CACHED="$(probe_json "${PROBE_BODY:-}" 'usage.prompt_tokens_details.cached_tokens')"
 }
 
-# ask_json_turn <messages...> — the same feed with response_format json_object attached,
+# ask_json_turn <messages...>. The same feed with response_format json_object attached,
 # which routes the turn through GuidedGenerationLoop (that lane builds its own KV cache).
 ask_json_turn() {
   local body

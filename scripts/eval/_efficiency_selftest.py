@@ -43,7 +43,7 @@ def main():
 
     # 1. hand-computable fixture: two passes (100 ms/400 ms, 10+5 and 20+5 tokens) and one
     #    failure that spent 300 ms and 40 tokens. Success latency ignores the failure; unit cost
-    #    does not — that asymmetry is the whole claim, so it is asserted in both directions.
+    #    does not, that asymmetry is the whole claim, so it is asserted in both directions.
     good = write(
         "a\twrite\t0\t100\t%s\n" % usage(10, 5)
         + "b\tedit\t1\t300\t%s\n" % usage(30, 10)
@@ -69,7 +69,7 @@ def main():
         defects.append("fixture-1: parsed usage called broken")
 
     # 1b. twenty successes: the p95 index sits strictly below the last element, which is the
-    #     shape that crashed the first live run — a float index reaching list[]. The fixture is
+    #     shape that crashed the first live run. A float index reaching list[]. The fixture is
     #     generated, so the expectation states the RULE (the 19th of 20 sorted values) rather
     #     than a magic number copied out of the code under test.
     many = write("".join(
@@ -128,7 +128,7 @@ def main():
 
     # 6. the tool-surface figures: what a turn's declarations cost, priced against bytes a reader
     #    can count. The expectation is the WIRE TEXT itself, written out here, so the number is
-    #    checkable by eye rather than recomputed from the code under test — `json.dumps` of a spec
+    #    checkable by eye rather than recomputed from the code under test, `json.dumps` of a spec
     #    must reproduce the literal exactly (insertion order, default separators), which is what
     #    `_eval.py body` puts in the request's `tools` field.
     entry_a = '{"name": "a", "parameters": {}}'
@@ -167,7 +167,7 @@ def main():
                     defects.append("surface line %r is missing %r" % (line, fragment))
             if line.index("bb=") > line.index("a="):
                 defects.append("surface line must name the heaviest declaration first: %s" % line)
-            # `all` is the full-surface board, and it must be the server's own set — a hand-copied
+            # `all` is the full-surface board, and it must be the server's own set. A hand-copied
             # name list is the drift class `_eval.tool_specs` exists to refuse.
             every = _eval.tool_surface("all")
             if (every["board_count"], every["board_bytes"]) != (3, len(three.encode("utf-8"))):

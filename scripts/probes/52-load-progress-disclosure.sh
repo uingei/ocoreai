@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# 52-load-progress-disclosure.sh — during a load a stranger is actually waiting through, does
+# 52-load-progress-disclosure.sh. During a load a stranger is actually waiting through, does
 # `/v1/models` say what the loader read, or only what it did not do?
 #
 # Why this probe exists. `/v1/models` has published `loadProgress` since 11-01 on the strength of a
-# measured wait — the shipping default checkpoint is 3 550 670 554 B and fetched in 794 s at 4.5 MB/s
+# measured wait. The shipping default checkpoint is 3 550 670 554 B and fetched in 794 s at 4.5 MB/s
 # while a waiter was released at the 120 s window with nothing but "still loading" (CHANGELOG
-# 11-01(101)) — and not one probe had ever watched a real load produce those numbers. The phase that
+# 11-01(101)), and not one probe had ever watched a real load produce those numbers. The phase that
 # needed the proof is the one the shape could only describe by negation: once the bytes are on disk
 # the row said `downloading:false` and nothing else, while the loader was still mapping gigabytes.
 #
 # Measured 11-07, one live `serve`, `mlx-community/gemma-4-e2b-it-4bit` on disk and not resident:
-# the ready-directory route (the one every warm start takes — `MLXBridge.swift`, "Loading ready
+# the ready-directory route (the one every warm start takes, `MLXBridge.swift`, "Loading ready
 # model …") read the weights in **6 808 ms**, and 30 polls of `/v1/models` during it returned
-# `{"downloading":false,"elapsedSeconds":N}` and nothing else — an honest sentence about a phase
+# `{"downloading":false,"elapsedSeconds":N}` and nothing else. An honest sentence about a phase
 # nobody measured. mlx-swift-lm #551 measures that phase in bytes, with the denominator read off the
 # checkpoint's own `*.safetensors`; once the loader installs the handler (and it must be installed
 # by the route that has the id, because upstream creates no reporter when the handler is nil), the
@@ -20,15 +20,15 @@
 # total is byte-for-byte the size of `model.safetensors` on disk (§3).
 #
 # Legs:
-#   1) watch + floor — from the moment `/health` answers, poll until the boot's own prewarm load is
+#   1) watch + floor. From the moment `/health` answers, poll until the boot's own prewarm load is
 #      seen in `state:"loading"`; a run that saw nothing has no subject, fails loudly, and names
 #      the knob to turn rather than passing quietly (§1);
 #   2) the weights axis reached the wire at least once, and in every sample it came as a PAIR with
-#      bytes ≤ denominator (upstream publishes a synthetic 1/1 when it never measured a total —
+#      bytes ≤ denominator (upstream publishes a synthetic 1/1 when it never measured a total,
 #      copying that would publish a byte count the loader never read);
 #   3) the denominator is the checkpoint: `weightsBytesTotal` equals the summed bytes of the
 #      `*.safetensors` files this load read, so the wire number is a file fact, not an estimate;
-#   4) the row closes with the load — once the id is ready again, no `loadProgress` survives on it
+#   4) the row closes with the load. Once the id is ready again, no `loadProgress` survives on it
 #      (a stale row reads as a finished load still at 40 %).
 set -uo pipefail
 
@@ -42,12 +42,12 @@ probe_atexit 'rm -f "$SAMPLES"'
 probe_boot
 probe_require_ready_model
 
-# ── 1) watch the boot's own load — premise and observation in one loop ───────────────────────
+# ── 1) watch the boot's own load. Premise and observation in one loop ───────────────────────
 #
 # Premise and observation live in the same loop on purpose. Splitting them (the first draft polled
 # once a second for five seconds to "find" a load, then started watching) lost the load it had just
 # found: the boot prewarm had finished in the gap, and the legs below were left with no subject. The
-# load this probe watches is the one every first run does by itself — the prewarm — so the watch
+# load this probe watches is the one every first run does by itself. The prewarm, so the watch
 # starts the moment `/health` answers, which is how the stranger's wait is actually ordered.
 probe_section "1) watching the boot's own load from the moment /health answered"
 SUBJECT=""
@@ -90,13 +90,13 @@ print("|".join([str(pick.get("id")), str(pick.get("state")), g("downloading"),
     LOADING_SAMPLES=$(( LOADING_SAMPLES + 1 ))
     [ -n "$SUBJECT" ] || SUBJECT="$sid"
   elif [ -n "$SUBJECT" ] && [ "$state" = "ready" ]; then
-    # Only break after the subject was seen loading — a ready sighting before that is the
+    # Only break after the subject was seen loading. A ready sighting before that is the
     # prewarm not having started yet, not the load having ended.
     READY_SEEN=1
     break
   elif [ "$LOADING_SAMPLES" -eq 0 ] && [ "$state" = "ready" ] && [ "$waited" -ge 10 ]; then
     # The prewarm starts with the server; ten seconds of a ready row with nothing ever loading
-    # means this boot has no load to watch (a resident model) — stop before the whole budget.
+    # means this boot has no load to watch (a resident model). Stop before the whole budget.
     break
   fi
   # One poll interval per sleep, never the deadline (§ Code Conventions).

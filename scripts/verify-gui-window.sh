@@ -1,10 +1,10 @@
 #!/bin/bash
-# verify-gui-window.sh — prove the delivered app actually SHOWS a window.
+# verify-gui-window.sh. Prove the delivered app actually SHOWS a window.
 #
 # First principles: "the app runs" has two layers. HTTP healthy + completion
 # proves the engine; it does NOT prove the user sees anything (the process
 # could serve forever from a windowless state). This gate asserts, via
-# CGWindowList (no Accessibility/TCC entitlement needed — osascript is
+# CGWindowList (no Accessibility/TCC entitlement needed. Osascript is
 # blocked on unattended hosts, CGWindowList is not):
 #   1) ≥1 normal-layer (layer 0) window of believable size exists, and
 #   2) with SHOT=1, the captured frame is actually rendered (distinct-colour floor), not a
@@ -13,7 +13,7 @@
 # A traffic-light/close-button assertion lived here until 10-22 and is gone on purpose: AppKit
 # title-button sub-windows are not enumerable in an unattended session (owned entries measured
 # 0), so the check could only ever print ⚠️. A check that cannot pass carries no signal and
-# trains everyone to ignore the ones that can — deleting it is the fix. A pixel-band variant
+# trains everyone to ignore the ones that can. Deleting it is the fix. A pixel-band variant
 # was tried and rejected too (it found 1 of 3 discs; inactive discs sit ~25/255 from the
 # sidebar tone). The provable statement is layer-0 geometry + a rendered frame.
 #
@@ -64,8 +64,8 @@ if [ "$SHOT" = "1" ]; then
     # screencapture refuses when the driving process lacks screen-recording consent, and it can
     # fail outright for some window types. Both are environment conditions, not artifact defects:
     # the window is already proven above by CGWindowList geometry, which needs no TCC. A bare
-    # call under `set -e` aborted the whole release e2e at this line — before its completion
-    # round-trip, the most important leg in that script — and left the launched app holding the
+    # call under `set -e` aborted the whole release e2e at this line. Before its completion
+    # round-trip, the most important leg in that script, and left the launched app holding the
     # single-instance lock. Degrade honestly: quote the framework, skip the pixel evidence, and
     # never let the summary read as though pixels had been verified. Degrading is opt-out, not
     # the default: GUI_REQUIRE_PIXELS=1 keeps CI (macos runners, where capture works) on a hard

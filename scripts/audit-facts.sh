@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Re-runnable ocoreai audit fact-sheet — machine-checkable facts only.
+# Re-runnable ocoreai audit fact-sheet. Machine-checkable facts only.
 # Every audit claim must be backed by a line from this output or an equivalent grep.
 # Usage: bash scripts/audit-facts.sh [commit-sha]  (sha → CI check-run conclusions)
 set -u
@@ -41,7 +41,7 @@ echo "env.example keys: $(grep -cE '^[A-Z_]+=' .env.example 2>/dev/null) | OCORE
 grep -n "environment variables\|contract" Tests/ocoreaiTests/EnvKeysDocumentationTests.swift 2>/dev/null | head -3
 echo "--- comparator cadence (the numbers § Adoption and Goal Rung 1 quote) ---"
 # One request per tree: at per_page=1 the total is the last Link page. Unauthenticated is
-# 60 req/h, so this costs 10 of them (8 trees + our own releases/tags) - run it when a number
+# 60 req/h, so this costs 10 of them (8 trees + our own releases/tags). Run it when a number
 # is quoted, not on a timer.
 # A tree that could not be asked prints the reason and never a number, and a partial scan says
 # it is partial: a floor read off a shrunk set is the vacuous-pass shape all over again.
@@ -81,10 +81,10 @@ else:
           % (len(nums), len(rows)))
 
 # The sentence that quotes the range also states ours, and until 11-06 that half was counted
-# with `git tag` while the comparator half counted GitHub Releases - two units in one comparison.
+# with `git tag` while the comparator half counted GitHub Releases. Two units in one comparison.
 # Ours is therefore counted on the stranger's unit: releases a GET without a token can SEE. The
-# Link-header trick the comparator half uses counts GitHub's invisible drafts too - measured
-# 11-06, `releases?per_page=1` answers an empty visible body while Link says page=10 - so it
+# Link-header trick the comparator half uses counts GitHub's invisible drafts too. Measured
+# 11-06, `releases?per_page=1` answers an empty visible body while Link says page=10, so it
 # would fold the rehearsal lane's unpromoted drafts into a cadence number no stranger can rank.
 def fetch(url):
     hdr = {"Accept": "application/vnd.github+json", "User-Agent": "ocoreai-audit-facts"}

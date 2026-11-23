@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# _lib.sh — shared harness for the live HTTP probes in scripts/probes/.
+# _lib.sh. Shared harness for the live HTTP probes in scripts/probes/.
 #
 # Why this directory exists (AGENTS.md § Open, 10-14): the live conclusions this
 # repo publishes were produced by ad-hoc scripts that lived in a temp dir
@@ -16,7 +16,7 @@
 #     the question is about an ARTEFACT rather than a binary it could start (`OCOREAI_PROBE_BASE_URL`,
 #     honoured by probe 40 alone). Such a run prints the subject on every verdict line.
 #   • A server that never became ready is a FAILURE with the remedy, never a silent
-#     skip — a check that passes vacuously is worse than no check (invariant 1).
+#     skip. A check that passes vacuously is worse than no check (invariant 1).
 #   • It floors its own premises: an assertion block that produced no verdict fails.
 #   • It prints the raw measured numbers, not only a verdict, so a doc claim can be
 #     re-checked against a run instead of re-argued.
@@ -56,7 +56,7 @@ probe_ok() {
   printf '  PASS  %s\n' "$*"
 }
 
-# lower STRING — bash 3.2 (the macOS default, and what `env bash` resolves to here) has no
+# lower STRING. Bash 3.2 (the macOS default, and what `env bash` resolves to here) has no
 # `${VAR,,}`, and a probe that quietly produced an empty string on a lowercase expansion
 # would turn every colour-word verdict into a false FAIL.
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
@@ -81,14 +81,14 @@ probe_require_int() {
   esac
 }
 
-# A measured fact that is not itself a pass/fail — printed so the number outlives
+# A measured fact that is not itself a pass/fail. Printed so the number outlives
 # the session, which is the whole point of keeping probes in git.
 probe_note() {
   PROBE_INFO=$(( PROBE_INFO + 1 ))
   printf '  NOTE  %s\n' "$*"
 }
 
-# probe_xfail VERDICT MESSAGE — a defect that is open, reproduced here, and already
+# probe_xfail VERDICT MESSAGE. A defect that is open, reproduced here, and already
 # recorded in AGENTS.md §Open.
 #
 # VERDICT is `open` (the defect still reproduces: the line prints XFAIL, exits 0, and the
@@ -146,7 +146,7 @@ PROBE_EXIT_HOOKS=""
 # silently replaces probes_cleanup. That is exactly how 10-17 lost three probes:
 # 05-hearing.sh installed `trap 'rm -f "$AIFF"' EXIT INT TERM`, its server never got
 # TERM'd, the flock in Core/SingleInstanceLock.swift stayed held, and 06/07/08 each
-# burned the full 240 s ready-timeout on "Another ocoreai instance is already running" —
+# burned the full 240 s ready-timeout on "Another ocoreai instance is already running",
 # a leak reported three times as "Metal unavailable or model load stuck", which is the
 # wrong diagnosis, at 12 minutes a run.
 probe_atexit() {
@@ -189,7 +189,7 @@ trap probes_cleanup EXIT INT TERM
 # with `.` and matched neither build-dir pattern: measured 10-19, a hand-started server
 # (`./.build-clt/out/Products/Debug/ocoreai`) was reported as foreign, never reaped, and
 # the probe burned its full 240 s ready-timeout on "Another ocoreai instance is already
-# running" — the same misdiagnosis the trap-chain fix of 10-17 was about.
+# running". The same misdiagnosis the trap-chain fix of 10-17 was about.
 probe_exe_of() {
   local pid exe
   exe="$(ps -p "$1" -o comm= 2>/dev/null | sed 's/[[:space:]]*$//')"
@@ -253,7 +253,7 @@ PY
 # What this replaces promised "newest" in a comment and delivered "first existing".
 # SwiftPM 6.4 emits products at <scratch>/out/Products/<config>/ocoreai, so
 # `.build-clt/debug/ocoreai` has not existed on this host since the toolchain moved, and
-# the loop fell through to `.build/debug/ocoreai` — measured 10-17: five days stale and
+# the loop fell through to `.build/debug/ocoreai`. Measured 10-17: five days stale and
 # built from mlx-swift-lm 7eb77efa while the pin says 6e338e5df. Every number such a run
 # reports describes code this repo does not ship. The pin guard further down does catch
 # it, but only because it derives the scratch path *from the chosen binary*; resolution
@@ -270,14 +270,14 @@ probe_scratch_for_binary() {
   # `dirname/../`) silently pointed at `.build-clt/out/Products`, so the pin and cleanliness
   # premise of every measurement printed "not verifiable" instead of holding.
   #
-  # `SourcePackages` is Xcode's `.build` — it is what a runner's smoke binary sits under
+  # `SourcePackages` is Xcode's `.build`. It is what a runner's smoke binary sits under
   # (DerivedData/<proj>/SourcePackages/checkouts), so naming it lets the xcodebuild route
   # CHECK its pin instead of excusing it.
   #
   # The walk has to terminate at the root: `${p%/*}` turns "/Users" into "", so a loop whose
   # only exit test is `[ "$p" != "/" ]` spins forever once no component matched. Measured
   # 10-29: that spin is what killed `Wire probe 37` on the runner (180 s step bound, no harness
-  # note ever printed) while the same call resolved in microseconds locally — a local binary
+  # note ever printed) while the same call resolved in microseconds locally. A local binary
   # always lives under `.build`, so the miss only happens where the product came from Xcode.
   local p child
   p="$(cd "$(dirname "$1")" && pwd)" || return 1
@@ -351,7 +351,7 @@ probe_resolve_binary() {
   [ -n "$best" ] || return 1
   # stderr, because the path is the function's stdout contract and a caller captures it.
   printf 'resolved %s (dependency score %s)\n' "$best" "$best_score" >&2
-  # Staleness note: a probe scores the binary, not the source — measured 11-11, a red-sample
+  # Staleness note: a probe scores the binary, not the source. Measured 11-11, a red-sample
   # restore re-ran probe 07 against the pre-restore binary and its FAILs read as an unflipped
   # fix. Warn, never fail: pinning an older binary on purpose is legitimate via OCOREAI_BIN,
   # which returns above and is provenance-owned by the caller.
@@ -402,17 +402,17 @@ PY
 
 # ── media fixtures ─────────────────────────────────────────────────────────────
 
-# probe_render_clip PATH COLOUR — a solid-colour MP4 (2 s at 15 fps) written by
+# probe_render_clip PATH COLOUR. A solid-colour MP4 (2 s at 15 fps) written by
 # scripts/make-test-video.swift through AVFoundation/VideoToolbox. Every probe that has to
 # *see* something needs one, and a clip that silently failed to render turns every later
-# "the model did not see it" verdict into a lie about the harness — so the emptiness check
+# "the model did not see it" verdict into a lie about the harness, so the emptiness check
 # lives here, once, instead of in each caller.
 #
 # The byte count lands in `PROBE_CLIP_BYTES` rather than on stdout: a helper called inside
 # `$(…)` runs in a subshell, where a `probe_fail` it records would vanish with the shell and
 # the run would report green on a broken fixture.
 #
-# A failure sets PROBE_FAIL and returns non-zero — the caller bails with probe_summary.
+# A failure sets PROBE_FAIL and returns non-zero. The caller bails with probe_summary.
 probe_render_clip() {
   local path="$1" colour="$2" report
   PROBE_CLIP_BYTES=0
@@ -438,19 +438,19 @@ PROBE_BASE=""
 # A local patch left in a SwiftPM checkout is invisible to `git status` in this repo,
 # invisible to CI (which resolves the pin from GitHub), and silently changes what every
 # measurement here describes. Found the hard way on 10-14: 21 uncommitted debug lines sat
-# in `.build-clt/checkouts/mlx-swift-lm/Libraries/MLXLMCommon/ChatSession.swift` — the
-# exact file the open prefix-cache conclusions are about — while AGENTS.md asserted the
+# in `.build-clt/checkouts/mlx-swift-lm/Libraries/MLXLMCommon/ChatSession.swift`. The
+# exact file the open prefix-cache conclusions are about. While AGENTS.md asserted the
 # clone, the pin and the checkout were byte-identical. All three were different.
 probe_require_clean_dependency_checkout() {
   local scratch="$1" pin c other head dirty
   pin="$(sed -nE 's/.*mlx-swift-lm\.git", *revision: "([0-9a-f]+)".*/\1/p' \
     "$PROBE_REPO_ROOT/Package.swift" | head -1)"
 
-  # The scratch path that produced the binary under test — this is the tree the
+  # The scratch path that produced the binary under test. This is the tree the
   # measurement describes, so dirt or a pin mismatch here invalidates the run.
   c="$scratch/checkouts/mlx-swift-lm"
   if [ -z "$scratch" ]; then
-    # Reached from a binary that lives outside every scratch dir — a .dmg volume, an installed
+    # Reached from a binary that lives outside every scratch dir. A .dmg volume, an installed
     # .app. The sentence has to say that instead of printing an empty path: probe 41 judges
     # exactly such a binary, so this is the normal route for an artefact verdict.
     probe_note "the binary under test sits outside every scratch dir — its pin is judged by the" \
@@ -484,8 +484,8 @@ probe_require_clean_dependency_checkout() {
   done
 }
 
-# Boot `ocoreai serve` and block until /health answers. Fails the run — loudly,
-# with the remedy — when the engine cannot come up.
+# Boot `ocoreai serve` and block until /health answers. Fails the run. Loudly,
+# with the remedy, when the engine cannot come up.
 probe_boot() {
   local bin
   probe_note "boot: resolving the binary under test"
@@ -494,7 +494,7 @@ probe_boot() {
     probe_summary "${PROBE_NAME:-probe}"
   fi
   # Phase notes, because on 10-28 a probe stalled for minutes inside these three calls and the
-  # probe log's last line was still the one before boot — the stall had no name. A note per call
+  # probe log's last line was still the one before boot. The stall had no name. A note per call
   # costs two lines per boot and turns "the step timed out" into "it was inside X".
   local boot_scratch
   boot_scratch="$(probe_scratch_for_binary "$bin")"
@@ -505,9 +505,9 @@ probe_boot() {
 
   # A free port that stops being free is a different failure than a stuck model load, and
   # it used to be reported as one. Measured 10-18: probe 04 got 50255 from the OS, lost
-  # the bind race, logged "Port 50255 already in use — Bridge Path (HTTP) skipped", and
+  # the bind race, logged "Port 50255 already in use. Bridge Path (HTTP) skipped", and
   # then burned the full 240 s readiness timeout before reporting "Metal unavailable or
-  # model load stuck" — the wrong remedy, at four minutes. Detect the collision, say so,
+  # model load stuck". The wrong remedy, at four minutes. Detect the collision, say so,
   # and retry on a fresh port.
   local attempt port_requested="${OCOREAI_PROBE_PORT:-}" port_collision
   for attempt in 1 2 3; do
@@ -553,7 +553,7 @@ probe_boot() {
       # A server that has already announced it will never serve must not cost the readiness
       # timeout. Measured 10-22: with the single-instance lock held, `serve` printed its
       # refusal at t=0 and stayed alive in `lifecycle: error` (fixed in HeadlessServer), so
-      # the loop's only early exits — process death and port race — never fired and the
+      # the loop's only early exits. Process death and port race. Never fired and the
       # remedy arrived 237 s late. Detect the terminal sentence and say it now.
       if grep -qE "refusing to start a second engine|lifecycle: error|Circuit breaker open" \
         "$PROBE_LOG" 2>/dev/null; then
@@ -610,7 +610,7 @@ probe_require_ready_model() {
   fi
   if [ -n "${OCOREAI_PROBE_MODEL:-}" ]; then
     # An arm of a measurement names its own checkpoint. A score is a claim about a model, so the
-    # harness has to be able to say WHICH one rather than inherit whatever /v1/models lists first —
+    # harness has to be able to say WHICH one rather than inherit whatever /v1/models lists first,
     # that ordering is what made every published board figure a claim about "the ready model".
     # Exact id or the bare name after the org prefix; absent is a loud red, never a quiet fallback
     # to another checkpoint, because an arm that silently ran elsewhere is a wrong number.
@@ -731,7 +731,7 @@ print(json.dumps(body))
 PY
 }
 
-# Long, deterministic filler text (no randomness — runs must be comparable).
+# Long, deterministic filler text (no randomness. Runs must be comparable).
 probe_pad_text() {
   python3 - "${1:-40}" <<'PY'
 import sys

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# ci-status.sh — what did the declared authority actually conclude for a commit?
+# ci-status.sh. What did the declared authority actually conclude for a commit?
 #
 # ### Why this exists (10-26)
 # AGENTS.md § Build / Test / Lint names CI on macos-26 the authority, and worktree-hygiene says an
 # unseen commit is unverified. Neither sentence was checkable from a terminal, so `Static Audit`
-# failing on a formatter pin — which left Build & Test, App Store and iOS all `skipped` — ran ~90
+# failing on a formatter pin, which left Build & Test, App Store and iOS all `skipped`. Ran ~90
 # pushes without anyone local knowing. A claim you cannot ask about is a claim you are hoping.
 #
 # ### Contract (exit codes carry the epistemic state, AGENTS.md § Hub Reachability)
@@ -13,7 +13,7 @@
 #   2  COULD NOT ASK: no network, rate-limited, or no check-runs returned. Never reported as green.
 #
 # OCOREAI_CI_REDS=1 additionally reads the annotations of every GREEN leg and prints the reds that
-# `continue-on-error` swallowed there — one API call per leg, so it stays opt-in.
+# `continue-on-error` swallowed there. One API call per leg, so it stays opt-in.
 set -uo pipefail
 
 # $1 is a commit (short or full) OR a remote URL, never one value used as both: a SHA handed to
@@ -54,7 +54,7 @@ if not runs:
           % (repo, sha[:7])); raise SystemExit(2)
 
 # The contract is the MAIN push, but /commits/{sha}/check-runs answers for every ref whose head is
-# this sha — a queued-then-cancelled tag-push leg reddened a commit whose own main run concluded
+# this sha. A queued-then-cancelled tag-push leg reddened a commit whose own main run concluded
 # all-green. Verdict from main's runs only; other refs' legs print as ignored, never counted.
 def run_id(r):
     m = re.search(r"/actions/runs/(\d+)", r.get("html_url") or "")

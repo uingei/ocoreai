@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 09-malformed-request-honesty.sh — can one bad number in a request body kill the server?
+# 09-malformed-request-honesty.sh. Can one bad number in a request body kill the server?
 #
 # ### Why (AGENTS.md invariant 1: a claim is worth the gate that goes red when it breaks)
 # Measured 10-17 against a live server:
@@ -11,19 +11,19 @@
 # other conversation on the box went with it, and the client got an empty reply with no
 # status, no error body and no remediation. A trap is not a refusal.
 #
-# The quieter sibling: max_tokens=0 answered 200 OK with an empty completion — the surface
+# The quieter sibling: max_tokens=0 answered 200 OK with an empty completion. The surface
 # claiming it had generated something when it generated nothing.
 #
 # ### What this probe locks down
-#   1. NAMED REFUSAL — each out-of-domain knob comes back 400 with error.param naming the
+#   1. NAMED REFUSAL. Each out-of-domain knob comes back 400 with error.param naming the
 #      field and the message echoing the value that was sent (the shape vllm publishes:
 #      vllm/sampling_params.py:630-712 for the ranges, its validation handler for `param`).
-#   2. SURVIVAL — after every refusal the server is still there: /health answers, and a
+#   2. SURVIVAL. After every refusal the server is still there: /health answers, and a
 #      normal request with a code word still returns that code word. This is the actual
 #      regression gate; a probe that only checked the 400 would have passed on a server
 #      that died right after printing it.
-#   3. NO PHANTOM 200 — max_tokens=0 is a refusal, not a 200 with empty content.
-#   4. PER-WIRE BOUNDS — temperature 1.5 is legal on /v1/chat/completions ([0, 2]) and
+#   3. NO PHANTOM 200. Max_tokens=0 is a refusal, not a 200 with empty content.
+#   4. PER-WIRE BOUNDS. Temperature 1.5 is legal on /v1/chat/completions ([0, 2]) and
 #      refused on /v1/messages ([0, 1]). Per-wire ranges, one checker.
 #
 # Needs a real Metal device for the survival turns (a live generation), so run it
@@ -31,7 +31,7 @@
 #
 # JSON bodies are built by single-quote concatenation, never by nested quoted command
 # substitutions: bash 3.2 (the /usr/bin/env bash on macOS) mis-parses
-# `cmd "$(other "…\"key\"…")"` and hands the helper a truncated array — measured 10-18,
+# `cmd "$(other "…\"key\"…")"` and hands the helper a truncated array. Measured 10-18,
 # where it produced this probe's only failure on its first run, in the harness, not the
 # server. Probe 01 already avoids it the same way (scripts/probes/01-prefix-accounting.sh:59).
 #

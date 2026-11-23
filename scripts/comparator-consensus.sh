@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# comparator-consensus.sh — what the field agrees on, counted off the local mirrors; plus where it is
+# comparator-consensus.sh. What the field agrees on, counted off the local mirrors; plus where it is
 # moving.
 #
 # Prints, per axis, the trees that show the mechanism and the count; then DIFFUSION (each axis classified
-# by its share of its own segment, plus the ours-alone and segment-majority-zeros lines — the cut
+# by its share of its own segment, plus the ours-alone and segment-majority-zeros lines. The cut
 # docs/agent/comparator-innovation.md reads); then SEGMENT-AUDIT (serving trees on disk that the declared
 # `serve` segment omits, loose by design, for a human to adjudicate); then the release-ledger block; then a
 # trend block (cadence, tags minted, and which concepts the field is editing *this quarter* rather than
 # merely carrying) and the touch-weighted churn block. It is
 # ADVISORY: it exits 0 and judges nothing, because a cross-tree count is a direction input, not a
 # verdict about us (root § Working here: "counts printed carry no verdict"). What it does floor is
-# itself — an axis whose column is all zeros prints DEAD, and a pattern that the regex engine cannot
+# itself. An axis whose column is all zeros prints DEAD, and a pattern that the regex engine cannot
 # honour refuses to run at all (§ the lint below).
 #
 # Instrument honesty, stated once here instead of per axis in the prose:
@@ -20,10 +20,10 @@
 #          docs/ page or a workflow's brew line is not the first screen a stranger reads)
 #   GIT    measured from the clone (tags)
 # Absence here means the instrument found nothing; it does not prove the mechanism is missing (a
-# Swift idiom a JS-shaped pattern cannot see is exactly that case — check the tree before quoting).
+# Swift idiom a JS-shaped pattern cannot see is exactly that case. Check the tree before quoting).
 #
 # THE PATTERN LINT, and why it is in a script that gates nothing. Every CODE/README pattern below is
-# handed to `git grep -E`, whose engine is POSIX ERE — where \b \w \s \d and every lookaround are
+# handed to `git grep -E`, whose engine is POSIX ERE, where \b \w \s \d and every lookaround are
 # undefined and quietly match nothing. Two of those landed here: `\.dmg\b` scored our own DMG route as
 # absent, and `\bmd5\b` silently dropped md5 from the digest axis, while both axes still printed a
 # confident non-zero count because their other alternatives matched. That is root invariant 1 with the
@@ -99,7 +99,7 @@ DL = (r"(^|/)(download|models?|blob|cache|weights?|image|hub|installer|snapshot|
 # Install routes, three separate questions, because conflating them is how a doc tells itself a story.
 # (a) a stranger can *type* it: a command-shaped package-manager line in the root README. Command-shaped
 #     means a command position (line start, after a backtick or a `$ `), not the phrase anywhere in prose
-#     — "Homebrew's `brew install opencode` formula currently installs V2" is a warning, not a route.
+#. "Homebrew's `brew install opencode` formula currently installs V2" is a warning, not a route.
 # (b) a store carries it: decided by the store's own URL or an obtain-verb, never by the words "App
 #     Store" in a caveat (our README says "an App Store build installed from the DMG …", which is a
 #     build fact, not a shelf a stranger can reach).
@@ -123,7 +123,7 @@ AXES = [
     ("ANY install route (README)",      "README", "shippable",
      CMD_POS + "|" + STORE + "|" + ARTIFACT, ROOT_README, False),
     ("committed HTTP contract",         "PATH",   "serve",     r"(^|/)openapi[^/]*\.(json|ya?ml)$|swagger\.json", None, False),
-    # A directory named sdk/client/codegen is only a published client if it is a PACKAGE — a manifest or
+    # A directory named sdk/client/codegen is only a published client if it is a PACKAGE. A manifest or
     # a README sitting in it, at any nesting (a monorepo puts them at sdk/packages/x/package.json, which
     # the one-level form missed, so cline's six published packages scored as nothing). Without the
     # package half, any internal folder called Client/ counts, which is exactly how our own in-process
@@ -144,8 +144,8 @@ AXES = [
     # Scored on the protocol's NAME, because three attempts to score it by shape each produced a fresh
     # false positive and one false negative, all of them plausible: (i) `[^a-z0-9]` boundaries scored
     # `Rapid-MLX` off `sqrt_acp`/`acp_prev` (the alpha-cumulative-product pair of a diffusion sampler);
-    # (ii) treating `_` as an identifier character — which it is, and ERE has no `\b` for the lint below to
-    # refuse — fixed that and dropped OpenHands' real `acp_server: "claude-code"`; (iii) widening to
+    # (ii) treating `_` as an identifier character, which it is, and ERE has no `\b` for the lint below to
+    # refuse. Fixed that and dropped OpenHands' real `acp_server: "claude-code"`; (iii) widening to
     # protocol-ish vocabulary (`acp\\.`, `RequestPermission`) then scored `Rapid-MLX`'s `acp.max()`, and
     # scored `codex`, `Strata` and `mlx-serve` on their *own* permission code, which is not the protocol at
     # all. A token this short in a corpus this polyglot has no decidable boundary, so the axis asks the
@@ -157,7 +157,7 @@ AXES = [
     # Scored on SRC (CODE's extensions plus `.sh`/`Makefile`), because a generator can live in a shell
     # script and the pathset must not be what hides it. Measured today the widening changes nothing here
     # (2/24 either way), which is the useful result: the binding constraint is the *vocabulary*
-    # (`doc-sync`, `generate-docs`, `verify-config-catalog`), not the file type — our own
+    # (`doc-sync`, `generate-docs`, `verify-config-catalog`), not the file type. Our own
     # the retired `make docs-check` re-derived figures into prose under a name this pattern does not know, so `ours:
     # no` means "we do not use their words", not "we have nothing".
     ("generates docs from source (code)",  "SRC",  "shippable",
@@ -177,7 +177,7 @@ AXES = [
      r"(^|[^a-z0-9])mcp([^a-z0-9]|$)|modelcontextprotocol", CODE, True),
     # Confinement, i.e. a profile the child cannot step outside. The first version of this axis also
     # accepted `job.?object`, `appcontainer` and bare `seccomp`, and reported 8/14 agent trees as
-    # sandboxing. Read the matched lines (OC_EVIDENCE=1) and goose's was CreateJobObjectW — kill the
+    # sandboxing. Read the matched lines (OC_EVIDENCE=1) and goose's was CreateJobObjectW. Kill the
     # process tree on close, not a sandbox (`crates/goose/src/agents/platform_extensions/developer/
     # shell_process.rs:100`); pi's was a comment about EACCES under someone else's seccomp policy
     # (`packages/tui/src/terminal.ts:51`); vllm's and sglang's were container-environment notes. What
@@ -185,7 +185,7 @@ AXES = [
     ("OS confinement profile for the child (code)", "CODE", "agent",
      r"(^|[^a-z0-9])(sandbox-exec|seatbelt|sandbox[-_]profile|bubblewrap|firejail|landlock"
      r"|createRestrictedToken)", CODE, True),
-    # Does a *serving* tree ship the harness-side wiring — the config that points somebody else's
+    # Does a *serving* tree ship the harness-side wiring. The config that points somebody else's
     # coding agent at this endpoint? Segment serve on purpose: it is the serve/agent seam, and it is
     # the rung root § Adoption says to spend on ("a harness consuming us"). Scored on all source, so a
     # tree's example script counts as present; the read of which hit is product code lives in
@@ -224,12 +224,12 @@ AXES = [
     # Who lets a REMOTE caller point the machine the server runs on at something? A different question
     # from the row above (that one asks whether the tree can capture at all; this one asks whether the
     # capture is behind the wire) and the answer is not the same set.
-    # Scored on a ROUTE BINDING — an HTTP verb call whose first argument is a path literal — because the
+    # Scored on a ROUTE BINDING. An HTTP verb call whose first argument is a path literal, because the
     # word alone is worthless here: a bare `capture|screenshot|camera` probe hit 27 of 29 trees, almost
     # all of it capturing stdout, closures and dict keys (`snapshot.get("screenshot_png")`,
     # `config.get("camera_layout")`). The nouns still need reading, and one was found by reading:
     # Rapid-MLX captures a host WINDOW at `@router.post("/observations")`, so `observation` had to join
-    # the list, while `voice|listen|speak` were tried and deliberately left out — the trees binding
+    # the list, while `voice|listen|speak` were tried and deliberately left out. The trees binding
     # those (`pi`, `hermes-agent`) feed the mic from the CLIENT, which is the opposite of this axis.
     # `openclaw`'s two hits are a browser tab through the extension's own local server, not the OS.
     ("captures the host's own devices behind a route (code)", "CODE", "serve",
@@ -271,8 +271,8 @@ def where(tree):
 
 
 # Pathspec pruning: a git pathspec skips a file before its bytes are read, while the Python filter
-# below still decides the hit. It has to stay a superset of every filter it fronts — the CODE list is
-# the same extension set as CODE's regex, the README list the same three names as ROOT_README's — or
+# below still decides the hit. It has to stay a superset of every filter it fronts. The CODE list is
+# the same extension set as CODE's regex, the README list the same three names as ROOT_README's, or
 # pruning would silently drop hits, which is the failure this instrument keeps re-finding. Measured on
 # this box: unpruned, these axes read every tracked byte of 27 mirrors (a 10 MB single-line
 # calibration JSON is one of them) and a six-axis subset did not finish in five minutes.
@@ -282,7 +282,7 @@ PRUNE = {
              "*.zig", "*.c", "*.cpp", "*.hpp", "*.m", "*.mm", "*.rb", "*.dart", "*.scala"],
 }
 # SRC's superset must match SRC's regex the same way CODE's does, or pruning would drop hits the
-# filter would have kept — the invariant the comment above this block states.
+# filter would have kept. The invariant the comment above this block states.
 PRUNE["SRC"] = PRUNE["CODE"] + ["*.sh", "*.bash", "*.mk", "*Makefile", "*makefile"]
 _LISTED = {}
 
@@ -418,9 +418,9 @@ for name, kind, seg, pat, filt, trended in AXES:
             for t in sorted(set(in_seg) | ({"ocoreai"} if per.get("ocoreai") else set())):
                 print("      %-18s %s" % (t, evidence(t, kind, pat, filt)[:150]))
 
-# ── the diffusion cut — how far each practice spread inside its own segment ────────────────────────
+# ── the diffusion cut. How far each practice spread inside its own segment ────────────────────────
 # The consensus table is sorted by agreement, which buries the two rows a direction comes from: the
-# practice exactly ONE tree in a segment holds (a bet nobody has been exposed to yet — not a lead, not an
+# practice exactly ONE tree in a segment holds (a bet nobody has been exposed to yet, not a lead, not an
 # error), and the practice we hold while the segment does not. Shares are taken against each axis's own
 # declared segment, because "2/7" and "2/24" are different facts. Reuses `present` from the sweep above,
 # so it costs no extra scan.
@@ -467,9 +467,9 @@ print("   segment-majority we score zero on: %s"
 # ── SEGMENT-AUDIT: does the declared segment match the disk? ───────────────────────────────────────
 # Segments are hand-typed data, and hand-typed data goes stale the day a tree is cloned: `serve` had
 # seven members while five serving trees sat unlisted, so every serve denominator silently divided by a
-# subset. This cannot be a verdict — "mentions a chat route" is true of every harness that CALLS one, and
+# subset. This cannot be a verdict. "mentions a chat route" is true of every harness that CALLS one, and
 # a regex cannot tell a server from a client across eight stacks (that judgement is what the header
-# comment on SEG is for) — so it prints loose candidates with one matched line each, for a human to
+# comment on SEG is for), so it prints loose candidates with one matched line each, for a human to
 # adjudicate, and names the pattern's bias so nobody reads it as a count.
 ROUTE = re.compile(r"/v1/(chat/completions|completions|messages)\b")
 REGISTER = re.compile(r"(@\w+\.(post|api_route|route|get)\(|\b(app|router|api|server|e)\.(post|route|"
@@ -490,7 +490,7 @@ for t in trees:
 
 # ── what the field's own release ledgers say ─────────────────────────────────────────────────────
 # Churn says where effort is going NOW; a per-version ledger is a tree's own statement of what it
-# shipped and in WHICH ORDER — the only source in this corpus that carries sequence, and the only one
+# shipped and in WHICH ORDER. The only source in this corpus that carries sequence, and the only one
 # written for a stranger to read before installing. Two facts about it are the finding, not the verb
 # mix: most trees publish none, and where one exists the ledger is mostly a list of things that broke.
 VER_HEAD = re.compile(r"^#{1,3} +v?(?:0|[1-9]\d*)\.\d+(?:\.\d+)?\b", re.M)
@@ -555,7 +555,7 @@ if big:
     t, best, nv, bl, mix, body = big
     heads = [m.start() for m in VER_HEAD.finditer(body)] + [len(body)]
     # A ledger is written NEWEST-first, so the segment list is reversed before anyone is told which
-    # release came "first" — the first port of this block skipped that and reported the newest release
+    # release came "first". The first port of this block skipped that and reported the newest release
     # as release #1, which made every axis look like it shipped on day one.
     segs = []
     for i in range(len(heads) - 1):
@@ -618,11 +618,11 @@ for name, kind, seg, pat, filt, trended in AXES:
 # NON-EXCLUSIVE (`codex-rs/core/src/guardian/tests.rs` is authority *and* measurement) so shares do not
 # sum to 100 % and `unmatched` is printed, not hidden; a directory named `review` may be code review; and
 # a tree that keeps its loop in `src/lib/` scores under whatever that dir is called. The hottest-files
-# column is the part a reader can audit without trusting any regex — which is why it is here.
+# column is the part a reader can audit without trusting any regex, which is why it is here.
 BUCKET = [
     ("loop/context",    r"(^|/)(context|compact|summar|memory|session|rewind|fork|history|token|budget|prompt)"),
     ("tools/skills",    r"(^|/)(tool|function|parser|skill|mcp|extension|plugin)"),
-    # Split 11-04: one "authority" bucket conflated two mechanisms with opposite verdicts — approval
+    # Split 11-04: one "authority" bucket conflated two mechanisms with opposite verdicts. Approval
     # (a shipping agent's most-edited axis, per the ledgers) and OS confinement (shipped, quiet). A
     # pattern that answers two questions prints one number and invites the wrong reading of both.
     ("approval",        r"(^|/)(permission|approval|approv|consent|trust|review)"),
@@ -642,7 +642,7 @@ BUCKET = [
     ("deps/release",    r"(^|/)(package-lock|pnpm-lock|bun\.lock|cargo\.lock|package\.json|setup\.py|cmakelists|changelog|feed\.xml|version|manifest)"),
 ]
 # A share floor is not a liveness floor. Demanding >= 10 % of own churn before a bucket counts went red
-# on `authority` for every tree — while codex's whole `guardian` module and openclaw's seven
+# on `authority` for every tree. While codex's whole `guardian` module and openclaw's seven
 # `packages/sandbox/*` were matching it the whole time. Big denominators squash shares; they do not
 # mean absence. So the tally may use a share, and the vacuity check uses a FILE COUNT of zero.
 FLOOR_SHARE = 10

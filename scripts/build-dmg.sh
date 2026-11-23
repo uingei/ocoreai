@@ -1,5 +1,5 @@
 #!/bin/bash
-# build-dmg.sh — 开箱即用产物: ocoreai.app → ocoreai.dmg (可拖拽安装)
+# build-dmg.sh。开箱即用产物: ocoreai.app → ocoreai.dmg (可拖拽安装)
 #
 # 设计 (第一性): 用户拿到 .dmg → 双击 → 拖到 Applications → 双击图标。
 # 零外部依赖: 只用 macOS 自带 hdiutil, 不需要 create-dmg / node。
@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 
 # Which stage the script was in when it died, on stdout, greppable. Two of the four stages below
 # send their tool's stdout to /dev/null (hdiutil), so with `set -e` a red here historically printed
-# nothing of its own and the log's last words were somebody else's compiler warnings — the reason
+# nothing of its own and the log's last words were somebody else's compiler warnings. The reason
 # the packaging leg has been undiagnosable since 10-31. A phase line costs one echo and names the stage even
 # when the command inside it is silent; scripts/ci-annotate.sh publishes the last one as the
 # fallback when a log carries no error line at all.

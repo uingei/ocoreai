@@ -25,7 +25,7 @@ import platform
 DIGEST_LEN = 12
 
 # The fields that decide whether two runs measured the same game. `score` is deliberately not one
-# of them — that is the thing being measured.
+# of them, that is the thing being measured.
 KEY_FIELDS = ("model", "tasks", "tools", "temperature", "approval", "concurrency", "host", "commit",
               "docs", "binary")
 
@@ -198,7 +198,7 @@ def _declared_specs(names):
         # `all` is a word, not a tool name, so "every asked name is declared" cannot be its premise.
         # The equivalent check is that the server declared a surface at all: `_eval.tool_specs` answers
         # [] for an unreadable or oddly shaped payload, and a digest over zero tools would credit the
-        # score to a server that declares nothing — the same failure the name check above exists for.
+        # score to a server that declares nothing. The same failure the name check above exists for.
         if not specs:
             raise SystemExit("_conditions.py: `all` resolved to zero declarations from the cached"
                             " GET /v1/tools — the tools digest would cover a surface the run never"

@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# 28-single-instance-refusal.sh — when another instance holds the lock, does `serve` LEAVE?
+# 28-single-instance-refusal.sh, when another instance holds the lock, does `serve` LEAVE?
 #
 # ### Why (AGENTS.md invariant 2, applied to the process instead of the wire)
 # "The surface never claims more than the engine delivered" covers the process table: a live
 # daemon that answers nothing is a surface claiming an engine. Measured 10-22 with the lock
 # held by the built .app: `serve` printed "refusing to start a second engine" and
 # "lifecycle: error" at t=0, then stayed in the runloop until an outside SIGTERM killed it,
-# so scripts/eval/run.sh burned its whole readiness timeout — 237 s — on an answer it had
+# so scripts/eval/run.sh burned its whole readiness timeout, 237 s. On an answer it had
 # already been given. The remedy was in the first line of the log; the exit code arrived four
 # minutes later.
 #
 # ### What is asserted
-#   1. Premise: instance A booted, /health is 200 and a model is ready — so the lock is held
+#   1. Premise: instance A booted, /health is 200 and a model is ready, so the lock is held
 #      by something that actually serves, which is the only state in which a refusal is the
 #      right answer.
 #   2. Departure: instance B exits on its own, unsignalled, within OCOREAI_REFUSE_TIMEOUT
@@ -19,7 +19,7 @@
 #      is not a refusal, it is a hang wearing one.
 #   3. The message carries the remedy: the holder's pid and OCOREAI_ALLOW_MULTI_INSTANCE, so
 #      the operator does not have to read source to unblock themself.
-#   4. The holder is unharmed: A still answers /health after B's departure — the guard
+#   4. The holder is unharmed: A still answers /health after B's departure. The guard
 #      rejects a second engine, it does not disturb the first.
 #   5. The harness cannot rot: _lib.sh still scans for the terminal startup sentences (a scan
 #      that was deleted would report readiness for a server that said it would never serve),
@@ -29,7 +29,7 @@
 # successfully. Two 4-bit checkpoints resident at once is the GPU race this lock exists to
 # prevent, and a probe must not stress the invariant it is guarding.
 #
-# Needs Metal, and a second process — it is a live probe, not a unit test.
+# Needs Metal, and a second process. It is a live probe, not a unit test.
 
 set -uo pipefail
 

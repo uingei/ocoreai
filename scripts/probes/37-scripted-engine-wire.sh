@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 37-scripted-engine-wire.sh — can the wire's contract be decided with NO model resident?
+# 37-scripted-engine-wire.sh. Can the wire's contract be decided with NO model resident?
 #
 # ### Why
 # Every live probe here used to need Metal and a checkpoint, so a contract verdict (does SSE frame
@@ -12,19 +12,19 @@
 #
 # ### What is asserted
 #   1. Honesty field: `/v1/capabilities` answers `engineBackend: scripted` while a script drives.
-#   2. Nothing resident: `/health` reports zero loaded models — the verdict above cost no weights.
+#   2. Nothing resident: `/health` reports zero loaded models. The verdict above cost no weights.
 #   3. Resolvable is not offered: the fixture id answers turns and is absent from `/v1/models`.
 #   4. Streaming shape: reasoning delta, then tool call, then text, then a terminal frame, then
 #      `[DONE]`, with the segments concatenated byte-for-byte.
 #   5. Non-streaming shape: `finish_reason`, the assembled `tool_calls`, and `usage` equal to the
-#      declared counts — and no `prompt_tokens_details`, because a replay reuses no prefix.
+#      declared counts, and no `prompt_tokens_details`, because a replay reuses no prefix.
 #   6. The completions lane keeps the thought channel out of `choices[].text`, and both of its
-#      lanes release the same bytes — this endpoint has no field for thinking, so it must not
+#      lanes release the same bytes. This endpoint has no field for thinking, so it must not
 #      publish one by concatenating two channels into the answer.
 #   7. A broken script fails loudly: the cause reaches the client (5xx off, diagnostic on), never a
 #      quiet empty turn that looks finished.
 #   8. Static floor: the scoreboard still refuses a scripted backend.
-#   9. (retired — see the note before where it sat; numbers left the injected root doc by rule, and
+#   9. (retired. See the note before where it sat; numbers left the injected root doc by rule, and
 #      this seat read nothing else.)
 #  10. `/v1/stats` accounting: one turn moves the request counter once and the declared token counts
 #      once; a streaming turn enters the TTFB histogram exactly once and a non-streaming one not at
@@ -32,8 +32,8 @@
 #      turn ran until 11-05, which is how a histogram with two producers stayed green.
 #  11. `/ready`'s live contract: the predicate its own catalog entry promises (ready ↔ no session
 #      generating), a current timestamp, and `loadedModels` parity with `/v1/stats` from the same
-#      boot. The busy face is structurally scripted-dark — the lane resolves turns with no resident
-#      model, so there is nothing for the gauge to count — and stays the checkpoint tier's to witness.
+#      boot. The busy face is structurally scripted-dark. The lane resolves turns with no resident
+#      model, so there is nothing for the gauge to count, and stays the checkpoint tier's to witness.
 
 set -uo pipefail
 
@@ -65,7 +65,7 @@ probe_note "script $SCRIPT_FILE — 2 segments, 1 tool call, declared counts 7/1
 
 BODY='{"model":"scripted-model","messages":[{"role":"user","content":"hi"}]}'
 
-# 1 + 2 — the honesty field, and the fact that it cost no model.
+# 1 + 2. The honesty field, and the fact that it cost no model.
 probe_boot
 probe_api GET /v1/capabilities
 BACKEND="$(probe_json "$PROBE_BODY" 'engineBackend')"
@@ -86,7 +86,7 @@ else
     "loading weights anyway, so this tier no longer proves the thing it exists to prove"
 fi
 
-# 3 — a fixture id answers turns but is not offered as a model.
+# 3. A fixture id answers turns but is not offered as a model.
 probe_api GET /v1/models
 if printf '%s' "$PROBE_BODY" | grep -q 'scripted-model'; then
   probe_fail "/v1/models advertises scripted-model — a client would route to a model that cannot load"
@@ -94,7 +94,7 @@ else
   probe_ok "scripted-model absent from /v1/models — resolvable while a script is loaded, never offered"
 fi
 
-# 4 — the SSE stream, frame by frame. -m is not decoration: this is the one request here that does
+# 4. The SSE stream, frame by frame. -m is not decoration: this is the one request here that does
 # not go through probe_api, so a stream the server never closes has no other bound. Measured 10-28:
 # a stalled stream parked the arm64 authority leg until the 60-min job timeout on six consecutive
 # pushes, so each of those runs reported `cancelled` instead of a verdict.
@@ -133,7 +133,7 @@ for want in 'reasoning_content' '"tool_calls"' '"finish_reason"' '\[DONE\]'; do
   fi
 done
 
-# 5 — the aggregated turn, with exact numbers.
+# 5. The aggregated turn, with exact numbers.
 probe_chat "" "$BODY"
 if [ "${PROBE_STATUS:-}" != "200" ]; then
   probe_fail "non-streaming turn -> ${PROBE_STATUS:-no response}: $(printf '%s' "$PROBE_BODY" | head -c 200)"
@@ -160,14 +160,14 @@ else
   probe_ok "no prompt_tokens_details — no cache-reuse claim on a replayed turn"
 fi
 
-# 6 — the completions lane, which has no second channel to put thinking in.
+# 6. The completions lane, which has no second channel to put thinking in.
 #     Measured 10-31 against this very script: `stream:false` published
-#     "planning the read Sure — two deltas, in order." as `choices[0].text` while `stream:true`
-#     published "Sure — two deltas, in order.", and the chat sibling of the same turn split them
+#     "planning the read Sure. Two deltas, in order." as `choices[0].text` while `stream:true`
+#     published "Sure. Two deltas, in order.", and the chat sibling of the same turn split them
 #     into `content` and `reasoning_content`. `text` is what a client prints and what a harness
 #     scores, so on a thinking model this route handed the thought back as the answer. The decision
-#     already has a home with the other two consumers of the event (ChatHandler.swift:1072-1075 —
-#     "leaked the full thought block into the non-streaming `content` field" — and
+#     already has a home with the other two consumers of the event (ChatHandler.swift:1072-1075,
+#     "leaked the full thought block into the non-streaming `content` field", and
 #     AnthropicMessagesHandler.swift:1031, which gives it a `thinking` block): reasoning is its own
 #     channel, and a wire with no field for it does not publish one by concatenating.
 COMPLETIONS_BODY='{"model":"scripted-model","prompt":"write a line","max_tokens":8}'
@@ -241,7 +241,7 @@ else
     "nothing (probe rule: floor your own premises)"
 fi
 
-# 7 — same path, broken content: the cause must reach the client.
+# 7. Same path, broken content: the cause must reach the client.
 printf '{"segments":["x"],"finishReason":"bogus"}\n' > "$SCRIPT_FILE"
 probe_chat "" "$BODY"
 if [ "${PROBE_STATUS:-0}" -ge 500 ] && printf '%s' "$PROBE_BODY" | grep -q 'bogus'; then
@@ -251,7 +251,7 @@ else
     "— an unusable script must name its cause, never answer 200 with nothing in it"
 fi
 
-# 8 — the scoreboard's refusal, so this tier can never be read as a score.
+# 8. The scoreboard's refusal, so this tier can never be read as a score.
 if grep -q 'engineBackend' "$HERE/../eval/run.sh" && grep -qi 'scripted' "$HERE/../eval/run.sh"; then
   probe_ok "scripts/eval/run.sh still checks engineBackend and refuses a scripted run"
 else
@@ -259,17 +259,17 @@ else
     "published as a task-success score, which is the one thing this tier must never allow"
 fi
 
-# 9 — retired, and the note is the record so the tier says it every run rather than only in history:
+# 9. Retired, and the note is the record so the tier says it every run rather than only in history:
 # this seat compared the tool count quoted in the injected root doc against a live `/v1/tools`; the
 # root doc now moves every measured number out of itself by rule, so the quote it read no longer
 # exists and a check on a retired premise is deleted, not demoted. `/v1/tools` itself keeps live
 # seats in probes 11/12/21/40/44.
 probe_note "§9 retired: the injected root doc quotes no tool count anymore, so this seat has no subject"
 
-# 10 — the counters `/v1/capabilities` advertises ("Structured inference counters and gauges") must
+# 10. The counters `/v1/capabilities` advertises ("Structured inference counters and gauges") must
 # move exactly once per turn. `/v1/stats` was a published promise no probe had read while a turn ran
-# until 11-05: the TTFB histogram had two producers — the streaming lane called `observeTTFB` and
-# handed the same value to `observeInferenceDuration`, which counts it too — so every streamed turn
+# until 11-05: the TTFB histogram had two producers. The streaming lane called `observeTTFB` and
+# handed the same value to `observeInferenceDuration`, which counts it too, so every streamed turn
 # entered `ocoreai_ttfb_seconds` twice while `totalRequests` moved by one. The average hid it (both
 # sides of the quotient doubled); only the counts lied, and nothing read the counts. This is the seat
 # that reads them, weight-free: a replayed turn drives the same handlers, so it produces the same
@@ -307,7 +307,7 @@ stats_snap() {
 
 stats_snap; R0="$STATS_R"; T0="$STATS_T"; P0="$STATS_P"; G0="$STATS_G"
 
-# 10a — a non-streaming turn has no first byte, so it moves the request and token counters and
+# 10a. A non-streaming turn has no first byte, so it moves the request and token counters and
 # leaves the latency curve untouched.
 probe_chat "" "$BODY"
 [ "${PROBE_STATUS:-0}" = "200" ] || probe_fail "§10a's turn answered ${PROBE_STATUS:-0}, so the" \
@@ -329,7 +329,7 @@ else
     "advertised counters and the wire's usage field now describe different turns"
 fi
 
-# 10b — a streaming turn has exactly one first byte, so exactly one sample enters. The doubled
+# 10b. A streaming turn has exactly one first byte, so exactly one sample enters. The doubled
 # producer measured 2 here on 11-05.
 STREAM_BODY="$(printf '%s' "$BODY" \
   | python3 -c 'import json,sys; b=json.load(sys.stdin); b["stream"]=True; print(json.dumps(b))')"
@@ -359,13 +359,13 @@ else
     "counter verdict would be a vacuous pass (probe rule: floor your own premises)"
 fi
 
-# 11 — GET /ready: the readiness path advertised in endpoints[] on /v1/capabilities and rendered in
-# openapi.json had no live seat until 11-11 — every probe that booted a server drove the chat
+# 11. GET /ready: the readiness path advertised in endpoints[] on /v1/capabilities and rendered in
+# openapi.json had no live seat until 11-11. Every probe that booted a server drove the chat
 # surface and read nothing here. The scripted lane decides its IDLE contract exactly, because
 # /v1/stats and /ready read the same engineSummary: the predicate the endpoint catalog itself
 # promises ("ready when no session is generating"), the timestamp's freshness, and the two
 # surfaces' loadedModels agreement all cost no Metal. The BUSY face is named, not skipped: it is
-# structurally unmeasurable on this lane — ScriptedInference resolves turns with no resident model
+# structurally unmeasurable on this lane. ScriptedInference resolves turns with no resident model
 # (EnginePool.swift:519-523), so activeSessions has nothing to count; measured 11-11: 10 concurrent
 # streamed turns, 300 /ready polls, zero busy. A busy-side witness therefore waits on the
 # checkpoint tier, which open-items.md already carries as the open tier question.

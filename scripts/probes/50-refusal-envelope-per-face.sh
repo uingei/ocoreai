@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# 50-refusal-envelope-per-face.sh — does a refusal beside the model wear the caller's envelope?
+# 50-refusal-envelope-per-face.sh. Does a refusal beside the model wear the caller's envelope?
 #
 # `AppError.response` decides which envelope a refusal wears by the path the request arrived on, and
 # `AnthropicErrorEnvelopeTests` proved that for a refusal thrown *inside* a handler. This probe is
-# about the refusals that live beside the model — the ones a client meets for wrong content, a wrong
-# URL, or too much traffic — because each of those used to hand-build its JSON body in its own layer,
+# about the refusals that live beside the model. The ones a client meets for wrong content, a wrong
+# URL, or too much traffic, because each of those used to hand-build its JSON body in its own layer,
 # which is how a client speaking Anthropic's protocol to `POST /v1/messages` was answered in OpenAI's
 # envelope by the safety filter, the router's miss, or the rate limiter. vllm states why the string
 # inside that body is not ours to invent: "Anthropic SDKs dispatch on `error.type`, which must use
 # Anthropic's own vocabulary" (`vllm/entrypoints/anthropic/protocol.py:33-34`).
 #
-# Measured 11-03 on one live `serve` driving the scripted engine (no weights, no Metal, no download —
+# Measured 11-03 on one live `serve` driving the scripted engine (no weights, no Metal, no download,
 # so this is a wire-tier verdict and claims nothing about any checkpoint): **13 passed, 0 failed**. The
 # same text was refused 400 `invalid_request_error` + `error_code: prompt_injection` on all three
 # faces, `code` present on the two OpenAI faces and absent on `/v1/messages`; both trie misses came
@@ -19,17 +19,17 @@
 # match) and reported 0 of 3 and 0 of 2 subjects rather than a quiet pass.
 #
 # Legs:
-#   1) control both ways — a benign prompt is answered on all three faces, so every 400 below is
+#   1) control both ways. A benign prompt is answered on all three faces, so every 400 below is
 #      about its own content and not about a route that never worked. This is the leg that stops
 #      "the server 400s everything" from passing the rest of the file.
-#   2) the same blocked text on all three faces — one fact (`error_code: prompt_injection`), each
+#   2) the same blocked text on all three faces. One fact (`error_code: prompt_injection`), each
 #      face in its own envelope, with the other face's keys absent: OpenAI keeps `code`, Anthropic's
 #      object is `{type,message,…}` with no `code` and a top-level `"type":"error"`.
-#   3) the trie miss on both faces, on a real server and a real middleware chain — `route_not_found`
+#   3) the trie miss on both faces, on a real server and a real middleware chain, `route_not_found`
 #      survives either shape, and the Anthropic miss no longer answers `app_error`.
 #   4) absence is checked on parsed keys, never on the raw body: a refusal's own prose contains the
 #      words it is denying (probe 49's §4 learned this the loud way).
-#   5) floor — every leg counts its own subjects, and a leg that exercised fewer than it claims is a
+#   5) floor. Every leg counts its own subjects, and a leg that exercised fewer than it claims is a
 #      failure, not a smaller pass.
 #
 # What this does NOT prove: the keyword/regex content guard (`Security/ContentGuard.swift`). Its
@@ -48,7 +48,7 @@ PROBE_NAME="refusal-envelope-per-face"
 SCRIPT_FILE="$(mktemp -t ocoreai-refusal-script-XXXXXX).json"
 probe_atexit 'rm -f "$SCRIPT_FILE"'
 
-# One answer, replayed. The content never matters — every leg here is refused before the engine is
+# One answer, replayed. The content never matters. Every leg here is refused before the engine is
 # asked for anything, so the script exists to boot a server without weights.
 printf '%s\n' '{"segments": ["not reached"], "finishReason": "eos", "promptTokens": 5, "generatedTokens": 2}' \
   > "$SCRIPT_FILE"
@@ -228,7 +228,7 @@ check_miss "openai miss"   /no/such/route                 "openai"   "404"
 # The gate that keeps a generation request naming a listed embedder from loading a
 # non-generating container lived on `/v1/chat/completions` alone; `/v1/messages` and
 # `/v1/completions` reach the same pool with the same id. The refusal is one home
-# (`EmbeddingService.generationRefusal`); this leg reads each face's answer off parsed keys —
+# (`EmbeddingService.generationRefusal`); this leg reads each face's answer off parsed keys,
 # status, envelope shape, and the parsed error.message (raw-body substring matching is the
 # shape §4's design bans: a refusal's prose names the route it redirects to).
 probe_section "4) an embedder named by a generation route is refused on all three faces"

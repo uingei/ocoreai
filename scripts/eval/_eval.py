@@ -302,7 +302,7 @@ def main():
             + "\n"
         )
         # A task that declares response_format asks for a machine-readable answer, so the
-        # harness must not also demand "one short line" — two instructions, one of them
+        # harness must not also demand "one short line". Two instructions, one of them
         # unparseable, would score the harness's own ambiguity instead of the server's.
         response_format = t.get("response_format")
         tail = (

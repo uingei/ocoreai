@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# 56-openai-sdk-consumer.sh — does the canonical OpenAI Python SDK consume our wire unmodified?
+# 56-openai-sdk-consumer.sh. Does the canonical OpenAI Python SDK consume our wire unmodified?
 #
 # ### Why
 # Root § Adoption left "a generated client" as the missing artifact of a public contract. The field's
-# shipped shape answers that differently: `vllm` ships no client — it pins `openai >= 2.25.0` as a
+# shipped shape answers that differently: `vllm` ships no client. It pins `openai >= 2.25.0` as a
 # test dependency (requirements/common.txt:21) and its entrypoint tests import `from openai import
 # OpenAI` as the consumer (tests/entrypoints/**). The promise is not an artifact we maintain but a
 # claim we prove: a canonical client, written against the spec and owing us nothing, round-trips
@@ -14,13 +14,13 @@
 # and every compared value is a literal owned by this file through the scripted engine (no weights).
 # §1 the tool-turn face asserts what this server DOCUMENTS rather than what a happy-path test would
 # wish: on a turn carrying tool calls, `message.content` is "" by `contentWireFallback`'s rule (the
-# corrective-echo incident — narration must not become the answer), the calls and usage carry exact
-# values, and `finish_reason` is `tool_calls`; the streamed face still shows the narration deltas —
+# corrective-echo incident. Narration must not become the answer), the calls and usage carry exact
+# values, and `finish_reason` is `tool_calls`; the streamed face still shows the narration deltas,
 # that asymmetry is shipped intent, recorded here so a reader learns it from a green, not an incident.
 # §2 the answer-turn face asserts the text itself byte-exact, non-stream and streamed.
 #
 # ### Premises (each a red with a remedy, never a skip)
-# The resolved binary, a scripted boot, and `openai` importable — system Python first, else a
+# The resolved binary, a scripted boot, and `openai` importable. System Python first, else a
 # throwaway venv (`pip install 'openai>=2.25.0,<3'`). Both failing is a missing subject: red naming
 # the remedy, not a skip, so a tree cannot pass by having no consumer.
 #

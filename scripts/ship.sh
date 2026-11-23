@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ship.sh — cut the next release tag for the ci.yml `v*` leg; publish stays CI's, push stays human's.
+# ship.sh. Cut the next release tag for the ci.yml `v*` leg; publish stays CI's, push stays human's.
 #
 # Cadence is the open item (long-horizon-goal § Rung 1): the machinery proved green at v0.1.16, and the
 # only link never scripted was "after merges land, someone bumps the number and tags it". Field shapes:

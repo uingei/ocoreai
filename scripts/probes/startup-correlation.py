@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# startup-correlation.py — which per-boot fact co-varies with the collapse?
+# startup-correlation.py, which per-boot fact co-varies with the collapse?
 #
 # The margin probe says step-1 lands in one of a few discrete logprob regimes and that the
 # outcome tracks the regime with zero overlap, but it does not say WHAT sets the regime. Each
@@ -8,11 +8,11 @@
 # reading at load, prompt tokens, cached prompt tokens, TTFT.
 #
 # Honesty rules baked in:
-#   • a field "separates" only if the two ranges do not overlap AND each side has n>=3 —
+#   • a field "separates" only if the two ranges do not overlap AND each side has n>=3,
 #     otherwise this script would happily report separation on one sample per side;
 #   • separating fields are CANDIDATES, not a carrier: this is a post-hoc sweep over ~7 fields,
 #     so the multiple-comparisons risk is stated in the output;
-#   • every field that does NOT separate is printed too — the exclusion list is the useful part.
+#   • every field that does NOT separate is printed too. The exclusion list is the useful part.
 #   • `tokens` is compared alongside the timings on purpose. `firstTokenMs` is stamped at the
 #     first output chunk and the standard non-stream path emits that chunk when generation
 #     completes (`EngineInference.swift:4635`), so it is whole-turn latency, not TTFT: a
@@ -52,7 +52,7 @@ for path in sys.argv[1:]:
     lp = LP.search(text)
     for m in STD.finditer(text):
         key = m.group(1)
-        # arm E/F turns only: session keys "cd-e<N>t" / "cd-f<N>t" — one turn per boot
+        # arm E/F turns only: session keys "cd-e<N>t" / "cd-f<N>t". One turn per boot
         if not re.match(r"cd-[ef]\d+t$", key):
             continue
         tokens = int(m.group(3))

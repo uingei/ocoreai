@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# 03-capabilities-models-consistency.sh — does the discovery surface answer?
+# 03-capabilities-models-consistency.sh. Does the discovery surface answer?
 #
 # Why (AGENTS.md § Endpoint Promises): the 404 envelope on this server tells clients to
 # "enumerate endpoints via GET /v1/capabilities". For weeks that payload had no endpoint
-# list — a dead end dressed as guidance — and separately /v1/count-tokens answered 404 on
+# list. A dead end dressed as guidance, and separately /v1/count-tokens answered 404 on
 # models /v1/models reported ready (10-12), and a VLM that answered images correctly was
 # published with vlm:false (10-13). All three are the same defect: a surface that
 # contradicts the engine. V1EndpointCatalogTests pins the index against the router at
@@ -13,29 +13,29 @@
 # Asserted:
 #   • /v1/capabilities returns an endpoint index above a floor (an index that stopped
 #     populating must not pass by being empty);
-#   • every GET endpoint the index lists resolves on the live server — no 404s;
+#   • every GET endpoint the index lists resolves on the live server, no 404s;
 #   • a parameterised route is reachable with SOME form of the ids /v1/models publishes,
-#     and if the verbatim id does not work then the index note must say what to do —
+#     and if the verbatim id does not work then the index note must say what to do,
 #     a route that needs undocumented trickery is still a dead end for a client;
 #   • the two spellings of a slash-bearing id (`org/name`, `org%2Fname`) address ONE
-#     storage key — a value written through one is read through the other, and a reset
+#     storage key. A value written through one is read through the other, and a reset
 #     through one lands on the entry the other created;
 #   • every ready model accepts /v1/count-tokens;
 #   • every model row states `vlm` explicitly, and every capability row states
 #     `available` + a reason, so nothing user-visible is an unstated guess.
-#   • `/v1/capabilities` publishes `instructionBudget` — the byte cap the project
+#   • `/v1/capabilities` publishes `instructionBudget`. The byte cap the project
 #     instructions were cut to, plus a row per discovered doc. This probe boots with a
 #     workspace it seeds to overflow that cap, so the field is measured under the exact
 #     condition it exists to expose: one doc truncated to the cap, one dropped whole, and
 #     every counter agreeing with its own rows. No absolute path reaches this public row.
 #   • the two capability rows that carry a measured overlay agree with the surfaces that
-#     hold the evidence — `screenshot_capture` vs /v1/multimodal/status, `video_input` vs
+#     hold the evidence, `screenshot_capture` vs /v1/multimodal/status, `video_input` vs
 #     the per-model `videoInput` on /v1/models (see the section near the end).
 #
 # Wire-shape notes learned the hard way by running this probe (10-14): the two count
-# endpoints publish the same vocabulary under different casings — `/v1/capabilities` uses
+# endpoints publish the same vocabulary under different casings, `/v1/capabilities` uses
 # `tokenizerBackend` (camelCase, per-object convention, see ModelObject's comment) while
-# `/v1/count-tokens` uses `tokenizer_backend` — and this server's JSON escapes forward
+# `/v1/count-tokens` uses `tokenizer_backend`, and this server's JSON escapes forward
 # slashes, so a raw grep for "/v1/…" misses what the JSON decoder returns. Both are
 # handled below; do not "simplify" them back.
 #
@@ -99,7 +99,7 @@ fi
 # degradation here is the project-instruction chain being cut at the loader's byte cap,
 # which until 10-28 fell off silently for the model AND for the caller. Two halves: the row
 # must agree with its own per-doc rows (its honest failure mode is a number that disagrees
-# with the rows beneath it), and it must state the seeded overflow exactly — one doc
+# with the rows beneath it), and it must state the seeded overflow exactly. One doc
 # truncated to the cap, one dropped whole, no absolute path on a public endpoint.
 INSTR="$(probe_json "$PROBE_BODY" 'instructionBudget')"
 INSTR_BAD="$(python3 - "$INSTR" "$INSTR_WS" "$SEED_BYTES" "$SUB_BYTES" <<'PY'
@@ -327,7 +327,7 @@ probe_section "the two spellings of a slash-bearing id address ONE storage key"
 # Reaching a route is not reaching the same ENTRY. Before these routes captured a recursive
 # wildcard the encoded form resolved to a key of its own, so DELETE answered while the entry
 # lived under the other spelling and GET fabricated defaults (live-observed 10-06). Nothing
-# above can see that split — both spellings reach a handler either way — so drive one value in
+# above can see that split. Both spellings reach a handler either way, so drive one value in
 # through one spelling and read it back through the other. `seed` is the knob: an Int64 with no
 # float-rounding noise, absent until written. Sampling config is per-process in-memory state
 # (EnginePool.updateSamplingConfig writes no disk), so this leaves nothing this boot doesn't own.
@@ -398,7 +398,7 @@ else
   fi
 
   # The wildcard widened what MATCHES; pin that it did not widen what ANSWERS. An id no engine
-  # can resolve still has to be refused from inside the handler, encoded or not — the same
+  # can resolve still has to be refused from inside the handler, encoded or not. The same
   # existence check the chat path uses.
   slash_req GET "ocoreai-probe%2Fno-such-model-000"
   case "$SLASH_STATUS" in
@@ -491,7 +491,7 @@ probe_section "capability rows must agree with the surfaces that measured them"
 # /v1/capabilities is the surface a client routes by, so it carries the measured overlay
 # (RuntimeCapability.measured): the screen row degrades on a capture that actually failed,
 # and `video_input` says whether any model here completed a turn carrying a clip. Both
-# halves were missing until now — round 14 shipped the per-model row and said so, and this
+# halves were missing until now. Round 14 shipped the per-model row and said so, and this
 # section is what keeps the server-wide half from drifting back into either direction:
 # claiming delivery no model earned, or staying silent where one was.
 probe_api POST /v1/multimodal/status '{}'

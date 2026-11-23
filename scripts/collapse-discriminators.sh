@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# collapse-discriminators.sh — separate "per-process numerics" from "per-content state" for the
+# collapse-discriminators.sh. Separate "per-process numerics" from "per-content state" for the
 # degenerate-turn collapse. Probe 30 owns the failure shape and its rate; this script answers a
 # different question, because every mechanism story told so far died on a missing control.
 #
 # ### What each arm discriminates (all numbers below are from one host, one model, greedy,
-# ### `max_tokens=200`, fresh `session_id` per turn — re-run before quoting any of them)
+# ### `max_tokens=200`, fresh `session_id` per turn. Re-run before quoting any of them)
 #   A interleave : TARGET collapses 3/3 inside ONE process while two other prompts deliver
 #                  200 and 173 tokens ⇒ the collapse is NOT a process-global bind. It also
 #                  exposes the blind spot in "15 boots / 84 turns were unanimous": every boot
@@ -23,16 +23,16 @@
 #
 # What survives: a content-specific decision that stays fixed inside a process and flips between
 # processes. The next instrument is the logprob margin between EOS and the next candidate at
-# slot 2 — and it cannot ride the chat face: `ChatSession.swift` contains zero references to
+# slot 2, and it cannot ride the chat face: `ChatSession.swift` contains zero references to
 # `logProbabilities`/`LogProbabilityTokenLoopHandler`, and `.probability` events exist only at
 # `LogProbabilityTokenLoopHandler.swift:9`, so assigning `chatSession.generateParameters
 # .logProbabilities` would be a silent no-op (AGENTS.md: a knob the wire accepts must reach the
 # engine; a stub substitution must be detectable at runtime).
 #
-### Hygiene — read before editing
+### Hygiene. Read before editing
 # The cache move is registered with `probe_atexit` AFTER sourcing `_lib.sh`, and the restore is
 # verified before exit. Writing `trap '…' EXIT` before the source silently replaces
-# `probes_cleanup` (`_lib.sh:158`) — that is how a 695 MB cache move lost its restore and left
+# `probes_cleanup` (`_lib.sh:158`), that is how a 695 MB cache move lost its restore and left
 # the engine's prompt cache empty.
 set -uo pipefail
 source "$(dirname "$0")/probes/_lib.sh"
@@ -50,13 +50,13 @@ CACHE_BACKUP_COUNT=0
 # closes, both hit on the first run of this file:
 #   • counting the backup dir *after* moving it back compares 44 against 0 and reports failure
 #     on a good restore;
-#   • `probes_cleanup`, which every arm calls between boots, drains PROBE_EXIT_HOOKS — so an
+#   • `probes_cleanup`, which every arm calls between boots, drains PROBE_EXIT_HOOKS, so an
 #     atexit restore runs mid-run and the end-of-run report never prints at all. A safety net
 #     that only reports when it happens to be the last handler left is not a safety net.
 restore_cache() {
   # cp, never mv: probes_cleanup drains PROBE_EXIT_HOOKS at the first mid-run cleanup, so this can
   # fire while boots are still running. A move-based backup hands its only copy to the cache, the
-  # next boot's `rm -f "$CACHE"/*` deletes it, and the final restore has nothing left to put back —
+  # next boot's `rm -f "$CACHE"/*` deletes it, and the final restore has nothing left to put back,
   # measured the hard way on 10-23, when 44 snapshots were lost exactly this way.
   [ "$CACHE_BACKUP_COUNT" -gt 0 ] || return 0
   cp -p "$ORIG"/*.safetensors "$ORIG"/*.manifest.json "$CACHE"/ 2>/dev/null || true
@@ -152,7 +152,7 @@ esac
 
 case "$ARMS" in
   *D*)
-    # Arm D — the carrier. Measured on this host: on a process whose real turn collapsed, the
+    # Arm D. The carrier. Measured on this host: on a process whose real turn collapsed, the
     # probe re-runs the SAME prompt bytes (fidelity=match against the turn's own promptTokens)
     # and reports how many tokens it got before the model answered EOS.
     #   parity (engine's GenerateParameters, kvCache included) -> reconstruction stops at step1,
@@ -160,7 +160,7 @@ case "$ARMS" in
     #   OCOREAI_MARGIN_NO_KV=1 (kvCache dropped, everything else identical) -> the reconstruction
     #     reaches step2 and beyond.
     # One field, two outcomes, same process, same bytes: the KV-cache configuration is what
-    # carries the collapse. Both legs must actually see a collapse, or the run is INCONCLUSIVE —
+    # carries the collapse. Both legs must actually see a collapse, or the run is INCONCLUSIVE,
     # a leg that never fired proves nothing, and the rate on this host swings across boots.
     echo "arm D — which configuration carries the collapse? ($BOOTS boots per leg)"
     PARITY_HITS=0
@@ -210,7 +210,7 @@ esac
 
 case "$ARMS" in
   *E*)
-    # Arm E — does the margin actually predict the outcome? Arms A–D measure a margin only where a
+    # Arm E. Does the margin actually predict the outcome? Arms A–D measure a margin only where a
     # turn ALREADY collapsed, so "small margin ⇒ collapse" never had a healthy comparison in the
     # same build. `OCOREAI_MARGIN_PROBE=all` runs the reconstruction after every turn on the
     # standard path, pairing each outcome with the margin of its own prompt bytes.
@@ -238,7 +238,7 @@ esac
 
 case "$ARMS" in
   *F*)
-    # Arm F — arm C × arm E: does the DISK KV state decide which logits regime the process lands
+    # Arm F. Arm C × arm E: does the DISK KV state decide which logits regime the process lands
     # in? arm C showed an empty cache does not stop the collapse, but it could not see the
     # regimes. Same pairing as arm E, with the snapshot dir emptied before every boot; the
     # backup/restore is the verified one registered with probe_atexit above.

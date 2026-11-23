@@ -1,33 +1,33 @@
 #!/usr/bin/env bash
-# 26-mcp-stderr-diagnosis.sh — when an external MCP server fails, does this server say WHY?
+# 26-mcp-stderr-diagnosis.sh, when an external MCP server fails, does this server say WHY?
 #
 # ### What was measured on 10-21 (before the fix, this host)
 # `MCPStdioClient.launchProcess` set `proc.standardError = nil`, so Foundation pointed the
 # child's stderr at /dev/null. A server that dies on startup was therefore reported as
 # "Connect failed: MCP server process exited with status 1" and one that never answered as
 # "did not answer within 15s"/"30s". Both sentences are true, neither is a diagnosis: the
-# `ModuleNotFoundError`, the `MODULE_NOT_FOUND`, the `address already in use` — the only lines
-# that say what to fix — were destroyed on arrival, and no test could have caught it because
+# `ModuleNotFoundError`, the `MODULE_NOT_FOUND`, the `address already in use`. The only lines
+# that say what to fix. Were destroyed on arrival, and no test could have caught it because
 # nothing was expected to arrive (AGENTS.md invariant 1).
 #
 # ### What the fix made decidable
 # stderr is collected into a bounded tail (`MCP/MCPStderrTail.swift`: last 12 lines × 400
 # chars, suppression counted) and folded into every diagnosis the client emits
-# (`MCPClientError.withStderr`, appended after the existing wording — never invented when the
+# (`MCPClientError.withStderr`, appended after the existing wording. Never invented when the
 # child said nothing). Shape borrowed from codex, which treats stderr as diagnostics, not
 # protocol: `rmcp-client/src/executor_process_transport.rs:52-53` (1 MiB stderr line vs 8 MiB
 # stdout) and `:480 flush_stderr()`.
 #
 # ### What this probe locks down over HTTP (the unit suite cannot see this layer)
-#   1. THE CAUSE REACHES THE REFUSAL — a stub that writes a traceback and exits 3 must produce
+#   1. THE CAUSE REACHES THE REFUSAL. A stub that writes a traceback and exits 3 must produce
 #      a -32603 naming BOTH the exit status and `ModuleNotFoundError`, with exactly one
 #      `stderr:` clause (the client wraps the error twice; a doubled clause is a bug).
-#   2. THE TWO FAILURE MODES STAY DISTINGUISHABLE — a server that complains then hangs says
+#   2. THE TWO FAILURE MODES STAY DISTINGUISHABLE. A server that complains then hangs says
 #      "did not answer within 2s" *and* carries its complaint; a dead one says "exited with
 #      status 3". Collapsing these two is how a diagnosis becomes a shrug.
-#   3. THE LEDGER REMEMBERS — `$bridge/endpoint/list` publishes the same evidence in
+#   3. THE LEDGER REMEMBERS, `$bridge/endpoint/list` publishes the same evidence in
 #      `lastError`, the row the GUI reads after the response has scrolled past.
-#   4. THE HAPPY PATH IS UNTOUCHED — a working server still connects and the box still
+#   4. THE HAPPY PATH IS UNTOUCHED. A working server still connects and the box still
 #      answers a chat turn after three failed MCP connections. Capturing stderr must cost
 #      nothing to a server that behaves.
 #

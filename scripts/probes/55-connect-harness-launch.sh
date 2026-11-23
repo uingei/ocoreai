@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 55-connect-harness-launch.sh — does `ocoreai connect` detect, trust only what it probes, and
+# 55-connect-harness-launch.sh. Does `ocoreai connect` detect, trust only what it probes, and
 # hand the measured env contract to the child exactly?
 #
 # ### Why
@@ -12,13 +12,13 @@
 #
 # ### What makes it a proof rather than a demo
 # The subject is a stand-in, and the probe says so: §3 execs a fake `claude` that records its
-# environment and exit 3s. That is deliberate — the claim under test is the mechanism (detect,
+# environment and exit 3s. That is deliberate. The claim under test is the mechanism (detect,
 # probe, exact env, exit forwarding), while the claim "a harness ran real turns on us" belongs
 # to probe 53, which needs weights and a real CLI. A stand-in that verifies bytes prices the
 # mechanism at k=1 and stays in the sandbox tier.
 #
 # ### Premises (each a red with a remedy, never a skip)
-# The resolved `ocoreai` binary (OCOREAI_BIN or the newest build) and a scripted-engine boot —
+# The resolved `ocoreai` binary (OCOREAI_BIN or the newest build) and a scripted-engine boot,
 # no checkpoint, no Metal for §1–§3.
 #
 # Fails when: a classifier token stops being refused with 64, detection reports a path its own

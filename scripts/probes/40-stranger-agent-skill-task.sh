@@ -1,34 +1,34 @@
 #!/usr/bin/env bash
-# 40-stranger-agent-skill-task.sh — can a fresh agent finish a real task from only the skill?
+# 40-stranger-agent-skill-task.sh. Can a fresh agent finish a real task from only the skill?
 #
 # ### Why
 # `skills/ocoreai/` is the artefact another harness reads to drive `/v1`, and probe 39 proves every
 # documented call in it answers. That is not the rung's claim. The claim is that an agent whose *only*
 # knowledge of this server is the published artefact completes a real job. A skill can be perfectly
-# accurate and still undiscoverable, badly ordered, or too long for the model that has to act on it —
+# accurate and still undiscoverable, badly ordered, or too long for the model that has to act on it,
 # probe 39 cannot see any of that, because it executes the artefact instead of being read by it. This
 # is the instrument `docs/agent/long-horizon-goal.md` § Rung zero names for the wedge, and the only one
 # here that measures the artefact the way a stranger's harness will.
 #
 # ### What makes it a proof rather than a demo
 # The server is seeded with a note: a searchable KEY plus a VALUE generated per run. The task names the
-# KEY and never the VALUE, so the only route to the answer is a live call chain — discover the search
+# KEY and never the VALUE, so the only route to the answer is a live call chain. Discover the search
 # surface in the artefact, query it, read the snippet, write the file. `audit` enforces that structure
 # (a task text that leaks the VALUE, a route, a method+path pair or a query parameter fails the run),
 # and §1 carries a negative control: a WRONG deliverable must be rejected, because a lenient verifier
 # would turn every §2 green into a measurement of the checker.
 #
 # ### Tiers
-#   §1 (any host, no weights, no server) — the two parts that decide the verdict are pure functions of
+#   §1 (any host, no weights, no server). The two parts that decide the verdict are pure functions of
 #      files, so they are testable everywhere: the injection (artefact verbatim, over a byte floor) and
 #      the verifier. The live tier runs the same code, so instrument and measurement cannot drift.
-#   §2 (needs a ready checkpoint) — premise first: the note must be storable and retrievable by the
+#   §2 (needs a ready checkpoint). Premise first: the note must be storable and retrievable by the
 #      server's own search before any claim about an agent finding it. Then one agent turn: system =
 #      the artefact, user = the task, tools = the server's own `exec_command` declaration fetched from
 #      `GET /v1/tools` (never a local copy of a schema).
 #
 # ### Honesty
-# Prints the injected byte count, the checkpoint judged, and the loop's finish reason — a task-success
+# Prints the injected byte count, the checkpoint judged, and the loop's finish reason. A task-success
 # figure without those three is not reproducible. Where a premise cannot be established (no Metal, no
 # ready checkpoint, storage that did not keep the note) the tier says WHY and reports known-open; it
 # never reports a pass it did not measure.
@@ -111,8 +111,8 @@ if [ -n "$BASE" ]; then
   # question `docs/agent/long-horizon-goal.md` asks is whether the thing a stranger INSTALLED carries
   # an agent to a real job, and a probe that can only judge a `serve` binary it started itself cannot
   # answer that about a .app or a mounted DMG. The default stays boot-your-own (_lib.sh's contract:
-  # never ride on a server nobody started). Nothing below this branch differs between the two modes —
-  # same premise, same injection, same verifier — so instrument and measurement cannot drift apart,
+  # never ride on a server nobody started). Nothing below this branch differs between the two modes,
+  # same premise, same injection, same verifier, so instrument and measurement cannot drift apart,
   # and the run line says which subject produced the verdict.
   probe_note "§2 subject: caller-supplied server at $BASE — this run judges an artefact, not a binary" \
     "this probe booted (the caller is responsible for its identity; scripts/e2e-gui-app.sh asserts it)"
@@ -155,7 +155,7 @@ MODEL=""
 if [ "$READY" = "1" ]; then
   # WHICH checkpoint is judged is a condition of the verdict, not a detail. Measured 11-01: the same
   # artefact passes this task on Qwen3.6-35B and fails it 6/6 on gemma-4-e2b, while the choice was
-  # made by /v1/models list order — so two runs of one tree could report opposite verdicts and the
+  # made by /v1/models list order, so two runs of one tree could report opposite verdicts and the
   # log would not say why. OCOREAI_PROBE_MODEL names the subject; a pinned id that is not ready is a
   # harness fault reported as one, never a silent fallback onto whatever else is resident.
   PIN="${OCOREAI_PROBE_MODEL:-}"

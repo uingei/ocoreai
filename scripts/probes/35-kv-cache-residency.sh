@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 35-kv-cache-residency.sh — does the KV byte figure the surfaces publish ever become real?
+# 35-kv-cache-residency.sh. Does the KV byte figure the surfaces publish ever become real?
 #
 # ### Why (AGENTS.md invariant 2: the surface never claims more than the engine delivered)
 # `/metrics` publishes `ocoreai_kv_cache_gpu_bytes` and `ocoreai_gpu_memory_gb`, both HELP
 # lines naming KV cache, and the dashboard shows the same figure as a GPU tile. All three were
-# fed by `EnginePool.engineSummary()`, whose `gpuCacheGB` was the literal `0.0` — so every
+# fed by `EnginePool.engineSummary()`, whose `gpuCacheGB` was the literal `0.0`, so every
 # deployment ever run certified a zero-byte KV cache while holding hundreds of megabytes of it
 # (measured: model ready, both series 0, and no test in Tests/ named any of the three series).
 #
@@ -18,8 +18,8 @@
 #   1. Honest zero, before anything exists to measure: the gauge reads 0, and the endpoint
 #      either 404s naming the model (listed but not resident) or answers `not_observed`. A 200
 #      that states a residency nobody measured is the failure this file was written for.
-#   2. The no-tools turn — which routes through the std-reasoning lane, which bypasses the
-#      pooled ChatSession and frees its cache at turn end — prices its own traffic: the release
+#   2. The no-tools turn, which routes through the std-reasoning lane, which bypasses the
+#      pooled ChatSession and frees its cache at turn end. Prices its own traffic: the release
 #      log names bytes it allocated and tokens it wrote, and `/kv-cache` still refuses to call
 #      anything resident. A price (a property of the weights) is claimable; residency for bytes
 #      that no longer exist is not.
@@ -30,14 +30,14 @@
 #      (>= 256 B/token and < 1 MiB/token), so a stale or unit-confused number is caught.
 #   5. Causation and arithmetic: the process-wide gauge leaves zero after that pooled turn, is
 #      at least the model's resident bytes, and `residentBytes >= bytesPerToken * processedTokens`.
-#   6. Every dispatched turn reserved and named its basis — the gate is on the live path.
+#   6. Every dispatched turn reserved and named its basis. The gate is on the live path.
 #   8. `rewindReserve` reaches the live wire stating exactly the plan this server's own
 #      environment resolved to (unset/positive/zero/negative/garbage mirrored from $env).
 #
 # ### Why §4-5 ride a tools-bearing turn
 # The reasoning lane legitimately holds nothing between turns (its shipped design, open-items),
 # so residency is asserted on the lane that really realizes a cache, and lane-only traffic is
-# judged in §2-3 — a permanent red that states nothing true is not a gate.
+# judged in §2-3. A permanent red that states nothing true is not a gate.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -145,7 +145,7 @@ fi
 probe_section "3. the reservation basis moves on the lane's own price alone"
 # The price exists only after a cache has been read (lane or session -> KVCachePriceLedger),
 # and so far NO pooled turn has run on this server: any `@ measured` reservation can only have
-# come from the lane's own number. A log with no `Admitted` line is not "not applicable" — it
+# come from the lane's own number. A log with no `Admitted` line is not "not applicable". It
 # means the gate is off the live path.
 body2="$(python3 -c "
 import json, sys
@@ -186,7 +186,7 @@ else
 fi
 
 probe_section "4. a tools-bearing turn realizes a resident cache the endpoint measures"
-# The tools turn rides the pooled ChatSession, whose cache STAYS resident in the pool — that is
+# The tools turn rides the pooled ChatSession, whose cache STAYS resident in the pool, that is
 # the lane the gauge and `measured` residency are about.
 body3="$(python3 -c "
 import json, sys
@@ -291,7 +291,7 @@ probe_section "8. the wire states the rewind-reserve plan this server booted und
 # `KVCacheRewindReserveTests` proves the resolver and the encoder agree in-process; only a live
 # server proves the field reaches the wire at all (invariant 2: what a stranger reads must be
 # what was delivered). The expectation mirrors the same decision table from THIS probe's
-# environment — the server was booted from it — so an operator running the suite with the knob
+# environment. The server was booted from it, so an operator running the suite with the knob
 # set asserts the override reached the wire instead of watching it silently evaporate.
 python3 - "$after_json" "${OCOREAI_KV_REWIND_RESERVE_TOKENS-__unset__}" <<'PY'
 import json, sys

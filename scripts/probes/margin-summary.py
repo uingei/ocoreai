@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# margin-summary.py — one home for the arm E/F verdict logic (rows: boot<TAB>outcome<TAB>probe line).
+# margin-summary.py. One home for the arm E/F verdict logic (rows: boot<TAB>outcome<TAB>probe line).
 # argv[1] = rows file, argv[2] = arm label (E pairs margin with outcome; F does it with the disk
 # KV cache emptied every boot). The label is a parameter because the two arms must reach the same
-# verdict from the same arithmetic — a second copy of this logic is how two arms start disagreeing.
+# verdict from the same arithmetic. A second copy of this logic is how two arms start disagreeing.
 import re
 import sys
 
@@ -76,7 +76,7 @@ print(
 print("  %s distinct step1 lp values: %s" % (LABEL, sorted({round(v, 4) for v in c0 + h0})))
 
 # Byte determinism, checked before anything else: the arms all assume "identical prompt bytes",
-# and that assumption used to be false without any check — the skill blocks were written into the
+# and that assumption used to be false without any check. The skill blocks were written into the
 # system prompt in Swift's per-process dictionary order, so eight cold boots produced four
 # byte-variants and two of them answered EOS after one token (10-23). More than one variant here
 # means the run compared contents, not numerics, and no margin conclusion drawn from it is valid.

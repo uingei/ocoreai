@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# test-verdict.sh — did the test harness deliver a verdict at all, and how many tests ran?
+# test-verdict.sh. Did the test harness deliver a verdict at all, and how many tests ran?
 #
 # ### Why this exists (10-28)
 # Both CI legs printed `xctest summary (exit 0): Executed 0 tests, with 0 failures` and went green,
 # and that annotation is the sentence a reader uses to decide whether the suite ran. It is XCTest's
 # own summary, and this repo's Tests/ tree holds no XCTestCase file, so it prints "Executed 0 tests"
-# on every run forever. The half that carries the verdict — swift-testing's
-# `Test run with N tests …` — was missing from that annotation only because a `::notice::` line
+# on every run forever. The half that carries the verdict. Swift-testing's
+# `Test run with N tests …`. Was missing from that annotation only because a `::notice::` line
 # ends at its first newline and the value carried two lines. So the annotation was unreadable AND
 # the gate had no floor under it: nothing anywhere would have gone red if the bundle stopped
 # executing tests while still exiting 0.

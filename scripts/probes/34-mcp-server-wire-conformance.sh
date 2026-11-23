@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 34-mcp-server-wire-conformance.sh — does the advertised /mcp face answer the requests the
+# 34-mcp-server-wire-conformance.sh. Does the advertised /mcp face answer the requests the
 # specs it names actually allow?
 #
 # ### Measured on this host at HEAD, by booting `serve` and posting spec-legal JSON-RPC
@@ -9,7 +9,7 @@
 #      Desktop send integers: a standard client could not complete one handshake with a route the
 #      endpoint catalog publishes (`V1EndpointCatalog.swift`: POST /mcp).
 #   2. `params` was decoded into `paramsData`, a key that exists nowhere on the wire, so every
-#      request arrived with params == nil. `tools/call` answered `{"result":{}}` — present, empty,
+#      request arrived with params == nil. `tools/call` answered `{"result":{}}`. Present, empty,
 #      success-shaped. A caller cannot tell "the tool ran and returned nothing" from "we threw your
 #      arguments away", which is the worst direction invariant 2 can point.
 #   3. `tools/list` answered `{"inputSchema":{"properties":{},"type":"object"}}` for all 39
@@ -17,13 +17,13 @@
 #      that trusted the list generated argument-less calls; nothing could succeed.
 #
 # ### What is asserted (each leg was the failure above)
-#   A. uninitialized says so — `tools/list` before `initialize` names the missing step instead of
+#   A. uninitialized says so, `tools/list` before `initialize` names the missing step instead of
 #      returning an empty list that reads as "this server has no tools".
 #   B. numeric id is accepted (no -32700) and echoed back as a NUMBER, since §4.1 requires the
 #      responder to return the same identifier.
-#   C. tools/list describes the tools — floor on the count, and at least one tool carrying real
+#   C. tools/list describes the tools. Floor on the count, and at least one tool carrying real
 #      `properties` and a `description`.
-#   D. params decode — `tools/call` with a real name and real arguments returns content built from
+#   D. params decode, `tools/call` with a real name and real arguments returns content built from
 #      those arguments, not `{}`.
 #   E. a malformed call is refused by name (-32602 naming `name`), never answered empty.
 #
@@ -114,7 +114,7 @@ else
 fi
 
 probe_section "D) params reach the tool: a real tools/call returns its arguments, not {}"
-# Absolute path: a relative one resolves against the SERVER process cwd — under `make probes`
+# Absolute path: a relative one resolves against the SERVER process cwd. Under `make probes`
 # that is scripts/probes, and the sweep's red 11-11 measured exactly that harness fact, not
 # the wire (the tool's anchor-naming error came back honest; an earlier audit classed it
 # "MCP empty success" off this section's title without reading the body).

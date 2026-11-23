@@ -1,39 +1,39 @@
 #!/usr/bin/env bash
-# 49-decisions-contract-refusal.sh — does `/v1/decisions` ever answer with a number it did not measure?
+# 49-decisions-contract-refusal.sh. Does `/v1/decisions` ever answer with a number it did not measure?
 #
 # The axis exists to hand a caller a probability it will *act on* (pick a route, grade a ticket), so
 # this route has exactly one unforgivable answer: a number that was never read. This build cannot read
-# one — an answer is the probability of each offered label at the answer position, and only the CoreAI
+# one. An answer is the probability of each offered label at the answer position, and only the CoreAI
 # route publishes logits (`Engine/EngineLogprobs.swift:22`), which is why `POST /v1/completions` with
 # `logprobs` answers 501 on the same box (`Handlers/CompletionsHandler.swift:102`). So the pair this
 # probe pins is the pair the route is allowed to give: **400 naming every reason a body is wrong, or
-# 501 naming the read that is missing — and no probability, `prompt_token_ids` or `confidence` field on
+# 501 naming the read that is missing, and no probability, `prompt_token_ids` or `confidence` field on
 # either path.**
 #
 # Measured 11-02 on one live `serve` driving the scripted engine (no weights, so this is a wire-tier
-# verdict and claims nothing about a checkpoint) — 25 passed, 0 failed: the five valid shapes (26
+# verdict and claims nothing about a checkpoint), 25 passed, 0 failed: the five valid shapes (26
 # options, 10 levels, all three question types, every accepted key, an unserved model name) all reached
 # the scoring seat and answered 501 `unsupported` naming the logits read and both exits; the eight
 # malformed bodies answered 400 `invalid_request_error` each naming its own fault, and one body with
 # four faults was told all four at once. §4's first run reported every 501 as a leak and was wrong: it
 # substring-matched the body, and the refusal's own sentence contains the words "no probability". The
 # scan now walks parsed keys, was sampled against a planted nested `probabilities`/`confidence` pair,
-# and reads clean on the prose — which is the distinction the leg is for.
+# and reads clean on the prose, which is the distinction the leg is for.
 #
 # Legs:
-#   1) discovery + control — the route is in the index a stranger reads (`/v1/capabilities` →
+#   1) discovery + control. The route is in the index a stranger reads (`/v1/capabilities` →
 #      `endpoints[]`), and a well-formed body reaches the seat that decides scoring. Without this a
 #      later 404 would look like a refusal and a later 501 would look like a broken route.
-#   2) contract — each malformed body is refused by name (400), and a body with four faults is told
+#   2) contract. Each malformed body is refused by name (400), and a body with four faults is told
 #      all four at once, the way the reference's detail list does
 #      (`sglang …/http_server.py:636-660`; rules cited per-field in `Wire/DecisionsWire.swift`).
-#   3) the other direction — the shapes the contract *accepts* (26 options, 10 levels, all three
+#   3) the other direction. The shapes the contract *accepts* (26 options, 10 levels, all three
 #      question types, every accepted key at once, an unserved model name) must NOT be refused. Only
 #      this leg can see a bound that got tightened by mistake.
-#   4) no invented numbers — nothing on either path carries a probability-shaped key,
+#   4) no invented numbers. Nothing on either path carries a probability-shaped key,
 #      `return_prompt_token_ids` buys no token ids that were never produced, and the 501 names the
 #      missing read, one exit, and its own refusal to guess.
-#   5) floor — both directions count their own subjects: a server that 400s everything cannot pass §3,
+#   5) floor. Both directions count their own subjects: a server that 400s everything cannot pass §3,
 #      and one that 501s everything cannot pass §2.
 set -uo pipefail
 
@@ -46,7 +46,7 @@ SCRIPT_FILE="$(mktemp -t ocoreai-script-XXXXXX).json"
 BODY_DIR="$(mktemp -d)"
 probe_atexit 'rm -f "$SCRIPT_FILE"; rm -rf "$BODY_DIR"'
 
-# The decisions route never reaches the engine — it refuses before scoring — so the scripted engine is
+# The decisions route never reaches the engine. It refuses before scoring, so the scripted engine is
 # here to boot a server cheaply, not to stand in for an answer.
 printf '%s\n' '{"segments": ["refused"], "finishReason": "eos", "promptTokens": 4, "generatedTokens": 1}' \
   > "$SCRIPT_FILE"
@@ -279,7 +279,7 @@ for label in valid_min valid_choice_max valid_score_max valid_three_types valid_
   post_body "$label"
   case "$PROBE_STATUS" in
     2*)
-      # A 200 means this box scores for real, which makes the question "is the number right?" — a
+      # A 200 means this box scores for real, which makes the question "is the number right?". A
       # different probe on a ready model, not this one. Counted and said, never silently skipped.
       SCORED=$(( SCORED + 1 ))
       continue ;;

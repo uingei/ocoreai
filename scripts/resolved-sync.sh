@@ -1,7 +1,7 @@
 #!/bin/bash
-# resolved-sync.sh — fail when the Xcode workspace lockfile disagrees with the
+# resolved-sync.sh. Fail when the Xcode workspace lockfile disagrees with the
 # SwiftPM root lockfile. xcodebuild (CI test/release legs) reads the WORKSPACE
-# copy; swift build reads the ROOT copy. Two containers, one dependency graph —
+# copy; swift build reads the ROOT copy. Two containers, one dependency graph,
 # if their pins drift, "CI tested X" silently becomes "release shipped Y".
 # Fix: cp root pins' revisions into the workspace copy (values only), or open
 # the workspace in Xcode once and commit the result.

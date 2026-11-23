@@ -1,5 +1,5 @@
 #!/bin/bash
-# e2e-gui-app.sh — verify the SHIPPING artifact (the GUI .app), not a proxy.
+# e2e-gui-app.sh. Verify the SHIPPING artifact (the GUI .app), not a proxy.
 #
 # First-principles: the release deliverable is ocoreai.app. A headless
 # `ocoreai serve` binary is a CI stand-in that proves the engine boots and
@@ -24,7 +24,7 @@ TAG="$(bash scripts/version.sh)"
 # A warm-cache clock answers "how fast is this machine once everything is here", which is not the
 # question the goal asks. FIRST_RUN_COLD=1 points the model store at an empty temp directory before
 # the bundle starts, so the first download sits inside the measured window, and the server's own
-# `completed` frame is asserted to land inside that directory — the assertion is what proves the cold
+# `completed` frame is asserted to land inside that directory. The assertion is what proves the cold
 # premise instead of trusting that an exported variable reached a GUI process.
 #
 # What it still is not: a clean machine. Nothing here pays the Gatekeeper decision (this bundle is
@@ -53,7 +53,7 @@ echo "✅ version parity — bundle $V == tree $TAG"
 #
 # A seconds figure without these is a slogan. The same artifact costs minutes on an empty
 # cache and seconds on a warm one, and another machine, checkpoint or install channel moves
-# both — so a change to any one of the four is a NEW measurement point, never an edit of the
+# both, so a change to any one of the four is a NEW measurement point, never an edit of the
 # old one. Printed first and kept with the run for that reason.
 MACHINE="macOS $(sw_vers -productVersion 2>/dev/null || echo ?) $(uname -m) $(sysctl -n hw.memsize 2>/dev/null | awk '{printf "%.0fGB", $1/1073741824}')"
 if [ -n "$COLD_DIR" ]; then
@@ -71,7 +71,7 @@ NET="default route: $(route -n get default 2>/dev/null | awk '/interface:/{print
 CLOCK_T0=$SECONDS
 
 # 2. Free the port AND kill any lingering bundle processes (a zombie that
-#    dropped the socket but lives on makes `open` a no-op activate — the
+#    dropped the socket but lives on makes `open` a no-op activate. The
 #    GUI-SIGTERM bug of 2026-10-09; the app now handles SIGTERM itself,
 #    but the harness must still be deterministic on older binaries).
 for p in $(lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null); do kill -TERM "$p" 2>/dev/null || true; done
@@ -113,7 +113,7 @@ case "$BIN" in
 esac
 CLOCK_HEALTH=$SECONDS
 
-# 3b. The user must actually SEE a window — HTTP health alone could be a
+# 3b. The user must actually SEE a window. HTTP health alone could be a
 #     windowless zombie serving forever. CGWindowList proves a layer-0
 #     window exists (no Accessibility TCC needed). The PNG is evidence, not a
 #     gate: capture depends on screen-recording consent for the driving
@@ -128,7 +128,7 @@ SHOT=1 GUI_REQUIRE_PIXELS=0 bash scripts/verify-gui-window.sh
 #     its terminal frame is the only honest stop for a download clock: a client that stops when the
 #     bytes stop can miss a rename, a checksum or a refused write, and would report the transfer as
 #     the whole first-run cost. So the verdict comes from eventType=completed, and the cacheDir in
-#     that frame is checked against the directory this run exported — the premise gets proven, not
+#     that frame is checked against the directory this run exported. The premise gets proven, not
 #     assumed. eventType=error prints verbatim: the disk guard refusing a first-run download IS a
 #     stranger's first-run experience, and a red here is that finding, not a flaky harness.
 CLOCK_DOWNLOAD=""
@@ -188,7 +188,7 @@ print("%s|%s|%s" % (ev.get("eventType") or "no-terminal-frame",
   # The verdict is a printed word, never an exit code, and a run that could not execute is a third
   # answer. Measured the same night this leg shipped: a `raise SystemExit(…)` missing its closing
   # paren made Python die with a SyntaxError, `if !` read exit 2 as "premise false", and a completed
-  # 3.58 GB download was reported as the exported store having been ignored — the shell checked clean,
+  # 3.58 GB download was reported as the exported store having been ignored. The shell checked clean,
   # because the broken program is only a string to it. Two states, two words, and silence is neither.
   INSIDE="$(python3 -c '
 import os, sys
@@ -212,7 +212,7 @@ fi
 [ -n "$MODEL" ] || { echo "❌ no model served"; exit 1; }
 echo "model: $MODEL"
 # `state` is how this server says "loadable", and a cold start answers with a model that is
-# still loading — timing a completion from that moment would report the queue, not the
+# still loading. Timing a completion from that moment would report the queue, not the
 # first-run path a user waits through. Wait for the honest edge, then stamp it.
 ready=0
 for _ in $(seq 1 80); do
@@ -235,11 +235,11 @@ print(json.dumps({
 PY
 # `state == "ready"` means LOADABLE, not resident (`EnginePool.swift:1304` writes "loading" only while
 # a prewarm is in flight), so on a cold store the first turn after a download answers
-# 503 "still loading" — the server being honest about work in progress, and the caller owning the
+# 503 "still loading". The server being honest about work in progress, and the caller owning the
 # retry. This loop is therefore the client a stranger's harness has to be: retry the documented 503
 # inside a bounded budget, count the waits, and let the load time stay INSIDE the first-run clock.
 # A previous version treated the ready edge as "answerable" and reported the 503 as a broken
-# artifact — that was the harness lying about a working server, measured 11-01 on a cold store.
+# artifact, that was the harness lying about a working server, measured 11-01 on a cold store.
 REPLY=""
 LOAD_WAITS=0
 for _ in $(seq 1 90); do
@@ -269,8 +269,8 @@ CLOCK_DONE=$SECONDS
 #    instrument is not re-authored here: probe 40 runs with OCOREAI_PROBE_BASE_URL set to the app this
 #    script launched, so the same run that audits the task text for a leaked token and proves the
 #    verifier rejects a WRONG deliverable is the run that watched it accept this artefact's answer.
-#    The exit code is deliberately not the claim — probe 40 exits 0 when a premise could not be
-#    established (known-open) — so the verdict binds to its own PASS line, and a run that measured
+#    The exit code is deliberately not the claim. Probe 40 exits 0 when a premise could not be
+#    established (known-open), so the verdict binds to its own PASS line, and a run that measured
 #    nothing reports itself as having measured nothing.
 PROBE40_LOG="$SCRATCH_E2E/probe40.log"
 # `|| PROBE40_RC=$?` is load-bearing, and it is the same trap this repo just fixed in ci.yml: under
@@ -314,7 +314,7 @@ echo "                 prompts, no cask path. Still open (docs/agent/open-items.
 
 
 # 6. Graceful shutdown assertion: SIGTERM must EXIT the process (GUI bug
-#    of 2026-10-09: it survived two SIGTERMs — port gone, process lingered,
+#    of 2026-10-09: it survived two SIGTERMs. Port gone, process lingered,
 #    poisoning the next launch). Escalate only after asserting the failure.
 kill -TERM "$PID" 2>/dev/null || true
 exited=0

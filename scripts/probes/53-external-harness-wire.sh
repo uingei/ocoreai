@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 53-external-harness-wire.sh — can a real coding harness run its own loop on our wire alone?
+# 53-external-harness-wire.sh. Can a real coding harness run its own loop on our wire alone?
 #
 # ### Why
 # `docs/agent/comparator-consensus.md` measures 11 of the 12 serving trees wiring at least one external
 # agent harness to their own endpoint (ollama `cmd/launch/claude.go:15`, mlx-serve `CLILauncher.swift:4`);
-# we were the twelfth — and probe 40, our own harness-consumer proof, drives the loop *ourselves* over
+# we were the twelfth, and probe 40, our own harness-consumer proof, drives the loop *ourselves* over
 # `/v1/chat/completions`. Nothing here proved the other direction: that a third-party harness, with its
 # own agent loop, its own tool implementations and its own ~18 KB system prompt, can point at this server
 # and finish a real multi-turn job. That is the claim the rung makes, and it is only true if a harness
@@ -12,7 +12,7 @@
 #
 # ### What makes it a proof rather than a demo
 # The cloud is severed before the harness starts: every credential variable the CLI could use for a
-# fallback is unset, and the only base URL it gets is ours, with a fake key — so the only way the run
+# fallback is unset, and the only base URL it gets is ours, with a fake key, so the only way the run
 # can succeed is through `/v1/messages`. The deliverable is an exact value planted on disk and never
 # named in the task text, judged by a verifier whose negative control (§1) must reject a wrong answer
 # first. Wire truth is asserted from the server's own log, not inferred from the exit code: at least two
@@ -71,7 +71,7 @@ probe_ok "harness: $HARNESS ($("$HARNESS" --version 2>/dev/null | head -1))"
 probe_boot
 
 # Which checkpoint answers is a condition of the verdict (same rule as probe 40): pin with
-# OCOREAI_PROBE_MODEL or take the first ready CHAT model — embeddings are skipped because the
+# OCOREAI_PROBE_MODEL or take the first ready CHAT model. Embeddings are skipped because the
 # list order would otherwise hand this claim to a model that cannot answer at all.
 PIN="${OCOREAI_PROBE_MODEL:-}"
 MODEL="$(curl -sS -m 20 "$PROBE_BASE/v1/models" 2>/dev/null | python3 -c '
@@ -111,7 +111,7 @@ RC=$?
 TURNS="$(printf '%s' "$OUT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("num_turns","?"))' 2>/dev/null || echo "?")"
 probe_note "§2 harness: exit $RC on $MODEL, num_turns=$TURNS, stderr $(wc -c < "$SCRATCH/harness.err" | tr -d ' ') bytes"
 
-# Wire truth from the engine's own words — the exit code proves the harness is happy, only the
+# Wire truth from the engine's own words. The exit code proves the harness is happy, only the
 # server log proves who served it. One line would be a single request; a loop is two or more.
 SERVED="$(grep -c "Assembled prompt" "$PROBE_LOG" 2>/dev/null || echo 0)"
 probe_note "§2 wire truth: $SERVED 'Assembled prompt' line(s) in the server log:"

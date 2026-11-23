@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 20-download-path-traversal.sh — does a model id get to choose where the cache lives?
+# 20-download-path-traversal.sh. Does a model id get to choose where the cache lives?
 #
 # ### Why (AGENTS.md invariant 1; the "no wire value may own the process" family)
 # Two inputs were joined straight onto the cache root in Models/ModelScopeDownloader.swift:
@@ -14,20 +14,20 @@
 # whatever answered the hub API, and `MODELSCOPE_ENDPOINT` makes "whatever answered" an operator
 # choice (mirror / proxy). Grounding: ollama `types/model/name.go:262 IsValid()` rejects these
 # shapes by enumerating hazards per component; codex #55384 refuses to follow a *replaceable
-# symlink* out of a sandboxed exec lookup — hence the symlink leg below, where the lexical join
+# symlink* out of a sandboxed exec lookup. Hence the symlink leg below, where the lexical join
 # is inside the root and only the resolved one is not.
 #
 # ### What this probe locks down
-#   1. REFUSED BEFORE THE STREAM — a traversing `model`/`revision` answers 400 with
+#   1. REFUSED BEFORE THE STREAM. A traversing `model`/`revision` answers 400 with
 #      `error.param` naming the field and the value echoed, and the Content-Type is JSON, **not**
 #      `text/event-stream`. A 200-SSE-followed-by-an-error-event is the worse contract: the
 #      client's SDK has already committed to a download by then.
-#   2. NOTHING LANDED — the cache root is pinned at a known depth, the path the id *would* have
+#   2. NOTHING LANDED. The cache root is pinned at a known depth, the path the id *would* have
 #      reached is computed, and asserted absent.
-#   3. LEGIT IDS STILL STREAM — a legal `org/name` is not refused: shape is refused, existence
+#   3. LEGIT IDS STILL STREAM. A legal `org/name` is not refused: shape is refused, existence
 #      is not. (A nonexistent-but-legal repo still opens SSE and reports its own hub error,
 #      which is exactly the discriminator.)
-#   4. SURVIVAL — `/health` still answers afterwards.
+#   4. SURVIVAL, `/health` still answers afterwards.
 #
 # No Metal turn is needed: every leg here is refused or accepted before generation.
 #
@@ -42,7 +42,7 @@ export OCOREAI_MODELS_DIR="$PARENT/home/models"
 mkdir -p "$OCOREAI_MODELS_DIR"
 probe_atexit "rm -rf '$PARENT'"
 
-# From $PARENT/home/models, `../../..` is /tmp — so this id names a directory beside the run.
+# From $PARENT/home/models, `../../..` is /tmp, so this id names a directory beside the run.
 ESCAPE_TARGET="/tmp/ocoreai-${TAG}-escaped"
 TRAVERSING_ID='../../../ocoreai-'"$TAG"'-escaped'
 
@@ -144,13 +144,13 @@ case "$DL_BODY" in
   *) probe_fail "SSE opened but emitted no data: line — the stream is silent" ;;
 esac
 
-# The two refusals that predate this fix must keep their own wording — a validator rewrite that
+# The two refusals that predate this fix must keep their own wording. A validator rewrite that
 # turns "must not be empty" into a path verdict is a regression too.
 probe_section "pre-existing validation is untouched"
 # Both legs assert WHY the 400 happened. On the run that surfaced the `useLatest` defect, these
-# two legs passed while the whole endpoint was broken — every request 400'd, just not for the
+# two legs passed while the whole endpoint was broken. Every request 400'd, just not for the
 # reason being tested. A refusal leg that does not name its own field is not evidence.
-# (Case-insensitive: these two refusals are prose — "Model identifier must not be empty" — and
+# (Case-insensitive: these two refusals are prose. "Model identifier must not be empty", and
 # the second run proved the harness, not the server, was wrong here.)
 dl_call '{"model":"","provider":"hf"}'
 if [ "$DL_STATUS" = "400" ] && [ "$(printf '%s' "$DL_BODY" | grep -ci "model")" -gt 0 ]; then

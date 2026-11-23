@@ -7,7 +7,7 @@ VERSION="$(bash "$(dirname "$0")/version.sh")"
 BUILD="1"
 APP_NAME="ocoreai"
 
-# 1. Clean release build — on the DELIVERY route, not the ambient toolchain. A host whose newest SDK
+# 1. Clean release build. On the DELIVERY route, not the ambient toolchain. A host whose newest SDK
 #    ships CoreAI.framework otherwise builds the macOS-27 shape right here, and step 1b (correctly)
 #    refuses it: the DMG path only ever worked on hosts old enough to still default to SDK 26. The
 #    route is resolved by the resolver that owns it, so this script decides the artefact's shape
@@ -22,7 +22,7 @@ swift build -c release --traits appStore ${OCOREAI_DELIVERY_FLAGS:-}
 # 1b. Judge the shape of what ships. A bare `swift build` produces whichever shape the ambient
 #     SDK carries, and this script's output is the bundle a user installs: an SDK-26 image and a
 #     host whose SDK ships CoreAI.framework do not build the same product under the same name.
-#     R1 names the CoreAI-free build as the delivery form, so the artifact — not the environment —
+#     R1 names the CoreAI-free build as the delivery form, so the artifact, not the environment,
 #     is what gets asserted here. Failure names the remedy; `set -e` keeps the bundle unbuilt.
 bash "$(dirname "$0")/release-artifact-check.sh" delivery .build/release/ocoreai
 
@@ -48,10 +48,10 @@ cp .build/release/ocoreai "$APP_DIR/Contents/MacOS/"
 # All 5 misses → "Failed to load the default metallib. library not found"
 # → the engine cannot start on MLX models (verified 2026-09-17: .app
 # launched without metallib → MLX error at boot). So we ship it ourselves
-# — path ① for the binary-in-place case and path ③ for the
+#. Path ① for the binary-in-place case and path ③ for the
 # NSBundle.allBundles case.
 METALLIB_BUNDLE="mlx-swift_Cmlx.bundle"
-# The ladder has one home (scripts/resolve-metallib.sh — § Working here, "one resolver, one ladder",
+# The ladder has one home (scripts/resolve-metallib.sh. § Working here, "one resolver, one ladder",
 # and the inline four-glob copy here was its second home). Two reasons this belongs to the ladder and
 # not to a glob list in the bundling script: a layout the globs do not name does not fail, it falls
 # back to whatever older payload a stale scratch tree happens to hold, and the .app a stranger
@@ -66,9 +66,9 @@ if ! METALLIB_SRC="$(bash "$(dirname "$0")/resolve-metallib.sh" .build 2>"$LADDE
 fi
 sed 's/^/   /' "$LADDER_LOG"; rm -f "$LADDER_LOG"
 echo "   metallib: $METALLIB_SRC"
-# Path ① — colocated with the binary (covers 'Contents/MacOS' search)
+# Path ①. Colocated with the binary (covers 'Contents/MacOS' search)
 cp "$METALLIB_SRC" "$APP_DIR/Contents/MacOS/mlx.metallib"
-# Path ③ — proper NSBundle layout for MLXFoundationModels / Cmlx allBundles lookup
+# Path ③. Proper NSBundle layout for MLXFoundationModels / Cmlx allBundles lookup
 mkdir -p "$APP_DIR/Contents/Resources/${METALLIB_BUNDLE}/Contents/Resources"
 cp "$METALLIB_SRC" "$APP_DIR/Contents/Resources/${METALLIB_BUNDLE}/Contents/Resources/default.metallib"
 echo "✅ MLX metallib shipped (Contents/MacOS + Resources/${METALLIB_BUNDLE})"

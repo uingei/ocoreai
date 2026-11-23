@@ -115,12 +115,12 @@ def main():
     comment = os.path.join(FIXTURES, "fixture-comment-touch.patch")
     goalpost = os.path.join(FIXTURES, "fixture-goalpost-move.patch")
 
-    # 1 — the allowed fixture passes the gate as configured.
+    # 1. The allowed fixture passes the gate as configured.
     rc, out = run_gate([comment])
     if rc != 0:
         bad.append("the Sources/-only fixture was refused by the real lists:\n%s" % out)
 
-    # 2 — the verifier-weakening fixture is refused, and refused BY THE PROTECTION LIST: the
+    # 2. The verifier-weakening fixture is refused, and refused BY THE PROTECTION LIST: the
     # reason is the assertion, so an entry deleted from autoloop-protected.txt turns this red
     # instead of letting the prefix rule cover it up.
     rc, out = run_gate([goalpost])
@@ -128,7 +128,7 @@ def main():
         bad.append("the goal-post fixture was not refused by the protection list (rc=%d):\n%s"
                   % (rc, out))
 
-    # 3 — attribution, both directions: empty the protection list, allow scripts/, and the same
+    # 3. Attribution, both directions: empty the protection list, allow scripts/, and the same
     # patch must now be allowed. Nothing about the patch changed.
     empty = tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False)
     empty.write("")
@@ -141,7 +141,7 @@ def main():
         bad.append("with the protection list emptied the goal-post fixture was still refused — the"
                   " refusal never came from the list:\n%s" % out)
 
-    # 4 — the allow list gates too: the same Sources/-only fixture, against an allow list that
+    # 4. The allow list gates too: the same Sources/-only fixture, against an allow list that
     # names only docs/, must be refused for the prefix reason.
     allow_docs = tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False)
     allow_docs.write("docs/\n")
@@ -150,7 +150,7 @@ def main():
     if rc == 0 or "outside the allowed prefix" not in out:
         bad.append("the allow list did not gate a Sources/-only patch (rc=%d):\n%s" % (rc, out))
 
-    # 5 — a patch outside the allowed prefix is refused as configured, and a patch naming no file
+    # 5. A patch outside the allowed prefix is refused as configured, and a patch naming no file
     # is refused rather than passed.
     readme = synthetic_patch("README.md")
     rc, out = run_gate([readme])
@@ -165,7 +165,7 @@ def main():
     for handle in (empty, allow_scripts, allow_docs):
         os.unlink(handle.name)
 
-    # 6 — the protection list still lists the goal posts, and every goal post it lists exists:
+    # 6. The protection list still lists the goal posts, and every goal post it lists exists:
     # an entry left behind by a retired script protects nothing yet keeps the assertion above
     # green for a mechanism that is gone (the agents-md-contract.sh entry, found 11-22).
     listed = gate.read_list(PROTECTED)
@@ -178,9 +178,9 @@ def main():
     if "Sources/" not in gate.read_list(ALLOW):
         bad.append("autoloop-allow.txt no longer allows Sources/ — the loop can propose nothing")
 
-    # 7 — the decision rule, on fabricated scoreboards. b and c are pinned to the exact cell
+    # 7. The decision rule, on fabricated scoreboards. b and c are pinned to the exact cell
     # counts because they ARE the pairing convention: matched 1:1 pairing gives b=0/c=15 for a
-    # clean sweep, while the |A|x|B| product reports c=106 for the same data — a p computed from
+    # clean sweep, while the |A|x|B| product reports c=106 for the same data. A p computed from
     # 106 pairs where 126 comparisons were made and only six runs exist.
     base = write_runs(tempfile.mkdtemp(prefix="ocoreai-autoab-base-"), bits())
     same = write_runs(tempfile.mkdtemp(prefix="ocoreai-autoab-same-"), bits())
@@ -222,7 +222,7 @@ def main():
             bad.append("%s: paired_cells=%s, pinned %d (21 tasks x 6 matched runs)"
                      % (label, out.get("paired_cells"), cells))
 
-    # 8 — the knobs are live. The loop reads α and k_min from the environment, and a self-test
+    # 8. The knobs are live. The loop reads α and k_min from the environment, and a self-test
     # that only ever calls decide() with defaults would stay green while a shipped override quietly
     # moved the bar, so the marginal variant is run through the CLI twice: at the shipped α it is
     # inside noise, at a loosened α the same bytes are kept.
@@ -245,16 +245,16 @@ def main():
         if rc != want_rc:
             bad.append("%s: got rc=%d (%s)" % (label, rc, out.strip().replace("\n", " | ")))
 
-    # 9 — the ledger carries its header, so an empty ledger and a missing one stay different facts.
+    # 9. The ledger carries its header, so an empty ledger and a missing one stay different facts.
     ledger = os.path.join(HERE, "autoloop.tsv")
     header = "ts\tproposal\tbase_commit\tvalid_runs\tscores_base\tscores_variant\tb\tc\tp\tdecision\ttraces"
     if not os.path.isfile(ledger) or open(ledger, encoding="utf-8").readline().strip() != header:
         bad.append("autoloop.tsv is missing or its header drifted from the 11 columns the loop writes")
 
-    # 10 — the script that runs the loop is scanned too, because two of its properties live only
+    # 10. The script that runs the loop is scanned too, because two of its properties live only
     # there: it never runs a destructive git command (this tree carries uncommitted work, and a
     # `git checkout` mid-loop would erase it while the ledger claims a clean revert), and its
-    # before/after tree check is scoped to the prefixes the loop may write under — an unrelated
+    # before/after tree check is scoped to the prefixes the loop may write under. An unrelated
     # file appearing mid-run is not a variant that failed to revert.
     script = open(os.path.join(HERE, "autoab.sh"), encoding="utf-8").read()
     if len(script.splitlines()) < 100:
@@ -270,7 +270,7 @@ def main():
     if "tree_state \"$BEFORE\"" not in script or "tree_state \"$AFTER\"" not in script:
         bad.append("autoab.sh no longer snapshots the tree through tree_state at both ends")
     # Same-line, not file-wide: `$ALLOW` appears in the existence check too, so a file-wide test
-    # here passed while the scope was hardcoded — a scan must find the line that carries the claim.
+    # here passed while the scope was hardcoded. A scan must find the line that carries the claim.
     scope_lines = [l for l in script.splitlines() if "SCOPE+=(" in l]
     if not scope_lines:
         bad.append("autoab.sh has no SCOPE+= line at all — the scope check below is vacuous")
@@ -279,7 +279,7 @@ def main():
         bad.append("autoab.sh builds its write scope without the allow list — scope and gate would "
                    "be two numbers that drift (%s)" % (scope_lines[0].strip()[:90],))
     # Same-line again: the CLT ships no `metal`, so a BUILD_CMD without the cryptex bin on PATH
-    # fails a metal-touching variant as rc=127 (utility not found) — measured 11-09, and never seen
+    # fails a metal-touching variant as rc=127 (utility not found). Measured 11-09, and never seen
     # at all on an incremental build, which is why the round that hit it had already passed.
     build_cmds = [l for l in script.splitlines() if l.startswith("BUILD_CMD=")]
     if not build_cmds:
@@ -293,7 +293,7 @@ def main():
         bad.append("autoab.sh hardcodes or has lost the metal-bin resolution — a toolchain move "
                    "would strand the loop with a path nothing owns")
 
-    # 11 — both sides must be the same game. `task_row` books a task missing from a run as a fail,
+    # 11. Both sides must be the same game. `task_row` books a task missing from a run as a fail,
     # so a wider variant against a narrower base manufactures k one-direction cells per added task.
     # Measured here with real data before the guard existed: a 21-task base against a 30-task
     # variant of an *unchanged* build reported McNemar p=0.0000 "SIGNIFICANT".
@@ -314,8 +314,8 @@ def main():
         bad.append("_repeat_stats.paired() no longer calls the guard — the CLI path and the loop "
                    "path would drift apart, which is the whole thing this repo says not to do")
 
-    # 12 — a measured verdict consumes its proposal. Three adjudicated patches sat in the queue
-    # glob on 11-09 — three standing buy-orders for a build + k=6 pair to re-derive rows the ledger
+    # 12. A measured verdict consumes its proposal. Three adjudicated patches sat in the queue
+    # glob on 11-09. Three standing buy-orders for a build + k=6 pair to re-derive rows the ledger
     # already held. The loop now moves a patch to proposals/adjudicated/ the moment its verdict is
     # measured, and both ends of that stay honest here: the queue carries no adjudicated stem, the
     # archaeology is all adjudicated (so nothing escapes the queue by parking there), and the move
@@ -340,7 +340,7 @@ def main():
         stem = os.path.splitext(os.path.basename(path))[0]
         # A `X-tests.patch` test companion archived beside its adjudicated X was consumed with
         # the proposal (fad3a8f3's source+test pair); the ledger keys the source stem, so the
-        # companion carries no row of its own. A revised payload gets no such passage — `-v2`
+        # companion carries no row of its own. A revised payload gets no such passage, `-v2`
         # is not a `-tests` companion and must hold its own measured row.
         if stem in measured_stems or (
             stem.endswith("-tests") and stem[: -len("-tests")] in measured_stems
@@ -359,10 +359,10 @@ def main():
         bad.append("autoab.sh no longer restricts archiving to queue patches — the fixtures' "
                    "documented explicit re-run would have its file moved out of fixtures/")
 
-    # 13 — the loop runs its own referee. Until 11-09 `_autoab_selftest.py` had zero automated
+    # 13. The loop runs its own referee. Until 11-09 `_autoab_selftest.py` had zero automated
     # callers (grep across Makefile, .github and run.sh: prose only), so a round could ride a rule
     # that had been edited out. Same-line `! python3`: an inverted test keeps the filename and the
-    # exit-3 below it while exiting only when the referee *agrees* — the mutation this pin must
+    # exit-3 below it while exiting only when the referee *agrees*. The mutation this pin must
     # catch.
     referee = [i for i, l in enumerate(script.splitlines())
                if "_autoab_selftest.py" in l and "! python3" in l]
@@ -375,10 +375,10 @@ def main():
             bad.append("autoab.sh runs the self-test but does not stop the round on it — the call "
                        "would be decoration while the ledger books the row")
 
-    # 14 — the loop can price a rebuilt binary, on that axis alone. Until 11-09 `binary` was an
+    # 14. The loop can price a rebuilt binary, on that axis alone. Until 11-09 `binary` was an
     # ordinary invariant across arms, and since a `Sources/` patch reaches the engine only through
     # the build it compiles into, EVERY proposal the allow list admits landed `not-measured`
-    # (`verify-before-done` 11-08, `edit-noop-split-strip` 11-09) — a mechanism with zero measured
+    # (`verify-before-done` 11-08, `edit-noop-split-strip` 11-09). A mechanism with zero measured
     # consumers. The loop now declares `binary` as its hypothesis axis; what the four cases below
     # pin is that the declaration is (a) real, (b) one field wide, (c) resting on a stated commit,
     # and (d) the loop's own, not the ad-hoc pairing's.
@@ -446,7 +446,7 @@ def main():
         bad.append("_repeat_stats.conditions_mismatch no longer calls premise_violation — the"
                    " commit premise would live in a function nobody consults")
 
-    # 15 — the referee is the whole panel, not one file. `autoab.sh` calls this file at startup, so
+    # 15. The referee is the whole panel, not one file. `autoab.sh` calls this file at startup, so
     # whatever this file does not consult is not gated at all: the loop's declared axis rests on the
     # conditions fields `_conditions_selftest.py` checks (the commit premise above, and a host value
     # the parser can read back whole), so a panel that stops being one referee leaves the axis
@@ -459,10 +459,10 @@ def main():
                    " on are unsound, so no verdict from the judges above is attributable"
                    % panel.stdout.strip().replace("\n", " | ")[:180])
 
-    # 16 — the script executes, not just scans. On 11-09 the loop died at its own BUILD_CMD line
+    # 16. The script executes, not just scans. On 11-09 the loop died at its own BUILD_CMD line
     # (`OCOREAI_AUTOAB_BUILD_CMD: unbound variable` under `set -u`) and every static scan above
     # stayed green: a scan reads text, the shell reads values. The fixture runs a COPY of the loop far
-    # enough to assemble its build command and reach its proposal list — stub referee (no recursion),
+    # enough to assemble its build command and reach its proposal list. Stub referee (no recursion),
     # empty proposals dir (no build, no server, no ledger row).
     smoke = os.path.join(tempfile.mkdtemp(prefix="ocoreai-autoab-smoke-"), "scripts", "eval")
     os.makedirs(os.path.join(smoke, "proposals"))

@@ -102,7 +102,7 @@ apple_count = len(apple_files)
 named_coreai = len([f for f in apple_files if f.lower() in mentions])
 
 # 2c) Vendored headers under Sources/lib/ that belong to neither ocoreai (MIT) nor
-#     Apple (BSD-3). Attribution is a human call, so the table is explicit — and a
+#     Apple (BSD-3). Attribution is a human call, so the table is explicit, and a
 #     third-party copyright line outside it fails the run instead of shipping an
 #     unattributed grant (Apache-2.0 4 again: the text must travel with the copy).
 VENDORED = {

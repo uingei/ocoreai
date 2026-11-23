@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Reproducible benchmark artifact — scripted lane.
+# Reproducible benchmark artifact. Scripted lane.
 #
 # One command (`make bench`) regenerates scripts/bench/results/scripted.json: host,
 # toolchain, commit, conditions and four metrics, each the median of repeats. The lane
 # boots the real `serve` route with OCOREAI_SCRIPTED_ENGINE (a script path replacing the
-# model, never the wire), so it costs no weights, no Metal device and no model download —
+# model, never the wire), so it costs no weights, no Metal device and no model download,
 # any machine that builds the binary can regenerate and diff the artifact.
 #
 # Lane honesty: the scripted engine emits pre-declared tokens, so tok_s here measures
 # HTTP/SSE plumbing overhead, NOT model throughput; only cross-build comparison is
 # legitimate. The live-weight tok/s lane is a planned second mode and is absent from this
-# artifact (no number claimed — invariant 2). Each run also asserts its own work happened:
+# artifact (no number claimed. Invariant 2). Each run also asserts its own work happened:
 # streamed segments byte-match the script and usage equals the declared counts (a bench
 # whose work may not have run is not an instrument). Publishing these numbers externally
 # is a release act needing owner authorization; regeneration is open.
@@ -25,14 +25,14 @@ OUT="${OCOREAI_BENCH_OUT:-$PROBE_REPO_ROOT/scripts/bench/results/scripted.json}"
 REPEATS="${OCOREAI_BENCH_REPEATS:-3}"
 
 # The fixture: 200 segments x 8 tokens + 64 thinking tokens = 1664 generated,
-# prompt 512 — counts declared by the script itself, asserted equal to usage below.
+# prompt 512. Counts declared by the script itself, asserted equal to usage below.
 SCRIPT_FILE="$(mktemp -t ocoreai-bench-script-XXXXXX).json"
 probe_atexit "rm -f '$SCRIPT_FILE'"
 python3 - "$SCRIPT_FILE" <<'PY'
 import json, sys
 # Space trails each segment: the scripted lane trims the assembled content channel's
 # outer whitespace, so a leading-space fixture would assert a contract the lane does
-# not offer (the probe fleet misses the trim — no probe's first segment is prefixed).
+# not offer (the probe fleet misses the trim, no probe's first segment is prefixed).
 seg = "alpha bravo charlie delta echo foxtrot golf hotel "   # 8 nominal tokens
 with open(sys.argv[1], "w") as f:
     json.dump({

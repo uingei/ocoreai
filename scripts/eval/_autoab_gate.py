@@ -32,7 +32,7 @@ KEEP, NOT_SIGNIFICANT, REGRESSION, NOT_MEASURED = 0, 1, 2, 3
 # through the build it is compiled into, so the arms differ on `binary` by construction and refusing
 # on it made the loop unable to price any compiled change (every real proposal landed
 # `not-measured`, 11-08/11-09). Exactly one field, because model/tasks/temperature/approval/
-# concurrency/host moving is never the proposal — and `_repeat_stats.premise_violation` only grants
+# concurrency/host moving is never the proposal, and `_repeat_stats.premise_violation` only grants
 # the axis when both arms state the same commit, which is what separates "the patch rebuilt" from
 # "another commit landed between the arms". The ad-hoc `paired --a/--b` CLI declares nothing.
 HYPOTHESIS_AXIS = ("binary",)
@@ -100,7 +100,7 @@ def decide(base_root, variant_root, k_min=6, alpha=0.05, veto_drop=2):
 
     cond = conditions_mismatch(base_root, variant_root, hypothesis=HYPOTHESIS_AXIS)
     if cond:
-        # Same ids, different rules — the conditions line is what makes this decidable at all.
+        # Same ids, different rules. The conditions line is what makes this decidable at all.
         out.update(decision="not-measured", why=cond)
         return out, NOT_MEASURED
 

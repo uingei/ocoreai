@@ -1,38 +1,38 @@
 #!/usr/bin/env bash
-# 25-mcp-timeout-budget.sh — is an external MCP server's response budget the number this
+# 25-mcp-timeout-budget.sh. Is an external MCP server's response budget the number this
 # server publishes, and does a bad number come back as an answer instead of a hang?
 #
 # ### What was measured on 10-21 (before the fix, this host)
 # `MCPBridgeConfig` carried a documented "external server response timeout" knob (default 10)
 # with **zero consumers**: `git grep serverTimeoutSeconds -- Sources` returned the declaration,
 # its `self.x = x`, and nothing else. The number actually in force was the literal `15`,
-# written twice in `MCPStdioClient` — an outer `withTimeout(seconds: 15)` plus a second
+# written twice in `MCPStdioClient`. An outer `withTimeout(seconds: 15)` plus a second
 # absolute deadline inside the very wait it wrapped. So the config described a 10 s budget, the
 # code enforced 15 s in two places, `MCPEndpointTests` asserted the knob's storage round-tripped
 # (`== 10`, `== 5`), and no gate could go red: the suite read the storage, not the behaviour.
 #
 # ### What the fix made decidable
 # One home (`MCPTimeouts`): startup (`initialize` + first `tools/list`) 30 s, tool call
-# (`tools/call`) 300 s, domain 1…600 s — the split and the numbers from codex
+# (`tools/call`) 300 s, domain 1…600 s. The split and the numbers from codex
 # `codex-mcp/src/rmcp_client.rs:110-111`, carried per-server like codex
 # `config/src/mcp_types.rs:272/276`. Per-endpoint override > bridge config > default. An
 # out-of-domain value is refused by name (JSON-RPC -32602 with field + range + the value sent),
 # never clamped, and it must not leave a half-built endpoint behind.
 #
 # ### What this probe locks down over HTTP (the unit suite cannot see this layer)
-#   1. THE BUDGETS ARE PUBLISHED — `$bridge/status` states the two numbers in force, so a
+#   1. THE BUDGETS ARE PUBLISHED, `$bridge/status` states the two numbers in force, so a
 #      client does not have to guess a constant that may not exist (invariant 2: a value the
 #      surface does not state is a value the surface does not promise).
-#   2. A BAD NUMBER IS AN ANSWER — `tool_timeout_sec:-5` returns -32602 naming
+#   2. A BAD NUMBER IS AN ANSWER, `tool_timeout_sec:-5` returns -32602 naming
 #      field + range + value, inside a second, with the box still serving.
-#   3. AN OVERRIDE REACHES THE ENGINE AND THE LEDGER — connect a real stdio child with
+#   3. AN OVERRIDE REACHES THE ENGINE AND THE LEDGER. Connect a real stdio child with
 #      `startup_timeout_sec:12` and `$bridge/endpoint/list` must publish 12 (override) next to
 #      300 (untouched default). A knob that only changes a struct would show the default here.
-#   4. SURVIVAL — after connect/disconnect/refusal traffic, `/health` answers and a normal chat
+#   4. SURVIVAL. After connect/disconnect/refusal traffic, `/health` answers and a normal chat
 #      turn still returns its code word.
 #
 # ### What stays in Tests/ (and is NOT claimed here)
-# The measured cut — a 1 s budget ending a 3 s `tools/call` and naming "1s" in the error — is
+# The measured cut. A 1 s budget ending a 3 s `tools/call` and naming "1s" in the error. Is
 # gated in `MCPTimeoutDeliveryTests` against a live child. Over HTTP the same call would first
 # meet the MCP approval gate (`routeToolCall` → securityGate), which denies without a broker, so
 # this probe says that instead of pretending it measured the cut through the router.

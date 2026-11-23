@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# 12-json-mode-delivery.sh — does response_format deliver JSON with something inside it?
+# 12-json-mode-delivery.sh. Does response_format deliver JSON with something inside it?
 #
 # ### Why (invariant 2: the surface may not claim more than the engine delivered)
 # `response_format:{"type":"json_object"}` is how an OpenAI client says "answer in JSON".
-# It carries no schema — the spec says so — so whatever this server constrains with comes
+# It carries no schema. The spec says so, so whatever this server constrains with comes
 # from OUR fallback, and ours was `{"type":"object","properties":{}}`. Naming zero
 # properties tells the grammar that no key is legal, so the only thing the model may emit
 # is the empty object. Measured on this host, temperature 0, a prompt naming two keys:
@@ -12,20 +12,20 @@
 #   json_schema {"type":"object","properties":{}}      -> content = '{}'                          = 2
 # Valid JSON, no information, 200 OK, finish_reason "stop", and nothing said so. vllm and
 # sglang both map this mode to `{"type":"object"}` (vllm/parser/abstract_parser.py:277,
-# sglang/srt/entrypoints/openai/protocol.py:1191) — no properties key at all.
+# sglang/srt/entrypoints/openai/protocol.py:1191), no properties key at all.
 #
 # ### What is measured
 #   1. json_object must come back parseable as a JSON object (we said we constrained it).
-#   2. json_object must AGREE with `json_schema{"type":"object"}` — that equivalence is
+#   2. json_object must AGREE with `json_schema{"type":"object"}`, that equivalence is
 #      the whole upstream mapping, so it is the assertion this server owns. It is used
 #      instead of "keys > 0" because the smallest legal open object IS `{}`: asserting a
 #      checkpoint fills it would make this probe red for someone else's fact.
-#   3. A real schema (required keys) must deliver those keys — the grammar still does its
+#   3. A real schema (required keys) must deliver those keys. The grammar still does its
 #      actual job after §2 made the open case open.
 #   4. Control, and the premise of the fix: a CALLER that pins zero properties must still
 #      get `{}`. If this stops being true, the fix was achieved by weakening grammars
 #      everywhere, and §2's pass would be worth nothing.
-#   5. The ungently shape: an OPEN-ENDED prompt, temp 0, max_tokens 512, k=6 — does the
+#   5. The ungently shape: an OPEN-ENDED prompt, temp 0, max_tokens 512, k=6. Does the
 #      constrained document actually close? §1–§4 name their own keys in a 96-token budget,
 #      which is the easiest form a grammar ever sees. coreai-models shipped a mask-level whitespace
 #      cap for ITS version of this face (Gemma 4 E2B/E4B, runs to 99 chars), enforced on the mask
@@ -34,13 +34,13 @@
 #      Measured 10-30 in §5b: the whitespace axis is CLOSED on this lane (max run 11 against Apple's
 #      32, because the guided loop applies upstream's WhitespaceTokenBias at -200), and what still
 #      fails is a 126-character repeat run. The closure rule held: XFAIL while open, XPASS (red)
-#      once closed so a fix could not pass silently — §5 PROMOTED to probe_ok 11-13 after two
-#      consecutive 6/6 boots, and §5b reddens if whitespace ever does run past 32 here — that is
+#      once closed so a fix could not pass silently. §5 PROMOTED to probe_ok 11-13 after two
+#      consecutive 6/6 boots, and §5b reddens if whitespace ever does run past 32 here, that is
 #      the day #368 becomes ours to port.
 #   6. The shape a client really sends: `response_format` + `tools[]` in ONE turn, k=3, against the
-#      control of the same request with `tools` removed. This USED to deliver 0/3 on both shapes —
+#      control of the same request with `tools` removed. This USED to deliver 0/3 on both shapes,
 #      every turn ending `finish=tool_calls`, one of them a schema-valid but semantically absurd
-#      `edit_file{oldString:"read_file",newString:"counts.txt"}` — because `buildGrammarSchema` let
+#      `edit_file{oldString:"read_file",newString:"counts.txt"}`, because `buildGrammarSchema` let
 #      the tool envelope win whenever tools were declared, so the caller's JSON was ungeneratable.
 #      Precedence now follows the request (JSON unless tool_choice demands a call, mirroring sglang
 #      serving_chat.py:1488-1501), measured 3/3 with tools on both shapes; the branch is probe_fail,
@@ -59,7 +59,7 @@ fresh_session() {
 
 ASK='Reply as JSON with two keys: answer, whose value is the number of planets in our solar system as an integer, and unit, whose value is the word planets.'
 
-# ask_json <response_format fragment> <label> — sends one turn, sets JSON_KEYS/CONTENT/FINISH.
+# ask_json <response_format fragment> <label>. Sends one turn, sets JSON_KEYS/CONTENT/FINISH.
 # JSON_KEYS is a key count, or PARSE_FAIL / NOT_OBJECT.
 ask_json() {
   local rf="$1" lab="$2" s b
@@ -147,7 +147,7 @@ fi
 
 # ── 5. open-ended turns: does the constrained document actually CLOSE? ────────
 # Decidable, k=6, and reported honestly: an unparseable answer is a surface that said "JSON"
-# and delivered bytes. finish_reason=length is spec-correct, so it is printed — but it is not
+# and delivered bytes. finish_reason=length is spec-correct, so it is printed, but it is not
 # a structured answer, and nothing else in this suite would notice.
 probe_section "5 — open-ended json_object · temp 0 · max_tokens 512 · k=6 — the document must close"
 OPEN_TOTAL=0
@@ -202,7 +202,7 @@ done
 # Promoted from xfail 11-13 (this file's own rule: XPASS means promote, so a fix cannot pass
 # silently): two consecutive boots closed 6/6. Attribution failed honestly: the same-day
 # post-bump sweep still ran this xfail open (so not the pin bump), and the lane-pricing round
-# re-proved byte-identical generation on this path — what remains is unnamed. An unattributed
+# re-proved byte-identical generation on this path. What remains is unnamed. An unattributed
 # closure gated by a hard probe_ok is still a gate.
 if [ "$OPEN_BAD" -gt 0 ]; then
   probe_fail "open-ended json_object: $OPEN_BAD/$OPEN_TOTAL turn(s) never closed the document — the face answers 200 with bytes no client can parse and the only tell is finish_reason (measured$OPEN_NOTES)"
@@ -210,11 +210,11 @@ else
   probe_ok "open-ended json_object closed $OPEN_TOTAL/$OPEN_TOTAL — parseable every turn"
 fi
 
-# §5b — the whitespace axis, measured instead of imported. coreai-models #368 caps whitespace
+# §5b. The whitespace axis, measured instead of imported. coreai-models #368 caps whitespace
 # between JSON tokens at 32 (ConstrainedGenerationSession.defaultMaxWhitespaceCount) because ITS
 # Gemma 4 runs reached 99. This lane applies upstream's WhitespaceTokenBias (-200 on
 # whitespace-only tokens, Engine/EngineInference.swift:2090), so the honest question is whether
-# #368's cap would bind anything here. While this holds it binds nothing — and if a bridge bump or
+# #368's cap would bind anything here. While this holds it binds nothing, and if a bridge bump or
 # a new checkpoint lets a run pass 32, this is the red that re-opens the port with a number on it.
 if [ "$OPEN_TOTAL" -lt 6 ]; then
   probe_fail "§5b ran $OPEN_TOTAL/6 open-ended turns — the premise is gone, so a whitespace verdict here would be vacuous"
@@ -225,9 +225,9 @@ else
 fi
 probe_note "what §5 leaves open is repetition, not whitespace: maxRepeatRun=$OPEN_MAX_REP inside a 512-token budget"
 
-# ── 6. response_format + tools[] in ONE turn — the shape a client actually sends ──
+# ── 6. response_format + tools[] in ONE turn. The shape a client actually sends ──
 # §1–§5 pass without tools. The task scoreboard sends `tools` on EVERY turn
-# (scripts/eval/_eval.py:173), and its three structured tasks measure 0/6 at k=6 — raw evidence
+# (scripts/eval/_eval.py:173), and its three structured tasks measure 0/6 at k=6. Raw evidence
 # from a retained run root, three different turns:
 #   json-object-closes        finish=stop       completion_tokens=1    content=""            (1 token!)
 #   json-schema-report        finish=tool_calls completion_tokens=107  content="" + tool_call
@@ -265,7 +265,7 @@ else
   probe_note "§6 sends $TOOL_N tool spec(s) read from GET /v1/tools, the way scripts/eval/_eval.py does"
   SIX_ASK='Reply as JSON with exactly two keys: n, the integer 2 + 3, and w, the word ok. No tool is needed.'
   # Which half is at fault? The same ask with tools declared and NO response_format: if the answer
-  # still arrives, tools alone do not silence the model — the pinned grammar plus tools does.
+  # still arrives, tools alone do not silence the model. The pinned grammar plus tools does.
   PLAIN_OK=0
   PLAIN_NOTES=""
   for round in 1 2 3; do
@@ -366,7 +366,7 @@ sys.stdout.write("%s finish=%s completion=%s tool_calls=%d tail=%r"
       # The caller's JSON wins the turn when tools are declared but `tool_choice` does not
       # demand a call: `shouldConstrainOutput` (Models/OpenAIModels.swift:2273) returns true on
       # the JSON shape alone, and `buildGrammarSchema` then compiles the CALLER's schema, not the
-      # tool envelope — so the answer arrives clean while the tool channel is ungeneratable for
+      # tool envelope, so the answer arrives clean while the tool channel is ungeneratable for
       # that turn. Every grammar that picks a side loses the other channel; measured four ways
       # in CHANGELOG 10-24(1) and again in §7. A recurrence here means the keys stopped arriving
       # with the tools still declared.
@@ -376,10 +376,10 @@ sys.stdout.write("%s finish=%s completion=%s tool_calls=%d tail=%r"
 fi
 
 
-# ── 7 — grounded JSON · temp 0 · k=3 — the shape must not arrive without the facts ────
+# ── 7. Grounded JSON · temp 0 · k=3. The shape must not arrive without the facts ────
 # §6 proves the answer channel survives; it cannot prove the answer is TRUE. Measured 10-24:
 # while the request's JSON outranked the tool envelope, `json-two-integers-closes` delivered
-# {"cols":5,"rows":10} for a file reading "shape 3 by 5" — schema-valid JSON, finish=stop,
+# {"cols":5,"rows":10} for a file reading "shape 3 by 5". Schema-valid JSON, finish=stop,
 # HTTP 200, `prompt=986 completion=16 echoed_tool_calls=0`, i.e. `read_file` could not be
 # emitted at all and the numbers were invented. A confident lie delivered as 200 is worse
 # than a lost answer, so this section asks for both channels in one turn and judges the
@@ -444,7 +444,7 @@ for call in tc:
 done
   # Which channel does what, measured on the same prompt: envelope-only shows whether the
   # model would have read the file at all; json-only shows the 10-24 defect (shape without
-  # facts). Both are notes, not gates — §7's gate is the union, because that is the only
+  # facts). Both are notes, not gates. §7's gate is the union, because that is the only
   # shape the caller asked for.
   for ctrl in envelope_only json_only; do
     cv=""

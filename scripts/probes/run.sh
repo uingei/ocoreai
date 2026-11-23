@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# run.sh — run every live probe in this directory against a freshly booted server.
+# run.sh. Run every live probe in this directory against a freshly booted server.
 #
 # Each probe boots its own `ocoreai serve` on a free port, so this takes as long as the
 # model needs to load, once per probe. That is the cost of a measurement nobody has to
 # take on faith: the numbers in AGENTS.md § Open and CHANGELOG stop being stories.
 #
 # These probes need a real Metal device. Inside the agent sandbox MLX reports
-# "No Metal device available" and every probe fails at boot — that is the harness, not
+# "No Metal device available" and every probe fails at boot, that is the harness, not
 # the code; run them unsandboxed, the same route `make test-clt` uses.
 #
 # Run:  bash scripts/probes/run.sh            (all probes)
@@ -20,7 +20,7 @@ FAILED=0
 FAILED_NAMES=""
 
 # Every NN-*.sh in this directory. The glob used to be `0*.sh`, which silently stopped
-# enumerating at 09 — probe 10 existed, ran never, and "8/8 passed" stayed green while
+# enumerating at 09. Probe 10 existed, ran never, and "8/8 passed" stayed green while
 # describing a surface the suite no longer covered (invariant 1: a scan must floor its
 # own premises, and here it could not even see its own members).
 for probe in [0-9]*.sh; do

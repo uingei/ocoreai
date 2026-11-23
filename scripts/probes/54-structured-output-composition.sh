@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# 54-structured-output-composition.sh — the disclosed composition limit, proved live.
+# 54-structured-output-composition.sh. The disclosed composition limit, proved live.
 #
 # ### Why (AGENTS.md invariant 2: the surface never claims more than the engine delivered)
 # A request carrying BOTH `tools[]` and `response_format` is answered as a single-pass
 # constrained turn: the answer grammar wins (OpenAIModels.swift, "the JSON wins") and the turn
 # cannot emit a tool call first, so a task that must read a file before answering can only
-# fabricate. This measured pair — the board's structured tasks fabricated plausible JSON on
-# both arms 11-08 (`OLTREZvTTx`/`B3mcwWEGT8`, 3 tasks, temp 0, deterministic) — was invisible
+# fabricate. This measured pair. The board's structured tasks fabricated plausible JSON on
+# both arms 11-08 (`OLTREZvTTx`/`B3mcwWEGT8`, 3 tasks, temp 0, deterministic). Was invisible
 # to the caller: a 200, valid schema, invented values. The row now lives in the tier matrix
 # (`RuntimeCapability`, "structured_output"); this probe pins that (a) a client reads the
 # limit BEFORE its first request and (b) the live turn matches the disclosure: schema-valid
 # JSON, no tool-calls channel, and the file's real value absent from the answer.
 #
 # sglang treats the pair the same way (python/sglang/srt/entrypoints/openai/serving_chat.py:
-# 1130 — the tool-call parser is switched off for a JSON response_format), so the limit is
+# 1130. The tool-call parser is switched off for a JSON response_format), so the limit is
 # stated, not hidden: field-compatible behaviour, honestly disclosed.
 #
 # ### What is asserted
@@ -60,7 +60,7 @@ fi
 probe_section "2. the live turn matches the disclosure"
 ws="$(mktemp -d -t ocoreai-probe54-XXXXXX)"
 # `probe_atexit`, not a raw `trap … EXIT`: bash keeps one handler per signal and a raw trap here
-# would silently replace `probes_cleanup`, leaving the probe's own serve on the instance lock —
+# would silently replace `probes_cleanup`, leaving the probe's own serve on the instance lock,
 # the class ProbeHarnessHygieneTests exists to catch, and caught this file for, 11-08.
 probe_atexit 'rm -rf "$ws"'
 # Distinctive values: a model that never reads grid.txt has no route to 4477/9013.

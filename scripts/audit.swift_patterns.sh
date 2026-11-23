@@ -16,7 +16,7 @@ echo "=========================================="
 #      Class-D lived its whole life with `URL\\(string:.*!` (a doubled escape): BSD grep rejects
 #      that with "parentheses not balanced", the error went to /dev/null, and three live
 #      `URL(string: ...)!` sites stayed invisible while the gate printed Clean.
-#   2. did grep actually run? Exit status >= 2, or any stderr at all, is a failure - never a
+#   2. did grep actually run? Exit status >= 2, or any stderr at all, is a failure. Never a
 #      Clean. Swallowing stderr is how failure 1 survived.
 #   3. how much did the exemptions remove? raw -> remaining prints every run, so "0 hits" and
 #      "N hits, all N exempted" cannot look the same.
@@ -54,7 +54,7 @@ check() {
     fi
     # Exemptions have one home and one semantics: scripts/audit_whitelist.txt, where every entry
     # is `path-token :: line-shape :: count` and gets re-measured against the tree before any
-    # class runs (Premise block below). The inline list this call used to take is gone - two
+    # class runs (Premise block below). The inline list this call used to take is gone. Two
     # mechanisms with different semantics is where one of them drifts, and a path-level token
     # excuses every future hit in that file: Class-B's measured 97-hits/97-exempted rate (10-15)
     # was born exactly that way.
@@ -78,7 +78,7 @@ check() {
     echo "  scan: $raw hit(s), $((raw - count)) exempted -> $count violation(s)"
     if [ "$count" -gt 0 ]; then
         echo "  X $count violation(s)"
-        # Show what is left, capped - a gate that reports only a number cannot be triaged
+        # Show what is left, capped. A gate that reports only a number cannot be triaged
         # without re-running the grep by hand.
         printf '%s\n' "$cleaned" | head -20 | sed 's/^/     /'
         if [ "$count" -gt 20 ]; then
@@ -167,14 +167,14 @@ check "Class-F: .first! force unwrap" '\.first!' \
 # The class is named for the view layer, so it scans the view layer. Scanning all of
 # Sources/ instead made it a gate in name only: measured 10-15, 97 hits, 97 whitelisted,
 # 0 of them in a view. Every line it ever flagged was an enum's errorDescription or a
-# domain label in Engine/, Video/, Multimodal/ or Capability/ — a 100% exemption rate,
+# domain label in Engine/, Video/, Multimodal/ or Capability/. A 100% exemption rate,
 # which means the whitelist had become the scan and the pattern could only ever catch
 # what it was then told to excuse. Scoping to the module boundary keeps the promise the
 # label makes: a view that returns a display-string literal instead of a StringKey fails
 # here, and an engine error enum never has to be excused again.
 # Views localize through StringKey (`.l`): String(localized:) appears 0 times under UI/,
 # so `.l` is the live convention this gate protects.
-# The floor is the premise check (AGENTS.md invariant 1) — a scan over a moved or pruned
+# The floor is the premise check (AGENTS.md invariant 1). A scan over a moved or pruned
 # view layer finds nothing, so the number of files it scanned is printed and floored.
 echo ""
 echo "[Class-B: hardcoded UI string in the view layer]"
@@ -211,10 +211,10 @@ check "Class-A: Empty catch" 'catch\s*{[[:space:]]*}' \
 check "Class-D: URL(string:)!" 'URL\(string:.*\)!' \
     'let u = URL(string: "https://x.dev")!'
 
-# --- Class-G: Hardcoded version literal — version truth flows through
+# --- Class-G: Hardcoded version literal. Version truth flows through
 # AppInfo.shortVersion / the git-tag pipeline, never a source literal.
 # (Shipped bug 2026-10: About said v1.0.0, metrics said 1.0.0, MCP said
-# 0.7.0 — three frozen mouths while v0.1.6 was on the wire.)
+# 0.7.0. Three frozen mouths while v0.1.6 was on the wire.)
 # Pattern is unquoted so /// doc-comment mentions are filtered by check().
 check "Class-G: hardcoded version literal" '"v?[0-9]+\.[0-9]+\.[0-9]+"' \
     'let v = "v0.1.15"'
@@ -223,7 +223,7 @@ check "Class-G: hardcoded version literal" '"v?[0-9]+\.[0-9]+\.[0-9]+"' \
 # --- Class-H: MLX buffer-cache limit must have exactly one owner ---
 # App boot also used to write its scheduler budget (70 GB on a 128 GB host) into
 # Memory.cacheLimit; the loader's later 256 MB write won, so the log claimed a
-# 70 GB cache ceiling that never applied — and a budget-sized cache measured
+# 70 GB cache ceiling that never applied, and a budget-sized cache measured
 # ~2x slower (23.7 vs 42-46 tok/s, M5 Max, gemma-4-e2b-it-4bit), because MLX
 # then keeps freed device buffers resident instead of handing them back.
 # Owner = MLXModelLoader (Engine/MLXBridge.swift); any second writer fails here.
@@ -284,7 +284,7 @@ if [ "${#I_PATTERN_ARGS[@]}" -gt 0 ]; then
 fi
 # Attribution coverage: a binary that ships source must say, per file, whose it is. The class
 # used to look only at files that already had a notice, so a file with NO notice at all was
-# invisible to every license gate in the repo - measured 10-26, 20 files under Sources/ carried
+# invisible to every license gate in the repo. Measured 10-26, 20 files under Sources/ carried
 # no holder line whatsoever, 5 of them stating in their own first comment that they were
 # absorbed verbatim from Apple's BSD-3 coreai-models (BSD-3 cl.1 retains the copyright notice on
 # redistribution). The scan floors its own file count so an empty tree is not a Clean.
@@ -463,13 +463,13 @@ FAIL=$((FAIL + I_FAIL))
 # --- Class-J: a comment that names a test suite is a claim about Tests/ ---
 # Provenance (10-20, found while auditing codex #55581): a comment in
 # Engine/CoreAIPipelinedEngine.swift stated its encode gate was "exercised by
-# `PipelineGateTests`". No such suite existed — and none could have: the entire file sat
+# `PipelineGateTests`". No such suite existed, and none could have: the entire file sat
 # inside one file-level `#if canImport(CoreAI)`, so on the macOS 26 SDK that ships (and on
 # CI) the type was compiled out and a suite for it could not compile either. Nothing in the
 # repo could go red for that sentence, so under invariant 1 it was not a claim. This class
 # makes the whole genus one: every `…Tests` identifier named in a Sources/ comment must
-# resolve to a suite that exists — declared in Tests/ (struct/class/actor/extension) or a
-# Tests/**/<name>.swift file — or, when the comment cites upstream provenance, to a suite in
+# resolve to a suite that exists. Declared in Tests/ (struct/class/actor/extension) or a
+# Tests/**/<name>.swift file, or, when the comment cites upstream provenance, to a suite in
 # a dependency checkout or ~/references clone. Upstream resolution is a loud SKIP when no tree
 # is present: unverifiable is never a pass, and never a silence either.
 echo ""
@@ -501,7 +501,7 @@ else
         J_FAIL=1
     fi
     # Directory names under Tests/ (the module dir, `Tests` itself) are path references,
-    # not suite claims — derived, never hand-listed, so a renamed module cannot leave the
+    # not suite claims. Derived, never hand-listed, so a renamed module cannot leave the
     # exclusion pointing at nothing.
     J_DIRS=$(find "$J_TESTS" -maxdepth 1 -type d 2>/dev/null | xargs -n1 basename | sort -u)
     J_TREES=""
@@ -628,7 +628,7 @@ echo "=========================================="
 # Its own red, measured 10-28: the headless-serve smoke step parked the macos-26 authority leg for
 # 42-47 min on six consecutive pushes, and the leg's only verdict was `cancelled` at the 60-min job
 # timeout. Every request under scripts/probes goes through probe_api, whose argv sets `-m`, except
-# one streaming request that set none — and a stream the server never closes has no other bound.
+# one streaming request that set none, and a stream the server never closes has no other bound.
 # The rule this class keeps: a call site either carries `-m`/`--max-time` on its own line or is the
 # argv-built helper, whose argv is re-measured here so the exemption cannot outlive the flag.
 # Reader whose action changes: whoever waits on the leg that gates a tag and needs to tell "the
@@ -670,7 +670,7 @@ fi
 # Its own red, measured 10-29: `Wire probe 37` was killed on its 180 s step bound on the runner with the
 # probe log frozen before the harness's first note, while 3 210 tests and the serve contract passed on the
 # same box. `probe_scratch_for_binary` walks up from the binary looking for the build dir, and `${p%/*}`
-# turns "/Users" into "" — so a path with no `.build` component (which is every Xcode product, and CI's
+# turns "/Users" into "", so a path with no `.build` component (which is every Xcode product, and CI's
 # smoke binary is one) left `[ "$p" != "/" ]` true forever. Reproduced here in 6 s, and invisible locally
 # for the whole time the harness existed, because a local binary always lives under `.build`.
 # Reader whose action changes: whoever waits on this leg to tag, and any probe author about to read a
@@ -727,12 +727,12 @@ fi
 
 # --- Class-N: every env name the child-process whitelist forwards has a reader ---
 # Its own red, sampled 11-22: a consumer sweep of `ChildProcessEnv.safeKeys` found two OCOREAI_* names
-# with zero readers and zero setters repo-wide — `OCOREAI_DEFAULT_MODEL_ID` whitelisted under a comment
+# with zero readers and zero setters repo-wide, `OCOREAI_DEFAULT_MODEL_ID` whitelisted under a comment
 # claiming a "default model selection" the open-items row records as absent, and `OCOREAI_PYTHON` with
 # no reader while its only python consumer resolves hardcoded paths. The whitelist's rule is "add an
 # entry here with a reason"; a reason naming a dead knob teaches the next reader the knob exists.
 # Reader whose action changes: whoever adds or audits a safeKeys entry and needs the list to be live
-# plumbing, not a ledger of hopes. Tests/ is not a consumer set — a name proven only by a test is circular.
+# plumbing, not a ledger of hopes. Tests/ is not a consumer set. A name proven only by a test is circular.
 echo ""
 echo "[Class-N: forwarded env names have a reader]"
 N_FILE="$ROOT/Sources/ocoreai/Security/ChildProcessEnv.swift"
@@ -752,7 +752,7 @@ else
     for n in $N_NAMES; do
         # The exclusion rides the pipe, not an option after the paths: BSD grep stops option parsing
         # at the first operand, so `--exclude` there is read as a filename and the whitelist's own
-        # line matches itself — the shape this class caught on its own mutation test 11-22, together
+        # line matches itself. The shape this class caught on its own mutation test 11-22, together
         # with its second self-hit: this script names the sample dead names in its header, so the
         # instrument must not count as its own consumer either.
         if ! grep -rl "$n" "$ROOT/Sources" "$ROOT/scripts" "$ROOT/Makefile" 2>/dev/null \

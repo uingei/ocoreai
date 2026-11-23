@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Every documented remediation target must at least PARSE.
 #
-# `make format` — the target `make format-check` tells you to run to accept a reformat — had
+# `make format`. The target `make format-check` tells you to run to accept a reformat. Had
 # never been executable: its awk program was single-quoted and contained an apostrophe, so the
 # shell lost the quote and the recipe died before the formatter started. A gate whose stated fix
 # cannot run is a gate with no exit, and nothing but execution ever said so.
@@ -13,7 +13,7 @@
 # A verdict about text is a verdict about the tool that produced the text: macOS ships GNU Make
 # 3.81 and bash 3.2, an ubuntu runner ships 4.3 and 5.1, and this leg went red on the runner while
 # green on both a macOS host and a fresh macOS clone. So the report names its toolchain, and a red
-# names the targets in the step summary — a red nobody can read is a red nobody can act on.
+# names the targets in the step summary. A red nobody can read is a red nobody can act on.
 set -uo pipefail
 
 MAKEFILE="${1:-Makefile}"
@@ -22,13 +22,13 @@ FLOOR="${MAKEFILE_PARSE_FLOOR:-20}"
 HOST_LABEL="make=$(make --version 2>/dev/null | head -1 | awk '{print $3}') bash=${BASH_VERSION%% *}"
 
 # A target starts at column 0 (recipes start with a TAB) and its name ends at the colon, so a
-# variable like `SF_PIN := 603.0.0` cannot match — the space before the colon is the tell.
+# variable like `SF_PIN := 603.0.0` cannot match. The space before the colon is the tell.
 targets=$(awk '/^[A-Za-z][A-Za-z0-9_.-]*:/ { sub(/:.*/, ""); print }' "$MAKEFILE" | sort -u)
 count=0
 failed=0
 fail_names=""
 fail_detail=""
-# `$(printf '\n')` is empty — command substitution strips trailing newlines — so the separator lives
+# `$(printf '\n')` is empty. Command substitution strips trailing newlines, so the separator lives
 # in a variable instead.
 NL=$'\n'
 for t in $targets; do

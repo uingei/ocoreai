@@ -1,5 +1,5 @@
 #!/bin/bash
-# bundle-licenses.sh — ship third-party license texts inside a .app bundle.
+# bundle-licenses.sh. Ship third-party license texts inside a .app bundle.
 #
 # Why: the product is distributed as .app/.dmg, and BSD-3 clause 2 /
 # Apache-2.0 section 4 require the license text to travel *with* the

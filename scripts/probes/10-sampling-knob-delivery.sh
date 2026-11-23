@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# 10-sampling-knob-delivery.sh — does the engine actually do what the sampling knobs say?
+# 10-sampling-knob-delivery.sh. Does the engine actually do what the sampling knobs say?
 #
 # ### Why (AGENTS.md invariant 2: the surface never claims more than the engine delivered)
 # Every knob below is accepted by the wire. Accepting is the cheap half: a field can be
-# decoded, cascaded, logged — and still die on the last hop into the engine, where the
+# decoded, cascaded, logged, and still die on the last hop into the engine, where the
 # client gets a full generation whose behaviour came from something else, with no signal.
 #
 # Measured 10-18, before the fix: `stop:["2"]` returned the full `1 2 3 … 20` with
@@ -15,22 +15,22 @@
 # and OpenAI's finish_reason word for stop-string termination is `"stop"`.
 #
 # ### What is measured (assertions only where the measurement can settle the question)
-#   1. STOP           — a single-token stop must cut the reply and end generation, a stop
+#   1. STOP. A single-token stop must cut the reply and end generation, a stop
 #                       that never occurs must cut nothing, and streaming must agree with
 #                       non-streaming. Decisive: token counts, not vibes.
-#   2. SEED           — the same seed at temperature 1.0 twice must give identical text;
+#   2. SEED. The same seed at temperature 1.0 twice must give identical text;
 #                       that is the reproducibility claim the engine publishes (#265/#377).
-#   3. MAX_TOKENS     — usage.completion_tokens must not exceed the requested cap.
-#   4. PENALTIES      — recorded, NOT asserted. A ±2.0 penalty on a repetition task can
+#   3. MAX_TOKENS. Usage.completion_tokens must not exceed the requested cap.
+#   4. PENALTIES. Recorded, NOT asserted. A ±2.0 penalty on a repetition task can
 #                       legitimately leave greedy output untouched: the penalty is uniform
-#                       across the tokens in the context window, so their relative order —
-#                       and therefore the argmax — does not change. Identical text here is
+#                       across the tokens in the context window, so their relative order,
+#                       and therefore the argmax. Does not change. Identical text here is
 #                       a fact about this prompt, not proof of an inert knob (the sign
 #                       itself is pinned where it can be pinned: PenaltySignDeliveryTests,
 #                       against the upstream condition at the pin).
 #
 # Needs a real Metal device: run unsandboxed (`bash scripts/probes/run.sh 10`). Bodies are
-# built with single-quoted JSON — macOS bash 3.2 mis-parses nested quoted command
+# built with single-quoted JSON. MacOS bash 3.2 mis-parses nested quoted command
 # substitution (see probe 09), and each compared turn gets its OWN session so a growing
 # history cannot change the answer on its own.
 #
@@ -56,7 +56,7 @@ ANSWER_STATUS=""
 ANSWER_FINISH=""
 ANSWER_TOKENS=""
 
-# ask EXTRA_JSON PROMPT MAX_TOKENS [TEMPERATURE] — one non-streaming turn.
+# ask EXTRA_JSON PROMPT MAX_TOKENS [TEMPERATURE]. One non-streaming turn.
 ask() {
   local body session temp="${4:-0}"
   session="$(fresh_session)"

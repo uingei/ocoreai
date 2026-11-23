@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# docs-type-existence.sh — a type named in the architecture docs must exist.
+# docs-type-existence.sh. A type named in the architecture docs must exist.
 #
 # Why. ARCHITECTURE.md was a 2026-07-26 review that survived its own subject: it diagrammed
 # `BackendProtocol.swift` after that file had been deleted (2123143), and recommended a CoreAI
@@ -10,7 +10,7 @@
 # Rule: every CamelCase identifier in the architecture docs ending in Protocol|Bridge|Pool|Manager|
 # Cache|Guard|Ticket|Ledger|Accounting must resolve in Sources/ (ours) or in a primary reference
 # clone. A name on a line that says it was removed/deleted/superseded is allowed, but is counted
-# and printed as `historical` — recording a death is legitimate, silently skipping one is not.
+# and printed as `historical`. Recording a death is legitimate, silently skipping one is not.
 # Floors its own scan so a rotted regex fails instead of passing vacuously.
 set -uo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; cd "$here" || exit 2

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# competitor-path-scan.sh — when did each reference ship each agent axis, and what did it cost them?
+# competitor-path-scan.sh, when did each reference ship each agent axis, and what did it cost them?
 #
 # Reads only `git log` subjects from the clones under ~/references (or $OCOREAI_REFS), so it
 # runs anywhere the clones exist and never touches the network. For every axis it reports the
 # OLDEST matching subject (the first mention), then how many later commits touch the axis and
-# how many of those read like fixes — the cost proxy that ranks an axis by how much trouble it
+# how many of those read like fixes. The cost proxy that ranks an axis by how much trouble it
 # turned out to be. `docs/agent/competitor-iteration-paths.md` states the numbers this printed
 # and the inference drawn from them; re-run this before quoting one.
 #

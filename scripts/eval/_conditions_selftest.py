@@ -87,7 +87,7 @@ def main():
         # The instruction doc a workspace handed the agent. Three things must hold: absence is a
         # stated `none` (the board ran doc-free for its whole history and that has to be readable),
         # presence is digested (a reworded corpus is a different instrument), and a docs-only
-        # difference is *surface* movement — refusing on it would make the harness unable to judge
+        # difference is *surface* movement. Refusing on it would make the harness unable to judge
         # the one experiment the corpus's budget depends on.
         if C.parse(line).get("docs") != "none":
             defects.append("a run with no doc must state docs=none, got %r — an omitted field cannot"
@@ -267,7 +267,7 @@ def main():
 
         # The declaration set the digest covers must be the set the run hands the model. Measured
         # on this host: `--tools` was split on commas while `_eval.py` splits on whitespace, so a
-        # live 6-tool run wrote `tools=0+e3b0c44298fc` — sha256 of the empty string — and nothing
+        # live 6-tool run wrote `tools=0+e3b0c44298fc`. Sha256 of the empty string, and nothing
         # went red. The floor below is the gate that would have caught it at boot.
     # `all` is a word, not a name: the conditions line must digest the SAME set whether the caller
     # spells every name or asks for the whole surface, or the two boards the scoreboard compares would
@@ -293,9 +293,9 @@ def main():
                 except SystemExit:
                     pass
             # `all` is a word, not a name. The conditions line must digest the SAME set whether the
-            # caller spells every name or asks for the whole surface — otherwise the 6-tool board and
+            # caller spells every name or asks for the whole surface. Otherwise the 6-tool board and
             # the full-surface board differ on a field meant to describe the instrument, not its
-            # spelling — and an empty cache must still refuse rather than digest nothing.
+            # spelling, and an empty cache must still refuse rather than digest nothing.
             every = C._declared_specs("all")
             if len(every) != 2:
                 defects.append("`all` resolved to %d of the 2 cached declarations" % len(every))

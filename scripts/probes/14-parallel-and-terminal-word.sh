@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# 14-parallel-and-terminal-word.sh — the three promises a tool-call turn makes about itself.
+# 14-parallel-and-terminal-word.sh. The three promises a tool-call turn makes about itself.
 #
 # ### Why (AGENTS.md invariant 2, and the family "a knob the wire accepts must reach the
-# engine — behaviour ends, and the word is right")
+# engine. Behaviour ends, and the word is right")
 # An agent loop lives on three facts the server states about every tool turn: how many calls
 # it may run at once, whether the turn finished or the budget cut it, and which chunk is the
 # last. All three were being asserted on the wire without being delivered by the engine, and
@@ -12,7 +12,7 @@
 #   parallel_tool_calls:false  -> 2 tool_calls (Paris + London)      both faces, decoded, unread
 #   max_tokens:18             -> completion_tokens:18, finish "tool_calls"  (a cut, called clean)
 #   SSE                       -> the tool_calls delta said finish_reason:"tool_calls",
-#                               then the terminal chunk said "stop" — so the streaming face
+#                               then the terminal chunk said "stop", so the streaming face
 #                               denied the calls the JSON face admitted, and a client that
 #                               stops reading at the first non-null finish_reason never sees
 #                               the answer that follows the call.
@@ -29,7 +29,7 @@
 #
 # ### What is measured
 #   1. `parallel_tool_calls:false` delivers at most one call, and the first one is the
-#      model's own first — with the unrestricted turn as the differential control.
+#      model's own first, with the unrestricted turn as the differential control.
 #   2. The same promise on `/v1/messages`, spelled `tool_choice.disable_parallel_tool_use`.
 #   3. A turn the budget cut says `length`, even when it delivered a call; a turn that
 #      completed and called says `tool_calls`; the no-tools truncation control says `length`.
@@ -43,7 +43,7 @@
 #      was grammar- or tool-constrained (measured 10-19 as asked-8-spent-64; see §7).
 #
 # Bodies are single-quoted JSON with "$VAR" splices (macOS bash 3.2 mis-parses nested
-# quoted command substitution — see probe 09), and every compared turn gets its own session
+# quoted command substitution. See probe 09), and every compared turn gets its own session
 # so a growing history cannot change the outcome on its own. §7 is the deliberate exception:
 # its whole subject is what one turn leaves behind for the next turn on the same session.
 #
@@ -55,19 +55,19 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_lib.sh"
 
 WEATHER_TOOLS=',"tools":[{"type":"function","function":{"name":"get_weather","description":"Get the current weather for a city","parameters":{"type":"object","properties":{"city":{"type":"string","description":"City name"}},"required":["city"]}}}]'
 # The Anthropic face spells the declaration `input_schema`, and both fragments carry their
-# own leading comma — every body below splices one of them straight after `]`.
+# own leading comma. Every body below splices one of them straight after `]`.
 ANTH_TOOLS=',"tools":[{"name":"get_weather","description":"Get the current weather for a city","input_schema":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}]'
 ASK_TWO="Call the get_weather tool twice: once for Paris and once for London. Do not answer, only call the tool."
 ASK_ONE="Use the get_weather tool to check the weather in Paris."
 LONG_ANSWER="Explain in detail how a gas turbine engine works, in five long paragraphs."
 
-# fresh_session — a session id unique per CALL.
+# fresh_session. A session id unique per CALL.
 #
 # `SESSION_SEQ=$(( SESSION_SEQ + 1 ))` inside this function does not survive the call site
 # `s="$(fresh_session)"`: the increment happens in the command-substitution subshell and the
 # parent never sees it, so every "fresh" session in the run was ONE session. §1's control,
 # §3's cut and the no-tools control shared a transcript, and the numbers compared were not
-# comparable — that is what made §3 read as "max_tokens ignored" (max=25 → 28 tokens,
+# comparable, that is what made §3 read as "max_tokens ignored" (max=25 → 28 tokens,
 # max=20 → 220 tokens) on 10-19 while a unique-session replay of the same bodies honoured
 # every budget (25/length, 20/length). The counter therefore lives in a file, and §7 keeps
 # the one leak the shared session did expose in plain sight.
@@ -87,7 +87,7 @@ COMPLETION=""
 N_CALLS=""
 CITIES=""
 
-# count_calls — number of tool_calls in the last chat body, or NOJSON.
+# count_calls. Number of tool_calls in the last chat body, or NOJSON.
 count_calls() {
   printf '%s' "$BODY" | python3 -c '
 import json, sys
@@ -99,7 +99,7 @@ calls = (d.get("choices") or [{}])[0].get("message", {}).get("tool_calls") or []
 sys.stdout.write(str(len(calls)))'
 }
 
-# cities_in_calls — the arguments delivered, so "the FIRST call" is an observation.
+# cities_in_calls. The arguments delivered, so "the FIRST call" is an observation.
 cities_in_calls() {
   printf '%s' "$BODY" | python3 -c '
 import json, sys
@@ -137,7 +137,7 @@ except ValueError:
 print("over" if done > mx else ("at" if done == mx else "under"))'
 }
 
-# ask_chat_in SESSION EXTRA_JSON MAX_TOKENS PROMPT — one non-streaming turn on a session the
+# ask_chat_in SESSION EXTRA_JSON MAX_TOKENS PROMPT. One non-streaming turn on a session the
 # caller keeps, so a probe can hold one conversation open across turns.
 ask_chat_in() {
   local s="$1" b
@@ -151,12 +151,12 @@ ask_chat_in() {
   CITIES="$(cities_in_calls)"
 }
 
-# ask_chat EXTRA_JSON MAX_TOKENS PROMPT — the same turn, on its own fresh session.
+# ask_chat EXTRA_JSON MAX_TOKENS PROMPT. The same turn, on its own fresh session.
 ask_chat() {
   ask_chat_in "$(fresh_session)" "$1" "$2" "$3"
 }
 
-# ask_anthropic EXTRA_JSON MAX_TOKENS PROMPT — one /v1/messages turn.
+# ask_anthropic EXTRA_JSON MAX_TOKENS PROMPT. One /v1/messages turn.
 N_BLOCKS=""
 STOP=""
 ANTH_OUT=""
@@ -234,13 +234,13 @@ fi
 # A cut is defined by the measurement, not by a remembered token count: `at` the budget
 # means the turn was chopped (the word must be length), `under` means it completed (the
 # word must not be length), and `over` means max_tokens never reached generation.
-# 25 is where the cut lands on this checkpoint — the two-call answer measures 28 tokens
+# 25 is where the cut lands on this checkpoint. The two-call answer measures 28 tokens
 # (measured 10-19), so one complete call survives mid-list: the exact situation where the
 # old word (`tool_calls`) told a client the call list was whole.
 probe_section "3 — finish_reason: a budget cut stays visible (length), a clean call says tool_calls"
 CUTS_OBSERVED=0
 
-# check_turn LABEL MAX — judges the last turn's terminal word against its measured budget.
+# check_turn LABEL MAX. Judges the last turn's terminal word against its measured budget.
 check_turn() {
   local label="$1" max="$2" cls
   if [ "$STATUS" != "200" ]; then
@@ -384,7 +384,7 @@ probe_section "6 — tool_choice: OpenAI's shape decodes, unknown values are ref
 # Bodies are assembled, never hand-typed twice, and every fragment is a single-quoted
 # literal with its own leading comma. Both comma bugs in this probe's first draft (a
 # missing one before "tools", a doubled one before $WEATHER_TOOLS) and one quote bug
-# produced "not valid JSON" answers that judged nothing — the exact nested-quoting trap
+# produced "not valid JSON" answers that judged nothing. The exact nested-quoting trap
 # probe 09 documents for macOS bash 3.2.
 chat_body() {
   printf '{"model":"%s","session_id":"%s","temperature":0,"max_tokens":%s,"messages":[{"role":"user","content":"%s"}]%s%s}' \
@@ -473,20 +473,20 @@ fi
 #   control, no guided turn first in the session:     max_tokens=60 -> 60, max_tokens=8 -> 8
 #
 # The client asked for 8, paid for 64, and the same response body contradicted itself
-# (`usage.completion_tokens=64` against `max_tokens=8`) — invariant 2 and "a knob the wire
+# (`usage.completion_tokens=64` against `max_tokens=8`). Invariant 2 and "a knob the wire
 # accepts must reach the engine". The wire is not where it was lost (`max_tokens` is
 # resolved per request at Handlers/ChatHandler.swift:582-583 and threaded into
 # `GenerateParameters` at Engine/MLXBridge.swift:954), and the follow-up turn's own log said
 # `wireMaxTokens=8` / `Generation budget: maxTokens=8`.
 #
 # Root cause, and why only the guided/tool session leaked: sampling lives on the
-# `ChatSession`, not on the call — mlx-swift-lm declares `public var generateParameters`
+# `ChatSession`, not on the call. Mlx-swift-lm declares `public var generateParameters`
 # (ChatSession.swift:361) and `streamMap` captures that stored property when the stream
 # starts (ChatSession.swift:1037-1043), so `streamDetails(to:)` carries no parameters at all. A pooled session
 # reused on the next turn therefore generates under whatever budget it was created with.
 # Plain turns mask this: they park a transcript in the pool, so their successor fails
 # `MLXSessionPool.canReusePooledSession` and gets a clean session; a guided/MTP turn
-# releases with `assistantMessage: nil`, which parks an *empty* transcript — and an empty
+# releases with `assistantMessage: nil`, which parks an *empty* transcript, and an empty
 # transcript reuses against anything.
 #
 # Fix: `MLXSessionPool.acquire` refreshes the reused session's `generateParameters` from
@@ -497,7 +497,7 @@ fi
 probe_section "7 — a turn obeys its own budget after a guided turn on the same session"
 JSON_ONLY=',"response_format":{"type":"json_object"}'
 
-# budget_after LABEL PRIOR_EXTRA PRIOR_MAX PRIOR_PROMPT — a guided turn, then a plain turn
+# budget_after LABEL PRIOR_EXTRA PRIOR_MAX PRIOR_PROMPT. A guided turn, then a plain turn
 # on the SAME session with a budget an eighth of the prior, so a leak is unmistakable.
 budget_after() {
   local lab="$1" prior_extra="$2" prior_max="$3" prior_prompt="$4"

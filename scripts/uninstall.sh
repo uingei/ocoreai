@@ -1,9 +1,9 @@
 #!/bin/bash
-# uninstall.sh — remove ocoreai's footprint from this Mac.
+# uninstall.sh. Remove ocoreai's footprint from this Mac.
 #
 # First principles: an installer's contract is unfinished until there is an
 # honest removal story. Every path below is verified against BOTH source
-# (HEAD 5fe6133) and the live machine (2026-10) — the first draft of this
+# (HEAD 5fe6133) and the live machine (2026-10). The first draft of this
 # script missed SQLiteStore/lock/kvcache and the real model root; a removal
 # tool that misstates the footprint is itself a lie, so paths live-checked.
 #
@@ -15,19 +15,19 @@
 #   defaults domain com.ocoreai.ocoreai           GUI settings (SettingsStore.swift:400)
 #
 # TIER user-data (the user's; kept unless asked):
-#   ~/.ocoreai/models/            weights — PRIMARY root ($OCOREAI_MODELS_DIR
+#   ~/.ocoreai/models/            weights. PRIMARY root ($OCOREAI_MODELS_DIR
 #                                 override, ModelStore.swift:56; 3.3G live here)
 #   ~/.ocoreai/config.yaml       authored approval policy (SettingsStore.swift:340)
 #   ~/.ocoreai/backups/          config backups
 #   ~/Library/Application Support/ocoreai/data/   sessions sqlite (SQLiteStore.swift:158)
 #   legacy: ~/Library/Application Support/ocoreai/{models,huggingface,modelscope}
-#           (ModelStore.legacyRoot — discovered, rarely written)
+#           (ModelStore.legacyRoot. Discovered, rarely written)
 #
 # TIER app: /Applications/ocoreai.app
 # Lockfile ~/Library/Application Support/ocoreai.lock (SingleInstanceLock.swift:59)
 # is flock-kernel-owned; swept with the store dir.
 #
-# NO keychain entries exist — tokens are env-first by design
+# NO keychain entries exist. Tokens are env-first by design
 # (SettingsStore.swift:494/510, mirroring mlx-swift-lm/coreai-models).
 # This script does NOT claim to clear a keychain it never wrote.
 #
@@ -64,7 +64,7 @@ size_mb() { echo $(( $(du -sk "$1" 2>/dev/null | cut -f1 || echo 0) / 1024 )); }
 T_DATA=() T_USER=() T_MODELS=()
 exists() { [ -e "$1" ]; }
 defaults_present() {
-    # File-based check — `defaults domains` IPC can stall behind cfprefsd;
+    # File-based check, `defaults domains` IPC can stall behind cfprefsd;
     # the plist on disk is ground truth anyway.
     [ -f "$HOME/Library/Preferences/$DEFAULTS_DOMAIN.plist" ]
 }

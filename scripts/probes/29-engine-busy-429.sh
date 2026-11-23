@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# 29-engine-busy-429.sh — when the one engine is busy, does the wire say 429, and does a
+# 29-engine-busy-429.sh, when the one engine is busy, does the wire say 429, and does a
 # second request queue instead of being waved off?
 #
 # ### Why (AGENTS.md invariant 2 + "one home per decision")
 # Measured 10-22 in scripts/eval: one run lost 13 consecutive tasks in 4 seconds to
 # `{"error":{"message":"Generation failed: Engine busy","code":500}}`. Two defects in one
-# sentence. (1) The status: capacity is not a server error — the request was well-formed and
+# sentence. (1) The status: capacity is not a server error. The request was well-formed and
 # the engine is merely occupied, and `AppError.engineBusy` already mapped to 429 two files
 # away, so the same condition had two homes and the wire took the wrong one. A client that
 # backs off on 429 and retries was told to treat a healthy box as broken. (2) The shape:
 # `tryAcquireInference()` was a fail-fast CAS with no queue at all, so every overlapping
-# request was refused at t=0 even when the running turn needed 600 ms more — in the GUI that
+# request was refused at t=0 even when the running turn needed 600 ms more, in the GUI that
 # is "one generation going, second message refused". vllm and sglang queue rather than
 # reject (sglang signals capacity with 503 `overloaded_error`, never a per-request 500:
 # sglang/python/sglang/srt/entrypoints/http_server.py:595); ocoreai holds one engine per
@@ -20,16 +20,16 @@
 #   1. Refusal shape: the second request gets **429**, not 500, with `error_code: engine_busy`,
 #      `type: rate_limit_error` (the name both OpenAI and Anthropic SDKs branch on) and a
 #      `Retry-After` header read from the refusal response's own headers, so the client needs
-#      no string-parse to know it may try again. The premise — that a turn was in flight — is
+#      no string-parse to know it may try again. The premise, that a turn was in flight. Is
 #      certified by the refusal costing the full queue window (t=0 would mean nothing held the
 #      lock); a first streamed token, when it arrives, is corroboration, not the premise.
 #   2. The refusal costs nothing to the turn in flight: the long request still completes 200.
 #   3. Queue-and-serve: with a short turn in flight (inside OCOREAI_ENGINE_BUSY_WAIT), the
-#      overlapping request is served with a real completion — saturation is waited out, not
+#      overlapping request is served with a real completion. Saturation is waited out, not
 #      exported to the caller.
 #   4. The knob cannot rot: `OCOREAI_ENGINE_BUSY_WAIT` is read by the engine, and the shared
 #      marker is still the single source of the busy sentence (a literal reintroduced at an
-#      engine call site is the regression this probe exists for — `EngineBusyAdmissionTests`
+#      engine call site is the regression this probe exists for, `EngineBusyAdmissionTests`
 #      greps for it too).
 #
 # Needs Metal and a loaded model: this is a live probe, not a unit test.
@@ -78,9 +78,9 @@ SHORT_OUT="$(mktemp -t ocoreai-29-short.XXXXXX)"
 # counting turn wherever it likes, and measured 11-13 the same construction held the lock for
 # 30 s on one boot and released it inside 1 s on the next. A padded prompt (~2 100 tokens) buys
 # seconds of prefill on the engine clock before any token can come out, and the whole
-# experiment RETRIES — the premise is re-measured, never asserted. Firing happens on the first
+# experiment RETRIES. The premise is re-measured, never asserted. Firing happens on the first
 # SSE token or at a 2 s cap: firing at 0.4 s once let the short turn reach the lock first
-# (measured 10-22 — HTTP arrival order is not lock arrival order), and by 2 s the padded turn
+# (measured 10-22. HTTP arrival order is not lock arrival order), and by 2 s the padded turn
 # holds it.
 LONG_PROMPT="$(probe_pad_text 40) Now: count from 1 to 400, one number per line."
 busy_proven=0

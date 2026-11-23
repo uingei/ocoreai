@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 23-lora-seam-honesty.sh — does one LoRA request take the box down, and does an id that
+# 23-lora-seam-honesty.sh. Does one LoRA request take the box down, and does an id that
 # `/v1/models` advertises reach the engine at all?
 #
 # ### What was measured here on 10-21 (before the fix, this host, cold process)
@@ -18,28 +18,28 @@
 #   every other conversation on the box gone with it.
 #
 # ### What this probe locks down (hard gates)
-#   1. NO SILENCE, NO DEATH — each LoRA request must return an answer, and `/health` must
+#   1. NO SILENCE, NO DEATH. Each LoRA request must return an answer, and `/health` must
 #      still answer afterwards. A refusal may be 400 or an SSE `type:"error"` chunk; a
 #      dropped connection or a dead server fails the run. This is the regression gate: it
 #      goes red the day the seam stops asking the capability question the loss will answer.
-#   2. THE REFUSAL NAMES THE REQUIREMENT — when the model cannot do LoRA the message must
+#   2. THE REFUSAL NAMES THE REQUIREMENT, when the model cannot do LoRA the message must
 #      say what was required (LLMModel) and what arrived, not "model not found".
-#   3. AN ID IS AN ID — `/v1/models/evaluate` may no longer answer "Model not found" for
+#   3. AN ID IS AN ID, `/v1/models/evaluate` may no longer answer "Model not found" for
 #      the id `/v1/models` advertises while `/health` reports loadedModels: 0.
-#   4. SURVIVAL — after all of it a normal chat turn still returns its code word.
-#   5. TINY SAMPLE — if this box's model *does* conform (a text LLM), a 1-token sample must
+#   4. SURVIVAL. After all of it a normal chat turn still returns its code word.
+#   5. TINY SAMPLE, if this box's model *does* conform (a text LLM), a 1-token sample must
 #      come back 400 naming `dataset[0]`. On a non-conforming checkpoint the capability
 #      refusal comes first, and the probe says so instead of pretending it checked
 #      (LoRASampleDomain pins that rule by exact value in Tests/).
-#   6. AN ID THAT EXISTS NOWHERE IS ANSWERED — 404 or 503, within 30 s, naming the id, with
+#   6. AN ID THAT EXISTS NOWHERE IS ANSWERED, 404 or 503, within 30 s, naming the id, with
 #      the box still serving. Silence is the defect this gate was written against.
 #
-# ### Hub refusal — gated hard since the same session
+# ### Hub refusal. Gated hard since the same session
 #   Measured here before the guard: a nonexistent hub id answered nothing within 25 s on BOTH
 #   /v1/models/evaluate and /v1/chat/completions (the chat leg was still silent at 300 s),
 #   because the fallback hub client owns no deadline ocoreai controls and huggingface.co is a
 #   black hole on this network. `HubReachability` now asks the fallback whether it can answer at
-#   all — existence costs under a second on a reachable hub — so §4 asserts the refusal: an
+#   all. Existence costs under a second on a reachable hub, so §4 asserts the refusal: an
 #   answer within 30 s, HTTP 404 (a hub said it is not here) or 503 (a hub could not be
 #   asked), naming the id, with the box still serving afterwards.
 #
@@ -127,7 +127,7 @@ probe_section "1b) batch_size below 1 — a client integer may not own the proce
 # validates nothing about it: 0 yields an empty batch and `precondition(maxLength >= 2)` at `:49`
 # traps, a negative inverts the range and traps there too. The seam refuses both before any model is
 # resolved, so the first call below must answer 400 about `batch_size` even for an id that does not
-# exist — a 404 would mean the load ran first.
+# exist. A 404 would mean the load ran first.
 probe_api POST /v1/models/evaluate "{\"model\":\"$BOGUS\",\"dataset\":[\"$LONG_SAMPLE\"],\"batch_size\":0,\"max_batches\":1}" || true
 GEOM_STATUS="${PROBE_STATUS:-000}"
 if [ "$GEOM_STATUS" = "400" ] && printf '%s' "$PROBE_BODY" | grep -q 'batch_size'; then
@@ -193,7 +193,7 @@ fi
 
 probe_section "4) an unresolvable id must be refused by name, promptly"
 # Bounded at 30 s on purpose: the guard's window is 8 s per hub, so an honest refusal costs
-# well under that, and the number a caller experiences is the client-side wait — not how long
+# well under that, and the number a caller experiences is the client-side wait, not how long
 # the resolver could theoretically stall.
 FIRST_ELAPSED=0
 for path in /v1/models/evaluate /v1/chat/completions; do
@@ -205,7 +205,7 @@ for path in /v1/models/evaluate /v1/chat/completions; do
   OCOREAI_PROBE_CURL_TIMEOUT=30 probe_api POST "$path" "$body" || true
   elapsed=$(( $(date +%s) - started ))
   # The JSON encoder emits "/" as "\/", so a raw substring scan of the body misses the very id
-  # the refusal names — measured 10-21: the check failed against
+  # the refusal names. Measured 10-21: the check failed against
   # "Model no-such-org\/no-such-model-ocoreai is not available…". Compare against the wire's
   # own escaping, not the string we typed.
   named="$(printf '%s' "${PROBE_BODY:-}" | tr -d '\\')"
@@ -255,7 +255,7 @@ fi
 probe_section "4b) residual — the refusal is not remembered (known-open)"
 # The guard prices every attempt. Measured 10-21 post-fix: ~9 s for the first request for a dead
 # id on this network (ModelScope 404 in ~0.2 s + an 8 s HF window), and the same again on a
-# retry — EnginePool keeps no negative cache, so a client retrying a typo re-pays the window.
+# retry. EnginePool keeps no negative cache, so a client retrying a typo re-pays the window.
 started=$(date +%s)
 OCOREAI_PROBE_CURL_TIMEOUT=30 probe_api POST /v1/chat/completions "{\"model\":\"$BOGUS\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":4}" \
   || true

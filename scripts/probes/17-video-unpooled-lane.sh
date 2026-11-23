@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# 17-video-unpooled-lane.sh — a video turn on a server with no session pool must still earn
+# 17-video-unpooled-lane.sh. A video turn on a server with no session pool must still earn
 # the `video_input=delivered` claim.
 #
-# ### Why (AGENTS.md invariant 2 — the direction every existing gate missed)
+# ### Why (AGENTS.md invariant 2. The direction every existing gate missed)
 # Probe 08 measures video on the normal lane: the server boots with a session pool, the turn
 # lands on a pooled ChatSession, and the disclosure follows. The record, though, lived
-# *inside* the pooled release — `releasePoolSlotWithAssistant` opens with
+# *inside* the pooled release, `releasePoolSlotWithAssistant` opens with
 # `if let pool … , let pooled …`, and that whole block is a no-op when there is no pool.
 # Two lanes run without one:
 #
-#   • the degraded lane — HardwareRouter decides `.cpu` under memory pressure and
+#   • the degraded lane. HardwareRouter decides `.cpu` under memory pressure and
 #     EngineInference sets `poolRef = nil` (the device does not actually change; what the
 #     lane loses is prefix-cache reuse); nobody can schedule that on a 128 GB box, and
-#   • a pool-disabled engine — `sessionPool = nil` when the config carries no pool.
+#   • a pool-disabled engine, `sessionPool = nil` when the config carries no pool.
 #
 # Both lanes still hand every frame to the processor: the model answers "Red" and
 # prompt_tokens grows by the frames' tokens. So the client's answer was correct while the
-# surface it consults to choose a model said `not_observed` — invariant 2 broken in the
+# surface it consults to choose a model said `not_observed`. Invariant 2 broken in the
 # direction of silence, invisible to a suite that only ever exercised the pooled lane.
 #
 # ### How the lane is reached on demand, and how this probe proves it got there
@@ -27,7 +27,7 @@
 # that assumed the lane would also pass on a server that ignored the switch and proved
 # nothing.
 #
-# The delivery is then measured the way probe 08 measures it — same one-word question with
+# The delivery is then measured the way probe 08 measures it. Same one-word question with
 # and without a red clip, and the frames count as delivered only when the answer says red
 # *and* prompt_tokens jumped by tens. That pairing is what licenses asking the surface about
 # video at all: `delivered` must be earned here before `/v1/models` is allowed to say it.
@@ -52,7 +52,7 @@ RED_BYTES="$PROBE_CLIP_BYTES"
 RED_URL="$(printf 'data:video/mp4;base64,%s' "$(base64 < "$RED_CLIP" | tr -d '\n')")"
 probe_ok "red clip ready ($RED_BYTES bytes) — a text-only answer here would be a guess about nothing"
 
-# body KIND SESSION — KIND: noquestion | clip
+# body KIND SESSION. KIND: noquestion | clip
 make_body() {
   python3 - "$PROBE_MODEL" "$1" "$2" "$QUESTION" "$RED_URL" <<'PY'
 import json, sys

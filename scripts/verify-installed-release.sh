@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# verify-installed-release.sh — honest closed loop for "installed == released == fixed".
+# verify-installed-release.sh. Honest closed loop for "installed == released == fixed".
 #
 # Checks, in order, all against live state (nothing asserted from memory):
 #   1. GitHub release <tag> exists and its DMG asset URL is downloadable
 #   2. /Applications/ocoreai.app version string == <tag>  (installed is current)
 #   3. cold-boot perception: with persisted network=false (and others true),
 #      a freshly launched app's observe_state reports NO [network] frames,
-#      and with network=true it DOES — proves boot hook + lever honesty on
+#      and with network=true it DOES. Proves boot hook + lever honesty on
 #      the shipped bundle, no GUI touches (the cold-boot gap, fixed 14d2ab5).
 # Any check that cannot run prints SKIP with a reason, never fakes PASS.
 #
@@ -40,7 +40,7 @@ if [ "v$V" = "$TAG" ]; then note PASS "installed version = $V"; else note FAIL "
 
 # 2b. wire required = decode truth on the SHIPPED binary (grammar models are
 #     forced to honor required; an "Optional"-described required key is a lie
-#     the model must fabricate a value for — caught live in 0.1.9/0.1.11).
+#     the model must fabricate a value for. Caught live in 0.1.9/0.1.11).
 check_required(){
   curl -s -m 10 http://127.0.0.1:8080/v1/tools > /tmp/vir_tools.json 2>/dev/null || { note SKIP "required-check: /v1/tools unreachable"; return; }
   python3 - <<'EOF'
@@ -68,13 +68,13 @@ for name,p in by.items():
 # Whitelist = tools proven parameterless in Sources (empty Args struct).
 # Live-proven on the official v0.1.12 DMG: info/skills_list/skills_lookup/
 # skills_view/echo advertised properties:{} while InfoArgs/SkillsListArgs/...
-# carry stored members — the model cannot call them without the key names.
+# carry stored members. The model cannot call them without the key names.
 zero_ok={'curr_time','system_info','observe_state','get_context_remaining','get_plan'}
 for name,p in by.items():
     if not (p.get('properties') or {}) and name not in zero_ok:
         lies.append(f'{name}:EMPTY_PROPS')
 if not fixed:
-    # pre-fix binary (<=0.1.10): drift is the KNOWN state — report it loudly
+    # pre-fix binary (<=0.1.10): drift is the KNOWN state. Report it loudly
     # as evidence the check bites, never pass it silently.
     print('PRE-FIX-BINARY drift=%d lies=%d (check bites; green requires >=0.1.12)' % (len(bad),len(lies)))
     sys.exit(2)

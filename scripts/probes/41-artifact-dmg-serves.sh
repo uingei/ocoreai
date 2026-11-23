@@ -1,31 +1,31 @@
 #!/usr/bin/env bash
-# 41-artifact-dmg-serves.sh — does the .dmg a stranger downloads actually serve?
+# 41-artifact-dmg-serves.sh. Does the .dmg a stranger downloads actually serve?
 #
 # ### Why this probe exists
 # Every other live probe here boots a binary that lives under `.build`, so they judge the WORKING
 # TREE. Nobody judged the artefact: the bundle a person drags into Applications is assembled by
 # `scripts/build-app.sh` (binary + metallib + Info.plist + icon), wrapped by `build-dmg.sh`,
-# ad-hoc signed, then mounted — four steps between "the tree serves" and "the DMG serves". The
+# ad-hoc signed, then mounted. Four steps between "the tree serves" and "the DMG serves". The
 # release leg that ships those steps has died on two of them (metallib 09-27, artefact upload
 # v0.1.12 ×2) and has never produced a release: `git ls-remote --tags origin` is empty and
 # `/releases` is `[]` (measured 10-29). AGENTS.md invariant 2 says the surface may not claim more
-# than the engine delivered — this is the same rule applied to the shipping medium.
+# than the engine delivered. This is the same rule applied to the shipping medium.
 #
 # ### What is asserted (§ in order)
-#   §0 premise — the tree that BUILT the artefact is at the pin and clean. A mounted volume sits
+#   §0 premise. The tree that BUILT the artefact is at the pin and clean. A mounted volume sits
 #      outside any scratch, so `probe_scratch_for_binary` cannot name it: the builder's scratch is
 #      therefore named by hand here rather than excused as "not verifiable".
-#   §1 the bundle's own facts — the executable bit, the drag-target /Applications symlink, the
+#   §1 the bundle's own facts. The executable bit, the drag-target /Applications symlink, the
 #      shader payload *inside* the bundle (the 09-27 failure, judged where it ships), a signature
 #      that verifies, and the version string the artefact reports.
-#   §2 it serves — boot the binary from inside the mounted, read-only volume: /health answers with
+#   §2 it serves. Boot the binary from inside the mounted, read-only volume: /health answers with
 #      nothing resident, the handlers answer on /v1/models, and the log carries no metallib failure.
-#   §3 it stops — SIGTERM drains to exit 0 with the completion line, so a harness that pipes the
+#   §3 it stops. SIGTERM drains to exit 0 with the completion line, so a harness that pipes the
 #      daemon gets an orderly end rather than a killed process.
 #
 # ### Premise, and what happens without it
 # The artefact is the input: `$OCOREAI_ARTIFACT_DMG`, else the newest `dist/ocoreai-*.dmg`. No
-# artefact is a red with the remedy, not a skip — a probe that reports success because its subject
+# artefact is a red with the remedy, not a skip. A probe that reports success because its subject
 # was absent is the vacuous-pass family this suite was built to refuse. `$OCOREAI_ARTIFACT_VERSION`
 # pins §1's version verdict; without it the number is printed, not judged (an off-pin check stays
 # advisory). Owned by `.github/workflows/package.yml`; `make probes` on a host with no DMG built
@@ -42,7 +42,7 @@ if [ -z "$DMG" ]; then
   DMG="$(ls -t "$PROBE_REPO_ROOT"/dist/ocoreai-*.dmg 2>/dev/null | head -1 || true)"
 elif [ ! -f "$DMG" ] && [ -f "$PROBE_REPO_ROOT/$DMG" ]; then
   # A caller may name the artefact relative to the tree it built, and run.sh cds into this directory
-  # before launching a probe — measured 10-29 when this probe's first runner pass died in 1 s on
+  # before launching a probe. Measured 10-29 when this probe's first runner pass died in 1 s on
   # `dist/ocoreai-<ver>.dmg` for exactly that reason. Resolving the caller's own path against the repo
   # root is the harness's job; inventing a path the caller never named is not.
   probe_note "OCOREAI_ARTIFACT_DMG=$DMG is relative and run.sh cds here — resolved against the repo root"
@@ -163,13 +163,13 @@ else
     probe_fail "no 'shut down complete' line — it stopped, but not through the drain its own docs promise"
   fi
 
-  # Printed, not judged: what the log says about itself during an orderly stop. Measured 10-29 —
+  # Printed, not judged: what the log says about itself during an orderly stop. Measured 10-29,
   # Hummingbird logs `Server shutdown error: Already closed` and `Waiting on child channel:
   # CancellationError()` at label `HummingbirdCore` where stop() cancels the task that owns the listener
   # and upstream's graceful handler then finds the channel already gone. Exit is still 0 and the drain
   # still completes, so this is not a verdict; it is the number that moves if the stop is ever routed
   # through upstream's quiesce. Tried and refuted the same day: `runService(gracefulShutdownSignals: [])`
-  # — the theory was two owners of the stop — and both lines printed anyway, twice each. The lever is not
+  #. The theory was two owners of the stop, and both lines printed anyway, twice each. The lever is not
   # ours to pull in the pinned Hummingbird: `Application` builds its `Server` inside `run()` and keeps no
   # handle to it, so a graceful stop would mean re-hosting the server (a new core surface, refused).
   ERR_LINES="$(grep -ci error "$PROBE_LOG" | tr -d ' ')"   # grep counts 0 as a non-match: empty, not zero

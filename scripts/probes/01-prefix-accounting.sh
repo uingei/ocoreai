@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# 01-prefix-accounting.sh — what a session-pool HIT actually saves, measured.
+# 01-prefix-accounting.sh. What a session-pool HIT actually saves, measured.
 #
 # Why (AGENTS.md § Open, P1, 10-14): the open item says every turn pays the full
-# prefill — `prefilled == full prompt`, `cached == 0` — and the earlier "prefix reuse
+# prefill, `prefilled == full prompt`, `cached == 0`, and the earlier "prefix reuse
 # is working" reading was a misread of model-load time. That conclusion came from a
 # temp-dir script that no longer exists. This is the instrument that replaces it: the
 # same measurement, reproducible, with the numbers printed.
 #
-# What it asserts (invariant 2 — the surface never claims more than the engine did):
+# What it asserts (invariant 2. The surface never claims more than the engine did):
 #   A. The dedupe path is actually exercised, else the run proves nothing.
 #   B. `usage.prompt_tokens_details.cached_tokens` on the wire agrees, turn for turn,
 #      with the accounting line the engine logged. Both directions are hard failures:
@@ -32,7 +32,7 @@
 # its 30k-context extrapolation, printed from this run's own numbers.
 #
 # Which lane it measures: turns 1-5 declare one inert tool, because a turn that registers a
-# tool generates through the pooled `ChatSession` — the only route that continues a resident
+# tool generates through the pooled `ChatSession`. The only route that continues a resident
 # KV cache, and therefore the only one where withholding a prefix the cache already holds is
 # a saving rather than a loss. Plain chat on a reasoning checkpoint answers on a lane that
 # renders its own `LMInput` and calls `generateTokensTask` with `cache:` unset
@@ -41,16 +41,16 @@
 # regarding a vault" at `prompt_tokens=684`, while the identical body on a cold session
 # answered `MANGO-42` at 712. That lane owes a different assertion, and §F makes it.
 # Turn 4 is an edited resend (a past turn reworded). `canReusePooledSession` still refuses
-# to ANSWER from that cache — and since 10-21 the cache is no longer discarded either: the
+# to ANSWER from that cache, and since 10-21 the cache is no longer discarded either: the
 # session is forked onto the shared prefix, so this turn reuses it and the turn owes an
 # accounting line like any other warm turn. Correctness of the edit (the replaced fact must
 # not leak) is owned by 27-edited-history-honesty.sh, which is why turn 4's REUSE stays a
 # NOTE here: this probe prices turns, it does not judge what they say.
 #
 # Before/after baseline for the record (same host, same script, same model):
-#   10-16 @ pin 4cc5504 — [708, 730, 749] paid, cached 0/0/0, status no_reuse_observed
-#   10-16 @ pin 6e338e5 — [708,  20,  16] paid, cached 0/710/733, status reuse_observed
-#   10-21 @ pin 48114eedf — same three turns, plus the edited resend: 721 of 752 reused
+#   10-16 @ pin 4cc5504. [708, 730, 749] paid, cached 0/0/0, status no_reuse_observed
+#   10-16 @ pin 6e338e5. [708,  20,  16] paid, cached 0/710/733, status reuse_observed
+#   10-21 @ pin 48114eedf. Same three turns, plus the edited resend: 721 of 752 reused
 #                             (it re-prefilled all 752 before fork + rewind reserve)
 # (turns 1-3; the edited-resend turn was added after these two runs)
 #
@@ -118,9 +118,9 @@ else
   probe_fail "turn 3 -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:200}"
 fi
 
-# turn 4 — the edited resend: same conversation, but the second user turn is reworded, so
+# turn 4. The edited resend: same conversation, but the second user turn is reworded, so
 # the transcript no longer *extends* what the pool holds. Answering from that KV would leak
-# the pre-edit turn, so `canReusePooledSession` refuses it — but the cache is now rewound
+# the pre-edit turn, so `canReusePooledSession` refuses it, but the cache is now rewound
 # onto the shared prefix instead of dropped (SessionPool.rewindHistoryEnd -> the fork at
 # EngineInference, with the reserve requested in MLXBridge.makeKVCacheConfiguration). The
 # number printed here is what that leaves unpaid: rows older than the 1024-row reserve are
@@ -140,11 +140,11 @@ else
   probe_fail "turn 4 (edited resend) -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:200}"
 fi
 
-# turn 5 — the same head, a different conversation. Sessions are keyed
+# turn 5. The same head, a different conversation. Sessions are keyed
 # `modelId:conversationId` (SessionPool.poolKey), so this turn pays a cold prefill even
 # though a live session for the same model already holds [U1, A1]: codex #55587 decouples
 # the prompt-cache key from session identity for exactly this reason (its axis is
-# provider-side caching, ours is local KV). NOTE only — loosening the key is an owner
+# provider-side caching, ours is local KV). NOTE only. Loosening the key is an owner
 # decision with a correctness cost, so this turn prices it instead of asserting a verdict.
 # The deepest overlap here is 2, not 3, because turn 4 rewrote the second message: the
 # edited transcript is what conversation 1 is holding now.
@@ -372,7 +372,7 @@ case "$STREAM_USAGE" in
       fi
       # The counter tie only bites when whole != suffix, i.e. when this turn reused a prefix.
       # A cold streaming turn makes the two equal, and a §E that quietly degrades to that shape
-      # would report the same clean line as a run that checked the defect — so say which happened.
+      # would report the same clean line as a run that checked the defect, so say which happened.
       SF_LOGGED="$(grep -E "Prefix cache reused [0-9]+ of [0-9]+ prompt tokens for $SSESSION" "$PROBE_LOG" 2>/dev/null | tail -1 || true)"
       if [ -n "$SF_LOGGED" ]; then
         SF_T="$(printf '%s' "$SF_LOGGED" | sed -nE 's/.*reused ([0-9]+) of ([0-9]+) prompt tokens.*/\2/p')"
@@ -435,7 +435,7 @@ if [ "$REQUIRE_REUSE" = "1" ]; then
   # while every cost claim built on it went false.
   #
   # What a turn PAID is the difference, not the prompt: `prompt_tokens` on the wire is the whole
-  # rendered prompt and `cached_tokens` the part its KV cache kept, so paid = prompt - cached.
+  # rendered prompt and `cached_tokens` the part its KV cache kept, so paid = prompt. Cached.
   # Comparing `prompt <= cached` here (what this line did until 10-21) looked sane only because
   # the wire published the prefilled suffix under the prompt's name; with the accounting fixed
   # that comparison fails every healthy turn (prompt 749 / cached 733).
@@ -459,7 +459,7 @@ else
 fi
 
 probe_section "the surface must say what the engine measured"
-# GET /v1/models/:model/kv-cache publishes `prefixReuse` — per-model, measured from
+# GET /v1/models/:model/kv-cache publishes `prefixReuse`. Per-model, measured from
 # upstream's own cachedPromptTokenCount. This probe knows what it just watched, so it can
 # check the published answer against its own measurement (invariant 2).
 ENC_MODEL="$(python3 -c 'import sys;print(sys.argv[1].replace("/", "%2F"))' "$PROBE_MODEL")"
@@ -488,7 +488,7 @@ else
     probe_fail "kv-cache reports ${PR_WARM:-0} warm turn(s) after 3 same-session requests — the ledger never recorded"
   fi
   # The refusal ledger: which rule said no, and how often a cold turn arrived while another
-  # session already held the head. Same discipline as prefixReuse above — the counter must be
+  # session already held the head. Same discipline as prefixReuse above. The counter must be
   # on the wire, must be non-zero when this run knows a refusal happened, and must not
   # out-count the log lines that record them.
   RR_TOTAL="$(probe_json "$PROBE_BODY" 'reuseRefusals.total')"
@@ -500,7 +500,7 @@ else
   else
     # Only the lines that threw the cache away are refusals. Since 10-21 the diverged-turn
     # line can also end "cache kept for a rewind instead of discarded", and counting that as
-    # a refusal would have the counter report a rebuild the engine did not do — the same
+    # a refusal would have the counter report a rebuild the engine did not do. The same
     # direction of error this whole probe exists to catch (AGENTS.md invariant 2).
     LOG_REFUSALS="$(grep -c "not reusable:.*building a clean session" "$PROBE_LOG" 2>/dev/null || true)"
     LOG_REFUSALS="${LOG_REFUSALS:-0}"
@@ -530,14 +530,14 @@ fi
 
 # F. a lane that builds its own prompt keeps its whole feed. Plain chat on a reasoning
 # checkpoint renders its own LMInput and calls `generateTokensTask` with `cache:` unset, so
-# what the pool withholds on a HIT is not already resident — it is gone. One body is sent
+# what the pool withholds on a HIT is not already resident. It is gone. One body is sent
 # twice, to a session that could withhold and to a cold one: equal `prompt_tokens` and the
 # same recalled fact mean the warm turn was fed the conversation. Before 11-01 the warm copy
 # answered `prompt_tokens=684` and refused the fact the cold copy (`712`) named.
 #
 # Why this section runs last: its premise is `prefixReuse.warmTurns`, read over HTTP. The
 # engine's log lines are block-buffered, so a grep issued moments after a turn races the
-# flush (measured 11-01 — the line was present on re-read and absent at the check), and a
+# flush (measured 11-01. The line was present on re-read and absent at the check), and a
 # premise that races is a premise that passes vacuously. A published counter cannot.
 probe_section "F — a self-preparing lane keeps its whole feed (plain chat, no tools)"
 if [ "${PR_WARM:-0}" -ge 2 ]; then
@@ -548,7 +548,7 @@ fi
 
 export FT1="The passphrase for the vault is MANGO-42. Reply with ACK only."
 export FQ="What is the vault passphrase? Reply with the phrase only."
-# The body §F sends warm and cold — turn 1, the answer it earned, and a question only turn 1
+# The body §F sends warm and cold. Turn 1, the answer it earned, and a question only turn 1
 # can answer. One builder, so the two sends cannot differ by construction.
 f_body() {
   ANSWER="$1" python3 -c '
@@ -558,7 +558,7 @@ print(json.dumps([{"role": "user", "content": os.environ["FT1"]},
                   {"role": "user", "content": os.environ["FQ"]}]))'
 }
 
-# F1 — one lane throughout: this conversation never continues the pooled session's KV, so the
+# F1. One lane throughout: this conversation never continues the pooled session's KV, so the
 # pool has nothing to claim and must claim nothing.
 FSESS="PROBE-PREFIX-SELF-$$"
 probe_chat "$FSESS" "$(PROBE_TOOLS_JSON= probe_chat_body "$FSESS" "$(python3 -c 'import json,sys;print(json.dumps([{"role":"user","content":sys.argv[1]}]))' "$FT1")" "$MAX_TOKENS")"
@@ -592,7 +592,7 @@ else
   probe_fail "self-preparing turn reported cached_tokens=${F_WARM_C:-none} — that lane has no continued cache to have reused anything from"
 fi
 
-# F2 — the mixed conversation, where the clamp actually bites. Turn 1 runs on the pooled
+# F2. The mixed conversation, where the clamp actually bites. Turn 1 runs on the pooled
 # session and leaves a hot ledger, so the plain turn that follows has a real divergence it
 # could withhold, and still must be fed everything.
 MSESS="PROBE-PREFIX-MIXED-$$"

@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# 30-repeated-prompt-delivery.sh — ask the same thing twice: does the second answer arrive?
+# 30-repeated-prompt-delivery.sh. Ask the same thing twice: does the second answer arrive?
 #
 # ### Why (AGENTS.md invariant 2: the surface never claims more than the engine delivered)
 # Measured 10-22, six runs on one host with one model (`gemma-4-e2b-it-4bit`): when a prompt
 # is sent a second time while its conversation is still pooled under the anonymous
-# conversation key, one of the two turns comes back **200 + one token + finish_reason=stop** —
+# conversation key, one of the two turns comes back **200 + one token + finish_reason=stop**,
 # e.g. content "1" for a request that asked for 150 lines and got 150 on its first asking.
-# It is not saturation — distinct prompts never collapse (200/200, 150/96, 26/78, 109/86) — and
+# It is not saturation. Distinct prompts never collapse (200/200, 150/96, 26/78, 109/86), and
 # it is a race rather than a certainty, so no leg may be read as deterministic:
 #   • concurrent identical pair (0.3 s apart): four runs collapsed 1, 1, 1 and 2 of 2 turns
-#     (15:17, 15:43, 16:07, 16:12 — the last run returned one token TWICE, both claiming `stop`)
+#     (15:17, 15:43, 16:07, 16:12. The last run returned one token TWICE, both claiming `stop`)
 #   • sequential identical pair, zero overlap: reproduced once (16:08: 150 then 1), and a second
 #     run of the same shape delivered 150 and 150
 #   • the same prompt a third and fourth time: 150 and 150 (16:09)
@@ -19,43 +19,43 @@
 # Sequential identical prompt bytes:
 #   • 8 turns sharing one anonymous key: 4 collapsed (1 token/stop; firstTokenMs 137…257)
 #   • the next 8 turns, same bytes, a FRESH `session_id` on every request: 4 collapsed
-#     (firstTokenMs 148…257), and those turns never logged a reuse refusal at all — there was
+#     (firstTokenMs 148…257), and those turns never logged a reuse refusal at all. There was
 #     no pooled entry to refuse, so even the "not reusable" line is not a precondition
 # An earlier 6-turn fresh-key run came back 6/6; that was a small-sample read, not a control,
 # and it is retracted here rather than left to contradict the numbers above.
 # What does hold, and is the useful discriminator, is that the split is bimodal in TIME:
-#   • healthy   — firstTokenMs 4927…8020 (a real 713-token prefill), tokens=200, .maxTokens
-#   • collapsed — firstTokenMs 137…257, tokens=1, .eos, while GenerateCompletionInfo still
+#   • healthy. FirstTokenMs 4927…8020 (a real 713-token prefill), tokens=200, .maxTokens
+#   • collapsed. FirstTokenMs 137…257, tokens=1, .eos, while GenerateCompletionInfo still
 #     reported promptTokenCount=713
 # The clause that used to finish that sentence ("the turn never forwarded its prompt to the model")
 # is retracted by measurement, same day: a 713-token prefill costs ~180 ms once the process is warm
 # (max_tokens=1: turn 1 = 7404 ms cold, then 176/230 ms), so 130…257 ms is consistent with a prefill
-# that genuinely ran. The layer is the sampler, not the feed — CHANGELOG 10-22(11).
+# that genuinely ran. The layer is the sampler, not the feed. CHANGELOG 10-22(11).
 # Host memory is not it either: collapses appear at both 117 GB and 122 GB in use. The root
 # cause is open, and the instrument it needs (an upstream "prefill actually happened" signal)
 # is recorded in CHANGELOG 10-22(8). What this probe requires regardless of cause is stated
 # in the last leg: **a collapsed turn must never be silent**.
 # TWO mechanism stories died on this file in one evening, and neither survived its own gate:
-#   • "the collapse is temperature-gated, greedy never collapses" — from one sweep (0.0 -> 0/12,
+#   • "the collapse is temperature-gated, greedy never collapses". From one sweep (0.0 -> 0/12,
 #     0.3 -> 5/12, 0.7 -> 7/12, 1.0 -> 6/12). Dead: greedy collapsed 6 of 6 the same evening.
-#   • "clean boot is safe, the collapse needs pooled state left by earlier turns" — dead the same
+#   • "clean boot is safe, the collapse needs pooled state left by earlier turns". Dead the same
 #     way it was made: 0 of 6 collapsed greedy turns on a clean boot at 21:34, 6 of 6 on a clean
 #     boot at 22:0x, same binary, same model, same config, nothing pooled at either point.
 # What survives every run: repeating one identical prompt inside one process collapses some of those
 # turns to `tokens=1 finish=stop`, at a rate that swings across the whole range between runs (0/6,
 # 6/6, 5-7/12), while distinct prompts deliver (197-200 tokens). Seven single-variable experiments have
-# now failed to move it — session pool off, KV quantization off, wired memory off, temperature 0, boot
+# now failed to move it. Session pool off, KV quantization off, wired memory off, temperature 0, boot
 # order, 680 MB of stale disk KV snapshots, and MLX_DISABLE_COMPILE (read once per process, mlx
-# mlx/compile.cpp:220 function-local static; 3/6 vs 4/6 collapse boots, no separation — so the compiled
-# Gemma4Text fusions are not the carrier) — so the rate is not a rule, and legs 0a and 5 report it
+# mlx/compile.cpp:220 function-local static; 3/6 vs 4/6 collapse boots, no separation, so the compiled
+# Gemma4Text fusions are not the carrier), so the rate is not a rule, and legs 0a and 5 report it
 # rather than asserting it.
 #
 # Per-process, or per-lane? 15 boots x identical greedy turns (84 turns, both compile arms) came back
-# internally unanimous — every boot all-collapse or all-deliver, never mixed. That reads as a
+# internally unanimous. Every boot all-collapse or all-deliver, never mixed. That reads as a
 # process-global bind, and this file's own 16:08 record contradicts it (one process, sequential, zero
 # overlap: 150 tokens then 1). The gap between the two readings looked like turn count, so turn count
 # became the next axis and got measured: 3 boots x 12 turns, fresh session_id every turn, came back
-# ok x12 / ok x12 / C x12 — no transition anywhere inside a boot. Cumulative per-process state is
+# ok x12 / ok x12 / C x12, no transition anywhere inside a boot. Cumulative per-process state is
 # therefore not the mechanism either, and the single mixed pair at 16:08 stands as the one observation a
 # process-global model still has to explain (or fail to reproduce). Env and config are excluded by
 # construction rather than measurement: inside one A/B arm both stay constant while the mode still flips
@@ -63,16 +63,16 @@
 # The instrument that would settle this is still the missing one: a per-turn answer to "did this
 # forward actually prefill, and how many cache rows did it reuse". `GenerateCompletionInfo` reports
 # tokens FED (bb0d5b048 Evaluate.swift:1753) and left `cachedPromptTokenCount` at 0 on turns that
-# answered a 713-token prompt in ~200 ms — a state in which any mechanism story is guessable, which
+# answered a 713-token prompt in ~200 ms. A state in which any mechanism story is guessable, which
 # is exactly how two of them got written. The invariant this file CAN gate, and which held for 8 of 8
 # collapsed turns last run, is leg 4: a collapsed turn may never be silent.
 # The collapsed turn logs `Session pool entry … not reusable: cached history 2 exceeds common
-# prefix 1 — building a clean session` and finishes inside the same second it was dispatched,
+# prefix 1. Building a clean session` and finishes inside the same second it was dispatched,
 # so it never prefilled 708 tokens: the turn ended before it started, and said `stop`.
 #
 # What is already ruled out, so the next reader does not re-walk it: the pool's miss return
 # carries `divergenceIndex: 0` (`SessionPool.swift`, the clean-session return), so the caller
-# feeds the full transcript — the collapsed turn did not receive an empty prompt by way of the
+# feeds the full transcript. The collapsed turn did not receive an empty prompt by way of the
 # prefix ledger. No disk snapshot is involved on this path either (`deleteCachedSession` runs
 # on the refusal, and the log shows no restore).
 #
@@ -131,7 +131,7 @@ run_turn() {  # run_turn <body> <out>
     -H 'Content-Type: application/json' --data "$1" -o "$2" 2>&1
 }
 
-# ── leg 0a: greedy on a clean boot — measured, deliberately not asserted ────────────────────
+# ── leg 0a: greedy on a clean boot. Measured, deliberately not asserted ────────────────────
 # This was a hard gate for about half an hour, and it went red on its own re-run: the same binary
 # delivered 0 of 6 collapsed greedy turns on a clean boot at 21:34 and collapsed 6 of 6 on a clean
 # boot at 22:0x. A check that flips between identical runs measures a rate; it cannot check a rule.
@@ -150,7 +150,7 @@ done
 probe_note "greedy on a clean boot: $GREEDY_CLEAN/6 collapsed — this binary has measured both 0/6 and" \
   " 6/6 on the same shape, so no rule lives here; leg 4 gates what must be true at any rate"
 
-# ── leg 0: sequential identical repeat — no concurrency, no race, still the same defect ───
+# ── leg 0: sequential identical repeat, no concurrency, no race, still the same defect ───
 PROMPT0='Enumerate 1 to 120, one number per line.'
 BODY0=$(printf '{"model":"%s","max_tokens":150,"stream":false,"messages":[{"role":"user","content":"%s"}]}' \
   "$PROBE_MODEL" "$PROMPT0")
@@ -182,7 +182,7 @@ read -r TOK_A FIN_A <<<"$(finish_tokens "$OUT_A")"
 read -r TOK_B FIN_B <<<"$(finish_tokens "$OUT_B")"
 probe_note "identical pair: A=$TOK_A/$FIN_A tokens  B=$TOK_B/$FIN_B tokens"
 
-# Premise floor: the queue line proves the two turns overlapped. It guards a PASS, not a FAIL —
+# Premise floor: the queue line proves the two turns overlapped. It guards a PASS, not a FAIL,
 # when both turns collapse inside a second they never reach the queue, so absence of the line
 # cannot excuse a truncated answer, and calling that run "unproven" would let the defect hide
 # behind the harness (measured 10-22, second run of this probe: A=1/stop and B=1/stop, no
@@ -257,10 +257,10 @@ else
     " the process as a plain success, which is the lie this probe exists to catch"
 fi
 
-# ── leg 5: greedy AFTER the warm legs — measured, deliberately not asserted ─────────────────
+# ── leg 5: greedy AFTER the warm legs. Measured, deliberately not asserted ─────────────────
 # This shape is the experiment that retracted the temperature story: identical greedy turns, fresh
 # session_id each, run after the repeat/concurrent legs above. Measured 10-22: 0 of 12 collapsed in
-# the morning sweep, 6 of 6 collapsed in the evening run — same host, same model, same binary. Only
+# the morning sweep, 6 of 6 collapsed in the evening run. Same host, same model, same binary. Only
 # leg 0a (clean boot) is stable, which is why greedy is asserted there and reported here. A
 # deterministic decoder that fails only once the engine has been exercised points at pooled/cache
 # state, not the sampler; the invariant that binds regardless of the rate stays leg 4's.

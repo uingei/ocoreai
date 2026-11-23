@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# autoab.sh — the contract loop, automated: gate → apply → build → frozen set k=6 → McNemar →
+# autoab.sh. The contract loop, automated: gate → apply → build → frozen set k=6 → McNemar →
 # keep or revert → ledger.
 #
 # Why this exists: the loop that found the read-echo defect was run by hand, four configurations at
 # k=6, and every judgement in it (which noise floor, which base, whether to revert) was made by a
 # reader. The same loop as a script runs five variants a day and makes the judgements *before* it
 # sees an answer. Two properties are load-bearing and both are gated by `_autoab_selftest.py`:
-#   • the loop cannot move the goal posts — see `autoloop-allow.txt` / `autoloop-protected.txt`;
+#   • the loop cannot move the goal posts. See `autoloop-allow.txt` / `autoloop-protected.txt`;
 #   • a variant that was never measured is never a win: build, boot and invalid-run failures all
 #     land in the ledger as not-measured, because averaging a broken run into a trend is the exact
 #     mistake that once produced a "significant p=0.0032 regression" out of an engine outage;
@@ -17,7 +17,7 @@
 #   OCOREAI_AUTOAB_BASE=<root-of-base-k-runs> bash scripts/eval/autoab.sh [proposal.patch …]
 #
 # Exit: 0 every proposal reached a measured verdict · 1 a proposal was refused (goalposts) ·
-# 3 something was not measured or not reverted (the instrument is broken — fix it before believing
+# 3 something was not measured or not reverted (the instrument is broken. Fix it before believing
 # any row of the ledger).
 
 set -uo pipefail
@@ -50,7 +50,7 @@ if [ ! -f "$ALLOW" ] || [ ! -f "$PROTECTED" ]; then
 fi
 
 # The judges must pass their own self-test before the loop measures anything: until 11-09 nothing
-# ran it automatically — zero callers in Makefile, CI or run.sh, only a README command — so a round
+# ran it automatically. Zero callers in Makefile, CI or run.sh, only a README command, so a round
 # could ride a rule that had been edited out and book a row no later round can trust. ~0.1 s
 # against a minutes-long build, at the one consumer the judges actually govern (the scoreboard's
 # own path runs its four selftests the same way, before its boot).
@@ -64,7 +64,7 @@ CLT=/Library/Developer/CommandLineTools
 CLT_F="$CLT/Library/Developer/Frameworks"
 CLT_SDK="$(DEVELOPER_DIR="$CLT" bash scripts/toolchain-contract.sh print-sdk-root 2>/dev/null)"
 # The CLT ships no `metal`; the cryptex Metal.xctoolchain supplies it, and without its bin on PATH a
-# metal-touching variant fails as rc=127 (utility not found), not as a compile error — measured 11-09,
+# metal-touching variant fails as rc=127 (utility not found), not as a compile error. Measured 11-09,
 # and invisible on an incremental build, which never re-invokes the compiler. Resolved through the
 # contract script rather than a path, so a toolchain move does not strand the loop.
 METAL_BIN="$(bash scripts/toolchain-contract.sh print-metal-bin 2>/dev/null)"
@@ -113,14 +113,14 @@ restore_tree() {
 }
 
 # A measured verdict consumes the proposal. The ledger row is the record; a patch left in the queue
-# glob would buy a whole build + k=6 pair to re-derive a verdict already written — three adjudicated
+# glob would buy a whole build + k=6 pair to re-derive a verdict already written. Three adjudicated
 # patches sat in the glob on 11-09 for exactly that. Explicit re-runs still work
 # (`autoab.sh proposals/adjudicated/foo.patch`); only the glob stops volunteering.
 archive_proposal() {
   local patch="$1" name
   name="$(basename "$patch")"
   # Only queue patches are archived: the fixtures' documented explicit re-run must not have its
-  # file moved, and a name collision must not clobber committed archaeology — the patch bytes are
+  # file moved, and a name collision must not clobber committed archaeology. The patch bytes are
   # the verdict's evidence.
   if [ "$(cd "$(dirname "$patch")" && pwd)" != "$HERE/proposals" ] \
      || [ -e "$HERE/proposals/adjudicated/$name" ]; then

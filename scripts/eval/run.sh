@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# run.sh — 任务成功率记分板 / the task-success scoreboard.
+# run.sh。任务成功率记分板 / the task-success scoreboard.
 #
 # Why this directory exists: everything else in scripts/ checks the WIRE (does the
 # response carry the right fields, does the engine report the reuse it spent). Nothing
-# here measures the mission's own unit — did the agent finish a real coding job? So each
+# here measures the mission's own unit. Did the agent finish a real coding job? So each
 # task mutates a throwaway workspace and the verifier inspects THE WORKSPACE, never the
 # model's description of its own work. An answer that claims success while the file is
 # unchanged scores FAIL, which is the difference between 生成内容 and 可靠行动.
@@ -33,7 +33,7 @@ export OCOREAI_APPROVAL_POLICY
 : "${OCOREAI_EVAL_TOOLS:=read_file write_file edit_file edit_lines search_files exec_command}"
 export OCOREAI_EVAL_TOOLS
 # Two sets share this runner: the default 45-task set and the frozen 52-task edit-repair set the
-# A/B loop judges with. The floor sits under both so a silently truncated set still goes red —
+# A/B loop judges with. The floor sits under both so a silently truncated set still goes red,
 # measured 10-24 against the loaded sets (`_eval.py count`), and raised with them: 30 covered a
 # 36/40 pair; 34 covered the 39/52 pair, and 40 covers the 45/52 pair loaded today, so the frozen
 # set losing thirteen tasks is a failure (39 loaded) and the default set losing six is. Screening
@@ -66,7 +66,7 @@ DOCS_BYTES=0
 DOCS_ARG=none
 case "$OCOREAI_EVAL_DOCS" in
   none)
-    # A reused workspace must not carry a doc over from another arm — an inherited doc measures the
+    # A reused workspace must not carry a doc over from another arm. An inherited doc measures the
     # previous experiment while reporting this one.
     for stale in "$EVAL_WS/AGENTS.md" "$EVAL_WS/AGENTS.override.md" "$EVAL_WS/AGENTS.inert.md"; do
       if [ -e "$stale" ]; then
@@ -96,7 +96,7 @@ if [ "$OCOREAI_EVAL_DOCS" != "none" ]; then
   # `OCOREAI_EVAL_DOCS_INERT=1` separates the two causes the corpus A/B cannot otherwise tell apart:
   # the bytes *being injected* vs the bytes merely *being in the workspace*. `WorkspaceContext` reads
   # exactly `AGENTS.override.md` / `AGENTS.md`, so a copy named `AGENTS.inert.md` sits in the tree the
-  # agent works in and reaches no prompt — the floor below asserts that from the run itself (the
+  # agent works in and reaches no prompt. The floor below asserts that from the run itself (the
   # injected name never present + the `systemChars` span stays in the doc-free band), not from a claim.
   DOCS_TARGET="$EVAL_WS/AGENTS.md"
   if [ "${OCOREAI_EVAL_DOCS_INERT:-0}" = "1" ]; then
@@ -112,7 +112,7 @@ elif [ "${OCOREAI_EVAL_DOCS_INERT:-0}" = "1" ]; then
 fi
 
 # The doc is written per task, not once at boot: the loop below wipes $EVAL_WS before every task,
-# and a doc copied at boot is gone by the first wipe. Measured 10-27 — every turn assembled a
+# and a doc copied at boot is gone by the first wipe. Measured 10-27. Every turn assembled a
 # doc-free prompt (systemChars=3002 against a 21,548 B doc) and only the premise floor said so.
 # One home for the copy, called at boot and again after every wipe.
 materialize_docs() {
@@ -131,7 +131,7 @@ export OCOREAI_PROBE_KEEP_LOGS=1
 # Registered through `probe_atexit`, NOT a raw `trap … EXIT`: bash keeps one handler per signal, so a
 # trap here silently replaces `probes_cleanup` and the board's own serve is left holding the
 # single-instance lock. Measured 10-27: after a full-surface arm finished, an orphaned release `serve`
-# (pid 97436) survived, and the next `repeat.sh` refused at its pre-flight — the class `_lib.sh`
+# (pid 97436) survived, and the next `repeat.sh` refused at its pre-flight. The class `_lib.sh`
 # documents at probe_atexit, reproduced by the file that ships the harness.
 probe_atexit 'if [ -n "${PROBE_LOG:-}" ] && [ -f "$PROBE_LOG" ]; then cp -f "$PROBE_LOG" "$OUT/server.log" 2>/dev/null; fi'
 # _eval.py reads the cached /v1/tools payload through this name; an unexported variable
@@ -173,7 +173,7 @@ if ! python3 "$HERE/_conditions_selftest.py"; then
 fi
 
 # One rung further on the same class: the cost figures are computed from the rows this run is
-# about to write, so the parser is judged on hand-computable fixtures before the boot — including
+# about to write, so the parser is judged on hand-computable fixtures before the boot. Including
 # the trap where a `# efficiency` line lands after `# score` and silently becomes the score.
 if ! python3 "$HERE/_efficiency_selftest.py"; then
   echo "  FAIL  the scoreboard's cost figures are unsound — the cost of a verified success" \
@@ -184,7 +184,7 @@ fi
 # Which artefact answered, and whether it can even be the artefact this tree describes. A verdict is
 # a claim about a *build*, while `_lib.sh` resolves whatever binary sits on disk: measured 10-27, a
 # board scored a tree whose sources were four hours newer than the binary it ran, and `results.tsv`
-# had no field that could show it. Deliberately judging an older build is allowed — say so.
+# had no field that could show it. Deliberately judging an older build is allowed. Say so.
 EVAL_BIN="$(probe_resolve_binary 2>/dev/null)"
 if [ -z "$EVAL_BIN" ]; then
   probe_fail "no ocoreai artefact resolved — the conditions line would record the answering build as" \
@@ -197,7 +197,7 @@ fi
 EVAL_COMMIT="$(git -C "$PROBE_REPO_ROOT" rev-parse HEAD 2>/dev/null)"
 BIN_MTIME="$(stat -f %m "$EVAL_BIN")"
 # Compiled inputs only: the `Sources/**` guides (*.md) are read from disk at runtime, never linked,
-# so an old binary already answers with the newest guide — and a no-change `swift build` does not
+# so an old binary already answers with the newest guide, and a no-change `swift build` does not
 # relink, so counting them pinned a premise its own remedy could not satisfy (caught live 11-08:
 # the board refused a docs-only tree twice; the second refusal printed the same binary mtime the
 # remedy had just "refreshed"). The doc surface keeps its own home in the conditions `docs` digest.
@@ -299,7 +299,7 @@ RUN=0
 # A request that never reached the engine is not a model failure. Measured 10-22: one run
 # lost 13 consecutive tasks to `Generation failed: Engine busy` in 4 seconds (an abandoned
 # request held the inference lock for ~160 s), the run scored 7/23, and `repeat.sh` averaged
-# it in — McNemar then reported a *significant* p=0.0032 regression that was an outage.
+# it in. McNemar then reported a *significant* p=0.0032 regression that was an outage.
 # A scoreboard that turns infrastructure faults into model scores is worse than no scoreboard.
 FAULTS=0
 : > "$OUT/faults.txt"
@@ -343,17 +343,17 @@ for id in $(python3 "$HERE/_eval.py" ids); do
 
   # 126/127 are machine state, never workspace state: no file an agent writes makes the
   # verifier's own command missing or unexecutable. Scoring one as a task fail launders a
-  # dead toolchain into the model's task-success rate — the stale-Metal mid-round incident
+  # dead toolchain into the model's task-success rate. The stale-Metal mid-round incident
   # (README §ledger, 11-06) is the same family one layer up, and four recorded runs paid a
   # paragraph each to adjudicate by hand whether the harness or the model failed. The
   # attribution rule is borrowed (terminal-bench's verifier contract, tasks/*/tests/test.sh: a
   # verifier that cannot record a scoreable verdict is a hard error, never a laundered 0);
   # the exit shape is this file's own pre-run stance (a verifier that cannot fail is audited
-  # before any turn runs — this is its mid-run twin). Stop loudly: the remaining tasks would
+  # before any turn runs. This is its mid-run twin). Stop loudly: the remaining tasks would
   # inherit the same broken machine. Premise audited 11-10 before writing the branch: all 45
   # verify commands start with a machine tool (python3/[/case/grep/printf/test/!) and none
   # execs an agent-authored artifact as a command, so 126/127 here cannot name a missing
-  # product of the agent — that floor is what makes an abort the right reading of those codes.
+  # product of the agent, that floor is what makes an abort the right reading of those codes.
   if [ "$rc" -eq 126 ] || [ "$rc" -eq 127 ]; then
     probe_fail "task $id: verify_rc $rc — the verifier's own command is missing or unexecutable" \
       "(machine state, not agent state; see verify-$id.log) — the run stops here rather than" \
@@ -363,7 +363,7 @@ for id in $(python3 "$HERE/_eval.py" ids); do
 
   # A verifier's rc says the workspace is wrong, never what the produced file said, and the next
   # task wipes the directory: without these bytes the cause of a failure dies with the session.
-  # Passing tasks are snapshotted too — "it passed" is only evidence once the shape is on disk.
+  # Passing tasks are snapshotted too. "it passed" is only evidence once the shape is on disk.
   snap="$OUT/artifacts-$id.txt"
   snap_bytes="$(python3 "$HERE/_eval.py" snapshot "$ws" "$snap" 2>&1)"
   probe_require_int "artefact snapshot for $id" "$snap_bytes"
@@ -412,7 +412,7 @@ fi
 
 # What a verified success cost, derived from the rows above: cost is summed over every attempt
 # (a failed turn spent its seconds and its tokens) and every quotient is printed next to its
-# denominator. This line goes BEFORE the score on purpose — `_repeat_stats._read_run` takes the
+# denominator. This line goes BEFORE the score on purpose, `_repeat_stats._read_run` takes the
 # last `#` line as the score, and _efficiency_selftest.py demonstrates the displaced reading.
 
 # The same reasoning prices the surface every turn carried: the tool declarations are prompt bytes
@@ -457,7 +457,7 @@ if [ "$OCOREAI_EVAL_DOCS" != "none" ]; then
     # `WorkspaceContext` discovers exactly `AGENTS.override.md` / `AGENTS.md` (the candidate list, with
     # `WorkspaceContextTests` pinning the contract), so the decisive run-side facts are that the
     # injected name never existed while the inert bytes did. The span is printed because it is the
-    # behavioural witness: those same bytes injected move it by their own size (measured 10-27 — 2,442 B
+    # behavioural witness: those same bytes injected move it by their own size (measured 10-27, 2,442 B
     # injected lands at 5,543..6,500 against a doc-free 2,7xx..3,9xx).
     if [ -e "$EVAL_WS/AGENTS.md" ] || [ ! -e "$DOCS_TARGET" ]; then
       probe_fail "the inert arm is not inert: $DOCS_TARGET present=$([ -e "$DOCS_TARGET" ] && echo yes || echo no)" \

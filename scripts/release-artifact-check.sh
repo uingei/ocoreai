@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Release-artifact check — judge the SHAPE OF WHAT WE SHIP, not the environment that built it.
+# Release-artifact check. Judge the SHAPE OF WHAT WE SHIP, not the environment that built it.
 #
 # `scripts/toolchain-contract.sh` asserts R1 against an SDK on disk, and it does that well:
 # it evaluates both candidate routes and settles Metal by compiling a kernel. But an SDK is a

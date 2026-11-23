@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# 02-count-tokens-shapes.sh — every spec-legal way to ask "how big is this?".
+# 02-count-tokens-shapes.sh. Every spec-legal way to ask "how big is this?".
 #
 # Why (AGENTS.md § Wire DTOs + § Open): this endpoint exists to size a request, and it
-# was the one endpoint OpenAI and Anthropic clients could not call — it 404'd on models
+# was the one endpoint OpenAI and Anthropic clients could not call. It 404'd on models
 # /v1/models reported ready (10-12), then 400'd on `messages`/`input` bodies because the
 # DTO only knew `prompt` (10-13). Both defects were invisible to every static audit in the
 # repo and visible in one live request. That is the whole argument for keeping this probe.
 #
 # Asserted:
 #   • each wire shape returns 200 with prompt_tokens > 0;
-#   • every answer labels its source (`tokenizer_backend` real|heuristic) — the field that
+#   • every answer labels its source (`tokenizer_backend` real|heuristic). The field that
 #     keeps an estimate from being read as a token-exact count;
-#   • shapes carrying the same text land on ONE count — within an endpoint. The two
+#   • shapes carrying the same text land on ONE count. Within an endpoint. The two
 #     endpoints here are two surfaces and are compared separately:
 #       `/v1/count-tokens`          = a tokenizer service: it sizes the BYTES YOU SENT.
 #       `/v1/messages/count_tokens` = the pre-flight for `/v1/messages`, so it sizes what
-#                                    that route feeds the MODEL — the caller's bytes PLUS the
+#                                    that route feeds the MODEL. The caller's bytes PLUS the
 #                                    agent context this server injects (skills catalogue,
 #                                    workspace, recalled memory, reasoning scaffold).
 #                                    Measured 10-19: one one-line message counts 17 raw and
@@ -26,7 +26,7 @@
 #     assertion lumped both endpoints into one "same text, same number" group and went
 #     red on a request that had gotten MORE honest, not less.
 #   • the system block counts into the prompt on BOTH endpoints (a shape that silently
-#     drops it shows up here — the failure mode the Anthropic `system`-besides-`messages`
+#     drops it shows up here. The failure mode the Anthropic `system`-besides-`messages`
 #     form used to have);
 #   • a body with none of prompt/input/messages is a 4xx naming the expected shapes,
 #     never a 500 and never "key not found".
@@ -114,16 +114,16 @@ run_shape "anthropic messages + system"      messages_system_string /v1/messages
 probe_section "the same bytes must count the same, whichever field they arrived in"
 # Shapes carrying identical text must agree exactly *within an endpoint*: a disagreement
 # there means one shape drops or double-counts part of the prompt (the
-# `system`-besides-`messages` defect family). `input: [String]` is excluded — it carries
+# `system`-besides-`messages` defect family). `input: [String]` is excluded. It carries
 # MORE text by construction. Across endpoints the two surfaces mean different things (see
 # the header), so they are compared as raw ≤ pre-flight with the measured delta printed.
 python3 - "$RESULTS" <<'SHAPEPY' | sed 's/^/        /'
 import sys
-# /v1/count-tokens — raw tokenizer counting of the caller's bytes
+# /v1/count-tokens. Raw tokenizer counting of the caller's bytes
 RAW_BARE = {"prompt (original shape)", "input as string (OpenAI)", "input as [{role,content}]",
             "messages (Anthropic)"}
 RAW_SYS = {"messages + system string", "messages + system blocks"}
-# /v1/messages/count_tokens — pre-flight for the assembled /v1/messages request
+# /v1/messages/count_tokens. Pre-flight for the assembled /v1/messages request
 ANT_BARE = {"anthropic messages"}
 ANT_SYS = {"anthropic messages + system"}
 rows = [l.split("=", 1) for l in sys.argv[1].splitlines() if "=" in l]
@@ -200,7 +200,7 @@ fi
 # pay must be at least what its own bytes cost. `/v1/messages/count_tokens` moved past
 # `/v1/count-tokens` for the same message when it started counting the assembled request
 # (10-19); the day it collapses back onto the raw number is the day this route stops
-# telling clients what the request will really cost — the 24-against-774 defect, arriving
+# telling clients what the request will really cost. The 24-against-774 defect, arriving
 # quietly. Probe 13 §9 closes the loop by pinning this number against `usage.input_tokens`.
 PREFLIGHT="$(python3 - "$RESULTS" <<'PFPY'
 import sys

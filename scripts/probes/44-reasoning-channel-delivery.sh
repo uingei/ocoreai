@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# 44-reasoning-channel-delivery.sh — does thinking reach `reasoning_content`, or the answer?
+# 44-reasoning-channel-delivery.sh. Does thinking reach `reasoning_content`, or the answer?
 #
 # ### Why (invariant 2: the surface may not claim more than the engine delivered)
 # A reasoning model emits thinking and an answer in ONE decoded stream, and a client can only
-# un-mix them if the server does it — delimiters are stripped by the template, so a leaked
+# un-mix them if the server does it. Delimiters are stripped by the template, so a leaked
 # span reads as prose. Since mlx-swift-lm #563 the decoder splits them and hands the caller
 # `Generation.reasoning` separately, on both lanes this server switches over: `ChatSession`
 # (Libraries/MLXLMCommon/ChatSession.swift:1414) and `generate(mtpDrafter:)`
 # (Libraries/MLXLMCommon/Evaluate.swift:2574). Before that split the standard lane had no
 # arm for the case at all: thinking arrived inside `.chunk`, so it landed in `content`, and
-# the MTP lane carried its own `ReasoningEventEmitter` for the same job — one decision with
+# the MTP lane carried its own `ReasoningEventEmitter` for the same job. One decision with
 # two homes, the second of which now scans answer text that cannot contain a delimiter.
 #
 # ### What is measured
@@ -25,10 +25,10 @@
 #      so the turn runs on `ChatSession`, where #563's split is the only thing that can
 #      produce reasoning at all. If reasoning vanishes here, the arm went missing. The token
 #      count is NOT asserted on this lane: the only upstream counter also bounds the thought,
-#      and a bounded thought starves the tool-call payload — §2b asks the same turn at a small
+#      and a bounded thought starves the tool-call payload. §2b asks the same turn at a small
 #      `max_tokens`, because that is where a cap here turned a 200 into a 500.
 #   3. `content` never carries thinking AND an answer at once. An interior slice of the thinking
-#      must not appear inside an answer — and the thought may not BE the answer. With a hard
+#      must not appear inside an answer, and the thought may not BE the answer. With a hard
 #      budget installed, an answer-less turn (`content` empty, or `content` exactly the delivered
 #      thinking, the `contentWireFallback` face) means the answer reserve never reached
 #      generation; that face used to be reported as an honest measurement and is a red now.
@@ -65,7 +65,7 @@ ASK_TINY_MAX_TOKENS=64
 # least one of them, and the list is what makes "content is clean" a check rather than a wish.
 DELIMS='(<\|channel>|<channel\|>|<\|thinking>|<thinking\|>|<\|think>|<think\|>|<\?\?>|<|im_start|>|<\|end\|>|<thinking>|</thinking>)'
 
-# ask_turn LABEL TOOLS_JSON — one non-streaming turn; sets R_STATUS/R_REASON/R_CONTENT/R_FINISH/R_RT.
+# ask_turn LABEL TOOLS_JSON. One non-streaming turn; sets R_STATUS/R_REASON/R_CONTENT/R_FINISH/R_RT.
 ask_turn() {
   local lab="$1" tools="$2" limit="${3:-$ASK_MAX_TOKENS}" s b
   s="$(fresh_session)"
@@ -99,7 +99,7 @@ probe_boot
 probe_require_ready_model
 
 # Tool specs come from the server's own declared surface, the way scripts/eval/_eval.py reads
-# them — a hand-written fake tool would test a channel the product never sends.
+# them. A hand-written fake tool would test a channel the product never sends.
 probe_api GET /v1/tools || true
 TOOL_SPECS="$(PROBE_BODY="$PROBE_BODY" python3 -c '
 import json, os, sys
@@ -120,7 +120,7 @@ sys.stdout.write(json.dumps(out))')"
 TOOL_N="$(TOOL_SPECS="$TOOL_SPECS" python3 -c 'import json,os,sys; print(len(json.loads(os.environ["TOOL_SPECS"])))')"
 probe_require_int "tool specs read from GET /v1/tools for §2" "$TOOL_N"
 
-# ── 1 — thinking arrives on its own channel ──────────────────────────────────
+# ── 1. Thinking arrives on its own channel ──────────────────────────────────
 probe_section "1 — a thinking turn delivers reasoning_content, clean content, and a token count"
 ask_turn "no tools, reasoning=true" ""
 if [ "$R_STATUS" != "200" ]; then
@@ -162,7 +162,7 @@ else
   S1_REASON="$R_REASON"; S1_CONTENT="$R_CONTENT"; S1_FINISH="$R_FINISH"
 fi
 
-# ── 2 — the face that used to deliver thinking nowhere ───────────────────────
+# ── 2. The face that used to deliver thinking nowhere ───────────────────────
 probe_section "2 — the same ask WITH tools[] declared still delivers reasoning"
 if [ "$TOOL_N" -lt 1 ]; then
   probe_fail "§2 cannot run: the server declared no tools, so the ChatSession-with-tools face is untested"
@@ -195,7 +195,7 @@ else
   esac
 fi
 
-# ── 2b — the same turn at a limit small enough to expose a wrong cap ─────────
+# ── 2b. The same turn at a limit small enough to expose a wrong cap ─────────
 probe_section "2b — a tools turn at max_tokens=$ASK_TINY_MAX_TOKENS still gets its turn (never 500)"
 if [ "$TOOL_N" -lt 1 ]; then
   probe_fail "§2b cannot run: no declared tools, so the payload-starvation face is untested"
@@ -216,7 +216,7 @@ else
   esac
 fi
 
-# ── 3 — the channels are disjoint ────────────────────────────────────────────
+# ── 3. The channels are disjoint ────────────────────────────────────────────
 probe_section "3 — content never carries thinking AND an answer at once"
 if [ -n "${S1_REASON:-}" ] && [ -n "${S1_CONTENT:-}" ]; then
   FACE="$(S1_REASON="$S1_REASON" S1_CONTENT="$S1_CONTENT" python3 -c '

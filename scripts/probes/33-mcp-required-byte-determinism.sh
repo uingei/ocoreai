@@ -1,31 +1,31 @@
 #!/usr/bin/env bash
-# 33-mcp-required-byte-determinism.sh — does a tool whose server declares no `required` reach the
+# 33-mcp-required-byte-determinism.sh. Does a tool whose server declares no `required` reach the
 # prompt with the same bytes every boot?
 #
 # ### Why this door and not the caller's `tools[]`
 # Probe 32 proved prompt bytes are request-determined for caller-declared tools. It left one
 # synthesis path untouched, because a caller-declared schema never routes through it: when *nobody*
 # declares `required`, the registry writes "every declared parameter is required" from
-# `Array(schema.parameters.keys)` — the iteration order of a Swift `Dictionary`, which Swift picks
+# `Array(schema.parameters.keys)`. The iteration order of a Swift `Dictionary`, which Swift picks
 # from a **per-process hash seed**. Two cold boots, two orders, two prompt hashes: the 10-23(8)
 # skill-block class arriving through MCP. The two live exits are `ToolRegistry.swift:820` and
-# `ToolEntry.swift:237` (the third translation, `MCPTools`, was reached by nobody and is deleted —
+# `ToolEntry.swift:237` (the third translation, `MCPTools`, was reached by nobody and is deleted,
 # the outbound face publishes from the same home as everything else). All 8 built-ins declare
 # `required` themselves, so an MCP server that omits it (`inputSchema.required` absent is
-# MCP-legal — `MCPBridge.swift:782` reads it with `as? [String]`, so it lands as nil) is the only
+# MCP-legal, `MCPBridge.swift:782` reads it with `as? [String]`, so it lands as nil) is the only
 # door left on this host.
 #
 # ### What is asserted, in order
-#   1. REACHABILITY — the tool must be *local* (the engine logs
+#   1. REACHABILITY. The tool must be *local* (the engine logs
 #      `whitelist route (1 local + 0 caller-only of 1)`), otherwise nothing of its schema enters
 #      the prompt and every byte claim below would be vacuous.
-#   2. THE DECLARATION ARRIVES — the dumped prompt contains a `<|tool>declaration:mcp_noreq`
+#   2. THE DECLARATION ARRIVES. The dumped prompt contains a `<|tool>declaration:mcp_noreq`
 #      block with a `required:` list of all four parameters.
-#   3. BYTES ACROSS BOOTS — one `promptHash` for this shape across boots, and the extracted
+#   3. BYTES ACROSS BOOTS. One `promptHash` for this shape across boots, and the extracted
 #      `required:` sequence byte-identical between boots.
-#   4. ORDER — that sequence is name-sorted, i.e. it came from the canonicalizer and not from
+#   4. ORDER, that sequence is name-sorted, i.e. it came from the canonicalizer and not from
 #      whoever happened to build the dictionary.
-#   5. Premises floored — boots >= 2, hashes >= boots, four names extracted per boot.
+#   5. Premises floored. Boots >= 2, hashes >= boots, four names extracted per boot.
 #
 # `required` is a set, so sorting changes no meaning; it only stops the process seed from
 # authoring prompt bytes. A caller-declared subset keeps its own order (asserted in
@@ -103,7 +103,7 @@ body = {
         {"role": "user", "content": "Reply with the single word READY."},
     ],
     # A client declaring the server's tool by name: the registry is local, so resolveToolSurface
-    # hands the *registry* spec upstream — the one whose `required` we synthesize.
+    # hands the *registry* spec upstream. The one whose `required` we synthesize.
     "tools": [{
         "type": "function",
         "function": {

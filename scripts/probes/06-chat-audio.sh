@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 06-chat-audio.sh — does /v1/chat/completions hear the audio it accepts, or drop it?
+# 06-chat-audio.sh. Does /v1/chat/completions hear the audio it accepts, or drop it?
 #
-# Why (AGENTS.md invariant 2 — the surface never claims more than the engine delivered):
+# Why (AGENTS.md invariant 2. The surface never claims more than the engine delivered):
 # `/v1/chat/completions` accepts an `audio_url` content part. At the pinned mlx-swift-lm
 # revision nothing under `Libraries/MLXVLMCommon` mentions `audio` at all, so no
-# `UserInputProcessor` can turn waveform into model input — measured 10-15 on this host:
+# `UserInputProcessor` can turn waveform into model input. Measured 10-15 on this host:
 # posting an utterance as `audio_url` returned HTTP 200, `prompt_tokens` went DOWN
 # (705 vs 743 for the same prompt without audio), and the model answered "Please provide
 # the audio". A client cannot tell that from success; a user gets a confident answer to a
@@ -13,11 +13,11 @@
 # This probe pins that the third route is gone. For a chat request that carries audio, the
 # only acceptable outcomes are:
 #
-#   1. DELIVERED — 200 whose body discloses `audio_input` (parts >= 1, the OS ASR engine,
+#   1. DELIVERED, 200 whose body discloses `audio_input` (parts >= 1, the OS ASR engine,
 #      how many parts produced words), and the words demonstrably reached the prompt:
 #      `prompt_tokens` rises above the same turn with no audio, and the answer echoes the
 #      utterance; or
-#   2. REFUSED — a non-2xx whose typed `error_code` names the axis (permission / locale /
+#   2. REFUSED. A non-2xx whose typed `error_code` names the axis (permission / locale /
 #      engine / payload) plus a remediation, in BOTH stream and non-stream mode.
 #
 # 200 with no `audio_input` is a FAIL, and that assertion is the point of the file.
@@ -28,7 +28,7 @@
 # costs milliseconds, not a model load, because it happens before the scheduler.
 #
 # Speech Recognition on this host is `notDetermined`, so the honest live outcome for a real
-# utterance is the REFUSAL — this probe reports which outcome it got and never claims
+# utterance is the REFUSAL. This probe reports which outcome it got and never claims
 # delivery it did not measure.
 #
 # Run: bash scripts/probes/06-chat-audio.sh
@@ -83,7 +83,7 @@ except Exception:
 PY
 }
 
-# true / false for key presence — probe_json cannot distinguish absent from empty.
+# true / false for key presence. Probe_json cannot distinguish absent from empty.
 has_key() {
   PROBE_JSON_INPUT="$1" PROBE_JSON_PATH="$2" python3 - <<'PY'
 import json, os
@@ -200,7 +200,7 @@ else
   bad "9 audio parts -> ${PROBE_STATUS:-no response}; expected a refusal, not a partial answer"
 fi
 
-# ── 3. the utterance round trip: delivered, or refused — never dropped ───────
+# ── 3. the utterance round trip: delivered, or refused. Never dropped ───────
 probe_section "one real utterance — delivered-as-text or refused, and 200-without-disclosure is a FAIL"
 AIFF="$WORKDIR/utterance.aiff"
 SAY_ERROR="$(say -o "$AIFF" -- "$UTTERANCE" 2>&1)"
@@ -345,7 +345,7 @@ if [ "${PROBE_STATUS:-}" = "200" ]; then
   ROWS="$(index_rows "$PROBE_BODY")"
   probe_note "endpoint index rows: ${ROWS}"
   # Premises floor: if the index stopped being published, every lookup below would read
-  # ABSENT and the run would still be "honest about its own blindness" — the floor is what
+  # ABSENT and the run would still be "honest about its own blindness". The floor is what
   # makes a stopped scan red rather than merely a different set of failures.
   if [ "${ROWS:-0}" -ge 30 ]; then
     ok "the index still enumerates the surface ($ROWS routes)"

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 36-download-plan-dry-run.sh — can a client size a download before it commits to one?
+# 36-download-plan-dry-run.sh. Can a client size a download before it commits to one?
 #
 # ### Why (AGENTS.md invariant 2; the mechanism is Strata's, docs/TERMINAL_LAUNCH.md:110)
 # `POST /v1/models/download` used to have exactly one mode: start fetching. A client that
 # wanted to know the size of the hole first had to open the stream and watch progress events,
-# which is the same thing as committing — and the guard that refuses a 40 GB ask fired
+# which is the same thing as committing, and the guard that refuses a 40 GB ask fired
 # only after the client had already dialed. Strata answers that question before touching the
 # disk: `launch --plan` lists the model, the context and "what would download (0 when everything
 # is here)", then exits untouched.
@@ -12,16 +12,16 @@
 # The numbers already existed in this repo: DiskSpaceGuard.measuredRemoteBytes + cachedBytes +
 # decision are the same three the guard blocks on (Models/DiskSpaceGuard.swift). What was
 # missing was a way to *read* them without the block, and a verdict shape that could say
-# "unknown" — DiskSpaceGuard.verdict exists for exactly that, because a guard must not
+# "unknown". DiskSpaceGuard.verdict exists for exactly that, because a guard must not
 # block on silence and a published answer must not claim on silence either.
 #
 # ### What is asserted
-#   1. Premise: the stub hub recorded the metadata request — the plan asked, it did not guess.
+#   1. Premise: the stub hub recorded the metadata request. The plan asked, it did not guess.
 #   2. Measured numbers are exact: remote total, cache credit and the remaining bytes all match
 #      the sizes the stub declared (1000000 + 100 + 50).
 #   3. Nothing was fetched: no directory, no file, not one byte under the cache root for the id.
 #   4. Unknown stays unknown: a repo the hub 404s answers with NO requiredBytes and NO
-#      wouldFit — silence is neither a size nor a fit.
+#      wouldFit. Silence is neither a size nor a fit.
 #   5. "0 when everything is here": the same id, seeded with the three required files, plans
 #      requiredBytes 0 and says so from the local predicate rather than the hub.
 #   6. An unsafe id is refused before the hub is asked, so dry-run is not a bypass of probe 20.

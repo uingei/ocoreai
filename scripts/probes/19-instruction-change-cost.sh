@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# 19-instruction-change-cost.sh — when the caller's instructions change mid-conversation,
+# 19-instruction-change-cost.sh, when the caller's instructions change mid-conversation,
 # is the new set actually obeyed, and what does invalidating the prefix cost? Two numbers.
 #
 # ### Why (AGENTS.md invariant 2 + § Open "instruction identity gates cache reuse")
 # `SessionPool.canReusePooledSession` (Sources/ocoreai/Engine/SessionPool.swift:1186) refuses
 # a pooled session when the instructions differ, on the grounds that a pooled session renders
-# the instructions it was *created* with — so the honest choice was to rebuild rather than run
+# the instructions it was *created* with, so the honest choice was to rebuild rather than run
 # a turn under stale instructions. The consequence nobody had measured: a rebuild re-prefills
 # the whole conversation, so "the client changed its system prompt once" is priced like "the
 # client edited history" (the rewind case in probe 01). Probe 15 proved instructions are
@@ -15,19 +15,19 @@
 # ### Upstream (codex #53872, "Refresh model instructions in incremental-tool context
 # windows", 10-14) took the other branch: track model identity and instruction content
 # independently, and when either changes, append an explicit `model_instructions` developer
-# message marking replacement/removal — so the change reaches the model *and* the existing
+# message marking replacement/removal, so the change reaches the model *and* the existing
 # history prefix keeps its KV cache. That trade (fresh semantics with prefix preserved) is
 # only worth adopting if our measured cost is real, so this probe prices it.
 #
 # ### What is asserted
 #   1. Correctness before cost: instructions A are obeyed on turn 1; after the swap,
-#      instructions B are obeyed on turn 4. A stale-instruction answer is a hard fail —
+#      instructions B are obeyed on turn 4. A stale-instruction answer is a hard fail,
 #      it is the exact defect `instructionsMatch` exists to prevent.
 #   2. The run's own premise: the same-instruction warm turns must actually reuse tokens,
 #      otherwise "the change costs X" has no baseline and the probe would certify nothing.
 #   3. Truthfulness on the changed turn: the wire's `cached_tokens` must equal the number
 #      the engine logged for that conversation, and it may not claim the whole prompt was
-#      reused — the old prefix described the old instructions, so claiming it as reused
+#      reused. The old prefix described the old instructions, so claiming it as reused
 #      would be the surface promising more than the engine delivered.
 #
 # ### What is measured (NOTE, not asserted)
@@ -82,7 +82,7 @@ for arg in sys.argv[1:]:
 print(json.dumps(pair))' "$@"
 }
 
-# turn 1 — cold, instructions A
+# turn 1. Cold, instructions A
 body="$(probe_chat_body "$SESSION" "$(msgjson "$INSTR_A" '[{"role":"user","content":"Reply now."}]')" "$MAX_TOKENS")"
 probe_chat "$SESSION" "$body"
 if [ "${PROBE_STATUS:-}" != "200" ]; then
@@ -94,7 +94,7 @@ T1_PROMPT="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens')"
 T1_CACHED="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens_details.cached_tokens')"
 probe_ok "turn 1 (cold) 200 — prompt_tokens=${T1_PROMPT:-?} cached_tokens=${T1_CACHED:-none} ${PROBE_ELAPSED_MS}ms"
 
-# turn 2 — same instructions, same transcript extended: the control warm turn
+# turn 2. Same instructions, same transcript extended: the control warm turn
 body="$(probe_chat_body "$SESSION" "$(msgjson "$INSTR_A" "$(turns_json "user:Reply now." "assistant:${A1:-ALPHA}" "user:Reply now.")")" "$MAX_TOKENS")"
 probe_chat "$SESSION" "$body"
 if [ "${PROBE_STATUS:-}" != "200" ]; then
@@ -106,7 +106,7 @@ T2_PROMPT="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens')"
 T2_CACHED="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens_details.cached_tokens')"
 probe_ok "turn 2 (same instructions) 200 — prompt_tokens=${T2_PROMPT:-?} cached_tokens=${T2_CACHED:-none} ${PROBE_ELAPSED_MS}ms"
 
-# turn 3 — the instruction swap, history otherwise identical
+# turn 3. The instruction swap, history otherwise identical
 body="$(probe_chat_body "$SESSION" "$(msgjson "$INSTR_B" "$(turns_json "user:Reply now." "assistant:${A1:-ALPHA}" "user:Reply now." "assistant:${A2:-ALPHA}" "user:Reply now.")")" "$MAX_TOKENS")"
 probe_chat "$SESSION" "$body"
 if [ "${PROBE_STATUS:-}" != "200" ]; then

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ci-step.sh <probe-number> — one live wire probe, as one CI step.
+# ci-step.sh <probe-number>. One live wire probe, as one CI step.
 #
 # ### Why one probe per step (10-29)
 # The 10-28 push went red on the macos-26 leg and the whole diagnosis was one annotation:
@@ -11,7 +11,7 @@
 # ### Budgets are CI's, not the local ones
 # These three probes download nothing (probe 37 answers a turn in 39 ms with an empty
 # $OCOREAI_MODELS_DIR, measured 10-29), so a response slower than 20 s is exactly the failure this
-# step exists to print — waiting it out buys nothing. The local cost of 37/38/39 is 2/10/28 s.
+# step exists to print. Waiting it out buys nothing. The local cost of 37/38/39 is 2/10/28 s.
 #
 # ### A red publishes its own words
 # Annotations reach /check-runs/{id}/annotations, which needs no token; the step summary carries
@@ -35,7 +35,7 @@ LOG="probe-$NO.log"
 START=$(date +%s)
 
 # A heartbeat that says WHERE, not just that. On a step timeout GitHub kills the process, so the
-# only record of the phase it was in has to have left before the kill — and a workflow command is
+# only record of the phase it was in has to have left before the kill, and a workflow command is
 # readable through /check-runs/{id}/annotations with no token, which the step's stdout is not.
 # One line per interval, flattened: ::notice:: ends at its first newline.
 HB_EVERY="${OCOREAI_CI_HEARTBEAT:-30}"
@@ -64,7 +64,7 @@ echo "probe $NO: exit $RC after ${ELAPSED}s (binary $BIN · readiness budget ${O
 
 if [ "$RC" -eq 0 ]; then
   # A green step is only half a verdict: which tiers ran is the honest half. The counts live in
-  # the probe log, which needs a token to read, so the summary line is republished as an annotation —
+  # the probe log, which needs a token to read, so the summary line is republished as an annotation,
   # "probe 39 success" cannot be mistaken for "the skill ran against a real checkpoint" once the
   # annotation reads `31 passed, 0 failed, 8 measured, 1 known-open`. Measured 10-29: the runner's
   # first green run of 37/38/39 took 4/3/7 s against the local 2/10/25 s, and the only way to

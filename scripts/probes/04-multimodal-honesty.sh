@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# 04-multimodal-honesty.sh — does "能看 / 能听 / 能说" survive contact with the OS?
+# 04-multimodal-honesty.sh. Does "能看 / 能听 / 能说" survive contact with the OS?
 #
-# Why (AGENTS.md invariant 2 — the surface never claims more than the engine delivered):
+# Why (AGENTS.md invariant 2. The surface never claims more than the engine delivered):
 # `POST /v1/multimodal/status` is indexed as "permission + device status" and published
 # three UI toggles. A toggle is intent, not a fact. Measured on this host (10-14, same
 # APIs read out-of-process): camera `.denied`, microphone `.denied`, 0 capture devices
-# visible, speech recognition `.denied`, 180 installed voices — i.e. every "can see / can
+# visible, speech recognition `.denied`, 180 installed voices, i.e. every "can see / can
 # hear" reading a client could have taken from that payload was unsupported, while the box
 # genuinely can talk. Separately, the microphone capture leg answered `success: true` with
 # `dataURL: null`, so a client that trusted `success` wrote an empty sample.
 #
 # MultimodalStatusHonestyTests pins the derivation at compile time. This probe pins the
 # running server: the payload shape, the closed vocabularies, the derive-success-from-bytes
-# rule, and the one claim none of the unit tests can make — that a vision model actually
+# rule, and the one claim none of the unit tests can make, that a vision model actually
 # answers an image posted over the wire.
 #
 # Asserted:
-#   • /v1/multimodal/status answers fast (a status read must not open a TCC dialog — a
+#   • /v1/multimodal/status answers fast (a status read must not open a TCC dialog. A
 #     prompt would block here until a human answered it), returns all five channel verdicts
 #     and four permission fields, every one inside its documented vocabulary;
 #   • no channel is `ready` without the facts that would make it ready (permission
@@ -24,19 +24,19 @@
 #     `limitations`, and an unmeasurable count is omitted rather than sent as `0` or
 #     `null` ("none found" and "cannot tell" are different claims);
 #   • screen `ready` additionally requires `screenDelivery=captured`, and a failed
-#     delivery surfaces as `blocked` carrying the framework's own words — measured 10-15,
+#     delivery surfaces as `blocked` carrying the framework's own words. Measured 10-15,
 #     the grant was on and a display enumerated while `SCScreenshotManager` refused, yet
 #     `screenStatus` said `ready`;
 #   • no capture leg (camera / microphone / screen) returns `success: true` with a null
 #     `dataURL`;
-#   • every capture leg answers `cache-control: no-store` — the body carries the frame or the
+#   • every capture leg answers `cache-control: no-store`. The body carries the frame or the
 #     sample itself as a `data:` URL, so a stored answer keeps the user's pixels alive past
 #     the request, and a stored *refusal* would still say "refused" after the grant;
 #   • `/v1/multimodal/speak` refuses whitespace-only text instead of reporting success for
 #     a turn that synthesizes nothing;
 #   • the endpoint index describes the status payload honestly (it must name permissions);
 #   • if a `vlm:true` model is loaded, an inline base64 PNG posted to
-#     /v1/chat/completions gets a non-empty answer — the only end-to-end proof of "能看"
+#     /v1/chat/completions gets a non-empty answer. The only end-to-end proof of "能看"
 #     available headlessly (audible TTS is not verifiable this way, and is NOTEd, not
 #     claimed).
 #
@@ -152,8 +152,8 @@ for field, (perm_field, count_field) in EVIDENCE.items():
     out.append("OK|%s=ready, backed by %s" % (field, " + ".join(evidence) or "no stated evidence"))
 
 # Screen carries a second, stronger requirement than the other channels: the grant says the
-# user allowed it, only a frame says it works. Measured 10-15 on the shipping host —
-# authorized + a display enumerated + SCScreenshotManager refusing — so `ready` without
+# user allowed it, only a frame says it works. Measured 10-15 on the shipping host,
+# authorized + a display enumerated + SCScreenshotManager refusing, so `ready` without
 # `screenDelivery=captured` is the surface outrunning the engine, which is what this probe
 # exists to catch.
 DELIVERY = {"notAttempted", "captured", "failed"}
@@ -330,7 +330,7 @@ unset OCOREAI_PROBE_CURL_TIMEOUT
 probe_section "POST /v1/multimodal/status again — screen verdict agrees with the leg above"
 # This is the pair no unit test can make: the same process, seconds apart, answering
 # "is the screen ready?" and then actually trying to capture it. Before the delivery axis
-# existed these two disagreed by construction on this host — status published `ready` from
+# existed these two disagreed by construction on this host. Status published `ready` from
 # CGPreflightScreenCaptureAccess while the leg below returned no frame.
 probe_api POST /v1/multimodal/status '{}'
 AGREE_VERDICTS="$(python3 - "$PROBE_BODY" "$SCREEN_LEG_VERDICT" "$SCREEN_LEG_MS" <<'PY'

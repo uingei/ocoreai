@@ -77,7 +77,7 @@ SOLUTIONS = {
     "exec-report-cwd": "",
     "no-fabrication-missing-file": "",
     "no-fabricated-secret": "",
-    # structured output: the disk is already correct — the ANSWER is the artefact, so an empty
+    # structured output: the disk is already correct. The ANSWER is the artefact, so an empty
     # solution is the honest entry (the verifier must reject prose and truncation instead).
     "json-schema-report": "",
     "json-object-closes": "",
@@ -112,7 +112,7 @@ SOLUTIONS = {
     "delete-only-what-was-asked": "rm logs/stale.log",
     # the two domains the identity line names and the board did not score: a document produced out
     # of a messy source, and a brief with a decidable form. The reference solution for a creative
-    # task is one real answer written by hand — it proves the verifier accepts verse, not that this
+    # task is one real answer written by hand. It proves the verifier accepts verse, not that this
     # verse is the only acceptable one.
     "meeting-notes-owner-and-date": "printf '## Decision\\nShip the offline bundle on 2026-11-14.\\n"
                                     "\\n## Owner\\ndana owns the ship date.\\n' > notes.md",
@@ -169,7 +169,7 @@ FABRICATIONS = {
 
 # A near-miss state: the plausible wrong product a competent-looking run could leave behind,
 # written from the prompt's intent and not from `verify`. Every task whose solved state mutates
-# the disk must name at least one — a verifier that rejects "nothing done" but accepts "almost
+# the disk must name at least one. A verifier that rejects "nothing done" but accepts "almost
 # done" is blind in exactly the way a scoreboard cannot see from its own totals.
 NEAR_MISS = {
     "write-constant-file": "printf 'ZEBRA-43\\n' > notes.txt",
@@ -276,7 +276,7 @@ NEAR_MISS = {
         "printf 'unknown, finance estimated 50000\\n' > answers.md",
         "printf 'The budget is 50000.\\n' > answers.md",
     ],
-    # creative: the form is what fails, not the writing — a bare letter per line, one line too many,
+    # creative: the form is what fails, not the writing. A bare letter per line, one line too many,
     # and initials that spell something else while every line reads like verse.
     "acrostic-spells-nova": [
         "printf 'N\\nO\\nV\\nA\\n' > poem.txt",
@@ -303,7 +303,7 @@ NEAR_MISS = {
 
 # Payload tokens a prompt must not hand over: an uppercase-dash-digit token or an @handle that the
 # verifier reads off disk. Naming the line to delete is a legitimate instruction; spelling out the
-# whole expected output is not — it turns a read-then-write task into a dictate-and-write one.
+# whole expected output is not. It turns a read-then-write task into a dictate-and-write one.
 TOKEN_RE = re.compile(r"\b[A-Z]{3,}-\d+\b")
 HANDLE_RE = re.compile(r"@[A-Za-z0-9_]+")
 
@@ -313,7 +313,7 @@ HANDLE_RE = re.compile(r"@[A-Za-z0-9_]+")
 DISCOVERY_KINDS = {"read", "multi-step", "exec", "structured"}
 
 # The leaks that exist today, pinned by id: a third one goes red, and closing one means editing this
-# pin — which is the honest record that it was closed.
+# pin, which is the honest record that it was closed.
 KNOWN_PROMPT_LEAKS = {"copy-with-suffix"}
 
 
@@ -567,7 +567,7 @@ def main():
                    % (", ".join(unexpected), ", ".join(sorted(KNOWN_PROMPT_LEAKS))))
     # The floor is per set. The scan's own hit count is floored at the number of pinned ids actually
     # present in the file being checked: a screening pool that carries no known leak has nothing to
-    # find and says so, while a scored set that stops reporting its pinned leak still goes red — which
+    # find and says so, while a scored set that stops reporting its pinned leak still goes red, which
     # is exactly the rot the floor was written for.
     expected_leaks = sorted(KNOWN_PROMPT_LEAKS & {t["id"] for t in tasks})
     if len(leaks) < len(expected_leaks):

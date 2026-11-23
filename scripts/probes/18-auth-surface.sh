@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# 18-auth-surface.sh — the `auth` column is not decoration: enforce it on the wire.
+# 18-auth-surface.sh. The `auth` column is not decoration: enforce it on the wire.
 #
 # Why (AGENTS.md § Endpoint Promises + invariant 2): `/v1/capabilities` publishes an
-# `auth` column per endpoint, derived from `AuthRoutePolicy.publicPaths` — the same set
+# `auth` column per endpoint, derived from `AuthRoutePolicy.publicPaths`. The same set
 # `AuthMiddleware` consults. `V1EndpointCatalogTests` pins that derivation statically, so
 # it proves the column is *derived*, never that the middleware enforces it. And on 10-20
 # this repo had four separate statements of which routes are public, one of them (the
@@ -11,17 +11,17 @@
 #
 # This probe turns the column into a wire measurement, with auth switched ON:
 #   • auth must be ON, or the middleware short-circuits (`config.enabled == false`) and
-#     every route answers — the refusals below would pass vacuously at 200. The probe
+#     every route answers. The refusals below would pass vacuously at 200. The probe
 #     therefore sets a key itself and floors its own premise on it.
 #   • every endpoint the index labels `public` answers WITHOUT a key (anything but
-#     401/403 — a 400/404 still means the door is open);
+#     401/403. A 400/404 still means the door is open);
 #   • every endpoint labelled `key` or `admin` answers 401 WITHOUT a key;
 #   • `/v1/perception` is checked by name: the router docstring called it "public" while
 #     it has never been in publicPaths, so this is the line that would catch someone
 #     "fixing" the docstring the other way round and quietly widening auth;
 #   • PATCH/DELETE with a *user* key answers 403 (`adminKeyRequired`), never silently 2xx;
 #   • the public set measured here equals the count and the members documented in
-#     README.md — the wire, the index and the human-facing list must be one fact.
+#     README.md. The wire, the index and the human-facing list must be one fact.
 #
 # Then the three things a route table cannot show (measured 11-01, each red before the fix):
 #   • `x-api-key` is a credential this server READS. `/v1/messages` is published in
@@ -29,11 +29,11 @@
 #     here advertised a door that refused that client (omlx `server.py:412`, splash
 #     `http_security.py:22` and mlx-serve all read it; we were the odd one out).
 #   • a 401 names a challenge (RFC 9110 §10.2.3: the server "MUST send any [WWW-Authenticate
-#     fields] that would apply"), and a 403 names none — the same section we already cite for
+#     fields] that would apply"), and a 403 names none. The same section we already cite for
 #     `Retry-After` on a 429, applied one rung earlier.
 #   • a browser `Origin` may not write. `POST /mcp` reaches `tools/call`, no key is
 #     configured by default, and a `text/plain` body is a *simple* request the browser sends
-#     without preflighting — so before this gate any page the user happened to have open
+#     without preflighting, so before this gate any page the user happened to have open
 #     could drive this process. The control is as load-bearing as the refusal: the same
 #     write with NO Origin is a native client and must still be served (measured: URLSession
 #     sends no Origin, so this is not a self-inflicted outage).
@@ -67,7 +67,7 @@ raw_call() {
 }
 
 # raw_call_h METHOD PATH KEY CONTENT_TYPE BODY [EXTRA_HEADER ...]
-# — the same call, but the Content-Type is an argument (a browser's simple request is
+#. The same call, but the Content-Type is an argument (a browser's simple request is
 # `text/plain`, which is the whole reason the Origin gate exists) and the response headers
 # come back, because two of the three claims below are header facts.
 RAW_HEADERS=""
@@ -149,7 +149,7 @@ PUBLIC_TOTAL=0; PUBLIC_OPEN=0; KEYED_TOTAL=0; KEYED_401=0; BAD=""; BAD_COUNT=0
 PUBLIC_PATHS=""
 # NOTE the loop variable is EP_PATH, never PATH: a first draft named it PATH, which
 # overwrote the shell's search path mid-run, so every later curl was "not found" and the
-# refusals all read 000 — while `000` also slipped through the "not 401/403" test and
+# refusals all read 000. While `000` also slipped through the "not 401/403" test and
 # certified the public surface as open. A route that never answered is not a door.
 while IFS=$'\t' read -r METHOD EP_PATH AUTH; do
   [ -n "$METHOD" ] || continue
@@ -297,7 +297,7 @@ probe_section "wire == index == README"
 WIRE_PUBLIC="$(printf '%s' "$PUBLIC_PATHS" | sed '/^$/d' | sort | tr '\n' ' ')"
 probe_note "measured public paths ($PUBLIC_TOTAL): $WIRE_PUBLIC"
 # Walk up to the repo root by a marker unique to it. A first draft stopped at the first
-# README.md it found — which is scripts/probes/README.md, a different document that says
+# README.md it found, which is scripts/probes/README.md, a different document that says
 # nothing about public routes, and the cross-check then reported "no target" from the wrong
 # file. Package.swift exists only at the root.
 README_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

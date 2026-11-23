@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 39-skill-contract-exec.sh — does the published skill survive being executed?
+# 39-skill-contract-exec.sh. Does the published skill survive being executed?
 #
 # ### Why
 # `skills/ocoreai/SKILL.md` is the artefact another harness reads to drive `/v1`. Prose that describes a
 # wire rots the first time the wire moves, and a rotting skill is worse than none: another agent's session
-# acts on it. So the skill carries its own executor — every claim it makes about the surface is written as
+# acts on it. So the skill carries its own executor. Every claim it makes about the surface is written as
 # a machine-readable marker in the paragraph it belongs to, and this probe boots a server and runs them.
 # That is this repo's own rule ("anything that proves behaviour against a live server ships as a script in
 # scripts/probes/") aimed at the adoption surface: a doc that cannot be executed is a claim.
@@ -15,18 +15,18 @@
 # `@model` is replaced by the first `state:"ready"` id from `/v1/models`.
 #
 # ### Tiers, because only one of them can run anywhere
-#   §0 clone     — no server: every path the skill cites is tracked by git, and nothing under skills/ is
+#   §0 clone, no server: every path the skill cites is tracked by git, and nothing under skills/ is
 #                  ignored. This is how §0 caught an unanchored `references/` rule shipping a skill whose three
 #                  reference files only existed on the author's disk. §0b adds the routing contract: the
 #                  frontmatter fields and `.claude-plugin/` manifests a foreign harness actually reads.
-#   §1 contract  — scripted lane (nothing resident, no Metal): executes every `exec:` marker, and FLOORS
+#   §1 contract. Scripted lane (nothing resident, no Metal): executes every `exec:` marker, and FLOORS
 #                  its own hit count: a renamed skill or a rotted pattern must fail loudly, not pass by
-#                  finding nothing (invariant 1 — the failure this probe exists to prevent is its own).
-#   §1b auth     — a second boot with OCOREAI_API_KEYS: a generating route without a key is 401 naming the
+#                  finding nothing (invariant 1. The failure this probe exists to prevent is its own).
+#   §1b auth. A second boot with OCOREAI_API_KEYS: a generating route without a key is 401 naming the
 #                  remedy, with a key it completes, and `/health` stays public. The public set is
 #                  AuthRoutePolicy.publicPaths; the skill tells clients to read the `auth` column instead of
 #                  hard-coding it, so the boundary itself has to be proven, not asserted in prose.
-#   §2 checkpoint — real engine + a ready model. The tier's premise is established before any assertion
+#   §2 checkpoint. Real engine + a ready model. The tier's premise is established before any assertion
 #                  (a minimal turn must complete); if the engine cannot generate on this host the tier
 #                  prints WHY with the observed status, and never reports a pass it did not measure.
 set -uo pipefail
@@ -63,7 +63,7 @@ import glob, os, re, sys
 root, t1, t2 = sys.argv[1:4]
 # Canonical marker:  METHOD PATH [JSON-BODY] STATUS [| substring]...
 # The body is scanned by brace balance rather than by regex, because a request body carries nested
-# objects and a non-greedy regex stops at the inner `}` — which silently drops the marker, the exact
+# objects and a non-greedy regex stops at the inner `}`, which silently drops the marker, the exact
 # vacuous-pass failure this probe exists to police. A marker that cannot be parsed is a loud exit, not
 # a skipped line.
 HEAD = re.compile(r"<!--\s*exec(-model)?:\s*(.*?)-->\s*$")
@@ -148,7 +148,7 @@ fi
 # ── §0 the clone a stranger actually gets ─────────────────────────────────────────────────────
 probe_section "§0 every file the skill cites is in git, not merely on this disk"
 # Why this clause exists: `.gitignore` carried an unanchored `references/` rule (for a mirrored tree
-# that is not even in this repo any more), and it silently swallowed `skills/ocoreai/references/` —
+# that is not even in this repo any more), and it silently swallowed `skills/ocoreai/references/`,
 # three files SKILL.md points a harness at, present on the author's disk, absent from every clone.
 # Every on-disk doc check passed, because on disk the pointer resolves; only git knows the file was
 # never shipped. So this clause asks git, and floors its own hit count for the same reason §1 does.
@@ -198,12 +198,12 @@ probe_section "§0b frontmatter and plugin manifests promise only what a harness
 # Why this clause exists: the frontmatter once carried a `triggers:` list. Neither this repo's loader
 # (SkillLoader.swift reads name/category/description/tags/depends; App.swift passes skillsDir: nil, so
 # even that reader is dormant for this file) nor the reference harness the skill is written for reads
-# that field — the official skill set routes on `description` prose, and a live `claude plugin
+# that field. The official skill set routes on `description` prose, and a live `claude plugin
 # validate` passed the dead field silently. Phrases in an unread field claim routing nobody delivers
 # (invariant 2), so they now ride `description`, the one field that reaches a foreign model, and this
 # clause pins the routing terms to the field that has a reader. The manifests are checked the same
 # way: parseable JSON, names matching the repo, skill paths resolving, and no second home for the
-# version — the tag is the version (`scripts/version.sh`), installers pin with `owner/repo#tag`.
+# version. The tag is the version (`scripts/version.sh`), installers pin with `owner/repo#tag`.
 # Comparator copies under ~/references are cited in the CHANGELOG, never read here: this clause reads
 # only the repo, so it measures the same on any clone.
 ROUT_OUT="$(python3 - "$SKILL" "$PROBE_REPO_ROOT" <<'PY' 2>&1
@@ -343,7 +343,7 @@ unset OCOREAI_SCRIPTED_ENGINE
 
 # The real lane cannot use probe_boot: a host without a Metal device is a legitimate place to run this
 # script (that is the sandbox tier), and a boot that never becomes ready there must print its reason
-# instead of reporting a regression. Establish the premise, then assert — never the other way round.
+# instead of reporting a regression. Establish the premise, then assert. Never the other way round.
 S2_PORT="$(probe_free_port)"
 S2_BASE="http://127.0.0.1:${S2_PORT}"
 S2_LOG="$(mktemp -t ocoreai-skill-real-XXXXXX).log"

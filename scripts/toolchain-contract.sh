@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Toolchain contract — asserts the platform premise every local gate in this repo rests on.
+# Toolchain contract. Asserts the platform premise every local gate in this repo rests on.
 #
 # Why this exists (verified 2026-10-14, on this host, mid-session):
 # An Xcode/CLT update landed at 06:45-06:46 local and silently changed three things
@@ -16,7 +16,7 @@
 #      so `mlx-swift_Cmlx` now needs a shader compiler during `swift build`.
 #      The version is the whole difference, and the direction matters: measured 11-06 on the
 #      macos-26 runner (`swift=6.3.3`), `swift build -c release --traits appStore` compiled no
-#      `.metal` at all and said NOTHING — a green build, no default.metallib, no error — while this
+#      `.metal` at all and said NOTHING. A green build, no default.metallib, no error. While this
 #      host on 6.4 emits 38 `.air` and the payload. A missing capability is silent in SwiftPM and
 #      loud in xcodebuild, so a build's exit code is not evidence that the shader bytes exist:
 #      that is why the packaging lanes produce the payload explicitly
@@ -24,8 +24,8 @@
 #   3. That compiler is gone: `metal` is absent from CLT, and Xcode's `metal` answers
 #      "cannot execute tool 'metal' due to missing Metal Toolchain; use:
 #      xcodebuild -downloadComponent MetalToolchain".
-# Net effect: `swift build` — the check AGENTS.md calls MANDATORY before any claim of
-# completion — could not run at all, and nothing in the repo said *why* or *which*
+# Net effect: `swift build`. The check AGENTS.md calls MANDATORY before any claim of
+# completion. Could not run at all, and nothing in the repo said *why* or *which*
 # premise broke. Gates that infer their platform from a symlink rot silently.
 #
 # Contract (the shape the repo's docs and CI assume):
@@ -37,16 +37,16 @@
 #       when `.metal` sources actually have to compile, and a leg whose Cmlx artifacts
 #       are already built (or whose SwiftPM predates native Metal support) builds fine
 #       without it. Pass --require-metal when a rebuild is on the table. Pass
-#       --probe-metal to judge R2 (and R3) by DOING — compile a trivial kernel with
-#       every reachable `metal` — instead of trusting `metal --version`, which answers
+#       --probe-metal to judge R2 (and R3) by DOING. Compile a trivial kernel with
+#       every reachable `metal`. Instead of trusting `metal --version`, which answers
 #       differently depending on whether cryptexd has the asset mounted right now.
-#   R3  the .metal rebuild route is walkable HERE — spawnable is not enough, the job
+#   R3  the .metal rebuild route is walkable HERE. Spawnable is not enough, the job
 #       must also be able to WRITE its clang module cache. ADVISORY (same conditions as
 #       R2), checked by the same `--probe-metal` compile: the probe writes into a temp
 #       dir but the compiler's module cache is outside it, so an unwritable cache shows
 #       up as metal=compile-failed with the EPERM in the log. Measured 10-14 on this
 #       host: SwiftPM resolves that cache under the REAL
-#       user home (`/Users/<user>/.cache/clang/ModuleCache/…`, via getpwuid — not
+#       user home (`/Users/<user>/.cache/clang/ModuleCache/…`, via getpwuid, not
 #       $HOME), so inside a sandbox whose writable roots exclude the home every
 #       CompileMetalFile task dies with `unable to open output file
 #       '/Users/<user>/.cache/clang/…pcm': Operation not permitted` while R2 still
@@ -56,7 +56,7 @@
 #         default cache, home excluded       → EPERM
 #       So the compiler, the SDK and the cryptexd asset are fine; the blocker is the
 #       cache location SwiftPM picks, and `-Xcc -fmodules-cache-path=…` does NOT reach
-#       a metal task (SwiftPM does not forward cFlags to CompileMetalFile — observed
+#       a metal task (SwiftPM does not forward cFlags to CompileMetalFile. Observed
 #       command line), which leaves only procedural fixes: build `.metal` unsandboxed
 #       once, or keep a scratch whose app-variant Metal node stays warm.
 # Exit: 0 = contract holds, 1 = violated (message names the remedy).
@@ -80,7 +80,7 @@ done
 DEV_DIR="${DEVELOPER_DIR:-$(xcode-select -p 2>/dev/null || true)}"
 if [ -z "$DEV_DIR" ] || [ ! -d "$DEV_DIR" ]; then
   # Value on stdout, complaint on stderr: `$(shell … 2>/dev/null)` in the Makefile captures stdout
-  # into a path variable, so a complaint here became `SDKROOT=❌ … (set it or run xcode-select -s)` —
+  # into a path variable, so a complaint here became `SDKROOT=❌ … (set it or run xcode-select -s)`,
   # a shell syntax error on every host without an Apple toolchain. The sibling guard below already
   # writes to stderr; this is the same contract.
   echo "❌ no usable DEVELOPER_DIR (set it or run xcode-select -s)" >&2
@@ -100,7 +100,7 @@ sdk_version() { basename "$1" .sdk | sed 's/^MacOSX//'; }
 has_coreai() { [ -d "$1/System/Library/Frameworks/CoreAI.framework" ]; }
 
 # The SDK whose shape we ship: newest MacOSX*.sdk without CoreAI. Never trust the
-# `MacOSX.sdk` symlink — an update can (and did) repoint it under us.
+# `MacOSX.sdk` symlink. An update can (and did) repoint it under us.
 delivery_sdk() {
   sdk_dirs \
     | grep -vE 'MacOSX(1[0-4]|1[0-4]\.[0-9])\.sdk$' \
@@ -120,7 +120,7 @@ WANT="${OCOREAI_TARGET_SDK:-macos26}"
 # `xcodebuild -showComponent MetalToolchain` exits 0 and prints "Status: uninstalled"
 # when the component is absent, so an exit-code guard succeeds and the build dies much
 # later, on the first CompileMetalFile, with "cannot execute tool 'metal'". This is
-# upstream's own parse — mlx-swift-lm .github/workflows/pull_request.yml:221-229 (local
+# upstream's own parse. Mlx-swift-lm .github/workflows/pull_request.yml:221-229 (local
 # clone at 4cc5504), where the same trap cost them a green-then-red pipeline.
 metal_component_status() {
   xcodebuild -showComponent MetalToolchain 2>&1 \
@@ -129,7 +129,7 @@ metal_component_status() {
 
 # Does this binary answer as a compiler, or refuse as a stub? The stub's own wording is the only
 # reliable tell (`xcodebuild -showComponent` and a toolchain symlink both exist while the mobile
-# asset is unmounted), so the verdict and the PATH test read it through here — two homes for that
+# asset is unmounted), so the verdict and the PATH test read it through here. Two homes for that
 # vocabulary is how one question says `ok` and the other says dead.
 metal_answers() {
   local out
@@ -141,9 +141,9 @@ metal_answers() {
   esac
 }
 
-# Spawned BY NAME — the only form SwiftPM's CompileMetalFile can use ("unable to spawn process
+# Spawned BY NAME. The only form SwiftPM's CompileMetalFile can use ("unable to spawn process
 # 'metal'"). `xcrun -f metal` resolving a path says the toolchain KNOWS a compiler, not that PATH
-# reaches it, and a route can be true on the first and false on the second at the same time — which
+# reaches it, and a route can be true on the first and false on the second at the same time, which
 # is what let a delivery route read `metal=ok` while the build inside it could not spawn a compiler.
 metal_path_ok() {
   local bin
@@ -157,7 +157,7 @@ metal_path_ok() {
 #                           runnable on the cryptexd mount (PATH injection fixes it)
 #   ok-probed               a kernel actually compiled (set later, strongest)
 #   component-installed-*   asset installed, no spawner visible on this route, no
-#                           compile requested — advisory only
+#                           compile requested. Advisory only
 #   component-<status>      authoritative status says it is not installed
 #   absent                  nothing to spawn and no status to quote
 metal_probe() {
@@ -183,13 +183,13 @@ metal_probe() {
 # DEVELOPER_DIR (verified 10-14): `<search-path>/Metal.xctoolchain/usr/bin/metal`
 # runs fine (Apple metal version 32023.921) while the DEVELOPER_DIR stub refuses.
 # The mount directory carries a session-specific suffix (`…v27.1.266.1.HjWWNl`
-# today) — it changes across remounts/reboots, so discover it, never hardcode.
+# today). It changes across remounts/reboots, so discover it, never hardcode.
 # SwiftPM spawns `metal` by PATH lookup ("unable to spawn process 'metal'"), so
 # prepending this dir to PATH is what makes `.metal` compile; `make test-clt` does
 # exactly this via `print-metal-bin`.
 cryptex_metal_bin() {
   # Ask first, then glob, then re-glob: the toolchain is a mobile asset cryptexd attaches on demand,
-  # and only `xcodebuild -showComponent` asks for it. Measured 10-28 — a route pinned to the CLT has
+  # and only `xcodebuild -showComponent` asks for it. Measured 10-28. A route pinned to the CLT has
   # no xcodebuild, so a glob-only resolver answered nothing three looks running while the Xcode route
   # named the mount in the same minute; and on the macos-26 runner the route's look missed a mount the
   # same resolver named seconds later, so the emitted env carried no PATH rung and the build died on
@@ -232,7 +232,7 @@ metal_candidates() {
 }
 
 # R2/R3 by execution, not inference (10-14). `metal --version` and the cryptexd
-# listing both INFER availability, and both flip with the environment — measured on
+# listing both INFER availability, and both flip with the environment. Measured on
 # this host within one minute: `report` answered metal=ok-cryptex inside the agent
 # sandbox (the cryptex mount is visible there) and metal=component-missing outside
 # it, while llbuild compiled arg_reduce.metal successfully in that same unsandboxed
@@ -241,7 +241,7 @@ metal_candidates() {
 #
 # This also settles R3, which the header documents and nothing implemented: the
 # failure that kills a sandboxed .metal rebuild is the clang module cache resolving
-# under the real home (`~/.cache/clang/…pcm`, via getpwuid — not $HOME), and the
+# under the real home (`~/.cache/clang/…pcm`, via getpwuid, not $HOME), and the
 # probe hits that same wall, so `probe=fail` with an unwritable cache is visible
 # here instead of 400 s later inside `swift build`.
 metal_compile_probe() {
@@ -293,7 +293,7 @@ fi
 # `--version` and still be unable to emit a kernel.
 if [ "$PROBE" = fail ] && [ "$METAL" != "ok-probed" ]; then METAL=compile-failed; fi
 
-# Advisory: R2 without --require-metal — a rebuild may not even be on the table.
+# Advisory: R2 without --require-metal. A rebuild may not even be on the table.
 metal_holds() {
   case "$METAL" in
     ok | ok-probed | ok-cryptex | component-installed-unprobed) return 0 ;;
@@ -334,7 +334,7 @@ if [ "$MODE" = "print-metal-bin" ]; then
   # The question this printer answers is PATH reachability, because that is the only form its
   # consumer can use. It must not answer it through the verdict: `METAL=ok` also covers a compiler
   # reachable only via `xcrun`, which read as "no rung needed" while the delivery build died at
-  # CompileMetalFile with nothing to ship (measured 11-06, package.yml run 23 — the leg's own
+  # CompileMetalFile with nothing to ship (measured 11-06, package.yml run 23. The leg's own
   # `check --require-metal --probe-metal` step went green, because a probe executes a NAMED binary,
   # and the build step's own premises line then read `metal=ABSENT` for the route it compiled with).
   # R4 is unchanged: no value exists ⇒ fall silent and exit non-zero.
@@ -347,7 +347,7 @@ if [ "$MODE" = "print-delivery-env" ]; then
   # shape, not the host's newest toolchain: an SDK whose framework dir carries CoreAI builds the
   # macOS-27 form under the same `swift build -c release` name, and `make release` names the
   # CoreAI-free form as what ships. So the route is resolved here (the resolver that already owns
-  # print-sdk-root/print-metal-bin) and consumed by `make release` and by scripts/build-app.sh —
+  # print-sdk-root/print-metal-bin) and consumed by `make release` and by scripts/build-app.sh,
   # the script whose output is the .app a stranger drags into Applications.
   CLT_ROOT=/Library/Developer/CommandLineTools
   DELIVERY_SDK=$(DEVELOPER_DIR="$CLT_ROOT" bash "$0" print-sdk-root 2>/dev/null) || DELIVERY_SDK=""
@@ -360,10 +360,10 @@ if [ "$MODE" = "print-delivery-env" ]; then
   # above is asked. Measured 10-28 on the macos-26 runner: asked under the host's Xcode it answered
   # "already fine" (the component had just been installed there, so `metal` spawns on that route), so
   # the printer returned no value by contract, no PATH rung was exported, and the CLT build the leg
-  # then ran died at CompileMetalFile with `unable to spawn process 'metal'` — while the leg's own
+  # then ran died at CompileMetalFile with `unable to spawn process 'metal'`. While the leg's own
   # preflight, asking as CLT, named the mount seconds later and read `metal=ABSENT` for the route.
   # Asked here, and answered the way the build that evals this consumes it: a `metal` already
-  # reachable by name needs no rung, anything else prints the cryptex dir — the same compiler the
+  # reachable by name needs no rung, anything else prints the cryptex dir. The same compiler the
   # toolchain resolves internally, in a directory whose only other tools are `metal*`/`air*`, so
   # prepending it shadows nothing else the build runs.
   DELIVERY_METAL_BIN=$(DEVELOPER_DIR="$CLT_ROOT" bash "$0" print-metal-bin 2>/dev/null) || DELIVERY_METAL_BIN=""
@@ -411,7 +411,7 @@ else
   echo "   go stale."
   if [ "$PROBE" = fail ]; then
     # R3, by execution: the compiler resolved and was handed a kernel it could not
-    # emit. On this host that is the module-cache wall, not a missing component — the
+    # emit. On this host that is the module-cache wall, not a missing component. The
     # .metal job writes its clang module cache under the REAL home (getpwuid, not
     # $HOME), so a run whose writable roots exclude the home dies with
     # `unable to open output file '~/.cache/clang/…pcm': Operation not permitted`
@@ -439,7 +439,7 @@ else
   # files a build has left behind cover only the slice that was compiled (observed:
   # 30 .air under Debug-iphoneos, none for the macOS target).
   # Discover, never hardcode: SwiftPM 6.4 moved the products dir (see Makefile's
-  # metallib staging — the same class of rot).
+  # metallib staging. The same class of rot).
   prebuilt="$( { find .build-clt -path '*/Products/*' -name 'mlx.metallib' 2>/dev/null
       ls -1 ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/*/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib 2>/dev/null; } | head -2)"
   if [ -n "$prebuilt" ]; then
@@ -453,7 +453,7 @@ fi
 
 # R4, by execution: a printer's stdout is a VALUE channel, not a place to complain. Makefile:94/103
 # and scripts/eval/autoab.sh capture print-sdk-root / print-metal-bin with `$(shell … 2>/dev/null)`,
-# so a diagnostic written to stdout arrives as a path — and Makefile:95 then composes
+# so a diagnostic written to stdout arrives as a path, and Makefile:95 then composes
 # `SDKROOT=❌ … (set it or run xcode-select -s)`, a shell syntax error on every host without an Apple
 # toolchain (measured 10-28: that is what the ubuntu text-gates leg died on). Host-independent by
 # construction: an unusable DEVELOPER_DIR is forced here, so a macOS host judges the same contract.

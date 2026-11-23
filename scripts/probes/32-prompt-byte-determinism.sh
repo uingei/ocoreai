@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# 32-prompt-byte-determinism.sh — does the same request compile to the same prompt bytes?
+# 32-prompt-byte-determinism.sh. Does the same request compile to the same prompt bytes?
 #
 # ### Why (P0: a task must not fail by coin flip)
 # Every discriminant arm written before 10-23 claimed "identical prompt bytes" and none of them
-# checked bytes — probe fidelity compared a token COUNT. When `promptHash` (FNV-1a over the
+# checked bytes. Probe fidelity compared a token COUNT. When `promptHash` (FNV-1a over the
 # tokens actually fed) was added, the premise died immediately: eight cold boots of one request
 # produced four byte-variants of the same 713-token prompt, because the skill blocks were written
 # into the system prompt in Swift's per-process dictionary order (SkillRegistry.resolveOrder).
 # Two of the four variants answered EOS after one token. Prompt bytes must be a function of the
-# request, not of the process's hash seed — same class, same severity, anywhere bytes are built
+# request, not of the process's hash seed. Same class, same severity, anywhere bytes are built
 # from a Dictionary/Set or serialized without sorted keys.
 #
 # ### What is asserted
@@ -17,7 +17,7 @@
 #      because Swift fixes the hash seed for the lifetime of a process.
 #   2. Sensitivity WITHIN a boot: the shapes must hash DIFFERENTLY. A run where every shape
 #      collides proves the request is not reaching the prompt at all, and such a run would pass
-#      leg 1 vacuously — so the instrument checks that it can tell things apart before it
+#      leg 1 vacuously, so the instrument checks that it can tell things apart before it
 #      claims they are stable.
 #   3. Premises floored: at least two boots, and at least one hash per shape per boot.
 #
@@ -29,14 +29,14 @@
 # Declaring one tool changed the delivered prompt by **+595 bytes / +131 tokens** and in two places
 # at once: the identity paragraph flips its posture wholesale ("This conversation gives you no
 # tools: answer directly…" → "Assume the user wants code changes or tool actions…"), and the
-# checkpoint's own template emits the declaration — `<|tool>declaration:lookup_order{…}<tool|>`.
+# checkpoint's own template emits the declaration, `<|tool>declaration:lookup_order{…}<tool|>`.
 # That template **sorts the property names** (requested `order_id, status, limit`; rendered
 # `limit, order_id, status`) and **drops `required` when the caller omits it**, so on this
 # checkpoint property order cannot leak a hash seed, and an unrequired schema tells the model that
 # nothing is mandatory. Both are the checkpoint's behaviour, not ours: a checkpoint whose
 # `toolCallFormat` is plain JSON serializes the dictionary instead, and that path stays unmeasured
 # here. The registry-side synthesis (nobody declared `required` → "every declared parameter is
-# required") is name-sorted for exactly that reason — see `ToolSchemaCanonical`, whose two live
+# required") is name-sorted for exactly that reason. See `ToolSchemaCanonical`, whose two live
 # exits are `ToolRegistry.swift:820` and `ToolEntry.swift:237`. Probe 33 drives them from a real
 # MCP server whose `inputSchema` omits `required`, the only door left on this host: a
 # caller-declared `tools[]` entry carries its own order and never reaches them, and all 8 built-ins
@@ -47,7 +47,7 @@
 # live turn. At the time this probe was committed it built `UserInput` with **no `tools:`**, so on
 # the two tool shapes the schema never entered the reconstruction: `promptHash` covered instructions
 # and message text only, and a run could report "stable bytes" while every schema byte sat outside
-# the measurement. Its NOTE explained a tool-shape collision by pointing at the tool surface — a
+# the measurement. Its NOTE explained a tool-shape collision by pointing at the tool surface. A
 # mechanism the instrument had no way to observe. Retracted here. The probe now carries the turn's
 # resolved `[ToolSpec]` and prints `toolsCarried=N`, and leg 4 below fails when a shape that
 # declares a tool reports `toolsCarried=0`: a declaration that cannot reach the hash makes every
@@ -62,7 +62,7 @@ source "$(dirname "$0")/_lib.sh"
 PROBE_NAME="32-prompt-byte-determinism"
 BOOTS="${BOOTS:-3}"
 # Honor an externally supplied dump dir: a hash says *that* boots differ, only the bytes say
-# *where*, and this script used to delete its own dump unconditionally — so the one artefact that
+# *where*, and this script used to delete its own dump unconditionally, so the one artefact that
 # could name the varying lines was thrown away by design. Kept when the caller asks for a path.
 DUMP="${OCOREAI_MARGIN_DUMP:-${TMPDIR:-/tmp}/ocoreai-bytes-$$}"
 KEEP_DUMP="${OCOREAI_MARGIN_DUMP:-}"
@@ -79,7 +79,7 @@ if shape == "history":
         {"role": "assistant", "content": "BLUE"},
     ]
 # Shapes carry distinct tool names and descriptions, so a reconstruction that actually receives the
-# schemas cannot collide them by accident of length — see the header.
+# schemas cannot collide them by accident of length. See the header.
 msgs.append({"role": "user", "content": "Reply with the single word READY."})
 body = {
     "model": model,
@@ -93,7 +93,7 @@ if shape == "unrequired":
     # `required` is NOT declared. Measured 10-23 on gemma-4-e2b: this checkpoint's template
     # renders the declaration itself and omits the `required:` key entirely, so the model reads
     # every argument as optional. Kept because "caller omits required" is a wire-legal shape a
-    # real client sends — the claim it tests is delivery. It is NOT the dictionary-exit shape:
+    # real client sends. The claim it tests is delivery. It is NOT the dictionary-exit shape:
     # the synthesis lives registry-side (`ToolRegistry.swift:820`, `ToolEntry.swift:237`), a
     # caller-declared schema carries its own order and never routes through it, and every built-in
     # declares `required`. Probe 33 is the shape that does reach it, through MCP.
@@ -170,7 +170,7 @@ boots = int(sys.argv[2])
 shapes = ["bare", "required", "unrequired", "history"]
 # What each shape declares, so `toolsCarried` is checked against a stated expectation instead of
 # being printed and admired. A tool shape reporting 0 means the schema never reached the probe, and
-# then byte-stability for that shape says nothing about schemas — the exact defect this file had.
+# then byte-stability for that shape says nothing about schemas. The exact defect this file had.
 declare = {"bare": 0, "required": 1, "unrequired": 1, "history": 0}
 by_shape = collections.defaultdict(dict)   # shape -> boot -> (hash, carried)
 seq = collections.defaultdict(list)
@@ -203,7 +203,7 @@ for shape in shapes:
         bad += 1
 # Sensitivity: a turn that declares a tool may not hash the same as one that does not, otherwise
 # "stable bytes" would only prove nothing was injected at all. And now that schemas are inside the
-# hash, `required` and `unrequired` must differ too — they carry different names, descriptions and
+# hash, `required` and `unrequired` must differ too. They carry different names, descriptions and
 # property sets, so a collision there would mean the carried specs were dropped on the way to
 # prepare(), which is the same instrument blindness as toolsCarried=0 wearing a different hat.
 for boot, entries in sorted(seq.items()):

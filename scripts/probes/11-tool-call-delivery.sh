@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 11-tool-call-delivery.sh — does a declared tool come back as a call the client can run?
+# 11-tool-call-delivery.sh. Does a declared tool come back as a call the client can run?
 #
 # ### Why (AGENTS.md invariant 2, and the cheapest way for an agent server to die quietly)
 # An OpenAI-compatible client that posts `tools[]` expects `choices[].message.tool_calls`
 # plus `finish_reason:"tool_calls"`; it executes the call and posts a `role:"tool"`
-# message back. vllm and sglang never execute a tool themselves — the caller owns the
+# message back. vllm and sglang never execute a tool themselves. The caller owns the
 # tools it declares. Until 10-18 this server did neither: it intersected the caller's
 # declaration with its own registry and dropped what did not survive, so a request
 # declaring `get_weather` was prompted with NO tool block at all, answered in prose,
@@ -19,14 +19,14 @@
 #
 # ### What is measured
 #   1. The gauge starts honest: a freshly booted process has never seen a declaring
-#      turn, so /v1/models must publish toolCallDelivery=not_observed — present, not
+#      turn, so /v1/models must publish toolCallDelivery=not_observed. Present, not
 #      omitted, because silence reads as capability.
 #   2. Declaring a tool this server does NOT own must deliver a structured call: name
 #      matches, arguments parse as a JSON object, finish_reason is tool_calls.
 #   3. Controls: the same prompt with no tools must not call, and neither must
 #      tool_choice:"none" (the 10-06 zero-surface contract).
 #   3b. Declaring without demanding (`tool_choice` absent = auto) must still ANSWER
-#       the question — a declaration may not cost the reply.
+#       the question. A declaration may not cost the reply.
 #   3c. tool_choice:"required" plus a request to call must deliver a call.
 #   3d. forcing a call the checkpoint resists is recorded, and never fabricated.
 #   7. The GUI's own declaration shape (`GET /v1/tools` pasted back, the whole
@@ -37,14 +37,14 @@
 #   6. /v1/capabilities must agree with the surface that measured it.
 #
 # Key casing is per-object and it bit us the first time this probe ran: /v1/models
-# objects emit camelCase (`weightsDir`, `videoInput`, `toolCallDelivery` — pinned by
+# objects emit camelCase (`weightsDir`, `videoInput`, `toolCallDelivery`. Pinned by
 # ModelsWireShapeTests and ToolCallDeliveryDisclosureTests), while /v1/capabilities
 # rows are identified by a snake_case NAME (`video_input`, `tool_call_delivery`). Ask
 # each surface by its own key, or a delivered call reads as a missing row.
 #
 # Needs a real Metal device: run unsandboxed (`bash scripts/probes/run.sh 11`). Bodies
 # are single-quoted JSON + "$VAR" splices (macOS bash 3.2 mis-parses nested quoted
-# command substitution — see probe 09), and every compared turn gets its own session so
+# command substitution. See probe 09), and every compared turn gets its own session so
 # a growing history cannot change the outcome on its own.
 #
 # Run: bash scripts/probes/11-tool-call-delivery.sh
@@ -66,7 +66,7 @@ CALLS=""
 FINISH=""
 CONTENT=""
 
-# ask_tools EXTRA_JSON PROMPT — one non-streaming turn.
+# ask_tools EXTRA_JSON PROMPT. One non-streaming turn.
 ask_tools() {
   local session body
   session="$(fresh_session)"
@@ -79,12 +79,12 @@ ask_tools() {
   CONTENT="$(probe_json "$BODY" 'choices.0.message.content')"
 }
 
-# call_field INDEX KEY — field of the Nth delivered call.
+# call_field INDEX KEY. Field of the Nth delivered call.
 call_field() {
   probe_json "$BODY" "choices.0.message.tool_calls.$1.function.$2"
 }
 
-# model_field FIELD — this model's value from the last GET /v1/models body. Matched by
+# model_field FIELD. This model's value from the last GET /v1/models body. Matched by
 # id rather than by position: /v1/models lists every loaded model, and the probe model
 # is only FIRST by convention.
 model_field() {
@@ -115,7 +115,7 @@ print("" if value is None else (json.dumps(value) if isinstance(value, bool) els
 PY
 }
 
-# capability_available NAME — the row's `available` from the last /v1/capabilities body.
+# capability_available NAME. The row's `available` from the last /v1/capabilities body.
 capability_available() {
   PROBE_CAPS_BODY="$PROBE_BODY" PROBE_CAP_NAME="$1" python3 - <<'PY'
 import json, os
@@ -205,7 +205,7 @@ fi
 # OpenAI puts forcing in `tool_choice`, not in the presence of `tools[]`: with
 # "auto"/absent the model may answer instead of calling. Measured 10-18 before the
 # fix: a calls-only grammar gated on declaration squeezed "What is 2 + 2?" into
-# content:"" + finish_reason:"stop" — neither a call nor a reply (the no-tools
+# content:"" + finish_reason:"stop". Neither a call nor a reply (the no-tools
 # control answered `4`). This is now an assertion, not a note, because the contract
 # names the field that carries the instruction.
 probe_section "3b — tools declared but not demanded: answer the question, call nothing"
@@ -225,7 +225,7 @@ fi
 # resists ("What is 2 + 2?") gemma-4's constrained decode yields ZERO tokens here
 # (`content:""`, `finish_reason:"stop"`, measured twice 10-18). No call exists to
 # deliver, so the honest outcomes are "a call" or "silence plus a warning in the
-# log" — never a fabricated call, which would execute something the model never
+# log". Never a fabricated call, which would execute something the model never
 # asked for. Whether a checkpoint can honor the demand is its fact, per model.
 probe_section "3c — tool_choice:\"required\" + a request to call must deliver a call"
 
@@ -308,10 +308,10 @@ fi
 # `ChatViewModel` hands the engine the WHOLE registry on every message, and `/v1/tools`
 # publishes exactly that array, so pasting it back replays what the app's users hit.
 # Three things this section owns, and each one can go red:
-#   a) a declaration is not a demand — nothing may be called;
+#   a) a declaration is not a demand. Nothing may be called;
 #   b) a declaring turn may never hand back an empty reply;
 #   c) declaring tools must actually reach the prompt (prompt_tokens must grow over the
-#      same request with no tools declared) — a schema array silently dropped on the way
+#      same request with no tools declared). A schema array silently dropped on the way
 #      to the model is exactly the defect 10-18 found, and an equality on content alone
 #      would not see it.
 # What this server does NOT own is how well a checkpoint answers once 8.3k tokens of

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# upstream-drift.sh — 两源上游 drift 持续跟进（mlx-swift-lm / coreai-models）
+# upstream-drift.sh。两源上游 drift 持续跟进（mlx-swift-lm / coreai-models）
 #
 # 用法：
 #   bash scripts/upstream-drift.sh          # 只读检查（不改文件）
 #                                            exit 0 = 基线以来 0 新 commit；exit 10 = 有新 commit 待裁决
-#                                            exit 1 = 检查没跑完（含被 trap 归一的中止）—— 不是「无漂移」
-#     多轴同时给出判定时由 `tally_drift` 合并（唯一的写入处）：10 粘住，1 只填还没有 10 的表 ——
+#                                            exit 1 = 检查没跑完（含被 trap 归一的中止）。不是「无漂移」
+#     多轴同时给出判定时由 `tally_drift` 合并（唯一的写入处）：10 粘住，1 只填还没有 10 的表。
 #     一条轴的「待裁决」是事实，另一条轴的「读不到」是这份报告的局限，局限不擦事实（11-05 实测）。
 #     契约只有这三个数，trap 的覆盖面是量出来的（bash 3.2.57）：顶层简单命令、函数、`x="$(…)"`
-#     赋值的非零返回都归一成 1；唯一绕过它的是裸子 shell —— `(exit 141)` 原样退出 141（实测，放在
+#     赋值的非零返回都归一成 1；唯一绕过它的是裸子 shell。`(exit 141)` 原样退出 141（实测，放在
 #     `if` 体里也一样）。本文今天 0 个顶层子 shell（grep 过），所以这是条边界而不是缺陷；哪天写进
 #     一个，它就在契约外面。`make drift` 传不出这三个数（make 把任何失败配方改写成自己的 2），
 #     所以读码的自动化调本脚本；走 make 就读 stdout 的 `drift-exit=N`。
@@ -16,19 +16,19 @@
 #                                            同 0/10/1 三数契约；check 路自带台账判定（漏→10 粘住，读不到→1 填空表）
 #   bash scripts/upstream-drift.sh adopt                  # 把两源当前 HEAD 采纳为新基线（只改 state 文件）
 #   bash scripts/upstream-drift.sh adopt coreai-models    # 只采纳这一条轴，其余轴的窗口如实留着
-#     轴名写错直接 exit 1 —— 静默采纳 0 条轴看起来像「全部办完」，正是这类工具最贵的错。
+#     轴名写错直接 exit 1。静默采纳 0 条轴看起来像「全部办完」，正是这类工具最贵的错。
 #
 # 纪律（09-27 机制化轮定案）：
 #   - state 基线 = 版本化 SHA 前缀（.upstream-baseline.json，入库可复现）
-#   - 判定用 SHA 前缀包含（基线 7 位 / head 前缀可互认；compare API 端点用完整 SHA——短 base 会 404）
+#   - 判定用 SHA 前缀包含（基线 7 位 / head 前缀可互认；compare API 端点用完整 SHA。短 base 会 404）
 #   - 新 commit 列表 = adopt 前的裁决窗口；轴词粗筛只是提示，
 #     权威裁决 = consumer-transparent grep 双根全扫（同义词全扫 + 既有机制先查，先例 e8d41c8）
 #   - 截断一律 `sed -n '1,Np'`，禁 `| head -N`：窗口 >64 KiB 时 head 提前关闭管道，
-#     写入端吃 SIGPIPE，pipefail 让脚本以 141 中止——退出码契约当场失效，读者只看到半张报告
+#     写入端吃 SIGPIPE，pipefail 让脚本以 141 中止。退出码契约当场失效，读者只看到半张报告
 #     （10-29 实测：codex 窗口 >300 条 subject，`>/dev/null` 连三次 exit 141 而非 10）。
 #   - mlx-swift-lm = SPM pin（新 commit → bump 协议）；coreai-models = reference（逐条吸收裁决）。
 #     红只欠这两条真消费的轴。codex 经 11-03 业主裁定降为普通 comparator，11-22 从轴位移除：它的窗口
-#     输出零消费者（测试/CI/探针都不读），剩下的退出码影响只有负面 —— 限流日把干净检查报成「检查没
+#     输出零消费者（测试/CI/探针都不读），剩下的退出码影响只有负面。限流日把干净检查报成「检查没
 #     跑完」，而 `adopt codex` 会把未读窗口盖成已裁决。它的席位是 docs/agent/comparator-repos.md
 #     （按需 file:line 读）；`axis-owed codex` 的裁定行保留，重新列轴=在这张表登记。
 #   - 本机无 references/ clone → gh api 是正确通道，不依赖 git fetch
@@ -37,16 +37,16 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # 计划外的中止一律归一成 1（「检查未完成」），并打出现场。为什么必须有这条：
-# `set -e` 让脚本中途死掉时*带的是那条命令自己的数字*——python 崩是 2、SIGPIPE 是 141、
-# 命令找不到是 127——而本文只登记 0/1/10，读退出码的自动化就会把「没跑完」读成契约里的
+# `set -e` 让脚本中途死掉时*带的是那条命令自己的数字*。python 崩是 2、SIGPIPE 是 141、
+# 命令找不到是 127。而本文只登记 0/1/10，读退出码的自动化就会把「没跑完」读成契约里的
 # 某个数（10-29 的 141 就是这么骗过每日自检的）。
 #
 # 不带 `-E`，且这是量出来的（11-05，bash 3.2.57 = macOS 自带的那个）：加了 -E 之后 trap 会
-# 继承进函数与命令替换，而 3.2 对「`&&` 左侧失败不算中止」这条例外做得不严——回落路径
+# 继承进函数与命令替换，而 3.2 对「`&&` 左侧失败不算中止」这条例外做得不严。回落路径
 # `local_dir() { [ -d … ] && printf … ; }` 里那个假的 `[ -d ]` 也触发 trap，于是三条*被
 # `|| …` 咽下去、脚本照常跑完*的回落各自打出一行「计划外中止」。一行说反话的诊断比没有诊断
 # 更贵。顶层不加 -E 也照样归一：函数与 `$(…)` 的非零返回终归要在顶层那条命令上失败，那条
-# 命令正是 trap 看着的地方——代价只是现场打的是调用方那一行，不是里面那一行。
+# 命令正是 trap 看着的地方。代价只是现场打的是调用方那一行，不是里面那一行。
 on_abnormal_exit() {
   local rc=$?
   printf '!! 计划外中止 line %s：`%s` 退出 %s —— 不在契约（0/1/10）内，归一化为 exit 1\n' \
@@ -64,7 +64,7 @@ cmd="${1:-check}"
 DRIFT=0
 # 判定合并只有一条规则：10（有待裁决窗口）是事实，1（这一轮没读全）是局限，局限不擦事实。
 # 11-05 实测两条同时成立：mlx-swift-lm 打印「+6 commits ⚠ 新窗口待裁决」，随后 codex 的 compare
-# 因 api 限流（0/60）读不到，脚本以 1 退出并把结论印成「检查没跑完」——读码的自动化于是被告知
+# 因 api 限流（0/60）读不到，脚本以 1 退出并把结论印成「检查没跑完」。读码的自动化于是被告知
 # 「什么都还没定」，而真相是「一条已消费的轴欠一次裁决」。直接赋值一律只留 DRIFT=0 那一处。
 tally_drift() { # tally_drift <0|1|10> —— 10 粘住；1 只填还没有事实的表
   local new="${1:-0}"
@@ -95,7 +95,7 @@ local_msgs() { local d; d="$(local_dir "$1")" || return 1
 
 # 一条 resolver，两个消费者（轴 + fork 台账）。此前两边各自解析 HEAD：轴 api 优先、
 # 台账只读本地 clone 的 origin/HEAD，于是「轴已见 d3382a5 / 台账停在 6a6bb0e」在同一轮
-# 报告里同时出现，而逐文件那一行照打「未读 0 个 | 无」—— d3382a5 恰给
+# 报告里同时出现，而逐文件那一行照打「未读 0 个 | 无」。d3382a5 恰给
 # CoreAIStaticShapeEngine.swift 加了 243 行（10-31 实测）。
 axis_head() { # axis_head <name> <repo> → "<sha>:<api|clone>"
   local name="$1" repo="$2" h=""
@@ -134,16 +134,16 @@ window_endpoint() { # window_endpoint <clone-dir> <axis-ref> → "endpoint=<sha>
   return 10
 }
 
-# ── 第四轴：mlx-swift —— 判定单位是 tag，不是 HEAD ─────────────────────────
+# ── 第四轴：mlx-swift。判定单位是 tag，不是 HEAD ─────────────────────────
 # 两轴盯 HEAD 是对的：lm 是 revision pin（HEAD 前进 = 待裁决窗口），coreai-models 是参考轴。
 # mlx-swift 不同：本仓对它下的是 `exact:` tag（Package.swift），main 上没打 tag
-# 的 commit 任何 Swift 消费者都拿不到 —— 「HEAD 领先 N 条」在这里不是待办，只是下一次 tag
+# 的 commit 任何 Swift 消费者都拿不到。「HEAD 领先 N 条」在这里不是待办，只是下一次 tag
 # 的审计输入。判定单位换成立即：
 #   newest tag > pin  → ⚠ 已发布漂移，DRIFT=10（走 Package.swift 头注的 bump 协议）
 #   newest tag == pin → 已发布面 0 漂移；main 领先只打成 ⚑ 提示，不动退出码
 # 通道（10-20 实测本机）：api.github.com 的 repo 端点挂起（HTTP 000，而 /rate_limit 回
 # 200，gh 未装），git 传输可用 ⇒ tag 走 ls-remote；再失败回落 SPM checkout 的本地 tag，
-# 并把 FETCH_HEAD 的时龄打出来 —— 把「最后一次 fetch」说成「现在」是本仓点名的时龄失真。
+# 并把 FETCH_HEAD 的时龄打出来。把「最后一次 fetch」说成「现在」是本仓点名的时龄失真。
 # ⚑ 段顺手列出 main 上落在 ocoreai 直接消费的 MLX 文件上的 commit（名单 = Package.swift
 # 的 consumer-impact audit：10 sites / 5 APIs，两边同一批文件，谁改了哪条一眼可见）。
 MLX_FILES="Source/MLX/Stream.swift Source/MLX/Transforms+Eval.swift Source/MLX/MLXArray.swift \
@@ -223,7 +223,7 @@ for p in d.get("pins", []):
 baseline_note() { python3 -c 'import json; d=json.load(open("'"$STATE"'")); print("@"+d["checked_at_utc"])' 2>/dev/null || echo "缺失(首次)"; }
 base_sha() {
   # mlx-swift-lm 的基线 = Package.resolved 里的 SPM pin（pin 即采纳记录，单一真源）。
-  # json 里的旧值只对 coreai-models 有效——读 json 报 pin 已吸收的漂移是
+  # json 里的旧值只对 coreai-models 有效。读 json 报 pin 已吸收的漂移是
   # 监控假警报（10-11 实锤：pin=7eb77ef==HEAD 仍天天报 +12 待裁决，淹没真窗口）。
   if [ "$1" = "mlx-swift-lm" ]; then
     python3 - <<'PY'
@@ -239,7 +239,7 @@ PY
 
 # gh 优先；无 gh 主机回落 curl+python3（api.github.com 实测可用）。
 # 此前无 gh 时三源全部静默 skip = 覆盖缺口（10-05 实测踩中）。
-# 注意：未认证 api.github.com 限额 60 req/h/IP——一轮全程 ≤15 req，足够。
+# 注意：未认证 api.github.com 限额 60 req/h/IP。一轮全程 ≤15 req，足够。
 api() { # api <endpoint> <mode:head|sha|ahead|behind|messages>
   local ep="$1" mode="${2:-head}"
   if command -v gh >/dev/null 2>&1; then
@@ -266,14 +266,14 @@ elif m=="messages":
 
 # 台账的口径:哪些 .swift 算「我们的镜像」。此前的口径是目录 + 名字前缀
 # (Sources/ocoreai/Engine 下的 CoreAI*.swift),于是 #374 改的五个 GuidedGeneration/ 文件和
-# #402 改的 Engine/InstrumentsProfiler.swift 根本不进表 —— 11-03 实测:带 Apple 版权 + BSD-3
+# #402 改的 Engine/InstrumentsProfiler.swift 根本不进表。11-03 实测:带 Apple 版权 + BSD-3
 # 头、且上游存在同名文件的 .swift 共 26 个,前缀扫描只够到 12 个,两个集合的交是 1 个。
 # 新口径读文件自己的头(点了 coreai-models,或带着 fork 的许可证头),用 walk 而非名字。
 # 每轮都把候选数打出来:walk 坏掉时那是一个看得见的数,不是一次通过(invariant 1)。
 # 读点的拼写有两种,都得认:`Absorbed: #N <sha>` / `Adjudicated: <sha>`,以及早期头里的
 # `Provenance: aligned with … @ <sha>`。11-05 实测:表把 40 个文件报成「无基线」,而其中
 # 至少 `Engine/KVCache+CoreAI.swift` 与 `Engine/TensorStorage+CoreAI.swift` 的头就写着
-# `@ <sha>` —— 那不是没人读过,那是台账读不懂那种写法;同一文件的头还写着
+# `@ <sha>`。那不是没人读过,那是台账读不懂那种写法;同一文件的头还写着
 # 「0 commits changed 78413ae..HEAD」,而此后上游又动了它两次,正是没人再 grep 的那类断言。
 fork_ledger_py() { # fork_ledger_py <clone> <ref> <ours-root> <table|census>
   python3 - "$1" "$2" "$3" "$4" <<'LEDGER_PY'
@@ -293,7 +293,7 @@ def git(*a):
 def resolve(name):
     # `git ls-files "*X.swift"` 是后缀匹配,不是同名匹配:上游 `DecodingStrategies/` 里
     # `*DecodingStrategy.swift` 命中四个文件,原先取 hits[0] 就把 `ConstrainedDecodingStrategy.swift`
-    # 当成了我们 `DecodingStrategy.swift` 的来处 —— 而这两个都是我们的镜像。同名优先;读不到同名时
+    # 当成了我们 `DecodingStrategy.swift` 的来处。而这两个都是我们的镜像。同名优先;读不到同名时
     # 只认 header 自己指名的路径(那是人的断言),裸文件名不做后缀猜测。11-05 实测 5 个镜像被这样
     # 张冠李戴,其中 3 个上游确有同名文件;危险方向是反向的假绿:窗口按别人的历史数,读出 0 个。
     if name.startswith("swift/") and os.path.exists(os.path.join(up, name)):
@@ -317,7 +317,7 @@ for dirpath, _sub, files in os.walk(ours):
         head = head_of(path)
         # 什么算镜像:带 fork 的许可证头(Apple 版权 + BSD-3 条款,这类文件是被搬进来的),
         # 或者头里点了 coreai-models 并指名了一个 .swift 来处。只在注释里引用上游的 MIT
-        # 文件不算 —— 它们是引用,混进镜像表会让 40 个数读起来像 40 个没读的 fork。
+        # 文件不算。它们是引用,混进镜像表会让 40 个数读起来像 40 个没读的 fork。
         fork_licence = all(k in head for k in BSD)
         names_a_path = "coreai-models" in head and any(
             "{" not in x for x in PATH_RE.findall(head))
@@ -343,9 +343,9 @@ for path, head in cands:
             glue += 1
         continue
     if not window:
-        # 11-05 实测:36 个"无基线"里 11 个头上就写着一个 sha —— `Absorbed from coreai-models
+        # 11-05 实测:36 个"无基线"里 11 个头上就写着一个 sha。`Absorbed from coreai-models
         # 27a66f9 (#227, fix #212)`、`(coreai-models #252, ebb3e54)`、`Upstream pin: … 7359dbc`。
-        # 台账不猜那些写法是什么意思 —— 有一行明写着 `(upstream ahead)`,把它当基线就是一次假绿 ——
+        # 台账不猜那些写法是什么意思。有一行明写着 `(upstream ahead)`,把它当基线就是一次假绿。
         # 但它也不能把"读不懂"和"没人读过"报成同一个数,所以分开点名,判断交给人。
         tagged = bool(re.search(r"\b[0-9a-f]{7,40}\b", head))
         nobase.append((rel, git("rev-list", "--count", ref, "--", src) or "?", tagged))
@@ -362,7 +362,7 @@ for path, head in cands:
         deltas.append((rel, base[:9], src.split("/")[-1], ss.strip() or "current (0 delta)"))
     # CONTENT debt: lines the upstream file HAS at the read-point that our copy does not contain
     # (comments and blanks excluded; whole-line membership, so re-wrapping shows as noise the
-    # human read filters — the header says so, and a declared ruling IS a missing line by design).
+    # human read filters. The header says so, and a declared ruling IS a missing line by design).
     up_txt = git("show", "%s:%s" % (window, src))
     if up_txt:
         ours_txt = open(path, errors="ignore").read()
@@ -382,7 +382,7 @@ if mode == "census":
 elif mode == "content":
     # "Did the sync really happen?" as a rerunnable command: per mirror, upstream lines the
     # read-point HAS that our copy does not. Re-wrap and declared rulings (zero-fatalError,
-    # package->internal) legitimately show here — a count is a pointer for the human read,
+    # package->internal) legitimately show here. A count is a pointer for the human read,
     # not a verdict. Sampled 11-23: the nine re-stamped mirrors show only such declared/format
     # lines; a never-absorbed hunk shows as a block.
     fm = sum(1 for _r, m in contents if m)
@@ -466,12 +466,12 @@ if [ "$cmd" = "window-endpoint" ]; then
   exit "$rc"
 fi
 
-# 一条真实的顶层命令，以指定的数字失败——契约的另一半（未登记的码不得外流）只能在
+# 一条真实的顶层命令，以指定的数字失败。契约的另一半（未登记的码不得外流）只能在
 # 真命令上问，不能在注释里问。
 fail_with() { return "${1:-1}"; }
 
 # 测试缝：`abort-code <n>` 让上面那条以 n 失败，走的是主路径同一个 trap。
-# 期望恒为 1（而非 n）：trap 被删，这里就漏出 2/141/127 —— 已实测（删掉 trap 那行同一命令返回 2）。
+# 期望恒为 1（而非 n）：trap 被删，这里就漏出 2/141/127。已实测（删掉 trap 那行同一命令返回 2）。
 if [ "$cmd" = "abort-code" ]; then
   fail_with "${2:-2}"
   exit 0  # 不可达：trap 必须先接管，否则这条 exit 才是被测的面
@@ -480,7 +480,7 @@ fi
 # 一条轴欠不欠一个红：0 = 我们真消费它（SPM pin、逐条吸收的 fork），未读窗口判红；
 # 非 0 = 普通 comparator，窗口只报告。11-03 业主裁定 codex 不再是权威（root § Upstream 5），
 # 11-22 它连轴位也撤了（REPOS 里没有它），这一行留着：`axis-owed codex` 仍答 report-only，
-# 裁定的记录住在仪器里而不是注释里；未登记的轴一律按欠债算 —— 新轴默认判红比默认放行便宜。
+# 裁定的记录住在仪器里而不是注释里；未登记的轴一律按欠债算。新轴默认判红比默认放行便宜。
 # 测试缝：`axis-owed <name>` → "owed" | "report-only"（不碰网络）。
 axis_owed() {
   case "${1:-}" in
@@ -496,14 +496,14 @@ if [ "$cmd" = "fork-census" ]; then
 fi
 
 # Per-file CODE debt view (baseline..HEAD): which forked files actually differ from upstream.
-# The sync-targeting companion to the read-point table — report only, not a gate.
+# The sync-targeting companion to the read-point table. Report only, not a gate.
 if [ "$cmd" = "coreai-delta" ]; then
   coreai_fork_ledger delta
   exit 0
 fi
 
 # The "is the fork really synced?" companion: which lines the upstream read-point has that our
-# copy lacks. Report only, like coreai-delta — declared rulings show here by design.
+# copy lacks. Report only, like coreai-delta. Declared rulings show here by design.
 if [ "$cmd" = "coreai-content" ]; then
   coreai_fork_ledger content
   exit 0
@@ -517,7 +517,7 @@ fi
 
 # 一次轴的 subject 窗口 = 轴词粗筛的输入，是提示，不是判定：走到这里时 HEAD 与 ahead 都已读到，
 # 「⚠ 新窗口待裁决」那行已经落纸。11-05 实测一次 compare 读失败（api 限流）：那次中止由 trap 打出来
-# （`window="$(api ...)"` 在 `set -e` 下带走整个进程），10 被改写成 1，剩下两条轴一行没打 ——
+# （`window="$(api ...)"` 在 `set -e` 下带走整个进程），10 被改写成 1，剩下两条轴一行没打。
 # 读码的自动化于是把「一条提示没读到」读成「检查没跑完」，而真正的待裁决窗口反而看不见。
 # 规矩同 resolve 的阶梯：失败的*读*自己认账并往下走，只有失败的*判定*才配改退出码。
 axis_window() { # axis_window <name> <repo> <src:api|clone> <base> <head>
@@ -542,7 +542,7 @@ axis_window() { # axis_window <name> <repo> <src:api|clone> <base> <head>
 
 # 一条轴的判定文案与它欠的退出码，从 compare 读到的两个数里选出来。此前这两件事写在主循环里，
 # 于是「读不到」与「读到了 0/0」共用同一条 elif：11-05 实测 api.github.com 剩余额度 0/60 时，
-# codex 打印的是「? 非线性分叉，人工复查」——把配额报成了分支历史。判定形状与退出码都不许变
+# codex 打印的是「? 非线性分叉，人工复查」。把配额报成了分支历史。判定形状与退出码都不许变
 # (0=不动,10=待裁决,1=人工复查)，变的只有一句点名。AXIS_DRIFT 而不是 return：ERR trap 对函数
 # 返回非零会接管并归一，见文件头的覆盖边界。
 axis_verdict() { # axis_verdict <name> <short> <base9> <ahead> <behind> <owed:1|0>
@@ -573,7 +573,7 @@ axis_verdict() { # axis_verdict <name> <short> <base9> <ahead> <behind> <owed:1|
   return 0
 }
 
-# 测试缝：让上面那条走一次*真失败*的读，不碰网络——把 clone 根指到一个空目录，
+# 测试缝：让上面那条走一次*真失败*的读，不碰网络。把 clone 根指到一个空目录，
 # `local_msgs` 就以 1 失败，被测的是「点名并返回 0」而不是「提示失败不许改判定」这句注释。
 if [ "$cmd" = "window-read" ]; then
   axis_window "${2:-no-such-axis}" "${3:-none/none}" clone "${4:-deadbeef}" "${5:-deadbeef}"
@@ -601,10 +601,10 @@ fi
 # ── 裁决台账（bump 窗口的逐条点名）────────────────────────────────────────────
 # 这条轴的基线 = SPM pin，于是「bump 跳过了没读的 commit」这条轴自己看不见自己的债:
 # pin 一挪,没读的窗口就永久从报告里消失(11-09 实测:a70ef531 只裁决了它去取的 #732,
-# 同窗口另外 4 条 —— #731/#745/#746/#740 —— 无声进了出货树,#731 恰是我们 guided lane
+# 同窗口另外 4 条。#731/#745/#746/#740。无声进了出货树,#731 恰是我们 guided lane
 # 需要的正确性修复)。修法是台账不是新轴:每个挪 revision: 的 commit,它跨过的每条上游
 # commit 必须被点名(sha7 或 subject 里的 #PR)在 bump 自己的 message 或 CHANGELOG 里。
-# 锚点前(171cd3ee,10-06)的历史是**声明的盲面**:打印祖先数并跳过扫描 —— 拿今天的口径
+# 锚点前(171cd3ee,10-06)的历史是**声明的盲面**:打印祖先数并跳过扫描。拿今天的口径
 # 去判六月的树会造 51 条没法追认的红,那是伪造 retro-scope,不是补台账。
 # 测试缝:bash scripts/upstream-drift.sh pairing [diary-file] [anchor-sha]
 PAIR_ANCHOR="171cd3ee"
@@ -664,7 +664,7 @@ PY
 
 if [ "$cmd" = "pairing" ]; then
   # `&& rc=0 || rc=$?` 是量出来的必需形态:裸调用 + `rc=$?` 会被 ERR trap 先接管,10 归一成 1,
-  # 台账的「有漏」就被报成「没跑成」——文件头那条契约在调用点自己兑现一次。
+  # 台账的「有漏」就被报成「没跑成」。文件头那条契约在调用点自己兑现一次。
   rc=0
   pairing_ledger "${2:-CHANGELOG.md}" "${3:-$PAIR_ANCHOR}" && rc=0 || rc=$?
   printf 'PAIRING_EXIT=%s\n' "$rc"
@@ -713,7 +713,7 @@ for pair in $REPOS; do
     if axis_owed "$name"; then owed=1; fi
     axis_verdict "$name" "$short" "${base:0:9}" "$ahead" "$behind" "$owed"
     if [ "$AXIS_DRIFT" -ne 0 ]; then tally_drift "$AXIS_DRIFT"; fi
-    # 窗口照旧打印：comparator 的窗口是「报告」，不是「欠债」——只是它不再决定退出码。
+    # 窗口照旧打印：comparator 的窗口是「报告」，不是「欠债」。只是它不再决定退出码。
     if [ "$DRIFT" -eq 10 ] || ! axis_owed "$name"; then
       axis_window "$name" "$repo" "$src" "$base_full" "$head"
     fi

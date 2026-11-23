@@ -21,7 +21,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 
-# (label, file, exact text to remove, replacement) — each line is the mutation, spelled out so the
+# (label, file, exact text to remove, replacement). Each line is the mutation, spelled out so the
 # README's table and this list cannot drift apart silently.
 MUTATIONS = [
     ("protected list loses the frozen task set",
@@ -48,23 +48,23 @@ MUTATIONS = [
      'SCOPE+=("Sources/")  # hardcoded, no longer derived from the allow list'),
     ("task-set guard unwired from the loop", "_autoab_gate.py",
      "    mismatch = taskset_mismatch(base, variant)", "    mismatch = None"),
-    # the guard still exists and is still called — it just always says "same game". A call site that
+    # the guard still exists and is still called. It just always says "same game". A call site that
     # survived while its answer went dead is the failure mode a presence-check alone cannot see.
     ("task-set guard alive but dead", "_repeat_stats.py",
      "    if a == b:\n        return None",
      "    return None\n    if a == b:\n        return None"),
-    # the call site stays, the decision test stays — the consumed patch simply is not moved, so the
+    # the call site stays, the decision test stays. The consumed patch simply is not moved, so the
     # adjudicated ones re-enter the queue glob and buy their build + k=6 pair again.
     ("measured proposal left in the queue glob", "autoab.sh",
      'if [ "$decision" = keep ] || [ "$decision" = revert ]; then archive_proposal "$patch"; fi',
      'if [ "$decision" = keep ] || [ "$decision" = revert ]; then :; fi'),
     # negation dropped: the self-test still runs, the filename still sits on the line, and the loop
-    # now exits 3 only when the referee *agrees* — a presence check cannot see this, only the
+    # now exits 3 only when the referee *agrees*. A presence check cannot see this, only the
     # same-line `! python3` can.
     ("startup referee check inverted", "autoab.sh",
      'if ! python3 "$HERE/_autoab_selftest.py" >"$WORK/referee.log" 2>&1; then',
      'if python3 "$HERE/_autoab_selftest.py" >"$WORK/referee.log" 2>&1; then'),
-    # the axis still exists, the call sites still pass it — it just swallows a second field, so a
+    # the axis still exists, the call sites still pass it. It just swallows a second field, so a
     # different model would be priced as if it were the proposal's build.
     ("declared hypothesis axis widened past the build", "_autoab_gate.py",
      'HYPOTHESIS_AXIS = ("binary",)', 'HYPOTHESIS_AXIS = ("binary", "model")'),

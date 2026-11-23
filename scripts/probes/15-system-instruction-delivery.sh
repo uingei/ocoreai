@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# 15-system-instruction-delivery.sh — do the caller's instructions reach the model, on both faces?
+# 15-system-instruction-delivery.sh. Do the caller's instructions reach the model, on both faces?
 #
 # ### Why (AGENTS.md invariant 2 + "a per-turn knob must reach the engine")
 # `messages[role=system]` is the most-used instruction field on the OpenAI wire. Measured 10-20
 # on this host (`mlx-community/gemma-4-e2b-it-4bit`, temp 0) before the fix: a request whose
 # `messages[0]` was a ~1000-character system message delivered the *same* `usage.prompt_tokens`
-# (705) as the identical request with no system message — differential **0** — while this
+# (705) as the identical request with no system message. Differential **0**. While this
 # server's own disclosure line claimed it counted them (`promptTokens=838` against 712). The
 # Anthropic face, whose spec carries `system` as a top-level field, delivered the same text
 # (+182 `input_tokens`). One face honoured the field, the other silently dropped it, and the
@@ -13,8 +13,8 @@
 #
 # The drop was structural, not a parsing miss: the engine takes instructions from the *first*
 # system message it finds (`EngineInference.swift:1791`) and filters every `system` role out of
-# the feed it renders — mlx-swift-lm's `Chat.Message.Role` has no `developer` case either
-# (`Chat.swift:120-124`) — while `buildMessages` inserted this server's own prompt at index 0
+# the feed it renders. Mlx-swift-lm's `Chat.Message.Role` has no `developer` case either
+# (`Chat.swift:120-124`). While `buildMessages` inserted this server's own prompt at index 0
 # and left the client's message at index 1. Counted, never delivered; and `developer` fell
 # through the engine's role switch, arriving as something the *user* said.
 #
@@ -25,23 +25,23 @@
 # and neither counts them without sending them.
 #
 # ### What is measured
-#   1. Delivery — adding ~1k chars of client instructions must raise the *delivered*
+#   1. Delivery. Adding ~1k chars of client instructions must raise the *delivered*
 #      `usage.prompt_tokens` by a wide margin (>=40), on `/v1/chat/completions`.
 #   2. `developer` lands in the same channel as `system` (same differential, not a user turn).
-#   3. The two faces agree — OpenAI `prompt_tokens` and Anthropic `input_tokens` for the same
+#   3. The two faces agree. OpenAI `prompt_tokens` and Anthropic `input_tokens` for the same
 #      content within 8 tokens, with-system and without-system.
-#   4. No phantom turn — the disclosure line must show exactly one system message
+#   4. No phantom turn. The disclosure line must show exactly one system message
 #      (`[system,…]`, never `[system,system,…]`) and its `systemChars=` must grow by at least
 #      60% of the client text it now carries.
-#   5. Instruction identity gates cache reuse — replaying the same conversation with the same
+#   5. Instruction identity gates cache reuse. Replaying the same conversation with the same
 #      instructions must reuse the prefix (`cached_tokens>0`); changing the system text must
 #      refuse the pooled session (`cached_tokens==0`), because that cache was rendered under an
 #      instruction list this turn never sent. §5 fails as vacuous if the first pattern shows no
 #      reuse, so the second half can never pass on a dead premise.
 #      A lane that renders its own prompt and prefills a fresh cache cannot reuse at all, so
 #      §5 declares one inert tool and runs on the pooled-`ChatSession` route, the route that
-#      continues a resident KV. The other lane owes a different claim — it keeps its whole
-#      feed and claims nothing — and 01-prefix-accounting §F prices that.
+#      continues a resident KV. The other lane owes a different claim. It keeps its whole
+#      feed and claims nothing, and 01-prefix-accounting §F prices that.
 #
 # Needs a real Metal device: run unsandboxed (`bash scripts/probes/run.sh 15`).
 #
@@ -70,7 +70,7 @@ cached_tokens() { probe_json "$1" 'usage.prompt_tokens_details.cached_tokens'; }
 input_tokens()  { probe_json "$1" 'usage.input_tokens'; }
 content_of()    { probe_json "$1" 'choices.0.message.content'; }
 
-# chat_body SESSION MAX MESSAGES_JSON — bodies are built by python from a JSON array passed
+# chat_body SESSION MAX MESSAGES_JSON. Bodies are built by python from a JSON array passed
 # through the environment, because assistant text replayed from a previous turn may contain
 # quotes, and macOS bash 3.2 mis-parses nested quoted substitution (probe 09 documents it).
 chat_body() {
@@ -180,7 +180,7 @@ OTHER="Answer in French, keep it to one line."
 # reuse. Without it a reasoning checkpoint answers on a lane that has no reuse to refuse.
 PROBE_TOOLS_JSON='[{"type":"function","function":{"name":"instruction_probe_noop","description":"Report a fixed status string. Call only when the user explicitly asks for a status report.","parameters":{"type":"object","properties":{},"required":[]}}}]'
 export PROBE_TOOLS_JSON
-# reuse_run SESSION SYS1 SYS2 — turn 1 under SYS1, then replay the whole conversation with
+# reuse_run SESSION SYS1 SYS2. Turn 1 under SYS1, then replay the whole conversation with
 # SYS2 and a new question. Writes turn 2's cached_tokens to $PROBE_TMP/<sess>.cached and
 # prints both turns' measured numbers directly (globals do not survive command substitution).
 reuse_run() {
@@ -232,7 +232,7 @@ fi
 # The refusal must say why, out loud at the default log level: `cached_tokens==0` tells an
 # operator that a turn was slow, only the reason line tells them the caller rewrote its
 # instructions. Both directions are checked, and the count for the refused conversation is a
-# premise floor — a grep that matched nothing would otherwise let a silent pool pass. The
+# premise floor. A grep that matched nothing would otherwise let a silent pool pass. The
 # conversation id sits in the pool key, which precedes the reason, so the patterns read in
 # that order.
 REFUSED_CHANGED="$(grep -c "$CHANGED_SESS.*not reusable.*instructions changed" "$PROBE_LOG" 2>/dev/null || true)"

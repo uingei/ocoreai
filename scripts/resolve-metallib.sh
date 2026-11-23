@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# resolve-metallib.sh — one ladder for "where is MLX's shader payload", shared by every gate.
+# resolve-metallib.sh. One ladder for "where is MLX's shader payload", shared by every gate.
 #
 # A test process cannot let MLX find this file itself: MLX's search is path-shaped and reaches
 # neither a signed .xctest bundle's MacOS dir nor a SwiftPM 6.4 products dir (Engine/AGENTS.md
@@ -8,18 +8,18 @@
 # target is how one copy drifts, so the ladder lives here and the targets only stage.
 #
 # Usage: resolve-metallib.sh [scratch-dir]     (default: .build)
-# stdout: the payload path, nothing else — command-substitutable.
+# stdout: the payload path, nothing else. Command-substitutable.
 # stderr: every rung asked, with what its scan saw (`rung: swiftpm-product · 4 716 496 bytes ·
 # scanned 5 payload file(s)`), so a miss and an empty tree are different sentences. exit 1 + remedy
 # when nothing is usable.
 #
 # Rungs, in provenance order: the explicit override, then the scratch's own SwiftPM product
 # (compiled against the pinned mlx), then an Xcode product for this project, then a pip wheel
-# (a different release entirely — last resort, and said out loud when it wins).
+# (a different release entirely. Last resort, and said out loud when it wins).
 #
 # Rung 1 is where a route that compiles `.metal` *itself* puts the payload, and that is a SwiftPM-version
 # capability, not a property of the platform: this host's 6.4 does (38 `.air` intermediates,
-# 4 716 496 bytes) and the macos-26 runner's CLT 6.3.3 does not — it builds green, says nothing, and
+# 4 716 496 bytes) and the macos-26 runner's CLT 6.3.3 does not. It builds green, says nothing, and
 # leaves rung 1 at `scanned 0` (measured 11-06, package.yml run 25, whose notice also shows the producer's
 # `rung: xcode-derived-data · 4 695 872 bytes` staging into this same path). Upstream's route compiles it
 # (mlx-swift-lm .github/workflows/pull_request.yml:216-237 asserts `Status: installed`), which is why the
@@ -30,7 +30,7 @@
 #
 # Each tree is SEARCHED for the bundle by name, not globbed at a remembered depth (11-06). This is
 # not hypothetical here: five payloads sit under this repo's own `.build` across three products
-# layouts — `out/Products/Release/`, inside the built `.xctest`'s Resources, and a doubled
+# layouts, `out/Products/Release/`, inside the built `.xctest`'s Resources, and a doubled
 # `out/out/Products/Release/` an older SwiftPM left behind. A glob that misses the newest one does
 # not fail, it quietly returns an older payload or none, and the caller cannot tell the two apart.
 # The packaging lane has been red since 10-31 with the payload among its unpublished premises (the leg never
@@ -51,7 +51,7 @@ usable() {
 PAYLOAD_PATH='*/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib'
 SCAN_DEPTH=12
 
-# search_for <dir> — every payload-shaped file under <dir>, newest first. Matched on the path
+# search_for <dir>. Every payload-shaped file under <dir>, newest first. Matched on the path
 # suffix, never on a remembered depth: `-name` ignores slashes, so this is `-path`, and `-maxdepth`
 # only bounds the walk.
 search_for() {
@@ -73,7 +73,7 @@ if usable "${OCOREAI_METALLIB:-}"; then
   exit 0
 fi
 
-# search_rung <label> <dir>… — one rung of the ladder: search each named tree, newest payload wins.
+# search_rung <label> <dir>…. One rung of the ladder: search each named tree, newest payload wins.
 # The scanned count is the floor AGENTS.md § Testing Quality asks a scan to print, and it separates
 # the two answers a reader acts on: `scanned 0` under a scratch that was just built means the route
 # compiled no `.metal` at all, while `scanned 4` means a payload exists and the ladder picked the

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 46-mcp-wire-headless-denial.sh — a channel that cannot answer an approval must be refused,
+# 46-mcp-wire-headless-denial.sh. A channel that cannot answer an approval must be refused,
 # not left waiting for a GUI that is not on its channel.
 #
 # Measured 10-31 on this host against a live `serve` with the shipped default policy
@@ -7,18 +7,18 @@
 #   initialize                 → answered
 #   tools/call write_file      → nothing for 12 s (`curl -m 12` → status 000), and the file was
 #                                not written either.
-# The call had parked on `ApprovalBroker`, waiting for the in-app GUI's approval card — a surface
+# The call had parked on `ApprovalBroker`, waiting for the in-app GUI's approval card. A surface
 # that does not exist on the wire. Three of the four tool-bearing lanes (`chat/completions`,
 # `completions`, `anthropic/messages`) declare `headless: true` and are refused at the gate
 # (codex `codex-rs/exec/src/lib.rs:566`); `/mcp` never declared its channel, so it was the one
 # lane where an agent harness could hang forever with no error, no timeout and no way out.
 #
 # Why the legs are these three:
-#   1) a handshake that answers is the positive control — a surface that answered nothing would
+#   1) a handshake that answers is the positive control. A surface that answered nothing would
 #      otherwise look like a fixed hang when it was only a dead server;
 #   2) the destructive call must come back as an MCP error result that names the channel, inside a
 #      bounded budget, and must not touch the file (the refusal must not be a lie either way);
-#   3) a non-destructive tool on the SAME lane must still run — otherwise "refused" would only mean
+#   3) a non-destructive tool on the SAME lane must still run. Otherwise "refused" would only mean
 #      the surface was switched off, which is a different bug.
 # The broker holding no orphan row is asserted in MCPServerHeadlessGateTests: no wire surface
 # publishes pending approvals, so it cannot be measured from here.
@@ -63,7 +63,7 @@ rpc() {  # rpc <id> <method> <params-json>
 
 # Bodies are assembled in plain variables, never nested inside `$( … "$(…)" … )`: the stock macOS
 # bash (3.2) splits an escaped-quote string there instead of quoting it, which sends a torn JSON
-# body and gets a parse error back — the probe would then be measuring its own harness.
+# body and gets a parse error back. The probe would then be measuring its own harness.
 
 probe_section "1) positive control — the handshake answers, so a later silence means silence"
 INIT_PARAMS='{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe46","version":"0"}}'

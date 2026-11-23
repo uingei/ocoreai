@@ -1,46 +1,46 @@
 #!/usr/bin/env bash
-# 08-video-honesty.sh — does /v1/chat/completions see the video it accepts, keep what it
+# 08-video-honesty.sh. Does /v1/chat/completions see the video it accepts, keep what it
 # spooled for as long as the conversation cites it, and refuse by name what it cannot open?
 #
-# ### Why (AGENTS.md invariant 2 — the surface never claims more than the engine delivered)
+# ### Why (AGENTS.md invariant 2. The surface never claims more than the engine delivered)
 # The chat route accepts a `video_url` part and hands it to the engine
 # (EngineInference.swift -> makeMLXVideo -> MLXLMCommon.UserInput.Video). Whether those
 # bytes reach the model is per-checkpoint, not global: at the pinned mlx-swift-lm revision
 # `Gemma4Processor.prepare` reads `input.videos` (Gemma4.swift:2196/:2254/:2256) while
-# `Gemma4UnifiedProcessor.prepare` never mentions videos — and which processor a checkpoint
+# `Gemma4UnifiedProcessor.prepare` never mentions videos, and which processor a checkpoint
 # uses is declared in its own processor_config.json (`processor_class`). So "this build
 # supports video" is answerable only per model, by measurement.
 #
 # ### The defect this probe was written for, and what it now also guards
-# Run 1 (10-16) found the answer was yes for the default model — and that the conversation
+# Run 1 (10-16) found the answer was yes for the default model, and that the conversation
 # died immediately after. A `data:` clip was written to a temp file, deleted when the
 # request ended, and left inside the transcript that upstream re-feeds on every later turn
-# (ChatSession.swift:1166), so turn two — even a plain text follow-up — answered
+# (ChatSession.swift:1166), so turn two. Even a plain text follow-up. Answered
 # `500 {"message":"Generation failed: Inference failed: The operation could not be
 # completed"}`, permanently. Same bytes as a `file://` URL: fine, and recalled. The fix
 # moved the bytes to MediaSpool, whose lifetime is the session's. Hence three gates here:
 #
-#   1. SEEING     — the same one-word question, asked with a red clip and with a blue clip,
+#   1. SEEING. The same one-word question, asked with a red clip and with a blue clip,
 #                  gets "red" and "blue". A guess cannot be right for both. A prompt-token
 #                  jump over the media-free baseline proves frames expanded into the prompt
 #                  rather than one template placeholder.
-#   2. LIFETIME   — with OCOREAI_MEDIA_SPOOL pointed at a directory this probe owns: the
+#   2. LIFETIME, with OCOREAI_MEDIA_SPOOL pointed at a directory this probe owns: the
 #                  clip's bytes are there while the conversation lives, they are STILL there
 #                  when the next turn is answered 200, and the spool holds one file per
 #                  distinct clip rather than one per turn.
-#   3. REFUSAL    — a media part naming a missing file is answered 4xx with `error_code`
+#   3. REFUSAL. A media part naming a missing file is answered 4xx with `error_code`
 #                  and `remediation` naming the axis, not 200-with-no-video and not an
 #                  opaque 500. (That opaque 500 is precisely what this probe hit; a
 #                  refusal that cannot be named is the same lie in a different voice.)
 #
-# A 5xx is NEVER counted as an honest refusal here — the first version of this file did
+# A 5xx is NEVER counted as an honest refusal here. The first version of this file did
 # exactly that and reported PASS on a broken server, which is the vacuous-pass family
 # AGENTS.md invariant 1 exists to catch.
 #
 # Premises are floored: the clips must exist, be non-empty, and self-report a duration
 # (scripts/make-test-video.swift re-opens what it wrote) or the run aborts instead of
 # reporting PASS on a broken fixture. Video encoding needs VideoToolbox, unavailable inside
-# the agent sandbox — so a failure says "run unsandboxed (make probes)" rather than
+# the agent sandbox, so a failure says "run unsandboxed (make probes)" rather than
 # pretending to be a code regression.
 #
 # Run: bash scripts/probes/08-video-honesty.sh
@@ -74,7 +74,7 @@ BLUE_URL="$(data_url "$BLUE_CLIP")"
 PROBE_SESSION="PROBE-VIDEO-A-$$"
 FRESH_SESSION="PROBE-VIDEO-B-$$"
 
-# make_body KIND SESSION — KIND: none | red | blue | followup | missing
+# make_body KIND SESSION. KIND: none | red | blue | followup | missing
 # A session id is not decoration: the defect this probe guards is per-conversation, so
 # every request must carry the conversation it belongs to.
 make_body() {
@@ -186,7 +186,7 @@ case "$(lower "$SAME_SESSION_BLUE_ANSWER")" in
 esac
 # What the count means is stated rather than assumed: a conversation whose pooled session
 # was discarded (its incoming conversation no longer extends what the session holds) releases
-# the bytes only it cited — that is the lifetime rule working, not a leak. The clip a live
+# the bytes only it cited, that is the lifetime rule working, not a leak. The clip a live
 # session still cites stays.
 printf '        spool files now (2 distinct clips posted across 2 conversations): %s\n' "$(spool_count)"
 printf '        spool bytes now: %s\n' "$(spool_files | xargs wc -c 2>/dev/null | tail -1 | tr -s ' ' | sed 's/^ *//')"
@@ -209,7 +209,7 @@ else
 fi
 
 probe_section "4. what the surface publishes about video"
-# Read the list (there is no GET /v1/models/:model — only /sampling and /kv-cache hang
+# Read the list (there is no GET /v1/models/:model, only /sampling and /kv-cache hang
 # off :model), and pick this run's model out of it by id.
 probe_api GET /v1/models
 read_video_fields() {
@@ -244,7 +244,7 @@ esac
 
 if [ "$VIDEO_DELIVERED" = "1" ]; then
   # Measured above: red clip -> "Red", blue clip -> "Blue", prompt +144 for the frames.
-  # Staying silent here is not caution, it is withholding a fact the engine earned —
+  # Staying silent here is not caution, it is withholding a fact the engine earned,
   # this is the assertion that used to be a NOTE.
   if [ "$MODEL_VIDEO" = "delivered" ]; then
     probe_ok "videoInput=delivered is published for the model this run made see video"

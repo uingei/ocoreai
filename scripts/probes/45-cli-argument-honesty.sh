@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# 45-cli-argument-honesty.sh — an informational CLI call must never boot, and a flag nobody
+# 45-cli-argument-honesty.sh. An informational CLI call must never boot, and a flag nobody
 # reads must be refused before the bind rather than ignored after it.
 #
-# Measured 10-31 on this host: `ocoreai serve --help` started the production server — crash
-# handlers, SQLite against the caller's own data directory, the single-instance lock — and printed
+# Measured 10-31 on this host: `ocoreai serve --help` started the production server. Crash
+# handlers, SQLite against the caller's own data directory, the single-instance lock, and printed
 # no usage at all. `serve --port 9090` did the same on the *default* port, because the flag was
 # "documented but not yet consumed". Both are the defect `CLIMode`'s header already records for
 # `--version` (live-tested 10-11), one token later: the first token after argv[0] was the only one
 # ever inspected, so anything after `serve` was accepted and dropped.
 #
 # The observable is the exit code plus an empty port: 0 for usage, 64 (EX_USAGE) for a refusal,
-# and nothing listening afterwards. Bare `serve` booting is not re-probed here — that is the CI
+# and nothing listening afterwards. Bare `serve` booting is not re-probed here, that is the CI
 # headless smoke step's sentence, and this probe costs no model and no boot.
 #
 # Every leg exports OCOREAI_DATA_DIR into a temp dir first: if a regression does boot, it boots
@@ -32,7 +32,7 @@ probe_atexit 'rm -rf "$STORE" "$OUT" "$ERRF"'
 
 # Bounded run: if the invocation boots, it never exits, so "still alive" IS the failure. Ten
 # seconds is generous against a measured ~3 s boot on this host.
-# The return is read through `$?`, never through `if` — a conditional resets it to 0.
+# The return is read through `$?`, never through `if`. A conditional resets it to 0.
 run_bounded() {
   : > "$OUT"; : > "$ERRF"
   OCOREAI_ENABLE_HTTP=1 OCOREAI_HOST=127.0.0.1 OCOREAI_PORT="$PORT" \

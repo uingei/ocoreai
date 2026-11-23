@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# unreferenced-decls.sh — how many declarations in Sources/ nothing in the tree names?
+# unreferenced-decls.sh. How many declarations in Sources/ nothing in the tree names?
 #
 # ### Why this exists (10-29, entry 53)
 # A round that deletes 770 unreferenced lines is worthless if the number grows back, and "no line is
 # gratuitous" is the kind of sentence that rots silently in a README. So the count is measured and
 # floored: `AGENTS.md` carries `<!-- claim:unreferenced_decls_ours<=N -->`; the docs gates that re-ran
-# it retired 11-16, so this scan is the instrument a touching reader re-runs — sampled red: the 770 lines.
+# it retired 11-16, so this scan is the instrument a touching reader re-runs. Sampled red: the 770 lines.
 #
 # ### What counts as a reference
 # A name occurs in the INDEX, which is every tracked file minus comments. A reference is a CALLER, not
 # a sentence, and that holds for every file type, not just Markdown: entry 54 skipped `*.md` after this
 # script's own header comment retired two names from its result (10-29, entry 56 sampled the same trick
-# in `scripts/*.sh` — `*.md` was the half-measure, comments were the whole thing).
+# in `scripts/*.sh`, `*.md` was the half-measure, comments were the whole thing).
 #
 # ### Two buckets, because the author differs
 # Files whose header carries Apple's copyright are absorbed upstream source (BSD-3, see
@@ -30,7 +30,7 @@
 # member reads as referenced when its *name* occurs anywhere. `LogProbabilities.sum`/`.mean`/`.perplexity`
 # had no caller in the tree and still scored clean, because `mean` and `perplexity` occur in other types
 # (10-31: a CHANGELOG row asserted a consumer for them and was wrong). So `unreferenced_decls_ours<=0`
-# means "no uniquely-named declaration is unowned" — for a common word the verdict is a `file:line` read
+# means "no uniquely-named declaration is unowned", for a common word the verdict is a `file:line` read
 # at the use site, never this count.
 #
 # Exit 0 on a counted tree: the verdict belongs to the claim's direction, not to this script.
@@ -47,7 +47,7 @@ MAX_BYTES = 4_000_000  # a vendored blob is not a reference site, and reading it
 APPLE_HEADER = "Copyright 2026 Apple"
 
 # Comment shapes are language-specific, and a wrong rule here is worse than no rule: `#` leads a comment
-# in shell, Python and YAML, and is CODE in Swift (`#expect`, `#selector`, `#if`) — one shared rule ate
+# in shell, Python and YAML, and is CODE in Swift (`#expect`, `#selector`, `#if`). One shared rule ate
 # every `#expect(await pool.isModelLoading(id))` line and reported a live method as dead, which is the
 # scan lying in the direction that deletes working code. The wire formats have no comments at all, so a
 # name in `openapi.json` or a probe's expected JSON stays a witness (a client reads it).
@@ -69,7 +69,7 @@ counts = collections.Counter()
 for p in TRACKED:
     if p.endswith(".md") or p == SELF:
         # `*.md` is prose; and the gate's own source holds EXEMPT, whose keys are the names they
-        # exempt — a table that retires the thing it is written about is not a reference site.
+        # exempt. A table that retires the thing it is written about is not a reference site.
         continue
     ext = os.path.splitext(p)[1]
     hashed = ext in HASH_COMMENT_LANGS

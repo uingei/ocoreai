@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 24-hub-existence-gate.sh — does the hub reachability gate refuse only what it actually asked?
+# 24-hub-existence-gate.sh. Does the hub reachability gate refuse only what it actually asked?
 #
 # ### Why this exists (and why it stands its own hub)
 # probe 23 §4 measures the verdict this network produces: a dead id comes back HTTP 503 in ~8 s
 # naming both hubs and the `HF_ENDPOINT` lever. That leg cannot certify the *other* half of
-# `HubReachability` — a hub that answers "yes, this repo exists" must NOT be refused. On this
+# `HubReachability`. A hub that answers "yes, this repo exists" must NOT be refused. On this
 # host huggingface.co is a black hole (measured 10-21: `curl` to its API returns nothing, while
 # ModelScope answers a real 404 in 0.18 s), so the `.present` branch never runs here against a
 # real hub, and a gate that wrongly refused a reachable hub would look exactly like the fix while
@@ -13,14 +13,14 @@
 # pointed at it (HFMirrorPolicy captures the operator env once, at startup).
 #
 # ### What this probe locks down (hard gates)
-#   1. PREMISE — the stub must actually see the existence request for the repo. A stub nobody
+#   1. PREMISE. The stub must actually see the existence request for the repo. A stub nobody
 #      called makes every later assertion here vacuous, so the log is checked first.
-#   2. PASS-THROUGH — with the hub saying the repo exists, the request must go to the hub
+#   2. PASS-THROUGH, with the hub saying the repo exists, the request must go to the hub
 #      client: the answer may be a download failure (the stub holds no weights), but it must
 #      not be the reachability refusal, and it must arrive within 30 s with the box alive.
-#   3. THE OTHER HALF, SAME ID — kill the stub, send the same id: no hub can answer now, so
+#   3. THE OTHER HALF, SAME ID. Kill the stub, send the same id: no hub can answer now, so
 #      the verdict must flip to 503 naming the id, inside 15 s. Two outcomes from one id,
-#      decided by what the hub said — not by how long the caller waited.
+#      decided by what the hub said, not by how long the caller waited.
 #
 # Run: bash scripts/probes/run.sh 24
 PROBE_NAME="24-hub-existence-gate"

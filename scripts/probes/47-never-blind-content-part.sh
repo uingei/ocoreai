@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 47-never-blind-content-part.sh — a content part that names an attachment this server cannot
+# 47-never-blind-content-part.sh. A content part that names an attachment this server cannot
 # carry is refused by name; it is never decoded into nothing and answered over.
 #
 # Measured 10-31 on this host against a live `serve` driving the scripted engine (no weights, no
@@ -11,21 +11,21 @@
 #   file / unknown type / image_url with no payload object → 200 and a confident answer
 #   image_url naming a path that is not there             → 400 media_unresolvable
 # The last line is the standard this route already meets: a media *reference* it cannot open is
-# refused with the part type and the path named. The middle lines were the gap — OpenAI's own
-# audio shape included — because the decoder had no key for them, so `ChatMedia`, `ChatAudio`,
+# refused with the part type and the path named. The middle lines were the gap. OpenAI's own
+# audio shape included, because the decoder had no key for them, so `ChatMedia`, `ChatAudio`,
 # the tokenizer and the engine were each correct about a conversation whose payload had vanished.
 #
 # Why these legs:
-#   1) positive control — a plain text turn still answers, so a later 400 means a refusal and not
+#   1) positive control. A plain text turn still answers, so a later 400 means a refusal and not
 #      a surface that stopped serving;
-#   2) parity — the same bytes as `audio_url` and as `input_audio` cannot have different fates.
+#   2) parity. The same bytes as `audio_url` and as `input_audio` cannot have different fates.
 #      This is the regression this probe was born from, stated host-independently: whether the
 #      pair is refused or heard depends on this box's speech permission, so the assertion is on
 #      the pair agreeing, never on which side of that line the host sits;
-#   3) refusal — every shape with no payload this server reads comes back 400, `type:
+#   3) refusal. Every shape with no payload this server reads comes back 400, `type:
 #      invalid_request_error`, `param` pointing at the offending part, and the client's own type
 #      string in the message. A refusal that cannot be pointed at is a riddle;
-#   4) floor — the probe counts its own verdicts, so a server that 200s everything cannot pass §3
+#   4) floor. The probe counts its own verdicts, so a server that 200s everything cannot pass §3
 #      and a server that 400s everything cannot pass §1.
 set -uo pipefail
 
@@ -42,7 +42,7 @@ printf '%s\n' '{"segments": ["OK-ANSWER"], "finishReason": "eos", "promptTokens"
   > "$SCRIPT_FILE"
 export OCOREAI_SCRIPTED_ENGINE="$SCRIPT_FILE"
 
-# One wav, base64-encoded once, reused by both shapes in §2 — if the two bodies carried different
+# One wav, base64-encoded once, reused by both shapes in §2, if the two bodies carried different
 # bytes, a difference in fate would mean nothing.
 python3 - "$BODY_DIR" <<'PY'
 import base64, io, json, os, struct, sys, wave

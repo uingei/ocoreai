@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# gen-model-gallery.sh — render the measured gallery from a live server, or fail naming why.
+# gen-model-gallery.sh. Render the measured gallery from a live server, or fail naming why.
 #
 # ### Why
 # `/v1/models` publishes per-checkpoint verdicts measured in that process (`parsed` /
 # `prose_only` / `not_observed`, `honored` / `template_ignores` / `not_observed`, video
-# evidence) — the leaders advertise model support as adjectives, so the measured table IS the
+# evidence). The leaders advertise model support as adjectives, so the measured table IS the
 # differentiator (adoption-runbook § The proof surface). The committed artefacts (models.json +
 # the README block between the gallery markers) are copies of one GET, and a copy without a
 # refresh command rots. This script is the refresh command; the README prints it beside the
@@ -12,7 +12,7 @@
 # other or a verdict leaves the closed wire vocabulary.
 #
 # ### What it promises and refuses
-# It copies verdicts verbatim — it measures nothing itself, so it can never publish a row the
+# It copies verdicts verbatim. It measures nothing itself, so it can never publish a row the
 # server did not measure. An empty `data` is a refusal with a cause (a booted-but-unmeasured
 # server renders zero rows), never an empty authoritative-looking gallery.
 #

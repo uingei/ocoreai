@@ -1,32 +1,32 @@
 #!/usr/bin/env bash
-# 43-hub-declared-digest.sh — does a hub that lies about the bytes get refused?
+# 43-hub-declared-digest.sh. Does a hub that lies about the bytes get refused?
 #
 # ### Why (AGENTS.md invariant 2; the shape ollama already refuses)
 # The post-download integrity check used to compare **sizes** (`Local file size does not match
 # remote manifest`). A size compare cannot see right-size wrong bytes, and which server answers
 # is an operator choice: `MODELSCOPE_ENDPOINT` is the documented mirror/proxy lever, the same
 # reachability that makes probe 20 treat the manifest as untrusted input. The hub already
-# publishes the answer — `Data.Files[].Sha256`, 64-hex per blob, LFS shards included — so the
+# publishes the answer, `Data.Files[].Sha256`, 64-hex per blob, LFS shards included, so the
 # fix reads it and re-hashes what arrived (ollama `server/images.go:1870 verifyBlob`, reported
 # as `want %s, got %s`).
 #
 # Two facts are at stake and they need different instruments:
-#   • that the real hub actually sends the field — a unit test cannot say so, and if it stops
+#   • that the real hub actually sends the field. A unit test cannot say so, and if it stops
 #     sending it the digest path becomes decoration again;
-#   • that our client *acts* on it — which a stub can say exactly, at the byte level.
+#   • that our client *acts* on it, which a stub can say exactly, at the byte level.
 # So §1 asks the real hub once, and §§2-4 run the client against a stub that answers in
 # ModelScope's own shape.
 #
 # ### What this probe locks down
-#   1. PREMISE (live hub) — a real public repo's file list carries a lowercase 64-hex `Sha256`
+#   1. PREMISE (live hub). A real public repo's file list carries a lowercase 64-hex `Sha256`
 #      for every blob, the multi-GB LFS shards included. No digests ⇒ nothing downstream is
 #      measured; and since the compare is exact (ollama's), the regex demands lowercase instead
-#      of trusting it — a hub that flipped case would otherwise false-refuse honest bytes.
-#   2. HONEST HUB — the turn completes and the bytes on disk hash to what the hub declared.
-#   3. LYING HUB — the declared digest does not match the bytes served: the SSE stream reports an
+#      of trusting it. A hub that flipped case would otherwise false-refuse honest bytes.
+#   2. HONEST HUB. The turn completes and the bytes on disk hash to what the hub declared.
+#   3. LYING HUB. The declared digest does not match the bytes served: the SSE stream reports an
 #      error naming SHA-256 with both digests, the corrupt file is gone, and the honest repo's
 #      file is **still there** (a refusal removes the file it proved bad, never the cache).
-#   4. SURVIVAL — /health still answers afterwards.
+#   4. SURVIVAL. /health still answers afterwards.
 #
 # No Metal turn is needed: every leg is settled before generation. Green 10-30: 13 passed /
 # 0 failed / 7 measured; short-circuit the digest branch and 4 go red, the lying hub completing

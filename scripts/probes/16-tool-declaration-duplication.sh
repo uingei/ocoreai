@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# 16-tool-declaration-duplication.sh — does one declared tool reach the model once or twice?
+# 16-tool-declaration-duplication.sh. Does one declared tool reach the model once or twice?
 #
 # ### Why (AGENTS.md § "A declared tool is written to the prompt once" + policy 3)
 # A declared tool used to reach the model through TWO seams at once:
-#   1. our own prose — MessageBuilder Phase 5 appended `Available tools:\n## Tool: <name>\n
+#   1. our own prose. MessageBuilder Phase 5 appended `Available tools:\n## Tool: <name>\n
 #      Description: <desc>` to the system message;
-#   2. the checkpoint's own chat template — upstream feeds `ChatSession.tools` into
+#   2. the checkpoint's own chat template. Upstream feeds `ChatSession.tools` into
 #      `tokenizer.applyChatTemplate(messages:tools:)` (mlx-swift-lm
 #      Libraries/MLXVLM/Models/Gemma4.swift:2192 `tools: input.tools`), and this checkpoint's
 #      chat_template.jinja renders each entry as `<|tool>declaration<tool|>` inside the system
@@ -13,7 +13,7 @@
 # vllm and sglang have one seam: the schema goes into the template and nowhere else
 # (vllm `entrypoints/openai/chat_utils.py`; sglang `srt/entrypoints/openai/protocol.py`).
 # Measured before the fix on gemma-4-e2b-it-4bit: one tool cost +116 delivered prompt_tokens
-# while our prose accounted for +65 — the residue was the template's copy.
+# while our prose accounted for +65. The residue was the template's copy.
 #
 # ### Contract now: ONE declaration per tool, and the checkpoint decides who writes it
 # `ToolProseLedger` measures, at load, whether the template grows when handed a probe tool.
@@ -21,7 +21,7 @@
 # decision and the number of blocks actually written go on one log line.
 #
 # ### What is measured
-#   1. Premise — this checkpoint emits a real `tool_calls` turn for a declared tool; without
+#   1. Premise. This checkpoint emits a real `tool_calls` turn for a declared tool; without
 #      it the rest measures a surface the model never sees, so the run fails, not passes.
 #   2. The load-time decision exists: `Tool prose <mode> for <model> — …`, mode from the
 #      closed three-value vocabulary. `injectedUnmeasured` on a model that is loaded and
@@ -33,11 +33,11 @@
 #      `SystemPromptBuilder` adds for any tool turn is ~215 chars and names no tool, so
 #      growth alone cannot tell a duplicate declaration from ordinary prompt text.
 #   4. Scaling: at two declared tools the same must hold and the delivered delta must keep
-#      scaling — so the count is one per tool, not one per request.
+#      scaling, so the count is one per tool, not one per request.
 #   5. The published row: `GET /v1/models/:model/kv-cache` must carry `toolProse` saying the
 #      same thing the log said (wire vocabulary, measurement attached, reason quoted). A
 #      client that never reads logs still has to be able to see whether its tools reach the
-#      model once or twice — and an absent key must not masquerade as "not measured".
+#      model once or twice, and an absent key must not masquerade as "not measured".
 #
 # An XFAIL is a live exception, not a skip: it exits 0 with the numbers in the log, and if
 # the shape stops reproducing the harness reports XPASS as a failure.
@@ -208,7 +208,7 @@ else
   TP_MODE="$(probe_json "$PROBE_BODY" 'toolProse.mode')"
   TP_REASON="$(probe_json "$PROBE_BODY" 'toolProse.reason')"
   # probe_json prints "" for both a missing key and a null value, and the difference
-  # between those two IS the claim here — so ask the payload directly.
+  # between those two IS the claim here, so ask the payload directly.
   TP_SHAPE="$(python3 -c '
 import json, sys
 try:

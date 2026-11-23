@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# install.sh — the terminal install path, the pattern every installable tree in the field runs
+# install.sh. The terminal install path, the pattern every installable tree in the field runs
 # (ollama's install/, opencode's install script): newest release DMG → read-only mount → copy →
 # detach. Terminal downloads carry no com.apple.quarantine, so the browser path's right-click
-# workaround is not this path's story; the signature is ad-hoc until notarisation (owner call) —
+# workaround is not this path's story; the signature is ad-hoc until notarisation (owner call),
 # the same trust as downloading from the Releases page, stated there too. Removal story:
 # scripts/uninstall.sh. Target: $OCOREAI_INSTALL_DIR, default /Applications.
 set -euo pipefail

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 57-tool-result-token-accounting.sh — does a tool result reach the prompt at all?
+# 57-tool-result-token-accounting.sh. Does a tool result reach the prompt at all?
 #
 # ### Why (invariant 2 at its deepest: the model must see the work it asked for)
 # A coding agent's tool loop lives or dies on one fact: the result the client posts
@@ -8,23 +8,23 @@
 # row's life:
 #   11-09  a ~1 550-token tool result moved prompt_tokens 690 → 693 (both faces).
 #   11-12  weights ARE on this host (`~/.ocoreai/models/mlx-community/gemma-4-e2b-it-4bit`,
-#          3.3 GB, complete — the earlier "absent here" claim was stale) and the number
+#          3.3 GB, complete. The earlier "absent here" claim was stale) and the number
 #          stands: baseline 872 → 877 with a ~2 490-token result. delta = 5.
 # The control arm proves the pipeline is not broken generally: the SAME text block
 # posted as user-role content bills +2 283 to +2 488 tokens. Only the tool role
 # reads as noise. The name-threading that landed 11-12 (`toolResultNamesByID`,
-# `MTPMessagePair`) labels the metadata correctly and moves none of this — the loss
+# `MTPMessagePair`) labels the metadata correctly and moves none of this. The loss
 # is content, and it is template-side.
 #
 # ### Where it is lost (read at the checkpoint's own chat_template.jinja, 11-12)
-# The gemma4 template's main loop SKIPS `role:"tool"` messages (`:217`) — they render
+# The gemma4 template's main loop SKIPS `role:"tool"` messages (`:217`). They render
 # only through the forward-scan that an assistant message carrying `tool_calls` runs
 # over its following tool messages (`:271`-`:315`, calling `format_tool_response_block`
 # per result). A delta of 5 therefore says the assistant message reached the template
 # WITHOUT its `tool_calls`, or the scan found none. Convicted 11-16 by discriminator:
 # the same payload WITH `tools[]` declared billed the full block (the ChatSession lane
 # renders intact), while an assistant carrying `tool_calls` on the no-tools route
-# billed ZERO — the std-reasoning lane snapshots `(role, content)` pairs and rebuilds
+# billed ZERO. The std-reasoning lane snapshots `(role, content)` pairs and rebuilds
 # `Chat.Message(role:content:)`, erasing `tool_calls` and the result pairing before the
 # template ever sees them.
 #
@@ -39,7 +39,7 @@
 #      for tool-metadata history) and are promoted to real checks here.
 #   5. Cross-conversation KV: after a tool turn returns its ChatSession to the pool, a
 #      DIFFERENT conversation sharing the leading user message (the `anon:` key) must
-#      not inherit that session's KV — upstream ChatSession appends rather than
+#      not inherit that session's KV. Upstream ChatSession appends rather than
 #      reconciles, so an unprovable turn must not be pooled at all. Measured 11-16: the
 #      forked resend billed 3 092 tokens (the previous conversation's result block plus
 #      its own 736) before the release-site rule landed.
@@ -47,7 +47,7 @@
 #      Measured 11-16 before the boundary refusal: an orphan result answered 200/686
 #      (its content silently gone) and a mismatched id answered 200/1033 (labelled
 #      `unknown`). The three refusals and the two legal shapes follow sglang's shipped
-#      walker (`serving_chat.py:300-330`) — including its leniency that a run left
+#      walker (`serving_chat.py:300-330`). Including its leniency that a run left
 #      open at the END is what the completion is asked to answer.
 #
 # Needs a real Metal device AND the default checkpoint's weights (this host holds
@@ -117,7 +117,7 @@ PY
 
 probe_section "the tool-result token delta on the shipped default checkpoint ($MODEL)"
 
-# Arm 1 — control: the same text as user content must bill (instrument sanity).
+# Arm 1. Control: the same text as user content must bill (instrument sanity).
 python3 - <<'PY'
 import json, os
 json.dump({"model": os.environ["MODEL"],
@@ -136,7 +136,7 @@ else
   probe_fail "control: user-role content billed only $ctrl_delta — the instrument itself is blind, the tool arms prove nothing"
 fi
 
-# Arms 2-4 — tool-role content on each face: counted known-open while the loss stands.
+# Arms 2-4. Tool-role content on each face: counted known-open while the loss stands.
 oa_body "$TMPD/base_oai.json" base
 anth_body "$TMPD/base_anth.json" base
 
@@ -159,11 +159,11 @@ check_tool_arm "openai-face-ladder-name" /v1/chat/completions "$TMPD/ladder.json
 check_tool_arm "openai-face-caller-name" /v1/chat/completions "$TMPD/named.json" "$TMPD/base_oai.json"
 check_tool_arm "anthropic-face-tool-result" /v1/messages "$TMPD/tool.json" "$TMPD/base_anth.json"
 
-# Arm 5 — cross-conversation KV. Every arm above shares the same leading user message,
+# Arm 5. Cross-conversation KV. Every arm above shares the same leading user message,
 # so they share the pool's `anon:` key. A tool turn must NOT leave its filled ChatSession
 # in the pool behind an empty ledger: the next conversation on that key would vacuously
 # "hit" it, and upstream ChatSession APPENDS the new transcript after the old
-# conversation — the fork below would bill the previous arm's result block. A forked
+# conversation. The fork below would bill the previous arm's result block. A forked
 # resend therefore has to bill about its own length (< 200 over base), never thousands.
 python3 - <<'PY'
 import json, os
@@ -182,7 +182,7 @@ else
   probe_fail "cross-conversation KV: forked resend billed $delta over base — it inherited a previous conversation's cached KV (an unprovable turn was pooled with an empty ledger)"
 fi
 
-# Arm 6 — malformed tool history refused by name, legal shapes kept. Before the
+# Arm 6. Malformed tool history refused by name, legal shapes kept. Before the
 # boundary refusal this was a 200 over a silently dropped or `unknown`-labelled result
 # (measured 11-16: orphan 200/686, mismatch 200/1033). The refused/legal split is
 # sglang's walker's own shape, checked on both faces.

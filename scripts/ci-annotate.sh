@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
-# ci-annotate.sh — publish a log's CAUSE where a reader with no token can read it.
+# ci-annotate.sh. Publish a log's CAUSE where a reader with no token can read it.
 #
 # ### Why this exists (11-06, measured on every red the packaging leg has published since 10-31)
 # Both CI call sites published `tail -25 | sed 's/^/::error::  /'`, because
 # `/repos/{o}/{r}/check-runs/{id}/annotations` answers without a token while the step's stdout does
 # not. Seven runs in a row (15, 16, 17, 18, 19, 20, 22) that channel returned the tail's FIRST nine
-# lines and nothing else: nine compiler warnings, in identical order, from a 25-line window — and
+# lines and nothing else: nine compiler warnings, in identical order, from a 25-line window, and
 # the line the leg died on, which sits at the END of that window, never appeared. A raw `%` or a
 # carriage return is the documented way a workflow command dies in GitHub's parser, and the surviving
 # prefix is what that failure looks like; whichever mechanism it was, this script removes the
 # exposure by escaping every line and by choosing cause over position. A dropped line is silent, so
-# the reader sees a confident excerpt of the wrong part of the log — worse than no excerpt, because
+# the reader sees a confident excerpt of the wrong part of the log. Worse than no excerpt, because
 # it reads as an answer.
 #
 # ### Contract
 # stdout = the annotation commands, one per line. Each is percent-encoded (`%`→`%25`), flattened to
 # one line, capped at --max-chars. What gets chosen: the lines that name a cause (--pattern,
 # order-preserving dedupe, last --max of them). A log with no such line publishes the last `phase=`
-# marker it carries and then --tail lines of tail — a tail is a fallback, never the primary answer.
+# marker it carries and then --tail lines of tail. A tail is a fallback, never the primary answer.
 # Exit status is always 0 on the publish path: this publishes, it does not judge, and the caller
 # keeps its own verdict.
 #
 # ### Gate
 # `--selftest` is byte-exact and runs in `make audit` (mirrored on ubuntu). Red means one of the two
-# properties this script exists for broke — a special character ate a line, or the cause line lost
+# properties this script exists for broke. A special character ate a line, or the cause line lost
 # to the tail. Both are the failure the six reds were sampled against; the reader whose action it
 # changes is whoever has to diagnose a red leg without a token.
 #
@@ -113,7 +113,7 @@ if [ "$SELFTEST" = 1 ]; then
 fi
 
 emit() {
-  # CR first (a CR ends a workflow command), then `%` — escaped before anything else is added, so the
+  # CR first (a CR ends a workflow command), then `%`. Escaped before anything else is added, so the
   # escape vocabulary cannot be double-encoded. awk cuts by character, so a multi-byte arrow in a
   # compiler diagnostic cannot be sliced in half into mojibake.
   printf '%s\n' "$1" \

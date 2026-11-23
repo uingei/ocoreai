@@ -18,7 +18,7 @@ import json
 import os
 import sys
 
-# Tokens that would hand the agent the answer. The task may be plain English — it may not name
+# Tokens that would hand the agent the answer. The task may be plain English. It may not name
 # a route, a query parameter or a method+path pair, because discovering those from the artefact
 # is the thing under test.
 LEAK_TOKENS = (

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 13-anthropic-tool-delivery.sh — can POST /v1/messages deliver a tool call at all?
+# 13-anthropic-tool-delivery.sh. Can POST /v1/messages deliver a tool call at all?
 #
 # ### Why (invariant 2: the surface may not claim more than the engine delivered)
 # `/v1/messages` is the Anthropic-compatible face of the same engine that probe 11 proves
@@ -9,14 +9,14 @@
 #   stop_reason = "end_turn"
 #   content     = [{"type":"text","text":"Which city are you interested in? Please specify
 #                  the city name."}]
-# — neither a call nor an answer to the question asked. Four defects sat at one seam, and
+#. Neither a call nor an answer to the question asked. Four defects sat at one seam, and
 # none of them had a gate because every tool test in the suite speaks the OpenAI wire:
 #   1. `tools[]` was rendered into system-prompt TEXT (`## Tool: name\nDescription: …`)
 #      with no parameter schema, and `InferenceOptions` got no `declaredToolNames`, no
-#      `declaredToolSpecsJSON`, no `hasNativeTools`, no grammar — so the engine's tool
+#      `declaredToolSpecsJSON`, no `hasNativeTools`, no grammar, so the engine's tool
 #      surface never ran (vllm serving.py:762-791 and sglang serving.py:646-678 both hand
 #      the chat request a structured `tools` array instead).
-#   2. `case .toolCall: break` in both modes — a call the engine recognised was dropped.
+#   2. `case .toolCall: break` in both modes. A call the engine recognised was dropped.
 #   3. The response had no `tool_use` shape, and `content_block_start` carried no
 #      `content_block`, which is the field SDKs open a block from.
 #   4. `input_schema` converted to bare `properties`, dropping `type` and `required`.
@@ -27,7 +27,7 @@
 #   2. Stream: `content_block_start` names a `tool_use` block, arguments arrive as
 #      `input_json_delta`/`partial_json`, the block closes, and `message_delta` carries
 #      `stop_reason:"tool_use"`.
-#   3. Controls: nothing declared, and `tool_choice:{"type":"none"}` — no call either way.
+#   3. Controls: nothing declared, and `tool_choice:{"type":"none"}`, no call either way.
 #   4. Declaring without demanding must not cost the answer (Anthropic puts forcing in
 #      `tool_choice`, same as OpenAI): an arithmetic question still answers 4.
 #   5. `content_block_start` carries `content_block` even on a plain-text turn.
@@ -38,24 +38,24 @@
 #      the call (no new `tool_use`, `stop_reason` is not `tool_use`).
 #   8. `thinking` reaches the engine: the assembly line the server logs reads
 #      `enableReasoning=on|off|default` for `enabled`/`disabled`/absent (a behavioural
-#      difference needs a checkpoint with a thinking channel — this host's ready model has
+#      difference needs a checkpoint with a thinking channel. This host's ready model has
 #      none, measured identical on BOTH faces, so the log line is the delivery proof here),
 #      the answer is byte-identical at temp 0 whether the knob is on or off (nothing about
 #      it may cost the answer), and `budget_tokens >= max_tokens` comes back 400 naming
 #      the field.
 #   9. One assembly, both wires: the two faces log the same assembled shape
 #      (`systemChars`/`promptTokens`/roles) for the identical request, and report the same
-#      `usage` number for it (before: 774 there against 24 here — this face built its own
+#      `usage` number for it (before: 774 there against 24 here. This face built its own
 #      message list and skipped the agent context the OpenAI face injects, then reported its
 #      own estimate instead of the engine's measurement). `count_tokens` is checked as a
 #      floor within template-framing range of what the request actually charged.
 #  10. `POST /v1/steer` for a session reaches the next `/v1/messages` turn carrying that
-#      `metadata.session_id`, as `/v1/steer` documents (measured 10-19: swallowed here —
-#      "Please provide more context" — while `/v1/chat/completions` delivered the codeword).
+#      `metadata.session_id`, as `/v1/steer` documents (measured 10-19: swallowed here,
+#      "Please provide more context". While `/v1/chat/completions` delivered the codeword).
 #  11. one declared tool vs the prompt it produces: the assembly's schema-less `## Tool:`
 #      text is measured against the no-tools baseline and recorded (two copies reach the
-#      model — structured spec + name/description prose), because removal needs an A/B.
-#  12. `output_config.format` — the shape request on THIS wire (Anthropic has no
+#      model. Structured spec + name/description prose), because removal needs an A/B.
+#  12. `output_config.format`. The shape request on THIS wire (Anthropic has no
 #      `response_format`; vllm's front maps `output_config.format` onto the OpenAI
 #      `response_format` its grammar builder already speaks,
 #      `entrypoints/anthropic/protocol.py:202-207` + `serving.py:745-761`). Measured 10-31
@@ -63,7 +63,7 @@
 #      returned byte-identical prose at 200. Asserted here with a resident checkpoint: the
 #      two keys the schema names must be in the reply, the same schema spelled OpenAI's way
 #      on `/v1/chat/completions` must agree (parity is the claim of the fix, not the
-#      checkpoint's cleverness — the shape-free control is recorded for that reason), and an
+#      checkpoint's cleverness. The shape-free control is recorded for that reason), and an
 #      unknown `format.type` is answered, never guessed at.
 #
 # Needs a real Metal device: run unsandboxed (`bash scripts/probes/run.sh 13`).
@@ -107,14 +107,14 @@ print(json.dumps(body))
 PY
 }
 
-# msg_send <prompt> <stream> <tools> <choice> — one /v1/messages turn into PROBE_BODY.
+# msg_send <prompt> <stream> <tools> <choice>. One /v1/messages turn into PROBE_BODY.
 msg_send() {
   local b
   b="$(msg_body "$1" "$2" "$3" "$4")"
   probe_api POST /v1/messages "$b" || true
 }
 
-# model_field FIELD — a field of this model's object in a /v1/models body.
+# model_field FIELD. A field of this model's object in a /v1/models body.
 model_field() {
   PROBE_MODELS_BODY="$PROBE_BODY" PROBE_WANTED="$PROBE_MODEL" PROBE_FIELD="$1" python3 - <<'PY'
 import json, os
@@ -143,10 +143,10 @@ print("" if value is None else (json.dumps(value) if isinstance(value, bool) els
 PY
 }
 
-# sse QUERY — structural read of the SSE body in PROBE_BODY.
+# sse QUERY. Structural read of the SSE body in PROBE_BODY.
 #
 # Every assertion here parses each `data:` payload as JSON instead of grepping the raw
-# stream: this server's JSONEncoder does not fix key order (measured 10-19 — the same
+# stream: this server's JSONEncoder does not fix key order (measured 10-19. The same
 # event came back as `{"index":0,"delta":…}` and `{"type":…,"index":0,…}` in one run), so
 # any two-key substring is a coin flip. Probe 11's first run failed for reading the wrong
 # key; the same family is closed off here by construction.
@@ -222,7 +222,7 @@ else:
 PY
 }
 
-# tool_block <field> — field of the first tool_use block in PROBE_BODY, "" if none.
+# tool_block <field>. Field of the first tool_use block in PROBE_BODY, "" if none.
 tool_block() {
   PROBE_MSG_BODY="$PROBE_BODY" PROBE_TB_FIELD="$1" python3 - <<'PY'
 import json, os
@@ -256,7 +256,7 @@ print("" if node is None else (json.dumps(node) if not isinstance(node, str) els
 PY
 }
 
-# text_block_text [limit] — the answer text this face returned, previewed to `limit`
+# text_block_text [limit]. The answer text this face returned, previewed to `limit`
 # characters (default 240) so verdict lines stay readable. Pass a big limit when the
 # assertion needs the WHOLE answer: the preview cut a 512-token turn at 240 chars and
 # reported "the answer broke" on a turn byte-identical to its control (measured 10-19).
@@ -478,7 +478,7 @@ fi
 #
 # The live proof is the assembly line, not the answer length. Whether a *behavioural*
 # difference is even observable is a per-checkpoint fact: this host's ready chat model
-# (gemma-4-e2b-it-4bit) has no reasoning channel — thinking ON and OFF measured identical
+# (gemma-4-e2b-it-4bit) has no reasoning channel. Thinking ON and OFF measured identical
 # (209 tokens each, both answers starting "This is a logic puzzle"), and the OpenAI face
 # shows the same pair (`reasoning:true` / `false` both 777 prompt tokens). So the probe
 # asserts what this host can prove: the preference arrives at the options the engine runs
@@ -502,7 +502,7 @@ print(json.dumps(body))
 PY
 }
 
-# asm FACE — the last assembly disclosure line this face emitted.
+# asm FACE. The last assembly disclosure line this face emitted.
 asm() {
   grep "Assembled prompt \[$1\]" "$PROBE_LOG" 2>/dev/null | tail -1
 }
@@ -547,18 +547,18 @@ else
 fi
 
 # What the three states may and may not do, re-measured 11-10 (the expectation this section
-# carried since 10-19 — byte-identity ACROSS the knob — asserted a property of the checked
+# carried since 10-19. Byte-identity ACROSS the knob. Asserted a property of the checked
 # checkpoint, not of our code, and two boot-stable samples convicted it: on gemma at temp 0
 # `enabled` answers 289/end_turn where `disabled` rambles to 512/max_tokens, byte-equal across
 # boots; the flag reaches generation even through a channel-less template, the reasoning text
 # landing in the answer). What IS our code, asserted instead:
 #   • the template's silent default is one of the two STATED states: `absent` is byte-identical
-#     to `disabled` or to `enabled` (measured here: to `disabled`) — a default resolving to
+#     to `disabled` or to `enabled` (measured here: to `disabled`). A default resolving to
 #     neither is broken pooling or state, and it is the `disabled`-resolving-to-ON regression
 #     wearing a third face;
 #   • a `max_tokens` stop reaches the request's ceiling (512 here), never the thinking budget
-#     (300) — the shape the `min(max_tokens, budget_tokens)` regression took.
-# NOT asserted: "the turn concludes with 9" — the conclusion position on this checkpoint moves
+#     (300). The shape the `min(max_tokens, budget_tokens)` regression took.
+# NOT asserted: "the turn concludes with 9". The conclusion position on this checkpoint moves
 # between boots (measured 10-19: end_turn at 209 vs max_tokens at 512), and a substring test
 # for the digit passes on the riddle's own "9" regardless. Both are recorded, not claimed.
 ABSENT_MATCH=""
@@ -595,7 +595,7 @@ fi
 #
 # Two readings, because there are two claims. The assembly line says what the handlers put
 # in front of the engine (roles + system chars + token estimate). `usage` says what each
-# face then reports for that prompt — and those must agree too, or a client budgeting on
+# face then reports for that prompt, and those must agree too, or a client budgeting on
 # one wire mis-reads the other (measured 10-19: the OpenAI face reported the engine's
 # measured 774 while this face reported its own 769 estimate for identical messages).
 probe_section "9 — identical request, identical prompt on both wires"
@@ -658,7 +658,7 @@ if [ -z "$COUNTED" ] || [ -z "$ANT_IN" ]; then
 else
   # The pre-flight measures the message list with the message tokenizer; usage reports the
   # engine's measured prefill, which includes the chat template's per-message framing. The
-  # gap is a constant of a few tokens per turn — recorded, not hidden — and a gross
+  # gap is a constant of a few tokens per turn. Recorded, not hidden, and a gross
   # mismatch (the old 24-vs-774) still fails here.
   GAP=$(( COUNTED > ANT_IN ? COUNTED - ANT_IN : ANT_IN - COUNTED ))
   if [ "$GAP" -le 16 ]; then
@@ -696,12 +696,12 @@ fi
 # sglang hand the model ONE structured `tools` array (`entrypoints/anthropic/serving.py:
 # 762-791`, `srt/entrypoints/anthropic/serving.py:646-678`) and never also write the tool
 # into the system prompt. Here the shared assembly's Phase 5 appends
-# `## Tool: <name>\nDescription: …` — a copy WITHOUT the parameter schema — while the same
+# `## Tool: <name>\nDescription: …`. A copy WITHOUT the parameter schema. While the same
 # spec simultaneously reaches the engine as a structured declaration
 # (`EngineInference.swift:3143 chatSession?.tools = registeredToolSpecs`). Measured here,
 # recorded as a number so the open item in AGENTS.md § Open has an instrument: the day the
 # injection is removed (or the schema joins it) this line moves, and the A/B that settles
-# removal has a before/after to point at. Deliberately a NOTE, not a PASS — pinning the
+# removal has a before/after to point at. Deliberately a NOTE, not a PASS. Pinning the
 # duplication would make the correct fix fail the probe.
 probe_section "11 — one declared tool: how many copies reach the prompt"
 
@@ -758,14 +758,14 @@ else
   esac
 fi
 
-# ── 12 — output_config.format: the shape asked on this face reaches the grammar ──
+# ── 12. Output_config.format: the shape asked on this face reaches the grammar ──
 probe_section "12 — output_config.format asks for a shape and gets it"
 
 # The same ask probe 12 uses on the OpenAI face, so a row here and a row there describe one
 # request rather than two similar ones.
 ASK_SHAPE='Reply as JSON with two keys: answer, whose value is the number of planets in our solar system as an integer, and unit, whose value is the word planets.'
 
-# shape_body <shape:1|0> [type] — the ask with and without `output_config.format`.
+# shape_body <shape:1|0> [type]. The ask with and without `output_config.format`.
 shape_body() {
   python3 - "$PROBE_MODEL" "$ASK_SHAPE" "$1" "${2:-json_schema}" <<'PY'
 import json, sys
@@ -789,7 +789,7 @@ print(json.dumps(body))
 PY
 }
 
-# shape_verdict [wire] — "ok", "no-json" or "missing:<keys>" for the answer this face
+# shape_verdict [wire]. "ok", "no-json" or "missing:<keys>" for the answer this face
 # returned ("anthropic" body by default, "openai" for the sibling route's body).
 shape_verdict() {
   PROBE_MSG_BODY="$PROBE_BODY" PROBE_SHAPE_WIRE="${1:-anthropic}" python3 - <<'PY'

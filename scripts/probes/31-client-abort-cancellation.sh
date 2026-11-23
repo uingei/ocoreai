@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 31-client-abort-cancellation.sh — when a client walks away, does the engine stop?
+# 31-client-abort-cancellation.sh, when a client walks away, does the engine stop?
 #
 # ### Why (P1 reliability: one engine, one lock)
 # ocoreai runs one model per process, and a turn holds the inference lock for its whole
@@ -10,7 +10,7 @@
 # termination onto `InferenceCancellation` with a comment saying Hummingbird does not cancel
 # the upstream task on its own.
 #
-# It was not measured until now — the claim lived in a comment — and it is FALSE. Measured
+# It was not measured until now. The claim lived in a comment, and it is FALSE. Measured
 # 10-22 at pin bb0d5b048 (`gemma-4-e2b-it-4bit`, where a 200-token turn costs ~5 s): a client
 # that disconnects at 1.0 s still gets its turn run to completion, `tokens=200/.maxTokens`, on
 # both the streaming and the non-streaming face. Walking away buys nothing; the next caller
@@ -21,7 +21,7 @@
 # ### Why leg 1 exists
 # A gate that cannot observe a completed long turn proves nothing, so leg 1 runs one with its
 # client attached. If it cannot, this probe reports itself blind instead of certifying a
-# cancellation it never saw — which matters here because the engine has a second, unrelated
+# cancellation it never saw, which matters here because the engine has a second, unrelated
 # defect that ends some long turns at token one.
 set -uo pipefail
 
@@ -66,7 +66,7 @@ succ() {  # succ <session_id> -> echoes "<wall_ms> <queue_ms>"
 # draft asserted on queue wait and was invalid twice over: (a) its regex matched the timezone
 # offset in the log timestamp, and (b) the engine's open one-token-collapse defect (CHANGELOG
 # 10-22(6)/(8)) ends some long turns early, so a short queue can mean "cancelled" or "the
-# model quit at token one" — indistinguishable from outside. The turn's own StdTurn line is
+# model quit at token one". Indistinguishable from outside. The turn's own StdTurn line is
 # unambiguous: reason=.cancelled means work stopped, tokens=200/.maxTokens means the dead
 # client's turn ran anyway.
 #
@@ -103,7 +103,7 @@ ran_long_turn() {  # ran_long_turn <session_id> -> echoes "<attempts> <tokens> <
   echo "$attempt ${t:-0} ${r:-other}"
 }
 
-# ── leg 1: positive control — the harness can observe a turn that runs to completion ──────
+# ── leg 1: positive control. The harness can observe a turn that runs to completion ──────
 read -r CTL_N CTL_T CTL_R <<<"$(ran_long_turn abort31-control)"
 probe_note "control: a client that stays connected ran the long turn ($CTL_T tokens/$CTL_R)" \
   " on attempt $CTL_N"
@@ -115,7 +115,7 @@ else
     " do not complete on this host, so this probe cannot tell cancellation from collapse"
 fi
 
-# ── legs 2+3: abandon mid-turn on each face — does the engine stop? ────────────────────────
+# ── legs 2+3: abandon mid-turn on each face. Does the engine stop? ────────────────────────
 for face in true false; do
   mark="$(log_line_count)"
   q0="$(ns_ms)"
@@ -135,7 +135,7 @@ for face in true false; do
     # Any multi-token completion IS the defect: the client left at 1.0s and a ~700-token
     # prefill costs ~4.9s, so a turn reaching double digits generated long after nobody was
     # listening, whatever word it finished under (.maxTokens at 200, or .eos at 103).
-    # Recorded open rather than failed-flat — newly measured, not newly introduced. When
+    # Recorded open rather than failed-flat. Newly measured, not newly introduced. When
     # cancellation lands this leg XPASSes, and `_lib.sh` counts XPASS as a failure, so the
     # xfail has to be deleted in that same change.
     probe_xfail open "the abandoned stream=$face turn still ran to $T tokens/$R" \

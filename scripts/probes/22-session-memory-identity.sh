@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# 22-session-memory-identity.sh — does one `session_id` become one session, does a message
+# 22-session-memory-identity.sh. Does one `session_id` become one session, does a message
 # row hold its own tokens, and does a re-sent history get written twice?
 #
 # Why: both used to be no, measured on this host on 10-21 in the same hop
 # (`ChatHandler.persistConversation`):
 #   • three turns with the same `session_id` created THREE `sessions` rows, because a row was
-#     reused only when the key parsed as `Int64` — and nothing on the HTTP surface ever hands a
+#     reused only when the key parsed as `Int64`, and nothing on the HTTP surface ever hands a
 #     client an integer (`/sessions` is read-only), so memory, FTS and the GUI session list saw
 #     one snapshot per request instead of one conversation;
-#   • a 34-character user message was stored with `token_count: 705` — that turn's whole
-#     rendered prompt, divided over the user rows — while the session total that
+#   • a 34-character user message was stored with `token_count: 705`, that turn's whole
+#     rendered prompt, divided over the user rows. While the session total that
 #     `SessionCompressor` compares against `tokenThreshold` (128k) to prune charged the same
 #     history once per turn.
 # Fixed the same day: `SessionCompressor.resolveSession` maps the client's key to the one row
@@ -150,7 +150,7 @@ else
   if [ "${PROBE_STATUS:-}" != "200" ]; then
     probe_fail "GET /sessions/$SID/memory -> ${PROBE_STATUS:-no response}"
   else
-    # The script arrives on stdin (heredoc), so the payload cannot also ride stdin — it goes
+    # The script arrives on stdin (heredoc), so the payload cannot also ride stdin. It goes
     # through a file. (`python3 -` consumes stdin for the script; a pipe on top of the
     # heredoc is silently the loser, which reads as "the endpoint returned junk".)
     MEM_JSON="/tmp/ocoreai-probe22-memjson-$$.json"
@@ -200,7 +200,7 @@ fi
 # A client sends the whole conversation on every request while `messages` rows are append-only.
 # Turn 4 re-sends the three turns above with the real replies interleaved; if the persist hop
 # inserts what is already written, this session grows by 8 rows instead of 2. Reading the row
-# count after the turn is the only way to see it — the response itself says nothing about it.
+# count after the turn is the only way to see it. The response itself says nothing about it.
 probe_section "does a re-sent history get stored twice?"
 if [ -z "${SID:-}" ]; then
   probe_fail "no session id to read back — the duplication question was never asked"
@@ -260,7 +260,7 @@ rm -f "$HISTORY"
 
 # The Anthropic face is a second wire onto the same engine, and it carries its own conversation
 # key (`metadata.session_id`, mapped by `toChatCompletionRequest`). Two turns on one key must
-# land on ONE new session row that grew to hold both — before 10-21 this face wrote nothing at
+# land on ONE new session row that grew to hold both. Before 10-21 this face wrote nothing at
 # all, so an Anthropic-SDK conversation was invisible to `/sessions`, `/sessions/:id/memory`,
 # `/sessions/search` and the GUI list while the OpenAI face above was remembered.
 probe_section "does the Anthropic face keep one conversation too?"
@@ -310,7 +310,7 @@ PY
     sleep 1
     MREPLY2="$(probe_json "$PROBE_BODY" 'content.0.text')"
     # Turn 3 goes out streaming with the whole history again: streaming has its own persist
-    # call on this face, so it needs its own wire — the static gate can see the call exists,
+    # call on this face, so it needs its own wire. The static gate can see the call exists,
     # only this can see the row grow.
     MBODY3="$(python3 - "$PROBE_MODEL" "$MKEY" "$MAX_TOKENS" "$MTEXT1" "$MREPLY1" "$MTEXT2" "$MREPLY2" <<'PY'
 import json, sys
@@ -388,7 +388,7 @@ fi
 # Anthropic accounts for a prompt as `input_tokens + cache_read_input_tokens +
 # cache_creation_input_tokens`; OpenAI's `prompt_tokens` is already that whole. Both faces read
 # the same engine measurement for the same conversation, so the same history must cost the same
-# number on both wires — the identity splash pins at
+# number on both wires. The identity splash pins at
 # `dev/tests/server/test_anthropic_contract.py:889`, with the split vllm and ollama apply. This
 # is the only place two faces meet on one prompt: a face that hides the reused prefix, or
 # subtracts it twice, fails here rather than in a client's invoice.
@@ -477,7 +477,7 @@ PYVERDICT
 fi
 
 # Leave the dev database as found: the rows this run made are evidence, not cruft. The id list
-# is flattened at registration time — `probe_atexit` stores a string it later evals, so a
+# is flattened at registration time, `probe_atexit` stores a string it later evals, so a
 # multi-line command (or one with non-id digits glued on) dies with a syntax error at exit.
 if [ -n "${SID:-}" ]; then
   probe_atexit "curl -s -m 5 -X DELETE \"$PROBE_BASE/sessions/$SID\" > /dev/null 2>&1"

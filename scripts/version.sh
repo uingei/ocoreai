@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# version.sh — the one place a build version is decided (AGENTS.md: one home per decision).
+# version.sh. The one place a build version is decided (AGENTS.md: one home per decision).
 #
 # Ladder: OCOREAI_VERSION (CI exports it from the tag) -> newest tag -> 0.0.0 for an untagged tree.
 # The last rung has to be an explicit emptiness check, not `|| echo`: `git describe` prints nothing

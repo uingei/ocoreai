@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 21-sleep-steer-wake.sh — does input for THIS conversation end clock.sleep's wait on the
+# 21-sleep-steer-wake.sh. Does input for THIS conversation end clock.sleep's wait on the
 # wire, does the injected text actually reach the model in that same turn, and does input for
 # ANOTHER conversation leave the wait alone?
 #
@@ -8,14 +8,14 @@
 # input arrives for this conversation". That sentence is a capability a model reads and plans
 # around. `SleepSteerWakeTests` pins the mechanism (100 ms cadence, check-before-sleep, whose
 # key is published where) and both outcome wordings, but every one of those tests injects a
-# fake backend or a hand-built SteerQueue entry — none of them put a byte on the wire. Until
+# fake backend or a hand-built SteerQueue entry. None of them put a byte on the wire. Until
 # this file the sentence on the tool face had no measurement behind it, which is what AGENTS.md
 # calls fiction.
 #
 # The second half cannot be tested offline at all. The wake is keyed by conversation
 # (`ToolInvocationContext.conversationKey`, published at the single dispatch chokepoint
 # `ToolRegistry.call`). A regression that swapped that key for a process-global flag keeps every
-# unit test green — each unit test supplies its own key, so none can see the difference. Only
+# unit test green. Each unit test supplies its own key, so none can see the difference. Only
 # two live conversations in one process can. Same family as the identical-call loop net, which
 # also had to learn that a conversation, not a process, is the unit of identity.
 #
@@ -27,7 +27,7 @@
 #      checkpoint never slept.
 #   3. Delivery: a steer injected after the wait began ends that turn far below its own
 #      requested duration, and the injected text arrives inside the same turn
-#      (`[mid-turn user steering]`) — accept-then-deliver, measured, not asserted.
+#      (`[mid-turn user steering]`). Accept-then-deliver, measured, not asserted.
 #   4. Wording follows the measured outcome: steered => `interrupt`, control => `completed`.
 #   5. Isolation: a steer accepted for a DIFFERENT session must not end this session's sleep.
 #      Accepted != delivered; a cross-session wake is the leak SessionIsolationTests closed on
@@ -37,15 +37,15 @@
 #
 # ### Shape notes (both learned the hard way on 10-21, and they are why this file is verbose)
 # * `tool_choice:"required"` is NOT the way to drive a built-in. Measured: with `required` the
-#   engine hands the constrained call back to the caller and never dispatches it —
-#   `finish_reason:"tool_calls"`, no `Tool call: sleep` line in the log — which is what an
+#   engine hands the constrained call back to the caller and never dispatches it,
+#   `finish_reason:"tool_calls"`, no `Tool call: sleep` line in the log, which is what an
 #   OpenAI-compatible server is supposed to do with a caller-owned call. Only plain `auto`
 #   reaches this server's internal dispatch for a tool its own registry implements, so
 #   `tool_choice` is left absent here and the ask states the duration outright.
 # * Identical (tool, arguments) pairs accumulate in the loop net, so all three legs ask for
 #   DIFFERENT durations (9000 / 8000 / 7000 ms). Measured 10-21, four identical
 #   `sleep(duration_ms:8000)` calls inside 60 s returned
-#   `[tool_error: Execution loop detected: sleep] FAILED — its effects do not exist.` — first
+#   `[tool_error: Execution loop detected: sleep] FAILED — its effects do not exist.`. First
 #   across conversations, then (after that was scoped per conversation) still correct within one.
 # * Timing carries the verdict because a tool result has no wire field: the structured
 #   `ToolResultMeta` (resultSummary + durationMs) rides the reasoning-event stream to the GUI
@@ -57,7 +57,7 @@
 #   only come from the wake path.
 #
 # Run: bash scripts/probes/21-sleep-steer-wake.sh
-# Knobs: OCOREAI_PROBE_SLEEP_MS (base duration, default 9000 — legs step down by 1000 ms),
+# Knobs: OCOREAI_PROBE_SLEEP_MS (base duration, default 9000. Legs step down by 1000 ms),
 #        OCOREAI_PROBE_STEER_DELAY (seconds, default 1.5)
 PROBE_NAME="21-sleep-steer-wake"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_lib.sh"
@@ -140,7 +140,7 @@ tool_rec() { probe_json "$1" "ocoreai.tool_results.0.$2"; }
 # usage_field BODY KEY -> integer or empty
 usage_field() { probe_json "$1" "$2"; }
 
-# check_usage_invariant LABEL BODY — cached_tokens <= prompt_tokens whenever both are present.
+# check_usage_invariant LABEL BODY. Cached_tokens <= prompt_tokens whenever both are present.
 check_usage_invariant() {
   local label="$1" body="$2" p c
   p="$(usage_field "$body" 'usage.prompt_tokens')"

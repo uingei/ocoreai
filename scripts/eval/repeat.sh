@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# repeat.sh — run the scoreboard k times and report the noise floor before any "improvement".
+# repeat.sh. Run the scoreboard k times and report the noise floor before any "improvement".
 #
 # One run of the scoreboard is a sample, not a measurement. Until the spread of repeated
-# identical runs is known, every delta reported from it — including one produced by a change
-# this repo just shipped — is unattributable (AGENTS.md: a claim is worth the gate that goes
+# identical runs is known, every delta reported from it. Including one produced by a change
+# this repo just shipped. Is unattributable (AGENTS.md: a claim is worth the gate that goes
 # red when it breaks; a number with no spread answers no question).
 #
 #   bash scripts/eval/repeat.sh                       # k=3
@@ -27,7 +27,7 @@ if [ "$OCOREAI_EVAL_REPEATS" -lt 2 ]; then
 fi
 
 # Pre-flight: an ocoreai instance that is already up holds the single-instance lock, and
-# every run would then die on the readiness gate — three times. Say it once, before the
+# every run would then die on the readiness gate. Three times. Say it once, before the
 # first boot, with the remedy. Kill by the PID the server names: `pkill -x ocoreai` matches
 # this harness's own serve too and takes the scoreboard down mid-run (measured 10-22).
 if pgrep -x ocoreai >/dev/null 2>&1; then

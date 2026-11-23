@@ -1,35 +1,35 @@
 #!/usr/bin/env bash
-# 07-anthropic-blocks.sh — does /v1/messages honour, or blank, the blocks a real SDK sends?
+# 07-anthropic-blocks.sh. Does /v1/messages honour, or blank, the blocks a real SDK sends?
 #
 # Why (AGENTS.md invariant 2 + § Wire DTOs: "a field the spec calls polymorphic must decode
 # every shape the spec names"): `/v1/messages` decodes a message's content as
 # `AnthropicContent`, whose array branch decodes `[AnthropicContentBlock]`, whose `type` is a
 # closed enum of `text | tool_use`. Array decoding is all-or-nothing, so ONE spec-legal block
-# of any other type — `image`, `document`, or `tool_result` (the shape Anthropic's own SDK
-# requires for returning tool results in a multi-turn agent loop) — makes the whole array fail,
+# of any other type, `image`, `document`, or `tool_result` (the shape Anthropic's own SDK
+# requires for returning tool results in a multi-turn agent loop). Makes the whole array fail,
 # and `AnthropicContent`'s non-throwing fallback turns the message into `.text("")`. The turn
 # that reaches the model is then empty, and the route can answer 200. A client cannot tell that
 # from a model that simply had nothing to say.
 #
 # The invariant this probe holds the route to, for every block shape it sends:
 #
-#   1. HONOURED  — 200, and the text sitting next to the exotic block demonstrably reached
+#   1. HONOURED, 200, and the text sitting next to the exotic block demonstrably reached
 #                  the model: a deterministic code-word instruction at temperature 0, plus a
 #                  prompt-token floor. The floor is two-tier because the engine's own
 #                  accounting is: text-bearing blocks must ADD tokens (their words went in),
-#                  while a media block may leave the count unchanged — measured 10-16, this
+#                  while a media block may leave the count unchanged. Measured 10-16, this
 #                  route reports the same 22 input_tokens with and without an 8x8 PNG, so it
 #                  counts the text axis only. For media the floor is therefore "never smaller
 #                  than baseline" (pre-fix blanking measured 10 against 22) and the proof of
 #                  delivery is the code word plus the cross-route vision check below; or
-#   2. REFUSED   — a non-2xx whose message NAMES the block type it cannot honour.
+#   2. REFUSED. A non-2xx whose message NAMES the block type it cannot honour.
 #
 # A 200 that answers around an empty turn is a FAIL, and a refusal that does not name the
 # block is a FAIL. Both are the same defect wearing different clothes.
 #
 # Vision on a `vlm: true` model additionally reports (never gates) whether the picture's
-# colour came back, so `/v1/messages` and `/v1/chat/completions` — which probe 04 shows
-# delivering an inline PNG — can be compared rather than assumed equal.
+# colour came back, so `/v1/messages` and `/v1/chat/completions`, which probe 04 shows
+# delivering an inline PNG. Can be compared rather than assumed equal.
 #
 # Run: bash scripts/probes/07-anthropic-blocks.sh
 PROBE_NAME="07-anthropic-blocks"
@@ -109,7 +109,7 @@ fi
 
 # Premises gate. Every block verdict below compares against this baseline; a run whose
 # baseline is unusable must say so and stop, not hand out PASSes built on thin air
-# (AGENTS.md invariant 1 — the same reasoning as the scan floors).
+# (AGENTS.md invariant 1. The same reasoning as the scan floors).
 if [ "${PROBE_STATUS:-}" != "200" ] || [ -z "$BASE_TEXT_OUT" ] || [ -z "$BASE_INPUT_TOKENS" ]; then
   bad "baseline is unusable (HTTP ${PROBE_STATUS:-none}, text='${BASE_TEXT_OUT:0:40}', input_tokens=${BASE_INPUT_TOKENS:-none}) — no block verdict would mean anything, aborting"
   probe_summary "$PROBE_NAME"
@@ -180,7 +180,7 @@ PY
         return
       fi
       # The sibling instruction is in EVERY request sent here, so a prompt that comes back
-      # SMALLER than the plain-string baseline lost it — the blanking this probe exists to
+      # SMALLER than the plain-string baseline lost it. The blanking this probe exists to
       # catch (measured pre-fix: 10 tokens against a 22-token baseline).
       if [ -z "$tokens" ]; then
         bad "$label: 200 with no usage.input_tokens — delivery cannot be claimed or refuted"
@@ -239,11 +239,11 @@ check_block "unknown block" \
   "{\"type\":\"search_result\",\"content\":[{\"type\":\"text\",\"text\":\"irrelevant\"}]}" \
   "search_result"
 
-# ── 2c. tool-search content — what a client that DEFERS tools gets back ──────
+# ── 2c. tool-search content. What a client that DEFERS tools gets back ──────
 # A client may hold most of its tools out of the prompt and fetch them mid-turn (Anthropic's
 # tool search: `defer_loading: true` on the definitions, a search tool whose RESULT arrives as
 # `tool_reference` blocks inside a `tool_result`). A local server has no provider to run that
-# search, so the honest outcomes are the same two as every other shape here — carry the
+# search, so the honest outcomes are the same two as every other shape here. Carry the
 # content, or refuse by name. Dropping it silently is the 10-15 defect wearing a new type:
 # the client's search comes back, the model never sees it, and the turn still answers 200.
 #
@@ -252,12 +252,12 @@ check_block "unknown block" \
 # `sglang/python/sglang/srt/entrypoints/anthropic/serving.py:317-341`), and sglang accepts both
 # spellings of the name field (`protocol.py:85-93`). Nothing is claimed here about
 # *server-typed* tool definitions, because the two judges split on those (vllm refuses them by
-# name, `protocol.py:134-150`; sglang parses them as typed variants, `protocol.py:158+`) — those
+# name, `protocol.py:134-150`; sglang parses them as typed variants, `protocol.py:158+`). Those
 # arms are reported, never gated.
 TOOLSEARCH_NAME="probe-zephyrkite"
 tool_turn_body() {  # $1 = the tool_result's content array, as JSON; $2 = per-arm nonce
   # The nonce is why the floor comparison means anything: without a per-arm-unique prefix the
-  # arms share one pooled KV slot (measured 11-10 against a live serve — the second and third
+  # arms share one pooled KV slot (measured 11-10 against a live serve. The second and third
   # arms answered at input_tokens=59 with cache_read=908..970, the session billing its own
   # previous answer as this request's cache read), and an `input_tokens` compared ACROSS cache
   # states measures the pool, not the content. With one unique prefix per arm every arm is
@@ -288,7 +288,7 @@ PY
 # Three arms of ONE request, differing only in what the search result carries and in their
 # per-arm nonce. The empty arm is the floor: it is the same conversation with the search
 # result's payload removed, so a subject arm whose WHOLE matches it proves the payload never
-# entered the prompt — no model cooperation needed. WHOLE means `input_tokens +
+# entered the prompt, no model cooperation needed. WHOLE means `input_tokens +
 # cache_read_input_tokens`: Anthropic accounts a warm prompt as uncached + cache-read, and the
 # face splits it that way, so the bare `input_tokens` of a warm turn is a suffix (measured 11-10
 # before the nonce existed: arms 2–3 answered at 59 with cache_read=908..970, the pool billing

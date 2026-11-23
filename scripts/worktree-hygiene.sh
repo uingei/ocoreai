@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# worktree-hygiene.sh — the round is not done while the work lives only in this checkout.
+# worktree-hygiene.sh. The round is not done while the work lives only in this checkout.
 #
 # ### Why (AGENTS.md § Working here)
 # The project's stated authority is CI on macos-26 (`make test-ci`), and `CHANGELOG.md` is supposed
@@ -9,11 +9,11 @@
 # checked. This script is that check.
 #
 # ### Asserts (each fails with its remedy, never silently)
-#   H1  the tree is clean — an uncommitted round is invisible to review, to CI and to rollback
-#   H2  nothing is unpushed — an unpushed commit has been verified by no authority but this box
+#   H1  the tree is clean. An uncommitted round is invisible to review, to CI and to rollback
+#   H2  nothing is unpushed. An unpushed commit has been verified by no authority but this box
 #   H3  a commit that changed behaviour also carries the `CHANGELOG.md` hunk that names it
 #   H4  self-floor: git must answer, and the pairing scan must have found at least one commit to
-#       judge — a scan that stopped matching passes vacuously (AGENTS.md § Testing Quality)
+#       judge. A scan that stopped matching passes vacuously (AGENTS.md § Testing Quality)
 set -uo pipefail
 
 fails=0
@@ -34,7 +34,7 @@ fi
 
 branch="$(git rev-parse --abbrev-ref HEAD)"
 
-# H1 — clean tree (ignored paths are already excluded by .gitignore).
+# H1. Clean tree (ignored paths are already excluded by .gitignore).
 dirty="$(git status --porcelain)"
 if [ -z "$dirty" ]; then
   ok "working tree is clean"
@@ -46,7 +46,7 @@ else
   say "an invisible heap is how 2 days of work escaped CI"
 fi
 
-# H2 — nothing unpushed.
+# H2. Nothing unpushed.
 if git rev-parse --verify "origin/$branch" >/dev/null 2>&1; then
   ahead=$(git rev-list --count "origin/$branch..HEAD")
   if [ "$ahead" = "0" ]; then
@@ -59,10 +59,10 @@ else
   bad "origin/$branch does not exist locally — is the branch pushed at all?"
 fi
 
-# H3 — the push set pairs behaviour with its diary entry.
+# H3. The push set pairs behaviour with its diary entry.
 # Set-level, not per-commit: ~2 days of work arrived as one heap, and re-cutting it into per-commit
 # diary hunks now would invent a history that never happened. The assertion still goes red for the
-# failure the rule cares about — behaviour shipped without the CHANGELOG entry that names it — and
+# failure the rule cares about. Behaviour shipped without the CHANGELOG entry that names it, and
 # per-commit pairing is reported, not hidden.
 pushset="$(git rev-list "origin/$branch..HEAD" 2>/dev/null || true)"
 behaviours='^Sources/|^scripts/probes/|^scripts/eval/'
@@ -96,7 +96,7 @@ if [ -n "$pushset" ]; then
     say "remedy: the user-visible change and its diary entry belong in the same push"
   fi
 else
-  # H4 — the patterns must be proven alive against history, or this script passes vacuously.
+  # H4. The patterns must be proven alive against history, or this script passes vacuously.
   floor=0
   behaviour_commits=0
   for c in $(git rev-list -n 10 HEAD); do
@@ -113,7 +113,7 @@ else
   elif [ "$behaviour_commits" = "0" ]; then
     # The third case the original message did not allow for, and the one that actually happened on
     # 11-04: ten commits, zero of them touching Sources/, scripts/probes/ or scripts/eval/ (a corpus
-    # reading stretch). The pairing patterns are then *untested*, not proven dead — so stay red (the
+    # reading stretch). The pairing patterns are then *untested*, not proven dead, so stay red (the
     # floor exists to catch a vacuous pass and a code-free stretch is exactly that), but say which
     # diagnosis the evidence supports: "either the patterns died or the convention died" is a false
     # dichotomy when there is simply no code commit in the window to pair.

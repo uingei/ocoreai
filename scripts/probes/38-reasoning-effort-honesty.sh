@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
-# 38-reasoning-effort-honesty.sh — does a demanded `reasoning_effort` reach the checkpoint, or
+# 38-reasoning-effort-honesty.sh. Does a demanded `reasoning_effort` reach the checkpoint, or
 # only the log?
 #
 # ### Why
 # The wire forwards `reasoning_effort` verbatim into the chat-template context and owns no word
 # table (`ReasoningEffortWire`), so for a checkpoint whose template never names the variable the
-# word is dropped before generation — yet the caller still gets 200 and believes it asked for
+# word is dropped before generation, yet the caller still gets 200 and believes it asked for
 # thinking control. At load the server now renders the checkpoint's own template with a sentinel
 # value and records what happened (`ReasoningEffortLedger`), and a demanded word that
 # measurably reaches nothing is refused with both exits named, after codex's
 # `unsupported_code_mode_warning` (`core/src/session/code_mode_warning.rs:6-24`).
 #
 # ### Two tiers, because only one of them can run without weights
-#   §1 scripted (no model, CI tier) — an UNMEASURED checkpoint must never be refused, and the
+#   §1 scripted (no model, CI tier). An UNMEASURED checkpoint must never be refused, and the
 #      `/v1/models` row must say `not_observed` rather than omit the question. This is the half
 #      that keeps invariant 2 honest in the fail-open direction.
-#   §2 checkpoint (needs one ready model; skipped with a printed reason otherwise) — the load
+#   §2 checkpoint (needs one ready model; skipped with a printed reason otherwise). The load
 #      probe ran (a loaded model must NOT report `not_observed`: that floor is what stops a
 #      rotted measurement reading as honesty), and on a measured `template_ignores` the demand
 #      gets 400 naming knob + evidence + remedy, with the server healthy for the next request.
-#      On `honored` the same request must pass through — the refusal must not fire on the
+#      On `honored` the same request must pass through. The refusal must not fire on the
 #      positive face.
 
 set -uo pipefail
@@ -105,7 +105,7 @@ fi
 probe_note "§2 running against $READY_MODEL"
 
 # The scripted server holds the single-instance lock, and `_lib.sh` deliberately never reaps
-# the server this script started itself — so §2 stops it by pid (never `pkill -x ocoreai`, which
+# the server this script started itself, so §2 stops it by pid (never `pkill -x ocoreai`, which
 # also matches a serve another session owns).
 if [ -n "${PROBE_PID:-}" ] && kill -0 "$PROBE_PID" 2>/dev/null; then
   probe_note "§2 stopping the scripted server (pid $PROBE_PID) before the checkpoint boot"

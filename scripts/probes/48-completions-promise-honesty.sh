@@ -1,36 +1,36 @@
 #!/usr/bin/env bash
-# 48-completions-promise-honesty.sh — does a /v1/completions parameter that nothing acts on say
+# 48-completions-promise-honesty.sh. Does a /v1/completions parameter that nothing acts on say
 # so, or buy a 200 that looks like it was honoured?
 #
 # Measured 10-31 on one live `serve` driving the scripted engine (no weights, so this is a
-# wire-tier verdict and claims nothing about a model): six bodies — `echo:true`, `suffix`,
+# wire-tier verdict and claims nothing about a model): six bodies, `echo:true`, `suffix`,
 # `logprob_token_ids`, `include_stop_str_in_output:true`, `min_tokens:40`,
-# `skip_special_tokens:false` — produced response bodies **identical to the plain request**, each
+# `skip_special_tokens:false`. Produced response bodies **identical to the plain request**, each
 # HTTP 200. `n`, `stop`, `seed`, `temperature` and the repetition knobs all reach the sampler;
 # these six decoded into properties no consumer read, and two more were declared in `CodingKeys`
-# and never decoded at all (`logprob_token_ids`, `repetition_context_size`) — the second one the
+# and never decoded at all (`logprob_token_ids`, `repetition_context_size`). The second one the
 # spelling `/v1/chat/completions` honours at `ChatHandler.swift:635`.
 #
 # Why the six are a defect and not a limitation: `echo` is what a loglikelihood harness asks for
 # when it wants a score conditioned on the prompt. Given a 200 with a *continuation* in
 # `choices[].text`, the harness computes an accuracy from the wrong quantity and reports it as a
 # number. vllm honours `echo` and refuses by name the combinations it cannot serve, with
-# `parameter` in the error (`vllm/entrypoints/openai/completion/protocol.py:535-550`) — this repo
+# `parameter` in the error (`vllm/entrypoints/openai/completion/protocol.py:535-550`). This repo
 # already answers the same way for `n>1` on chat and for `logprobs` on this very route.
 #
 # Legs:
-#   1) positive control — a plain request is answered, so a later 400 means a refusal;
-#   2) refusal — each un-honoured parameter comes back 400 `invalid_request_error`, with `param`
+#   1) positive control. A plain request is answered, so a later 400 means a refusal;
+#   2) refusal. Each un-honoured parameter comes back 400 `invalid_request_error`, with `param`
 #      naming the field the client sent and `value` its value (probe rule 7: assert the field);
-#   3) the two directions the refusal must NOT fire — `repetition_context_size` (a real knob:
+#   3) the two directions the refusal must NOT fire, `repetition_context_size` (a real knob:
 #     200, threaded to its own sampler slot) and `logprobs` (its own honest answer: A2 scoring
 #      where CoreAI exists, 501 `logitsUnsupported` where it does not), plus `echo` *with*
 #      `logprobs`, which must reach the scoring path rather than the echo refusal;
-#   4) domain — a penalty window out of range (0) is refused with the field named and the bound in
+#   4) domain. A penalty window out of range (0) is refused with the field named and the bound in
 #      the message, the way `/v1/chat/completions` already refuses it. `presence_context_size` and
 #      `frequency_context_size` bought a silent 200 here until 10-31: undeclared keys, dropped by
-#      Codable, while the penalty they bound *was* applied — over MLX's default window of 20.
-#   5) floor — the leg counts its own subjects in both directions, so a server that 200s everything
+#      Codable, while the penalty they bound *was* applied. Over MLX's default window of 20.
+#   5) floor. The leg counts its own subjects in both directions, so a server that 200s everything
 #      cannot pass §2 or §4 and one that 400s everything cannot pass §1 or §3.
 set -uo pipefail
 

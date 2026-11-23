@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ci-materialize-metallib.sh — produce MLX's shader payload on a clean runner and stage it where
+# ci-materialize-metallib.sh. Produce MLX's shader payload on a clean runner and stage it where
 # scripts/build-app.sh looks first.
 #
 # ### Why this is one script and not a step in a workflow
@@ -10,20 +10,20 @@
 # runner holding the MetalToolchain component, `swift build -c release --traits appStore` put a 2 389 928 B
 # default.metallib at the SwiftPM product path (`rung: swiftpm-product`) with no xcodebuild in the job.
 # That measurement is why this file was deleted on 10-29, and it no longer reproduces: package.yml's run 23
-# had no `metal` reachable by name, and run 24 — after the delivery route began exporting the PATH rung —
+# had no `metal` reachable by name, and run 24. After the delivery route began exporting the PATH rung,
 # reported `metal=ok`, `metal_on_path=yes` and a compile-probed kernel, built green, and emitted no payload
 # anywhere in the workspace (`scanned 0`, an empty workspace-wide find); the appStore leg on the same image
 # prints the same `scanned 0` after its own green build. So the shipping artefact's shader bytes come from
 # a producer this repo runs, and the route's SwiftPM metal support is a cost question the appStore leg keeps
-# printing as a notice — the day it prints a payload, this script can leave again with evidence.
-# Three decisions are involved — produce it
+# printing as a notice. The day it prints a payload, this script can leave again with evidence.
+# Three decisions are involved. Produce it
 # (xcodebuild), find it (scripts/resolve-metallib.sh, the one ladder: it floors the size and names
-# the rung that won), stage it (build-app.sh's first candidate path) — and a workflow step that
+# the rung that won), stage it (build-app.sh's first candidate path), and a workflow step that
 # re-implements the middle one is how a release leg drifts from every gate on the same host.
 #
 # Both packaging lanes call this: the tag-gated `release` job in ci.yml and its rehearsal
 # (`.github/workflows/package.yml`, no publish, every packaging change + nightly), which is where a
-# producer that stops working reaches main — tag day must never be the first day it runs.
+# producer that stops working reaches main. Tag day must never be the first day it runs.
 #
 # Usage: ci-materialize-metallib.sh [scratch-dir]     (default: .build)
 # stdout: the staged path, nothing else. stderr: progress. exit 1 names the remedy.
@@ -44,7 +44,7 @@ swift package resolve
 # default-trait product is the right payload for an appStore-trait artefact.
 #
 # `|| RC=$?`, not `if ! …; then RC=$?`: the `!` leaves `$?` at 0 inside the branch, so the shape this
-# script was restored in printed "xcodebuild failed (exit 0)" and then exited 0 itself — measured
+# script was restored in printed "xcodebuild failed (exit 0)" and then exited 0 itself. Measured
 # 11-06 on this host, where the Xcode route's stub refuses and the producer correctly reds. A
 # producer whose failure exits 0 is a gate that cannot go red: the caller would stage nothing and
 # ship nothing, and only build-app.sh 3b would notice, naming the wrong subject.
@@ -63,7 +63,7 @@ if [ "$RC" -ne 0 ]; then
   echo "❌ xcodebuild failed (exit $RC) — $LOG tail:" >&2
   # The premise this step buys one workflow step earlier, named where it broke: the component is
   # per-developer-dir, and `cannot execute tool 'metal'` means the route xcodebuild chose has no
-  # Metal Toolchain installed — a different remedy from a compiler that exists and fails.
+  # Metal Toolchain installed. A different remedy from a compiler that exists and fails.
   bash scripts/toolchain-contract.sh report 2>/dev/null | grep -E '^metal|^developer_dir' >&2 || true
   tail -25 "$LOG" >&2
   exit "$RC"

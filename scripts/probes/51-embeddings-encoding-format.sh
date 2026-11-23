@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# 51-embeddings-encoding-format.sh — does /v1/embeddings answer the fields it accepts?
+# 51-embeddings-encoding-format.sh. Does /v1/embeddings answer the fields it accepts?
 #
 # Why this file exists: measured 11-05 against the cached canonical embedder on a live server,
 # the route parsed only `model`, `input` and `user`. A caller that asked `"encoding_format":
 # "base64"` was answered with float arrays, and one that asked `"dimensions": 256` was answered
-# with the full 1024-dim vector — two declared words the wire accepted and silently
+# with the full 1024-dim vector. Two declared words the wire accepted and silently
 # reinterpreted (AGENTS.md invariant 2: the surface never claims more than the engine delivered).
 # Both faces are refused by name or honored now (`embeddingsWireEncoding`,
 # `Router/ChatCompletionsRouter.swift`); this file is the live half of that claim, because the
 # unit gate cannot see the envelope the caller actually reads.
 #
 # Which field carries the base64 string was decided from the spec, not from taste: OpenAI's
-# `Embedding.embedding` is `anyOf: [array<float>, string(base64)]` — "as a base64-encoded string
+# `Embedding.embedding` is `anyOf: [array<float>, string(base64)]`. "as a base64-encoded string
 # when `encoding_format` is `base64`" (`openai/openai-openapi openapi.yaml` ~:51627, fetched
 # through api.github.com 11-06; `b64_json` appears in that file only on images). Every comparator
 # in the mirrors that implements the parameter puts the string under `embedding`: ollama
@@ -19,10 +19,10 @@
 # with its own example decoding `data["embedding"]` (`embedding_requests_base64_online.py:56`),
 # sglang `EmbeddingObject` + `serving_embedding.py:270-279`, Rapid-MLX `routes/embeddings.py:323-336`.
 # The two that refuse an unknown format do it by naming the value (ollama
-# `middleware/openai.go:409-410`, sglang `serving_embedding.py:46-49`) — which is the shape here.
+# `middleware/openai.go:409-410`, sglang `serving_embedding.py:46-49`), which is the shape here.
 #
 # Legs:
-#   1) control — a token-id `input` is refused 400 (one of the three refusal faces measured
+#   1) control. A token-id `input` is refused 400 (one of the three refusal faces measured
 #      11-05), so every 400 below is about its own field and not about a route that never
 #      worked. Weight-free.
 #   2) the refusal faces: an unknown `encoding_format` names itself, the bad value and both
@@ -30,12 +30,12 @@
 #      width and the way out; a NAMED model the server does not serve as an embedder names
 #      itself and what does serve (absent `model` stays consent). All are decided before the
 #      embedder is touched, so they judge on a runner with no weights and no Metal.
-#   3) the shape pair — ONLY when the embedder's weights are cached, and it says so when they
+#   3) the shape pair. ONLY when the embedder's weights are cached, and it says so when they
 #      are not (the checkpoint tier has no CI seat; `docs/agent/open-items.md`): the same two
 #      texts through `float` and through `base64` must decode to the SAME little-endian float32
 #      bytes, 1024 per vector (`usage` agreeing too). This is where §2's promise about 1024 is
 #      measured rather than asserted.
-#   4) floor — each leg counts its own subjects; a leg that produced no verdict is a failure,
+#   4) floor. Each leg counts its own subjects; a leg that produced no verdict is a failure,
 #      never a smaller pass.
 set -uo pipefail
 
@@ -56,7 +56,7 @@ export OCOREAI_SCRIPTED_ENGINE="$SCRIPT_FILE"
 VERDICT_FILE="$(mktemp -t ocoreai-embeddings-verdict-XXXXXX)"
 probe_atexit 'rm -f "$VERDICT_FILE"'
 
-# The canonical embedder's hub cache — the same path `EmbeddingService.hubRepoDir` resolves
+# The canonical embedder's hub cache. The same path `EmbeddingService.hubRepoDir` resolves
 # (MLXBridge.swift), so this probe and the service agree about what "cached" means.
 EMBED_CACHE="$HOME/.cache/huggingface/hub/models--mlx-community--LFM2.5-Embedding-350M-4bit"
 
@@ -145,7 +145,7 @@ else
 
   # One python verdict over the three bodies: the same float32 values in two encodings is the
   # contract, and the width it pins is the 1024 §2 refuses against. The heredoc feeds python
-  # directly and the verdict travels through a file — a `<<PY` nested inside `"$( )"` gets
+  # directly and the verdict travels through a file. A `<<PY` nested inside `"$( )"` gets
   # re-lexed against the outer quotes, where one apostrophe in a comment breaks the whole file.
   FLOAT_STATUS="$FLOAT_STATUS" FLOAT_BODY="$FLOAT_BODY" \
     B64_STATUS="$B64_STATUS" B64_BODY="$B64_BODY" DIM_STATUS="$DIM_STATUS" DIM_BODY="$DIM_BODY" \
@@ -187,7 +187,7 @@ if widths != {1024}:
 # The comparison requantizes the float arm to float32 first: a JSON decimal only has to
 # round-trip to the same float32 (Swift prints the shortest such decimal), so comparing it
 # in float64 against the exact float32 bits of the base64 arm differs by ~half an ULP per
-# value —
+# value,
 # measured 2.5e-9 on the first run, which is ULP-sized, not a defect. Same float32 bits is
 # the contract: two encodings, one vector.
 worst = 0.0

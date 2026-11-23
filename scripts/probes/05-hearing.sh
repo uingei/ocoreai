@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# 05-hearing.sh — does 能听 survive contact with the OS, over the wire?
+# 05-hearing.sh. Does 能听 survive contact with the OS, over the wire?
 #
-# Why (AGENTS.md invariant 2 — the surface never claims more than the engine delivered):
+# Why (AGENTS.md invariant 2. The surface never claims more than the engine delivered):
 # `POST /v1/audio/transcriptions` is where speech enters this server, and the seam in front
 # of Apple's Speech framework decides its fate from three measured axes (permission read
 # without prompting, a locale that resolved, and an analysis pass that completed in a CHILD
 # process). Every shortcut for "is STT available?" answers yes on the host this ships from:
 # `supportsOnDeviceRecognition` is true while `SpeechAnalyzer.analyzeSequence` traps with
-# SIGTRAP — an error no `catch` takes, because it takes the process. So this probe asserts
+# SIGTRAP. An error no `catch` takes, because it takes the process. So this probe asserts
 # the two things unit tests cannot:
 #
-#   1. the REFUSALS are real and typed — a client that cannot be heard gets a 503 naming the
+#   1. the REFUSALS are real and typed. A client that cannot be heard gets a 503 naming the
 #      axis (permission / locale / engine) or a 400 naming what it sent wrong, never a 500,
 #      never a bare "not found", and never a 200 with invented words;
 #   2. when the server says it CAN hear (`verdict: ready`), it demonstrably does: an
@@ -174,12 +174,12 @@ fi
 probe_section "the utterance round trip (say -> POST -> text)"
 AIFF="$(mktemp -t ocoreai-hearing-XXXXXX).aiff"
 # probe_atexit, not `trap`: a bare EXIT trap here would replace _lib.sh's probes_cleanup
-# and leak the engine (that is what poisoned 06/07/08 on 10-17 — see _lib.sh).
+# and leak the engine (that is what poisoned 06/07/08 on 10-17. See _lib.sh).
 probe_atexit 'rm -f "$AIFF"'
 SAY_OK=0
 if command -v say >/dev/null 2>&1; then
   # Default AIFF. `--data-format=LEI16@22050` was tried and refused here with
-  # "Opening output file failed: fmt?" (measured 10-15) — that flag's formats are not the
+  # "Opening output file failed: fmt?" (measured 10-15), that flag's formats are not the
   # ones an .aiff container accepts, and naming the failure beats leaving a bare NOTE.
   SAY_ERROR="$(say -o "$AIFF" -- "$UTTERANCE" 2>&1)"
   if [ -s "$AIFF" ]; then
@@ -358,7 +358,7 @@ if [ -n "${SELF_BIN:-}" ]; then
     done
   fi
   if [ -n "$FIXTURE" ]; then
-    # NB: no `|| true` — swallowing the status here is how a SIGTRAP turns into a pass.
+    # NB: no `|| true`. Swallowing the status here is how a SIGTRAP turns into a pass.
     PROBE_STDOUT="$("$SELF_BIN" --probe-hearing "$FIXTURE" 2>/dev/null)"
     CHILD_RC=$?
     printf '        child rc=%s stdout: %s\n' "$CHILD_RC" \
