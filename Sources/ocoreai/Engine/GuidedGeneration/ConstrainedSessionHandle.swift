@@ -69,12 +69,12 @@ final class ConstrainedSessionHandle: @unchecked Sendable {
 #endif
 
 /// Everything a grammar session is built from. Sessions with equal keys accept the same tokens, so
-/// one can be reset and reused for the other's request (coreai-models #522: matching on schema
-/// alone sent a request to a session built with another request's stop tokens).
+/// one can be reset and reused for the other's request. coreai-models #522 matched on schema alone and
+/// sent a request to a session built with another request's stop tokens.
 ///
-/// Stop tokens count: a request's single-token `stop` strings are among them, and they decide where
+/// Stop tokens count. A request's single-token `stop` strings are among them, and they decide where
 /// the grammar may end. They compare as a set, in any order; nil (xgrammar's defaults) differs
-/// from the empty set. Deliberately outside the CoreAI gate — it holds no CoreAI type, so a
+/// from the empty set. Deliberately outside the CoreAI gate. It holds no CoreAI type, so a
 /// cache-key regression is testable on every route.
 struct ConstrainedSessionKey: Hashable, Sendable {
     let schema: String

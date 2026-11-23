@@ -12,12 +12,12 @@ heading are when the work landed (measured from git).
 **11-23 coreai-models +46 窗口读完并 adopt:三个活 bug 落地,轴归零** — 改了什么:owner 裁定上一轮
 "记台账不等于同步",这轮把 `0bfb548..ca2aecf`(+46,含镜像中途前进的一条)逐 commit 判完:每条与全部
 镜像文件做交集,零交集 25 条按 subject 记 n/a,有交集的读到 hunk 并 grep 验证我们副本有没有该形状。
-**port 了三条我们树里的活 bug**:① #537 sampler 缓存只按 temperature 键——后一请求换 top_p 会静默沿用
+**port 了三条我们树里的活 bug**:① #537 sampler 缓存只按 temperature 键。后一请求换 top_p 会静默沿用
 旧 MPSGraph(wire 声称了引擎没应用的采样参数,invariant 2),greedy 翻转还会 throw 要一个引擎从不做的
 reset;改为按 `MPSGraphSamplerGraphKey`(工厂真正编译进图的字段)整键重建。② #533 gate slot 泄漏:
 `_encodeNextStepGPU` 先 `acquire` 再裸 `try` encode,encode 抛错则 slot 永不归还,累计 pipelineDepth
 次失败后该 lane 永久卡死;连带 prepare span/step interval/chunk interval 三条抛错路径全部补关。
-③ #522 grammar-session 缓存只比 schema——同 schema 不同 `stop` 会复用另一个请求语法的 session;新
+③ #522 grammar-session 缓存只比 schema。同 schema 不同 `stop` 会复用另一个请求语法的 session;新
 `ConstrainedSessionKey`(schema + stop 集合 + vocab,nil≠∅),CPU bitmask 同时把超出语法词表的 padding
 id 置 −inf。④ #524 正确性半:CPU fallback `softmax` 遇 fp16 +inf 算出 inf−inf=NaN,全零概率表静默吐
 token 0;现按 +inf 位均匀分布(性能半不 port,已记 §)。gates:`CacheKeyInvalidationTests`+

@@ -24,8 +24,8 @@
 //   Row: coreai-fork-window-log.md § Window read 11-09)
 //   Absorbed: #533 f5d220b (encode throw releases the gate slot and closes its spans; strides
 //   hoisted out of the prepare span; the chunk interval ends on every path) and #537 25af63c
-//   (the sampler cache keys on `MPSGraphSamplerGraphKey`, the fields the factory compiles from —
-//   a temperature-keyed cache ignored a changed top_p and threw on a greedy flip).
+//   (the sampler cache keys on `MPSGraphSamplerGraphKey`, the fields the factory compiles from,
+//   since a temperature-keyed cache ignored a changed top_p and threw on a greedy flip).
 //   Absorbed: #522 783fa1a (the grammar-session cache compares `ConstrainedSessionKey`: schema,
 //   stop ids as a set, vocabulary size).
 //   Adjudicated: 819ec7e (window to c8e00c0 read; verdicts:
@@ -899,8 +899,8 @@ private struct EngineImpl: ~Copyable {
             details: "step=\(currentStep) qLen=\(queryLength)"
         )
 
-        // Strides first: they can throw, and nothing inside the prepare span may. A throw escaping
-        // a begun span leaves it reported as never ended (upstream #533).
+        // Strides come first because they can throw, and nothing inside the prepare span may. A
+        // throw escaping a begun span leaves it reported as never ended (upstream #533).
         let posLength = processedTokenCount + queryLength
         let tokenShape = [1, queryLength]
         let tokenStrides = try resolvedStrides(descriptor: inputIdsBaseDesc, shape: tokenShape)

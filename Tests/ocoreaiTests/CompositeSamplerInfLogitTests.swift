@@ -1,15 +1,15 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// CompositeSamplerInfLogitTests.swift — the CPU fallback sampler survives a +inf logit.
+/// CompositeSamplerInfLogitTests.swift. The CPU fallback sampler survives a +inf logit.
 ///
-/// coreai-models #524 (eed1a35) convicted the shared defect: an fp16 logit that overflowed to
+/// coreai-models #524 (eed1a35) convicted the shared defect. An fp16 logit that overflowed to
 /// +inf made `softmax` compute `inf - inf = NaN` at that position; this copy's `sum.isFinite`
 /// guard then returned an all-zero distribution, and the inverse-CDF sample fell through to a
-/// silent token id — the request kept generating, off-distribution, reporting nothing. #524's
-/// stated limit is what the port implements: with a +inf present the softmax is uniform over
+/// silent token id. The request kept generating, off-distribution, reporting nothing. #524's
+/// stated limit is what the port implements. With a +inf present the softmax is uniform over
 /// exactly the +inf positions.
 ///
-/// The O(V log V) sort avoidance of the same commit is not ported: it is a latency change on a
+/// The O(V log V) sort avoidance of the same commit is not ported. It is a latency change on a
 /// fallback lane whose callers already accept CPU latency, and shipping half of a tested
 /// upstream commit is the split this window read exists to stop. Ledger row:
 /// docs/agent/coreai-fork-window-log.md.

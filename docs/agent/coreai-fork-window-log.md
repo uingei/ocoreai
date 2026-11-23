@@ -274,23 +274,24 @@ The answer, by three numbers: adjudicated windows — sync is line-true in the s
 undeclared misses); the axis's body — unread (exit 10, 19 commits, 25 unstamped files), and `make
 drift` never calls it synced; one prose claim that contradicted its own file — convicted and repaired.
 
-## Window read 11-23 (b) — the +45 read in full: three real ports, and the axis adopted at zero
+## Window read 11-23 (b). The +45 read in full, three live bugs ported, and the axis adopted at zero
 
-The owner's ruling on the previous section: bookkeeping is not sync — finish the read and adopt. This
-section is that read: every commit in `0bfb548..c8e00c0` (plus `ca2aecf`, the one commit the mirror
-gained mid-round, which `adopt coreai-models` baselined — read and adjudicated before this claim
-stands). Method: each commit's file list intersected against the mirror set (28 table rows plus the
-no-baseline mirrors); zero-intersection commits are n/a by file, named by subject; intersection
-commits read at hunk level, then grep-tested for whether the enclosing shape exists in our copy.
+The owner's ruling on the previous section was that bookkeeping is not sync. Finish the read, and
+adopt. This section is that read. Every commit in `0bfb548..c8e00c0` was adjudicated, plus
+`ca2aecf`, the one commit the mirror gained mid-round and `adopt coreai-models` baselined, which
+was read and adjudicated before this claim stands. The method intersects each commit's file list
+against the mirror set (28 table rows plus the no-baseline mirrors). A zero-intersection commit is
+n/a by file, named by subject. An intersection commit is read at hunk level, then grep-tested for
+whether the enclosing shape exists in our copy.
 
-### Ported — these were live bugs in our tree
+### Ported. These were live bugs in our tree
 
 | commit | defect in our copy | port | gate |
 |---|---|---|---|
-| `25af63c` #537 | sampler cache keyed on temperature alone: a later request changing `top_p` silently reused the old MPSGraph (wire claimed a sampling parameter the engine never applied — invariant 2), and a greedy flip threw demanding a `reset()` the engine never runs between requests | cache keyed on `MPSGraphSamplerGraphKey` = the fields `MPSGraphSamplerFactory` compiles from (temperature/topK/topP/minP/penaltyEnabled, normalized); rebuild on any change, no throw. Whole-config equality rejected: our `SamplingConfiguration` also carries seed/stop/KV fields, and keying on them would recompile a graph per request | `CacheKeyInvalidationTests.SamplerGraphKeyTests` — mutation-proved red (`minP` dropped → `✘ Expectation failed`) |
-| `f5d220b` #533 | `_encodeNextStepGPU`: gate slot acquired then bare-`try` encode — a throw leaked the slot forever (after `pipelineDepth` failures the lane stalls permanently) and left three spans unclosed; the sampler sync-throw path leaked the step interval; `_encodeChunk` ended its interval only on success | strides hoisted out of the prepare span; encode wrapped with slot-release + span-close + rethrow; chunk interval `defer`red | compile-verified (mutation probe: the CoreAI block compiles on this host); runtime pending the CI xcode-27 tier, like the 11-12 ports |
-| `783fa1a` #522 | grammar-session cache matched schema alone: same schema + different `stop` strings reused a session whose grammar ends elsewhere (JSON string content truncated by a stop, or a stop no longer honoured); padded-logit ids past the grammar vocabulary escaped the CPU mask and then failed the request | `ConstrainedSessionKey` (schema, stop ids as a set — nil ≠ ∅ — vocabulary size) compared in the cache; `_applyBitmask` masks `count..<logits.count` to −inf | `ConstrainedSessionKeyTests` green here; `PaddedLogitsMaskTests` compiles, runs on the macOS-27 runner (skipped here, named) |
-| `eed1a35` #524 | CPU fallback `CompositeSampler.softmax`: a +inf logit (fp16 overflow) made `inf − inf = NaN`, the `sum.isFinite` guard returned all-zero probabilities, and the sampler silently emitted token 0 — a whole reply off-distribution | correctness half ported: softmax uniform over exactly the +inf positions. Performance half (avoid full-vocab sort for top-p/min-p-only) NOT ported: latency on a fallback lane, and shipping half a tested commit silently is what this read exists to stop | `CompositeSamplerInfLogitTests` — 3 exact-value tests, green on this host |
+| `25af63c` #537 | sampler cache keyed on temperature alone. A later request changing `top_p` silently reused the old MPSGraph, so the wire claimed a sampling parameter the engine never applied (invariant 2), and a greedy flip threw demanding a `reset()` the engine never runs between requests | cache keyed on `MPSGraphSamplerGraphKey` = the fields `MPSGraphSamplerFactory` compiles from (temperature/topK/topP/minP/penaltyEnabled, normalized); rebuild on any change, no throw. Whole-config equality was rejected because our `SamplingConfiguration` also carries seed/stop/KV fields, and keying on them would recompile a graph per request | `CacheKeyInvalidationTests.SamplerGraphKeyTests`, mutation-proved red (`minP` dropped → `✘ Expectation failed`) |
+| `f5d220b` #533 | `_encodeNextStepGPU` acquired the gate slot then bare-`try`ed the encode. A throw leaked the slot forever (after `pipelineDepth` failures the lane stalls permanently) and left three spans unclosed; the sampler sync-throw path leaked the step interval; `_encodeChunk` ended its interval only on success | strides hoisted out of the prepare span; encode wrapped with slot-release + span-close + rethrow; chunk interval `defer`red | compile-verified (a mutation probe shows the CoreAI block compiles on this host); runtime pending the CI xcode-27 tier, like the 11-12 ports |
+| `783fa1a` #522 | grammar-session cache matched schema alone. Same schema plus different `stop` strings reused a session whose grammar ends elsewhere, so JSON string content was truncated by a stop or a stop was no longer honoured; padded-logit ids past the grammar vocabulary escaped the CPU mask and then failed the request | `ConstrainedSessionKey` (schema, stop ids as a set where nil ≠ ∅, vocabulary size) compared in the cache; `_applyBitmask` masks `count..<logits.count` to −inf | `ConstrainedSessionKeyTests` green here; `PaddedLogitsMaskTests` compiles, runs on the macOS-27 runner (skipped here, named) |
+| `eed1a35` #524 | In the CPU fallback, `CompositeSampler.softmax` let a +inf logit (fp16 overflow) make `inf − inf = NaN`, the `sum.isFinite` guard returned all-zero probabilities, and the sampler silently emitted token 0 for a whole off-distribution reply | correctness half ported, softmax uniform over exactly the +inf positions. Performance half (avoid full-vocab sort for top-p/min-p-only) NOT ported, for latency on a fallback lane; shipping half a tested commit silently is what this read exists to stop | `CompositeSamplerInfLogitTests`, 3 exact-value tests, green on this host |
 
 ### Read, inert by absence (0 consumers in `Sources/`, measured this round)
 
@@ -307,13 +308,13 @@ StaticShape copy contains no profiler plumbing) · `603bf7f` #294 additive stage
 
 ### Read, n/a by seam or declared slice
 
-`5316b99` #508 — upstream caught up to OUR feature: our vendored `ThinkTagParser` carried
+`5316b99` #508 — upstream caught up to OUR feature. Our vendored `ThinkTagParser` carried
 `promptEndsInsideReasoning` + `init(primedInside:)` before upstream had any of it (recorded in its
 header); their `promptOpensReasoning` is the same feature, different name. Stamped `Adjudicated:
 5316b99`. · `60e8605` #509 engine half — outcome reporting + token-level stop enforcement lives in
 their strategy layer; ours is a seam decision already on the wire (`EngineInference.swift` native
 stop-sequence detection → `.stopSequence` → ChatHandler finish-reason map). Their
-`maxConsecutiveUnknownIds` guard has no home in our decoder — named below. · `8bbadd0` #532 —
+`maxConsecutiveUnknownIds` guard has no home in our decoder, named below. · `8bbadd0` #532 —
 `GrammarSchemaJSON` canonicalizes FoundationModels-encoded schemas; we feed the wire's schema string
 verbatim to xgrammar, and our FM path never re-encodes a schema into a grammar (checked at
 `EngineInference.swift` FM-guided site). · `128d2f3` #501 + `8a75e8e` #530 — chat-API image plumbing
@@ -345,30 +346,32 @@ stamped `Adjudicated: <last-touch ≤ c8e00c0>` (ledger-parsable, first-45-lines
 their file's end, 0 pending; the no-baseline list fell 25 → 15 — the 15 left are files this window
 did not touch and whose full absorption history this round did not re-verify (stamping them would be
 the false green the ledger refuses to parse by design). `Handlers/DecisionsHandler.swift` stays
-no-baseline honestly: it is an MIT in-tree file, a candidate only because its header cites another
+no-baseline honestly. It is an MIT in-tree file, a candidate only because its header cites another
 mirror's provenance.
 
 Then: `bash scripts/upstream-drift.sh adopt coreai-models` → baseline `ca2aecf`,
 `make drift` reports `coreai-models 0 new ✓ 与基线同点`. The red that remains is
-**mlx-swift-lm +9** — its bump protocol ends in `make test-ci` (CI tier) and a push, both owner
-windows; not taken unilaterally.
+**mlx-swift-lm +9**. Its bump protocol ends in `make test-ci` (CI tier) and a push, both owner
+windows, so neither was taken unilaterally.
 
 ### Content face re-measured at the new read-points, and one blind spot the stamps exposed
 
 `bash scripts/upstream-drift.sh coreai-content` at the new stamps: 38/38 rows carry absent lines,
-5 173 total (the pre-stamp figure was 26/3 909 — the newly lined rows are the big strategy files,
-whose declared slices account for the jump by count, not by kind). The top rows' `#miss` lines were
-sampled and classified with 11-23 (a)'s lens: `CoreAISequentialVLMEngine` (1 248) is the pipelined
-file's declared slice; `MPSGraphSamplers` (286) is absent lines from the additive stage — that is
-open-item #294's own face, not new debt; `CoreAIStaticShapeEngine`/`CoreAIPipelinedEngine` opens with
-the declared adaptations (`import CoreAIShared` flatten, `ConfigType` naming, the struct-wrapper
-rename, the `milliseconds` helper we never took). No undeclared logic in the sampled top rows.
+5 173 in total. The pre-stamp figure was 26 rows over 3 909 lines, and the jump comes from the
+newly lined strategy files, whose declared slices account for it by count, not by kind. The top
+rows' `#miss` lines were sampled and classified with 11-23 (a)'s lens. `CoreAISequentialVLMEngine`
+(1 248) is the pipelined file's declared slice. `MPSGraphSamplers` (286) is the additive-stage
+absence open-item #294 already names, not new debt. `CoreAIStaticShapeEngine` and
+`CoreAIPipelinedEngine` open with the declared adaptations (`import CoreAIShared` flatten,
+`ConfigType` naming, the struct-wrapper rename, the `milliseconds` helper we never took). No
+undeclared logic in the sampled top rows.
 
-Blind spot the stamps exposed: upstream `Samplers/CompositeSampler.swift` was renamed to
-`ReferenceSampler.swift` by #545, and the ledger maps mirror→upstream by the header's cited path —
-so our `CompositeSampler.swift` now tracks a dead path (`ReferenceSampler` appears 0 times in the
-census; my `Adjudicated:` there is decorative, the file sits in `胶合/引用`). Future windows on the
-renamed file will not surface against our copy through any ledger line. Named here because a scan
-that stopped matching passes vacuously (invariant 1): the day the content face matters for that file,
-the instrument to run is `git -C ~/references/coreai-models log ReferenceSampler.swift` against
+The stamps exposed one blind spot. Upstream `Samplers/CompositeSampler.swift` was renamed to
+`ReferenceSampler.swift` by #545, and the ledger maps mirror→upstream by the header's cited path,
+so our `CompositeSampler.swift` now tracks a dead path. `ReferenceSampler` appears 0 times in the
+census, the `Adjudicated:` stamp there is decorative, and the file sits in `胶合/引用`. Future
+windows on the renamed file will not surface against our copy through any ledger line. This is
+named here because a scan that stopped matching passes vacuously (invariant 1). The day the content
+face matters for that file, the instrument to run is
+`git -C ~/references/coreai-models log ReferenceSampler.swift` against
 `Sources/ocoreai/Engine/CompositeSampler.swift` by hand, or give the ledger a rename-aware cite.

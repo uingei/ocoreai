@@ -112,14 +112,14 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   now closed: the full `0bfb548..ca2aecf` (+46) read (§ Window read 11-23 (b) of
   `docs/agent/coreai-fork-window-log.md`) ported three live bugs (#537 sampler cache, #533 gate/span
   leak, #522 grammar-session key + padded mask, plus #524's +inf half), stamped every mirror whose
-  window was adjudicated, and adopted the axis — `make drift` reports `coreai-models 0 new`. What
+  window was adjudicated, and adopted the axis. `make drift` reports `coreai-models 0 new`. What
   remains is the verdict debt, one row each with its action in that log: #412's GPU-error stop and
   #490's repetition-penalty carry-in (ports landed 11-12, runtime pending the macOS 27 window), #368's
   whitespace damping (CoreAI-only, unverifiable here), and three names this read surfaced:
   1. **#294 additive penalties are on the wire but off the engine** — `/v1` accepts
      `frequency_penalty`/`presence_penalty`, the CoreAI pipelined GPU sampler never compiled them
      (upstream's additive stage is the missing piece) and the CPU fallback applies neither; the MLX
-     lane honors them. Invariant 2 exposure: the surface promises, the engine silently drops. Waiting
+     lane honors them. Invariant 2 exposure. The wire promises, the engine silently drops. Waiting
      the same host.
   2. **#530 bundle-declared `eos_token_ids`** (Gemma 4's `<|tool_response|>` = 50) — the CoreAI lane
      reads no bundle stop-ids (0 hits in `Sources/`); stop semantics ride the wire `stop` field alone.
@@ -128,9 +128,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   The ledger's other face, re-measured after the adopt: of 57 candidates **15** remain no-baseline
   (was 25) — files this window never touched, whose full absorption history stays unverified rather
   than stamped into a false green; `Handlers/DecisionsHandler.swift` is honestly one of them (an MIT
-  in-tree file whose only sha is another mirror's cite). One of them is a rename blind spot:
+  in-tree file whose only sha is another mirror's cite). One of them is a rename blind spot, because
   upstream `Samplers/CompositeSampler.swift` became `ReferenceSampler.swift` (#545) and the ledger
-  maps by the cited path, so our CPU-sampler copy tracks a dead path — the manual instrument is in
+  maps by the cited path, so our CPU-sampler copy tracks a dead path. The manual instrument is in
   the window log. `make drift` prints both counts every round.
 - **The mlx-swift-lm window (+9 at 11-23; the `+6` below is the 11-05 reading) hands us a truth we
   cannot read until the bump** (Engine/) — read 11-05 in

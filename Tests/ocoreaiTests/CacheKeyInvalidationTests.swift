@@ -1,19 +1,19 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// CacheKeyInvalidationTests.swift — two caches reused a compiled artifact on a partial key.
+/// CacheKeyInvalidationTests.swift. Two caches reused a compiled artifact on a partial key.
 ///
-/// Both are the same defect shape, ported from coreai-models this window read: a cache keyed on
+/// Both are the same defect shape, ported from coreai-models this window read. A cache keyed on
 /// fewer fields than the artifact was compiled from hands one request another request's artifact.
-/// * The pipelined engine keyed its sampler cache on temperature (upstream #537, 25af63c): a later
+/// * The pipelined engine keyed its sampler cache on temperature (upstream #537, 25af63c). A later
 ///   request changing `top_p` silently kept the old graph, and a greedy flip threw demanding a
 ///   `reset()` the engine never runs between requests. Our key is the fields the factory compiles
-///   from — not the whole `SamplingConfiguration`, which also carries seed, stop sequences and KV
-///   fields whose change must not recompile an MPSGraph per request.
-/// * The grammar-session cache matched on schema alone (upstream #522, 783fa1a): a request with
+///   from. It is deliberately not the whole `SamplingConfiguration`, whose seed, stop sequence and
+///   KV fields must not recompile an MPSGraph per request.
+/// * The grammar-session cache matched on schema alone (upstream #522, 783fa1a). A request with
 ///   different `stop` strings reused a session whose grammar ends elsewhere. The key compares stop
 ///   ids as a set and the vocabulary size; nil stop ids (xgrammar's defaults) differ from empty.
 ///
-/// The key types hold no CoreAI or Metal type, so these assertions run on every route; the padded
+/// The key types hold no CoreAI or Metal type, so these assertions run on every route. The padded
 /// logits mask sits in the macOS 27-gated suite like the other GuidedGeneration runtime tests.
 
 import Foundation
@@ -93,8 +93,8 @@ struct ConstrainedSessionKeyTests {
 )
 struct PaddedLogitsMaskTests {
 
-    /// A byte-level vocabulary, wider logits than it: ids past the vocabulary belong to a padded
-    /// output layer and no grammar could accept them (coreai-models #522).
+    /// A byte-level vocabulary, with logits wider than it. Ids past the vocabulary belong to a
+    /// padded output layer and no grammar could accept them (coreai-models #522).
     private static let vocabulary: [String] = [
         "{", "}", "[", "]", ":", ",", "\"", " ", "\n", "a", "1",
     ]
