@@ -1,15 +1,15 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// TranscriptEdit.swift — pure policy for "fix my last instruction and rerun".
+/// TranscriptEdit.swift. Pure policy for "fix my last instruction and rerun".
 ///
 /// ### Why this exists (proven gap, 2026-10-12)
 /// `git grep "editMessage|beginEditing" Sources/` = 0. The transcript offered
-/// *Regenerate* (re-run the same user text — `ChatView` context menu →
+/// *Regenerate* (re-run the same user text, `ChatView` context menu →
 /// `ChatState.resendFromMessage`) but never offered *Edit*. When an agent goes
 /// off-course because the instruction was imprecise, every comparable product
 /// (LM Studio Bionic, the Codex app, ChatGPT/Claude) lets the user correct the
 /// instruction **in place** and rerun from there; the only thing ocoreai offered
-/// was to append a correction — which permanently pollutes the context with the
+/// was to append a correction, which permanently pollutes the context with the
 /// wrong instruction plus an apology. Recoverability is a first-principles
 /// requirement for an agent that takes actions, not a nicety.
 ///
@@ -20,21 +20,21 @@
 /// disagree: the rerun behaves correctly *now*, and the discarded turn (with the
 /// pre-edit text) walks back in the next time the session is opened. So the plan
 /// carries a `dropCount`, and `SessionCompressor.dropTranscriptTail` mirrors it
-/// to SQLite — one primitive shared by both Edit-and-Resend and Regenerate, so
+/// to SQLite. One primitive shared by both Edit-and-Resend and Regenerate, so
 /// the two can never drift apart again.
 ///
 /// ### First principles encoded here
-/// 1. Only the user's own messages are editable — never the model's words.
-/// 2. An empty edit is not a resend — never fire a turn on blank input.
+/// 1. Only the user's own messages are editable. Never the model's words.
+/// 2. An empty edit is not a resend. Never fire a turn on blank input.
 /// 3. Editing reruns from that point: the edited message and everything after it
 ///    are dropped, so the model never sees the abandoned branch.
 /// 4. Missing target (unknown id / index out of range) is reported, never guessed.
 /// 5. `dropCount` is derived from the transcript length, so a short database
-///    deletes what exists — never more.
+///    deletes what exists. Never more.
 
 import Foundation
 
-/// Pure edit-and-resend planning. No UI, no SQLite, no globals — every rule is
+/// Pure edit-and-resend planning. No UI, no SQLite, no globals. Every rule is
 /// assertable from value in / value out (same shape as `ComposerIngest`).
 enum TranscriptEdit {
 
@@ -62,7 +62,7 @@ enum TranscriptEdit {
     ///
     /// - Parameters:
     ///   - roles: roles of the live transcript, oldest first (usually
-    ///     `messages.map(\.role)` — taken as data so this stays UI-free).
+    ///     `messages.map(\.role)`. Taken as data so this stays UI-free).
     ///   - editing: index of the message the user chose to edit, or `nil` when
     ///     the id did not resolve to a transcript item.
     ///   - rawText: the edited text as typed.

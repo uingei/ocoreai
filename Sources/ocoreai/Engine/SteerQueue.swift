@@ -4,17 +4,17 @@
 // MARK: - Mid-turn steering queue
 //
 // First-principles shape of "steering": the user's next message must enter the
-// model's context at the NEXT turn boundary — without killing the stream in
+// model's context at the NEXT turn boundary. Without killing the stream in
 // flight, and without being silently swallowed. This mirrors Hermes Desktop's
 // out-of-band steering and codex's `review` interjection semantics:
 //
-//   • Enqueue  — GUI composer routes text here while a stream is active
+//  • Enqueue. GUI composer routes text here while a stream is active
 //                (instead of disabling input: a live agent that ignores the user
 //                 for the whole turn is the "chat shell" failure mode).
-//   • Drain    — the engine tool loop calls `drain(sessionKey:)` once per
+//  • Drain. The engine tool loop calls `drain(sessionKey:)` once per
 //                iteration, before the next generation, and appends the drained
 //                messages as user-role turns to the transcript.
-//   • Flush    — loop ends with items still queued → they return to the GUI
+//  • Flush. Loop ends with items still queued → they return to the GUI
 //                composer (visible in transcript + input box), never lost.
 //
 // The transcript persistence in ChatState is the durable truth: a steer that
@@ -48,10 +48,10 @@ public struct SteerMessage: Sendable, Equatable {
 }
 
 /// Thread-safe steering queue (Mutex pattern shared with the engine,
-/// `Engine/Mutex.swift`). All operations are O(n) over pending items — n is
+/// `Engine/Mutex.swift`). All operations are O(n) over pending items. N is
 /// bounded by `maxPerSession` so drain stays negligible on the hot path.
 public final class SteerQueue: @unchecked Sendable {
-    /// Hard ceiling per session — a user typing 50 steers into a runaway loop
+    /// Hard ceiling per session. A user typing 50 steers into a runaway loop
     /// is a UX signal, not an unbounded queue. Overflow drops OLDEST (the
     /// newest steer supersedes them; the composer flush keeps the rest).
     public static let maxPerSession = 8
@@ -68,7 +68,7 @@ public final class SteerQueue: @unchecked Sendable {
     /// Shared instance used by the GUI producer and engine consumer.
     public static let shared = SteerQueue()
 
-    /// Enqueue a steer. Empty/whitespace text is rejected (returning false —
+    /// Enqueue a steer. Empty/whitespace text is rejected (returning false,
     /// the composer guard should already prevent this; belt-and-braces so a
     /// whitespace steer never reaches the transcript).
     @discardableResult
@@ -128,7 +128,7 @@ public final class SteerQueue: @unchecked Sendable {
 
     /// Drop every pending steer for a session. MUST be called on
     /// `resetConversation` / cancellation: a queued steer belongs to the
-    /// conversation the user was watching — carrying it into a NEW conversation
+    /// conversation the user was watching. Carrying it into a NEW conversation
     /// would act on stale intent (same leak class as session-approved tools
     /// surviving `cancelAll()` in ApprovalBroker).
     public func discard(sessionKey: String) {

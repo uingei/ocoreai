@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AudioTranscriptionHandler.swift — `POST /v1/audio/transcriptions`, the wire surface for
+/// AudioTranscriptionHandler.swift, `POST /v1/audio/transcriptions`, the wire surface for
 /// 能听 (hearing): speech in, text out, on-device.
 ///
 /// ### Why this endpoint exists
@@ -8,7 +8,7 @@
 /// and an agent could *transcribe* one through the `transcribe_audio` tool, but no HTTP
 /// client could turn speech into text: `POST /v1/audio/transcriptions` answered 404
 /// (measured 10-15, `scripts/probes/05-hearing.sh`). So the capability existed in the
-/// process and was unreachable from the surface — the same shape as the other
+/// process and was unreachable from the surface. The same shape as the other
 /// accept-then-cannot-deliver defects this repo keeps fixing.
 ///
 /// ### Why chat `audio_url` is not the same thing
@@ -18,7 +18,7 @@
 /// tokens reached the model. The cause is upstream and verified, not inferred:
 /// `UserInput.audios` is plumbed through `Chat.Message`/`UserInput`, and `Gemma4.prepare`
 /// consumes `LMInput.audio` (the checkpoint carries 754 `audio_tower.*` weights), but
-/// **no `UserInputProcessor` in mlx-swift-lm reads `input.audios`** — `grep -c audios` in
+/// **no `UserInputProcessor` in mlx-swift-lm reads `input.audios`**, `grep -c audios` in
 /// `Gemma4.swift` is 0. Waveform therefore cannot reach the LLM at all today.
 ///
 /// Consequence for this file: the honest route for speech is OS ASR → text, which is what
@@ -26,11 +26,11 @@
 /// a transcript it did not measure (AGENTS.md invariant 2).
 ///
 /// ### Shapes accepted (both, because clients differ)
-/// * `multipart/form-data` — OpenAI's own shape: `file` (+ `model`, `language`,
+/// * `multipart/form-data`. OpenAI's own shape: `file` (+ `model`, `language`,
 ///   `response_format`). A minimal strict parser lives in ``MultipartFormData``.
-/// * `application/json` — `{"audio": "<data URL | base64>", "language": "…"}`, for clients
+/// * `application/json`, `{"audio": "<data URL | base64>", "language": "…"}`, for clients
 ///   that cannot build multipart bodies. Extension, not spec; the endpoint note says so.
-/// * `{"url": "file:///…"}` — local path only. `http(s)` is refused by name: fetching a
+/// * `{"url": "file:///…"}`. Local path only. `http(s)` is refused by name: fetching a
 ///   remote URL from a local-first server is an SSRF the product does not need.
 ///
 /// `model` and `prompt` are accepted for client compatibility and **do not** change the
@@ -41,7 +41,7 @@
 /// ### Refusals are typed and name the fix
 /// `error_code` comes from ``TranscriptFailure`` (closed vocabulary), the message carries the
 /// remedy (`System Settings ▸ Privacy & Security ▸ Speech Recognition`), and a measured
-/// engine fault is a refusal — never an in-process call that could SIGTRAP the server
+/// engine fault is a refusal. Never an in-process call that could SIGTRAP the server
 /// (`HearingReadiness` is the gate). An honest empty transcript (silence) stays 200 with
 /// `speech_detected: false` and a `reason`, because "looked, found no speech" is a
 /// measurement, not a failure.
@@ -60,7 +60,7 @@ import AVFoundation
 /// JSON body of `POST /v1/audio/transcriptions`.
 ///
 /// Hand-decoded so every optional field is genuinely optional on the wire (AGENTS.md:
-/// synthesized `Decodable` in this target requires every non-Optional key — the
+/// synthesized `Decodable` in this target requires every non-Optional key. The
 /// `AnthropicMessageRequest.stream` 400 in the changelog is the same defect class).
 struct TranscriptionJSONRequest: Decodable, Equatable, Sendable {
     /// Client-side model name. Accepted for compatibility; the engine is the OS analyzer.
@@ -71,11 +71,11 @@ struct TranscriptionJSONRequest: Decodable, Equatable, Sendable {
     let audio: String?
     /// Local `file://` path to an audio file. Remote URLs are refused.
     let url: String?
-    /// OpenAI's optional initial-prompt bias — accepted, not applied.
+    /// OpenAI's optional initial-prompt bias. Accepted, not applied.
     let prompt: String?
     /// `"json"` (default) | `"text"` | `"verbose_json"` (refused with a named reason).
     let responseFormat: String?
-    /// Requested timestamp granularities — this engine provides none, so non-empty is refused.
+    /// Requested timestamp granularities. This engine provides none, so non-empty is refused.
     let timestampGranularities: [String]?
 
     enum CodingKeys: String, CodingKey {
@@ -97,7 +97,7 @@ struct FormField: Equatable, Sendable {
 
 /// Minimal strict `multipart/form-data` reader.
 ///
-/// Kept here, small, and fully covered by `AudioTranscriptionTests` — the alternative
+/// Kept here, small, and fully covered by `AudioTranscriptionTests`. The alternative
 /// (claiming OpenAI multipart compatibility while only accepting JSON) would be a surface
 /// promising what it does not do. Every failure mode returns an empty result or nil so the
 /// handler can refuse with a reason; nothing here traps or guesses.
@@ -153,7 +153,7 @@ enum MultipartFormData {
 
     // `Data` has no `hasPrefix`/`hasSuffix` (measured: the build says "no such member"),
     // and a global extension to add them would be exactly the second abstraction this repo
-    // tries not to grow — so the two comparisons a multipart parser actually needs live
+    // tries not to grow, so the two comparisons a multipart parser actually needs live
     // here, on the byte lengths that make them total.
     private static func hasPrefix(_ data: Data, _ prefix: Data) -> Bool {
         guard data.count >= prefix.count else { return false }
@@ -195,7 +195,7 @@ enum MultipartFormData {
                 let parameterText = String(params)
                 // RFC 2045 allows a parameter value to be a token or a quoted-string, and real
                 // clients emit both. Both keys resolve the same way: quoting is not a privilege,
-                // and an asymmetric rule would drop the `name` of every unquoted part — which is
+                // and an asymmetric rule would drop the `name` of every unquoted part, which is
                 // the part the whole body is keyed by.
                 name =
                     quotedValue(in: parameterText, key: "name")
@@ -284,7 +284,7 @@ enum AudioTranscription {
                 return .bytes(file.data, mime: file.contentType)
             }
             // multipart body without a `file` part: the client sent the right envelope and
-            // the wrong contents — say so, do not fall through to a guess.
+            // the wrong contents. Say so, do not fall through to a guess.
             return .missing(.undecodableAudio)
         }
         if let audio = json?.audio, !audio.isEmpty {
@@ -330,7 +330,7 @@ enum AudioTranscription {
         guard raw.hasPrefix("data:") else { return nil }
         guard let comma = raw.firstIndex(of: ",") else { return nil }
         // Drop the `data:` scheme by its own length. `index(after: startIndex)` skips one
-        // character, not five, and measured "ata:audio/webm" — a mime that then picked the
+        // character, not five, and measured "ata:audio/webm". A mime that then picked the
         // staging container by coincidence ("…wav" still contains "wav") instead of by the
         // container the client claimed.
         let header = String(raw[raw.index(raw.startIndex, offsetBy: "data:".count) ..< comma])
@@ -415,7 +415,7 @@ enum AudioTranscription {
             requestedLanguage: nil,
             duration: nil,
             // The two measured-emptiness outcomes carry the detector's answer, because the
-            // header of this file promises `speech_detected: false` for silence — and a 200
+            // header of this file promises `speech_detected: false` for silence, and a 200
             // that stays silent about whether anything was listened to is the over-claim this
             // file exists to stop. Refusals keep the field absent: no listening, no field.
             speechDetected: failure.detectedSpeech,
@@ -426,7 +426,7 @@ enum AudioTranscription {
 
     /// Status for a failure: payload problems are the client's (400); permission, locale and
     /// engine state are service state the user must fix (503). "Looked, found no speech" is
-    /// never an error — see the file header.
+    /// never an error. See the file header.
     static func status(for failure: TranscriptFailure) -> HTTPResponse.Status {
         switch failure {
         case .undecodableAudio:
@@ -443,7 +443,7 @@ enum AudioTranscription {
     ///
     /// One factory, so every route that hears audio answers one failure with one status.
     /// Before it existed the throw site had only `.transcriptionUnavailable` (503) available,
-    /// so `.undecodableAudio` — which this very function classifies as the client's 400 —
+    /// so `.undecodableAudio`, which this very function classifies as the client's 400,
     /// left the process as 503 "service unavailable, retry", advice that is wrong for bytes
     /// that will never decode. The chat route (`ChatAudioIngestion`) throws through here for
     /// the same reason.
@@ -493,7 +493,7 @@ struct TranscriptionResponse: Encodable, Equatable, Sendable {
 
 // MARK: - Handler
 
-/// `POST /v1/audio/transcriptions` — body already collected by the router.
+/// `POST /v1/audio/transcriptions`. Body already collected by the router.
 ///
 /// The router hands over raw bytes because the accepted shapes differ by `Content-Type`, and
 /// `request.decode(as:)` would reject a legal multipart body before this function could read
@@ -561,7 +561,7 @@ func audioTranscriptionsHandler(
     case .success(let transcript):
         // The message stays one interpolated literal (`Logger.Message` is
         // ExpressibleByStringInterpolation, and `"a" + "b"` is a plain String, which does not
-        // convert); the detail goes where logs are queryable — metadata.
+        // convert); the detail goes where logs are queryable. Metadata.
         logger.info(
             "Transcribed \(transcript.text.count) chars via \(transcript.engine)",
             metadata: [

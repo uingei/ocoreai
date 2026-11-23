@@ -1,32 +1,32 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! ToolCallWire.swift — what a tool-call turn is allowed to claim about itself.
+//! ToolCallWire.swift. What a tool-call turn is allowed to claim about itself.
 //!
 //! Three decisions decide whether an agent loop keeps running, and until 10-19 all three
 //! were made at four separate call sites, in two vocabularies, with no shared rule:
 //!
-//!   • **which `tool_calls` the client receives** — `parallel_tool_calls:false` was decoded
+//!   • **which `tool_calls` the client receives**, `parallel_tool_calls:false` was decoded
 //!     and read by nobody (and Anthropic's `disable_parallel_tool_use` was mapped to the
 //!     constant `true`), so a client that forbade parallel calls got both: measured
-//!     10-19 on `mlx-community/gemma-4-e2b-it-4bit`, temp 0, one tool declared twice —
+//!     10-19 on `mlx-community/gemma-4-e2b-it-4bit`, temp 0, one tool declared twice,
 //!     `parallel_tool_calls:false` → 2 calls (`Paris`, `London`), and `/v1/messages` with
 //!     `tool_choice:{"type":"auto","disable_parallel_tool_use":true}` → 2 `tool_use` blocks.
-//!   • **the word the turn ends with** — every site wrote `calls ? "tool_calls" : reason`,
+//!   • **the word the turn ends with**. Every site wrote `calls ? "tool_calls" : reason`,
 //!     which overrules `length`. Same model, same prompt, `max_tokens:18`: the engine cut
 //!     the turn at 18 tokens and delivered one of the two calls it wanted, and the wire
 //!     said `finish_reason:"tool_calls"` (Anthropic face: `tool_use`, never `max_tokens`;
 //!     the no-tools control on the same host correctly said `length`). A client that sees
 //!     `tool_calls` executes the call and never learns the turn was cut mid-list.
-//!   • **which chunks may carry that word** — the SSE path stamped
+//!   • **which chunks may carry that word**. The SSE path stamped
 //!     `finish_reason:"tool_calls"` on the tool-call delta and then sent a terminal chunk
 //!     saying `stop`. Both halves are wrong: OpenAI puts a non-null `finish_reason` on the
 //!     LAST chunk only, and clients that end the stream on the first non-null one stop
 //!     before the answer.
 //!
-//! vllm keeps all three in one module — `maybe_filter_parallel_tool_calls`
+//! vllm keeps all three in one module, `maybe_filter_parallel_tool_calls`
 //! (vllm/entrypoints/serve/utils/tool_calls_utils.py:24-43, "Filter to first tool call
 //! only when parallel_tool_calls is explicitly False"), `resolve_finish_reason`
-//! (`:47-65`, applied at eight call sites) — and sglang agrees on the second
+//! (`:47-65`, applied at eight call sites), and sglang agrees on the second
 //! (serving_chat.py:2149-2152, "Change finish_reason to 'tool_calls' if we had tool calls
 //! **and stopped naturally**"). This file is that home for both faces of this server.
 //!
@@ -44,7 +44,7 @@ enum ToolCallWire {
     /// Did the client explicitly forbid parallel calls?
     ///
     /// Three-state on purpose: `nil` (not sent) and `true` both mean "no restriction", so
-    /// only the explicit `false` costs anything — the same reading vllm uses
+    /// only the explicit `false` costs anything. The same reading vllm uses
     /// (`request.parallel_tool_calls is not False` → return unchanged).
     static func limitsToSingleCall(parallelToolCalls: Bool?) -> Bool {
         parallelToolCalls == false
@@ -70,7 +70,7 @@ enum ToolCallWire {
     /// called **and stopped on its own**.
     ///
     /// A `length` cut stays visible so a client can tell a complete call from one the
-    /// budget chopped — the reasoning behind both references' wording (vllm
+    /// budget chopped. The reasoning behind both references' wording (vllm
     /// `tool_calls_utils.py:41-59`; sglang `serving_chat.py:2151` gates on
     /// `finish_reason_type == "stop"`). `cancelled` and `error` are never rewritten into
     /// a success word.
@@ -78,7 +78,7 @@ enum ToolCallWire {
     /// Not adopted, deliberately: vllm also reports `stop` (not `tool_calls`) when the
     /// caller pinned one named tool. That is a fact about OpenAI's own API this host
     /// cannot observe, so it stays an open item (AGENTS.md § Open) instead of a borrowed
-    /// word — a call we delivered is a call we report.
+    /// word. A call we delivered is a call we report.
     static func resolveFinishReason(engineReason: String, toolCallsMade: Bool) -> String {
         if toolCallsMade && engineReason == "stop" { return "tool_calls" }
         return engineReason
@@ -87,7 +87,7 @@ enum ToolCallWire {
     /// Is this chunk terminal? Only a terminal chunk may carry a non-null `finish_reason`
     /// (OpenAI's chat chunk: content and `tool_calls` deltas carry `null`).
     ///
-    /// `nil` here is not optional tidiness — a client that treats the first non-null
+    /// `nil` here is not optional tidiness. A client that treats the first non-null
     /// `finish_reason` as end-of-stream drops everything after it, and this server's tool
     /// loop keeps generating after emitting a call.
     static func terminalFinishReason(
@@ -134,7 +134,7 @@ enum ToolCallWire {
     /// OpenAI's spec shape nests the name (`{"type":"function","function":{"name":X}}`,
     /// vllm `protocol.py:220-224`, sglang `protocol.py:829-833`). This server historically
     /// accepted only a flat `{"type":"function","name":X}`, so the canonical shape died at
-    /// the decoder with Hummingbird's leaked `Coding key \`name\` not found.` — the same
+    /// the decoder with Hummingbird's leaked `Coding key \`name\` not found.`. The same
     /// family as the `model`/`stream` leaks this repo already pins. Both shapes decode
     /// here; the flat one stays a tolerated alias (documented, and pinned by a test) so
     /// clients written against the old behaviour keep working, and every rejection names
@@ -187,7 +187,7 @@ enum ToolCallWire {
     }
 
     /// The surface decision as a pure function: a declaring caller is refused ONLY on the
-    /// observed negative (`prose_only` — a completed tool-declaring turn here left a
+    /// observed negative (`prose_only`. A completed tool-declaring turn here left a
     /// call-shaped answer unparsed). A delivered call proves the chain; `not_observed` is an
     /// unmeasured fact, and an unmeasured fact is never a refusal (`ReasoningEffortLedger`'s
     /// asymmetry). Opt-in only: the seat asks its caller for the flag vote.

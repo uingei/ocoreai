@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ConfigSystem.swift — YAML config loader, saver, and hot-reload watcher
+/// ConfigSystem.swift. YAML config loader, saver, and hot-reload watcher
 ///
 /// Responsibilities:
 ///   - Load ~/.ocoreai/config.yaml at startup
@@ -23,7 +23,7 @@ let envPrefix = "OCOREAI_"
 // MARK: - ConfigSystem Actor
 
 /// Shared configuration singleton with hot-reload support.
-/// All config reads go through this actor — caller gets a Sendable copy.
+/// All config reads go through this actor. Caller gets a Sendable copy.
 actor ConfigSystem {
     private var config: AppConfig
     private let logger: Logger
@@ -33,7 +33,7 @@ actor ConfigSystem {
 
     /// Create config system, load or generate default, validate.
     ///
-    /// Failure order (hermes `de2d6a1b93` pattern — never clobber the user's file):
+    /// Failure order (hermes `de2d6a1b93` pattern. Never clobber the user's file):
     ///   1. corrupt `configPath` → restore last-known-good snapshot if usable;
     ///   2. no usable snapshot     → generate defaults (fresh install only).
     static func create() async -> ConfigSystem {
@@ -102,7 +102,7 @@ actor ConfigSystem {
 
     /// Write current config to disk.
     /// After the write, the on-disk file is round-trip verified (decode +
-    /// validate) — an unverified write must not refresh the last-known-good
+    /// validate). An unverified write must not refresh the last-known-good
     /// snapshot (hermes `de2d6a1b93`: the `good` copy is only ever a known-good
     /// parse).
     func save() async throws {
@@ -131,7 +131,7 @@ actor ConfigSystem {
 
     // MARK: - Watch
 
-    /// Start file watcher — poll-based, reloads if file changes.
+    /// Start file watcher. Poll-based, reloads if file changes.
     func startWatching() {
         stopWatching()
         logger.info("Config file watcher started")

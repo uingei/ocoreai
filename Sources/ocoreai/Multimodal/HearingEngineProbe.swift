@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// HearingEngineProbe.swift — the process mechanics behind ``HearingReadiness``.
+/// HearingEngineProbe.swift. The process mechanics behind ``HearingReadiness``.
 ///
 /// Split out of `HearingReadiness.swift` on purpose: that file is the *judgment* (what the
 /// measured axes mean, and what the surface may therefore claim), this one is the *plumbing*
@@ -8,7 +8,7 @@
 /// for different reasons, and a reader should not have to hold both to answer either.
 ///
 /// Why the child process exists at all: on this host `SpeechAnalyzer.analyzeSequence(from:)`
-/// dies with SIGTRAP instead of throwing, so no `catch` in the parent can contain it — see
+/// dies with SIGTRAP instead of throwing, so no `catch` in the parent can contain it. See
 /// the crash-report evidence in `HearingReadiness.swift`'s header and CHANGELOG 10-15.
 
 import Foundation
@@ -24,7 +24,7 @@ enum HearingEngineProbe {
     // parses them, and the side that is not macOS-gated because `Application.swift` dispatches
     // to it on every platform). Re-declaring them here would be a second truth to drift.
 
-    /// Synthetic fixture: 16 kHz mono PCM16 — a 440 Hz burst, then silence. Deterministic,
+    /// Synthetic fixture: 16 kHz mono PCM16. A 440 Hz burst, then silence. Deterministic,
     /// no microphone, no network, no TCC: the probe asks only "does the engine survive a
     /// pass", so it must not depend on the permission whose state it is characterizing.
     ///
@@ -105,13 +105,13 @@ enum HearingEngineProbe {
 
     /// The re-exec target: this binary, and **only** this binary.
     ///
-    /// The guard is a whitelist on purpose. The alternative — enumerate the hosts that must
-    /// not be re-exec'd — was measured failing here on 10-15: under `swift test`,
+    /// The guard is a whitelist on purpose. The alternative. Enumerate the hosts that must
+    /// not be re-exec'd. Was measured failing here on 10-15: under `swift test`,
     /// `Bundle.main` is `/Library/Developer/CommandLineTools/usr/libexec/swift/pm` and no
     /// XCTest environment key is set, so an enumeration concluded "not a test host" and the
     /// suite spawned a child of the test runner. A probe that can multiply on the machine it
     /// is measuring is not a probe. Anything that is not the product binary resolves to nil,
-    /// which the seam reports as `unavailable` — "cannot measure here", never `ok`.
+    /// which the seam reports as `unavailable`. "cannot measure here", never `ok`.
     static func selfExecutable() -> URL? {
         guard let candidate = candidateExecutable() else { return nil }
         return candidate.deletingPathExtension().lastPathComponent == productName
@@ -119,7 +119,7 @@ enum HearingEngineProbe {
             : nil
     }
 
-    /// Whether this process is the product binary — the only one allowed to re-exec itself.
+    /// Whether this process is the product binary. The only one allowed to re-exec itself.
     static var isProductBinary: Bool { selfExecutable() != nil }
 
     /// Whether this process is a test host.
@@ -158,10 +158,10 @@ enum HearingEngineProbe {
         }
         // Nothing here blocks. `DispatchSemaphore.wait` is unavailable from an async context
         // on this SDK (measured: "Await a Task handle instead"), and parking a cooperative
-        // pool thread for the 20 s probe budget would be wrong regardless — so the wait is
+        // pool thread for the 20 s probe budget would be wrong regardless, so the wait is
         // Foundation's own `terminationHandler`, and the deadline is a sleeping task racing
         // it. Two things can land, so exactly-once is mandatory: the same shape the camera
-        // capture fix settled on (`cdd4cc7` — retained object, one `fire()`, one deadline).
+        // capture fix settled on (`cdd4cc7`. Retained object, one `fire()`, one deadline).
         return await withCheckedContinuation {
             (continuation: CheckedContinuation<EngineProbeOutcome, Never>) in
             let process = Process()
@@ -187,7 +187,7 @@ enum HearingEngineProbe {
                     signal: exitedCleanly ? nil : code,
                     timedOut: false)
                 // Read it while the child is finished and the file still exists: the child's
-                // own lines say *where* it died — `pre-analysis` present with no `final` line
+                // own lines say *where* it died, `pre-analysis` present with no `final` line
                 // means the trap was inside the analysis pass. Exit status alone only says that
                 // it died, which is why this file was being created, written, and deleted
                 // unread.
@@ -212,7 +212,7 @@ enum HearingEngineProbe {
                 landing.fire(.timeout)
                 logProbeOutcome(.timeout, childOutput: readReport(outPath))
                 // `terminate()` is the API this SDK has (`Process.kill()` does not exist at
-                // the macos14 deployment target — measured, it fails the build), so escalate
+                // the macos14 deployment target. Measured, it fails the build), so escalate
                 // by pid. The probe child blocks inside the analysis pass and may hold a
                 // speech recognizer, so a child that ignored SIGTERM must not linger on the
                 // microphone after we stopped caring about its answer. `kill(pid, 0)` is the

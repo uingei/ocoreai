@@ -1,18 +1,18 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// KV cache residency — what a resident cache actually costs, in bytes, measured.
+// KV cache residency. What a resident cache actually costs, in bytes, measured.
 //
 // ### Why this exists
 // AGENTS.md invariant 2: anything a client can read must be measured. Two surfaces read
 // "GPU memory for KV cache": `/metrics` (`ocoreai_kv_cache_gpu_bytes`,
 // `ocoreai_gpu_memory_gb`) and the dashboard's GPU tile. Both were fed by
-// `EnginePool.engineSummary()`, whose `gpuCacheGB` was the literal `0.0` — so every
+// `EnginePool.engineSummary()`, whose `gpuCacheGB` was the literal `0.0`, so every
 // deployment ever run reported a zero-byte KV cache while the same process held hundreds of
 // megabytes of it (measured live: model ready, no turn yet, both series 0).
 //
 // The quantity exists upstream and needs no prefill to price: `ChatSession.cacheStatus()`
 // reports `.realized` per-layer `memoryBytes`, which mlx-swift-lm computes as
-// `cache.innerState().reduce(0) { $0 + $1.nbytes }` (KVCacheRuntime.swift:210) — allocated
+// `cache.innerState().reduce(0) { $0 + $1.nbytes }` (KVCacheRuntime.swift:210). Allocated
 // bytes including room reserved for tokens not yet written, so sliding-window layers, KV
 // sharing and the `.turboQuant`/`.affine` strategies are all priced by the code that owns them.
 // This file only carries that answer to the surfaces; it derives no geometry of its own.
@@ -38,7 +38,7 @@ struct KVCacheResidency: Sendable, Equatable {
         self.processedTokens = status.processedTokenCount ?? 0
     }
 
-    /// Bytes per held token — the per-model price the admission gate should reserve at.
+    /// Bytes per held token. The per-model price the admission gate should reserve at.
     ///
     /// `nil` while nothing measurable is resident: an unmeasured price is not a price of 1 KB.
     var bytesPerToken: Int? {
@@ -99,7 +99,7 @@ struct KVCacheResidencyObservation: Encodable, Equatable, Sendable {
 ///
 /// Why the admission gate needs it: `Scheduler/KVCacheBudget.swift` reserves 1024 B/token for
 /// every model on every request, a number carried over from a weights heuristic. Measured on
-/// the default checkpoint: 10,475 B/token (probe 35) — 10× under-reserved, which is exactly
+/// the default checkpoint: 10,475 B/token (probe 35), 10× under-reserved, which is exactly
 /// the arithmetic that admits a request the engine then cannot hold.
 actor KVCachePriceLedger {
     static let shared = KVCachePriceLedger()

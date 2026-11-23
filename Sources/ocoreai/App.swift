@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// App.swift — oCoreAI entry point, service lifecycle, and graceful shutdown
+/// App.swift. OCoreAI entry point, service lifecycle, and graceful shutdown
 ///
 /// ### Startup Sequence:
 /// 1. Initialize ``TokenizerManager``
@@ -27,7 +27,7 @@ import ServiceLifecycle
 ///
 /// ### Dual-Channel Architecture:
 /// - **Fast Path (UI):** SwiftUI views read ``enginePool`` / ``scheduler`` / ``sessionCompressor``
-///   directly — zero HTTP serialization, ``AsyncStream``-driven streaming.
+///   directly. Zero HTTP serialization, ``AsyncStream``-driven streaming.
 /// - **Bridge Path (External):** HTTP server on localhost:8080 for third-party agents.
 ///   Opt-in only; disabled by default for App Store compliance.
 ///
@@ -39,17 +39,17 @@ import ServiceLifecycle
 public final class OcoreaiEngine {
     public static let shared = OcoreaiEngine()
 
-    /// Lifecycle state machine — replaces `isRunning` + `engineReady` booleans
+    /// Lifecycle state machine. Replaces `isRunning` + `engineReady` booleans
     private(set) var lifecycleState: EngineLifecycleState = .idle {
         didSet {
             logger.debug("Lifecycle: \(oldValue) → \(lifecycleState)")
         }
     }
 
-    /// Backward-compatible alias — SwiftUI consumers still read `isRunning` for guard clauses
+    /// Backward-compatible alias. SwiftUI consumers still read `isRunning` for guard clauses
     var isRunning: Bool { lifecycleState != .idle && lifecycleState != .error }
 
-    /// Backward-compatible alias — SwiftUI consumers still read `engineReady` for guard clauses
+    /// Backward-compatible alias. SwiftUI consumers still read `engineReady` for guard clauses
     var engineReady: Bool { lifecycleState.isHealthy }
 
     /// Why the last startup failed. Retained for the GUI: the cause used to reach the log
@@ -61,18 +61,18 @@ public final class OcoreaiEngine {
     var startupFailureCount: Int { circuitBreaker.failureCount }
 
     private var serverApp: (any ApplicationProtocol)?
-    /// Single-instance flock — held for the engine lifetime, kernel-released
+    /// Single-instance flock. Held for the engine lifetime, kernel-released
     /// on process death. See Core/SingleInstanceLock.swift.
     let singleInstance = SingleInstanceLock()
     private var gaugeTask: Task<Void, Never>?
     private var cleanupTask: Task<Void, Never>?
-    /// Background default-model prewarm — cancelled on stop().
+    /// Background default-model prewarm. Cancelled on stop().
     private var prewarmTask: Task<Void, Never>?
 
-    /// HTTP server task — tracked so stop() can cancel it.
+    /// HTTP server task. Tracked so stop() can cancel it.
     private var serverTask: Task<Void, Never>?
 
-    /// Circuit breaker — prevents crash-loop by tracking consecutive startup failures
+    /// Circuit breaker. Prevents crash-loop by tracking consecutive startup failures
     private let circuitBreaker = EngineCircuitBreaker(
         maxConsecutiveFailures: 3,
         cooldownSeconds: 60
@@ -80,17 +80,17 @@ public final class OcoreaiEngine {
 
     // MARK: - Public Accessors (Fast Path for SwiftUI)
 
-    /// Direct accessor to the engine pool — SwiftUI UI bypasses HTTP entirely.
+    /// Direct accessor to the engine pool. SwiftUI UI bypasses HTTP entirely.
     var activeEnginePool: EnginePool? {
         enginePool
     }
 
-    /// Direct accessor to the scheduler — SwiftUI can submit low-priority tasks.
+    /// Direct accessor to the scheduler. SwiftUI can submit low-priority tasks.
     var activeScheduler: SchedulerActor? {
         scheduler
     }
 
-    /// Direct accessor to the hardware router — consumers query compute channel (GPU/ANE/CPU).
+    /// Direct accessor to the hardware router. Consumers query compute channel (GPU/ANE/CPU).
     var activeHardwareRouter: HardwareRouter? {
         _hardwareRouter
     }
@@ -98,42 +98,42 @@ public final class OcoreaiEngine {
     /// Internal reference to HardwareRouter (not public to avoid leaking mutable init).
     private var _hardwareRouter: HardwareRouter?
 
-    /// Direct accessor to session compressor — SwiftUI can persist/recall memory.
+    /// Direct accessor to session compressor. SwiftUI can persist/recall memory.
     var activeSessionCompressor: SessionCompressor? {
         _sessionCompressor
     }
 
-    /// Direct accessor to system prompt builder — SwiftUI can build context.
+    /// Direct accessor to system prompt builder. SwiftUI can build context.
     var activeSystemPromptBuilder: SystemPromptBuilder? {
         _systemPromptBuilder
     }
 
-    /// Direct accessor to message builder — SwiftUI can assemble inference context.
+    /// Direct accessor to message builder. SwiftUI can assemble inference context.
     var activeMessageBuilder: MessageBuilder? {
         _messageBuilder
     }
 
-    /// Direct accessor to the metrics registry — SwiftUI reads real-time metrics.
+    /// Direct accessor to the metrics registry. SwiftUI reads real-time metrics.
     var activeMetrics: MetricsRegistry? {
         metrics
     }
 
-    /// Direct accessor to skill registry — SwiftUI can list/add/remove skills.
+    /// Direct accessor to skill registry. SwiftUI can list/add/remove skills.
     var activeSkillRegistry: SkillRegistry? {
         _skillRegistry
     }
 
-    /// Direct accessor to MCP bridge — SwiftUI can inspect external MCP servers.
+    /// Direct accessor to MCP bridge. SwiftUI can inspect external MCP servers.
     var activeMCPBridge: MCPBridge? {
         _mcpBridge
     }
 
-    /// Direct accessor to tool registry — SwiftUI can list registered tools.
+    /// Direct accessor to tool registry. SwiftUI can list registered tools.
     var activeToolRegistry: ToolRegistry? {
         _toolRegistry
     }
 
-    /// Direct accessor to audit trail — SwiftUI can browse tool call history.
+    /// Direct accessor to audit trail. SwiftUI can browse tool call history.
     var activeAuditTrail: AuditTrail? {
         _auditTrail
     }
@@ -145,27 +145,27 @@ public final class OcoreaiEngine {
         _approvalBroker
     }
 
-    /// Direct accessor to ContentGuard — safety filter for both paths.
+    /// Direct accessor to ContentGuard. Safety filter for both paths.
     var activeContentGuard: ContentGuard? {
         _contentGuard
     }
 
-    /// Direct accessor to complexity analyzer — SwiftUI can show reasoning depth.
+    /// Direct accessor to complexity analyzer. SwiftUI can show reasoning depth.
     var activeComplexityAnalyzer: ComplexityAnalyzer? {
         _complexityAnalyzer
     }
 
-    /// Direct accessor to thinking budget — SwiftUI can show thinking token status.
+    /// Direct accessor to thinking budget. SwiftUI can show thinking token status.
     var activeThinkingBudget: ThinkingBudget? {
         _thinkingBudget
     }
 
-    /// Direct accessor to semantic search — SwiftUI can perform vector similarity search.
+    /// Direct accessor to semantic search. SwiftUI can perform vector similarity search.
     var activeSemanticSearch: SemanticSearch? {
         _semanticSearch
     }
 
-    /// Direct accessor to memory tracker — SwiftUI can monitor GPU/system memory.
+    /// Direct accessor to memory tracker. SwiftUI can monitor GPU/system memory.
     var activeMemoryTracker: MemoryTracker? {
         _memoryTracker
     }
@@ -186,9 +186,9 @@ public final class OcoreaiEngine {
     private var _thinkingBudget: ThinkingBudget?
     private var _contentGuard: ContentGuard?
     private var _semanticSearch: SemanticSearch?
-    /// Config system — loaded at startup, hot-reload capable
+    /// Config system. Loaded at startup, hot-reload capable
     private var configSystem: ConfigSystem?
-    /// Config snapshot — set on start, updated on hot-reload. Reads are same-actor.
+    /// Config snapshot. Set on start, updated on hot-reload. Reads are same-actor.
     private var _configSnapshot: AppConfig = AppConfig()
 
     private let logger: Logger
@@ -197,7 +197,7 @@ public final class OcoreaiEngine {
         logger = Logger(label: "ocoreai")
     }
 
-    /// Signal a startup failure — records failure in circuit breaker, transitions state.
+    /// Signal a startup failure. Records failure in circuit breaker, transitions state.
     /// Call from any early-return path in `start()`.
     private func failStartup(_ message: String) {
         circuitBreaker.recordFailure()
@@ -215,7 +215,7 @@ public final class OcoreaiEngine {
     }
 
     /// The GUI's recovery affordance: close the breaker and try once more. The breaker
-    /// keeps its own bound — a retry that fails re-opens it — so this cannot loop.
+    /// keeps its own bound. A retry that fails re-opens it, so this cannot loop.
     func retryStart() async {
         circuitBreaker.resetCircuit()
         lastStartupFailure = nil
@@ -225,7 +225,7 @@ public final class OcoreaiEngine {
     /// Boot the engine core components (always runs) + optional HTTP server.
     ///
     /// Fast Path components (EnginePool, Scheduler, SessionCompressor) are always
-    /// initialized — SwiftUI views connect directly via `activeEnginePool` etc.
+    /// initialized. SwiftUI views connect directly via `activeEnginePool` etc.
     ///
     /// Bridge Path (HTTP server) is opt-in: disabled by default for App Store builds.
     /// Override via `OCOREAI_ENABLE_HTTP=1` environment variable or omit `#if appStore` trait.
@@ -233,7 +233,7 @@ public final class OcoreaiEngine {
     /// Circuit breaker: if 3 consecutive startups fail, the circuit opens for 60s.
     /// Call `resetCircuitBreaker()` to unblock.
     public func start() async {
-        // Single-instance gate (first thing before any engine work) — a
+        // Single-instance gate (first thing before any engine work). A
         // second live instance would re-load full model weights and race the
         // first on GPU memory, port, and cache. flock is kernel-released on
         // death (crash-safe); OCOREAI_ALLOW_MULTI_INSTANCE=1 opts out.
@@ -255,7 +255,7 @@ public final class OcoreaiEngine {
             logger.debug("Single-instance lock acquired: \(path)")
         }
 
-        // Lifecycle gate — prevent concurrent startup or restart while running/stopping
+        // Lifecycle gate. Prevent concurrent startup or restart while running/stopping
         guard lifecycleState != .starting && lifecycleState != .stopping else {
             if lifecycleState.isHealthy {
                 logger.warning("Engine already running (state: \(lifecycleState))")
@@ -286,11 +286,11 @@ public final class OcoreaiEngine {
         // scheduler lets itself reserve), not an MLX buffer-cache size, so it is
         // no longer written into `Memory.cacheLimit` here.
         //
-        // It used to be — and that write never took effect: `MLXModelLoader.init`
+        // It used to be, and that write never took effect: `MLXModelLoader.init`
         // (EnginePool init below) sets the cache limit to 256 MB afterwards, so a
         // 70 GB cache ceiling was logged while 256 MB was in force. Measured here
         // (M5 Max / 128 GB, gemma-4-e2b-it-4bit, greedy 160 tokens): cache 256 MB
-        // = 42-46 tok/s, cache 4 GB = 23.7 tok/s — a budget-sized *cache* is not
+        // = 42-46 tok/s, cache 4 GB = 23.7 tok/s. A budget-sized *cache* is not
         // merely dead code, it is actively slower, because MLX then retains freed
         // device buffers instead of returning them. `Memory.cacheLimit` now has
         // exactly one owner (Engine/MLXBridge.swift), pinned by Class-H in
@@ -301,20 +301,20 @@ public final class OcoreaiEngine {
         // Disable xet (Rust-based) downloader to prevent cooperative cancellation failure.
         // xet swallows Python exceptions in its Rust frame, causing Task cancellation to hang.
         // REFERENCE: omlx sets _hf_constants.HF_HUB_DISABLE_XET = True for the same reason.
-        // ProcessInfo.environment is read-only on macOS — use setenv directly.
+        // ProcessInfo.environment is read-only on macOS. Use setenv directly.
         setenv("HF_HUB_DISABLE_XET", "1", 1)
 
         // HF_ENDPOINT: mirror/proxy override for restricted regions.
-        // Single choke — precedence operator HF_ENDPOINT > HF_ENDPOINT_MIRROR >
+        // Single choke. Precedence operator HF_ENDPOINT > HF_ENDPOINT_MIRROR >
         // persisted GUI toggle > canonical. The toggle's persisted Bool is
         // re-applied here so a GUI-enabled mirror survives relaunch (the old
         // phantom `hfEndpointMirror` String key was never written → lever died
         // across restart).
         HFMirrorPolicy.apply()
 
-        // Read hub tokens early — needed by BOTH Fast Path (UI) and Bridge Path (HTTP)
+        // Read hub tokens early. Needed by BOTH Fast Path (UI) and Bridge Path (HTTP)
         // Must happen before EnginePool init so MLXModelLoader has the token for MS downloads
-        // NOTE: ProcessInfo.setValue(forKey:) uses KVC, NOT environment vars — custom keys
+        // NOTE: ProcessInfo.setValue(forKey:) uses KVC, NOT environment vars. Custom keys
         // throw NSUnknownKeyException. Tokens are passed via constructor chain instead.
         // Priority: env var > UserDefaults (persistent form). The precedence itself is
         // `HubCredentialResolution.precedence`, the same rule `SettingsStore` applies, so the
@@ -363,7 +363,7 @@ public final class OcoreaiEngine {
         await MainActor.run {
             PlanTaskStore.shared.attach(store: store)
             // Project container (Bionic IA): sessions inherit the project's
-            // bound folder through SessionWorkspace — same attach seam.
+            // bound folder through SessionWorkspace. Same attach seam.
             ProjectStore.shared.attach(store: store)
         }
 
@@ -376,7 +376,7 @@ public final class OcoreaiEngine {
 
         _skillRegistry = SkillRegistry(log: logger)
         _systemPromptBuilder = SystemPromptBuilder(
-            // Identity only — the tool directive is chosen per turn by
+            // Identity only. The tool directive is chosen per turn by
             // `SystemPromptBuilder.build(hasTools:)`, because a turn with a zero
             // tool surface must not be told to "use your tools / run commands"
             // (live 2026-10-12: it fabricated a `terminal command:` transcript).
@@ -415,9 +415,9 @@ public final class OcoreaiEngine {
         // 绑定后 completeToken fire-and-forget 落 `audit_traces`，retentionDays
         // 由 persist 路径真消费；未绑定 = 纯内存环（AuditTrail 文档明示）。
         await auditTrail.attach(store: store)
-        // Approval broker — codex `ExecApprovalRequest` 通路（参照形状）。
+        // Approval broker. Codex `ExecApprovalRequest` 通路（参照形状）。
         // 策略读 SettingsStore（`.interactive` 默认 = 高危才问）。高危判定不在这里列名：
-        // ToolRegistry 按注册声明（`isDestructive` ∪ blacklist）自己判——名单与声明
+        // ToolRegistry 按注册声明（`isDestructive` ∪ blacklist）自己判。名单与声明
         // 各存一份必然漂移（实测量到 17 条声明对 7 条名单）。
         // broker 缺席时 `.ask` 保持硬拒（ToolRegistry 内回归保护）。
         let approvalPolicyRaw = SettingsStore.shared.approvalPolicy
@@ -427,7 +427,7 @@ public final class OcoreaiEngine {
         // 审批 UI 桥：broker pending/resolved → AppState（@MainActor）
         await approvalBroker.setOnPending { row in
             AppState.shared.pendingApprovals.insert(row, at: 0)
-            // Escape channel: the banner lives in the chat tab — if the user is
+            // Escape channel: the banner lives in the chat tab, if the user is
             // elsewhere (Models download, Settings), the approval is invisible and
             // the agent hangs silently. A system notification makes the wait
             // VISIBLE outside the tab; the click routes back to chat where the
@@ -470,7 +470,7 @@ public final class OcoreaiEngine {
         // MARK: - Hardware Router + Admission Gate (Runtime compute routing)
         // UI override of the routing policy wins over the authored YAML value
         // (same bridge as specDecoding/kvCache). The router's `policy` is a
-        // `let`, so this is applied once, here, before construction — no hot-swap.
+        // `let`, so this is applied once, here, before construction, no hot-swap.
         if SettingsStore.shared.routingPolicyIsSet {
             var snap = _configSnapshot
             pureRoutingPolicyUIOverlay(
@@ -548,17 +548,17 @@ public final class OcoreaiEngine {
         )
         logger.info("EnginePool initialized with HardwareRouter integration")
 
-        // Report the limits that are actually in force after the owner has run —
+        // Report the limits that are actually in force after the owner has run,
         // "budget: N GB" above is scheduler accounting, not a device ceiling.
         logger.info(
             "MLX memory — buffer cache \(Memory.cacheLimit / 1_048_576) MB (single owner: MLXModelLoader), device ceiling \(Memory.memoryLimit / 1_073_741_824) GB (Metal recommended max working set)"
         )
 
-        // Background default-model prewarm — removes the lazy-load cost from
+        // Background default-model prewarm. Removes the lazy-load cost from
         // the user's first request (historically ~5 minutes of silent waiting;
         // the model now loads at boot on a background task). Non-fatal: a
         // failed prewarm means the first request pays the full load cost,
-        // exactly as before. Only runs for hub ids or existing local paths —
+        // exactly as before. Only runs for hub ids or existing local paths,
         // never a download-forcing path without an existing cache entry.
         if let pool = enginePool, !engineConfig.defaultModelId.isEmpty {
             prewarmTask = Task.detached(priority: .utility) {
@@ -605,7 +605,7 @@ public final class OcoreaiEngine {
         // MARK: - Summarizer (LLM-driven session compression)
 
         // SummarizerActor bridges SessionCompressor ↔ EnginePool without circular dependency.
-        // Installed lazily — compression before install uses rule-based fallback.
+        // Installed lazily. Compression before install uses rule-based fallback.
         guard let saPool = enginePool,
             let saBuilder = _messageBuilder
         else {
@@ -667,18 +667,18 @@ public final class OcoreaiEngine {
         }
     }
 
-    // MARK: - HTTP Server (Bridge Path, optional) — macOS only
+    // MARK: - HTTP Server (Bridge Path, optional). MacOS only
 
     #if os(macOS)
     /// Detect if a process is binding the given port. Uses lsof as a lightweight
-    /// check (no shell dependency) — if the socket connects, something is listening.
+    /// check (no shell dependency), if the socket connects, something is listening.
     private static func isPortInUse(_ port: Int) -> Bool {
         let pipe = Pipe()
         let task = Process()
         task.launchPath = "/usr/sbin/lsof"
         task.arguments = ["-i:\(port)", "-sTCP:LISTEN", "-Fp"]
         task.standardOutput = pipe
-        // Strip server secrets — lsof inherits the full parent env otherwise.
+        // Strip server secrets. Lsof inherits the full parent env otherwise.
         task.environment = ChildProcessEnv.sanitized()
         task.launch()
         task.waitUntilExit()
@@ -705,7 +705,7 @@ public final class OcoreaiEngine {
             _toolRegistry != nil
         else { return }
 
-        // Port conflict detection — refuse silent bind failures
+        // Port conflict detection. Refuse silent bind failures
         let serverPort = Int(ProcessInfo.processInfo.environment["OCOREAI_PORT"] ?? "8080") ?? 8080
         #if os(macOS)
         if Self.isPortInUse(serverPort) {
@@ -837,7 +837,7 @@ public final class OcoreaiEngine {
         // MARK: - MCP bridge teardown
         //
         // Terminate any connected external stdio MCP servers (their child
-        // processes — npx/uvx/python — do NOT die with the parent on macOS,
+        // processes. Npx/uvx/python. Do NOT die with the parent on macOS,
         // they orphan). Disconnect each before the bridge is released.
         await _mcpBridge?.shutdown()
         _mcpBridge = nil
@@ -845,7 +845,7 @@ public final class OcoreaiEngine {
         // MARK: - MLX GPU cache cleanup
         //
         // FIX: Without this, MLX's GPU resident cache persists after engine
-        // shutdown — on UMA this means Apple Silicon RAM is never freed even
+        // shutdown. On UMA this means Apple Silicon RAM is never freed even
         // though EnginePool models are deinitialised.
         MLX.Memory.clearCache()
 
@@ -896,7 +896,7 @@ func buildApplication(
     // One value answers both browser questions for this chain: who may read a
     // cross-origin reply (the middleware it registers) and whether a browser may write
     // (it is handed to `AuthMiddleware` by the caller that resolved it). `.off` is the
-    // default posture — no middleware, and no admitted browser write.
+    // default posture, no middleware, and no admitted browser write.
     cors: CORSPolicy.Decision = .off,
     hfToken: String? = nil,
     msToken: String? = nil,
@@ -922,7 +922,7 @@ func buildApplication(
     let host = ProcessInfo.processInfo.environment["OCOREAI_HOST"] ?? "127.0.0.1"
     let port = Int(ProcessInfo.processInfo.environment["OCOREAI_PORT"] ?? "8080") ?? 8080
 
-    // Security gate — omlx `09a7c43` pattern: refuse non-loopback binds when
+    // Security gate. Omlx `09a7c43` pattern: refuse non-loopback binds when
     // API-key auth is off, because ``AuthMiddleware`` then passes everything
     // through and the inference API would be open on the network.
     try ServerAuthGate.checkHost(host, authEnabled: AuthConfig.default.enabled, logger: logger)

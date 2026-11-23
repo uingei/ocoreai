@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ChatMessageInner — content wrapper for chat message bubbles.
+/// ChatMessageInner. Content wrapper for chat message bubbles.
 ///
 /// Renders user messages as plain text, assistant messages through
 /// MarkdownMessage which adds code block rendering.
@@ -27,7 +27,7 @@ struct ChatMessageInner: View {
         .multilineTextAlignment(isUser ? .trailing : .leading)
         // HIG: text the user can read is text they can select. Before this, the
         // only selection in the transcript lived in MarkdownMessage's decoded
-        // branch and FileDiffCard — so user bubbles (a path or an error string you
+        // branch and FileDiffCard, so user bubbles (a path or an error string you
         // typed yourself) and every assistant message whose markdown failed to
         // decode were silently unselectable, recoverable only by re-typing. The
         // whole-message Copy action does not help when you want three words out of

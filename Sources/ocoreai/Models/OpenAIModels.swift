@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// openai_models.swift — OpenAI-compatible request/response DTOs + error types
+/// openai_models.swift. OpenAI-compatible request/response DTOs + error types
 ///
 /// ### Request Models:
 /// - ``ChatCompletionRequest``: Main inference request (supports tool calling, sessions, JSON mode)
@@ -25,7 +25,7 @@ import Hummingbird
 
 // MARK: - Request Models
 
-/// Main chat completion request DTO — supports streaming, tool calling, sessions,
+/// Main chat completion request DTO. Supports streaming, tool calling, sessions,
 /// structured output, and runtime sampling parameters.
 ///
 /// ### Sampling Parameter Priority (3-tier fallback):
@@ -37,7 +37,7 @@ import Hummingbird
 /// OpenAI API uses ``snake_case`` keys. Swift properties are ``camelCase``.
 /// Explicit ``CodingKeys`` below bridge the two formats.
 struct ChatCompletionRequest: Decodable {
-    /// Model identifier (optional — when omitted, the default model is resolved
+    /// Model identifier (optional, when omitted, the default model is resolved
     /// from `PATCH /v1/models/:model/sampling` `default_model: true`; if none is
     /// configured, 400 is returned).
     var model: String?
@@ -66,7 +66,7 @@ struct ChatCompletionRequest: Decodable {
 
     /// Number of choices requested (OpenAI `n`). Decoded so it can be answered honestly:
     /// this server produces exactly one choice per request, so `n > 1` is refused by name
-    /// rather than accepted and answered with a single choice (AGENTS.md invariant 2 — the
+    /// rather than accepted and answered with a single choice (AGENTS.md invariant 2. The
     /// surface may not silently under-deliver what the client asked for). `n == 1` and an
     /// absent `n` are the same thing.
     var n: Int? = nil
@@ -81,7 +81,7 @@ struct ChatCompletionRequest: Decodable {
 
     /// Stop sequences (generation halts when matched).
     ///
-    /// The wire accepts a bare string too — see ``decodeStopUnion(from:forKey:)``.
+    /// The wire accepts a bare string too. See ``decodeStopUnion(from:forKey:)``.
     var stop: [String]? = nil
 
     /// Frequency penalty (penalize repeated tokens)
@@ -110,7 +110,7 @@ struct ChatCompletionRequest: Decodable {
     /// Prefill step size for prompt chunking (nil = model default)
     var prefillStepSize: Int? = nil
 
-    /// Max KV cache size — enables RotatingKVCache when set
+    /// Max KV cache size. Enables RotatingKVCache when set
     var maxKVSize: Int? = nil
 
     /// Context window for repetition penalty
@@ -144,7 +144,7 @@ struct ChatCompletionRequest: Decodable {
     /// Enable post-inference self-correction pipeline
     var selfCorrection: Bool? = false
 
-    /// Reasoning switch — three-state (aligned with upstream mlx-swift-lm
+    /// Reasoning switch. Three-state (aligned with upstream mlx-swift-lm
     /// `thinkingEnabled: Bool?`):
     ///   - `nil`/absent → no preference, model template default applies (e.g. Qwen3 ON)
     ///   - `true`  → force `enable_thinking=true`
@@ -152,7 +152,7 @@ struct ChatCompletionRequest: Decodable {
     /// `reasoningLevel` (light/moderate/deep) and `reasoningEffort` (model-
     /// template words) take precedence when explicitly set.
     var reasoning: Bool? = nil
-    /// Reasoning level for FM backend (light/moderate/deep) — aligns with SDK ReasoningLevel
+    /// Reasoning level for FM backend (light/moderate/deep). Aligns with SDK ReasoningLevel
     var reasoningLevel: String? = nil
     /// Reasoning effort (codex-aligned words: low/medium/high/xhigh/max/ultra).
     /// The model chat template consumes the subset it supports (Qwen3.8:
@@ -257,7 +257,7 @@ struct ChatCompletionRequest: Decodable {
         n = try c.decodeIfPresent(Int.self, forKey: .n)
         responseFormat = try c.decodeIfPresent(ResponseFormat.self, forKey: .responseFormat)
         frequencyPenalty = (try? c.decodeIfPresent(Float.self, forKey: .frequencyPenalty)) ?? 0
-        // #176 alignment — repetition penalty is Double? (nil = not set); decoded
+        // #176 alignment. Repetition penalty is Double? (nil = not set); decoded
         // nil-tolerant like minP/seed, consumed via the nil-driven cascade in
         // ChatHandler (unlike the 0-sentinel of the Float-defaulted presence/freq).
         repetitionPenalty = try? c.decodeIfPresent(Double.self, forKey: .repetitionPenalty)
@@ -271,7 +271,7 @@ struct ChatCompletionRequest: Decodable {
         // tolerates the flat {"type":"function","name":"<tool>"} it accepted
         // first. Both normalize to "function:<name>", which keeps the pin
         // namespace disjoint from a tool literally named "none". Vocabulary and
-        // rejections live in ToolCallWire — see toolChoice(from:forKey:).
+        // rejections live in ToolCallWire. See toolChoice(from:forKey:).
         toolChoice = try toolChoice(from: c, forKey: .toolChoice)
         parallelToolCalls = try c.decodeIfPresent(Bool.self, forKey: .parallelToolCalls)
         reasoning = try c.decodeIfPresent(Bool.self, forKey: .reasoning)
@@ -294,7 +294,7 @@ struct ChatCompletionRequest: Decodable {
     /// The first numeric spec violation in this request, or nil when every knob is in domain.
     ///
     /// Measured 10-17: `{"max_tokens":-5}` was accepted, reached ``SchedulerActor``, and
-    /// `UInt64(tokenBudget)` trapped — the process died over one malformed body. The rules
+    /// `UInt64(tokenBudget)` trapped. The process died over one malformed body. The rules
     /// themselves live in ``SamplingDomain`` (shared with the sibling wires); this forwarder
     /// states only what is specific to the chat wire: OpenAI's `temperature` 0–2, and `n`
     /// pinned to 1 because one chat request returns exactly one choice here.
@@ -338,12 +338,12 @@ struct ChatCompletionRequest: Decodable {
     }
 
     /// Decodes the `tool_choice` wire union (bare keyword | named-tool object) into the
-    /// internal vocabulary. The rules — which keywords exist, which object shapes carry a
-    /// name, what a rejection says — live in ``ToolCallWire``; this is container plumbing.
+    /// internal vocabulary. The rules, which keywords exist, which object shapes carry a
+    /// name, what a rejection says. Live in ``ToolCallWire``; this is container plumbing.
     ///
     /// Measured before this: OpenAI's own shape
     /// `{"type":"function","function":{"name":"get_weather"}}` answered
-    /// `400 {"error":{"message":"Coding key \`name\` not found."}}` — Hummingbird's leak of
+    /// `400 {"error":{"message":"Coding key \`name\` not found."}}`. Hummingbird's leak of
     /// a `DecodingError`, naming neither the field nor the accepted shape, for the one form
     /// the spec defines (vllm `chat_completion/protocol.py:220-224`,
     /// sglang `protocol.py:829-833`). Only this server's flat alias worked.
@@ -427,7 +427,7 @@ struct JSONSchemaRequest: Decodable {
 /// escapes before the returned `AnyCodable` is handed across concurrency
 /// boundaries. After decode the value is read-only.
 struct AnyCodable: Codable, Equatable, @unchecked Sendable {
-    /// Wrapped dynamic value — mutable only during deserialization
+    /// Wrapped dynamic value. Mutable only during deserialization
     var value: Any
 
     init(_ value: Any) {
@@ -456,7 +456,7 @@ struct AnyCodable: Codable, Equatable, @unchecked Sendable {
     /// 递归包装任意 JSON 兼容值（`Any` 叶子 + 任意深度 `[Any]` / `[String: Any]`），
     /// 供 `ToolDef`/`FunctionDef`/`JSONSchemaRequest` 等动态 schema 构造路径使用。
     ///
-    /// 背景：`encode(to:)` 的 cast 只认 `AnyCodable` 容器 —— 直接塞 `[String: Any]`
+    /// 背景：`encode(to:)` 的 cast 只认 `AnyCodable` 容器。直接塞 `[String: Any]`
     /// 会 cast 失败落入 `encodeNil`，整段 schema 被静默吞掉（API 载荷里字段消失，
     /// 但值仍在 struct 里，值测试看不出来）。本方法在构造处统一规范化，
     /// 杜绝该静默丢失面。
@@ -498,7 +498,7 @@ struct AnyCodable: Codable, Equatable, @unchecked Sendable {
 
 // MARK: - Tool Definitions
 
-/// Tool definition (function schema) — describes what tools the model can call.
+/// Tool definition (function schema). Describes what tools the model can call.
 ///
 /// Sent in ``ChatCompletionRequest/tools`` to enable function calling.
 struct ToolDef: Codable {
@@ -527,7 +527,7 @@ struct FunctionDef: Codable {
     }
 }
 
-/// Tool call result — the model's invocation of a tool.
+/// Tool call result. The model's invocation of a tool.
 ///
 /// Appears in ``Message/toolCalls`` when the assistant requests tool execution.
 struct ToolCall: Codable {
@@ -557,7 +557,7 @@ struct ToolCallFunction: Codable {
 
 // MARK: - Tool Call Parsing (Shared)
 
-/// Stateful tool call accumulator — chunk-by-chunk equivalent of upstream
+/// Stateful tool call accumulator. Chunk-by-chunk equivalent of upstream
 /// `ToolCallProcessor.processChunk` / `processEOS`.
 ///
 /// Accumulates text fragments incrementally across multiple chunks. On EOS,
@@ -603,7 +603,7 @@ func parseToolCalls(from content: String) -> [ToolCall]? {
 extension ToolCallAccumulator {
 
     /// Core parsing: JSON array of tool call objects.
-    /// Handles String, Dictionary, and NSNull arguments — never crashes.
+    /// Handles String, Dictionary, and NSNull arguments. Never crashes.
     fileprivate static func parseInternal(from content: String) -> [ToolCall]? {
         guard !content.isEmpty else { return nil }
 
@@ -700,7 +700,7 @@ struct Message: Codable {
 /// boundary, walking the history the way sglang's shipped walker does
 /// (`serving_chat.py:300-330`, read at reference HEAD 11-16): every result answers a
 /// call of the run opened immediately before it, nothing may cut into an unanswered
-/// run, and a run left open at the END is legal — that is what the completion is
+/// run, and a run left open at the END is legal, that is what the completion is
 /// being asked to answer (sglang's own leniency, not ours).
 enum ToolHistory {
     struct Violation: Sendable {
@@ -719,7 +719,7 @@ enum ToolHistory {
 
     /// The one walk, over per-message events normalized from either face's DTO.
     /// sglang's leniency for id-less *calls* is kept (an open with no id declares
-    /// nothing checkable); a *result* with no id answers nothing and must mismatch —
+    /// nothing checkable); a *result* with no id answers nothing and must mismatch,
     /// both faces' specs make the result's id required.
     private static func walk(
         count: Int,
@@ -827,14 +827,14 @@ enum ContentPolymorphic: Codable {
 /// `imageUrl`, `videoUrl`, `audioURL`). Without this mapping the bare
 /// `Codable` derives JSON keys from the Swift property names, so a real
 /// OpenAI request `{"type":"image_url","image_url":{"url":"..."}}`
-/// decodes to `imageUrl = nil` — the image is **silently dropped at the
+/// decodes to `imageUrl = nil`. The image is **silently dropped at the
 /// wire layer** before it ever reaches the engine (confident blind
 /// answer, HTTP 200, zero error). Hence the keys are pinned exactly.
 ///
 /// A part is therefore decoded into the one shape each axis has here, and
 /// ``uncarriedType`` names the case the decoder cannot fill: a part that
 /// declares itself as neither text nor anything this server reads. The
-/// handler refuses those by name (`ChatMedia.uncarried`) — measured 10-31,
+/// handler refuses those by name (`ChatMedia.uncarried`). Measured 10-31,
 /// `{"type":"file",…}` and an `image_url` with no payload both answered
 /// 200 with the attachment gone, while the same route 400s a media *path*
 /// it cannot open. Silence about a named payload is the defect this file
@@ -889,12 +889,12 @@ struct ContentPart: Codable {
         /// OpenAI-compatible caller) send `{"url": "..."}` WITHOUT `max_frames`.
         /// Plain `decode(Int.self)` would then make `VideoURL` decode fail, so
         /// the whole `[ContentPart]` array decode throws and `ContentPolymorphic`
-        /// falls back to `.text("")` — the video (plus its text) silently
+        /// falls back to `.text("")`. The video (plus its text) silently
         /// dropped end-to-end. Hence decode with `decodeIfPresent` → 16 if
         /// absent. `maxFrames` has 0 read sites in the ocoreai video-consumption
         /// path (upstream `UserInput.Video` has no maxFrames; frame selection
         /// lives in `Gemma4ProcessorConfig.max_frames`), so the default is
-        /// inert, not guessed — it only unblocks decoding.
+        /// inert, not guessed. It only unblocks decoding.
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             url = try c.decode(String.self, forKey: .url)
@@ -923,14 +923,14 @@ extension ContentPart {
     /// property: OpenAI's inline audio part is decoded *into* `audio_url`, so there is
     /// exactly one audio shape below this point. Kept apart from `CodingKeys` rather
     /// than added to it because an extra case there breaks the synthesized `encode(to:)`
-    /// — and this key is read once, here, and never written back.
+    ///, and this key is read once, here, and never written back.
     private enum InlineAudioKey: String, CodingKey {
         case inputAudio = "input_audio"
     }
 
     /// Written by hand for one reason: `input_audio` must land in `audioURL`.
     /// The construction is vllm's (`vllm/renderers/chat_utils/content_parser.py`:
-    /// `data:audio/{format};base64,{data}`), which is the point — ``makeMLXAudio``
+    /// `data:audio/{format};base64,{data}`), which is the point, ``makeMLXAudio``
     /// and `ChatAudio` already resolve a `data:` audio reference, so the spec
     /// shape costs a key mapping here instead of a second audio path below.
     init(from decoder: Decoder) throws {
@@ -950,7 +950,7 @@ extension ContentPart {
 
 extension ContentPart.InputAudio {
     /// The bytes as the one reference form this engine reads, or nil when the
-    /// part declared an attachment without saying what it is — an unknown
+    /// part declared an attachment without saying what it is. An unknown
     /// container is not a licence to guess `wav`.
     fileprivate var audioURL: ContentPart.AudioURL? {
         let container = format?.trimmingCharacters(in: .whitespaces)
@@ -963,7 +963,7 @@ extension ContentPart.InputAudio {
 
 extension ContentPart {
     /// Whether this part carries a media payload (image, video, or audio).
-    /// Pure predicate — no side effects, safe from any isolation domain.
+    /// Pure predicate, no side effects, safe from any isolation domain.
     var isMedia: Bool {
         imageUrl != nil || videoUrl != nil || audioURL != nil
     }
@@ -972,7 +972,7 @@ extension ContentPart {
     ///
     /// `nil` for anything declared `text` (a client's empty text part is padding,
     /// not a lost attachment) and for any part whose payload arrived non-empty.
-    /// Everything else is a part the client named and this turn cannot honour —
+    /// Everything else is a part the client named and this turn cannot honour,
     /// which the handler refuses rather than answering as if it were never sent.
     var uncarriedType: String? {
         if type == "text" { return nil }
@@ -989,7 +989,7 @@ extension Message {
     ///
     /// Single source of truth for the "is this a VLM request" predicate.
     /// Previously inlined in two places (EngineInference + MessageBuilder)
-    /// with independent filter lambdas — this extension converges both and
+    /// with independent filter lambdas. This extension converges both and
     /// removes the drift risk (e.g. one site adding `.audioURL` before the
     /// other, or one site forgetting a new part type).
     var hasMediaPart: Bool {
@@ -1003,7 +1003,7 @@ extension Message {
     /// Returns 0 for `.text` content or `.parts` with no media.
     ///
     /// Previously inlined in MessageBuilder as a `reduce` over `ContentPart`
-    /// filter — this extension is the canonical form.
+    /// filter. This extension is the canonical form.
     var mediaPartCount: Int {
         if case .parts(let parts) = content {
             return parts.filter { $0.isMedia }.count
@@ -1036,7 +1036,7 @@ struct ChatCompletion: Encodable {
 
     /// What happened to audio the request attached: the on-device analyzer turned it into
     /// text before the model saw the turn (``ChatAudioIngestion``), because no model in
-    /// this build can take waveform. Absent when the request carried no audio — absence is
+    /// this build can take waveform. Absent when the request carried no audio. Absence is
     /// "no audio here", not "audio delivered".
     var audioInput: ChatAudioInput?
 
@@ -1054,7 +1054,7 @@ struct ChatCompletion: Encodable {
     }
 
     /// What this server's own tool loop did during the turn, measured. Absent when no tool
-    /// ran — absence is "nothing was dispatched", never "nothing succeeded".
+    /// ran. Absence is "nothing was dispatched", never "nothing succeeded".
     var ocoreai: OcoreaiTurn? = nil
 }
 
@@ -1101,7 +1101,7 @@ struct OcoreaiTurn: Encodable, Sendable {
     let toolResults: [OcoreaiToolRecord]
 
     /// A demanded tool call this turn did not produce. Absent means either no demand was made
-    /// or it was met — never "unknown", which is why the verdict is emitted only once the turn
+    /// or it was met. Never "unknown", which is why the verdict is emitted only once the turn
     /// has ended.
     var toolChoiceUnsatisfied: UnsatisfiedToolChoice?
 
@@ -1121,8 +1121,8 @@ struct OcoreaiTurn: Encodable, Sendable {
 
 extension OcoreaiTurn {
     /// The one assembly rule for the turn extension, shared by all four sites (two faces x
-    /// stream / non-stream): publish it when there is something measured to say — a tool that
-    /// ran, or a demand that went unsatisfied — and never an empty object.
+    /// stream / non-stream): publish it when there is something measured to say. A tool that
+    /// ran, or a demand that went unsatisfied, and never an empty object.
     static func assemble(
         toolResults: [ToolResultMeta],
         toolChoiceUnsatisfied: UnsatisfiedToolChoice? = nil
@@ -1136,7 +1136,7 @@ extension OcoreaiTurn {
 
 /// The turn ended without the call the client demanded, in the one place a client is already
 /// reading: `finish_reason` may not carry a non-spec word (vllm validates only the
-/// `none|auto|named|required` vocabulary — `chat_completion/protocol.py:1009-1015` — and answers
+/// `none|auto|named|required` vocabulary, `chat_completion/protocol.py:1009-1015`, and answers
 /// an unsatisfied demand with a normal completion), so a bare `stop` cannot tell an unsatisfiable
 /// demand from a finished answer. Measured 11-01 on the installed artefact:
 /// `200 · finish=stop · content:""` with zero calls executed, which a harness reads as done.
@@ -1184,7 +1184,7 @@ struct AssistantMessage: Encodable {
     /// Text content
     let content: String?
 
-    /// Reasoning/thinking content (OpenAI reasoning models protocol —
+    /// Reasoning/thinking content (OpenAI reasoning models protocol,
     /// mirrors streaming ``ChatDelta.reasoningContent`` = `reasoning_content`).
     /// nil when the model produced no reasoning.
     let reasoningContent: String?
@@ -1223,7 +1223,7 @@ struct Usage: Encodable {
     /// Completion-side breakdowns (OpenAI `completion_tokens_details`).
     let completionDetails: CompletionTokensDetails?
 
-    /// OpenAI `prompt_tokens_details` — breakdown of the prompt token count.
+    /// OpenAI `prompt_tokens_details`. Breakdown of the prompt token count.
     struct PromptTokensDetails: Encodable {
         /// Tokens served by a reused KV-cache prefix (upstream
         /// `GenerateCompletionInfo.cachedPromptTokenCount`, mlx-swift-lm #559).
@@ -1238,7 +1238,7 @@ struct Usage: Encodable {
         }
     }
 
-    /// OpenAI `completion_tokens_details` — breakdown of the completion token count.
+    /// OpenAI `completion_tokens_details`. Breakdown of the completion token count.
     struct CompletionTokensDetails: Encodable {
         /// Reasoning/thinking tokens (baseline: mlx-swift-lm + coreai-models
         /// `reasoningTokenCount` in their completion info).
@@ -1262,7 +1262,7 @@ struct Usage: Encodable {
         self.input = input
         self.output = output
         total = input + output
-        // Details are omitted entirely when the leg produced no value (nil) —
+        // Details are omitted entirely when the leg produced no value (nil),
         // OpenAI treats the whole `*_tokens_details` object as optional.
         let rt = reasoningTokens
         let prompt: PromptTokensDetails? = cachedPromptTokens.map {
@@ -1289,11 +1289,11 @@ struct Usage: Encodable {
 ///
 /// OpenAI defines `prompt_tokens` as the whole input prompt and
 /// `prompt_tokens_details.cached_tokens` as a *breakdown of* it, so
-/// `cached_tokens ≤ prompt_tokens` holds by construction — vllm and sglang publish it that way.
+/// `cached_tokens ≤ prompt_tokens` holds by construction. Vllm and sglang publish it that way.
 ///
 /// Upstream hands us the two parts and never the total: `GenerateCompletionInfo.promptTokenCount`
 /// is what this turn **prefilled** ("When a session reuses a KV-cache prefix only the remaining
-/// suffix is fed to the model, so this counts fewer tokens than the rendered prompt" —
+/// suffix is fed to the model, so this counts fewer tokens than the rendered prompt",
 /// mlx-swift-lm's own words on `promptTokenCount`), while `cachedPromptTokenCount` is the prefix its KV
 // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:3112 counts fewer tokens than the rendered prompt
 /// cache kept. Upstream's own total is `cached + prefilled` (`totalPromptTokenCount`'s getter),
@@ -1304,7 +1304,7 @@ struct Usage: Encodable {
 ///
 /// Publishing the prefilled suffix instead was the deviation this exists to prevent. Measured 10-21
 /// on this host, three warm turns on `/v1/chat/completions` answered `prompt_tokens` 30, 44 and 54
-/// each with `prompt_tokens_details.cached_tokens: 949` — a breakdown up to 31x the whole it
+/// each with `prompt_tokens_details.cached_tokens: 949`. A breakdown up to 31x the whole it
 /// belongs to, and by upstream's own sum (`cached + prefilled`) a prompt of 979 reported as 30:
 /// the entire reused prefix is missing from anything a client bills, budgets, or rate-limits with.
 enum PromptTokenAccounting {
@@ -1312,7 +1312,7 @@ enum PromptTokenAccounting {
     ///
     /// `observedPrefilled == nil` means the path produced no upstream `.info` at all, so
     /// `fallback` (the pre-flight tokenizer count, or the bytes heuristic) is the best number
-    /// available for the whole prompt and there is no suffix to add back — adding a cached count
+    /// available for the whole prompt and there is no suffix to add back. Adding a cached count
     /// that was never observed here would over-report the prompt instead.
     static func renderedPromptTokens(
         observedPrefilled: Int?, cachedPromptTokens: Int?, fallback: Int
@@ -1325,7 +1325,7 @@ enum PromptTokenAccounting {
 // MARK: - Text Completion (OpenAI `/v1/completions`, legacy text-gen API)
 //
 // Wire contract source of truth: vllm `entrypoints/openai/completion/protocol.py`
-// (`CompletionRequest`/`CompletionResponse`, the 2/3 industry-standard shape —
+// (`CompletionRequest`/`CompletionResponse`, the 2/3 industry-standard shape,
 // vllm + sglang agree; omlx DELETE-outlier not followed). Text-gen semantics:
 // `prompt` is RAW text (no chat template applied) → `object = "text_completion"`,
 // `choices[].text` (not `.message`), `id` prefix `cmpl-`.
@@ -1336,7 +1336,7 @@ enum PromptTokenAccounting {
 
 /// `/v1/completions` request body (OpenAI text-completion wire shape).
 struct CompletionRequest: Decodable {
-    /// Model identifier (optional — resolved like chat: per-model default, then 400).
+    /// Model identifier (optional. Resolved like chat: per-model default, then 400).
     var model: String?
 
     /// Raw text prompt(s). Accepts a bare string, a list of strings, a list of
@@ -1374,23 +1374,23 @@ struct CompletionRequest: Decodable {
     var stream: Bool = false
     /// Stop sequences (generation halts when matched).
     ///
-    /// Same union as chat — the spec types it `string | array[string] | null`, so this face
+    /// Same union as chat. The spec types it `string | array[string] | null`, so this face
     /// decodes it through ``decodeStopUnion`` rather than re-declaring the shape.
     var stop: [String]? = nil
-    /// Stream options (usage inclusion) — mirrors chat.
+    /// Stream options (usage inclusion). Mirrors chat.
     var streamOptions: StreamOptions? = nil
 
-    // MARK: Fields this route decodes and cannot honour — refused by name, never no-op'd
+    // MARK: Fields this route decodes and cannot honour. Refused by name, never no-op'd
 
     /// Echo the prompt in the completion. Kept because the `logprobs` loglikelihood path
     /// *does* honour it (`EnginePool/collectLogits(echo:)`); on the generation path it is
-    /// refused — see `CompletionRequest/unkeptPromise()`.
+    /// refused. See `CompletionRequest/unkeptPromise()`.
     var echo: Bool = false
     /// Text that follows the prompt (legacy OpenAI/vllm). Refused, not ignored.
     var suffix: String? = nil
     /// Return top-k log-proabilities. A2 (loglikelihood) implements the true value.
     var logprobs: Int? = nil
-    /// Per-position log-prob details. A2 — refused: scoring returns the top tokens per
+    /// Per-position log-prob details. A2. Refused: scoring returns the top tokens per
     /// position and no path reads this subset.
     var logprobTokenIds: [Int]? = nil
     /// Whether the final stop token is present in the output (vllm). Refused, not ignored.
@@ -1398,7 +1398,7 @@ struct CompletionRequest: Decodable {
     /// Minimum tokens to generate before a stop token (vllm). Refused, not ignored.
     var minTokens: Int = 0
     /// Skip special tokens in output (vllm, default true). Refused when the client turns it
-    /// off — the default asks for nothing.
+    /// off. The default asks for nothing.
     var skipSpecialTokens: Bool = true
 
     enum CodingKeys: String, CodingKey {
@@ -1520,7 +1520,7 @@ struct CompletionRequest: Decodable {
 
     /// The first numeric spec violation in this request, or nil when every knob is in domain.
     ///
-    /// Same reason as ``ChatCompletionRequest/numericDomainError()`` — a negative
+    /// Same reason as ``ChatCompletionRequest/numericDomainError()``. A negative
     /// `max_tokens` here becomes ``SchedulingRequest/tokenBudget`` and reaches the scheduler,
     /// where the token-to-byte conversion used to trap. Rules live in ``SamplingDomain``;
     /// this wire differs in one place: `n > 1` is honoured (`n` passes generated
@@ -1567,7 +1567,7 @@ struct CompletionRequest: Decodable {
     /// acts on. Measured 10-31 against one live `serve` (scripted engine, so no model claim),
     /// `echo:true`, `suffix`, `logprob_token_ids`, `include_stop_str_in_output:true`,
     /// `min_tokens:40` and `skip_special_tokens:false` each returned a response body identical
-    /// to the plain request — the fields decoded into properties no consumer read. `echo` is
+    /// to the plain request. The fields decoded into properties no consumer read. `echo` is
     /// the expensive one: a loglikelihood harness asking to be conditioned on the prompt gets a
     /// *continuation* instead, and scores it as if it were the thing it asked for.
     ///
@@ -1634,7 +1634,7 @@ struct TextCompletionChoice: Encodable {
     var index: Int = 0
     /// Token usage for this choice (only when `stream_options.include_usage` is set).
     var usage: Usage?
-    /// A2 (loglikelihood) — per-token logprob details. Aligned with
+    /// A2 (loglikelihood). Per-token logprob details. Aligned with
     /// coreai-models `CompletionResponse.CompletionChoice.logprobs`.
     var logprobs: LogprobsResult?
 
@@ -1658,7 +1658,7 @@ struct TextCompletionChoice: Encodable {
     }
 }
 
-/// A2 (loglikelihood) — per-token logprob result.
+/// A2 (loglikelihood). Per-token logprob result.
 /// Aligned with coreai-models `CompletionResponse.LogprobsResult`
 /// (CoreAILMCommon/CompletionTypes.swift, 8cec4f8). Field shapes are the
 /// OpenAI-compatible `logprobs` payload: `tokens` / `token_logprobs` /
@@ -1774,7 +1774,7 @@ struct StreamOptions: Decodable {
     }
 
     /// OpenAI types `stream_options.include_usage` as optional, and `"stream_options": {}` is a
-    /// legal body — with the synthesized decoder it was a 400 that killed the whole chat request
+    /// legal body, with the synthesized decoder it was a 400 that killed the whole chat request
     /// (a property default does not relax the decoder: Handlers/AGENTS.md § Wire DTOs).
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -1784,7 +1784,7 @@ struct StreamOptions: Decodable {
 
 // MARK: - Wire unions
 
-/// Decode OpenAI’s `stop`: the spec types it `string | array[string] | null`, and the
+/// Decode OpenAI's `stop`: the spec types it `string | array[string] | null`, and the
 /// canonical SDKs send whichever the caller wrote.
 ///
 /// Why this is a function and not inline: both OpenAI faces declare `stop`, and a rule
@@ -1803,7 +1803,7 @@ struct StreamOptions: Decodable {
 /// `Optional[Union[str, List[str]]]` (`srt/entrypoints/openai/protocol.py:368`, `:894`).
 /// - Parameters:
 ///   - c: The keyed container the request is being decoded from.
-///   - key: This request type’s CodingKey for `stop`.
+///   - key: This request type's CodingKey for `stop`.
 /// - Returns: The sequences to honour, or `nil` when the field is absent or `null`.
 func decodeStopUnion<K: CodingKey>(
     from c: KeyedDecodingContainer<K>, forKey key: K
@@ -1819,10 +1819,10 @@ func decodeStopUnion<K: CodingKey>(
 /// Convert ``CoreAILanguageModels/StopReason`` to OpenAI-compatible finish_reason string.
 ///
 /// - Parameter reason: Stop reason from inference engine
-/// - Returns: "stop", "length", "cancelled", "error", or nil — the word for
+/// - Returns: "stop", "length", "cancelled", "error", or nil. The word for
 ///   "ended on a stop sequence" is `"stop"`: OpenAI's `finish_reason` enum is
 ///   `stop | length | tool_calls | content_filter`, and vllm/sglang report `stop` for
-///   stop-string termination. `stop_sequence` is Anthropic's word — this repo already
+///   stop-string termination. `stop_sequence` is Anthropic's word. This repo already
 ///   translates it to `"stop"` on the way IN (`AnthropicModels.swift:850`), so emitting
 ///   it on the OpenAI wire was the same fact spelled two ways.
 func stopReasonToString(_ reason: StopReason?) -> String? {
@@ -1839,10 +1839,10 @@ func stopReasonToString(_ reason: StopReason?) -> String? {
 /// Convert ``StopReason`` to OpenAI-compatible finish_reason string.
 ///\n
 /// - Parameter reason: Stop reason from inference engine
-/// - Returns: "stop", "length", "cancelled", "error", or nil — the word for
+/// - Returns: "stop", "length", "cancelled", "error", or nil. The word for
 ///   "ended on a stop sequence" is `"stop"`: OpenAI's `finish_reason` enum is
 ///   `stop | length | tool_calls | content_filter`, and vllm/sglang report `stop` for
-///   stop-string termination. `stop_sequence` is Anthropic's word — this repo already
+///   stop-string termination. `stop_sequence` is Anthropic's word. This repo already
 ///   translates it to `"stop"` on the way IN (`AnthropicModels.swift:850`), so emitting
 ///   it on the OpenAI wire was the same fact spelled two ways.
 ///\n
@@ -1944,7 +1944,7 @@ struct ChatDelta: Encodable {
 
 // MARK: - Runtime Parameter Hot-Swap DTOs
 
-/// Per-model runtime sampling defaults — hot-swappable via PATCH endpoint.
+/// Per-model runtime sampling defaults. Hot-swappable via PATCH endpoint.
 ///
 /// Lives in ``EnginePool`` and cascades: request body > this config > system default.
 struct ModelSamplingConfig: Codable {
@@ -1981,7 +1981,7 @@ struct ModelSamplingConfig: Codable {
     /// Sampling mode selection (mirrors upstream MLXSamplingMode). nil → per-field behavior.
     var mode: SamplingMode? = nil
 
-    /// Prefill config — stepSize + chunking strategy (aligns with PrefillConfig / upstream PrefillParameters).
+    /// Prefill config. StepSize + chunking strategy (aligns with PrefillConfig / upstream PrefillParameters).
     /// JSON key remains "prefill_step_size" for backward compat; chunking added as "prefill_chunking".
     var prefill: PrefillConfig = .default
 
@@ -2056,7 +2056,7 @@ struct ModelSamplingConfig: Codable {
     }
 }
 
-/// PATCH body — partial sampling config update (all fields optional).
+/// PATCH body. Partial sampling config update (all fields optional).
 struct ModelSamplingPatch: Decodable {
     var temperature: Float? = nil
     var topP: Float? = nil
@@ -2084,7 +2084,7 @@ struct ModelSamplingPatch: Decodable {
     }
 
     /// PATCH semantics: overlay only the fields present in this patch onto
-    /// `base`. `toConfig()` starts from `.default` (full replace) — wrong for
+    /// `base`. `toConfig()` starts from `.default` (full replace). Wrong for
     /// PATCH: a single-field patch would silently wipe unrelated overrides
     /// (default_model, penalties, context sizes). PATCH must merge.
     func merged(onto base: ModelSamplingConfig) -> ModelSamplingConfig {
@@ -2139,7 +2139,7 @@ struct ModelSamplingPatch: Decodable {
     }
 }
 
-/// GET response — full runtime sampling config for a single model.
+/// GET response. Full runtime sampling config for a single model.
 struct ModelSamplingResponse: Encodable {
     let temperature: Float
     let topP: Float?
@@ -2211,10 +2211,10 @@ struct ModelSamplingResponse: Encodable {
 /// Each case maps to an HTTP status code and a structured error description
 /// for consistent JSON error responses across all endpoints.
 enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError {
-    /// Bad Request — client sent malformed data
+    /// Bad Request. Client sent malformed data
     case invalidRequest(String)
 
-    /// Bad Request — one named field carries a value outside the range its spec publishes.
+    /// Bad Request. One named field carries a value outside the range its spec publishes.
     ///
     /// ``invalidRequest(String)`` says what went wrong; this says *which knob*, because a
     /// 400 on a 20-field body is only actionable if the client learns which field to fix.
@@ -2225,54 +2225,54 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// shape OpenAI/Anthropic SDKs branch on alongside `type`.
     case invalidParameter(param: String, message: String, value: String? = nil)
 
-    /// Bad Request — prompt exceeds the model's `max_context_window` **after**
+    /// Bad Request. Prompt exceeds the model's `max_context_window` **after**
     /// a full compaction pass removed every removable unit (protected prefix +
     /// suffix + the compaction note alone already exceed the cap).
     ///
     /// Typed (non-string) so JSON clients can branch on the condition and
     /// carry the post-compaction estimate + cap: the transcript is the
     /// authoritative bloated state, and retrying an equally-sized request
-    /// fails identically — callers must start a fresh, shorter conversation
+    /// fails identically. Callers must start a fresh, shorter conversation
     /// instead of retrying (hermes-agent `compression_exhausted` typed bit;
     /// was previously an untyped `invalidRequest(String)`).
     case contextWindowExhausted(postTokens: Int, cap: Int)
 
-    /// Not Found — model does not exist or is not loaded
+    /// Not Found. Model does not exist or is not loaded
     case modelNotFound(String)
 
-    /// Not Found — the router's trie missed the request entirely: the *route* is not there,
+    /// Not Found. The router's trie missed the request entirely: the *route* is not there,
     /// which is a different fact from ``modelNotFound`` (a path that exists, an id that does not)
     /// and reads differently to a client repairing a call. `details` names the exact miss so a
     /// log line is enough to fix the request without re-deriving its shape; the message points
     /// at the two discovery routes, because "what should I have called" is part of an honest 404.
     case routeNotFound(method: String, path: String)
 
-    /// Service Unavailable — the id is not resident and could not be fetched: the configured
+    /// Service Unavailable. The id is not resident and could not be fetched: the configured
     /// hub answered, and the fallback hub could not be asked within
     /// `HubReachability.probeTimeoutSeconds`. Distinct from `modelNotFound` on purpose: this
     /// one is transient, so the client should retry (or point `HF_ENDPOINT` at a reachable
     /// mirror) instead of concluding the model does not exist.
     case modelUnavailable(modelId: String, reason: String)
 
-    /// Internal Error — engine pool exhausted (max sessions reached)
+    /// Internal Error. Engine pool exhausted (max sessions reached)
     case poolExhausted(Int)
 
-    /// Service Unavailable — request queue closed during shutdown
+    /// Service Unavailable. Request queue closed during shutdown
     case queueClosed
 
-    /// Not Found — cold-stored KV cache missing from SSD
+    /// Not Found. Cold-stored KV cache missing from SSD
     case coldStoreNotFound(String)
 
-    /// Internal Error — inference generation failed
+    /// Internal Error. Inference generation failed
     case generationError(String)
 
-    /// Data Loss — KV cache serialization/deserialization corrupted
+    /// Data Loss. KV cache serialization/deserialization corrupted
     case kvCacheCorruption(String)
 
-    /// Service Unavailable — engine unavailable (load failure)
+    /// Service Unavailable. Engine unavailable (load failure)
     case engineUnavailable
 
-    /// Service Unavailable — system memory is under OOM pressure; the OOM guard
+    /// Service Unavailable. System memory is under OOM pressure; the OOM guard
     /// refuses new requests to protect existing ones.
     ///
     /// Typed (non-string) so JSON clients can branch on the condition and carry
@@ -2284,53 +2284,53 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// "machine is out of RAM" from "engine not ready" and act differently.
     case memoryExhausted(usedGB: Int, budgetGB: Int)
 
-    /// Service Unavailable — model still loading / prewarming; caller should
+    /// Service Unavailable. Model still loading / prewarming; caller should
     /// retry (poll `state: "loading"` on ``GET /v1/models``, which carries the same
     /// `loadProgress` this body does, until `state` flips to `ready`). Distinct from
     /// ``engineUnavailable`` so JSON clients can tell "transient, retry" apart from
     /// "permanent, give up".
     ///
-    /// The second payload is what the wait measured before it gave up — elapsed, and the bytes
-    /// if a hub transfer is in flight — because the wait window is 120 s and a cold load of the
+    /// The second payload is what the wait measured before it gave up. Elapsed, and the bytes
+    /// if a hub transfer is in flight, because the wait window is 120 s and a cold load of the
     /// shipping default is 794 s (11-01(101)): a refusal that says only "still loading" sends
     /// the caller to poll an endpoint for numbers the server already had in hand. `nil` only
     /// when the refusal comes from a path that owns no clock (see `EnginePool.loadClocks`).
     case modelLoading(String, ModelLoadProgress?)
 
-    /// Not Implemented — a Jev decision was asked for and this build cannot read one. The answer
+    /// Not Implemented. A Jev decision was asked for and this build cannot read one. The answer
     /// is probability mass over the answer labels at the answer position, which no engine here
     /// publishes on the delivery platform; the payload names the prerequisite and both exits,
-    /// because the alternative — an invented probability — is the one answer this API must never
+    /// because the alternative. An invented probability. Is the one answer this API must never
     /// give (`Wire/DecisionsWire.swift` § *What is deliberately absent*).
     case decisionsUnavailable(String)
 
-    /// Internal Error — inference pipeline failed
+    /// Internal Error. Inference pipeline failed
     case inferenceFailed(String)
 
-    /// Internal Error — tokenization pipeline failed
+    /// Internal Error. Tokenization pipeline failed
     case tokenizationFailed(String)
 
-    /// Bad Request — tool call validation/execution failed
+    /// Bad Request. Tool call validation/execution failed
     case toolCallFailed(String)
 
-    /// Gone — session expired or invalidated
+    /// Gone. Session expired or invalidated
     case sessionExpired(String)
 
-    /// Service Unavailable — session limit exceeded
+    /// Service Unavailable. Session limit exceeded
     case sessionLimitExceeded
 
-    /// Not Implemented — engine cannot score logprobs (no logits output).
+    /// Not Implemented. Engine cannot score logprobs (no logits output).
     /// A2 loglikelihood path; upstream coreai-models 501 "Logprobs not supported".
     case logitsUnsupported
 
-    /// Not Implemented — loaded model has no MLX handle (CoreAI-only model).
+    /// Not Implemented. Loaded model has no MLX handle (CoreAI-only model).
     /// KV-cache inspection consumes the upstream MLX `cacheStatus` API.
     case kvCacheStatusUnsupported
 
-    /// Too Many Requests — single-slot engine busy (loglikelihood scoring).
+    /// Too Many Requests. Single-slot engine busy (loglikelihood scoring).
     case engineBusy
 
-    /// Too Many Requests — the token bucket refused the request before it was ever routed.
+    /// Too Many Requests. The token bucket refused the request before it was ever routed.
     ///
     /// A distinct condition from ``engineBusy`` (one engine occupied vs traffic policy), so a
     /// client can branch on `error_code`, but the *same* status and therefore the same
@@ -2340,13 +2340,13 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// that could not say (there is no invented number on this wire).
     case rateLimited(retryAfter: Double?)
 
-    /// Service Unavailable — on-device transcription is measured-unavailable: permission not
+    /// Service Unavailable. On-device transcription is measured-unavailable: permission not
     /// granted, no local model for the locale, or the Speech engine probe faulted
     /// (`HearingReadiness`). Typed with `error_code` + the remedy so a client branches on the
     /// condition instead of string-parsing, and so "we could not hear" is never a bare 500.
     case transcriptionUnavailable(errorCode: String, reason: String)
 
-    /// Bad Request — the speech failure is a fault in the bytes the client sent, measured by
+    /// Bad Request. The speech failure is a fault in the bytes the client sent, measured by
     /// the decoder (`TranscriptFailure.undecodableAudio`), not by the service. This case
     /// exists because `AudioTranscription.status(for:)` already classifies that failure as a
     /// client error while its throw site had only `.transcriptionUnavailable`, whose status is
@@ -2355,7 +2355,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// failure, one status, on every route that hears audio.
     case transcriptionRejected(errorCode: String, reason: String)
 
-    /// Bad Request — the content guard blocked the turn (`Security/ContentGuard.swift`).
+    /// Bad Request. The content guard blocked the turn (`Security/ContentGuard.swift`).
     ///
     /// Five handler sites used to hand-copy this body, which is how a block on the Anthropic
     /// route answered in OpenAI's envelope. `error_code: "content_policy_violation"` carries the
@@ -2363,28 +2363,28 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// because the SDKs dispatch on that string and not on ours.
     case contentPolicyViolation(reason: String?, categories: [String])
 
-    /// Bad Request — the prompt-injection regex (`AuthConfig`) matched the incoming messages.
+    /// Bad Request. The prompt-injection regex (`AuthConfig`) matched the incoming messages.
     ///
     /// Same one-fact-three-spellings shape as the guard: two faces hand-built `type:
     /// "prompt_injection"` while `/v1/completions` threw `invalidRequest` with the same sentence,
-    /// so the same detection read as three different error types depending on the route — and on
+    /// so the same detection read as three different error types depending on the route, and on
     /// `/v1/messages` it was OpenAI's envelope on Anthropic's wire. The condition now travels in
     /// `error_code`, which is where every other named condition lives.
     case promptInjectionDetected
 
-    /// Bad Request — the audio in the request could not be used (no `file`/`audio` part,
+    /// Bad Request. The audio in the request could not be used (no `file`/`audio` part,
     /// undecodable bytes, over the size cap, a remote URL, or a field this engine does not
     /// provide such as `response_format: verbose_json`).
     case invalidAudio(reason: String)
 
-    /// Bad Request — a media part named a file this process cannot open (`file://…` or a
+    /// Bad Request. A media part named a file this process cannot open (`file://…` or a
     /// filesystem path that is not there). Typed and 4xx because the client can fix it:
     /// without this case the failure surfaced from AVFoundation as
     /// `500 … The operation could not be completed`, naming neither the axis nor the part
     /// (`ChatMediaResolution`, measured 10-16).
     case mediaUnresolvable(reason: String)
 
-    /// Internal Server Error — bytes this server spooled into its own ``MediaSpool`` are
+    /// Internal Server Error. Bytes this server spooled into its own ``MediaSpool`` are
     /// gone while a conversation still cites them. Ours to report, not the client's to fix,
     /// which is why it is not folded into ``mediaUnresolvable``: the remediation differs,
     /// and so does the blame.
@@ -2451,7 +2451,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         description
     }
 
-    /// ``HTTPResponseError.status`` — Hummingbird uses this to map thrown errors to HTTP status codes.
+    /// ``HTTPResponseError.status``. Hummingbird uses this to map thrown errors to HTTP status codes.
     ///
     /// Without this, Hummingbird treats any unhandled error as 500 Internal Server Error,
     /// even when the error is a client error (4xx).
@@ -2502,7 +2502,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// `api_error`, and every other 4xx `invalid_request_error` (that last is vllm's fallback, and
     /// it is why our 410 `sessionExpired` reads as a bad request rather than inventing a name
     /// Anthropic has not defined). A client that branches on this string must get the same answer
-    /// from either stack — sglang's Anthropic route passes the same names explicitly
+    /// from either stack. Sglang's Anthropic route passes the same names explicitly
     /// (`sglang/python/sglang/srt/entrypoints/anthropic/serving.py:209`).
     nonisolated var anthropicErrorTypeName: String {
         switch status.code {
@@ -2521,7 +2521,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     ///
     /// Chosen over the two references' behaviour, deliberately and with the departure named: vllm
     /// puts the HTTP status *phrase* here
-    /// (`vllm/entrypoints/serve/exception_handling/handlers/http.py:27` —
+    /// (`vllm/entrypoints/serve/exception_handling/handlers/http.py:27`,
     /// `type=HTTPStatus(exc.status_code).phrase`, so its 404 reads `"Not Found"`), and sglang mixes
     /// Python class names with spec names (`openai/serving_base.py:205-213` defaults to
     /// `err_type="BadRequestError"`, and its call sites pass `InternalServerError` and
@@ -2533,7 +2533,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     nonisolated var openAIErrorTypeName: String {
         switch status.code {
         case 400: "invalid_request_error"
-        // 410 (`sessionExpired`) — OpenAI has no 410 in its surface, and the session it names is
+        // 410 (`sessionExpired`). OpenAI has no 410 in its surface, and the session it names is
         // not there to fetch; the documented nearest is `not_found_error`, and the message says why.
         case 404, 410: "not_found_error"
         case 429: "rate_limit_error"
@@ -2544,7 +2544,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         }
     }
 
-    /// ``HTTPResponseError.response(from:context:)`` — build a JSON error response.
+    /// ``HTTPResponseError.response(from:context:)``. Build a JSON error response.
     nonisolated func response(
         from request: Request,
         context: some RequestContext
@@ -2561,7 +2561,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         ])
         // Typed error payload: the context-window-exhausted condition carries a
         // machine-readable error_code + the exact numbers a client needs to
-        // react (fresh session, or raise max_context_window) — without this,
+        // react (fresh session, or raise max_context_window). Without this,
         // clients must string-parse the message to detect exhaustion.
         if case .contextWindowExhausted(let postTokens, let cap) = self {
             detail["error_code"] = "context_window_exhausted"
@@ -2601,7 +2601,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         }
         // The trie miss answers from here now, not from a literal in the middleware: the body is
         // one home, and `details` keeps the exact miss a client can repair against. It stays a
-        // distinct `error_code` from `modelNotFound` — a path that does not exist and an id that
+        // distinct `error_code` from `modelNotFound`. A path that does not exist and an id that
         // is not loaded are different repairs.
         if case .routeNotFound(let method, let path) = self {
             detail["error_code"] = "route_not_found"
@@ -2633,7 +2633,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         // 794 s (11-01(101)), so releasing a waiter with a bare "still loading" sent it to poll
         // an endpoint for a measurement this response had in hand. Keys are snake_case like
         // every other key in this envelope; the same measurement appears on `/v1/models` as
-        // `loadProgress`, camelCase like every other key in that object — shape is per-object.
+        // `loadProgress`, camelCase like every other key in that object. Shape is per-object.
         if case .modelLoading(_, let progress) = self {
             detail["error_code"] = "model_loading"
             // The key spellings are the measurement type's, so this site cannot add a number
@@ -2642,7 +2642,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
                 detail.addEntries(from: progress.refusalDetailKeys)
             }
         }
-        // `unsupported` is the reference stack's own word for this exact refusal — coreai-models
+        // `unsupported` is the reference stack's own word for this exact refusal. Coreai-models
         // answers a `logprobs` request on a logits-less engine with `code:"unsupported"`
         // (`swift/Sources/Tools/llm-server/CompletionHandler.swift`, and 1c25c57 moved that message
         // into one constant rather than into a second spelling), so a client that already handles
@@ -2652,8 +2652,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
             detail["remediation"] = why
         }
         // Request-shape refusals speak the clients' own error type. Both specs name
-        // `invalid_request_error` for a 400 (OpenAI Errors, Anthropic Errors), and vllm —
-        // the reference stack for both wires here — puts the offending field next to it.
+        // `invalid_request_error` for a 400 (OpenAI Errors, Anthropic Errors), and vllm,
+        // the reference stack for both wires here. Puts the offending field next to it.
         // `app_error` is what an SDK sees for everything it has no name for, so leaving a
         // 400 there costs clients a string-parse.
         // `type` is no longer written here: the status table above already gives these three cases
@@ -2677,12 +2677,12 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         // Anthropic client parses: `{"type":"error","error":{type,message}}`
         // (`sglang/python/sglang/srt/entrypoints/anthropic/protocol.py:25-36`,
         // `vllm/vllm/entrypoints/anthropic/protocol.py:25-30`), with `error.type` drawn from
-        // Anthropic's vocabulary — vllm states the reason in its own words: "Anthropic SDKs dispatch
+        // Anthropic's vocabulary. Vllm states the reason in its own words: "Anthropic SDKs dispatch
         // on `error.type`, which must use Anthropic's own vocabulary rather than vLLM's
         // internal/Python error class names" (`protocol.py:33-34`). The shape is decided off the path
         // the request actually arrived on, so one throw site cannot answer the wrong wire: until now
         // a refusal thrown out of `/v1/messages` carried this file's OpenAI-shaped body, which an
-        // Anthropic SDK has no parser for. `code` is dropped on that face — the references' error
+        // Anthropic SDK has no parser for. `code` is dropped on that face. The references' error
         // object is exactly `{type,message}`, and the status is already the status line.
         let errorBody: NSDictionary
         if request.uri.path.hasPrefix("/v1/messages") {
@@ -2702,7 +2702,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
             headers[.retryAfter] = "\(EngineBusySignal.retryAfterSeconds)"
         }
         // The token bucket measured its own wait, so the refusal that carries it must not lose it
-        // on the way to the wire — a 429 without `Retry-After` makes the client hammer the box
+        // on the way to the wire. A 429 without `Retry-After` makes the client hammer the box
         // that just said no (the middleware used to set this header on its hand-built response).
         if let retryAfterSeconds {
             headers[.retryAfter] = "\(retryAfterSeconds)"
@@ -2725,7 +2725,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
 /// schemas stay in the request for template/convenience, but the engine must
 /// expose ZERO tools and must not be routed to the tool-call guided path.
 /// Any other value ("auto"/"required"/specific-function object, or absent)
-/// leaves the declared surface untouched — enforcement semantics
+/// leaves the declared surface untouched. Enforcement semantics
 /// (e.g. retry when "required" produced no tool call) is a separate
 /// decision and stays downstream of this surface decision.
 func effectiveTools(
@@ -2747,7 +2747,7 @@ func effectiveTools(
 /// mechanism and may switch on THIS predicate only. Gating it on the declaration
 /// instead is what cost a declaring request its answer (measured 10-18:
 /// `tools:[get_weather]` + "What is 2 + 2?" → `content:""`, `finish_reason:"stop"`,
-/// while the no-tools control answered `4`). vllm/sglang keep the same split —
+/// while the no-tools control answered `4`). vllm/sglang keep the same split,
 /// they parse whatever the model emitted and only force when told to.
 func toolChoiceDemandsCall(_ toolChoice: String?) -> Bool {
     guard let toolChoice else { return false }
@@ -2778,17 +2778,17 @@ func unsatisfiedToolChoice(
 
 /// The one home for "must this turn's output be grammar-constrained?".
 ///
-/// Two faces assemble `InferenceOptions` themselves — the HTTP wire (`ChatHandler`) and
-/// the SwiftUI fast path (`DirectInferenceClient`) — so the rule may not live in both.
+/// Two faces assemble `InferenceOptions` themselves. The HTTP wire (`ChatHandler`) and
+/// the SwiftUI fast path (`DirectInferenceClient`), so the rule may not live in both.
 /// Keyed to "tools present", a plain message arriving on a face that declares the whole
 /// registry but cannot express a demand gets a calls-only grammar, and a question with no
-/// sensible tool for it must still resolve into a call — to whichever registry tool the
+/// sensible tool for it must still resolve into a call, to whichever registry tool the
 /// grammar happens to prefer, twice running it was two different ones (CHANGELOG 10-18 续4).
 ///
 /// So constraining follows a DEMAND, never the presence of a declaration: `tool_choice`
 /// = `required`/pinned function (the client asked for a call), or a JSON
-/// `response_format` (the client asked for JSON). Anything else — absent, `auto`, `none`,
-/// and any face with no `tool_choice` surface yet, like the GUI — leaves the model free
+/// `response_format` (the client asked for JSON). Anything else. Absent, `auto`, `none`,
+/// and any face with no `tool_choice` surface yet, like the GUI. Leaves the model free
 /// to answer, with calls arriving through the parser/events path.
 func shouldConstrainOutput(
     declaredTools: [ToolDef]?,
@@ -2807,11 +2807,11 @@ func shouldConstrainOutput(
 /// Used by both the HTTP API layer (ChatHandler) and the UI fast path
 /// (DirectInferenceClient) to enable GuidedGeneration grammar-constrained output.
 /// When tools are present, the schema constrains the model to emit a valid
-/// oneOf array of tool call objects — eliminating regex post-processing failures.
+/// oneOf array of tool call objects. Eliminating regex post-processing failures.
 ///
 /// Named sub-schemas ($defs) in tool parameters are hoisted to the envelope
 /// root with per-tool namespaced keys (<tool>__<def>) and $refs are rewritten
-/// to match — preventing dangling pointers that cause xgrammar compilation failure.
+/// to match. Preventing dangling pointers that cause xgrammar compilation failure.
 /// (Mirrors upstream commit 1032402)
 /// 递归扁平化 AnyCodable 嵌套 → JSON 原生 Any。
 /// JSONSerialization 遇 AnyCodable struct (__SwiftValue) → NSException
@@ -2834,7 +2834,7 @@ func flattenJSONValue(_ v: Any) -> Any {
 ///
 /// This is the caller's declaration verbatim (its description, its parameter
 /// schema), so a tool this server does not register is still declarable to the
-/// model instead of vanishing — see `InferenceOptions.declaredToolSpecsJSON`.
+/// model instead of vanishing. See `InferenceOptions.declaredToolSpecsJSON`.
 /// Values are flattened to JSON-native `Any` first (`AnyCodable` would reach
 /// JSONSerialization as a `__SwiftValue` and raise an uncatchable ObjC exception).
 /// nil/empty in → nil out: "no tools declared" is not an empty surface.
@@ -2859,13 +2859,13 @@ func openAIToolSpecsJSON(from defs: [ToolDef]?) -> String? {
     return json
 }
 
-/// The schema for "give me JSON, but no shape is specified" — OpenAI's
+/// The schema for "give me JSON, but no shape is specified". OpenAI's
 /// `response_format: {"type":"json_object"}`, and any constrained turn that arrives
 /// without a schema.
 ///
 /// It must be `{"type":"object"}`, not `{"type":"object","properties":{}}`: naming
 /// zero properties tells the grammar that no key is legal, so the only thing the model
-/// may emit is the empty object. Measured on this host, same prompt, temperature 0 —
+/// may emit is the empty object. Measured on this host, same prompt, temperature 0,
 /// `json_object` returned `'{}'` in 2 completion tokens, while a `json_schema` turn
 /// carrying `{"type":"object"}` returned `{"answer": 8, "unit": "planets"}` in 20,
 /// and a schema with `"properties":{}` reproduced the empty reply exactly. A client
@@ -2888,7 +2888,7 @@ func buildGrammarSchema(
 
     // Which constraint wins. `shouldConstrainOutput` decided WHETHER this turn is
     // constrained; this decides WITH WHAT. A tool grammar goes on the wire only when
-    // `tool_choice` demands a call — sglang installs one solely for `required`/named
+    // `tool_choice` demands a call. Sglang installs one solely for `required`/named
     // choices (serving_chat.py:1488-1501) and calls the schema "response data"
     // (serving_chat.py:1349-1353). With a JSON `response_format` beside undeclared-as-demand
     // tools the JSON wins; the four orderings tried on this engine, and what each cost, are
@@ -2928,7 +2928,7 @@ func buildGrammarSchema(
         toolGrammar = ["type": "array", "items": envelope]
     }
 
-    // The caller's JSON, resolved once. A schema-less `json_object` is an OPEN object —
+    // The caller's JSON, resolved once. A schema-less `json_object` is an OPEN object,
     // naming zero properties is what used to make every `json_object` reply `{}`
     // (`jsonObjectSchema`).
     var jsonGrammar: [String: Any]?
@@ -2950,13 +2950,13 @@ func buildGrammarSchema(
     }
     // Both channels asked, no demand: the JSON wins. Four shapes were run on this engine
     // and this is the only one that keeps a decidable promise (§6: keys arrive 3/3 with the
-    // tools still declared, both shapes). The others each cost a channel — envelope-first
+    // tools still declared, both shapes). The others each cost a channel. Envelope-first
     // delivered the caller's JSON 0/3 with every turn ending `finish: tool_calls`; an
     // `anyOf` of both compiled and then reported the document finished after one brace
     // (`grammarTerm=true tokens=1`, content `'{'` / `'}'`); and no grammar at all fenced the
     // answer in ```json so the client could not parse it (3/3, probe 12 §6/§7). What JSON-first
     // still cannot do is ground the answer: a turn that must call a tool before it answers
-    // cannot emit the call, measured by §7 — the gap is the loop's per-iteration grammar, not
+    // cannot emit the call, measured by §7. The gap is the loop's per-iteration grammar, not
     // an ordering, so it is recorded open rather than fixed by picking a different loser.
     return grammarSchemaString(json)
 }
@@ -2973,7 +2973,7 @@ func grammarSchemaString(_ grammar: [String: Any]) -> String? {
 
 /// Hoist `$defs` from a tool parameter schema to the envelope root,
 /// namespacing keys with `<toolName>__` and rewriting `$ref` pointers.
-/// Mirrors upstream commit 1032402 — structure-aware rewrite that only
+/// Mirrors upstream commit 1032402. Structure-aware rewrite that only
 /// touches `$ref` values, leaving description/const/enum/pattern strings intact.
 private func buildGrammarSchemaHoistDefs(
     in params: [String: Any],

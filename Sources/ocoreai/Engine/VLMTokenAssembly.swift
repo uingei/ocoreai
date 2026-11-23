@@ -2,14 +2,14 @@
 // Licensed under MIT.
 import Foundation
 
-/// VLMTokenizerOperations — VLM prompt 装配的注入面(注入,使装配成为纯函数)。
+/// VLMTokenizerOperations. VLM prompt 装配的注入面(注入,使装配成为纯函数)。
 ///
 /// 闭包面与上游 coreai-models llm-runner 用的 `Tokenizer`(swift-transformers)
 /// API 1:1 对应:
 ///   - `encode(text:addSpecialTokens:)`  → `encode(_: Bool)`
 ///   - `applyChatTemplate(messages:)`    → `applyChatTemplate(String)`(可失败)
 ///
-/// 抽成闭包后,装配逻辑不依赖 CoreAI 运行时 / VLM `.aimodelc` 资产——
+/// 抽成闭包后,装配逻辑不依赖 CoreAI 运行时 / VLM `.aimodelc` 资产。
 /// 活体 LLM tokenizer(经 `DirectTokenizer._tokenizer`)或确定性 mock 都可驱动。
 public struct VLMTokenizerOperations: Sendable {
     /// 编码文本 → token 序列。
@@ -37,7 +37,7 @@ public struct VLMTokenizerOperations: Sendable {
 ///   - 后续出现的 `imageTokenId` → 跳过(多图模板的防重复展开);
 ///   - 其他 token → 原样保留。
 ///
-/// - Returns: `(tokens, foundPlaceholder)` — `foundPlaceholder` 指示序列里
+/// - Returns: `(tokens, foundPlaceholder)`, `foundPlaceholder` 指示序列里
 ///   是否真的含 `imageTokenId`。上游用 `guard foundPlaceholder else { return nil }`
 ///   (L1280-1281)把"模板没渲染出占位符"判为失败降级 fallback;本层把该判定
 ///   显式返回给 `assembleVLMPrompt` 消费,而不是吞掉后静默走 chat 路。

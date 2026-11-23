@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com
 // Licensed under MIT.
-/// TTSCleaning.swift — Canonical TTS text cleaning (thinking tags + code blocks).
+/// TTSCleaning.swift. Canonical TTS text cleaning (thinking tags + code blocks).
 ///
 /// All production speak paths (agent `speak` tool, chat speaker, direct
-/// `AudioIO.speak`) converge on `AudioIO.speak` — the single real TTS sink.
+/// `AudioIO.speak`) converge on `AudioIO.speak`. The single real TTS sink.
 /// This enum owns the pre-sink cleaning so the agent and speaker paths can't
 /// drift: agent `Speak.build` and the chat speaker both route through the exact
 /// same `TTSCleaning.speakable(...)` before truncating to their respective caps
-/// (speaker 500, agent 8000 — different UX intents, both documented).
+/// (speaker 500, agent 8000. Different UX intents, both documented).
 ///
 /// The old `TTSFilterConfig` dead config (zero consumers, self-defined
 /// `speechRate [0.5, 2.0]` domain conflicting with Apple `AVSpeechUtterance.rate
@@ -20,7 +20,7 @@ import Foundation
 ///
 /// Nonisolated static API: pure Foundation regex/scan, no actor state, no I/O.
 enum TTSCleaning {
-    /// Speaker's default pre-sink truncation (500 chars) — the chat UI's "no
+    /// Speaker's default pre-sink truncation (500 chars). The chat UI's "no
     /// TTS on long outputs" UX. The agent `speak` tool exposes 8000 by default
     /// (an explicit "read this out loud" intent); both caps are product choices,
     /// not configuration knobs, so they stay explicit at the call site.
@@ -29,9 +29,9 @@ enum TTSCleaning {
     /// Strip `<thinking>…</thinking>` blocks and fenced ``` code blocks, collapse
     /// leading/trailing whitespace, truncate to `limit` (append `…` on truncation).
     ///
-    /// - `limit = 0` means "no truncation" — the caller enforces its own cap.
+    /// - `limit = 0` means "no truncation". The caller enforces its own cap.
     /// - Idempotent: applying twice yields the same result (no `…` artifacts,
-    ///  no residual thinking/code markers).
+    /// no residual thinking/code markers).
     /// - Pure: no actor state, deterministic on input.
     static func speakable(
         _ text: String, _ limit: Int = speakerDefaultCap
@@ -45,7 +45,7 @@ enum TTSCleaning {
         return out
     }
 
-    /// Strip thought markup — DELEGATES to `OutputSanitizer.stripThinking`,
+    /// Strip thought markup. DELEGATES to `OutputSanitizer.stripThinking`,
     /// the wire-path single source of truth (previously this file carried its
     /// own two-family regex, so gemma spans and the Qwen3 legacy family
     /// leaked into spoken text).

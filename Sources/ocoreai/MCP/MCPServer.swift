@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MCP Server — JSON-RPC 2.0 server exposing ToolRegistry tools.
+/// MCP Server. JSON-RPC 2.0 server exposing ToolRegistry tools.
 /// Protocol: MCP v2025-06-18 (initialize, tools/list, tools/call, ping).
 import Foundation
 import Logging
@@ -50,12 +50,12 @@ private struct JVal: Codable {
 /// `id` and `params` are untyped JSON on the wire, so they are untyped here. Two live defects
 /// this closes, both measured on this host at HEAD before the change:
 ///   • `id` was `String?`, and the synthesized `Decodable` therefore *required* a string.
-///     `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}` — the shape the Python and
-///     TypeScript MCP SDKs and Claude Desktop send, since §4.1 allows String, Number or Null —
+///     `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`. The shape the Python and
+///     TypeScript MCP SDKs and Claude Desktop send, since §4.1 allows String, Number or Null,
 ///     came back `-32700 Parse error`. A spec-legal client could not complete one handshake.
 ///   • `paramsData` had no `CodingKey` for the wire key `params`, so **every** request decoded
-///     with params == nil, and `tools/call` answered `{"result":{}}` — a success-shaped empty
-///     body — instead of running the tool or refusing. Callers cannot distinguish "no arguments"
+///     with params == nil, and `tools/call` answered `{"result":{}}`. A success-shaped empty
+///     body. Instead of running the tool or refusing. Callers cannot distinguish "no arguments"
 ///     from "we dropped your arguments", which is invariant 2 in the worst direction.
 /// Same class as the pinned-wire-DTO rule in AGENTS.md, applied to a field the spec leaves open:
 /// pinning one JSON type is a refusal the surface never documented.
@@ -176,12 +176,12 @@ actor MCPServer {
     /// The list must describe the tools. Measured at HEAD this published
     /// `{"inputSchema":{"properties":{},"type":"object"}}` for all 39 tools: every tool presented
     /// as taking no arguments and carrying no description, so a client that trusted it generated
-    /// argument-less calls and nothing could succeed — while the surface kept advertising `/mcp`.
+    /// argument-less calls and nothing could succeed. While the surface kept advertising `/mcp`.
     /// `ToolEntry.toToolDef()` is the one home that already renders the faithful JSON Schema
     /// (nested `properties`, `items`, and the name-sorted synthesized `required`), so publish that
     /// instead of a second, thinner translation of the same registry.
     /// Foundation's `JSONSerialization` raises an Objective-C exception for a value it cannot
-    /// represent, and `try?` does not catch ObjC exceptions — measured: the test process aborted
+    /// represent, and `try?` does not catch ObjC exceptions. Measured: the test process aborted
     /// with `libc++abi: terminating due to uncaught exception of type NSException` rather than
     /// failing a case. `AnyCodable` is such a value (it is Codable, not a Foundation JSON type),
     /// so anything built by `toToolDef()` must travel through its own Codable conformance and come

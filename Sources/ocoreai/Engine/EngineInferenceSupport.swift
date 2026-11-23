@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// EngineInferenceSupport.swift — Pure inference support types and free functions
+/// EngineInferenceSupport.swift. Pure inference support types and free functions
 ///
 /// Extracted from ``EngineInference.swift`` (god-file decomposition, step 1).
 /// Every declaration here is file-scope public and carries no `EnginePool`
-/// self, so behavior is byte-identical to the original file-scope placement —
+/// self, so behavior is byte-identical to the original file-scope placement,
 /// move only, no logic change.
 import CoreGraphics
 import CoreImage
@@ -24,7 +24,7 @@ import MLXVLM
 // both model and drafter sit behind SerialAccessContainers that enforce
 // single-threaded access within modelContainer.perform / mtpDrafterContainer.perform.
 
-/// @unchecked Sendable wrapper for MTP drafter model — enables injection into
+/// @unchecked Sendable wrapper for MTP drafter model. Enables injection into
 /// modelContainer.perform(nonSendable:) closure via perform(nonSendable:values:_:).
 struct MTPDrafterModelWrapper: @unchecked Sendable {
     let model: any MLXLMCommon.MTPDrafterModel
@@ -40,7 +40,7 @@ struct MTPDrafterModelWrapper: @unchecked Sendable {
 /// received the thought as the answer with `finish_reason=length` (probe 44 §1).
 /// Upstream's `ThinkingBudgetProcessor` is the only thing that both bounds and
 /// counts a thought, and it
-/// requires a budget transition — which only Qwen declares. `.immediate` is
+/// requires a budget transition, which only Qwen declares. `.immediate` is
 /// upstream's app-side opt-in and fires only once the ceiling is reached: it
 /// closes the span with the model's own delimiter and adds nothing
 /// (`ReasoningBudgetTransition.immediate`).
@@ -49,7 +49,7 @@ struct MTPDrafterModelWrapper: @unchecked Sendable {
 /// adaptively from session history; this type is the hard ceiling generation cannot pass.
 ///
 /// The split is a fraction of what the caller asked for, never a constant, and
-/// an unlimited request gets no processor — a cap nobody asked for is the engine
+/// an unlimited request gets no processor. A cap nobody asked for is the engine
 /// claiming control it was not given. Whether budget + transition + reserve
 /// actually fit the limit stays upstream's arithmetic: this type asks the
 /// validator `applyingThinkingBudget` installs, and never re-derives it.
@@ -141,21 +141,21 @@ enum ThinkingBudgetPolicy {
 /// Bounded rejected-tool-call recovery policy on the standard ChatSession path.
 ///
 /// Upstream contract, re-read at the pin: a rejected tool call throws `RejectedToolCallError`
-/// **before any of the turn's calls dispatch** — recovery is the **caller's** job (an older quoted
+/// **before any of the turn's calls dispatch**. Recovery is the **caller's** job (an older quoted
 /// recovery phrase is gone upstream). ocoreai is that caller. `StdToolCallRecoveryTests` pins the
 /// boundaries (3 attempts,
 /// exact corrective prompt).
 ///
 /// Fork-vs-upstream disclosure: upstream retries zero times; the bound here
-/// is ocoreai's caller-level discretion (required — gemma-4e2b
+/// is ocoreai's caller-level discretion (required. Gemma-4e2b
 /// and Qwen3.5-4B both hard-500 multi-step tasks when rejection
 /// propagates immediately).
 enum StdToolCallRecovery {
     /// Maximum number of generation passes before the rejection is
-    /// propagated to the caller (500 wire behavior) — unchanged legacy.
+    /// propagated to the caller (500 wire behavior). Unchanged legacy.
     static let maxAttempts = 3
 
-    /// Corrective prompt replayed on every retry. Exact value is contract —
+    /// Corrective prompt replayed on every retry. Exact value is contract,
     /// changing it changes what the model sees; tests pin it verbatim.
     static let correctivePrompt =
         "The previous assistant reply was rejected by the tool-call parser "
@@ -165,7 +165,7 @@ enum StdToolCallRecovery {
     enum Decision {
         /// Re-enter the same ChatSession with a fresh corrective turn.
         case retry
-        /// Attempt budget exhausted — propagate the original rejection.
+        /// Attempt budget exhausted. Propagate the original rejection.
         case abort
     }
 
@@ -181,14 +181,14 @@ enum StdToolCallRecovery {
         .user(correctivePrompt)
     }
 
-    // reasonCode 取上游 `RejectedToolCall.Reason.rawValue` 的原始字符串 —
+    // reasonCode 取上游 `RejectedToolCall.Reason.rawValue` 的原始字符串,
     // 与引擎日志同源, 不另造映射。
 
     /// Context-aware corrective prompt (live-evidence variant).
     ///
     /// Why the variant exists (09-21 活体实证): the pinned `correctivePrompt`
     /// above covers "malformed tool call" only, and `decide()` is reason-blind
-    /// — a model that keeps issuing a *well-formed but undeclared* tool name
+    /// A model that keeps issuing a *well-formed but undeclared* tool name
     /// (e.g. `file` × 3) burns its whole retry budget without ever learning
     /// which tools exist. The corrective below names the actually-registered
     /// surface, so recovery can converge on the first retry instead of
@@ -201,14 +201,14 @@ enum StdToolCallRecovery {
         reasonCode: String,
         availableTools: [String]
     ) -> String {
-        // Zero-tool check FIRST — every reason variant collapses to the same
+        // Zero-tool check FIRST. Every reason variant collapses to the same
         // echo-free plain-text instruction when there is no surface at all
         // (mentioning 'tool call' even diagnostically is an echo attractor).
         if availableTools.isEmpty {
             // Zero-tool turn (client declared nothing / whitelist resolved empty):
             // live-evidence 10-07: the imperative tool-centric corrective was
             // echoed verbatim as the answer and shipped online; text streams
-            // before rejection is known, so a post-hoc guard cannot unship it —
+            // before rejection is known, so a post-hoc guard cannot unship it,
             // the fix must be wording + upstream grammar.
             return
                 "The previous reply could not be completed. Do not repeat or "
@@ -227,7 +227,7 @@ enum StdToolCallRecovery {
                 + "prose before the tool call."
         }
         // `incomplete_output` (upstream RejectedToolCall.Reason, live-evidence
-        // 10-06): the tool-call payload was CUT OFF mid-stream — almost always
+        // 10-06): the tool-call payload was CUT OFF mid-stream. Almost always
         // a token budget too small for the arguments. "malformed, re-issue"
         // sends a small model into the same wall again; the actionable
         // instruction is COMPACT (minimal args, no prose, no thinking).
@@ -253,7 +253,7 @@ enum StdToolCallRecovery {
 
 // MARK: - Guided Generation Helper Types
 
-/// Cached tokenizer biases for guided generation — mirrors upstream
+/// Cached tokenizer biases for guided generation. Mirrors upstream
 /// `ModelCache.TokenizerBias`. Immutable once computed, safe to cache
 /// per-model in `LoadedModel._cachedTokenBias`.
 struct TokenBiasCache: @unchecked Sendable {
@@ -264,17 +264,17 @@ struct TokenBiasCache: @unchecked Sendable {
 
 // MARK: - Guided Gen Diagnostic Diagnostics
 
-/// Guided 生成 `incompleteOutput` 吸收判定 — 上游 canonical 对齐, `@testable` 可测 seam。
+/// Guided 生成 `incompleteOutput` 吸收判定。上游 canonical 对齐, `@testable` 可测 seam。
 ///
 /// 上游实证:
-///   - `MLXGuidedGeneration/GuidedGenerationLoop.swift` — maxTokens 耗尽且语法未终止时
+///   - `MLXGuidedGeneration/GuidedGenerationLoop.swift`. MaxTokens 耗尽且语法未终止时
 ///     `throw GuidedGenerationError.incompleteOutput` (emit 已流式输出, 部分文本在)。
 // anchor:mlx-swift-lm Libraries/MLXGuidedGeneration/GuidedGenerationLoop.swift:478 throw GuidedGenerationError.incompleteOutput
-///   - `MLXFoundationModels/MLXLanguageModel.swift` 的两处 `catch GuidedGenerationError.incompleteOutput` —
+///   - `MLXFoundationModels/MLXLanguageModel.swift` 的两处 `catch GuidedGenerationError.incompleteOutput`,
 // anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:1539 } catch GuidedGenerationError.incompleteOutput {
 ///     canonical 下游处理: `incomplete = true` 保留已产出,
 ///     照常收尾, **不 throw**; prematureEOS 不在吸收清单(上游只 catch incompleteOutput)。
-///   - `GuidedGenerationError.swift` (全文件 15 行) — 上游对该错误的原文
+///   - `GuidedGenerationError.swift` (全文件 15 行)。上游对该错误的原文
 ///     只描述结构: "Generation exhausted `maxTokens` before the grammar reached a stop state.
 ///     The output is incomplete"; `prematureEOS` :12-14 同样只声明 incomplete。上游 **不**在此
 ///     文件规定下游如何处理 ⇒ 吸收语义取自下面两条 emit 现场的实证, 不取自本文件。
@@ -307,7 +307,7 @@ func absorbGuidedGenerationPartialOutput(
 /// `max(structural×3, maxTokens÷4)` tokens before the budget, hard force starts
 /// `structural×8` before it. With a modest `max_tokens` that formula pushes
 /// `hardReserve` to or past the whole budget, so *every* sampled step runs in the
-/// force-closing zone — the opposite of what the zones are for (upstream's Soft/Hard-zone
+/// force-closing zone. The opposite of what the zones are for (upstream's Soft/Hard-zone
 /// comment block in `GuidedGenerationLoop.swift`: hard = the last `hardReserve` tokens,
 /// i.e. hard < completion).
 // anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:1122 structuralReserve * 3, maxTokens / 4)
@@ -317,8 +317,8 @@ func absorbGuidedGenerationPartialOutput(
 /// closed, `GuidedGenerationError.incompleteOutput`; 48 / 64 / 128 / unset →
 /// valid `{\n  "answer": 7\n}`.
 ///
-/// So: the hard zone may only cover the tail — `structuralReserve` tokens is
-/// exactly what closing the structure needs — and neither zone may exceed the
+/// So: the hard zone may only cover the tail, `structuralReserve` tokens is
+/// exactly what closing the structure needs, and neither zone may exceed the
 /// budget. Large budgets keep the upstream numbers untouched (4096 → 1024 / 7).
 func guidedCompletionReserves(
     maxTokens: Int, structuralReserve: Int
@@ -334,7 +334,7 @@ func guidedCompletionReserves(
 
 /// Wire-facing error message for the top-level `runInferenceBody` catch.
 ///
-/// Previously the message was a hard-coded `"inference failed"` — it discarded the
+/// Previously the message was a hard-coded `"inference failed"`. It discarded the
 /// concrete cause (a `GuidedGenerationError`, an OOM, a timeout), so clients could
 /// not distinguish a grammar exhaustion from a memory failure. This preserves the
 /// underlying `localizedDescription` while keeping the `Inference failed:` prefix
@@ -353,7 +353,7 @@ func inferenceTopLevelFailedMessage(for error: Error) -> String {
 /// user-role message. Perceptual context rides the USER turn, not system
 /// instructions (skill: perception injection = user message, not system).
 ///
-/// Pure/free — no `EnginePool` self, no shared state; the `makeImage`/`makeAudio`
+/// Pure/free, no `EnginePool` self, no shared state; the `makeImage`/`makeAudio`
 /// closures are injected so callers decide byte-decoding semantics (data-URL /
 /// EXIF / temp `.caf`). This keeps the attach logic independently testable
 /// without constructing a full inference actor.
@@ -361,7 +361,7 @@ func inferenceTopLevelFailedMessage(for error: Error) -> String {
 /// Returns the media-spool files this turn handed to the model. They are NOT the
 /// caller's to delete: the transcript the model received cites them, and upstream
 /// re-reads that transcript on every later turn of the conversation. The session pool
-/// releases them when the session that cites them dies — see ``MediaSpool``.
+/// releases them when the session that cites them dies. See ``MediaSpool``.
 /// Chat.Message is a Sendable struct with `var images`/`var audios`, so
 /// post-map mutation of the last user message is safe.
 func attachPerceptionMedia(
@@ -400,12 +400,12 @@ func attachPerceptionMedia(
 /// Convert a string that may be a data URL (`data:image/…;base64,…`) or a
 /// regular URL into an ``MLXLMCommon/UserInput/Image``.
 /// Data URLs are decoded to `CIImage`; remote/local URLs are passed through.
-/// Free function — does not capture `EnginePool` self (avoids Sendable taint in
+/// Free function. Does not capture `EnginePool` self (avoids Sendable taint in
 /// the inference body); independently testable (b4).
 func makeMLXImage(from urlString: String) -> MLXLMCommon.UserInput.Image? {
     // Handle data: URIs (camera/screen snapshots come as base64 data URLs)
     if urlString.hasPrefix("data:") {
-        // Use the LAST comma — base64 payload or URL-encoded data may contain commas
+        // Use the LAST comma. Base64 payload or URL-encoded data may contain commas
         if let lastComma = urlString.lastIndex(of: ",") {
             let base64Data = String(urlString[urlString.index(after: lastComma)...])
             guard let data = Data(base64Encoded: base64Data) else { return nil }
@@ -438,7 +438,7 @@ func makeMLXImage(from urlString: String) -> MLXLMCommon.UserInput.Image? {
 /// Data URLs are written to the media spool as `.caf`; remote/local URLs are passed
 /// through unchanged.
 ///
-/// Free function — returns `(audio, spooledURL)`. The spool URL is *not* a temp file:
+/// Free function. Returns `(audio, spooledURL)`. The spool URL is *not* a temp file:
 /// the conversation transcript cites it, and upstream re-reads that transcript on every
 /// later turn, so deleting it at request end poisoned the session (measured 10-16, see
 /// ``MediaSpool``). The caller hands it to the session pool, which owns its lifetime.
@@ -447,7 +447,7 @@ func makeMLXAudio(from urlString: String) -> (
 ) {
     // Handle data: URIs (recordings come as base64 data URLs)
     if urlString.hasPrefix("data:") {
-        // Use the LAST comma — base64 payload may contain commas
+        // Use the LAST comma. Base64 payload may contain commas
         guard let lastComma = urlString.lastIndex(of: ",") else { return (nil, nil) }
         let base64Data = String(urlString[urlString.index(after: lastComma)...])
         guard let data = Data(base64Encoded: base64Data) else { return (nil, nil) }
@@ -460,7 +460,7 @@ func makeMLXAudio(from urlString: String) -> (
         return (.url(spoolURL), spoolURL)
     }
 
-    // Fallback: regular URL (http, file, etc.) — no temp file created
+    // Fallback: regular URL (http, file, etc.), no temp file created
     if let url = URL(string: urlString) {
         return (.url(url), nil)
     }
@@ -472,15 +472,15 @@ func makeMLXAudio(from urlString: String) -> (
 /// regular URL into an ``MLXLMCommon/UserInput/Video``.
 /// Data URLs are written to the media spool as `.mp4` (AVAsset cannot read a data:
 /// URL); remote/local URLs are passed through unchanged.
-/// Mirror of ``makeMLXAudio(from:)`` — same data-URI contract, same
+/// Mirror of ``makeMLXAudio(from:)``. Same data-URI contract, same
 /// `(input, spooledURL)` shape, and the same lifetime rule: the spool file belongs to
 /// the conversation, not to this request.
 ///
 /// Why this exists: `URL(string: videoUrl)` → `.url(dataURL)` hands the data: URL to upstream
-/// `MediaProcessing.asProcessedSequence`, which wraps it in `AVAsset(url:)` — it
-/// cannot decode a data: URL — the video is silently dropped (zero video
+/// `MediaProcessing.asProcessedSequence`, which wraps it in `AVAsset(url:)`. It
+/// cannot decode a data: URL. The video is silently dropped (zero video
 /// tokens; the model answers boilerplate as if no video is present). Decoding
-/// to a real file makes the bytes reachable by AVFoundation — the same fix the audio
+/// to a real file makes the bytes reachable by AVFoundation. The same fix the audio
 /// path already had. Deleting that file when the request ended was the *next* defect in
 /// this same seam: the transcript outlived the bytes, and every later turn of the
 /// conversation failed to read it (measured 10-16; ``MediaSpool`` is the fix).

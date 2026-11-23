@@ -1,16 +1,16 @@
 // Copyright © 2026 uingei@163.com.
-/// ConfigRecovery.swift — Last-known-good config recovery (config corruption guard)
+/// ConfigRecovery.swift. Last-known-good config recovery (config corruption guard)
 ///
 /// Consume pattern from hermes-agent `de2d6a1b93` ("a fresh process recovers the
 /// last good config.yaml instead of running on defaults"): every successful
 /// parse leaves a `good` copy under `backups/config/`; a fresh process whose
 /// on-disk config is corrupt restores that copy instead of silently running on
-/// defaults — and never clobbers the user's file.
+/// defaults, and never clobbers the user's file.
 ///
 /// The flaw this guards against: `ConfigSystem.create()` running `saveDefault()` on
 /// ANY load failure (corrupt YAML, decode error, validation error) overwrites
-/// the user's `~/.ocoreai/config.yaml` — including their `safety:` approval
-/// rules and per-model settings — with `AppConfig()` defaults. Data loss, not
+/// the user's `~/.ocoreai/config.yaml`. Including their `safety:` approval
+/// rules and per-model settings, with `AppConfig()` defaults. Data loss, not
 /// degradation.
 ///
 /// Exact-value testable: all entry points take explicit paths (no NSHomeDirectory
@@ -42,7 +42,7 @@ enum ConfigRecovery {
     /// last-known-good location. Atomic write, file mode 0600, parents 0700.
     ///
     /// The good copy is **semantically verified BEFORE it is copied** (not
-    /// just byte-duplicated): `decode(at:)` — decode + `validate()` — must
+    /// just byte-duplicated): `decode(at:)`. Decode + `validate()`. Must
     /// succeed, otherwise the corrupt/invalid file is REJECTED and the
     /// previous good snapshot survives untouched. A plain raw byte copy is not
     /// a guard: a syntactically-parseable-but-invalid file (or a partially
@@ -51,7 +51,7 @@ enum ConfigRecovery {
     /// Callers: `ConfigSystem.load()` (startup), `ConfigSystem.save()` (after a
     /// round-trip-verified write), `ConfigSystem.saveDefault()` (first run).
     static func snapshotGood(fileAt path: String, logger: Logger) throws {
-        // Verification gate — decode + validation must both succeed before any
+        // Verification gate. Decode + validation must both succeed before any
         // byte of `path` is allowed to replace the last-known-good copy.
         // The decoded value is intentionally discarded: only throw-safety matters here.
         _ = try decode(at: path)
@@ -72,10 +72,10 @@ enum ConfigRecovery {
 
     /// Restore the last-known-good copy for a corrupt `path`.
     /// - Returns the decoded good config if the snapshot exists, decodes, and
-    ///   validates — leaving the corrupt file on disk untouched (inspectable,
+    ///   validates. Leaving the corrupt file on disk untouched (inspectable,
     ///   user can diff against the restored content).
     /// - Returns nil when no usable snapshot exists (fresh install, or the
-    ///   snapshot itself is corrupt) — caller decides (saveDefault, etc.).
+    ///   snapshot itself is corrupt). Caller decides (saveDefault, etc.).
     static func restoreLastGood(
         forCorruptFileAt path: String,
         logger: Logger
@@ -98,7 +98,7 @@ enum ConfigRecovery {
 
     /// After `save()` writes a new config, verify the on-disk file round-trips
     /// (decode + validate). Refreshes the good snapshot when it does.
-    /// Returns false when the round-trip fails — caller surfaces the failure;
+    /// Returns false when the round-trip fails. Caller surfaces the failure;
     /// the good snapshot is NOT updated from an unverified write.
     @discardableResult
     static func verifyAndSnapshot(

@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! LoRASampleDomain.swift — the wire rule for LoRA dataset samples: a sample that encodes
+//! LoRASampleDomain.swift. The wire rule for LoRA dataset samples: a sample that encodes
 //! to fewer than two tokens is a refusal, never a crash.
 //!
 //! ### Why this exists (AGENTS.md: no wire value may own the process)
 //! LoRA predicts every token from the ones before it, so a batch whose longest sample is a
 //! single token has nothing to predict: upstream shapes its targets at `maxLength - 1`, i.e.
-//! zero, and mlx traps deep inside the core — the same family as `{"max_tokens":-5}` taking
+//! zero, and mlx traps deep inside the core. The same family as `{"max_tokens":-5}` taking
 //! the whole box down on 10-17. mlx-swift-lm #683 (upstream `bb0d5b0`, 10-20) added a
 //! pre-flight to `LoRATrain.train`; `LoRATrain.evaluate` is still unguarded at that
 //! revision, and ocoreai puts **both** on the wire (`POST /v1/models/train`,
@@ -19,8 +19,8 @@
 //! `AppError.invalidParameter` so the body carries `error.param` naming the exact element.
 //!
 //! ### Measured, not assumed
-//! The token count comes from the caller's tokenizer — the same `Tokenizer` the batch
-//! iterator will use — never from `TokenEstimate`: a heuristic must not decide whether an
+//! The token count comes from the caller's tokenizer. The same `Tokenizer` the batch
+//! iterator will use. Never from `TokenEstimate`: a heuristic must not decide whether an
 //! accepted request survives its own engine (invariant 2: the surface promises what the
 //! engine delivers).
 

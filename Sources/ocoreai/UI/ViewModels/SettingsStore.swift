@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SettingsStore — UserDefaults persistence for UI settings.
+/// SettingsStore. UserDefaults persistence for UI settings.
 ///
 /// Systematic: typed accessor so SettingsState
 /// reads/writes are always in sync with disk.
@@ -37,7 +37,7 @@ final class SettingsStore {
     var pollIntervalSec: Int {
         get {
             let val = defaults.integer(forKey: Key.pollIntervalSec.rawValue)
-            // UserDefaults.integer returns 0 when key missing — clamp to default
+            // UserDefaults.integer returns 0 when key missing. Clamp to default
             return max(1, min(val, 10))
         }
         set { defaults.set(clampedInterval(newValue), forKey: Key.pollIntervalSec.rawValue) }
@@ -80,7 +80,7 @@ final class SettingsStore {
     }
 
     /// Chat per-turn performance telemetry (tok/s, TTFT, reasoning/MTP token
-    /// meters). Consumer-facing default is OFF — the answer is the product,
+    /// meters). Consumer-facing default is OFF. The answer is the product,
     /// "how many liters of air" is an owner knob, not the default screen.
     /// `Bool` reads default to `false` for an untouched key, which is exactly
     /// the desired consumer default (no IsSet bookkeeping needed).
@@ -93,12 +93,12 @@ final class SettingsStore {
     /// and model downloads. Opt-in relay for networks where huggingface.co
     /// is unreachable (startup probe: `ocoreai.startup` live evidence).
     /// Blobs are byte-identical (HF's own mirror) but served by a third
-    /// party — provenance trust stays a user decision, default OFF.
+    /// party. Provenance trust stays a user decision, default OFF.
     var useHFMirror: Bool {
         get { defaults.bool(forKey: Key.useHFMirror.rawValue) }
         set {
             defaults.set(newValue, forKey: Key.useHFMirror.rawValue)
-            // Process-wide lever for the macro/MLX download paths — routed
+            // Process-wide lever for the macro/MLX download paths. Routed
             // through HFMirrorPolicy so an explicit HF_ENDPOINT env var is NOT
             // clobbered by the GUI toggle (env wins; the live status row says so).
             // The persisted Bool is what every startup entry re-applies, so the
@@ -111,7 +111,7 @@ final class SettingsStore {
     /// Honest-surface probe (HIG visibility-of-status): the endpoint the
     /// download paths actually hit RIGHT NOW and which lever owns it. The
     /// Settings view renders this and disables the mirror Toggle exactly when
-    /// `lockedByEnvironment` — the same single criterion tests pin. Resolves
+    /// `lockedByEnvironment`. The same single criterion tests pin. Resolves
     /// against this store's own suite (not `.standard`) so tests and runtime
     /// share one truth.
     var hfEndpointDecision: HFMirrorPolicy.EndpointDecision {
@@ -156,7 +156,7 @@ final class SettingsStore {
     /// Hardware routing policy ("balanced" | "performance" | "efficiency").
     /// The setter whitelists against `RoutingPolicy`, so a tampered key can
     /// never inject an invalid policy. `routingPolicyIsSet` distinguishes
-    /// "user chose" from "never touched" — the startup bridge keeps the
+    /// "user chose" from "never touched". The startup bridge keeps the
     /// authored YAML value in the latter case.
     var routingPolicy: String {
         get { defaults.string(forKey: Key.routingPolicy.rawValue) ?? "balanced" }
@@ -250,7 +250,7 @@ final class SettingsStore {
         set { defaults.set(newValue.rawValue, forKey: Key.appThemeMode.rawValue) }
     }
 
-    /// User's custom system prompt — injected into the system prompt chain
+    /// User's custom system prompt. Injected into the system prompt chain
     /// with highest priority in MessageBuilderContext.userSystemPrompt.
     var customSystemPrompt: String {
         get { defaults.string(forKey: Key.customSystemPrompt.rawValue) ?? "" }
@@ -277,7 +277,7 @@ final class SettingsStore {
             {
                 defaults.set(expanded, forKey: Key.workspaceDirectory.rawValue)
             }
-            // Non-directory write is rejected — keeps configuredDirectory() honest.
+            // Non-directory write is rejected. Keeps configuredDirectory() honest.
         }
     }
 
@@ -302,7 +302,7 @@ final class SettingsStore {
     }
 
     /// Network quality channel (RTT/quality into every inference context).
-    /// Defaults ON — matching shipped behavior since day one — but now it is
+    /// Defaults ON. Matching shipped behavior since day one, but now it is
     /// an honest lever: `PerceptionEngine.start()` no longer overwrites it.
     /// `object(forKey:) == nil` distinguishes "never asked" (true) from
     /// "user said no" (false), which bare `bool(forKey:)` cannot.
@@ -327,7 +327,7 @@ final class SettingsStore {
         set { defaults.set(newValue, forKey: Key.perceptionSpeakerEnabled.rawValue) }
     }
 
-    /// Audio (ambient speech) channel — continuous STT transcript stream
+    /// Audio (ambient speech) channel. Continuous STT transcript stream
     var perceptionAudioEnabled: Bool {
         get { defaults.bool(forKey: Key.perceptionAudioEnabled.rawValue) }
         set { defaults.set(newValue, forKey: Key.perceptionAudioEnabled.rawValue) }
@@ -345,7 +345,7 @@ final class SettingsStore {
     // MARK: - Voice Feedback (L1 Personal Voice)
 
     /// Speak replies with the USER'S OWN VOICE (Personal Voice TTS, L1 of the
-    /// audio ladder — floor macOS 14 / iOS 17 = all eight target versions).
+    /// audio ladder. Floor macOS 14 / iOS 17 = all eight target versions).
     /// Live availability is gated by the System-Settings authorization.
     var enablePersonalVoice: Bool {
         get { defaults.bool(forKey: Key.enablePersonalVoice.rawValue) }
@@ -371,7 +371,7 @@ final class SettingsStore {
     /// **Single source of truth across entry points** (GUI app + bare
     /// CLI/headless): the legacy store was `UserDefaults.standard`, which
     /// resolves to a different domain per surface (GUI app bundle
-    /// `com.ocoreai.ocoreai` vs. bare executable `ocoreai`) — live-verified
+    /// `com.ocoreai.ocoreai` vs. bare executable `ocoreai`). Live-verified
     /// 2026-09-18: GUI said `interactive`, CLI said `auto`. Resolution order
     /// is now: `~/.ocoreai/config.yaml → agent.approvalPolicy` (shared home =
     /// shared file), then the legacy UserDefaults value, then `interactive`.
@@ -388,9 +388,9 @@ final class SettingsStore {
     // MARK: Unified approval-policy resolution (yaml first, legacy fallback)
 
     /// Resolve the effective policy, in single-source order:
-    ///   1. `~/.ocoreai/config.yaml → agent.approvalPolicy` — the authored
+    ///   1. `~/.ocoreai/config.yaml → agent.approvalPolicy`. The authored
     ///      single source (insurable, headless-editable, 12-factor);
-    ///   2. the **GUI bundle domain** legacy value — the owner faces the
+    ///   2. the **GUI bundle domain** legacy value. The owner faces the
     ///      product through the GUI, so its stored choice is the authority
     ///      that a headless/CLI surface must adopt (a bare CLI's own domain
     ///      otherwise wins and the GUI's choice is silently dropped);
@@ -400,7 +400,7 @@ final class SettingsStore {
     /// Precedence is per-value, not per-domain: a valid value found earlier
     /// wins even if a later domain also has one.
     static func approvalPolicyUnified(defaults: UserDefaults) -> String {
-        // Env override — top of the chain (env > yaml > GUI domain > own domain),
+        // Env override. Top of the chain (env > yaml > GUI domain > own domain),
         // same precedence convention as OCOREAI_PORT / OCOREAI_ENABLE_HTTP.
         // Lets live/CI testing override policy without touching the owner's
         // ~/.ocoreai/config.yaml (previously the only knob forced edit+restore).
@@ -429,7 +429,7 @@ final class SettingsStore {
         return "interactive"
     }
 
-    /// The product GUI app's bundle id — read as the authority legacy domain
+    /// The product GUI app's bundle id. Read as the authority legacy domain
     /// for approval policy so a headless/CLI surface adopts the owner's GUI
     /// choice rather than its own (previously the two diverged, live-verified
     /// 2026-09-18: GUI domain `interactive`, CLI domain `auto`).
@@ -438,16 +438,16 @@ final class SettingsStore {
     static func guiDomainName() -> String { testsGuiDomainOverride ?? guiBundleID }
 
     /// Read `agent.approvalPolicy` from `~/.ocoreai/config.yaml`. Returns nil
-    /// when the file or key is absent. Never throws — a settings read must
+    /// when the file or key is absent. Never throws. A settings read must
     /// not cascade into a parse failure.
     ///
     /// Lenient single-key decode: this tier is the **authored single source**
-    /// for one scalar (`agent.approvalPolicy`), 12-factor style — the owner
+    /// for one scalar (`agent.approvalPolicy`), 12-factor style. The owner
     /// may author a minimal config.yaml containing only that block. Decoding
     /// the whole `AppConfig` here would be wrong: its sibling sub-structs
     /// (`server`/`backend`/`memory`/…) use strict synthesized `Codable`, so a
     /// minimal hand-authored document fails `DecodingError` and this tier
-    /// would silently nil — silently dropping the owner's explicit choice
+    /// would silently nil. Silently dropping the owner's explicit choice
     /// (live-verified 2026-09-18: minimal `agent:`-only yaml resolved to the
     /// GUI-domain `interactive` instead of the authored `auto`). The whole
     /// config is strictly validated exactly where the whole config matters:
@@ -526,7 +526,7 @@ final class SettingsStore {
 
     // MARK: - Hub Tokens
 
-    /// HuggingFace token — env var HF_TOKEN takes precedence, then UserDefaults (persisted form).
+    /// HuggingFace token. Env var HF_TOKEN takes precedence, then UserDefaults (persisted form).
     /// Note: env-first mirrors upstream mlx-swift-lm / coreai-models (no keychain token storage).
     var hfToken: String? {
         get {
@@ -542,7 +542,7 @@ final class SettingsStore {
         }
     }
 
-    /// ModelScope token — env var MODELSCOPE_TOKEN takes precedence, then UserDefaults (persisted form).
+    /// ModelScope token. Env var MODELSCOPE_TOKEN takes precedence, then UserDefaults (persisted form).
     /// Note: env-first mirrors upstream mlx-swift-lm / coreai-models (no keychain token storage).
     var modelScopeToken: String? {
         get {
@@ -559,7 +559,7 @@ final class SettingsStore {
         }
     }
 
-    /// Masked version for UI display — shows first/last 2 chars if set
+    /// Masked version for UI display. Shows first/last 2 chars if set
     var hfTokenMasked: String {
         guard let token = hfToken, token.count > 4 else { return "" }
         return String(token.prefix(2)) + "••••" + String(token.suffix(2))
@@ -603,7 +603,7 @@ final class SettingsStore {
     ///
     /// **Legacy-key fallback**: GUI 早期版本按带来源前缀的 id
     /// (``mscope:org/name`` / ``hf:org/name``)存 key,canonical 去重后
-    /// 统一读 bare key —— 老用户的自定义参数必须仍可读。
+    /// 统一读 bare key。老用户的自定义参数必须仍可读。
     /// 命中 legacy key 时**自动重写回 bare key** 并清除旧 key,一次性迁移。
     func loadSamplingConfig(for modelId: String) -> ModelSamplingConfig {
         let decoded: (Data) -> ModelSamplingConfig = {

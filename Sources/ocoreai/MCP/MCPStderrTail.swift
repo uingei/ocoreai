@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! MCPStderrTail.swift — the last few lines an external MCP server wrote to stderr.
+//! MCPStderrTail.swift. The last few lines an external MCP server wrote to stderr.
 //!
 //! ### What was wrong (found 10-21)
 //! `MCPStdioClient.launchProcess` set `proc.standardError = nil`, i.e. Foundation pointed the
-//! child's stderr at /dev/null. Everything that stream would have named — the Python
-//! `ModuleNotFoundError`, the Node `MODULE_NOT_FOUND`, the `bind: address already in use` —
+//! child's stderr at /dev/null. Everything that stream would have named. The Python
+//! `ModuleNotFoundError`, the Node `MODULE_NOT_FOUND`, the `bind: address already in use`,
 //! was thrown away. So a server that dies on startup was reported as
 //! "MCP server process exited with status 1" and one that never answered as
 //! "did not answer within 30s". Both sentences are true, neither is a diagnosis, and the
@@ -87,7 +87,7 @@ final class MCPStderrTail: @unchecked Sendable {
         return lines.count
     }
 
-    /// 折进诊断的文本；**没有证据就返回 `nil`**——不许编造一段"大概是因为"。
+    /// 折进诊断的文本；**没有证据就返回 `nil`**。不许编造一段"大概是因为"。
     func snapshot() -> String? {
         lock.lock()
         defer { lock.unlock() }

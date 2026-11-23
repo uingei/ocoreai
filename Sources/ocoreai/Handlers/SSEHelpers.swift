@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SSEHelpers.swift — Shared SSE yield utilities
+/// SSEHelpers.swift. Shared SSE yield utilities
 ///
 /// Eliminates the repeat pattern: JSONEncoder().encode → String → Data → ByteBuffer → yield
 /// that appeared 5+ times across ChatHandler and AnthropicMessagesHandler.
@@ -11,14 +11,14 @@ import Hummingbird
 
 // MARK: - SSE Wire Contract
 
-/// OpenAI-compatible SSE stream terminator — the **single source of truth**.
+/// OpenAI-compatible SSE stream terminator. The **single source of truth**.
 ///
 /// Emitters (ChatHandler, CompletionsHandler) and consumers (swift-huggingface
 /// `HTTPClient.swift` trims and compares `== SSE.doneMarker`) all depend on this
 /// exact string. Case is part of the contract: consumers compare **case-sensitively**
 /// (`swift-huggingface` does `eventData == "[DONE]"`), so a lowercase variant would
 /// silently hang or misparse any upstream client. Defined once and referenced
-/// everywhere — never re-type the literal at an emission site.
+/// everywhere. Never re-type the literal at an emission site.
 enum SSE {
     /// The exact terminator token yielded as the final raw SSE event.
     static let doneMarker = "[DONE]"

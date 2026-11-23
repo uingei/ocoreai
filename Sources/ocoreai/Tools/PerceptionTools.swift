@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// perception namespace — 「Computer = AI 的感知环境」的 agent 自查询面:
+/// perception namespace。「Computer = AI 的感知环境」的 agent 自查询面:
 ///
 ///   observe_state   无参, 报告 PerceptionEngine 各通道(screen/camera/audio/network/
 ///                   environment/system/speaker)的最新观察值 + 新鲜度(秒龄)。
@@ -8,10 +8,10 @@
 ///
 /// 定位: 感知管线 (sensors → PerceptionBuffer(RingBuffer+TTL+budget) → 推理注入)
 /// 已在 UI 侧接通(每轮 tool loop 经 systemInstructions 注入)。agent 面缺的是
-/// 「主动查询」入口——模型按当前任务主动问「现在环境是什么样」, 不依赖被动注入,
+/// 「主动查询」入口。模型按当前任务主动问「现在环境是什么样」, 不依赖被动注入,
 /// 也不重复采集(本工具是只读观察, 对 sensor 零副作用)。
 ///
-/// 真值源 = PerceptionEngine.shared.buffer —— 与 UI 注入路径同一实例、同一环形缓冲,
+/// 真值源 = PerceptionEngine.shared.buffer。与 UI 注入路径同一实例、同一环形缓冲,
 /// 工具读快照不改任何 sensor 状态。
 import Foundation
 
@@ -33,7 +33,7 @@ enum PerceptionObserve {
     /// 预览截断上限(300 字符 ≈ ~75 token, 防单帧刷爆 budget 硬上限的语义上限)。
     static let maxPreviewChars = 300
     /// stale 判定阈值 = PerceptionBudget.default.maxAgeSeconds(30s):
-    /// 超龄观察值仍报告(标 stale), 不隐藏——宁可「30 秒前的真相 + 新鲜度」, 不可无。
+    /// 超龄观察值仍报告(标 stale), 不隐藏。宁可「30 秒前的真相 + 新鲜度」, 不可无。
     static let staleThresholdSeconds: Int = Int(PerceptionBudget.default.maxAgeSeconds)
 
     /// 稳定通道序 = PerceptionChannel.allCases 声明序(输出确定性, 可精确断言)。
@@ -62,7 +62,7 @@ enum PerceptionObserve {
         return Report(channels: channels, staleCount: stale)
     }
 
-    /// 300 字符硬截断(边界精确: ≤300 原样; >300 截到 300 并标出丢了多少 —— 一个无声的窗口
+    /// 300 字符硬截断(边界精确: ≤300 原样; >300 截到 300 并标出丢了多少。一个无声的窗口
     /// 让读它的人以为看完了整帧)。Cut count travels with the window, as in
     /// `FileTools.resultTally` and `DirectSearchOutcome.report`.
     static func clip(_ s: String) -> String {
@@ -112,7 +112,7 @@ enum ObserveStateClient {
 
     struct Args: Codable, Sendable {}
 
-    /// 生产路径: 读 PerceptionEngine 快照(@MainActor — 跨 actor 必 await).
+    /// 生产路径: 读 PerceptionEngine 快照(@MainActor。跨 actor 必 await).
     static func runForTool() async -> String {
         let frames = await MainActor.run { PerceptionEngine.shared.snapshot() }
         return PerceptionObserve.render(frames: frames, now: Date())

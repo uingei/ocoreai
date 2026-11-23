@@ -1,9 +1,9 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ConfigStruct.swift — Configuration data model with validation
+/// ConfigStruct.swift. Configuration data model with validation
 ///
 /// Declarative config schema backed by `Codable` + `Sendable`.
-/// All sensitive fields use `.env(name)` — never plaintext.
+/// All sensitive fields use `.env(name)`. Never plaintext.
 ///
 /// File location: `~/.ocoreai/config.yaml`
 
@@ -54,7 +54,7 @@ public func decodeVerifiedConfig(from data: Data) throws -> AppConfig {
     return try YAMLDecoder().decode(AppConfig.self, from: data)
 }
 
-/// Root configuration structure — decoded from YAML, written back on change.
+/// Root configuration structure. Decoded from YAML, written back on change.
 public struct AppConfig: Sendable, Codable, Equatable {
     public var backend: BackendConfig
     public var models: [String: ModelConfigEntry]
@@ -79,7 +79,7 @@ public struct AppConfig: Sendable, Codable, Equatable {
         self.agent = agent
     }
 
-    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
+    // MARK: Codable. Lenient (12-factor partial yaml: owner keys win, rest default)
     /// Partial hand-authored files decode with owner keys honored and
     /// un-written keys defaulted (behavior-superset: full files decode identically).
     public init(from decoder: Decoder) throws {
@@ -108,7 +108,7 @@ public struct AppConfig: Sendable, Codable, Equatable {
         case backend, models, memory, metrics, safety, agent
     }
 
-    /// Run validation — throws on invalid config.
+    /// Run validation. Throws on invalid config.
     public func validate() throws {
         try backend.validate()
         try memory.validate()
@@ -119,7 +119,7 @@ public struct AppConfig: Sendable, Codable, Equatable {
 
 // MARK: - Safety Config
 
-/// Content safety configuration — an OPTIONAL owner-facing filter.
+/// Content safety configuration. An OPTIONAL owner-facing filter.
 ///
 /// Stored in `~/.ocoreai/config.yaml` under the `safety:` key.
 ///
@@ -128,9 +128,9 @@ public struct AppConfig: Sendable, Codable, Equatable {
 /// honesty), NOT human-preference alignment. A keyword wall is a human-preference
 /// filter, so it is **opt-in and OFF by default**: it must never gate legitimate
 /// work (engineering synthesis, security research, etc.). When the owner opts in,
-/// they have full authority over every category — **no category is non-negotiable**.
+/// they have full authority over every category. **no category is non-negotiable**.
 public struct SafetyConfig: Sendable, Codable, Equatable {
-    /// Master toggle. Default is **off** — the system defaults to letting requests
+    /// Master toggle. Default is **off**. The system defaults to letting requests
     /// through (maximum truth-seeking) and only filters when the owner opts in.
     public var enabled: Bool
 
@@ -162,7 +162,7 @@ public struct SafetyConfig: Sendable, Codable, Equatable {
         self.logRedaction = logRedaction
     }
 
-    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
+    // MARK: Codable. Lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -190,7 +190,7 @@ public struct SafetyConfig: Sendable, Codable, Equatable {
 
     func validate() throws {
         // No category is non-negotiable. When the (opt-in) filter is enabled the
-        // owner has full authority over which categories are active — disabling any
+        // owner has full authority over which categories are active. Disabling any
         // is allowed. This encodes the standing principle: default is maximum
         // truth-seeking/curiosity, not a hardcoded human-preference wall.
     }
@@ -202,7 +202,7 @@ public struct SafetyConfig: Sendable, Codable, Equatable {
 /// surfaces: GUI app + bare CLI/headless).
 ///
 /// Stored in `~/.ocoreai/config.yaml` under the `agent:` key so the policy is
-/// a **single source of truth** across entry points — previously it lived in
+/// a **single source of truth** across entry points. Previously it lived in
 /// `UserDefaults.standard`, which resolves to a DIFFERENT domain per surface
 /// (GUI app bundle vs. bare executable), so a GUI choice silently did not
 /// apply to the CLI/headless path and vice versa (live-verified 2026-09-18:
@@ -223,10 +223,10 @@ public struct AgentConfig: Sendable, Codable, Equatable {
         self.approvalPolicy = approvalPolicy
     }
 
-    // MARK: Codable — backward compatible: old config.yaml files lack the
+    // MARK: Codable. Backward compatible: old config.yaml files lack the
     // `agent:` key entirely; decode must default, not fail the whole config
     // (a decode failure in `ConfigSystem.load` falls back to recovery /
-    // defaults generation and silently drops the user's file — the last-known
+    // defaults generation and silently drops the user's file. The last-known
     // good copy is the only survivor, so decode robustness matters).
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -260,14 +260,14 @@ public struct AgentConfig: Sendable, Codable, Equatable {
 ///
 /// On Apple Silicon UMA, wired memory prevents the GPU from paging out
 /// model weights and activations when the system is under memory pressure.
-/// This is Layer 0 — the hardware-level protection below OOMGuard.
+/// This is Layer 0. The hardware-level protection below OOMGuard.
 ///
 /// See upstream: references/mlx-swift-lm/Libraries/MLXLMCommon/WiredMemoryPolicies.swift
 /// and references/mlx-swift-lm/Libraries/MLXLMCommon/WiredMemoryUtils.swift
 public struct WiredMemoryConfig: Sendable, Codable, Equatable {
-    /// Master toggle — disabled means wired memory is not applied per-request.
+    /// Master toggle. Disabled means wired memory is not applied per-request.
     public var enabled: Bool
-    /// Policy type — "max" (peak ticket), "sum" (aggregate tickets),
+    /// Policy type. "max" (peak ticket), "sum" (aggregate tickets),
     /// "budget" (baseline + base + sum), or "fixed" (constant cap).
     /// Aligns with upstream WiredMemoryPolicies.swift (4 policies).
     public var policy: String
@@ -299,7 +299,7 @@ public struct WiredMemoryConfig: Sendable, Codable, Equatable {
         self.fixedLimit = fixedLimit
     }
 
-    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
+    // MARK: Codable. Lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -330,14 +330,14 @@ public struct WiredMemoryConfig: Sendable, Codable, Equatable {
 /// Speculative decoding configuration.
 ///
 /// When enabled, a smaller draft model proposes candidate tokens that the
-/// main model verifies in a single forward pass — significant TTFT and
+/// main model verifies in a single forward pass. Significant TTFT and
 /// throughput speedup with zero quality degradation.
 ///
-/// For MTP models (Qwen3.5, Gemma4), use `mode: "mtp"` — the main model's
+/// For MTP models (Qwen3.5, Gemma4), use `mode: "mtp"`. The main model's
 /// built-in MTP layers act as the drafter, no separate draft model needed.
 /// For non-MTP models, use `mode: "traditional"` with a smaller `draftModelId`.
 public struct SpecDecodingConfig: Sendable, Codable, Equatable {
-    /// Master toggle — disabled means speculative decoding is off.
+    /// Master toggle. Disabled means speculative decoding is off.
     public var enabled: Bool
     /// Mode: "mtp" (main model's MTP layers as drafter) or "traditional"
     /// (separate draft model).
@@ -366,7 +366,7 @@ public struct SpecDecodingConfig: Sendable, Codable, Equatable {
         self.memoryPolicy = memoryPolicy
     }
 
-    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
+    // MARK: Codable. Lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -395,7 +395,7 @@ public struct SpecDecodingConfig: Sendable, Codable, Equatable {
             throw ConfigValidationError(
                 "backend.specDecoding.mode: must be 'mtp' or 'traditional' (got '\(mode)')")
         }
-        // NOTE: draftModelId is optional — when nil, runtime uses the main model
+        // NOTE: draftModelId is optional, when nil, runtime uses the main model
         // as the drafter (self-speculation). createSpeculativeConfig() logs a warning
         // and falls back to mlxModelHandle at inference time.
     }
@@ -403,7 +403,7 @@ public struct SpecDecodingConfig: Sendable, Codable, Equatable {
 
 /// Pure overlay of UI specDecoding selections onto an authored config.
 /// `uiEnabled` / `uiMode` are `nil` when the user never touched the matching
-/// UI control (UserDefaults key absent) — that dimension keeps the authored value.
+/// UI control (UserDefaults key absent), that dimension keeps the authored value.
 /// When a value is present it takes precedence over the authored one in that dimension.
 /// Kept pure so the merge semantics are exact-value testable (cf. pureMTPDrafterSelection).
 func pureSpecDecodingUIOverlay(
@@ -421,10 +421,10 @@ func pureSpecDecodingUIOverlay(
 
 /// Pure overlay of the UI routing-policy selection onto the authored
 /// `backend.routingPolicy`. `nil` means the user never touched the control
-/// (UserDefaults key absent) — the authored YAML value is kept. When a value is
+/// (UserDefaults key absent). The authored YAML value is kept. When a value is
 /// present it takes precedence (the operator's explicit intent). Applied once at
 /// startup, before the `HardwareRouter` is constructed (its `policy` is a `let`
-/// — no hot-swap). Kept pure so the merge semantics are exact-value testable
+///, no hot-swap). Kept pure so the merge semantics are exact-value testable
 /// (cf. `pureSpecDecodingUIOverlay`, `pureKVQuantUIOverlay`).
 func pureRoutingPolicyUIOverlay(
     config: inout BackendConfig,
@@ -437,7 +437,7 @@ func pureRoutingPolicyUIOverlay(
 
 /// Merge an explicit UI KV-quantization choice into the authored backend
 /// config. A `nil` dimension means the user did not touch that control
-/// (UserDefaults key absent) — that dimension keeps the authored value.
+/// (UserDefaults key absent), that dimension keeps the authored value.
 ///
 /// When `uiBits` is present it also pins `kvScheme` to the matching affine
 /// width: the engine's scheme-first resolver (MLXBridge `makeKVCacheConfiguration`)
@@ -505,7 +505,7 @@ public struct BackendConfig: Sendable, Codable, Equatable {
         self.routingPolicy = routingPolicy
     }
 
-    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
+    // MARK: Codable. Lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -573,7 +573,7 @@ public struct BackendConfig: Sendable, Codable, Equatable {
 // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:172 public var quantizedKVStart
 // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:197 public var kvScheme
 public struct KVCacheQuantizationConfig: Sendable, Codable, Equatable {
-    /// Master toggle — enabled means KV cache quantization is active.
+    /// Master toggle. Enabled means KV cache quantization is active.
     public var enabled: Bool
     /// Quantization bits: 4 (most aggressive) or 8 (conservative). nil = disabled.
     public var bits: Int?
@@ -583,7 +583,7 @@ public struct KVCacheQuantizationConfig: Sendable, Codable, Equatable {
     /// 0 means quantize immediately; higher values keep early context in FP16 for accuracy.
     public var quantizedKVStart: Int
     /// Optional compression scheme string (e.g. "affine4", "affine8").
-    /// When set, overrides kvBits — see upstream Evaluate.swift:197.
+    /// When set, overrides kvBits. See upstream Evaluate.swift:197.
     public var kvScheme: String?
 
     public static let `default` = KVCacheQuantizationConfig(
@@ -608,7 +608,7 @@ public struct KVCacheQuantizationConfig: Sendable, Codable, Equatable {
         self.kvScheme = kvScheme
     }
 
-    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
+    // MARK: Codable. Lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -776,7 +776,7 @@ public struct ModelConfigEntry: Sendable, Codable, Equatable {
         self.maxSessionTokens = maxSessionTokens
     }
 
-    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
+    // MARK: Codable. Lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.defaultEntry
@@ -808,7 +808,7 @@ public struct ModelConfigEntry: Sendable, Codable, Equatable {
 /// When set, this takes precedence over individual topP/topK fields
 /// (explicit-zero-wins semantics: greedy → temperature 0, ignores filters).
 public enum SamplingMode: Sendable, Codable, Equatable {
-    /// Deterministic decoding — always pick the most likely token.
+    /// Deterministic decoding. Always pick the most likely token.
     case greedy
     /// Nucleus (top-p) sampling. Value is the probability cutoff (0-1).
     case nucleus(Double)
@@ -831,7 +831,7 @@ public struct SamplingConfig: Sendable, Codable, Equatable {
     public var presencePenalty: Double?
     public var frequencyPenalty: Double?
     public var seed: Int64?
-    /// Prefill config — stepSize (ceiling per forward), chunking (division strategy).
+    /// Prefill config. StepSize (ceiling per forward), chunking (division strategy).
     /// Aligns with upstream PrefillParameters (Evaluate.swift L58).
     public var prefill: PrefillConfig = .default
     /// Max KV cache size (enables RotatingKVCache when set)
@@ -883,7 +883,7 @@ public struct SamplingConfig: Sendable, Codable, Equatable {
         self.stopSequences = stopSequences
     }
 
-    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
+    // MARK: Codable. Lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -962,7 +962,7 @@ public struct MemoryConfig: Sendable, Codable, Equatable {
         self.vectorDim = vectorDim
     }
 
-    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
+    // MARK: Codable. Lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -1020,7 +1020,7 @@ public struct MetricsConfig: Sendable, Codable, Equatable {
         self.retentionDays = retentionDays
     }
 
-    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
+    // MARK: Codable. Lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default

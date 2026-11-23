@@ -1,6 +1,6 @@
 // Copyright 2026 uingei@163.com.
 // Licensed under MIT.
-/// InternetSensor — lightweight internet content awareness
+/// InternetSensor. Lightweight internet content awareness
 ///
 /// Polls RSS feed summaries for environmental context injection.
 /// Respects connection quality to avoid unnecessary data drain.

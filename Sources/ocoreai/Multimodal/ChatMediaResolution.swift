@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// ChatMediaResolution.swift — a media part the client *named* but this process cannot
+// ChatMediaResolution.swift. A media part the client *named* but this process cannot
 // open must be refused by name, never answered as an opaque server error.
 //
 // ### Why
@@ -11,24 +11,24 @@
 //     500 {"message":"Generation failed: Inference failed: The operation could not be
 //          completed","type":"app_error","code":500}
 //
-// — measured 10-16 while chasing a different defect. That message names neither the axis
+// Measured 10-16 while chasing a different defect. That message names neither the axis
 // (media), nor the part (video), nor the file, and its status blames the service for what
 // was a missing file. The repo already refuses on this standard elsewhere: bad bytes get
 // `invalid_audio` + `remediation` (`AppError`), and a conversation that cannot be heard
 // gets `speech_denied` before any engine handle is touched (`ChatAudioIngestion`). Media
-// references had no equivalent, so this file adds one — checked in the handler, before
+// references had no equivalent, so this file adds one. Checked in the handler, before
 // scheduling, for exactly the reason the audio guard is there: a request this box cannot
 // satisfy should not reserve the resources to fail at.
 //
 // ### What counts as unresolvable
 // Only references the client gave as a *path*: `file://…` and bare filesystem paths.
 // `data:` URLs carry their bytes inline (nothing to open here), and `http(s)://` media is
-// upstream's to fetch — refusing it would break a working path, so it stays untouched.
+// upstream's to fetch. Refusing it would break a working path, so it stays untouched.
 //
 // Two origins, two statuses, because they blame different parties:
-//   • `.clientPath` — a path the request named that does not exist → 400 `media_unresolvable`
+//  • `.clientPath`. A path the request named that does not exist → 400 `media_unresolvable`
 //     with the part type and the path, so the caller can fix the payload;
-//   • `.spool` — a path this server wrote into its own ``MediaSpool`` and can no longer
+//  • `.spool`. A path this server wrote into its own ``MediaSpool`` and can no longer
 //     read → 500 `media_lost`, naming it as ours. A conversation transcript can outlive a
 //     careless sweep, and when it does, "the operation could not be completed" is not an
 //     acceptable answer for a byte-loss this server caused.
@@ -69,7 +69,7 @@ enum ChatMedia {
 
     /// Every media part in the conversation, in wire order.
     ///
-    /// Pure over the wire DTO: no engine, no filesystem — the extraction both the refusal
+    /// Pure over the wire DTO: no engine, no filesystem. The extraction both the refusal
     /// and any future disclosure key off, so they cannot disagree about what arrived.
     static func mediaParts(
         in messages: [Message]
@@ -103,7 +103,7 @@ enum ChatMedia {
         if trimmed.hasPrefix("file://"), let url = URL(string: trimmed) {
             return (url.path, false)
         }
-        // Bare absolute path (`/tmp/clip.mp4`) — the spelling a local client writes when
+        // Bare absolute path (`/tmp/clip.mp4`). The spelling a local client writes when
         // it forgets the scheme. Relative paths are refused too: this server has no
         // documented working-directory contract, so "it resolved somewhere else" is not an
         // answer a client could act on.
@@ -134,7 +134,7 @@ enum ChatMedia {
         }
     }
 
-    /// Which parts name an attachment this server has no shape for at all —
+    /// Which parts name an attachment this server has no shape for at all,
     /// `{"type":"file",…}`, an `image_url` with no payload, an unknown part
     /// type. Distinct from ``unresolvable(in:spoolDirectory:fileExists:)``,
     /// which is about a *reference* that exists but cannot be opened: here the
@@ -144,9 +144,9 @@ enum ChatMedia {
     /// and a blind answer.
     ///
     /// Pure over the wire DTO, and the indices are for the client's own field
-    /// path — a refusal that cannot be pointed at is a riddle.
+    /// path. A refusal that cannot be pointed at is a riddle.
     ///
-    /// Gate: `ContentPartCarriageTests` (both directions — what is refused, and what must
+    /// Gate: `ContentPartCarriageTests` (both directions. What is refused, and what must
     /// never be) and probe 47, which decides the same contract against a live server.
     static func uncarried(
         in messages: [Message]

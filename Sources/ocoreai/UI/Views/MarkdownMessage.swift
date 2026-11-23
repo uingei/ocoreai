@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MarkdownMessage — renders chat message content with code block support.
+/// MarkdownMessage. Renders chat message content with code block support.
 ///
 /// Renders:
 /// - Basic text content with code block support
@@ -66,7 +66,7 @@ struct ContentRouter: View {
             } else {
                 // Render genuine Markdown (headings, lists, bold/italic, links) via
                 // AttributedString. Previously this path used a plain `Text(content)`
-                // String, which displayed raw markdown syntax instead of formatting —
+                // String, which displayed raw markdown syntax instead of formatting,
                 // a regression vs the upstream MLXChatExample `LocalizedStringKey` approach.
                 if let attributed = try? AttributedString(
                     markdown: content,
@@ -83,7 +83,7 @@ struct ContentRouter: View {
                         .font(.ocoreaiText(15))
                         .lineSpacing(3)
                         // The decoded branch is selectable; this fallback is what
-                        // every message with undecodable markdown renders as — left
+                        // every message with undecodable markdown renders as. Left
                         // unselectable, selection silently vanished on those.
                         .textSelection(.enabled)
                 }
@@ -229,4 +229,4 @@ struct CodeBlock: View {
 
 // MARK: - Preview
 
-/// #Preview requires Xcode PreviewsMacros plugin — disabled for swift build.
+/// #Preview requires Xcode PreviewsMacros plugin. Disabled for swift build.

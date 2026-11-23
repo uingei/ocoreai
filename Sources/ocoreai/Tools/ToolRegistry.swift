@@ -1,18 +1,18 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Central tool registry — actor-isolated, concurrent-safe registration and dispatch.
+/// Central tool registry. Actor-isolated, concurrent-safe registration and dispatch.
 ///
 /// P95 lookup: ~3μs (1 actor hop + O(1) dict).
 /// Memory: ~64KB for 256 tools.
 /// Security: checkFn preflight with TTL cache. Loop detection keys on process-local
-/// `String.hashValue` for both the arguments and the answer — in-process identity only,
+/// `String.hashValue` for both the arguments and the answer, in-process identity only,
 /// never persisted, never a security boundary (see `checkLoop`).
 /// Audit: every tool call is logged via AuditTrail with trace ID and duration.
 import Foundation
 import Logging
 
 /// P0-3 whitelist surface: filter produced tool specs down to the client-
-/// declared names. OpenAI wire semantics — `tools[]` in the request IS the
+/// declared names. OpenAI wire semantics, `tools[]` in the request IS the
 /// tool whitelist for that call, so the advertised surface must be exactly
 /// those names. A declared name that is not registered simply stays absent
 /// (it has no spec); ordering follows the passed spec order. Zero forced
@@ -91,7 +91,7 @@ func declaredToolSpecs(fromJSON json: String?) -> [[String: any Sendable]] {
     }
 }
 
-/// The injection surface for one inference request — THE single choke (10-06
+/// The injection surface for one inference request. THE single choke (10-06
 /// live-evidence flip, see `InferenceOptions.declaredToolNames`).
 ///
 /// First principles: a model instructed over an advertised tool list will act
@@ -101,14 +101,14 @@ func declaredToolSpecs(fromJSON json: String?) -> [[String: any Sendable]] {
 /// ZERO tools; agentic clients declare their surface explicitly.
 ///
 /// A declared name this server cannot execute is still **declared to the model**,
-/// using the caller's own schema (`declaredSpecs`). Dropping it — what this
-/// choke did until 10-18 — meant a client declaring `get_weather` got a prompt
+/// using the caller's own schema (`declaredSpecs`). Dropping it. What this
+/// choke did until 10-18. Meant a client declaring `get_weather` got a prompt
 /// with no tool block at all, so no call was possible and the answer came back
 /// as prose with `finish_reason: stop` (measured that day on
 /// `mlx-community/gemma-4-e2b-it-4bit`, zero signal anywhere). OpenAI wire
 /// semantics put the caller in charge of executing what the caller declared
 /// (vllm/sglang never execute at all), so the surface is the declaration and
-/// `localNames` — the subset this server can run — is what decides dispatch.
+/// `localNames`. The subset this server can run. Is what decides dispatch.
 /// Declaration, grammar and validation keep to one truth set; execution
 /// ownership is a separate axis, not a reason to hide the declaration.
 ///
@@ -150,7 +150,7 @@ func resolveToolSurface(
             callerByName[name] = spec
         }
     }
-    // DECLARED order (wire order), deduped by name — same invariants as
+    // DECLARED order (wire order), deduped by name. Same invariants as
     // `toolSurfaceWhitelist`, which this now supersets with the caller's specs.
     var seen: Set<String> = []
     var surface: [[String: any Sendable]] = []
@@ -185,9 +185,9 @@ actor ToolRegistry {
     private var tools: [String: ToolEntry] = [:]
     /// Toolset → [tool name] mapping for batch queries
     private var byToolset: [String: [String]] = [:]
-    /// Read-only whitelist — these tools may execute concurrently
+    /// Read-only whitelist. These tools may execute concurrently
     private let readOnlyWhitelist: Set<String>
-    /// Destructive blacklist — these tools must execute serially
+    /// Destructive blacklist. These tools must execute serially
     private let destructiveBlacklist: Set<String>
 
     /// Loop detection: tracks (tool_name, last_input_hash) to prevent cycles
@@ -197,7 +197,7 @@ actor ToolRegistry {
     /// conversation's bucket: measured 10-21, four `sleep(duration_ms:8000)` calls from four
     /// *different* sessions within 60 s tripped `loopDetected` on the fourth, because the
     /// registry is process-wide and keyed only on (tool, args). One client's repeats therefore
-    /// refused another client's legitimate call — the same cross-conversation interference this
+    /// refused another client's legitimate call. The same cross-conversation interference this
     /// repo already closed on the session pool (`SessionIsolationTests`) and on the steer wake
     /// (`ToolInvocationContext.conversationKey`).
     ///
@@ -207,7 +207,7 @@ actor ToolRegistry {
     private var executionHistory:
         [(scope: String, name: String, hash: String, time: ContinuousClock.Instant)] = []
 
-    /// Bucket for calls that arrive without a conversation — see ``executionHistory``.
+    /// Bucket for calls that arrive without a conversation. See ``executionHistory``.
     static let loopScopeNoConversation = "process"
     private let maxHistoryDepth = 3
 
@@ -217,7 +217,7 @@ actor ToolRegistry {
     /// ran, and `executionHistory` records only attempts that reached the handler, so
     /// before this ladder a refusal advanced no state and the same `loopDetected` was
     /// renewable forever) and a byte-identical answer (the call ran and said exactly what
-    /// the model already had). Only a DIFFERENT answer resets it — a *different tool*
+    /// the model already had). Only a DIFFERENT answer resets it. A *different tool*
     /// succeeding says nothing about whether this call has anything left to give, and
     /// clearing on any success let a caller alternate two calls forever without either
     /// strike climbing.
@@ -225,7 +225,7 @@ actor ToolRegistry {
     /// Scope is the turn where the lane can name one (`call(..., turnToken:)`), matching
     /// codex's per-turn accounting (`AGENTS.md` § Open records the divergence this closes);
     /// where no token exists the conversation is the scope and `ladderMemory` is the only
-    /// expiry, so a runaway — measured at ~0.6 s per round — cannot outwait it.
+    /// expiry, so a runaway. Measured at ~0.6 s per round. Cannot outwait it.
     private struct ZeroGain {
         var identicalAnswers = 0
         var refusals = 0
@@ -235,14 +235,14 @@ actor ToolRegistry {
     }
     private var zeroGain: [String: ZeroGain] = [:]
     private var zeroGainOrder: [String] = []
-    /// Memory hygiene only — the registry outlives every conversation. Dropping in
+    /// Memory hygiene only. The registry outlives every conversation. Dropping in
     /// insertion order mirrors `recordExecution`'s trim.
     private let zeroGainCapacity = 100
     /// Eight zero-new-information events for one call, terminal on the ninth. Measured,
     /// not picked: at two strikes the net cut a task that would have escaped (one eval
     /// task took two refusals, then finished its fix; CHANGELOG `loop-stall`). The
     /// runaway this exists for never escapes at any count, so the cap only has to clear
-    /// what a recovering model demonstrably needed — re-measure it, do not tune it blind.
+    /// what a recovering model demonstrably needed. Re-measure it, do not tune it blind.
     private let maxZeroGainStrikes = 8
     /// How long a ladder entry survives when no turn token scopes it.
     private let ladderMemory: Duration = .seconds(600)
@@ -253,17 +253,17 @@ actor ToolRegistry {
     /// is the one-shot runner (`ToolName::plain("exec_command")`, ExecTools.swift:11) plus
     /// the trio that drives a live session. The set named only the trio, so the mechanism
     /// whose entire purpose is to stop an agent grinding a failing exec surface was inert
-    /// for the tool the default toolset actually runs — and both breaker tests exercised
+    /// for the tool the default toolset actually runs, and both breaker tests exercised
     /// `exec_shell`, so nothing covered the name that matters.
     ///
     /// Count: a handler execution failure (reaching the catch below). Preflight errors
-    /// (notFound / denied / loop) throw BEFORE `do` — they are not handler failures and do
+    /// (notFound / denied / loop) throw BEFORE `do`. They are not handler failures and do
     /// not count (codex: `Blocked` / `Failed{handler_executed:false}` do not advance the
     /// streak).
     ///
     /// What that excludes, deliberately and identically to upstream: a command that RUNS and
     /// exits non-zero is a delivered result, not a handler failure (codex maps `Ok(_)` to
-    /// `Completed{success}`, and only `Failed{handler_executed:true}` advances the streak —
+    /// `Completed{success}`, and only `Failed{handler_executed:true}` advances the streak,
     /// `accounting.rs:143-149`, `registry.rs:885-888`). So this breaker stops a broken run
     /// surface (spawn/exec errors), not a failing program; the "grinding a red test" shape is
     /// the verify gap (`docs/agent/long-horizon-goal.md`), not this net.
@@ -320,7 +320,7 @@ actor ToolRegistry {
         logger = log
     }
 
-    /// The tools that RUN a command — one home for the set the exec breaker scopes to and
+    /// The tools that RUN a command. One home for the set the exec breaker scopes to and
     /// the verify surface asks about ("did anything execute against what was written?").
     /// A second copy elsewhere is where one of them would drift. `nonisolated` so the
     /// synchronous audit rendering can read it; the value is an immutable Set of String.
@@ -370,7 +370,7 @@ actor ToolRegistry {
         Array(tools.keys).sorted()
     }
 
-    /// List all registered tool entries (name + schema) — used to expose tools
+    /// List all registered tool entries (name + schema). Used to expose tools
     /// to Fast Path callers for function calling.
     func listToolEntries() -> [(name: String, toolset: String, schema: ToolSchema)] {
         tools.values.compactMap { entry in
@@ -403,23 +403,23 @@ actor ToolRegistry {
 
     // MARK: - Execution
 
-    /// Shared security preflight for a tool call — PreToolUse hooks (allow/deny/ask)
+    /// Shared security preflight for a tool call. PreToolUse hooks (allow/deny/ask)
     /// and the user-approval broker (`.ask` → pending → decision).
     ///
     /// Codex baseline: the `ExecApprovalRequest` chokepoint applies to **all**
     /// tool execution, including MCP-routed sensitive actions (#41094 routes
     /// marked MCP actions to the synchronous reviewer). ocoreai parity: this is
-    /// the single gate — local tools via `call`, external MCP tools via
+    /// the single gate. Local tools via `call`, external MCP tools via
     /// `MCPBridge.routeToExternalServers`. The hook's reason always carries the
     /// gate context (`.ask(let reason)`); hooks with `matcher == nil` apply to
     /// every tool (codex "no matcher → global"), so MCP tool names need no
     /// per-name enumeration.
     ///
-    /// Extracted from `call` — local-tool behavior is unchanged: same verdict
+    /// Extracted from `call`. Local-tool behavior is unchanged: same verdict
     /// order, same broker path, same deny reasons, same log lines.
     /// Security preflight for **local** tool calls: a hook verdict governs; a call no
     /// hook claims is gated by what the tool declared at registration
-    /// (`ToolEntry.isDestructive` ∪ blacklist) — the gate reads the declaration, so a new
+    /// (`ToolEntry.isDestructive` ∪ blacklist). The gate reads the declaration, so a new
     /// side-effecting tool is under approval before anyone adds it to a matcher.
     /// - Throws: ``ToolError/denied(reason:):`` on `.deny` or user denial.
     func securityPrecheck(
@@ -437,14 +437,14 @@ actor ToolRegistry {
         )
     }
 
-    /// Security gate for **external (MCP)** tool calls — codex makes MCP calls
+    /// Security gate for **external (MCP)** tool calls. Codex makes MCP calls
     /// first-class approval objects: `ApprovalAction::McpToolCall`
     /// (`core/src/tools/approvals.rs:112`) is decided by the approval policy,
-    /// not by hook enumeration — `mcp_tool_call.rs:1497` (`OnRequest` default
+    /// not by hook enumeration, `mcp_tool_call.rs:1497` (`OnRequest` default
     /// → user approval surface; policy `Never` → denied). External tool names
     /// are unbounded (server-manifest driven), so a per-MCP-name hook is not
     /// the model: a call no hook claims still routes through the broker, where
-    /// the policy decides —
+    /// the policy decides,
     ///   - `.never`  → broker auto-denies          (codex `Never` → denied)
     ///   - `.auto`   → broker auto-approves        (codex sandbox-allow surface)
     ///   - `.interactive` (default) → user decides (codex `OnRequest` default)
@@ -464,7 +464,7 @@ actor ToolRegistry {
     /// 外部 MCP server 的 elicit（user-verification）请求裁决面。
     ///
     /// codex `555b82afa9`（Add opt-in MCP user-verification transport）：
-    /// verification 请求路由到 approval surface，**不静默 cancel**——
+    /// verification 请求路由到 approval surface，**不静默 cancel**。
     /// `.never` → deny；`.auto` → pass；`.interactive` → 用户裁决（挂起/恢复）。
     /// ocoreai 同语义：复用 `securityGate` 同一 chokepoint（与
     /// `securityPrecheckExternal` 同路），不建第二条判定路径。
@@ -484,10 +484,10 @@ actor ToolRegistry {
     private func securityGate(
         toolName: String, arguments: String, ungated: HookVerdict, headless: Bool = false
     ) async throws {
-        // PreToolUse hook veto — codex `HookEventName.preToolUse`.
+        // PreToolUse hook veto. Codex `HookEventName.preToolUse`.
         // A single deny/ask from any matching hook short-circuits here,
         // BEFORE the ungated fallback applies. A `nil`/`"*"` matcher hook
-        // applies to every tool (mirrors codex "no matcher → global") — that
+        // applies to every tool (mirrors codex "no matcher → global"), that
         // remains the way to force-deny a specific external tool by name.
         let verdict = await hookRunner.evaluatePreToolUse(
             toolName: toolName, arguments: arguments)
@@ -502,20 +502,20 @@ actor ToolRegistry {
             logger.info("Tool '\(toolName)' denied by PreToolUse hook")
             throw ToolError.denied(reason: reason)
         case .ask(let reason):
-            // User-approval gate — codex `ExecApprovalRequest` → TUI cell →
+            // User-approval gate. Codex `ExecApprovalRequest` → TUI cell →
             // `ReviewDecision`.
             //
             // headless surface（wire HTTP 消费者、非 GUI / in-process 客户端）：
-            // codex `codex-rs/exec/src/lib.rs:566` — headless 消费者无法被询问
+            // codex `codex-rs/exec/src/lib.rs:566`. Headless 消费者无法被询问
             // 审批，`.interactive`（`.ask`）裁决被 coerce 为 fail-closed 拒绝，
             // 不 park 在 broker（外部进程不能替本机 GUI 的人审批）。
             //
             // 策略分流（App.swift 把 SettingsStore.approvalPolicy 注入 broker
             // 构造，UI 热切 setPolicy）：
-            //   • `.auto`  — codex 沙箱语义「不问、放行」；headless 与 GUI 同等
+            //  • `.auto`. Codex 沙箱语义「不问、放行」；headless 与 GUI 同等
             //     语义（策略显式选择自主），不应被 headless 短路误杀。
-            //   • `.never` — broker 内即拒；headless 同样拒绝（原因串对齐）。
-            //   • `.interactive` — 保留 headless fail-closed 回归（pin 测试
+            //  • `.never`. Broker 内即拒；headless 同样拒绝（原因串对齐）。
+            //  • `.interactive`。保留 headless fail-closed 回归（pin 测试
             //     `headlessAskIsDeniedFailClosed`）。
             //
             // 无 broker：所有 `.ask` 均 fail-closed（headless 或非 headless），
@@ -570,13 +570,13 @@ actor ToolRegistry {
     ///   - name: Tool name to invoke
     ///   - arguments: JSON-encoded argument string
     ///   - caller: Optional caller identity for audit trail (default: "unknown")
-    ///   - conversationKey: The conversation that owns this call, when the caller has one —
+    ///   - conversationKey: The conversation that owns this call, when the caller has one,
     ///     the exact string ``SteerQueue`` is keyed by, published to
     ///     ``ToolInvocationContext/conversationKey`` for the duration of the handler so a
     ///     waiting tool can tell whose input may end its wait. `nil` (an inbound MCP
     ///     `tools/call`, a proactive GUI read, a unit harness) means no conversation owns it,
     ///     and the tool must not claim session-scoped behaviour.
-    ///   - onExecutionStart: Called once with the clock instant the **execution window** opens —
+    ///   - onExecutionStart: Called once with the clock instant the **execution window** opens,
     ///     after the approval decision, so a human's thinking time is never billed to the tool
     ///     (codex #57207 attributes the approval wait apart; the transcript chip is named for the
     ///     tool). A denied call never fires it, and its caller times the whole denial if it wants one.
@@ -588,7 +588,7 @@ actor ToolRegistry {
         onExecutionStart: (@Sendable (ContinuousClock.Instant) -> Void)? = nil
     ) async throws -> String {
         // 0a. Exec-host state guard (absorbs codex #41454): a blocked exec host
-        //      is refused BEFORE any hook/approval — asking the user for a call
+        //      is refused BEFORE any hook/approval. Asking the user for a call
         //      we know we will refuse is a wart, and codex blocks the goal
         //      before the exec attempt itself.
         // The owning conversation scopes the breaker, the loop net and the audit for
@@ -596,7 +596,7 @@ actor ToolRegistry {
         let loopScope = conversationKey ?? Self.loopScopeNoConversation
         // Two scopes, on purpose. Authorization, steering and audit follow the
         // conversation (who is allowed, whose input can interrupt, whose log this is).
-        // Loop accounting follows the TURN — the unit codex counts in — so a call that was
+        // Loop accounting follows the TURN. The unit codex counts in, so a call that was
         // refused while the model was stuck does not stay charged against it for the rest
         // of the day, and a fresh message buys a fresh budget. Without a token the turn
         // cannot be named, so the conversation stands in and `ladderMemory` is the only
@@ -604,13 +604,13 @@ actor ToolRegistry {
         let turnScope = turnToken == nil ? loopScope : "\(loopScope)#\(turnToken!)"
         try checkExecBreaker(name: name, scope: loopScope)
 
-        // 0. Security preflight (PreToolUse hooks + approval broker gate) —
+        // 0. Security preflight (PreToolUse hooks + approval broker gate),
         //    shared with the external-MCP path (see `securityPrecheck`).
         try await securityPrecheck(toolName: name, arguments: arguments, headless: headless)
 
         // The human (or hook) wait above is the person's time, not the tool's. From here the
         // window is machine work, and that is the window the caller's duration is allowed to
-        // carry — a caller that reports one passes this instant to its timing home.
+        // carry. A caller that reports one passes this instant to its timing home.
         onExecutionStart?(ContinuousClock.now)
 
         // 1. Lookup
@@ -619,7 +619,7 @@ actor ToolRegistry {
         }
 
         // 2. Loop detection keyed on what the call would return, hashed process-locally
-        //    (String.hashValue — in-process identity only, never persisted, never a
+        //    (String.hashValue, in-process identity only, never persisted, never a
         //    security boundary). `loopIdentity` folds a file's freshness into a read's
         //    identity so a re-read after an edit is not mistaken for a repeat.
         let inputHash = String(
@@ -655,12 +655,12 @@ actor ToolRegistry {
         // 5. Execute
         //    PostToolUse hooks fire AFTER the handler returns, on both success and
         //    failure paths, so an observation hook can log both outcomes (codex
-        //    semantics — hooks are observation-only here; the verdict is ignored).
+        //    semantics. Hooks are observation-only here; the verdict is ignored).
         do {
             // The owning conversation travels here and nowhere else: one task local, set at
             // the single chokepoint every dispatch goes through, so a tool that waits can ask
             // "is input pending for THIS turn?" without inventing a second identity (codex
-            // #55644 — input injected before a wait must still interrupt it).
+            // #55644. Input injected before a wait must still interrupt it).
             let result = try await ToolInvocationContext.$conversationKey.withValue(
                 conversationKey
             ) {
@@ -670,8 +670,8 @@ actor ToolRegistry {
                 name, hash: inputHash,
                 scope: turnScope)
             // Exec-breaker reset (codex #41454: any successful tool clears the
-            // streak in the turn). Success of ANY tool — not just the exec
-            // surface — breaks the "consecutive" run, matching `successful_tool`.
+            // streak in the turn). Success of ANY tool, not just the exec
+            // surface. Breaks the "consecutive" run, matching `successful_tool`.
             resetExecBreaker(scope: loopScope)
             // Did this call answer anything new, or repeat itself word for word? That is the
             // only evidence the ladder cares about (see `ZeroGain`).
@@ -682,8 +682,8 @@ actor ToolRegistry {
                 await auditTrail?.completeToken(t, status: .success, result: result)
             }
             // Claim/audit cross-check input (Models/ClaimVsAudit.swift): this is the one
-            // chokepoint every dispatch goes through — native ChatSession loop, MTP loop,
-            // direct GUI calls and external MCP `tools/call` — so "did this turn change any
+            // chokepoint every dispatch goes through. Native ChatSession loop, MTP loop,
+            // direct GUI calls and external MCP `tools/call`, so "did this turn change any
             // file" is answered here and nowhere else. A shell call is not a witnessed write
             // (`WriteEvidence.unobserved`): a turn of read-only `curl`s used to fill the
             // mutation set and silence the honesty line under a fabricated "file created".
@@ -703,7 +703,7 @@ actor ToolRegistry {
             await hookRunner.firePostToolUse(
                 toolName: name, arguments: arguments, result: result, error: nil)
             // Secret redaction (codex main-axis baseline, `secrets/sanitizer.rs`):
-            // a tool result is the agent's highest-traffic secret leak surface —
+            // a tool result is the agent's highest-traffic secret leak surface,
             // shell `stdout`, `.env`, and config content reach the model context
             // and a later turn can echo it out (chat / SSE client / memory).
             // Best-effort, well-known shapes only; see SecretRedactor for scope.
@@ -711,7 +711,7 @@ actor ToolRegistry {
         } catch {
             // Count the attempt even when it FAILS: the loop net (L183 / checkLoop)
             // must see repeated identical calls, and a tool that keeps erroring was
-            // previously invisible to it — only the success path (L225) recorded.
+            // previously invisible to it, only the success path (L225) recorded.
             // That let an agent grind a broken tool with identical args past the
             // declared "≥ maxHistoryDepth identical calls" cap. See
             // ToolRegistryTests.repeatedFailuresAreLoopDetected for the exact-value lock.
@@ -771,7 +771,7 @@ actor ToolRegistry {
     ///
     /// Multi-line refusals (`edit_file` quotes the file's own lines back) would bury the cause in
     /// an audit line meant to name it, and a secret on line 3 must not travel further than the
-    /// tool result already carried it — so: redact, then take the first non-empty line, capped.
+    /// tool result already carried it, so: redact, then take the first non-empty line, capped.
     static func failureLine(of error: Error) -> String {
         let text = SecretRedactor.redact(error.localizedDescription)
         let line =
@@ -824,7 +824,7 @@ actor ToolRegistry {
             // A bare `loopDetected(read_file)` is a wall: it names neither what was repeated
             // nor what to do instead, and the model answers it by repeating again (measured:
             // 68 identical refusals in one 21-task scoreboard run). Same discipline as
-            // `nearestLinesHint` for `edit_file` — the refusal stays strict, the message
+            // `nearestLinesHint` for `edit_file`. The refusal stays strict, the message
             // becomes correctable.
             let remedy: String
             if entry.name == "read_file" || entry.name == "search_files" {
@@ -867,8 +867,8 @@ actor ToolRegistry {
     /// A `read_file` whose file changed since the last read carries new information even
     /// when the arguments match byte for byte. Refusing that call is doubly wrong: it
     /// blocks the model from verifying its own edit (Execute → Verify is the mission's
-    /// spine), and it makes the refusal's own sentence — "what it returned is already in
-    /// this conversation" — untrue. Statting one file is what makes that sentence honest.
+    /// spine), and it makes the refusal's own sentence. "what it returned is already in
+    /// this conversation". Untrue. Statting one file is what makes that sentence honest.
     /// Other tools keep argument identity; the answer digest in `recordLadderAnswer` still
     /// catches their repeats one step later, once the bytes prove nothing changed.
     static func loopIdentity(name: String, arguments: String) -> String {
@@ -927,7 +927,7 @@ actor ToolRegistry {
     /// Refuse an exec-surface call once 3 consecutive handler failures are recorded
     /// within the TTL window for this conversation (codex `execution_failure_goal`: `>= 3`).
     private func checkExecBreaker(name: String, scope: String) throws {
-        // TTL: a streak older than the window no longer counts — the same 60s convention as
+        // TTL: a streak older than the window no longer counts. The same 60s convention as
         // `checkLoop` above. A `.zero` TTL therefore means "always stale", i.e. the breaker
         // is never trippable, which is how tests exercise the expiry branch.
         guard let recorded = execFailureStreaks[scope] else { return }
@@ -947,7 +947,7 @@ actor ToolRegistry {
 
     /// A successful tool call clears the consecutive-failure run for its own conversation
     /// (codex: `successful_tool` in the turn resets `consecutive_execution_failure_turns`).
-    /// Other conversations' streaks are left alone — one client's good run does not buy
+    /// Other conversations' streaks are left alone. One client's good run does not buy
     /// another client's breaker back.
     private func resetExecBreaker(scope: String) {
         execFailureStreaks[scope] = nil
@@ -997,7 +997,7 @@ actor ToolRegistry {
     }
 
     /// Count a handler failure on the run surface (codex: `Failed { handler_executed: true }`
-    /// on `exec` only). Non-exec tools are ignored — codex does not let other tool failures
+    /// on `exec` only). Non-exec tools are ignored. Codex does not let other tool failures
     /// advance the exec-failure goal.
     private func recordExecFailure(name: String, scope: String) {
         guard execHostTools.contains(name) else { return }
@@ -1052,10 +1052,10 @@ actor ToolRegistry {
 
     /// Convert all registered tools to MLXLMCommon-style `[ToolSpec]` for ChatSession.
     /// ToolSpec == `[String: any Sendable]` matching upstream OpenAI function-calling schema.
-    /// Each parameter includes `["type": ..., "description": ...]` dict — aligns with
+    /// Each parameter includes `["type": ..., "description": ...]` dict. Aligns with
     /// upstream ToolParameter.schema behavior (MLXLMCommon/Tool/ToolParameter.swift).
     ///
-    /// array 参数带 `items`、object 参数带 `required`（递归）——否则嵌套
+    /// array 参数带 `items`、object 参数带 `required`（递归）。否则嵌套
     /// 结构全丢（update_plan.plan 变裸 array<string>）。对齐上游
     /// `ToolParameterType.schemaType`（array→items / object→required）+ ocoreai 自有
     /// `buildParametersJSON()`（ToolEntry.swift），三处同形（合成分一律排序，见 ToolSchemaCanonical）。

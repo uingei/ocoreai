@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Chat ViewModel — manages streaming, loading/error states, and message history.
+/// Chat ViewModel. Manages streaming, loading/error states, and message history.
 ///
 /// @Observable: property-level change tracking.
 /// Fast Path: SwiftUI → DirectInferenceClient → EnginePool (zero HTTP).
@@ -22,11 +22,11 @@ import SwiftUI
 // Note: HFModelInfo and MSModelInfo have been replaced by HFHubModel and MSHubModel
 // from HuggingFaceSearchClient and ModelScopeSearchClient respectively.
 
-/// ChatMessage — UI-layer message type with optional structured content.
+/// ChatMessage. UI-layer message type with optional structured content.
 ///
 /// Design:
-/// - `content: String` — flat text (legacy, SQLite-compatible, streaming accumulation)
-/// - `parts: [TranscriptPart]?` — structured semantic blocks (text/reasoning/toolCall/image)
+/// - `content: String`. Flat text (legacy, SQLite-compatible, streaming accumulation)
+/// - `parts: [TranscriptPart]?`. Structured semantic blocks (text/reasoning/toolCall/image)
 ///   When present, `parts` is the source of truth for rendering; `content` is a fallback.
 ///
 /// Backward compat: messages from DB restore or legacy code still set `content` only.
@@ -37,18 +37,18 @@ struct ChatMessage: Identifiable, Hashable {
     let id = UUID()
     let role: String
     let content: String
-    /// Flat text — legacy + SQLite-compatible + streaming fallback
+    /// Flat text. Legacy + SQLite-compatible + streaming fallback
     let parts: [TranscriptPart]?
-    /// Structured content — source of truth when present
+    /// Structured content. Source of truth when present
     let timestamp: Date
     let imageURLs: [String]
     /// Base64 data URLs for inline preview
     let interrupted: Bool
-    /// true when truncated by user cancel — used for context filtering, not string suffix check
+    /// true when truncated by user cancel. Used for context filtering, not string suffix check
 
     /// Plain-text representation joining all parts for persistence and fallback.
     /// Uses the same logic as TranscriptPartMessage.flatText so textContent == content
-    /// when only text-only parts are present — the behavioral invariant (see git history).
+    /// when only text-only parts are present. The behavioral invariant (see git history).
     var textContent: String {
         if let partsParts = parts {
             return TranscriptPartMessage(texts: partsParts).flatText
@@ -61,7 +61,7 @@ struct ChatMessage: Identifiable, Hashable {
         parts != nil && !(parts?.isEmpty ?? true)
     }
 
-    /// Legacy initializer — sets flat content only (for SQLite restore, streaming)
+    /// Legacy initializer. Sets flat content only (for SQLite restore, streaming)
     init(role: String, content: String, timestamp: Date = .now, imageURLs: [String] = []) {
         self.role = role
         self.content = content
@@ -71,7 +71,7 @@ struct ChatMessage: Identifiable, Hashable {
         self.interrupted = false
     }
 
-    /// Structured initializer — builds parts from semantic blocks
+    /// Structured initializer. Builds parts from semantic blocks
     init(role: String, parts: [TranscriptPart], timestamp: Date = .now, interrupted: Bool = false) {
         self.role = role
         self.content = TranscriptPartMessage(texts: parts).flatText  // fallback for persistence
@@ -81,7 +81,7 @@ struct ChatMessage: Identifiable, Hashable {
         self.interrupted = interrupted
     }
 
-    /// Interrupted initializer — for truncated assistant messages
+    /// Interrupted initializer, for truncated assistant messages
     init(role: String, content: String, interrupted: Bool) {
         self.role = role
         self.content = content
@@ -113,7 +113,7 @@ private struct TranscriptPartMessage {
 
 // MARK: - Inference Phase (UI mirror of inference pipeline phases)
 
-/// Inference phase for progress display — mirrors DirectChatChunk.InferencePhase
+/// Inference phase for progress display. Mirrors DirectChatChunk.InferencePhase
 /// but lives in the UI module to avoid cross-layer coupling.
 enum InferencePhase: Sendable {
     case preparing
@@ -130,15 +130,15 @@ final class ChatState {
     /// Logger for persistence operations
     private static let logger = Logger(label: "ocoreai.chat")
 
-    /// Shared singleton — survives view recreation (tab switch, NavigationSplitView).
+    /// Shared singleton. Survives view recreation (tab switch, NavigationSplitView).
     /// Accessed as `@State initial: ChatState.shared` in ChatView to hold the
-    /// @Observable reference — mutation tracking works through the singleton's identity.
+    /// @Observable reference. Mutation tracking works through the singleton's identity.
     static let shared = ChatState()
     // internal (was private) so the test target can construct an isolated
-    // instance via `@testable import ocoreai` — same pattern as ContextStatusStore.
+    // instance via `@testable import ocoreai`. Same pattern as ContextStatusStore.
     internal init() {}
 
-    /// Composer draft (typed text + staged attachments) — lifted out of
+    /// Composer draft (typed text + staged attachments). Lifted out of
     /// `ChatView`'s `@State` so it survives the `TabDetailView` switch that
     /// recreates ChatView on every tab change (Application `TabDetailView`
     /// rebuilds its content branch; a view-local @State is discarded with it).
@@ -146,7 +146,7 @@ final class ChatState {
     /// session is ready") invariant, applied to the GUI axis: edits are never
     /// lost when the app is cold, tab-switched, or the engine goes not-ready.
     /// Failure-path safety is complementary: `retryLastMessage()` below still
-    /// re-submits the last input explicitly — the draft here keeps the CURRENT
+    /// re-submits the last input explicitly. The draft here keeps the CURRENT
     /// typed text editable in that window instead of leaving the field blank.
     var inputText: String = ""
     var pendingAttachments: [AttachedImage] = []
@@ -155,7 +155,7 @@ final class ChatState {
     //
     // Which user message is currently open in an inline editor, and the text
     // being edited. Living on the shared state (not @State inside the row view)
-    // so a row recreation — tab switch, streaming re-render, new message —
+    // so a row recreation. Tab switch, streaming re-render, new message,
     // cannot silently discard a half-typed correction, which is exactly the
     // failure this feature exists to remove.
     var editingMessageID: UUID?
@@ -165,14 +165,14 @@ final class ChatState {
     //
     // While a stream is active, the composer stays LIVE: sending routes here
     // instead of being disabled. Each steer is (a) persisted as a user message
-    // immediately — transcript truth, survives everything — and (b) enqueued to
+    // immediately. Transcript truth, survives everything, and (b) enqueued to
     // SteerQueue keyed by inferenceSessionId, the same convKey the engine
     // drains at tool-loop boundaries. If the engine drains it this turn, the
     // model course-corrects mid-flight; if not, it reaches the model via the
     // persisted history on the next request. Either way: never lost, never
     // silently swallowed.
 
-    /// Composer text staged as steering while streaming (echoes the send —
+    /// Composer text staged as steering while streaming (echoes the send,
     /// cleared by ChatView after enqueue). Rendered as a user bubble at enqueue
     /// time, so the transcript already shows it.
     @ObservationIgnored var steerComposerText: String = ""
@@ -186,7 +186,7 @@ final class ChatState {
     /// Symbols). The model-side prefix is SteerQueue.wireMarker, not this.
     static let steerBubbleMarker = "»"
 
-    /// Current steering session key (nil before the first session exists —
+    /// Current steering session key (nil before the first session exists,
     /// guard in steerNow keeps the enqueue honest rather than keyless).
     var steerSessionKey: String? {
         inferenceSessionId
@@ -208,7 +208,7 @@ final class ChatState {
     }
 
     /// Engine drained steers mid-loop (called from DirectInferenceClient's
-    /// chunk consumer via a notification side-channel) — keep badge truthful.
+    /// chunk consumer via a notification side-channel). Keep badge truthful.
     func refreshSteerBadge() {
         guard let key = steerSessionKey else {
             pendingSteerCount = 0
@@ -238,17 +238,17 @@ final class ChatState {
     internal var turnEndVoiceStopHook: @MainActor () -> Void = { AudioIO.shared.stopSpeaking() }
 
     /// Turn-end 审批回路闭合 seam（codex `Abort → TurnAborted` 同语义：停止 = 挂起裁决
-    /// 一律 deny 清场）。生产默认 no-op——真实清场走下方 `clearApprovalSession()`;
+    /// 一律 deny 清场）。生产默认 no-op。真实清场走下方 `clearApprovalSession()`;
     /// 测试可覆盖为 spy 断言「stop/resend/switch/reload ⇒ 审批回路关闭」, 不依赖 broker。
     internal var turnEndApprovalClosureHook: @MainActor () -> Void = {}
 
     var messages: [ChatMessage] = []
     var responseText: String = ""
-    /// Display version — strips <thinking> tags so the live streaming preview
+    /// Display version. Strips <thinking> tags so the live streaming preview
     /// doesn't render raw reasoning markup. Raw responseText kept for completion-time structured parsing.
     /// Live-preview text: thinking markup + fake tool-plan array removed.
     /// Wire parity with the OpenAI path (which runs `removeToolCallArrays` via
-    /// OutputSanitizer) — single implementation, unit-testable.
+    /// OutputSanitizer). Single implementation, unit-testable.
     internal nonisolated static func displayText(from raw: String) -> String {
         OutputSanitizer.removeToolCallArrays(stripThinkingTags(from: raw))
     }
@@ -271,7 +271,7 @@ final class ChatState {
         if trimmed.contains("Detokenization failed") {
             return StringKey.generationFailed.l
         }
-        // Fallback — leave the raw string so diagnostics aren't swallowed.
+        // Fallback. Leave the raw string so diagnostics aren't swallowed.
         return raw
     }
 
@@ -280,7 +280,7 @@ final class ChatState {
     /// One home for the mapping, with the locale a parameter so both faces are decidable with no
     /// engine and no Metal (`ChatFailureFaceTests`). The two load faces must not share a sentence:
     /// `.modelNotFound` is a dead end whose only exit is a download, while `.modelLoading` is a
-    /// wait the engine has already measured — "download one" is false advice while the weights are
+    /// wait the engine has already measured. "download one" is false advice while the weights are
     /// landing, and "Generation failed" sends the user to retry a request that cannot yet answer.
     internal nonisolated static func failureFace(
         for error: Error, locale: OCALocale = .userSelected()
@@ -298,7 +298,7 @@ final class ChatState {
         return (StringKey.generationFailed.localized(for: locale), false)
     }
 
-    /// The banner a failed turn leaves on screen — the catch site's whole job, split out so the
+    /// The banner a failed turn leaves on screen. The catch site's whole job, split out so the
     /// state a user actually reads is reachable from a test. The streaming preview goes with the
     /// failure: a half-streamed answer that never completed is not a reply (see the catch in
     /// `chat`).
@@ -319,32 +319,32 @@ final class ChatState {
     var currentReasoningText: String = ""
     var errorMessage: String?
     /// True when the way out of the last failure is the Models page: a missing model
-    /// (AppError.modelNotFound — route to download) or one still loading (AppError.modelLoading —
+    /// (AppError.modelNotFound. Route to download) or one still loading (AppError.modelLoading,
     /// route to the bar that already reads `OcoreaiDownloadProgress`). The banner then gains the
     /// "Go to Models" step instead of only Retry/Dismiss.
     var modelNotReady: Bool = false
     var loading: Bool = false
-    /// Live streaming throughput — estimated tokens/second. Updated per chunk.
+    /// Live streaming throughput. Estimated tokens/second. Updated per chunk.
     var currentTokPerSec: Double?
     /// Live streaming prompt-phase throughput (tokens/second). Available at completion.
     var currentPromptTokPerSec: Double?
     /// Live streaming time-to-first-token (ms). Set on first chunk.
     var currentTTFTMs: Double?
-    /// Reasoning tokens consumed — surfaced from .done(reasoningTokenCount:).
+    /// Reasoning tokens consumed. Surfaced from .done(reasoningTokenCount:).
     /// Nil for non-reasoning models. Set only at stream completion.
     var currentReasoningTokenCount: Int?
-    /// MTP speculative decoding telemetry — populated at stream completion.
+    /// MTP speculative decoding telemetry. Populated at stream completion.
     var currentMTPDraftProposed: Int?
     var currentMTPDraftAccepted: Int?
-    /// Session context watermark — tokens the current session's prompt holds
+    /// Session context watermark. Tokens the current session's prompt holds
     /// (effective, post-compaction) and the model's window size. Bridged from
-    /// the shared `ContextStatusStore` seam at turn end — the SAME source the
+    /// the shared `ContextStatusStore` seam at turn end. The SAME source the
     /// `get_context_remaining` tool reads, so the UI and the model see one
     /// number. `nil` window = model has no configured cap (codex `unknown`
-    /// path — never fabricate a budget in UI).
+    /// path. Never fabricate a budget in UI).
     var contextUsedTokens: Int?
     var contextWindowLimit: Int?
-    /// Remaining context tokens for the current session — `nil` when the model
+    /// Remaining context tokens for the current session, `nil` when the model
     /// has no configured window (codex `unknown` path: report nothing rather
     /// than a fabricated budget). Computed through the codex-aligned pure
     /// function so the UI and the `get_context_remaining` tool stay on one
@@ -382,34 +382,34 @@ final class ChatState {
         }
     }
 
-    // Single source of truth — no separate health polling task
+    // Single source of truth, no separate health polling task
     var connected: Bool {
         OcoreaiEngine.shared.engineReady
     }
 
     /// Strip reasoning blocks from the given text.
     ///
-    /// DELEGATES to `OutputSanitizer.stripThinking` — the wire-path
+    /// DELEGATES to `OutputSanitizer.stripThinking`. The wire-path
     /// sanitizer is the single source of truth for ALL thinking markup
     /// (gemma spans, ` think/think`, ` thinking/thinking`, Qwen3
     /// `|begin_of_thought|>` with `|end_of_thought|>` OR `|eot_id|>`).
     /// The previous inline `stripTagFamily` implementation carried only a
     /// SUBSET of families (no gemma spans, and it cut the ENTIRE response
-    /// — including the final answer — whenever a `|begin_of_thought|>`
+    /// Including the final answer. Whenever a `|begin_of_thought|>`
     /// family opened without the `|end_of_thought|>` closer it knew).
     private nonisolated static func stripThinkingTags(from text: String) -> String {
         OutputSanitizer.stripThinking(text)
     }
 
     // NOTE: the previous inline `stripTagFamily` + `regexEscape` pair is
-    // gone — span strip/extract now delegates to `OutputSanitizer`
+    // gone. Span strip/extract now delegates to `OutputSanitizer`
     // (`stripThinking` / `splitThoughts`), the wire-path single source of
     // truth. The regex-escape double-backslash corruption that forced every
     // input through the incomplete-open tail cut is structurally no longer
     // possible (string scans, no pattern construction).
 
     /// Extract reasoning text from thought tags and remaining text.
-    /// DELEGATES to `OutputSanitizer.splitThoughts` — every family,
+    /// DELEGATES to `OutputSanitizer.splitThoughts`. Every family,
     /// including gemma spans (previously the UI fallback only knew
     /// ` think/think` + ` thinking/thinking`, and its unescaped `|` in the
     /// Qwen legacy pattern matched wrong spans).
@@ -434,7 +434,7 @@ final class ChatState {
     /// Current model for session scoping.
     private var activeModelId: String?
 
-    /// SessionCompressor accessor — nil when engine not booted.
+    /// SessionCompressor accessor. Nil when engine not booted.
     private var compressor: SessionCompressor? {
         OcoreaiEngine.shared.activeSessionCompressor
     }
@@ -445,7 +445,7 @@ final class ChatState {
     /// When non-nil, a stream is in progress and can be cancelled.
     private var currentCancellation: InferenceCancellation?
 
-    /// Idempotency barrier — `cancelInference()` appends the interrupted message
+    /// Idempotency barrier, `cancelInference()` appends the interrupted message
     /// and clears it; the stream tail check must NOT append again.
     /// internal (not private) so @testable import can reset it for test isolation.
     internal var _cancelledByUI = false
@@ -510,12 +510,12 @@ final class ChatState {
     /// Drop the tail of the live transcript and mirror the same removal to
     /// SQLite; return the data URLs the anchor message carried.
     ///
-    /// includingMessage: false keeps the anchor (Regenerate semantics — rerun the
-    /// same instruction); true removes it too (Edit-and-Resend — the old wording
+    /// includingMessage: false keeps the anchor (Regenerate semantics. Rerun the
+    /// same instruction); true removes it too (Edit-and-Resend. The old wording
     /// must not survive, because chat() re-appends the corrected text).
     ///
     /// Before this helper, truncation touched memory only. Inference reads memory,
-    /// so the rerun behaved correctly at the time — and the abandoned turn came
+    /// so the rerun behaved correctly at the time, and the abandoned turn came
     /// back on the next session open, because SQLite still had it. Mirroring is
     /// what makes "I fixed the instruction and reran" durable.
     ///
@@ -551,7 +551,7 @@ final class ChatState {
         return images
     }
 
-    /// Resend from a given user message — truncates everything after it and
+    /// Resend from a given user message. Truncates everything after it and
     /// re-infers with the same text, the same attachments, and the same model.
     func resendFromMessage(with uuid: UUID) {
         // Cancel any in-flight stream
@@ -574,7 +574,7 @@ final class ChatState {
     // MARK: - P7b: Edit-and-Resend
 
     /// Open a user message for in-place editing. Assistant messages are never
-    /// editable — the model's words are not the user's to rewrite. Takes
+    /// editable. The model's words are not the user's to rewrite. Takes
     /// (id, text) rather than a `ChatMessage` so the row view, which renders a
     /// `ChatBubbleMessage`, drives the same entry point as any other caller.
     func beginEdit(id: UUID, text: String) {
@@ -631,11 +631,11 @@ final class ChatState {
     /// Called when the user switches the model selector.
     /// Unloads the old model from EnginePool to free GPU memory.
     ///
-    /// Serialize unload tasks — rapid model switching spawned orphan Tasks
+    /// Serialize unload tasks. Rapid model switching spawned orphan Tasks
     /// that could concurrently modify EnginePool.loadedModels.
     private var pendingUnloadTask: Task<Void, Error>?
 
-    /// Monotonic version counter — increments on every model switch.
+    /// Monotonic version counter. Increments on every model switch.
     /// Stale tasks observe this counter and abort when the version changed.
     private var modelSwitchVersion: Int = 0
 
@@ -653,7 +653,7 @@ final class ChatState {
 
         // Unload the old model if it differs from the new one
         if let oldModel = activeModelId, oldModel != newModelId {
-            // Asynchronous model cleanup — unload old model, reset session
+            // Asynchronous model cleanup. Unload old model, reset session
             // for new model, but preserve UI message history for conversation continuity.
             // version gate prevents stale unload tasks from
             // overwriting a newer activeModelId (A→B→C→A: B's task sees version bump
@@ -672,7 +672,7 @@ final class ChatState {
                 if let sc = OcoreaiEngine.shared.activeSessionCompressor {
                     do {
                         self.sessionId = try await sc.createSession(modelId: newModelId)
-                        // Blank session carries no worktree binding — drop the
+                        // Blank session carries no worktree binding. Drop the
                         // previous session's pointer so exec/file don't leak in.
                         SessionWorkspace.clear()
                     } catch {
@@ -682,7 +682,7 @@ final class ChatState {
                 }
                 self.activeModelId = newModelId
                 self.inferenceSessionId = "chat-\(UUID().uuidString.prefix(8))"
-                // Clear only the streaming response text — preserve messages
+                // Clear only the streaming response text. Preserve messages
                 self.responseText = ""
                 self.currentReasoningText = ""
                 self.loading = false
@@ -730,7 +730,7 @@ final class ChatState {
         messages = []
         responseText = ""
         errorMessage = nil
-        // An open inline editor points at a message of the PREVIOUS session —
+        // An open inline editor points at a message of the PREVIOUS session,
         // keeping it would let ⌘↵ resend stale text into the newly opened chat.
         cancelEdit()
         if let compressor {
@@ -764,7 +764,7 @@ final class ChatState {
     // MARK: - Persistence
 
     /// Load messages from SQLite for the current session (if any).
-    /// Idempotent — skips if messages already present (singleton survived view recreation).
+    /// Idempotent. Skips if messages already present (singleton survived view recreation).
     private func loadHistory() async {
         // Skip reload if messages already in memory
         guard messages.isEmpty else { return }
@@ -773,7 +773,7 @@ final class ChatState {
             // cap at hotWindow to prevent loading entire session into UI memory
             let hotWindowLimit = compressor.hotWindow
             let dbMessages = try await compressor.getMessages(sid, limit: hotWindowLimit, offset: 0)
-            // Messages come in reverse chronological order from DB — reverse for display
+            // Messages come in reverse chronological order from DB. Reverse for display
             let chronMessages = dbMessages.reversed().map { fromMessageModel($0) }
             messages = chronMessages
         } catch {
@@ -793,11 +793,11 @@ final class ChatState {
             // Clean up old session model association before creating new one
             activeModelId = modelId
             sessionId = try await compressor.createSession(modelId: modelId)
-            // Blank session carries no worktree binding — drop the previous
+            // Blank session carries no worktree binding. Drop the previous
             // session's pointer so exec/file tools don't leak into it.
             SessionWorkspace.clear()
             // Project container: a chat started while a project is open runs
-            // IN that folder (DB binding + live pointer — the verified
+            // IN that folder (DB binding + live pointer. The verified
             // ExecTools.effectiveCwd / FileTools.resolve chain).
             if let sid = sessionId, let project = ProjectStore.shared.selectedProject,
                 project.allowCoding, let folder = project.folderPath
@@ -806,7 +806,7 @@ final class ChatState {
                 SessionWorkspace.setDirectory(folder)
             }
             // Create a stable inference session UUID that persists across
-            // multiple chat() calls — ThinkingBudget adaptive calibration requires
+            // multiple chat() calls. ThinkingBudget adaptive calibration requires
             // a consistent key to accumulate quality multipliers.
             inferenceSessionId = "chat-\(UUID().uuidString.prefix(8))"
             // Recover 片 1：新会话激活 → hydrate 其任务态（空会话 = 清面板）
@@ -820,7 +820,7 @@ final class ChatState {
     }
 
     /// Persist a single message to SQLite.
-    /// - Parameter parts: Optional structured parts — reasoning text and tool call records
+    /// - Parameter parts: Optional structured parts. Reasoning text and tool call records
     ///   are stored alongside the flat content for faithful round-trip persistence.
     private func persistMessage(
         role: String,
@@ -872,7 +872,7 @@ final class ChatState {
             case let s as String:
                 return s
             case let n as NSNumber:
-                // NSNumber covers Int/Double/Bool — use its JSON-like form.
+                // NSNumber covers Int/Double/Bool. Use its JSON-like form.
                 if CFEqual(n, kCFBooleanTrue) {
                     return "true"
                 }
@@ -923,7 +923,7 @@ final class ChatState {
     nonisolated func fromMessageModel(_ mm: MessageModel) -> ChatMessage {
         // SQLite round-trip: rebuild the structured tool-call parts from the
         // persisted records so a re-opened session renders the same tool badges
-        // (name + real result + measured ms) that the live stream showed —
+        // (name + real result + measured ms) that the live stream showed,
         // NOT just a flat content string with the badges silently dropped.
         //
         // Codex `#46711` parity: the persisted `reasoning` column is restored
@@ -988,7 +988,7 @@ final class ChatState {
         let dataURL: String/// Base64 data URL (data:image/png;base64,...)
     }
 
-    /// Send chat message via Fast Path — bypasses HTTP entirely.
+    /// Send chat message via Fast Path. Bypasses HTTP entirely.
     ///
     /// Flow: ChatMessage → multimodal context capture → Message (typed, may include
     ///       image parts) → DirectInferenceClient.stream()
@@ -1007,7 +1007,7 @@ final class ChatState {
     /// degraded inference quality from partial responses.
     ///
     /// FIX: Use structured .interrupted flag instead of string suffix matching
-    /// — avoids collision when the model legitimately outputs " [Interrupted]".
+    /// Avoids collision when the model legitimately outputs " [Interrupted]".
     func chat(_ text: String, model: String, attachments: [AttachedImage] = []) async {
         // Store last user input for retry after inference failure
         _lastUserInput = text
@@ -1017,10 +1017,10 @@ final class ChatState {
 
         // MARK: - Perception context capture
         // Signal engine to throttle GPU-heavy sensors during generate.
-        // Perception data is no longer injected as user message parts — it flows
+        // Perception data is no longer injected as user message parts. It flows
         // through EngineInference as system prompt augmentation (P-S1 fix) and is
         // refreshed before each tool dispatch in the MTP loop (P-S2 fix).
-        // Caller is @MainActor (ChatViewModel) and the method is @MainActor sync —
+        // Caller is @MainActor (ChatViewModel) and the method is @MainActor sync,
         // no actor hop, no await (was an UnnecessaryEffectMarker warning).
         PerceptionEngine.shared.inferenceStarted()
 
@@ -1035,7 +1035,7 @@ final class ChatState {
                 ))
         }
 
-        // Voice input from the microphone channel — stays as a user message part
+        // Voice input from the microphone channel. Stays as a user message part
         // (not system context). Prefer the RAW recording when present so the VLM
         // hears it directly (bypasses STT); also keep the STT transcript as a text
         // caption so non-audio models still understand. This closes the previously
@@ -1062,7 +1062,7 @@ final class ChatState {
             )
             attachmentParts.append(voicePart)
         }
-        // One-shot consumption — the .caf was already read from disk by stopRecording().
+        // One-shot consumption. The .caf was already read from disk by stopRecording().
         MultimodalState.shared.lastRecordingDataURL = nil
         MultimodalState.shared.pendingVoiceTranscript = nil
 
@@ -1085,7 +1085,7 @@ final class ChatState {
         currentCancellation = cancellation
 
         do {
-            // Build InferenceRequest — exclude interrupted assistant messages and system messages.
+            // Build InferenceRequest. Exclude interrupted assistant messages and system messages.
             // cleanMessages delegates to the same predicate exposed for test coverage.
             let cleanMsgs = cleanMessages(messages)
 
@@ -1094,13 +1094,13 @@ final class ChatState {
             let systemMessages = messages.filter { $0.role == "system" }
             var systemPrompt = systemMessages.map { $0.content }.joined(separator: "\n")
 
-            // Merge user's custom system prompt from SettingsStore — highest priority.
+            // Merge user's custom system prompt from SettingsStore. Highest priority.
             let custom = SettingsStore.shared.customSystemPrompt
             if !custom.isEmpty {
                 systemPrompt = custom + (systemPrompt.isEmpty ? "" : "\n\n" + systemPrompt)
             }
 
-            // Convert to typed Messages — last user message gets attachment parts
+            // Convert to typed Messages. Last user message gets attachment parts
             let typedMessages: [Message] = {
                 var result: [Message] = []
                 let count = cleanMsgs.count
@@ -1123,7 +1123,7 @@ final class ChatState {
             // Load persisted sampling config for this model
             let samplingCfg = SettingsStore.shared.loadSamplingConfig(for: model)
 
-            // Coding-agent tool surface — this native path IS the agent's face.
+            // Coding-agent tool surface. This native path IS the agent's face.
             // Pass the full registry surface (P0-3 / local-first semantics,
             // InferenceStubs `declaredToolNames` contract: the client's declared
             // surface = what the engine exposes; nil was the UI's wiring
@@ -1155,14 +1155,14 @@ final class ChatState {
             // Stream via Fast Path
             var streamingToolCalls: [ToolCallPart] = []
             // Compaction badges observed mid-stream (context auto-compacted to fit
-            // the model's window) — consumed when building the final assistant
+            // the model's window). Consumed when building the final assistant
             // message so the pruned-context event stays visible in the transcript.
             var partsQueue: [TranscriptPart] = []
             for await chunk in try await DirectInferenceClient.shared.stream(request: request) {
                 // P0-3: respect cancellation from both the token and outer Task
                 guard !cancellation.isCancelled, !Task.isCancelled else { break }
                 // Steering badge refresh: an engine drain happened if the queue
-                // shrank — keep the "Queued · N" chip truthful without polling.
+                // shrank. Keep the "Queued · N" chip truthful without polling.
                 if pendingSteerCount > 0 {
                     refreshSteerBadge()
                 }
@@ -1203,13 +1203,13 @@ final class ChatState {
                     currentComputeChannel = ch
                 }
                 // GAP-4 close: wire the budget-truncation signal (Engine
-                // .guidedGenDiagnostic(incompleteOutput:) → final chunk) to the
+                //  .guidedGenDiagnostic(incompleteOutput:) → final chunk) to the
                 // transcript. Without this hop a truncated answer renders as a
-                // normal ending — the signal was captured but never consumed.
+                // normal ending. The signal was captured but never consumed.
                 if let tbb = chunk.truncatedByBudget, tbb {
                     partsQueue.append(.truncatedByBudget)
                 }
-                // Consume tool call metadata during streaming — makes tool-use progress visible
+                // Consume tool call metadata during streaming. Makes tool-use progress visible
                 if let meta = chunk.metadata {
                     switch meta {
                     case .toolCall(let tcMeta):
@@ -1220,7 +1220,7 @@ final class ChatState {
                             ? String(UUID().uuidString.prefix(8)) : tcMeta.id
                         // Codex `#46710` ("Restore rich tool details in persisted
                         // TUI transcripts"): the engine's ToolCallMeta carries the
-                        // RAW argument JSON — surface it faithfully into the
+                        // RAW argument JSON. Surface it faithfully into the
                         // transcript part so it both renders (detailed view) and
                         // survives persistence into MessageRecords instead of
                         // being dropped to an empty [:]. JSONSerialization
@@ -1237,7 +1237,7 @@ final class ChatState {
                         )
                         streamingToolCalls.append(toolPart)
                     case .toolResult(let tr):
-                        // Tool finished — upgrade the matching in-flight card with the
+                        // Tool finished. Upgrade the matching in-flight card with the
                         // truthful result + measured duration (success or failure) so
                         // the UI never shows a finished call as "…/still running".
                         var hitIdx: Int? = nil
@@ -1258,11 +1258,11 @@ final class ChatState {
                             )
                         }
                     case .reasoningStart, .reasoningEnd:
-                        // Signaled by ReasoningEventEmitter — reasoningContent already handled above
+                        // Signaled by ReasoningEventEmitter. ReasoningContent already handled above
                         break
                     case .compactionNote(let removed):
                         // Context was auto-compacted to fit the model's window
-                        // before this turn — queue a transcript part so the final
+                        // before this turn. Queue a transcript part so the final
                         // assistant message shows the compaction badge.
                         partsQueue.append(.compactionNote(removedCount: removed))
                     }
@@ -1270,14 +1270,14 @@ final class ChatState {
                 if chunk.isComplete {
                     // FIX: distinguish error terminal chunks from successful completion.
                     // Do not persist error-truncated responses as normal assistant messages.
-                    // Also detect cancelled (user stopped generation) — build parts with
+                    // Also detect cancelled (user stopped generation). Build parts with
                     // interrupted flag so UI can show the interrupted badge.
                     let isCancelled = chunk.stopReason == "cancelled"
                     if chunk.stopReason == "error" {
                         Self.logger.warning(
                             "Inference ended with error after accumulating \(responseText.utf8.count) bytes"
                         )
-                        // D1 fix: surface actual error from inference layer —
+                        // D1 fix: surface actual error from inference layer,
                         // but localized, not raw ("breathe" consumer-facing
                         // principle; the raw string is preserved for diagnostics
                         // in the `raw` branch if unknown).
@@ -1286,7 +1286,7 @@ final class ChatState {
                             ?? StringKey.generationFailed.l
                         responseText = ""
                     } else {
-                        // Conversation complete — build structured parts.
+                        // Conversation complete. Build structured parts.
                         // P0-1: Always enter even when responseText empty (tool-call-only models).
                         // P0-2: Use currentReasoningText which accumulated .reasoningContent
                         // during streaming. splitThinkingTags stays as fallback for models
@@ -1309,15 +1309,15 @@ final class ChatState {
                         // Clean text: reuse the split from above (avoid redundant regex pass).
                         let partsSourceText =
                             if let split = splitResult {
-                                // Fallback path — use cleaned text from splitThinkingTags
+                                // Fallback path. Use cleaned text from splitThinkingTags
                                 split.remaining
                             } else {
                                 responseText
                             }
                         // Wire parity (OutputSanitizer): strip the fake tool-plan
                         // array before it becomes a text bubble. Without this the
-                        // UI double-prints one tool call — raw JSON text AND the
-                        // [Tool:] chip — and TTS reads the JSON aloud. (The
+                        // UI double-prints one tool call. Raw JSON text AND the
+                        // [Tool:] chip, and TTS reads the JSON aloud. (The
                         // fallback `parseToolCalls` below still sees the raw text
                         // on purpose: the chip for a planned call is signal, the
                         // raw JSON in the bubble is the extra output.)
@@ -1336,13 +1336,13 @@ final class ChatState {
                         }
 
                         // Inject tool calls observed during streaming (from chunk.metadata)
-                        // These are the actual tool calls the engine dispatched — more
+                        // These are the actual tool calls the engine dispatched. More
                         // reliable than regex-based detection on raw response.
                         for tcPart in streamingToolCalls {
                             parts.append(.toolCall(tcPart))
                         }
 
-                        // Inject compaction badge — oldest turns were pruned to fit
+                        // Inject compaction badge. Oldest turns were pruned to fit
                         // the model's window before this turn was generated.
                         for pqPart in partsQueue {
                             parts.append(pqPart)
@@ -1365,7 +1365,7 @@ final class ChatState {
                             }
                         }
 
-                        // Build assistant message — use structured parts when available,
+                        // Build assistant message. Use structured parts when available,
                         // fallback to flat content (including empty messages for tool-use models)
                         // Wire interrupted flag when cancelled so UI shows the interrupted badge.
                         if !parts.isEmpty {
@@ -1373,7 +1373,7 @@ final class ChatState {
                                 role: "assistant", parts: parts, interrupted: isCancelled)
                             messages.append(assistantMsg)
                         } else {
-                            // Tool-use model returned empty — still create the message
+                            // Tool-use model returned empty. Still create the message
                             // so the conversation state is correct
                             let assistantMsg = ChatMessage(
                                 role: "assistant", content: "", interrupted: isCancelled)
@@ -1381,7 +1381,7 @@ final class ChatState {
                         }
 
                         // Persist cleaned text (without thinking tags) for readability.
-                        // Include tool call records for SQLite round-trip — sourced from
+                        // Include tool call records for SQLite round-trip. Sourced from
                         // the authoritative streaming metadata (real resultSummary +
                         // durationMs from the engine's .toolResult event), NOT from the
                         // regex-parsed fallback (which only carries arguments + 0ms).
@@ -1425,12 +1425,12 @@ final class ChatState {
                 }
             }
             // If interrupted mid-stream but accumulated text exists, save it.
-            // skip if cancelInference() already ran — it appends the interrupted message
+            // skip if cancelInference() already ran. It appends the interrupted message
             // itself; we only reach here when the stream was cancelled without UI intervention.
             if !self._cancelledByUI && (Task.isCancelled || cancellation.isCancelled) {
                 // Only persist an interrupted bubble when there is VISIBLE text.
                 // A stream that emitted only reasoning/tool-call tokens has nothing
-                // to show — persisting "…[已中断]" there would claim a half-spoken
+                // to show. Persisting "…[已中断]" there would claim a half-spoken
                 // answer that never existed (the tool cards already tell the truth).
                 let visibleSoFar = Self.displayText(from: responseText)
                 if !visibleSoFar.isEmpty {
@@ -1445,19 +1445,19 @@ final class ChatState {
             // Finalize cancellation handle
             currentCancellation = nil
         } catch {
-            // Do not surface raw localizedDescription to the user — it leaks technical details and
+            // Do not surface raw localizedDescription to the user. It leaks technical details and
             // may not match UI language. Which banner a refusal earns is one decision, in
             // `failureFace`; a cold load gets the loading face, not a generic failure.
             presentFailure(error)
             Self.logger.warning("Chat failed: \(error.localizedDescription)")
         }
         // Steering turn-end flush: anything the engine loop never drained
-        // returns to the composer (visible, editable) — never silently lost.
+        // returns to the composer (visible, editable). Never silently lost.
         flushPendingSteersToComposer()
-        // Caller is @MainActor (ChatViewModel); inferenceEnded() is @MainActor sync —
+        // Caller is @MainActor (ChatViewModel); inferenceEnded() is @MainActor sync,
         // no await needed. Fires at the common exit point of chat().
         PerceptionEngine.shared.inferenceEnded()
-        // Session context watermark — bridge the seam (already written at turn
+        // Session context watermark. Bridge the seam (already written at turn
         // start by ChatHandler / enforceContextWindow on both routes) to the UI.
         // This is session state, not per-turn telemetry, so it is NOT cleared by
         // the tok/s·TTFT reset below; it persists for the active conversation.
@@ -1499,8 +1499,8 @@ final class ChatState {
     func resetConversation() {
         // cancel in-flight inference FIRST, before clearing any state.
         // Before: resetConversation cleared messages/responseText/sessionId but never
-        // stopped the running stream — and actively re-opened the `_cancelledByUI` append
-        // gate — so the still-running stream tail resumed, re-appended the partial into
+        // stopped the running stream, and actively re-opened the `_cancelledByUI` append
+        // gate, so the still-running stream tail resumed, re-appended the partial into
         // the just-cleared UI state and re-persisted it, resurrecting the "cleared"
         // conversation (violating the invariant: "prevent new messages bleeding into the
         // old session"). cancelInference() is the in-repo precedent (onModelChanged
@@ -1508,7 +1508,7 @@ final class ChatState {
         // interrupted message (captured by the undo snapshot below for Cmd+Z), and
         // closes the `_cancelledByUI` gate.
         cancelInference()
-        // Steering leak guard: queued steers belong to THIS conversation —
+        // Steering leak guard: queued steers belong to THIS conversation,
         // carrying them across a reset would act on stale intent (same class
         // as session-approved tools surviving ApprovalBroker.cancelAll()).
         if let key = inferenceSessionId {
@@ -1518,7 +1518,7 @@ final class ChatState {
         // Symmetric with onModelChanged L405-406 / resetForTesting L1057-1058.
         pendingUnloadTask?.cancel()
         pendingUnloadTask = nil
-        // cap undo snapshot to last 50 messages — prevents holding entire
+        // cap undo snapshot to last 50 messages. Prevents holding entire
         // conversation in memory when user clears a long-running session
         let maxUndoMessages = 50
         undoSnapshot = Array(messages.suffix(maxUndoMessages))
@@ -1576,7 +1576,7 @@ final class ChatState {
         undoActiveModelId = nil
     }
 
-    /// Reset all internal state to initial values — exhaustive cleanup for test isolation.
+    /// Reset all internal state to initial values. Exhaustive cleanup for test isolation.
     /// Internal (not private) so @testable import in tests can use it.
     internal func resetForTesting() {
         // Cancel any in-flight operations
@@ -1595,7 +1595,7 @@ final class ChatState {
         // Persistence state
         sessionId = nil
         activeModelId = nil
-        // Inline editor state — an editor open against a wiped transcript has
+        // Inline editor state. An editor open against a wiped transcript has
         // nothing to commit to.
         editingMessageID = nil
         editingText = ""

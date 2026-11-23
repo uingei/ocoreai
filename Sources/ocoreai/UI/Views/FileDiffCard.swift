@@ -9,7 +9,7 @@ import SwiftUI
 /// rows. The diff is COMPUTED, never trusted from narration:
 /// - `edit_file`: LCS of oldString→newString (ground truth of the patch).
 /// - `write_file` on modify: the old content is unrecoverable post-write,
-///   so we never fabricate a before/after — we show the honest outcome
+///   so we never fabricate a before/after. We show the honest outcome
 ///   counts from the verified tool result instead.
 ///
 /// Non-file tool calls must not reach this view (callers keep the badge).
@@ -69,7 +69,7 @@ struct FileDiffCard: View {
         case .outcomeOnly(let path, let lines):
             outcomeCard(path: path, lines: lines)
         case nil:
-            // Arguments still streaming or malformed — keep the plain badge.
+            // Arguments still streaming or malformed. Keep the plain badge.
             EmptyView()
         }
     }

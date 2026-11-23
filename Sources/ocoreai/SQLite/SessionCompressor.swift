@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SessionCompressor.swift — Session memory management with token-threshold compression
+/// SessionCompressor.swift. Session memory management with token-threshold compression
 ///
 /// Implements a 3-layer memory model:
 ///   Layer 1 (Hot):  In-memory working set (last N messages)
@@ -12,7 +12,7 @@
 import Foundation
 import Logging
 
-/// Session memory manager — actor-isolated with token tracking.
+/// Session memory manager. Actor-isolated with token tracking.
 actor SessionCompressor {
     private let logger: Logger
     private let store: SQLiteStore
@@ -84,7 +84,7 @@ actor SessionCompressor {
     // MARK: - Lazy Injection
 
     /// Inject (or replace) the LLM summarization callback after engine boot.
-    /// Safe to call multiple times — compression that fires before injection
+    /// Safe to call multiple times. Compression that fires before injection
     /// uses rule-based fallback; afterwards it uses the LLM.
     func setSummarizer(_ callback: (@Sendable (String) async throws -> String)?) async {
         llmSummarizer = callback
@@ -138,7 +138,7 @@ actor SessionCompressor {
     /// The one session row a conversation belongs to, looked up or created once.
     ///
     /// Three arms, in this order, because two of them are contracts that already exist:
-    /// 1. a numeric key naming an existing row is that row — a client that learned the id
+    /// 1. a numeric key naming an existing row is that row. A client that learned the id
     ///    from `/sessions` keeps appending where it always did;
     /// 2. a key seen before returns the row it was created on. This is the fix: one
     ///    conversation gets one row instead of one row per request (measured 10-21, three
@@ -147,7 +147,7 @@ actor SessionCompressor {
     /// 3. otherwise create the row and remember the key.
     ///
     /// A numeric key naming a row that does not exist no longer writes `messages` rows
-    /// against a missing parent — arms 2/3 own it, so the transcript lands somewhere real.
+    /// against a missing parent. Arms 2/3 own it, so the transcript lands somewhere real.
     ///
     /// Keyed with `modelId` because that is how the engine partitions a conversation too
     /// (`SessionPool.poolKey` = `modelId:conversationId`); one client key across two models
@@ -417,7 +417,7 @@ actor SessionCompressor {
     /// conversation, and it only compares the roles a conversation contributes
     /// (``SessionTranscript/persistedRoles``), so the filter lives in the query: an
     /// unfiltered read has to guess how many assistant rows it will trip over, and under a
-    /// tight margin it returns a *shorter head* than the caller asked for — which the overlap
+    /// tight margin it returns a *shorter head* than the caller asked for, which the overlap
     /// rule then reads as "these turns are new" and stores them twice. Filtering here makes
     /// `limit` mean exactly what the caller counts, with `id` as the tiebreak inside one
     /// microsecond timestamp.
@@ -449,7 +449,7 @@ actor SessionCompressor {
     /// Why this exists: the live transcript (`ChatState.messages`) is what the
     /// next inference reads, while these rows are what a session *reload* renders.
     /// Edit-and-resend and Regenerate both drop the tail of the transcript, so
-    /// without this mirror the abandoned turn — including the pre-edit wording —
+    /// without this mirror the abandoned turn. Including the pre-edit wording,
     /// reappears the next time the session is opened. One primitive for both
     /// paths so their semantics cannot fork.
     ///
@@ -459,7 +459,7 @@ actor SessionCompressor {
     /// never persisted, or a session compressed while the UI was open) drops what
     /// exists and never reaches further back than asked.
     ///
-    /// - Returns: rows deleted — the honest number, which can be smaller than
+    /// - Returns: rows deleted. The honest number, which can be smaller than
     ///   `count` and is never larger.
     @discardableResult
     func dropTranscriptTail(sessionId: Int64, count: Int) async throws -> Int {
@@ -514,7 +514,7 @@ actor SessionCompressor {
     /// Trigger compression for a session.
     ///
     /// Uses detached task + weak self to avoid holding a strong reference
-    /// on SessionCompressor while pruneColdMessages runs — prevents delaying
+    /// on SessionCompressor while pruneColdMessages runs. Prevents delaying
     /// GC of session state under memory pressure.
     private func triggerCompression(_ sessionId: Int64) {
         Task.detached(priority: .utility) { [weak self] in
@@ -614,7 +614,7 @@ actor SessionCompressor {
     private func generateCompressionSummary(
         _ messages: [(role: String, content: String, toolCalls: String?)]
     ) async -> String {
-        // Build conversation context for the summarizer — include tool call info
+        // Build conversation context for the summarizer. Include tool call info
         let conversationText = messages.map { msg -> String in
             let base = "\(msg.role): \(msg.content)"
             if let tc = msg.toolCalls, !tc.isEmpty {
@@ -755,7 +755,7 @@ actor SessionCompressor {
 
     // MARK: - Structured Memory Events (Six-Element Model, 方案 B 单层)
 
-    /// Alias for ``storeMemoryEvent(_:)`` — used by SelfCorrectionPipeline's persistMemory closure.
+    /// Alias for ``storeMemoryEvent(_:)``. Used by SelfCorrectionPipeline's persistMemory closure.
     func addMemory(_ event: MemoryEvent) async {
         try? await storeMemoryEvent(event)
     }
@@ -913,7 +913,7 @@ actor SessionCompressor {
         return Array(deduped.prefix(limit))
     }
 
-    /// Cross-session permanent memory recall — facts + preferences with recency scoring.
+    /// Cross-session permanent memory recall. Facts + preferences with recency scoring.
     ///
     /// Uses cue spreading: after primary FTS5 hit, expands by shared context/tags
     /// to surface related memories the user may not have directly queried for.

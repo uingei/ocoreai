@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ModelDownloadHandler.swift — SSE handler for ``POST /v1/models/download``
+/// ModelDownloadHandler.swift. SSE handler for ``POST /v1/models/download``
 ///
 /// Streams download progress as SSE events:
 /// - "progress" with percentage, bytes, eta
@@ -74,7 +74,7 @@ func modelDownloadHandler(
         status: .ok,
         headers: responseHeaders,
         body: .init { writer in
-            // AsyncStream channel decouples download producer from SSE writer — avoids
+            // AsyncStream channel decouples download producer from SSE writer. Avoids
             // capturing non-Sendable `writer` in a Task/Sendable closure.
             // Bounded buffer prevents unbounded memory growth if the client
             // disconnects during a long download.
@@ -104,7 +104,7 @@ func modelDownloadHandler(
 
             defer {
                 // Cancel the download task if the client disconnects or the
-                // SSE writer loop exits — prevents orphaned downloads running
+                // SSE writer loop exits. Prevents orphaned downloads running
                 // after the HTTP response is gone.
                 downloadTask.cancel()
             }
@@ -115,12 +115,12 @@ func modelDownloadHandler(
                     guard let lineData = line.data(using: .utf8) else { break }
                     try await writer.write(.init(data: lineData))
                 } catch {
-                    // Client disconnected or encoding failed — stop streaming
+                    // Client disconnected or encoding failed. Stop streaming
                     logger.warning("SSE write failed: \(error)")
                     break
                 }
             }
-            // 终结 chunked 响应（.end）——协议要求，缺它 keep-alive 客户端收不到流结尾
+            // 终结 chunked 响应（.end）。协议要求，缺它 keep-alive 客户端收不到流结尾
             try? await writer.finish(nil)
         },
     )
@@ -157,7 +157,7 @@ private func planDownload(
 
 /// Actually run the download, emitting SSE progress events.
 ///
-/// Acquires a global download concurrency slot before starting — prevents
+/// Acquires a global download concurrency slot before starting. Prevents
 /// API path from bypassing UI path's concurrency limits. Releases the slot
 /// on both success and failure.
 private func doDownload(
@@ -174,7 +174,7 @@ private func doDownload(
     // Extract bare repoId for semaphore key
     let bareId = modelId
 
-    // Acquire concurrency slot — waits if all slots are busy
+    // Acquire concurrency slot. Waits if all slots are busy
     let shouldProceed = await DownloadSemaphore.shared.acquireOrWait(for: bareId)
     guard shouldProceed else {
         throw AppError.invalidRequest(
@@ -211,7 +211,7 @@ private func downloadFromHF(
     logger: Logger,
     emit: @Sendable @escaping (DownloadSSEEvent) -> Void,
 ) async throws -> String {
-    // M7: 就绪模型目录 — ready downloader (same contract as #hubDownloader(),
+    // M7: 就绪模型目录。ready downloader (same contract as #hubDownloader(),
     // pinned to ModelStore.hubRoot so the registry stays the single source).
     // Auth auto-detection (HF_TOKEN / keychain) is unchanged: HubClient
     // resolves credentials the same way it did under the default cache.

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// StructuredLogger.swift — JSON structured logging with OpenTelemetry compatibility
+/// StructuredLogger.swift. JSON structured logging with OpenTelemetry compatibility
 ///
 /// Outputs JSON-formatted log entries compatible with OpenTelemetry collectors.
 /// Integrates with swift-log but adds structured context and trace correlation.
@@ -116,7 +116,7 @@ final class StructuredLogger: Sendable {
     }
 }
 
-/// OpenTelemetry-compatible log entry — serializable to JSON.
+/// OpenTelemetry-compatible log entry. Serializable to JSON.
 struct LogEntry: Codable {
     /// Unix nanoseconds since epoch.
     let timestamp: Int64
@@ -177,7 +177,7 @@ extension Logger {
 ///
 /// NOTE: `nonisolated(unsafe)` on mutable properties is required because the
 /// SwiftLog `LogHandler` protocol demands mutable `logLevel` and `metadata`
-/// storage. `StructuredLogHandler` is not an `actor` — it's a plain `class` —
+/// storage. `StructuredLogHandler` is not an `actor`. It's a plain `class`,
 /// so `nonisolated(unsafe)` tells the strict concurrency checker that these
 /// properties may be mutated from any isolation context.
 /// In practice, this handler is created once per Logger and only mutated

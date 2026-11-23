@@ -1,29 +1,29 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// ModelScopeDownloader.swift — Download models from ModelScope Hub
+// ModelScopeDownloader.swift. Download models from ModelScope Hub
 //
 // Conforms to ml-explore/mlx-swift-lm `Downloader` protocol, enabling
 // `LLMModelFactory.load(from: ModelScopeDownloader())` seamless ModelScope support.
 //
 // ### Architecture:
 // - ModelId format: `"mscope:Qwen/Qwen2.5-7B-Instruct"` (prefix: provider)
-//   - The Downloader receives just the repo-id after prefix is stripped
-// - Cache path: `~/.ocoreai/models/{owner}/{model}/`(omlx 平铺,无 /{revision} 三级 —
-//   omlx/admin/ms_downloader.py: "Preserve {owner}/{model} layout to match other tools")
+//  - The Downloader receives just the repo-id after prefix is stripped
+// - Cache path: `~/.ocoreai/models/{owner}/{model}/`(omlx 平铺,无 /{revision} 三级,
+//  omlx/admin/ms_downloader.py: "Preserve {owner}/{model} layout to match other tools")
 // - Download: lists file tree via ModelScope API, filters by glob patterns,
-//   then downloads files in parallel with progress tracking
+//  then downloads files in parallel with progress tracking
 // - Retry: exponential backoff with jitter on transient network errors
 // - Stall detection: aborts if no bytes received within stall timeout
 // - Endpoint: configurable via MODELSCOPE_ENDPOINT env var (mirror/proxy support)
 //
 // All API paths, parameters, and response structures are derived from the
-// ModelScope Python SDK (modelscope v1.x) — this is an SDK-alignment port.
+// ModelScope Python SDK (modelscope v1.x). This is an SDK-alignment port.
 
 import Foundation
 import Logging
 import MLXLMCommon
 
-/// Retryable HTTP error codes — these are transient and worth retrying.
+/// Retryable HTTP error codes. These are transient and worth retrying.
 /// 408/429/5xx are retryable; 400/401/403/404 are NOT.
 nonisolated func isRetryable(statusCode: Int) -> Bool {
     switch statusCode {
@@ -47,7 +47,7 @@ actor ModelScopeDownloader: Downloader {
     /// What this downloader may offer the hub, classified once at init (HubCredential.swift):
     /// a request carries a complete `Bearer <token>` or no `Authorization` header at all.
     private let credential: HubCredentialResolution
-    /// ModelScope API base — configurable via MODELSCOPE_ENDPOINT env var
+    /// ModelScope API base. Configurable via MODELSCOPE_ENDPOINT env var
     /// or passed via init. Falls back to `https://www.modelscope.cn/api/v1`.
     private let baseAPI: URL
     private let cacheRoot: URL
@@ -89,7 +89,7 @@ actor ModelScopeDownloader: Downloader {
             cacheRoot
             ?? {
                 // 就绪模型目录(omlx 对齐:下载即落进统一登记簿)。
-                // 事实源:ModelStore.root——$OCOREAI_MODELS_DIR > ~/.ocoreai/models
+                // 事实源:ModelStore.root。$OCOREAI_MODELS_DIR > ~/.ocoreai/models
                 // (omlx `~/.omlx/models` 同构)。写入布局:`<root>/<ns>/<name>/`
                 // 平铺,无 /{revision} 三级(omlx 对齐)。
                 ModelStore.ensureLayout()
@@ -214,7 +214,7 @@ actor ModelScopeDownloader: Downloader {
         // 对齐 omlx ms_downloader.py target_dir = model_dir / task.repo_id)
         // `id` arrives from the wire (`POST /v1/models/download` `model`) or from a model
         // reference string. It names a directory *inside* the cache root, or this is not a
-        // download request — `appendingPathComponent` percent-encodes but never contains, so the
+        // download request, `appendingPathComponent` percent-encodes but never contains, so the
         // check has to be explicit. Rule: Core/HubRelativePath.swift.
         let cacheDir = try HubRelativePath.resolve(under: cacheRoot, id, field: "model")
 
@@ -233,7 +233,7 @@ actor ModelScopeDownloader: Downloader {
         }
 
         // A manifest entry that escapes the cache dir is not a file to fetch: it is a hostile or
-        // broken answer from whatever served the API — and `MODELSCOPE_ENDPOINT` makes "whatever
+        // broken answer from whatever served the API, and `MODELSCOPE_ENDPOINT` makes "whatever
         // served the API" an operator-configurable thing (mirror/proxy). Refuse the whole
         // download here, before any byte is written or any file is deleted, rather than
         // letting one poisoned path through into the per-file joins below.
@@ -249,7 +249,7 @@ actor ModelScopeDownloader: Downloader {
             throw DownloaderError.noFilesMatching(repoId: id, patterns: patterns)
         }
 
-        // LoRA/Adapter detection — block download if adapter indicators present
+        // LoRA/Adapter detection. Block download if adapter indicators present
         if hasAdapterIndicators(fileInfo) {
             throw DownloaderError.adapterDetected(repoId: id)
         }
@@ -262,7 +262,7 @@ actor ModelScopeDownloader: Downloader {
         purgeStaleTempFiles(in: cacheRoot)
 
         // Pre-flight disk guard (roadmap line 6): ModelScope sizes are
-        // already in hand from listRepoFiles — block BEFORE bytes flow when
+        // already in hand from listRepoFiles. Block BEFORE bytes flow when
         // the volume can't hold the remainder (minus what's cached). Sizes
         // missing across matched files → allow (existing guards own it).
         let totals = Self.matchedTotals(matchingFiles, existingFilenames: existingFilenames)
@@ -300,7 +300,7 @@ actor ModelScopeDownloader: Downloader {
             do {
                 return try await operation()
             } catch {
-                // Cancellation is USER intent — never retryable, never a
+                // Cancellation is USER intent. Never retryable, never a
                 // "network error". Without this gate a Stop click sits out
                 // the full retryDelay before checkCancellation fires.
                 if error is CancellationError { throw error }
@@ -316,7 +316,7 @@ actor ModelScopeDownloader: Downloader {
                             return false
                         }
                     }
-                    // Network errors (NSURLError) — retry
+                    // Network errors (NSURLError). Retry
                     return true
                 }()
 
@@ -344,7 +344,7 @@ actor ModelScopeDownloader: Downloader {
         let sha256: String?
     }
 
-    /// Adapter detection helper — checks file tree for LoRA/adapter indicators.
+    /// Adapter detection helper. Checks file tree for LoRA/adapter indicators.
     internal func hasAdapterIndicators(_ info: [FileInfo]) -> Bool {
         for file in info {
             let lower = file.path.lowercased()
@@ -371,11 +371,11 @@ actor ModelScopeDownloader: Downloader {
 
     /// List files in a ModelScope repo.
     ///
-    /// Uses `/api/v1/models/{id}/repo/files?Recursive=true` — same as Python SDK's
+    /// Uses `/api/v1/models/{id}/repo/files?Recursive=true`. Same as Python SDK's
     /// `HubApi.get_model_files()`.
     ///
     /// Response: Data.Files[].Path / .Size / .Type
-    /// plus .Sha256 — a digest per blob, the LFS shards included; probe 43 §1 asks a real hub
+    /// plus .Sha256. A digest per blob, the LFS shards included; probe 43 §1 asks a real hub
     /// whether that still holds.
     private func listRepoFiles(repoId: String, revision: String) async throws -> [FileInfo] {
         guard let components = URLComponents(url: self.baseAPI, resolvingAgainstBaseURL: false)
@@ -436,7 +436,7 @@ actor ModelScopeDownloader: Downloader {
                     path: path, size: size, type: type, sha256: dict["Sha256"] as? String)
             }
         } else {
-            // Data.Files is null/missing — typically means the repo is gated/private
+            // Data.Files is null/missing. Typically means the repo is gated/private
             // and requires authentication (MODELSCOPE_TOKEN).
             let raw = String(data: data, encoding: .utf8) ?? "<binary>"
             throw DownloaderError.gatedRepository(
@@ -454,9 +454,9 @@ actor ModelScopeDownloader: Downloader {
     /// Download a single file from ModelScope.
     ///
     /// Uses `/api/v1/models/{id}/resolve/{revision}/{path}` which redirects to CDN.
-    /// Streams the response into a temp file — never holds the full file in memory.
+    /// Streams the response into a temp file. Never holds the full file in memory.
     ///
-    /// **Resume**: deterministic temp + HTTP Range/If-Range continuation —
+    /// **Resume**: deterministic temp + HTTP Range/If-Range continuation,
     /// transient failures keep partial bytes, the next attempt (or process
     /// restart) resumes where it stopped. Identity verified via revision +
     /// ETag/Last-Modified; any doubt restarts fresh (never splices versions).
@@ -468,13 +468,13 @@ actor ModelScopeDownloader: Downloader {
     // MARK: - Resume support (line 2: interrupted downloads survive)
     //
     // First-principles gap this closes: a 40 GB download that drops at 99%
-    // used to delete its temp file and restart from zero — the network paid
+    // used to delete its temp file and restart from zero. The network paid
     // twice and the user waited twice. Now: deterministic temp names (a new
     // process finds yesterday's bytes), partial temp kept across transient
     // failures and cancellations, and HTTP Range continuation with If-Range
     // identity checks so resumed bytes can never silently splice versions.
 
-    /// Deterministic temp path for a repo file — resume across attempts and
+    /// Deterministic temp path for a repo file. Resume across attempts and
     /// process restarts. `.download-` prefix keeps it inside the sweep.
     static func resumeTempURL(for path: String, in cacheDir: URL) -> URL {
         // Separators are flattened into the filename *before* the join, so this name cannot walk
@@ -487,14 +487,14 @@ actor ModelScopeDownloader: Downloader {
     static func resumeMetaURL(for path: String, in cacheDir: URL) -> URL {
         resumeTempURL(for: path, in: cacheDir).appendingPathExtension("meta")
     }
-    /// Sidecar for an already-computed temp URL (sweep path — no re-hash).
+    /// Sidecar for an already-computed temp URL (sweep path, no re-hash).
     static func resumeMetaURL(alongside tempURL: URL) -> URL {
         tempURL.appendingPathExtension("meta")
     }
 
     /// Total resumable bytes under `dir`: `.download-*` temps that carry a
     /// `.meta` sidecar (identity known → resume will fire). Temps WITHOUT a
-    /// sidecar are invisible here — byte-counting them would promise a
+    /// sidecar are invisible here. Byte-counting them would promise a
     /// resume the If-Range gate can't honestly make. FS query; call off the
     /// view body (`.task`), the tree is shallow (one repo dir).
     static func resumableBytes(in dir: URL) -> Int64 {
@@ -518,7 +518,7 @@ actor ModelScopeDownloader: Downloader {
 
     /// HF-axis counterpart: resumable bytes in a HubCache blobs dir are the
     /// `*.incomplete` watermarks (swift-huggingface HubCache.swift:292).
-    /// They ARE honestly resumable — the SDK resumes them keyed by etag
+    /// They ARE honestly resumable. The SDK resumes them keyed by etag
     /// (HubClient+Files.swift:589 Range header). URLSession temps die on
     /// cancel; only the .incomplete watermark survives → count only that.
     static func hfIncompleteBytes(inBlobsDir dir: URL) -> Int64 {
@@ -554,7 +554,7 @@ actor ModelScopeDownloader: Downloader {
     }
 
     /// A temp at exactly the manifest size with a matching revision is a
-    /// COMPLETE file the previous process died before promoting — ship it
+    /// COMPLETE file the previous process died before promoting. Ship it
     /// without touching the network (the codebase's integrity bar is
     /// manifest-size verification, same as verifyDownloadedFiles applies to
     /// promoted files).
@@ -572,7 +572,7 @@ actor ModelScopeDownloader: Downloader {
     /// Stream disposition after the response arrives. Range continuation only
     /// on 206 (server honored Range + If-Range); 200 → start fresh (truncate);
     /// 416 with temp already at expected size → the file is COMPLETE server-
-    /// side (race: another session finished it) — promote, do not fail;
+    /// side (race: another session finished it). Promote, do not fail;
     /// anything else → failure with its status code.
     enum ResumeDisposition: Equatable {
         case resume
@@ -581,7 +581,7 @@ actor ModelScopeDownloader: Downloader {
         case failed(statusCode: Int)
     }
 
-    /// Temp-retention policy on attempt exit. KEEP on every error —
+    /// Temp-retention policy on attempt exit. KEEP on every error,
     /// cancellation included: user intent is "pause", and bytes under an
     /// If-Range/Content-Range guard are a valid resume prefix. Cleanup
     /// authority is the age-gated launch sweep, never the cancel path.
@@ -611,11 +611,11 @@ actor ModelScopeDownloader: Downloader {
     }
 
     /// Range-aware disposition. ModelScope's CDN answers a honored
-    /// `Range: bytes=offset-` with **200 + Content-Range** (not 206) —
+    /// `Range: bytes=offset-` with **200 + Content-Range** (not 206),
     /// status-only logic would truncate a resumable temp and re-download
     /// every byte (resume never works there, proven live 2026-10-09).
     /// A partial-with-200 resumes ONLY when the range starts exactly at
-    /// our offset — that byte math is the integrity proof; a missing or
+    /// our offset, that byte math is the integrity proof; a missing or
     /// mismatched header means full body: honest truncate-and-restart.
     static func resumeDisposition(
         statusCode: Int,
@@ -670,11 +670,11 @@ actor ModelScopeDownloader: Downloader {
     }
 
     /// Remove orphaned `.download-*` temp files older than the stale window
-    /// (and their `.meta` sidecars). Fresh temps are RESUMABLE state — the
-    /// whole point of keeping them — so only age decides.
+    /// (and their `.meta` sidecars). Fresh temps are RESUMABLE state. The
+    /// whole point of keeping them, so only age decides.
     func purgeStaleTempFiles(in directory: URL, staleAfter: TimeInterval = 24 * 3600) {
         let fm = FileManager.default
-        // NOTE: no .skipsHiddenFiles — every temp we hunt starts with '.'
+        // NOTE: no .skipsHiddenFiles. Every temp we hunt starts with '.'
         // (macOS hides them), and skipping hidden made this sweep a no-op.
         // Safety comes from the name-prefix gate below, never from the flag.
         guard
@@ -707,9 +707,9 @@ actor ModelScopeDownloader: Downloader {
     /// Each file reports its OWN cumulative temp bytes (flushes ~1MB);
     /// the batch total is the sum of per-file contributions. Per-file max
     /// keeps the bar monotone across retries whose Range was ignored (temp
-    /// truncated, report restarts lower — we hold the high-water mark until
+    /// truncated, report restarts lower. We hold the high-water mark until
     /// the real bytes pass it; completion report = manifest size, exact).
-    /// Every accepted flush updates `lastProgressAt` — the batch heartbeat.
+    /// Every accepted flush updates `lastProgressAt`. The batch heartbeat.
     internal final class BatchBytes: @unchecked Sendable {
         private let lock = NSLock()
         private let limit: Int64
@@ -724,7 +724,7 @@ actor ModelScopeDownloader: Downloader {
         }
 
         /// Report `cumulativeBytes` = bytes on disk for `file` right now
-        /// (temp included, absolute not delta — retries compute cleanly).
+        /// (temp included, absolute not delta. Retries compute cleanly).
         func report(file: String, cumulativeBytes: Int64) {
             lock.lock()
             let prev = perFile[file] ?? 0
@@ -738,7 +738,7 @@ actor ModelScopeDownloader: Downloader {
             onProgress(reportedSnapshot, limit)
         }
 
-        /// Authoritative landing at file completion: the REAL size is truth —
+        /// Authoritative landing at file completion: the REAL size is truth,
         /// overwrite the high-water mark (a temp that over-ran the manifest
         /// must not hold the bar inflated forever) and re-emit exactly.
         func settle(file: String, exactBytes: Int64) {
@@ -751,7 +751,7 @@ actor ModelScopeDownloader: Downloader {
 
         /// Recompute from per-file truths (never delta-on-clamped-total: a
         /// clamped `reported` loses information and deltas drift). Sum is
-        /// O(files) — hundreds max, flush cadence ≥1MB — negligible cost,
+        /// O(files). Hundreds max, flush cadence ≥1MB. Negligible cost,
         /// books always exact. Caller holds lock.
         private func settle_locked() {
             let sum = perFile.values.reduce(Int64(0)) { $0 + $1 }
@@ -772,7 +772,7 @@ actor ModelScopeDownloader: Downloader {
         /// One attempt: resume from deterministic temp when possible, stream
         /// the remainder, promote on success. Transient failures KEEP temp
         /// (bytes are valid prefixes; If-Range guards identity on resume);
-        /// cancellation ALSO KEEPS temp — user intent is "not now", not
+        /// cancellation ALSO KEEPS temp. User intent is "not now", not
         /// "delete 20 GB and start over"; the age-gated launch sweep owns
         /// real cleanup, and byte-level resume (Content-Range verified)
         /// makes the next attempt continue, not restart.
@@ -796,13 +796,13 @@ actor ModelScopeDownloader: Downloader {
             let parent = destURL.deletingLastPathComponent()
             try? FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
 
-            // Deterministic temp — a later attempt (or a new process) finds
+            // Deterministic temp. A later attempt (or a new process) finds
             // these bytes again. UUID temps were the resume-killer.
             let tempURL = Self.resumeTempURL(for: path, in: cacheDirFor(path: path, dest: destURL))
             let metaURL = Self.resumeMetaURL(for: path, in: cacheDirFor(path: path, dest: destURL))
             let fm = FileManager.default
 
-            // Resume offset: temp bytes we already own, gated by identity —
+            // Resume offset: temp bytes we already own, gated by identity,
             // revision match + plausible size. Any doubt → offset 0.
             var offset: Int64 = 0
             if let attrs = try? fm.attributesOfItem(atPath: tempURL.path(percentEncoded: false)) {
@@ -836,14 +836,14 @@ actor ModelScopeDownloader: Downloader {
                         request.setValue(lm, forHTTPHeaderField: "If-Range")
                     }
                 } else if tempBytes > 0 {
-                    // Discordant stale temp — drop it before this attempt.
+                    // Discordant stale temp. Drop it before this attempt.
                     try? fm.removeItem(at: tempURL)
                     try? fm.removeItem(at: metaURL)
                 }
             }
 
             do {
-                // bytes(for:) returns (AsyncBytes, URLResponse) in Swift 6 —
+                // bytes(for:) returns (AsyncBytes, URLResponse) in Swift 6,
                 // check response first, then stream body.
                 let requestedOffset = offset
                 let (bytes, response) = try await URLSession.shared.bytes(for: request)
@@ -875,7 +875,7 @@ actor ModelScopeDownloader: Downloader {
                 }
                 if !resuming && offset > 0 {
                     // Server ignored Range (or If-Range mismatch → full body):
-                    // our prefix is unverified — truncate and restart.
+                    // our prefix is unverified. Truncate and restart.
                     offset = 0
                 }
 
@@ -887,7 +887,7 @@ actor ModelScopeDownloader: Downloader {
                         atPath: tempURL.path(percentEncoded: false), contents: nil)
                 }
 
-                // Stream into file — O(1) memory regardless of file size.
+                // Stream into file. O(1) memory regardless of file size.
                 // Buffered writes: accumulate bytes into a Data buffer, flush at
                 // bufferSize (1 MB) to avoid per-byte syscalls. A 10 GB safetensors
                 // file with per-byte writes would trigger ~10 billion syscalls.
@@ -929,7 +929,7 @@ actor ModelScopeDownloader: Downloader {
                     }
                     lastActivity = ContinuousClock.now
 
-                    // Flush buffer when full — and surface the byte count
+                    // Flush buffer when full, and surface the byte count
                     // (bar + batch heartbeat ride this ~1MB cadence).
                     if writeBuffer.count >= bufferSize {
                         handle.write(writeBuffer)
@@ -953,7 +953,7 @@ actor ModelScopeDownloader: Downloader {
                 // Promoted: identity sidecar no longer needed.
                 try? FileManager.default.removeItem(at: metaURL)
             } catch {
-                // KEEP temp on every exit path — cancellation included.
+                // KEEP temp on every exit path. Cancellation included.
                 // Bytes are a valid prefix under If-Range/Content-Range
                 // guard; resume continues from offset next attempt.
                 // Cleanup authority: age-gated purgeStaleTempFiles at launch.
@@ -967,7 +967,7 @@ actor ModelScopeDownloader: Downloader {
     }
 
     /// Directory holding the temp for a repo file: the cache root, since
-    /// temps live beside `destURL`'s parent only within nested repo paths —
+    /// temps live beside `destURL`'s parent only within nested repo paths,
     /// determinism demands ONE canonical location per repo file.
     private func cacheDirFor(path: String, dest: URL) -> URL {
         dest.deletingLastPathComponent()
@@ -1004,7 +1004,7 @@ actor ModelScopeDownloader: Downloader {
         var downloadedCount = 0
         var failedPaths: [String] = []
         /// Paths that were actually downloaded (not pre-existing) in this session.
-        /// Used for targeted cleanup on partial failure — avoids deleting files
+        /// Used for targeted cleanup on partial failure. Avoids deleting files
         /// that existed before this download attempt.
         var newlyDownloaded: Set<String> = []
 
@@ -1012,7 +1012,7 @@ actor ModelScopeDownloader: Downloader {
         // absolute cumulative, temp bytes included). The bar advances on
         // ~1MB flushes instead of file-completion cliffs, resumed bytes
         // count from frame one, and the flush heartbeat retires the old
-        // file-completion-only stall pulse — which killed healthy
+        // file-completion-only stall pulse, which killed healthy
         // single-file downloads >10 min (batch check only ever beat when
         // a whole file finished).
         let batch = BatchBytes(total: max(totalBytes, 1)) { done, limit in
@@ -1026,12 +1026,12 @@ actor ModelScopeDownloader: Downloader {
 
         // Cancellation: the batch loop throws CancellationError, each
         // downloadSingleFile catch discards its own temp+meta on explicit
-        // cancel (one authority — no sweeping cacheDir here, which would
+        // cancel (one authority, no sweeping cacheDir here, which would
         // delete resumable temps the user just chose to interrupt).
         // Age-gated stale sweep lives at app launch (purgeStaleTempFiles).
 
         for chunk in files.chunked(into: 4) {
-            // Task.isCancelled checkpoint — allow user cancellation to take effect
+            // Task.isCancelled checkpoint. Allow user cancellation to take effect
             if Task.isCancelled { throw CancellationError() }
 
             // Batch-level stall check
@@ -1056,7 +1056,7 @@ actor ModelScopeDownloader: Downloader {
                         }
                         let dest = try cacheFileURL(for: filePath, under: cacheDir)
                         // Byte progress (HIG: bar reflects real bytes): per-file
-                        // flushes (~1MB) report absolute cumulative — resumed
+                        // flushes (~1MB) report absolute cumulative. Resumed
                         // temp bytes count from the first flush of attempt 2.
                         let reportBytes: @Sendable (Int64) -> Void = { cumulative in
                             batch.report(file: filePath, cumulativeBytes: cumulative)
@@ -1113,7 +1113,7 @@ actor ModelScopeDownloader: Downloader {
         let corrupted = verifyDownloadedFiles(
             files, cacheDir: cacheDir, downloadedNow: newlyDownloaded)
         if !corrupted.isEmpty {
-            // Remove only the corrupted files — next download attempt re-downloads them.
+            // Remove only the corrupted files. Next download attempt re-downloads them.
             for failure in corrupted {
                 guard let target = try? cacheFileURL(for: failure.path, under: cacheDir) else {
                     continue
@@ -1139,7 +1139,7 @@ actor ModelScopeDownloader: Downloader {
     /// answers an operator choice; an entry with no declared digest keeps the size compare, which
     /// still catches truncation.
     ///
-    /// Only bytes that arrived in *this* call are hashed — a cache hit is trusted as found, the
+    /// Only bytes that arrived in *this* call are hashed. A cache hit is trusted as found, the
     /// trade ollama takes (`server/images.go:1295`), since re-reading 20 GB per load is a tax the
     /// user never asked for. Internal so `@testable` tests pin both checks and that boundary.
     func verifyDownloadedFiles(
@@ -1243,7 +1243,7 @@ actor ModelScopeDownloader: Downloader {
                 try? FileManager.default.removeItem(at: directory)
             }
         } catch {
-            // Directory gone or unreadable — nothing to do
+            // Directory gone or unreadable. Nothing to do
         }
     }
 
@@ -1262,7 +1262,7 @@ actor ModelScopeDownloader: Downloader {
         // On macOS 27 Foundation, a directory URL's path(percentEncoded: false)
         // carries a TRAILING SLASH, so a `full.hasPrefix(base + "/")` check
         // would require a double-slash prefix
-        // (".../gemma-4-e2b-it-4bit//") and filter EVERY real file out —
+        // (".../gemma-4-e2b-it-4bit//") and filter EVERY real file out,
         // listLocalFiles returned [] while contentsOfDirectory saw 11 files.
         // That false "nothing downloaded" verdict defeated download()'s
         // fast-path (L121) and force a 3.5 GiB / 421 s full re-download on

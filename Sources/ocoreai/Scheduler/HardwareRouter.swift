@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// HardwareRouter.swift — Runtime hardware-aware compute routing engine
+/// HardwareRouter.swift. Runtime hardware-aware compute routing engine
 ///
 /// Replaces compile-time `#if canImport(CoreAI)` / `#if mlx` binary choice with a
 /// dynamic routing decision based on:
@@ -14,14 +14,14 @@
 ///
 /// ### Strategy
 ///
-/// - **Normal**: prefer GPU (MLX) — highest flexibility, dynamic graph
-/// - **Warming/serious**: shift to ANE (CoreAI) — 10x energy efficiency
-/// - **Memory critical**: shift to CPU-only — minimal memory footprint
+/// - **Normal**: prefer GPU (MLX). Highest flexibility, dynamic graph
+/// - **Warming/serious**: shift to ANE (CoreAI), 10x energy efficiency
+/// - **Memory critical**: shift to CPU-only. Minimal memory footprint
 /// - **GPU saturated (>70% headroom consumed)**: shift to ANE/CPU
 ///
 /// ### Priority Overrides
 ///
-/// `.interrupt` requests bypass ANE specialization latency — only shift
+/// `.interrupt` requests bypass ANE specialization latency, only shift
 /// to ANE/CPU at `.critical` thermal state (not `.serious`).
 import Foundation
 import Logging
@@ -35,9 +35,9 @@ import Logging
 /// Recommended compute accelerator for an inference request.
 public enum ComputeChannel: String, Sendable, Codable, CaseIterable {
     case gpu
-    /// GPU via MLX (Metal) — dynamic graph, best dev experience
+    /// GPU via MLX (Metal). Dynamic graph, best dev experience
     case ane
-    /// ANE via CoreAI — static graph, 10x energy efficiency
+    /// ANE via CoreAI. Static graph, 10x energy efficiency
     case cpu/// CPU fallback — lowest performance, most resilient
 }
 
@@ -74,15 +74,15 @@ extension ComputeChannel {
         }
     }
 
-    /// Human-readable label for the badge — honest lane naming, not device claims.
+    /// Human-readable label for the badge. Honest lane naming, not device claims.
     ///
     /// `.gpu` and `.ane` are the two lanes a request can actually take (Metal via
-    /// MLX; CoreAI via Neural Engine, and only where CoreAI exists — the engine
+    /// MLX; CoreAI via Neural Engine, and only where CoreAI exists. The engine
     /// normalizes `.ane` to `.gpu` when the runtime or a `.aimodel` asset is
     /// missing). `.cpu` is NOT a device claim: the Metal device is bound when the
     /// ModelContainer loads and is never switched per request, so labelling that
     /// lane "CPU" told users their answer came from a chip that never touched it.
-    /// What that lane really means is the memory/thermal guard is on — prefix-cache
+    /// What that lane really means is the memory/thermal guard is on. Prefix-cache
     /// reuse and speculative decoding were dropped for the request.
     public var badgeLabel: String {
         switch self {
@@ -151,7 +151,7 @@ actor RouterPoller {
         }
     }
 
-    /// Perform a single poll — update baseline, emit events if changed.
+    /// Perform a single poll. Update baseline, emit events if changed.
     private func pollOnce() async {
         let now = UInt64(DispatchTime.now().uptimeNanoseconds / 1_000_000)
         if now - self.lastPollTime < self.debounceWindowMs {
@@ -190,7 +190,7 @@ actor RouterPoller {
 
             // Advisory only: this is a machine-level transition. What it costs is
             // decided by the consumer, which corroborates against its own
-            // footprint (EnginePool) — the reading can come entirely from other
+            // footprint (EnginePool). The reading can come entirely from other
             // processes' wired GPU pages.
             self.logger.warning(
                 "Pressure watch (\(event.trigger)): lane advisory \(event.from.rawValue) → \(event.to.rawValue) (degradation gated on corroborated footprint)"
@@ -341,7 +341,7 @@ public final class HardwareRouter: Sendable {
         urgentBypass: Bool,
         pressureIsOurs: Bool = true
     ) -> ComputeChannel {
-        // Tier 1: Memory pressure — force the degraded lane if severe AND ours.
+        // Tier 1: Memory pressure. Force the degraded lane if severe AND ours.
         // Uncorroborated machine pressure must not cost this request its prefix
         // cache: bypassing the session pool re-creates KV per request (more
         // allocation churn, slower first token) without releasing the foreign
@@ -351,7 +351,7 @@ public final class HardwareRouter: Sendable {
             return .cpu
         }
 
-        // Tier 2: Thermal — shift to ANE (or CPU if critical + no bypass)
+        // Tier 2: Thermal. Shift to ANE (or CPU if critical + no bypass)
         let thermalShiftLevel = policy.thermalShiftLevel
         let thermalLevel = Self.thermalLevel(thermal)
         if thermalLevel >= thermalShiftLevel {
@@ -362,7 +362,7 @@ public final class HardwareRouter: Sendable {
             return thermalLevel >= 3 ? .cpu : .ane
         }
 
-        // Tier 3: GPU saturation — shift to ANE
+        // Tier 3: GPU saturation. Shift to ANE
         if gpuFraction > policy.gpuWatermark {
             return .ane
         }
@@ -403,7 +403,7 @@ public final class HardwareRouter: Sendable {
         let memSize: UInt64
     }
 
-    /// nil when the kernel query fails — callers must treat unknown as unknown,
+    /// nil when the kernel query fails. Callers must treat unknown as unknown,
     /// never as zero pressure.
     static func vmPageCounts() -> VMPageCounts? {
         #if os(macOS) || os(iOS)
@@ -453,7 +453,7 @@ public final class HardwareRouter: Sendable {
         //
         // 关键：inactive_count 是内核可随时回收的文件缓存（磁盘缓存，
         // demand-paging 可即时换回），不产生真实内存压力。把它计入"已用"会把
-        // 现代 macOS 稳态（inactive 缓存常态数 GB）误判为高压力 —— 实测本机
+        // 现代 macOS 稳态（inactive 缓存常态数 GB）误判为高压力。实测本机
         // inactive≈4.0G 时，含它=79% (L3，强制 CPU) vs 剔它=49.5% (L1, 走 GPU)，
         // 直接把 GPU 优先路由架空成恒定 CPU。真实压力下系统会 purge inactive
         // 缓存（active 涨 / inactive 跌），所以剔它不掩盖真压力。
@@ -470,7 +470,7 @@ public final class HardwareRouter: Sendable {
 
     /// Physical RAM the process could still be handed: free + inactive +
     /// speculative pages, i.e. everything the kernel can reclaim without paging
-    /// out live anonymous memory. `purgeable_count` is deliberately NOT added —
+    /// out live anonymous memory. `purgeable_count` is deliberately NOT added,
     /// purgeable pages already live in the inactive queue, so adding it here
     /// would double-count them.
     ///
@@ -492,7 +492,7 @@ public final class HardwareRouter: Sendable {
     /// holding RAM therefore reads as critical pressure here while ocoreai's own
     /// footprint sits comfortably inside its budget. Observed 10-12 on a 128 GB
     /// host: a stray python/MLX process holding ~79 GB put the machine at ~74 %
-    /// used (level 3) while this app used 3.5 GB of a 70 GB budget — and the
+    /// used (level 3) while this app used 3.5 GB of a 70 GB budget, and the
     /// uncorroborated verdict cost prefix-cache reuse plus speculation on every
     /// request, spending throughput without giving back the memory that mattered.
     ///
@@ -501,7 +501,7 @@ public final class HardwareRouter: Sendable {
     ///   our-active-bytes ÷ our-budget, not a machine ratio), or
     /// - the machine genuinely cannot hand us memory: reclaimable bytes below
     ///   max(1 GiB, physical/16).
-    /// Unknown inputs count as ours — when we cannot tell, protect memory.
+    /// Unknown inputs count as ours, when we cannot tell, protect memory.
     static func pressureIsOurs(
         gpuFraction: Double,
         reclaimableBytes: UInt64?,
@@ -516,11 +516,11 @@ public final class HardwareRouter: Sendable {
     /// is unit-testable without a specific machine.
     ///
     /// Counts only high-cost / non-reclaimable physical occupancy:
-    /// - `active`   — anonymous (real RAM) + referenced file pages
-    /// - `wire`     — kernel-pinned, non-reclaimable
-    /// - `compressor` — compressed anonymous, reclaimable but costly
+    /// - `active`. Anonymous (real RAM) + referenced file pages
+    /// - `wire`. Kernel-pinned, non-reclaimable
+    /// - `compressor`. Compressed anonymous, reclaimable but costly
     ///
-    /// Deliberately EXCLUDES `inactive` (reclaimable file/disk cache) — see
+    /// Deliberately EXCLUDES `inactive` (reclaimable file/disk cache). See
     /// the caller for the full rationale and the measured L3→L1 impact.
     static func usedFraction(
         active: UInt64,

@@ -1,8 +1,8 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// OOMGuard — quantization downgrade chain for GPU memory protection.
+/// OOMGuard. Quantization downgrade chain for GPU memory protection.
 ///
-/// On Apple Silicon UMA, CPU and GPU share the same physical memory — there is
+/// On Apple Silicon UMA, CPU and GPU share the same physical memory. There is
 /// no separate "GPU memory" to fall back to. Switching inference to CPU does NOT
 /// free memory; it only makes it slower. Therefore the downgrade chain is:
 /// UMA-correct downgrade chain: 8bit → 4bit → hard refuse.
@@ -51,14 +51,14 @@ public struct OOMEvent: Sendable, Codable {
     }
 }
 
-/// OOMGuard manager — responds to memory pressure by downgrading quantization.
+/// OOMGuard manager. Responds to memory pressure by downgrading quantization.
 actor OOMGuard {
     private var currentLevel: QuantizationLevel = .bits8
     private let logger: Logger
     private var eventHistory: [OOMEvent] = []
     private let maxHistoryDepth = 50
 
-    /// Budget tracking — updated by MemoryTracker via ``updateUsage(_:budget:)``.
+    /// Budget tracking. Updated by MemoryTracker via ``updateUsage(_:budget:)``.
     private var budgetBytes: UInt64 = 0
     private var budgetBytesUsed: UInt64 = 0
 
@@ -92,7 +92,7 @@ actor OOMGuard {
         currentLevel
     }
 
-    /// Budget snapshot for user-facing error messages — how much is used and
+    /// Budget snapshot for user-facing error messages. How much is used and
     /// what the budget is, so an OOM refusal can say "currently X of Y"
     /// instead of a bare "refused" (vllm-metal #756 error-quality bar:
     /// current state + concrete next step).
@@ -115,7 +115,7 @@ actor OOMGuard {
     /// - Parameter level: Current memory level from tracker.
     ///
     /// UMA-correct downgrade: 8bit → 4bit → refuse.
-    /// CPU fallback removed — on UMA it doesn't free memory, only adds latency.
+    /// CPU fallback removed. On UMA it doesn't free memory, only adds latency.
     func respond(to level: MemoryLevel) {
         let fromLevel = currentLevel
         switch level {

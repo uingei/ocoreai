@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// DownloadProgressStore — thread-safe snapshot of model download progress.
+/// DownloadProgressStore. Thread-safe snapshot of model download progress.
 ///
 /// Design (root-cause fix, 2026-09-28):
 ///   The progress store is shared, read-mostly state that the downloader
 ///   writes from a non-main thread (ModelScope / HF progress callbacks) while
 ///   the UI reads it from the main thread. It is therefore NOT a main-actor
 ///   state machine. Making it `@MainActor` previously forced every writer to
-///   spawn `Task { @MainActor in ... }` to hop over — and `finish()` spawned a
+///   spawn `Task { @MainActor in ... }` to hop over, and `finish()` spawned a
 ///   detached reaper Task to defer a 2s "completed flash". That reaper Task
 ///   captured the (main-actor) `self`, and the Swift concurrency runtime hit a
 ///   heap invariant ("freed pointer was not the last allocation") while
@@ -22,12 +22,12 @@
 ///
 /// Usage:
 ///   1. UI reads: `OcoreaiDownloadProgress.shared.progress(for:)`, and gates the wait face on
-///      `ModelWaitFace.resolve` — this store, not `ModelManager.downloadingModelId` (which records
+///      `ModelWaitFace.resolve`. This store, not `ModelManager.downloadingModelId` (which records
 ///      only the window that BEGAN a fetch), is the one home of "a wait is live for this id".
 ///   2. The transfer lane owns open/close: `.start(modelId:)` → `.update(_:for:)` / `.updateBytes`
 ///      → `.finish(modelId:success:)` around every hub fetch (`MLXBridge.loadFromHub`).
-///   3. A caller that merely *waits* on a load — ModelManager's acquire behind a boot prewarm, a
-///      503 poller — writes nothing here: its wait ending is not the transfer ending, and a
+///   3. A caller that merely *waits* on a load. ModelManager's acquire behind a boot prewarm, a
+///      503 poller. Writes nothing here: its wait ending is not the transfer ending, and a
 ///      `finish` from it would evict a row whose bytes `/v1/models`' `loadProgress` and the ring
 ///      both still have to show. The one UI voice is `deleteModel`, where deleting the model
 ///      moots the row. Gate: `ModelWaitFaceHonestyTests`.
@@ -61,7 +61,7 @@ struct OcoreaiDownloadProgressState: Sendable, Equatable {
     )
 }
 
-/// Weights-read progress for one id — the phase after the bytes are on disk.
+/// Weights-read progress for one id. The phase after the bytes are on disk.
 ///
 /// Kept apart from ``OcoreaiDownloadProgressState`` on purpose: `active` there answers "is a hub
 /// transfer in flight", and a local-directory load reads the same weights with no transfer at all.
@@ -238,7 +238,7 @@ final class OcoreaiDownloadProgress: @unchecked Sendable {
         return _weights[modelId]
     }
 
-    /// Close the weights row when the load that opened it ends — the load slot, never a waiter
+    /// Close the weights row when the load that opened it ends. The load slot, never a waiter
     /// (same rule as the transfer row's Usage 3).
     func finishWeights(modelId: String) {
         lock.lock()
@@ -246,7 +246,7 @@ final class OcoreaiDownloadProgress: @unchecked Sendable {
         _weights.removeValue(forKey: modelId)
     }
 
-    /// Whether the store tracks any live transfer — the ticker's only idle question, answered
+    /// Whether the store tracks any live transfer. The ticker's only idle question, answered
     /// without copying a dictionary out from under the lock.
     func hasActiveDownloads() -> Bool {
         lock.lock()
@@ -260,10 +260,10 @@ final class OcoreaiDownloadProgress: @unchecked Sendable {
     /// detached `Task { @MainActor in ... }` reaper, which captured the
     /// main-actor `self` and was the crash source on first-launch. There is no
     /// UI reader of the `completed` flag and no reader of the deferred entry
-    /// (the wait face reads liveness off the row's presence — see the header),
+    /// (the wait face reads liveness off the row's presence. See the header),
     /// so immediate eviction is correct and removes the concurrency surface.
     ///
-    /// Callers: the transfer lane that opened the row, and `deleteModel` only —
+    /// Callers: the transfer lane that opened the row, and `deleteModel` only,
     /// a waiter whose poll timed out has not earned this call (Usage 3).
     func finish(modelId: String, success: Bool = true) {
         lock.lock()

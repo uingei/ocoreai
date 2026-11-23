@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Lightweight i18n layer — code-based locale mapping.
+/// Lightweight i18n layer. Code-based locale mapping.
 /// Zero Xcode dependency, swappable at runtime, full fallback chain.
 ///
 /// Design:
-/// - StringKey enum: each UI string gets a typed key — compile-time safe, no typos.
+/// - StringKey enum: each UI string gets a typed key. Compile-time safe, no typos.
 /// - Locale enum: supported locales.
 /// - StringKey.localized(for:) resolves via fallback chain: locale → base (en).
 /// - String key extension for quick inline use: key.l
@@ -15,9 +15,9 @@ import Foundation
 
 /// Locales supported by ocoreai. Expand this array to add new languages.
 public enum OCALocale: String, CaseIterable, Sendable {
-    /// English (base language — fallback for missing translation)
+    /// English (base language. Fallback for missing translation)
     case en
-    /// Simplified中文 — 简体中文
+    /// Simplified中文。简体中文
     case zhHans
     /// 日本語
     case ja
@@ -54,18 +54,18 @@ public enum OCALocale: String, CaseIterable, Sendable {
     /// The bare ISO-639 primary subtag ("en", "zh", …).
     ///
     /// `AVSpeechSynthesisVoice` reports `language` as a *region* variant
-    /// ("en-GB", "zh-CN"), which never equals a script tag — so the
+    /// ("en-GB", "zh-CN"), which never equals a script tag, so the
     /// `PersonalVoiceTTS` exact→prefix matching ladder resolves a Chinese
     /// selection only when handed this bare code, not "zh-Hans".
     /// Recognizers (`SFSpeechRecognizer` / `LocalSTT`) take `bcp47Tag`
-    /// instead — script-accurate, where zh-Hans ≠ zh-Hant.
+    /// instead. Script-accurate, where zh-Hans ≠ zh-Hant.
     public var languageCode: String {
         Locale(identifier: bcp47Tag).language.languageCode?.identifier ?? "en"
     }
 
     /// Locales with a complete translation table: every `StringKey` resolves in both tables, which
-    /// `LocaleResolutionTests` proves in each direction — so no key count is restated here.
-    /// Single source of truth for UI pickers — never hardcode a language list,
+    /// `LocaleResolutionTests` proves in each direction, so no key count is restated here.
+    /// Single source of truth for UI pickers. Never hardcode a language list,
     /// derive it from what `resolve()` actually has. Adding ja/ko/fr/es requires
     /// a full table entry before adding it here.
     public static let availableLocales: [OCALocale] = [.en, .zhHans]
@@ -74,7 +74,7 @@ public enum OCALocale: String, CaseIterable, Sendable {
     /// first-run / never-changed. Reads the same UserDefaults key as
     /// `SettingsStore.appLocale` so Settings persistence and runtime
     /// rendering stay in lockstep without a second storage location.
-    /// HIG: a picker that is persisted must affect the rendered UI — the
+    /// HIG: a picker that is persisted must affect the rendered UI. The
     /// previous behaviour persisted but rendered the system locale, making
     /// the picker decorative. This closes that.
     public static func userSelected() -> OCALocale {
@@ -106,9 +106,9 @@ public enum OCALocale: String, CaseIterable, Sendable {
 // MARK: - String Keys (type-safe)
 
 /// Every UI string gets a typed key. New text = new key + translations.
-/// No runtime string literal lookup — compile-time safe.
+/// No runtime string literal lookup. Compile-time safe.
 public enum StringKey: String, CaseIterable, Sendable {
-    // — Dashboard —
+    // Dashboard,
     case systemOnline = "Dashboard.SystemOnline"
     case backend = "Dashboard.Backend"
     case systemLoading = "Dashboard.SystemLoading"
@@ -136,41 +136,41 @@ public enum StringKey: String, CaseIterable, Sendable {
     case gpuMemoryKVCache = "Dashboard.GPUMemoryKVCache"
     case loadingMetrics = "Dashboard.LoadingMetrics"
 
-    // — Chat —
+    // Chat,
     case chatPlaceholder = "Chat.Placeholder"
     case interruptedLabel = "Chat.InterruptedLabel"
     case truncatedBadge = "Chat.TruncatedBadge"
-    // — Chat file-change review (inline diffs) —
+    // Chat file-change review (inline diffs),
     case diffCreated = "Chat.Diff.Created"
     case diffModified = "Chat.Diff.Modified"
     case diffAddedLines = "Chat.Diff.AddedLines"
     case diffRemovedLines = "Chat.Diff.RemovedLines"
     case diffElidedLines = "Chat.Diff.ElidedLines"
-    // — Chat phases (progress display) —
+    // Chat phases (progress display),
     case phasePreparing = "Chat.Phase.Preparing"
     case phasePrefilling = "Chat.Phase.Prefilling"
     case phasePrefillingProgress = "Chat.Phase.PrefillingProgress"
     case phaseGenerating = "Chat.Phase.Generating"
     case phaseToolExecuting = "Chat.Phase.ToolExecuting"
-    // — Channel shift toast —
+    // Channel shift toast,
     case channelShiftThermal = "Chat.ChannelShift.Thermal"
     case channelShiftMemory = "Chat.ChannelShift.Memory"
     case channelShiftA11y = "Chat.ChannelShift.A11y"
-    // — Attachment —
+    // Attachment,
     case attachFiles = "Attach.Files"
     case attachFilesHint = "Attach.FilesHint"
     case videoPlaceholder = "Attach.VideoPlaceholder"
     case tokPerSec = "Chat.TokPerSec"
     case chatTTFT = "Chat.TTFT"
     case perfStatsToggle = "Chat.PerfStatsToggle"
-    // — Worktree session (codex Agent axis) —
+    // Worktree session (codex Agent axis),
     case worktreeNew = "Chat.WorktreeNew"
     case worktreeNotRepo = "Chat.WorktreeNotRepo"
     case worktreeNoBranch = "Chat.WorktreeNoBranch"
     case worktreeGitFailed = "Chat.WorktreeGitFailed"
     case worktreeCreateFailed = "Chat.WorktreeCreateFailed"
 
-    // — Hub Tokens —
+    // Hub Tokens,
     case hubTokensTitle = "Settings.HubTokensTitle"
     case hubTokensHint = "Settings.HubTokensHint"
     case hubHuggingFace = "Settings.HubHuggingFace"
@@ -185,7 +185,7 @@ public enum StringKey: String, CaseIterable, Sendable {
     case notConfigured = "Common.NotConfigured"
     case enterTokenPlaceholder = "Common.EnterTokenPlaceholder"
 
-    // — Settings —
+    // Settings,
     case settingsTitle = "Settings.Title"
     case serverAddress = "Settings.ServerAddress"
     case port = "Settings.Port"
@@ -240,7 +240,7 @@ public enum StringKey: String, CaseIterable, Sendable {
     case workspaceHint = "Settings.WorkspaceHint"
     case workspacePlaceholder = "Settings.WorkspacePlaceholder"
 
-    // — Perception —
+    // Perception,
     case perceptionSection = "Settings.PerceptionSection"
     case perceptionToggle = "Settings.PerceptionToggle"
     case perceptionToggleHint = "Settings.PerceptionToggleHint"
@@ -267,7 +267,7 @@ public enum StringKey: String, CaseIterable, Sendable {
     case sttEngineCloud = "Settings.SttEngineCloud"
     case sttEngineLocal = "Settings.SttEngineLocal"
 
-    // — Navigation —
+    // Navigation,
     case tabDashboard = "Navigation.Dashboard"
     case tabChat = "Navigation.Chat"
     case tabModels = "Navigation.Models"
@@ -276,23 +276,23 @@ public enum StringKey: String, CaseIterable, Sendable {
     case navigationTitle = "Navigation.Title"
     case sidebarNavigation = "Navigation.Sidebar"
 
-    // — Sidebar Sections —
+    // Sidebar Sections,
     case sectionServer = "Sidebar.Section.Server"
     case sectionWorkflow = "Sidebar.Section.Workflow"
     case sectionSystem = "Sidebar.Section.System"
     case sectionModels = "Sidebar.Section.Models"
     case readyRootHint = "Models.ReadyRootHint"
 
-    // — Quick Metrics —
+    // Quick Metrics,
 
-    // — Chat —
+    // Chat,
     case chatWelcomeTitle = "Chat.WelcomeTitle"
     case chatWelcomeDesc = "Chat.WelcomeDesc"
     case chatSuggestionExplainMlx = "Chat.SuggestionExplainMlx"
     case chatSuggestionCompareCoreAi = "Chat.SuggestionCompareCoreAi"
     case chatSuggestionDebugSwiftui = "Chat.SuggestionDebugSwiftui"
 
-    // — Models —
+    // Models,
     case noModelsLoaded = "Models.NoModelsLoaded"
     case modelNotReadyTitle = "Models.NotReadyTitle"
     case modelNotReadyAction = "Models.NotReadyAction"
@@ -310,7 +310,7 @@ public enum StringKey: String, CaseIterable, Sendable {
     case licenseBadgeA11yFormat = "Models.LicenseBadgeA11y"
     case stopDownloadHint = "A11y.StopDownloadHint"
 
-    // — Multimodal —
+    // Multimodal,
     case multimodalTitle = "Multimodal.Title"
     case multimodalCamera = "Multimodal.Camera"
     case multimodalLiveFeed = "Multimodal.LiveFeed"
@@ -326,14 +326,14 @@ public enum StringKey: String, CaseIterable, Sendable {
     case multimodalScreenCaptureActive = "Multimodal.ScreenCaptureActive"
     case multimodalSTTPartialLabel = "Multimodal.STTPartialLabel"
 
-    // — Dashboard —
+    // Dashboard,
     case dashboardTitle = "Dashboard.Title"
     case dashboardTokenChartDesc = "Dashboard.TokenChartDesc"
     case dashboardMemChartDesc = "Dashboard.MemChartDesc"
 
-    // — ViewState —
+    // ViewState,
 
-    // — Status Pill —
+    // Status Pill,
     case statusRunning = "Status.Running"
     case statusStarting = "Status.Starting"
     case statusStopping = "Status.Stopping"
@@ -342,13 +342,13 @@ public enum StringKey: String, CaseIterable, Sendable {
     case dismissError = "Status.DismissError"
     case retryAction = "Status.RetryAction"
 
-    // — LogLevel Display Names —
+    // LogLevel Display Names,
     case logLevelDebug = "LogLevel.Debug"
     case logLevelInfo = "LogLevel.Info"
     case logLevelWarning = "LogLevel.Warning"
     case logLevelError = "LogLevel.Error"
 
-    // — Accessibility Labels —
+    // Accessibility Labels,
     case appLabel = "A11y.AppLabel"
     case appTitle = "A11y.AppTitle"
     case modelSelectorLabel = "A11y.ModelSelectorLabel"
@@ -398,17 +398,17 @@ public enum StringKey: String, CaseIterable, Sendable {
     case ttsActiveLabel = "A11y.TtsActiveLabel"
     case statusIndicatorsLabel = "A11y.StatusIndicatorsLabel"
 
-    // — Accessibility —
+    // Accessibility,
     case engineNotAvailable = "Engine.NotAvailable"
 
-    // — Status Dot Labels —
+    // Status Dot Labels,
     case statusCameraActive = "Status.CameraActive"
     case statusRecording = "Status.Recording"
     case statusSpeaking = "Status.Speaking"
     case statusActive = "Status.Active"
     case statusInactive = "Status.Inactive"
 
-    // — Accessibility label templates —
+    // Accessibility label templates,
     case a11yStatus = "A11y.Status"
     case a11yModel = "A11y.Model"
     case a11yComputeChannel = "A11y.ComputeChannel"
@@ -416,18 +416,18 @@ public enum StringKey: String, CaseIterable, Sendable {
     case a11yCodeBlock = "A11y.CodeBlock"
     case a11yLoadModel = "A11y.LoadModel"
 
-    // — Model param label —
+    // Model param label,
     case reasoningEffortLabel = "ModelParam.ReasoningEffort"
 
-    // — Chat inference meters —
+    // Chat inference meters,
     case reasoningTokMeter = "Chat.ReasoningTokMeter"  // "reasoning: %d tok"
     case mtpMeter = "Chat.MTPMeter"  // "mtp: %d/%d"
     case contextMeter = "Chat.ContextMeter"  // "ctx: %d/%d (%d left)"
-    // — Context-window provenance (who decided this number) —
+    // Context-window provenance (who decided this number),
     case contextWindowFromModel = "Chat.ContextWindowFromModel"
     case contextWindowSetManually = "Chat.ContextWindowSetManually"
 
-    // — Settings / About —
+    // Settings / About,
     case aboutTitle = "About.Title"
     case aboutVersionFormat = "About.VersionFormat"
     case checkForUpdates = "About.CheckForUpdates"
@@ -452,43 +452,43 @@ public enum StringKey: String, CaseIterable, Sendable {
     case capabilityOff = "About.CapabilityOff"
     case capabilityA11yOn = "About.CapabilityA11yOn"
     case capabilityA11yOff = "About.CapabilityA11yOff"
-    // — Model Info —
-    // — VLM badge —
+    // Model Info,
+    // VLM badge,
     case modelInfoVLM = "ModelInfo.VLM"
-    // — Vocab size —
+    // Vocab size,
 
-    // — Chart Axis Labels (macOS Charts) —
+    // Chart Axis Labels (macOS Charts),
     case chartGB = "Chart.GB"
 
-    // — Default Model —
+    // Default Model,
     case defaultModel = "Model.Default"
     case noModelSelected = "Model.NoModelSelected"
     case clear = "Chat.Clear"
-    // — Refresh —
-    // — Retry —
+    // Refresh,
+    // Retry,
     case tryAgain = "Action.TryAgain"
-    // — Copy —
+    // Copy,
     case copyMessage = "Action.CopyMessage"
-    // — Undo —
+    // Undo,
     case undoAction = "Action.Undo"
-    // — Regenerate —
+    // Regenerate,
     case regenerateMessage = "Action.RegenerateMessage"
-    // — Edit-and-resend (in-place instruction correction) —
+    // Edit-and-resend (in-place instruction correction),
     case editMessage = "Action.Edit"
     case editAndResend = "Action.EditAndResend"
     case editSendAction = "Action.Resend"
     case editShortcutHint = "Chat.EditShortcutHint"
     case editNothingToSend = "Chat.EditNothingToSend"
-    // — Copy code —
+    // Copy code,
     case copyCode = "Action.CopyCode"
-    // — Code language fallback —
+    // Code language fallback,
     case codeLanguageFallback = "Markdown.CodeLanguageFallback"
-    // — Model param placeholder —
+    // Model param placeholder,
     case paramPlaceholder = "ModelParam.Placeholder"
-    // — Model error —
+    // Model error,
     case modelErrorOccurred = "Models.ErrorOccurred"
 
-    // — Sessions —
+    // Sessions,
     case tabSessions = "Tab.Sessions"
     case sessionSearchPlaceholder = "Session.SearchPlaceholder"
     case sessionListEmpty = "Session.ListEmpty"
@@ -503,7 +503,7 @@ public enum StringKey: String, CaseIterable, Sendable {
     case memoryTitle = "Session.MemoryTitle"
     case memorySearchPlaceholder = "Session.MemorySearchPlaceholder"
 
-    // — Skills —
+    // Skills,
     case tabSkills = "Tab.Skills"
     case skillListEmpty = "Skill.ListEmpty"
     case skillName = "Skill.Name"
@@ -514,7 +514,7 @@ public enum StringKey: String, CaseIterable, Sendable {
     case skillDependencies = "Skill.Dependencies"
     case skillAll = "Skill.All"
 
-    // — System —
+    // System,
     case tabSystem = "Tab.System"
     case systemMCPSection = "System.MCPSection"
     case systemMCPEmpty = "System.MCPEmpty"
@@ -536,12 +536,12 @@ public enum StringKey: String, CaseIterable, Sendable {
     case systemClearAudit = "System.ClearAudit"
     case systemClearAuditConfirm = "System.ClearAuditConfirm"
 
-    // — System complexity bands —
+    // System complexity bands,
     case systemComplexityLow = "System.ComplexityLow"
     case systemComplexityMedium = "System.ComplexityMedium"
     case systemComplexityHigh = "System.ComplexityHigh"
 
-    // — Per-model Inference Params —
+    // Per-model Inference Params,
     case modelParamsTitle = "Models.ParamsTitle"
     case modelParamTemperature = "Models.ParamTemperature"
     case modelParamTemperatureHint = "Models.ParamTemperatureHint"
@@ -579,22 +579,22 @@ public enum StringKey: String, CaseIterable, Sendable {
     case modelParamDefaults = "Models.ParamDefaults"
     case modelViewTapToEdit = "Models.TapToEdit"
 
-    // — Chat i18n gaps (UX-03 fix) —
+    // Chat i18n gaps (UX-03 fix),
     case clearConversationTitle = "Chat.ClearConversationTitle"
     case clearAllAction = "Chat.ClearAllAction"
     case clearConversationMessage = "Chat.ClearConversationMessage"
     case generationFailed = "Chat.GenerationFailed"
     /// The `loading` face of the five non-happy states (`UI/AGENTS.md`): the engine refused with
     /// `model_loading`, which is a wait it measured, not a failure. Says only what the refusal
-    /// proves — never "downloading", which a map/warm wait would not be.
+    /// proves. Never "downloading", which a map/warm wait would not be.
     case modelLoadingTitle = "Chat.ModelLoadingTitle"
-    // — Composer front door: drop / paste / non-image attachments —
+    // Composer front door: drop / paste / non-image attachments,
     case attachUnsupportedType = "Chat.AttachUnsupportedType"
     case attachTooLarge = "Chat.AttachTooLarge"
     case attachUnreadable = "Chat.AttachUnreadable"
     case pasteAttachment = "Chat.PasteAttachment"
     case dropFilesHint = "Chat.DropFilesHint"
-    // — Context compaction visibility (codex #42319 parity) —
+    // Context compaction visibility (codex #42319 parity),
     case contextCompactedBadge = "Chat.ContextCompacted"
     case skillRegistryUnavailable = "Common.SkillRegistryUnavailable"
     case sessionCompressorUnavailable = "Common.SessionCompressorUnavailable"
@@ -619,7 +619,7 @@ public enum StringKey: String, CaseIterable, Sendable {
     case settingsResetToDefaults = "Settings.ResetToDefaults"
     case cancelButton = "Common.Cancel"
 
-    // — Model Search —
+    // Model Search,
     case modelSearchQuickLoad = "ModelSearch.QuickLoad"
     case modelSearchSelectHub = "ModelSearch.SelectHub"
     case modelSearchHFHub = "ModelSearch.HFHub"
@@ -632,7 +632,7 @@ public enum StringKey: String, CaseIterable, Sendable {
     case modelSearchFailedMSHint = "ModelSearch.FailedMSHint"
     case modelSearchEmpty = "ModelSearch.Empty"
 
-    // — Agent tool approval (codex AskForApproval 形状) —
+    // Agent tool approval (codex AskForApproval 形状),
     case agentApprovalSection = "Agent.ApprovalSection"
     case agentApprovalPolicy = "Agent.ApprovalPolicy"
     case agentApprovalInteractive = "Agent.ApprovalInteractive"
@@ -643,7 +643,7 @@ public enum StringKey: String, CaseIterable, Sendable {
     case agentApproveSession = "Agent.ApproveSession"
     case agentDeny = "Agent.Deny"
 
-    // — Proactive suggestion (autonomous-loop slice 1) —
+    // Proactive suggestion (autonomous-loop slice 1),
     case proactiveNewFile = "Proactive.NewFile"
     case proactiveActionView = "Proactive.ActionView"
     case proactiveDismiss = "Proactive.Dismiss"
@@ -651,11 +651,11 @@ public enum StringKey: String, CaseIterable, Sendable {
     case proactiveObservation = "Proactive.Observation"
     case proactiveReadFailed = "Proactive.ReadFailed"
 
-    // — System notification (approval banner) —
+    // System notification (approval banner),
     case approvalNotificationTitle = "Approval.NotificationTitle"
     case approvalNotificationBody = "Approval.NotificationBody"
 
-    // — Quick-load recommended models —
+    // Quick-load recommended models,
     case quickModelQwen35 = "QuickModel.Qwen35"
     case quickModelQwen38 = "QuickModel.Qwen38"
     case quickModelQwen36 = "QuickModel.Qwen36"
@@ -680,7 +680,7 @@ extension StringKey {
 }
 
 enum L10nTables {
-    /// Base translations (en) — fallback for missing.
+    /// Base translations (en). Fallback for missing.
     static let base: [StringKey: String] = [
         // Dashboard
         .systemOnline: "System Online",
@@ -1224,7 +1224,7 @@ enum L10nTables {
         // Model search
         .modelErrorOccurred: "An error occurred",
 
-        // System notification — approval banner
+        // System notification. Approval banner
         .approvalNotificationTitle: "ocoreai needs your approval",
         .approvalNotificationBody: "%1$@: %2$@\nClick to return to the conversation and decide.",
 
@@ -1752,7 +1752,7 @@ enum L10nTables {
         .codeLanguageFallback: "代码",
         .modelErrorOccurred: "发生错误",
 
-        // System notification — approval banner
+        // System notification. Approval banner
         .approvalNotificationTitle: "ocoreai 需要你的批准",
         .approvalNotificationBody: "%1$@：%2$@\n点击返回对话裁决。",
 

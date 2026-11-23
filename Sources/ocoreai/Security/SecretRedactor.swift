@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SecretRedactor.swift — best-effort secret masking in tool-result text
+/// SecretRedactor.swift. Best-effort secret masking in tool-result text
 ///
 /// Port of the codex main-axis baseline `codex-rs/secrets/src/sanitizer.rs`
 /// (`redact_secrets`): the same four regexes, applied in the same order,
 /// so ocoreai's tool outputs carry the same redaction semantics as codex's
 /// client-facing command surface and memory serialization.
 ///
-/// Why it exists — first principles: a coding agent's highest-traffic secret
+/// Why it exists. First principles: a coding agent's highest-traffic secret
 /// leak is shell/`.env`/config content flowing through a tool result into the
 /// model context, where a later turn can echo it out (chat, SSE client,
 /// memory). ocoreai had zero masking on that path (verified: the only `mask`
@@ -16,14 +16,14 @@
 /// delivery surface; codex already had this in-tree, so this is an upstream
 /// consumption, not a local invention.
 ///
-/// Scope discipline (matches codex): best effort, well-known shapes only —
+/// Scope discipline (matches codex): best effort, well-known shapes only,
 /// OpenAI `sk-` keys, AWS access-key IDs, `Bearer` tokens, and
 /// `key/token/secret/password = value` assignments. NOT a generic entropy
 /// scanner: codex deliberately keeps the false-positive surface small
 /// (their `avoids_bearer_false_positives` suite encodes the boundary).
 ///
 /// Perf: all patterns compile once (static lazy). Per-call cost is a linear
-/// regex pass over the result string — same order of magnitude as the
+/// regex pass over the result string. Same order of magnitude as the
 /// existing SHA-free loop-detection path in ToolRegistry.
 
 import Foundation
@@ -40,7 +40,7 @@ enum SecretRedactor {
     /// AWS access key IDs: `AKIA` + 16 uppercase alphanumeric, word-bounded.
     private static let awsAccessKeyId = compile(#"\bAKIA[0-9A-Z]{16}\b"#)
 
-    /// `Bearer <token>` — scoped case-insensitive on the scheme word only,
+    /// `Bearer <token>`. Scoped case-insensitive on the scheme word only,
     /// token body = ≥16 chars of base64-ish set, optional `=` padding.
     /// Word-bounded + `[ \t]+` only (no newline/NBSP) to keep
     /// `"Bearer of good news"`-style prose intact (codex negative tests).
@@ -69,7 +69,7 @@ enum SecretRedactor {
 
     // MARK: - Internals
 
-    /// `stringByReplacingMatches` with an optional pattern — a nil pattern
+    /// `stringByReplacingMatches` with an optional pattern. A nil pattern
     /// (a compile failure; should never happen for the literals above) is a
     /// no-op for that one rule, keeping the whole redactor best-effort rather
     /// than crashing a customer process over a broken port.

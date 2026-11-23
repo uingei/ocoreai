@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// LLMLifecycleModels.swift — DTOs for P5 LLM lifecycle endpoints
+/// LLMLifecycleModels.swift. DTOs for P5 LLM lifecycle endpoints
 
 import Foundation
 import HTTPTypes
@@ -32,7 +32,7 @@ struct TrainRequest: Decodable {
 
     /// Only `model` and `training_data` are required; `lora` / `hyperparams` carry whole-object
     /// defaults, so a body that omits them must decode rather than 400 (the synthesized decoder
-    /// required both keys — a default on a non-Optional property is not optionality on the wire).
+    /// required both keys. A default on a non-Optional property is not optionality on the wire).
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         model = try container.decode(String.self, forKey: .model)
@@ -79,7 +79,7 @@ struct TrainRequest: Decodable {
         }
 
         /// Every field is optional on the wire (the defaults above are the contract), so none may
-        /// be required by the decoder — `{"lora":{}}` must decode, not 400. Declaring `init(from:)`
+        /// be required by the decoder, `{"lora":{}}` must decode, not 400. Declaring `init(from:)`
         /// also replaces the synthesized memberwise init, hence the explicit one above.
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -156,7 +156,7 @@ struct EvalRequest: Decodable {
     }
 
     /// `batch_size` / `max_batches` are optional on the wire, so they are decoded with
-    /// `decodeIfPresent` — the same defect `DownloadModelRequest.useLatest` had (measured 10-20:
+    /// `decodeIfPresent`. The same defect `DownloadModelRequest.useLatest` had (measured 10-20:
     /// a property default does not relax the synthesized decoder, it only documents the intent).
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -195,7 +195,7 @@ struct EvalSummary: Encodable {
     /// The summary built from what the engine actually ran, rather than from the request that asked.
     ///
     /// `LoRATrain.evaluate` returns `sum(batch CE × batch tokens) / total tokens` (`LoraTrain.swift:242`)
-    /// over a per-position mean (`:199`) — mean cross-entropy per predicted token, in nats — so
+    /// over a per-position mean (`:199`). Mean cross-entropy per predicted token, in nats, so
     /// perplexity is `exp(loss)`. Passing the loss through under this name reported e²·⁰ as `2.0`:
     /// the right quantity with the wrong unit, on the one field a client compares across runs.
     ///

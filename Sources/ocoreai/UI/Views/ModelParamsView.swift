@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ModelParamsView — Per-model inference parameter editor.
+/// ModelParamsView. Per-model inference parameter editor.
 /// i18n via StringKey. Full VoiceOver accessibility.
 
 import SwiftUI
@@ -17,7 +17,7 @@ struct ModelParamsView: View {
     @State private var maxKVText: String = ""
     @State private var repeatWindowText: String = ""
     @State private var contextWindowText: String = ""
-    /// What this model's window actually is, resolved by the pool — carries the
+    /// What this model's window actually is, resolved by the pool. Carries the
     /// declared number and its provenance so the card can distinguish "inherited
     /// from the model" (the default) from "cap you set by hand".
     @State private var windowReport: ResolvedContextWindow =
@@ -290,7 +290,7 @@ struct ModelParamsView: View {
         )
     }
 
-    // MARK: - Context window (capacity knob — model-declared unless overridden)
+    // MARK: - Context window (capacity knob. Model-declared unless overridden)
 
     /// The window the app actually budgets with, editable.
     ///
@@ -298,7 +298,7 @@ struct ModelParamsView: View {
     /// `PATCH /v1/models/:model/sampling`: a GUI user could see a "131K" badge on
     /// the models page but had no way to read where it came from or lower it, while
     /// the watermark, compaction, and the oversize wall all keyed off that number.
-    /// "Defaults" here means *inherit what the model declares* — not "no cap".
+    /// "Defaults" here means *inherit what the model declares*, not "no cap".
     private var contextWindowCard: some View {
         TextFieldParamView(
             label: StringKey.modelParamContextWindow.l,
@@ -337,7 +337,7 @@ struct ModelParamsView: View {
     }
 
     /// Names the model's own declaration so "inherit" is a concrete number, not a
-    /// vague promise — and says plainly when nothing was declared.
+    /// vague promise, and says plainly when nothing was declared.
     private var contextWindowHint: String {
         guard let declared = windowReport.declared, declared > 0 else {
             return StringKey.modelParamContextWindowUnknown.l
@@ -393,7 +393,7 @@ struct ModelParamsView: View {
         )
     }
 
-    /// Reasoning-effort is a model chat-template kwarg, not a sampling numeric —
+    /// Reasoning-effort is a model chat-template kwarg, not a sampling numeric,
     /// its own card above the numeric group. Wire-not-brain: option list mirrors
     /// the codex `ReasoningEffort` word table; the model self-rejects words it
     /// does not support (Qwen3.8 raise_exception). "Model default" = nil.

@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// EngineInferenceGuided.swift — the grammar-constrained guided lane, as an EnginePool method
+/// EngineInferenceGuided.swift. The grammar-constrained guided lane, as an EnginePool method
 ///
 /// Extracted from ``EngineInference.swift`` (god-file decomposition, step 2 after
 /// ``EngineInferenceSupport.swift``). This lane was a nested function inside
 /// `_runInferenceWithMessages` reaching its inputs through implicit captures; it is now a
 /// real method whose parameters name every input, so the unit reads and changes apart from
-/// the host. Move only, no logic change — the three file-private diagnostics helpers travel
+/// the host. Move only, no logic change. The three file-private diagnostics helpers travel
 /// with it because its call sites are their only callers.
 
 import Foundation
@@ -103,18 +103,18 @@ extension EnginePool {
                 instructions: instructions
             )
             // Strip trailing empty assistant message so the chat template
-            // leaves the assistant turn open for generation — mirrors upstream
+            // leaves the assistant turn open for generation. Mirrors upstream
             // MLXChatExample pattern (see upstream L104-107)
             if let last = messages.last, last.role == .assistant, last.content.isEmpty {
                 messages.removeLast()
             }
-            // Pass processing params (resize) to control VLM image scale — mirrors
+            // Pass processing params (resize) to control VLM image scale. Mirrors
             // MLXChatExample: UserInput.Processing(resize: CGSize(width:1024, height:1024))
             // Value read from config so users can tune per-image token overhead.
             let uiProcessing = UserInput.Processing(resize: config.vlmImageResize)
             // Declare the tools this grammar constrains. Without `tools:` the
             // chat template renders no tool block, so the model was forced into
-            // a call shape it had never been shown — the schema said what a call
+            // a call shape it had never been shown. The schema said what a call
             // looks like while nothing said which tools exist, what they do, or
             // what their arguments mean (10-18: the guided path built
             // `UserInput(prompt:.chat(...))` with no tools at all).
@@ -122,7 +122,7 @@ extension EnginePool {
                 prompt: .chat(messages), processing: uiProcessing, tools: toolSpecs)
             let lmInput = try await context.processor.prepare(input: userInput)
 
-            // Build GrammarTokenizer — cached per-model via LoadedModel mirror of
+            // Build GrammarTokenizer. Cached per-model via LoadedModel mirror of
             // MLXFoundationModels.MLXLanguageModel.swift L163 ModelCache.xgTokenizers.
             // First call builds + caches; subsequent guided gen requests reuse cached.
             let grammarTokenizer: GrammarTokenizer
@@ -136,14 +136,14 @@ extension EnginePool {
                             InferenceError.tokenizerBuildFailed(
                                 "Grammar tokenizer build failed"
                             ).errorDescription ?? "error")))
-                // Terminal for this turn — the caller returns after the guided
+                // Terminal for this turn. The caller returns after the guided
                 // branch, so the stream must close here (it used to be closed by
                 // accident, via the fall-through into the standard path).
                 continuation.finish()
                 return
             }
 
-            // Build GrammarConstraint — use cached constraint templates for repeated schemas.
+            // Build GrammarConstraint. Use cached constraint templates for repeated schemas.
             // Passing fastForward: true + hostTokenizer enables xgrammar's
             // FindJumpForwardString to emit deterministic structural tokens instead of
             // sampling them, reducing latency for JSON grammar traversal by 2-10x.
@@ -170,7 +170,7 @@ extension EnginePool {
             var guidedTokenCount = 0
             var firstYielded = false
             var guidedAccumulated = ""  // for stop-sequence matching
-            // Track whether emit callback already yielded a .done event —
+            // Track whether emit callback already yielded a .done event,
             // prevents double .done emission when the callback breaks the
             // loop early (stop sequence, cancellation).
             var doneAlreadyYielded = false
@@ -178,11 +178,11 @@ extension EnginePool {
             // GuidedGenerationDiagnosticSink: zero-cost in production (TaskLocal,
             // nil when unbound). Binds here so upstream recording sites in
             // GuidedGenerationLoop capture token IDs, termination reason, and
-            // buffer integrity — structured data for debugging guided gen failures.
+            // buffer integrity. Structured data for debugging guided gen failures.
             let diagnosticSink = GuidedGenerationDiagnosticSink()
             let diagnosticResult: GuidedGenerationDiagnosticResult
 
-            // Closing token bias + whitespace bias — cached per-model (mirrors upstream
+            // Closing token bias + whitespace bias. Cached per-model (mirrors upstream
             // ModelCache.tokenizerBiases). First call computes (~1ms), subsequent
             // calls hit the LoadedModel cache.
             let tokenBias = loaded.getOrCreateTokenBias(
@@ -191,17 +191,17 @@ extension EnginePool {
             let whitespaceBias = tokenBias.whitespace
             let whitespaceTokenIDs = tokenBias.whitespaceTokenIDs
 
-            // Dynamic completion reserve — mirrors upstream CompletionReserve.estimate
+            // Dynamic completion reserve. Mirrors upstream CompletionReserve.estimate
             // (MLXGuidedGeneration/CompletionReserve.swift:23). Hardcoded 64/0 caused
             // premature truncation for complex schemas. Upstream recipe:
-            //   structuralReserve = token count of minimal valid JSON for schema
-            //   completionReserve = max(structuralReserve * 3, maxTokens / 4)
-            //   hardReserve = structuralReserve * 8
+            //  structuralReserve = token count of minimal valid JSON for schema
+            //  completionReserve = max(structuralReserve * 3, maxTokens / 4)
+            //  hardReserve = structuralReserve * 8
             let structuralReserve = CompletionReserve.estimate(
                 schemaJSON: grammarSchema,
                 tokenizer: context.tokenizer
             )
-            // Clamped to the budget — a reserve that meets or exceeds maxTokens
+            // Clamped to the budget. A reserve that meets or exceeds maxTokens
             // puts every step in the force-closing zone and corrupts small-budget
             // structured calls (see `guidedCompletionReserves`).
             let reserves = guidedCompletionReserves(
@@ -309,12 +309,12 @@ extension EnginePool {
                             finalBufferPresent: diagnosticSink.finalBuffer != nil,
                             parsedAsToolCall: diagnosticSink.parsedAsToolCall,
                             parsedName: diagnosticSink.parsedName)
-                        // respect grammar lifecycle — upstream GuidedGenerationLoop.run()
+                        // respect grammar lifecycle. Upstream GuidedGenerationLoop.run()
                         // only calls grammar-terminated when the constraint accepted the output.
                         // When grammar didn't terminate (maxTokens exhausted), reporting .eos
                         // misleads downstream (structured parsing, UI, metrics).
                         if !doneAlreadyYielded {
-                            // Emit structured guided gen diagnostic before .done —
+                            // Emit structured guided gen diagnostic before .done,
                             // carries grammarTerminated + incompleteOutput so downstream
                             // (UI, structured parsers) can react to grammar lifecycle state.
                             continuation.yield(
@@ -341,7 +341,7 @@ extension EnginePool {
                     }
                 }
             } catch {
-                // Log diagnostic data even on failure — grammar/schema mismatch
+                // Log diagnostic data even on failure. Grammar/schema mismatch
                 // is one of the hardest-to-debug guided gen issues.
                 logGuidedGenError(
                     log,
@@ -392,9 +392,9 @@ extension EnginePool {
                                 reasoningTokenCount: 0)))
                     doneAlreadyYielded = true
                 } else {
-                    // emit .done before throwing — prevents continuation leak.
+                    // emit .done before throwing. Prevents continuation leak.
                     // The outer do-catch (L1259/1283) will propagate the error as
-                    // .error event, but downstream also expects a terminal .done.
+                    //  .error event, but downstream also expects a terminal .done.
                     if !doneAlreadyYielded {
                         let tokPerSec =
                             diagnosticSink.generatedTokenCount > 0
@@ -416,13 +416,13 @@ extension EnginePool {
 
             // The guided branch OWNS this turn's stream, so it closes it here.
             // Before this, nothing finished the continuation, and control fell
-            // through into the standard ChatSession path below — whose pooled
+            // through into the standard ChatSession path below. Whose pooled
             // session had already been released at the top of the guided branch
-            // — which logged "Standard ChatSession path entered with nil
+            //, which logged "Standard ChatSession path entered with nil
             // chatSession" and emitted a spurious `.error`. Live consequence
             // (2026-10-12, macOS 26, gemma-4-e2b-it-4bit): a grammar-constrained
             // turn that generated successfully still returned
-            // `500 Engine internal error: no active chat session` — every
+            // `500 Engine internal error: no active chat session`. Every
             // `response_format: json_schema` request and every tool-declared turn
             // that took the guided path. `finish()` is idempotent, so the
             // error paths that already terminated are unaffected.

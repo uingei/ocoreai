@@ -6,20 +6,20 @@ import HuggingFace
 /// Pre-download disk-space guard (roadmap line 6: lifecycle integrity).
 ///
 /// First-principles failure this closes: a 40GB download on a nearly-full
-/// volume fills the disk mid-transfer — the user gets a corrupt partial model,
+/// volume fills the disk mid-transfer. The user gets a corrupt partial model,
 /// the engine dies on load, and macOS itself destabilizes (a full boot volume
 /// is worse than any failed download). The guard asks ONE honest question
 /// before bytes flow: can this fit?
 ///
-/// Requirement is tiered — accurate first, conservative second, never-blocking
+/// Requirement is tiered. Accurate first, conservative second, never-blocking
 /// third (the per-file download guards stay as the backstop):
 ///   1. measured: file sizes from repo metadata / HEAD, on the ACTIVE
-///      endpoint (honors the HF_ENDPOINT mirror lever — mirror blobs are
+///      endpoint (honors the HF_ENDPOINT mirror lever. Mirror blobs are
 ///      byte-identical, so sizes carry over), minus bytes already cached;
 ///   2. unknown: allow through. The guard only blocks on honest numbers;
 ///      a missing size is never fabricated into a failure.
 ///
-/// Headroom = 2 GB minimum OR 5% of free, whichever is larger — macOS needs
+/// Headroom = 2 GB minimum OR 5% of free, whichever is larger. MacOS needs
 /// swap/snapshot breathing room independent of the model.
 enum DiskSpaceGuard {
     /// Headroom kept free on the volume beyond the download itself.
@@ -27,7 +27,7 @@ enum DiskSpaceGuard {
         max(2_000_000_000, freeBytes / 20)
     }
 
-    /// Pure decision — pinned by tests, no IO. Unknown sides never block.
+    /// Pure decision. Pinned by tests, no IO. Unknown sides never block.
     static func decision(freeBytes: Int64?, requiredBytes: Int64?) -> Bool {
         guard let free = freeBytes, let need = requiredBytes else { return true }
         return free - need >= requiredHeadroom(freeBytes: free)
@@ -77,7 +77,7 @@ enum DiskSpaceGuard {
     ///     files live directly in `dir`.
     ///   • Legacy HubCache (`ModelStore.hubRoot` → `<org>/<repo>/{blobs,
     ///     snapshots}`): content-addressed blobs are recursive under repo
-    ///     subdirectories; blobs are named by hash — size patterns over
+    ///     subdirectories; blobs are named by hash. Size patterns over
     ///     names can't match them, so legacy credit = every regular file
     ///     under the first-level repo dirs (whole-repo download semantics).
     /// Empty patterns (SDK "whole repo") → every regular file matches.
@@ -113,7 +113,7 @@ enum DiskSpaceGuard {
         return total
     }
 
-    /// Empty patterns → every file (SDK `matching: []` semantics — the main
+    /// Empty patterns → every file (SDK `matching: []` semantics. The main
     /// handler path means "whole repo", so the guard must size the whole repo,
     /// not silently allow it through a no-match).
     static func matchesGlob(_ name: String, patterns: [String]) -> Bool {
@@ -126,7 +126,7 @@ enum DiskSpaceGuard {
 
     /// Measured remote total via the HF SDK model metadata (siblings[].size,
     /// verified present in the pinned swift-huggingface). ANY gap (siblings
-    /// nil, or a matched file without size) voids the whole measurement —
+    /// nil, or a matched file without size) voids the whole measurement,
     /// never under-report a 40GB repo from partial data.
     static func measuredRemoteBytes(
         hub: HubClient,
@@ -136,7 +136,7 @@ enum DiskSpaceGuard {
     ) async -> Int64? {
         guard let repo = Repo.ID(rawValue: repoId) else { return nil }
         do {
-            // nil revision → server default (main) — same semantics as the
+            // nil revision → server default (main). Same semantics as the
             // download call sites (`revision ?? "main"`).
             let model = try await hub.getModel(repo, revision: revision)
             guard let siblings = model.siblings, !siblings.isEmpty else { return nil }

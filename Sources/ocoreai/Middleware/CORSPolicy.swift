@@ -1,14 +1,14 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// CORSPolicy — the one home for the browser-origin decision on this server.
+/// CORSPolicy. The one home for the browser-origin decision on this server.
 ///
 /// Until now a web page could not use this server at all: `fetch` hides a
 /// cross-origin response from the page unless that response carries
 /// `Access-Control-Allow-Origin`, so every curl/native verdict in this repo was true
 /// while the same request from a browser failed with nothing but a console line.
-/// The behaviour is upstream's — Hummingbird ships `CORSMiddleware`
+/// The behaviour is upstream's. Hummingbird ships `CORSMiddleware`
 /// (`Hummingbird/Middleware/CORSMiddleware.swift:174`: preflight short-circuit,
-/// `Vary: Origin`, headers on the error path too) — so this file decides only
+/// `Vary: Origin`, headers on the error path too), so this file decides only
 /// *whether* and *for whom*, and re-implements nothing.
 ///
 /// Opt-in, because this is a loopback process that may hold no API key at all: an
@@ -16,8 +16,8 @@
 /// user's inference. Unset (the default) registers no middleware, so the wire stays
 /// byte-identical to before. `OCOREAI_CORS_ORIGIN` names one origin, or `*`.
 ///
-/// Registered BEFORE `AuthMiddleware`: a preflight carries no `Authorization` — that
-/// is what the preflight is *for* — so a chain that demands a key first answers 401
+/// Registered BEFORE `AuthMiddleware`: a preflight carries no `Authorization`, that
+/// is what the preflight is *for*, so a chain that demands a key first answers 401
 /// to the question the browser asks before it can send the answer.
 ///
 /// Same knob shape as the comparators: ollama `OLLAMA_ORIGINS`, vllm
@@ -37,7 +37,7 @@ enum CORSPolicy {
         case origin(String)
     }
 
-    /// What the knob resolved to, including the refusal — a knob that quietly
+    /// What the knob resolved to, including the refusal. A knob that quietly
     /// ignored part of its own value is the defect this file ends, so an
     /// out-of-domain value comes back named instead of truncated.
     enum Decision: Sendable, Equatable {
@@ -61,8 +61,8 @@ enum CORSPolicy {
     }
 
     /// Read the knob once at boot and hand back the DECISION, not only the middleware it
-    /// implies. The same value must answer two questions about one request — who may READ
-    /// a cross-origin reply, and whether a browser may WRITE at all (`AuthMiddleware`) —
+    /// implies. The same value must answer two questions about one request. Who may READ
+    /// a cross-origin reply, and whether a browser may WRITE at all (`AuthMiddleware`),
     /// and a second read of the environment could answer them differently. A substitution
     /// this invisible is only honest if the startup log states what it did.
     static func bootstrap(logger: Logger) -> Decision {
@@ -134,7 +134,7 @@ extension CORSPolicy {
 
     /// Whether a request carrying `origin` may mutate this server.
     ///
-    /// A browser puts `Origin` on every cross-origin write; a native client puts none —
+    /// A browser puts `Origin` on every cross-origin write; a native client puts none,
     /// measured, not assumed: a `URLSession` POST on this host sent Host, Content-Type,
     /// Accept, UA, Content-Length and nothing named Origin. Nothing here serves a page
     /// (the only `WKWebView` in the tree is the outbound `web_fetch` tool), so an Origin
@@ -147,7 +147,7 @@ extension CORSPolicy {
     /// MCP's HTTP transport answers an invalid Origin with 403, codex refuses Origin
     /// outright on its local listeners (`app-server-transport/src/transport/websocket.rs:107`),
     /// and splash (same posture: loopback, key off by default, destructive tools) admits
-    /// no origin at all until one is named — its `--allowed-origin` default is literally
+    /// no origin at all until one is named. Its `--allowed-origin` default is literally
     /// "No other origin" (`docs/server.md:85`, `OriginRefused` at `server/http_security.py:45`).
     ///
     /// Pure, so the whole table is assertable without a server and without setting an

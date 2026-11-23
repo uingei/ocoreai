@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Scheduler domain model — request priority and states.
+/// Scheduler domain model. Request priority and states.
 ///
 /// P0: Interrupt (urgent mid-stream stop)
 /// P1: Chat (interactive conversation)

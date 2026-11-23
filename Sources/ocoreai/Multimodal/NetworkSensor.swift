@@ -1,9 +1,9 @@
 // Copyright 2026 uingei@163.com.
 // Licensed under MIT.
-/// NetworkSensor — persistent network connectivity monitoring
+/// NetworkSensor. Persistent network connectivity monitoring
 ///
 /// Uses URLSession reachability checks for simple lightweight monitoring.
-/// No heavy dependencies — works on all supported OS versions.
+/// No heavy dependencies. Works on all supported OS versions.
 ///
 /// Produces NetworkSnapshot for inference context injection.
 

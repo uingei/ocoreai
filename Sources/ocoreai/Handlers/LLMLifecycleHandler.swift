@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// LLMLifecycleHandler.swift — LoRA fine-tuning + evaluation via MLX
+/// LLMLifecycleHandler.swift. LoRA fine-tuning + evaluation via MLX
 
 import Foundation
 import HTTPTypes
@@ -12,7 +12,7 @@ import MLXNN
 import MLXOptimizers
 import NIOCore
 
-// MARK: - Train Handler (SSE Stream — ChatHandler pattern)
+// MARK: - Train Handler (SSE Stream. ChatHandler pattern)
 
 func trainHandler(
     request: TrainRequest,
@@ -80,7 +80,7 @@ private func _doTrain(
 
     // Load-on-demand, the way a chat turn does. The old lookup only reported residency, so a
     // cold server refused the very id `/v1/models` advertises (measured 10-21); whatever this
-    // throws already names the real reason — not found, still loading, or no MLX lane — and
+    // throws already names the real reason, not found, still loading, or no MLX lane, and
     // that is what the stream says.
     let modelContainer: MLXLMCommon.ModelContainer
     do {
@@ -159,7 +159,7 @@ private func _doTrain(
 
             // Capability before effort: upstream's LoRA loss runs `model as! any LLMModel`,
             // so a model that is not an LLMModel takes the whole process down (measured
-            // 10-21 — this endpoint died mid-stream on a VLM checkpoint). Same predicate,
+            // 10-21. This endpoint died mid-stream on a VLM checkpoint). Same predicate,
             // asked with `is`, answered with a refusal the client can act on.
             if let rejection = LoRAModelSupport.rejection(for: ctx.model) {
                 _ = yieldSSE(
@@ -176,7 +176,7 @@ private func _doTrain(
             }
 
             // A 1-token sample has nothing to predict and traps inside mlx (LoRASampleDomain).
-            // Counted with this model's own tokenizer — the one the batch iterator will use.
+            // Counted with this model's own tokenizer. The one the batch iterator will use.
             let sampleTokenizer = ctx.tokenizer
             let sampleCounts: (String) -> Int = { sampleTokenizer.encode(text: $0).count }
             for dataset in [

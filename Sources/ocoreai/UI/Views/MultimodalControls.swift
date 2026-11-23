@@ -1,16 +1,16 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Multimodal Controls — camera/microphone/speaker toggle panel with preview
+/// Multimodal Controls. Camera/microphone/speaker toggle panel with preview
 /// Accessibility: full VoiceOver labels on toggles, buttons, and status indicators
 /// Theme-driven: all colors resolve through @Environment(\.ocoreaiTheme)
 /// Fix P0-4: DataURLPreview replaces AsyncImage (data URLs do not work with URLSession)
-/// X3-fix: cross-platform — camera/mic/speaker work on iOS; screen section #if os(macOS)
+/// X3-fix: cross-platform. Camera/mic/speaker work on iOS; screen section #if os(macOS)
 
 import SwiftUI
 
 struct MultimodalControls: View {
     @Environment(\.ocoreaiTheme) private var theme
-    // Observation: these singletons are @Observable types — property access in body
+    // Observation: these singletons are @Observable types. Property access in body
     // automatically establishes reactive dependencies (SE-0403 Observation framework).
     // `let` is sufficient; no property wrapper needed.
     private let mmState = MultimodalState.shared
@@ -20,7 +20,7 @@ struct MultimodalControls: View {
     private let screenshotService = ScreenshotService.shared
     #endif
 
-    // Camera/screen preview frame relay — needed solely because DataURLPreview
+    // Camera/screen preview frame relay. Needed solely because DataURLPreview
     // requires a @Binding. The @Observable properties above make the rest of the
     // body reactive to external state changes.
     @State private var cameraFrameURL: String?
@@ -51,7 +51,7 @@ struct MultimodalControls: View {
             // Camera section
             cameraSection
 
-            // Screen capture section (macOS only — ScreenCaptureKit unavailable on iOS)
+            // Screen capture section (macOS only. ScreenCaptureKit unavailable on iOS)
             #if os(macOS)
             screenSection
             #endif
@@ -73,7 +73,7 @@ struct MultimodalControls: View {
                 .stroke(theme.inputBorder.opacity(0.5), lineWidth: 1),
         )
         .accessibilityLabel(StringKey.multimodalControlsLabel.l)
-        // React to service frame changes — update relay vars for DataURLPreview bindings
+        // React to service frame changes. Update relay vars for DataURLPreview bindings
         .onChange(of: captureService.latestFrameDataURL) { _, newValue in
             cameraFrameURL = newValue
         }
@@ -100,8 +100,8 @@ struct MultimodalControls: View {
                         set: { MultimodalState.shared.cameraEnabled = $0 })
                 )
                 .toggleStyle(.switch)
-                // P1-2: wireCamera() is called from MultimodalState.cameraEnabled didSet —
-                // .onChange here would duplicate the call (double startCapture).
+                // P1-2: wireCamera() is called from MultimodalState.cameraEnabled didSet,
+                //  .onChange here would duplicate the call (double startCapture).
                 // Removed redundant .onChange handler.
                 .accessibilityLabel(StringKey.enableCameraLabel.l)
                 .accessibilityHint(StringKey.enableCameraHint.l)
@@ -142,7 +142,7 @@ struct MultimodalControls: View {
         }
     }
 
-    // MARK: - Screen Section (macOS only — ScreenCaptureKit unavailable on iOS)
+    // MARK: - Screen Section (macOS only. ScreenCaptureKit unavailable on iOS)
 
     #if os(macOS)
     private var screenSection: some View {
@@ -210,7 +210,7 @@ struct MultimodalControls: View {
                         set: { MultimodalState.shared.microphoneEnabled = $0 })
                 )
                 .toggleStyle(.switch)
-                // removed redundant .onChange — MultimodalState.didSet
+                // removed redundant .onChange. MultimodalState.didSet
                 // already calls wireMicrophone → requestMicPermission.
                 // Keeping this causes duplicate permission prompts.
                 .accessibilityLabel(StringKey.enableMicLabel.l)
@@ -225,13 +225,13 @@ struct MultimodalControls: View {
                         // the local floor).
                         Task {
                             if let audioDataURL = await audioIO.stopRecording(keepFile: true) {
-                                // Save raw audio for VLM — bypasses STT so VLM can "hear" directly
+                                // Save raw audio for VLM. Bypasses STT so VLM can "hear" directly
                                 MultimodalState.shared.lastRecordingDataURL = audioDataURL
                             }
                             // L3 (macOS 26 / iOS 26+): offline Speech-framework
                             // transcription of the stored file. Below floor:
                             // live-mic SFSpeechRecognizer fallback (inside the
-                            // helper) — voice input never regresses.
+                            // helper). Voice input never regresses.
                             if let transcript = await audioIO.transcribeFromFile() {
                                 // Save to shared state so UI can display it
                                 MultimodalState.shared.lastTranscript = transcript

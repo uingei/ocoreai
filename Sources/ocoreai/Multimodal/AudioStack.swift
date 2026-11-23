@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AudioStack.swift — version-adaptive perception/voice capability layer.
+/// AudioStack.swift. Version-adaptive perception/voice capability layer.
 ///
 /// ocoreai ships ONE binary against a floor of `.macOS(.v14)` / `.iOS(.v17)`
 /// (Package.swift) and must behave correctly on macOS 14/15/26/27 and
@@ -19,7 +19,7 @@
 ///
 /// This file is the PURE CORE: `resolve(_:)` maps (platform, major-version)
 /// → the exact capability set. Keeping it pure (no ProcessInfo, no
-/// AVFoundation) makes the ladder exactly testable on any host — the tests
+/// AVFoundation) makes the ladder exactly testable on any host. The tests
 /// assert the exact set for all eight target versions without depending on
 /// which Mac the test runs on.
 ///
@@ -34,7 +34,7 @@
 ///   SpeechAnalyzer.start(inputSequence:)                       [Speech.swiftinterface L238]
 ///
 /// Rule of thumb applied throughout: the ENTRY type's floor is NOT the
-/// effective gate — e.g. `SpeechAnalyzer` is 26, but its LIVE-microphone
+/// effective gate. E.g. `SpeechAnalyzer` is 26, but its LIVE-microphone
 /// input provider (`CaptureInputSequenceProvider`) is 27, so B1 wires the
 /// FILE path (26) and the live path ships next batch.  ← B2 (this file) now
 /// carries that live-mic flag: `supportsLiveMic == true` iff majorVersion ≥ 27.
@@ -43,14 +43,14 @@ import Foundation
 
 // MARK: - Platform / version query
 
-/// The two Apple OS lines ocoreai targets. (watch/tv out of scope —
+/// The two Apple OS lines ocoreai targets. (watch/tv out of scope,
 /// ocoreai is a macOS/iOS app.)
 public enum AudioPlatform: String, Sendable {
     case macOS
     case iOS
 }
 
-/// A (platform, major-OS-version) pair — the unit the ladder is queried with.
+/// A (platform, major-OS-version) pair. The unit the ladder is queried with.
 public struct AudioStackQuery: Equatable, Sendable {
     public var platform: AudioPlatform
     public var majorVersion: Int
@@ -65,11 +65,11 @@ public struct AudioStackQuery: Equatable, Sendable {
 
 /// Which STT engine press-to-talk uses for a given OS.
 public enum STTTier: String, Equatable, Sendable, CaseIterable {
-    /// `SFSpeechRecognizer` dictation — the floor engine, every supported
+    /// `SFSpeechRecognizer` dictation. The floor engine, every supported
     /// version (graceful baseline; system decides cloud vs on-device).
     case cloudDictation
     /// `SpeechAnalyzer` + `SpeechTranscriber` over an `AVAudioFile`
-    /// (Speech framework, macOS 26+ / iOS 26+) — fully local, offline.
+    /// (Speech framework, macOS 26+ / iOS 26+). Fully local, offline.
     case localSpeechFile
 }
 
@@ -78,19 +78,19 @@ public enum STTTier: String, Equatable, Sendable, CaseIterable {
 public struct PerceivedAudioStack: Equatable, Sendable {
     /// Selected press-to-talk STT engine.
     public var stt: STTTier
-    /// Personal-voice TTS — the USER'S OWN VOICE (floor 14/17 = ocoreai's own
+    /// Personal-voice TTS. The USER'S OWN VOICE (floor 14/17 = ocoreai's own
     /// deployment floor ⇒ eligible on all eight target versions; live
-    /// availability still gated by the user's System-Settings authorization —
+    /// availability still gated by the user's System-Settings authorization,
     /// see `PersonalVoiceTTS`).
     public var personalVoiceTTS: Bool
     /// Enhanced microphone capture: multichannel mode + wind-noise removal
     /// (macOS 15+ / iOS 18+), via `AVCaptureDeviceInput`.
     public var micEnhancement: Bool
-    /// **Live-microphone local STT** — `CaptureInputSequenceProvider` +
+    /// **Live-microphone local STT**, `CaptureInputSequenceProvider` +
     /// `SpeechAnalyzer.start(inputSequence:)` streaming real-time capture into
     /// the same local offline transcriber as the file path.  Floor `anyAppleOS 27`
     /// (SDK swiftinterface L717-736): the *provider* is 27 even though the
-    /// *analyzer* is 26 — the analyzer alone is not enough to stream a live
+    /// *analyzer* is 26. The analyzer alone is not enough to stream a live
     /// mic; you need the 27-level capture provider that yields
     /// `AnalyzerInput` sequences.  Only meaningful when `stt == .localSpeechFile`
     /// (26+); on 27 both file AND live are available.
@@ -113,7 +113,7 @@ public enum AudioStack {
 
     /// Map (platform, major-version) → exact capability set. Exhaustive over
     /// the support matrix (see file header). Deterministic: same input ⇒ same
-    /// output, no side effects — that is what makes it unit-testable.
+    /// output, no side effects, that is what makes it unit-testable.
     public static func resolve(_ q: AudioStackQuery) -> PerceivedAudioStack {
         let stt: STTTier
         if q.majorVersion >= 26 {
@@ -150,7 +150,7 @@ public enum AudioStack {
     /// Detect the HOST OS (platform + major version) at runtime.
     ///
     /// `ProcessInfo.operatingSystemVersion` reflects the machine the app is
-    /// ACTUALLY running on — not the SDK it was built against — so one
+    /// ACTUALLY running on, not the SDK it was built against, so one
     /// artifact adapts across all eight target versions.
     public static func currentQuery() -> AudioStackQuery {
         let v = ProcessInfo.processInfo.operatingSystemVersion

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SelfCorrectionPipeline — Three-phase self-correction with memory persistence
+/// SelfCorrectionPipeline. Three-phase self-correction with memory persistence
 ///
 /// Architecture:
 ///   Phase 1: Rule-based critique (IntentExtractor + NaturalLanguageClassifier)
@@ -10,7 +10,7 @@
 /// Convergence: max_iteration = 3 hard limit. On convergence, correction trace
 /// serialized as MemoryEvent (六要素) for long-term recall.
 ///
-/// Zero token overhead on first pass — only activates when confidence < 0.85
+/// Zero token overhead on first pass, only activates when confidence < 0.85
 /// or domain mismatch detected.
 
 import Foundation
@@ -75,9 +75,9 @@ struct RuleCritiqueResult {
 ///   + SentimentAnalyzer. Threshold ≥ 0.85 → bypass correction entirely.
 /// - Phase 2: LLM self-critique via reflection system prompt injection.
 ///   Model evaluates its own output against criteria.
-/// - Phase 3: Dynamic context rewriter — rewrites systemPrompt or injects few-shot examples.
+/// - Phase 3: Dynamic context rewriter. Rewrites systemPrompt or injects few-shot examples.
 struct SelfCorrectionPipeline {
-    /// Hard iteration limit — prevents infinite loops
+    /// Hard iteration limit. Prevents infinite loops
     static let maxIterations = 3
 
     /// Confidence threshold for Phase 1 bypass
@@ -117,7 +117,7 @@ struct SelfCorrectionPipeline {
     ) async throws -> (
         finalResponse: String, iterations: Int, finalPhase: CorrectionPhase, trace: CorrectionTrace
     ) {
-        // Phase 1: Rule-based critique — zero token cost
+        // Phase 1: Rule-based critique. Zero token cost
         let phase1Result = phase1RuleBasedCritique(prompt: prompt, response: response)
 
         if phase1Result.confidence >= SelfCorrectionPipeline.bypassThreshold {
@@ -139,7 +139,7 @@ struct SelfCorrectionPipeline {
             "Self-correction: Phase 1 failed (confidence=\(phase1Result.confidence)), entering correction loop"
         )
 
-        // SSE path (maxPhases == 1): skip correction loop — stream already sent,
+        // SSE path (maxPhases == 1): skip correction loop. Stream already sent,
         // generate closure is no-op. Record Phase 1 trace and return.
         if maxPhases <= 1 {
             logger.info(
@@ -190,7 +190,7 @@ struct SelfCorrectionPipeline {
                 return (currentResponse, iteration, .converged, trace)
             }
 
-            // Phase 3: Context rewriter — only if not converged and iteration < max
+            // Phase 3: Context rewriter, only if not converged and iteration < max
             if iteration < SelfCorrectionPipeline.maxIterations {
                 phasesAttempted.append(.phase3ContextRewrite)
                 let (rewrittenSystem, examples) = phase3ContextRewrite(
@@ -238,12 +238,12 @@ struct SelfCorrectionPipeline {
 
     // MARK: - Phase 1: Rule-Based Critique
 
-    /// Phase 1 critique using existing security modules — zero token cost.
+    /// Phase 1 critique using existing security modules. Zero token cost.
     ///
     /// Checks:
-    ///   1. Intent alignment — does response match user intent?
-    ///   2. Sentiment check — is response unnecessarily negative?
-    ///   3. Classification confidence — is the domain matched?
+    ///   1. Intent alignment. Does response match user intent?
+    ///   2. Sentiment check. Is response unnecessarily negative?
+    ///   3. Classification confidence. Is the domain matched?
     ///
     /// - Returns: Confidence score 0.0–1.0 and detected issues
     private func phase1RuleBasedCritique(prompt: String, response: String) -> RuleCritiqueResult {

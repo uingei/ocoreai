@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! HubReachability.swift — ask a hub whether it can answer at all, before a request gets
+//! HubReachability.swift. Ask a hub whether it can answer at all, before a request gets
 //! handed to a hub client whose network timeouts are not ours to bound.
 //!
 //! ### Why (measured 10-21, this host)
@@ -8,7 +8,7 @@
 //! exists (`HTTP=000 t=8.0s`), while ModelScope answers a real 404 in 0.18 s. So a request
 //! for an id that ModelScope does not have fell through `MLXBridge.loadFromHubWithFallback`
 //! to the HF client and never came back: no answer after 300 s, and the id stayed in
-//! `EnginePool.loadingModels` while it waited. A refusal is allowed; silence is not — the
+//! `EnginePool.loadingModels` while it waited. A refusal is allowed; silence is not. The
 //! other conversations on the box deserve an answer.
 //!
 //! ### Why a probe instead of a deadline on the download
@@ -47,7 +47,7 @@ enum HubReachability {
     }
 
     enum Verdict: Equatable, Sendable {
-        /// The hub has it — or gates it: 401/403 must not refuse a repo the caller's own
+        /// The hub has it, or gates it: 401/403 must not refuse a repo the caller's own
         /// token can fetch, so an auth challenge counts as reachable-and-present.
         case present
         /// The hub answered definitively: this repo is not here.
@@ -58,7 +58,7 @@ enum HubReachability {
 
     /// One rule for "which base do I ask": honour the operator's endpoint lever when there is
     /// one, strip a trailing slash, else take the canonical host. Both hubs get the same
-    /// treatment — a mirror that was configured but not probed is the bug `HFMirrorPolicy`
+    /// treatment. A mirror that was configured but not probed is the bug `HFMirrorPolicy`
     /// exists to kill, and it would be just as wrong on the ModelScope side.
     private static func base(_ endpoint: String?, canonical: String) -> String {
         let trimmed = endpoint?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -90,7 +90,7 @@ enum HubReachability {
 
     /// The whole decision, pure. 2xx and auth challenges count as present; 404/422 count as
     /// definitive absence; everything else (429, 5xx, transport failure) counts as
-    /// "could not be asked" — transient, and the client is told so rather than being told
+    /// "could not be asked". Transient, and the client is told so rather than being told
     /// the model does not exist.
     static func classify(_ response: Response) -> Verdict {
         switch response {

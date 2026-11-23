@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Camera capture service — real-time frame sampling for visual input
+/// Camera capture service. Real-time frame sampling for visual input
 /// Cross-platform: AVFoundation available on macOS, iOS, iPadOS
 ///
 /// Migrated to @Observable (Swift 5.9+ standard per Apple API Design Guidelines)
@@ -53,7 +53,7 @@ final class CaptureService: NSObject {
 
     // MARK: - Control
 
-    /// Start capturing — also begins background periodic frame sampling
+    /// Start capturing. Also begins background periodic frame sampling
     @discardableResult
     func startCapture() async -> Bool {
         guard let deviceId = selectedCameraID,
@@ -75,7 +75,7 @@ final class CaptureService: NSObject {
             try session.addInput(AVCaptureDeviceInput(device: device))
             session.addOutput(AVCapturePhotoOutput())
             session.commitConfiguration()
-            // startRunning is synchronous — ObjC exceptions don't bridge to Swift throw
+            // startRunning is synchronous. ObjC exceptions don't bridge to Swift throw
             session.startRunning()
             isCapturing = true
             _ = startBackgroundSampling()
@@ -102,7 +102,7 @@ final class CaptureService: NSObject {
         stopBackgroundSampling()
         let task = Task<Void, Never>(priority: .utility) {
             while !Task.isCancelled {
-                // Use internal capture path — updates latestFrameDataURL so UI stays fresh
+                // Use internal capture path. Updates latestFrameDataURL so UI stays fresh
                 if let frameURL = await self.capturePhotoFromSession() {
                     self.latestFrameDataURL = frameURL
                 }
@@ -126,7 +126,7 @@ final class CaptureService: NSObject {
     /// Frames are resized to max 1280px wide and JPEG-compressed at 0.6 quality
     /// to reduce token consumption when sent to VLM.
     /// Returns nil if capturing is not active or no photo output is configured.
-    /// Why the last frame request failed, in one line — measured at the moment of the
+    /// Why the last frame request failed, in one line. Measured at the moment of the
     /// failure, so an HTTP response can say which of these it was instead of "no frame".
     /// Cleared on success.
     private(set) var lastFrameError: String?
@@ -163,7 +163,7 @@ final class CaptureService: NSObject {
     /// Delegates for captures currently outstanding. `capturePhotoWithSettings:delegate:`
     /// takes the delegate as a parameter and the SDK header documents no retention ("An
     /// object conforming to the AVCapturePhotoCaptureDelegate protocol… May not be nil"),
-    /// so the caller owns the strong reference for the duration of the capture — an inline
+    /// so the caller owns the strong reference for the duration of the capture. An inline
     /// temporary can be released before the callback, and the continuation then never
     /// resumes. Measured 10-14 by scripts/probes/04-multimodal-honesty.sh: with the camera
     /// authorized, `{"type":"camera"}` parked ≥45s and never answered.
@@ -192,7 +192,7 @@ final class CaptureService: NSObject {
                     let compressed = self.compressCameraFrame(d)
                     cont.resume(
                         returning: "data:image/jpeg;base64,\(compressed.base64EncodedString())")
-                    // Run Vision OCR in background — updates latestOCRText for downstream
+                    // Run Vision OCR in background. Updates latestOCRText for downstream
                     Task { @MainActor in
                         self.latestOCRText = await VisionOCR.extractText(from: compressed)
                     }
@@ -203,7 +203,7 @@ final class CaptureService: NSObject {
             pendingFrameDelegates.append(delegate)
             out.capturePhoto(with: settings, delegate: delegate)
 
-            // Deadline: whoever fires first wins, so the wait always ends — with a frame if
+            // Deadline: whoever fires first wins, so the wait always ends, with a frame if
             // AVFoundation delivers, with nil (and a reason) if it does not.
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .seconds(timeout))
@@ -267,7 +267,7 @@ final class CaptureService: NSObject {
 /// `@unchecked Sendable` justification: the only mutable state is `armed`, read and written
 /// under `fireLock`; `handler` is an immutable `@escaping (Data?) -> Void`. `fire` is
 /// called from AVFoundation's callback queue and from the MainActor deadline path, so the
-/// lock — not isolation — is what makes the exactly-once guarantee hold.
+/// lock, not isolation. Is what makes the exactly-once guarantee hold.
 private final class FrameCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate,
     @unchecked Sendable
 {

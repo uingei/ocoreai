@@ -1,7 +1,7 @@
 import Darwin
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Single-instance enforcement — the OS-level guarantee that at most ONE
+/// Single-instance enforcement. The OS-level guarantee that at most ONE
 /// ocoreai engine holds the machine's GPU/memory at a time.
 ///
 /// ## Why this exists (first principles)
@@ -15,7 +15,7 @@ import Darwin
 /// ## Mechanism
 /// `flock(2)` with `LOCK_EX | LOCK_NB` on a lock file. The kernel owns the
 /// lock lifetime: if the process crashes, is SIGKILLed, or exits by any
-/// path, the lock is released with the file descriptor — there is no stale
+/// path, the lock is released with the file descriptor. There is no stale
 /// lock to reclaim and no PID re-check race. A live holder makes every
 /// later acquisition fail immediately with `EWOULDBLOCK`.
 ///
@@ -25,7 +25,7 @@ import Darwin
 /// defaults stay locked.
 import Foundation
 
-/// Result of a lock acquisition attempt — pure, testable.
+/// Result of a lock acquisition attempt. Pure, testable.
 enum SingleInstanceAcquisition: Equatable {
     /// Lock acquired; this process is the single instance.
     case acquired(lockPath: String)
@@ -41,7 +41,7 @@ enum SingleInstanceAcquisition: Equatable {
 
 /// Thin wrapper around a held `flock`. Hold the instance for the process
 /// lifetime; `unlock()` for orderly shutdown (the kernel would release the
-/// fd anyway — explicit unlock just makes intent visible in logs/tests).
+/// fd anyway. Explicit unlock just makes intent visible in logs/tests).
 final class SingleInstanceLock {
     static let envAllowMulti = "OCOREAI_ALLOW_MULTI_INSTANCE"
 
@@ -84,7 +84,7 @@ final class SingleInstanceLock {
             return .unavailable(reason: String(cString: strerror(err)))
         }
         fd = newFD
-        // Record our PID for diagnostics only — correctness never depends on
+        // Record our PID for diagnostics only. Correctness never depends on
         // the file contents (the flock is the authority, kernel-managed).
         ftruncate(newFD, 0)
         let pidLine = Data("\(getpid())\n".utf8)

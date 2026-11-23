@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! LoRABatchGeometry.swift — the wire rule for LoRA batch geometry: a client integer below 1
+//! LoRABatchGeometry.swift. The wire rule for LoRA batch geometry: a client integer below 1
 //! never reaches the batch iterator.
 //!
 //! ### Why this exists (AGENTS.md: no wire value may own the process)
@@ -8,17 +8,17 @@
 //! and validates nothing about `batchSize`. A negative value inverts that range's bounds and the
 //! `Range` precondition traps; 0 yields an empty batch, so `maxLength` is 0 and
 //! `precondition(maxLength >= 2)` at `:49` traps. Either way the process dies mid-request, on both
-//! `POST /v1/models/evaluate` and `POST /v1/models/train`, from an ordinary JSON integer — the same
+//! `POST /v1/models/evaluate` and `POST /v1/models/train`, from an ordinary JSON integer. The same
 //! family as the 1-token sample (`LoRASampleDomain`) and `{"max_tokens":-5}` on 10-17.
 //!
 //! `max_batches` is refused for a quieter reason that still costs a caller an answer: upstream reads
 //! it as `batchCount != 0 && iteration + 1 >= batchCount` (`:237-239`), so a negative scores exactly
-//! one batch and reports no error — and `EvalSummary.measured` treats only a positive as a cap, so a
+//! one batch and reports no error, and `EvalSummary.measured` treats only a positive as a cap, so a
 //! negative would make the body claim batches the run skipped. 0 stays legal and means "no cap",
 //! which is upstream's meaning and the documented default.
 //!
 //! ### One home
-//! The rule and its wording are here; each face reports them the only way its response can — the
+//! The rule and its wording are here; each face reports them the only way its response can. The
 //! eval face answers `AppError.invalidParameter` so the body carries `error.param`, the train face
 //! streams a `type:"error"` chunk. Both ask before loading a model: a request this cheap to refuse
 //! must not cost a model load first.

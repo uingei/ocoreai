@@ -5,12 +5,12 @@ import Foundation
 /// Single source of truth for the Hugging Face endpoint lever.
 ///
 /// Why this exists: the GUI mirror toggle, the CLI/headless startup path, and
-/// the SwiftUI `Application.init` each resolved `HF_ENDPOINT` on their own —
+/// the SwiftUI `Application.init` each resolved `HF_ENDPOINT` on their own,
 /// with three different, mutually inconsistent rules. Consequences observed:
 ///
 ///   • The GUI toggle persisted `settings.hub.useHFMirror` (Bool) but every
 ///     startup re-applied a *phantom* `settings.hub.hfEndpointMirror` (String)
-///     that no code ever wrote — so a user who enabled the mirror, quit, and
+///     that no code ever wrote, so a user who enabled the mirror, quit, and
 ///     relaunched silently fell back to canonical huggingface.co and stalled on
 ///     a wall-blocked download with no signal.
 ///   • `HF_ENDPOINT_MIRROR` startup paths applied `setenv(..., 1)` unconditionally,
@@ -26,14 +26,14 @@ enum HFMirrorPolicy {
     /// Persisted GUI toggle key (the *only* mirror key the store writes).
     static let persistedKey = "settings.hub.useHFMirror"
 
-    /// Which lever produced the live endpoint — drives status display and
+    /// Which lever produced the live endpoint. Drives status display and
     /// Toggle enablement (HIG: visibility of system status; never offer a
     /// control that does nothing). Precedence is fixed; the GUI renders
     /// exactly this, bound to the same single criterion the tests pin.
     enum Source: Equatable {
-        /// Operator exported HF_ENDPOINT explicitly — the Toggle is inert.
+        /// Operator exported HF_ENDPOINT explicitly. The Toggle is inert.
         case environment
-        /// HF_ENDPOINT_MIRROR truthy env — the Toggle is inert.
+        /// HF_ENDPOINT_MIRROR truthy env. The Toggle is inert.
         case mirrorEnv
         /// The persisted GUI toggle decides.
         case persistedToggle
@@ -46,13 +46,13 @@ enum HFMirrorPolicy {
         let source: Source
 
         /// True when env levers pin the endpoint and the GUI Toggle cannot
-        /// change it — bind `.disabled()` to exactly this.
+        /// change it. Bind `.disabled()` to exactly this.
         var lockedByEnvironment: Bool {
             source == .environment || source == .mirrorEnv
         }
     }
 
-    /// Pure precedence — pinned, no side effects, unit-testable:
+    /// Pure precedence. Pinned, no side effects, unit-testable:
     ///   1. explicit `HF_ENDPOINT` env var (operator overrides everything),
     ///   2. `HF_ENDPOINT_MIRROR` env var (headless/ops lever) when truthy,
     ///   3. the persisted GUI toggle,
@@ -81,7 +81,7 @@ enum HFMirrorPolicy {
         return EndpointDecision(endpoint: canonical, source: .default)
     }
 
-    /// Back-compat shim — the existing pinned matrix targets this signature.
+    /// Back-compat shim. The existing pinned matrix targets this signature.
     static func resolve(
         explicitEndpoint: String?,
         mirrorEnv: String?,
@@ -96,7 +96,7 @@ enum HFMirrorPolicy {
 
     /// Operator env snapshot, captured exactly once.
     ///
-    /// `ProcessInfo.environment` DOES reflect our own `setenv` on this macOS —
+    /// `ProcessInfo.environment` DOES reflect our own `setenv` on this macOS,
     /// live proof: the disable-mirror test read back `hf-mirror.com` that the
     /// enable test had just written (SettingsStoreTests.swift:205), so
     /// re-reading process env on every Toggle flip mistakes *our own derived
@@ -108,7 +108,7 @@ enum HFMirrorPolicy {
     static let operatorEnvironment: [String: String] = ProcessInfo.processInfo.environment
 
     /// Read-only truth probe for the GUI: which endpoint is live and which
-    /// lever owns it. Does NOT setenv — safe on view refresh. Resolves
+    /// lever owns it. Does NOT setenv. Safe on view refresh. Resolves
     /// against `defaults` (the store's own suite, not `.standard`).
     static func current(defaults: UserDefaults = .standard) -> EndpointDecision {
         resolveDecision(

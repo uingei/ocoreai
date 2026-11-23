@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// V1EndpointCatalog.swift — machine-readable index of the HTTP surface.
+/// V1EndpointCatalog.swift. Machine-readable index of the HTTP surface.
 ///
 /// Why this exists: the 404 envelope has told clients for weeks to
 /// "Enumerate models via GET /v1/models and endpoints via GET /v1/capabilities"
 /// (`NotFoundEnvelopeMiddleware.swift:53`), while `CAPayload` published capability
-/// rows and `tokenizerBackend` only — no endpoint index. A discovery promise with
+/// rows and `tokenizerBackend` only, no endpoint index. A discovery promise with
 /// nothing behind it is the same defect family this repo keeps hitting (an
 /// accept-then-deliver contract whose delivery seam is missing), and it costs a
 /// real client a real round trip: live 10-13 `POST /v1/messages/count_tokens`
@@ -16,7 +16,7 @@
 /// `V1EndpointCatalogTests` scans `ChatCompletionsRouter.swift` for every
 /// `routes.<method>("<path>")` registration and asserts set equality with this
 /// catalog, plus a floor on the scan's own hit count (a regex that stopped
-/// matching would otherwise make the equality pass vacuously — the "a gate must
+/// matching would otherwise make the equality pass vacuously. The "a gate must
 /// assert its own premises" rule from CONTRIBUTING → "The three questions").
 /// Notes are prose and free to change; method+path pairs are the pinned contract.
 ///
@@ -30,9 +30,9 @@
 /// `scripts/probes/03-capabilities-models-consistency.sh` measures both halves live: verbatim →
 /// 200, `org%2Fname` → 200, a bare `name` and an unknown id → 404 raised *inside* the handler
 /// (the route is reachable, existence is still validated), and a `seed` written through one
-/// spelling read back through the other — reachability alone cannot see a key split, and a key
+/// spelling read back through the other. Reachability alone cannot see a key split, and a key
 /// split is the bug that lived here (10-06). The published template keeps the one-segment
-/// `:model` spelling — it is what clients already send and what OpenAPI renders — and the same
+/// `:model` spelling. It is what clients already send and what OpenAPI renders, and the same
 /// probe pins the fallback: should verbatim ids ever stop reaching these routes, an index note
 /// that no longer tells the client to encode is a red probe.
 
@@ -46,7 +46,7 @@ struct EndpointLine: Encodable, Equatable, Sendable {
     let method: String
     /// Route path template; `:param` marks a path parameter (Hummingbird syntax).
     let path: String
-    /// `public` | `key` | `admin` — derived from `AuthMiddleware`, not hand-set.
+    /// `public` | `key` | `admin`. Derived from `AuthMiddleware`, not hand-set.
     let auth: String
     /// One-line purpose, written for a client deciding what to call.
     let note: String
@@ -68,7 +68,7 @@ enum V1EndpointCatalog {
     }
 
     /// Every route registered in `ChatCompletionsRouter.buildRouter`, in
-    /// registration order. Keep this in sync — `V1EndpointCatalogTests` fails
+    /// registration order. Keep this in sync, `V1EndpointCatalogTests` fails
     /// the build if a route is added, renamed, or removed here and not there
     /// (or vice versa).
     static let routes: [RouteSpec] = [
@@ -204,8 +204,8 @@ enum V1EndpointCatalog {
 
     /// `public` (bypasses auth), `admin` (PATCH/DELETE need an admin key), else `key`.
     ///
-    /// Derived from ``AuthRoutePolicy`` — the same sets `AuthMiddleware` enforces
-    /// with — so the published index cannot drift from the enforcement it
+    /// Derived from ``AuthRoutePolicy``. The same sets `AuthMiddleware` enforces
+    /// with, so the published index cannot drift from the enforcement it
     /// describes.
     static func auth(method: String, path: String) -> String {
         if AuthRoutePolicy.publicPaths.contains(path) {

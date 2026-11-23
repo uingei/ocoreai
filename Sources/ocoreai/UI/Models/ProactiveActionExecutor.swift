@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ProactiveActionExecutor — 自主回路切片 4：批准 = 执行一次**只读观察** + 对话注入。
+/// ProactiveActionExecutor。自主回路切片 4：批准 = 执行一次**只读观察** + 对话注入。
 ///
 /// 第一性边界：
 ///   - **只读**：只跑 `read_file`（`ToolRegistry.readOnlyWhitelist` 内），绝不写/exec。

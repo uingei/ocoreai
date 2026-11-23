@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ChatView — streaming chat with model selector, mid-stream interrupt, suggestion chips
+/// ChatView. Streaming chat with model selector, mid-stream interrupt, suggestion chips
 /// ViewModel + .task{await vm.load()} + ViewState state machine
 /// Theme-driven: all colors resolve through @Environment(\.ocoreaiTheme)
 /// @Observable pattern: @State + Observable instead of @StateObject
@@ -22,7 +22,7 @@ import UniformTypeIdentifiers
 import PhotosUI
 #endif
 
-/// Stable identity wrapper for chat messages — uses UUID string for deterministic identity
+/// Stable identity wrapper for chat messages. Uses UUID string for deterministic identity
 ///
 /// Mirrors ChatMessage structure: flat `content` for compatibility + optional `parts`
 /// for structured rendering (text/reasoning/toolCall/image segments).
@@ -39,7 +39,7 @@ struct ChatBubbleMessage: Identifiable, Hashable {
     let imageURLs: [String]
     /// Base64 data URLs for inline image preview
     let interrupted: Bool
-    /// true when truncated by user cancel — drives UI badge
+    /// true when truncated by user cancel. Drives UI badge
 
     /// Rendering content: structured parts preferred, flat content as fallback
     var displayContent: String {
@@ -96,16 +96,16 @@ struct ChatView: View {
     // Note: model selection stays view-local (selection state, not user content)
     @State private var currentModel = ""
     @State private var activeTask: Task<Void, Never>? = nil
-    // NB: composer draft (chatState.inputText / pendingAttachments) lives in `ChatState.shared` —
+    // NB: composer draft (chatState.inputText / pendingAttachments) lives in `ChatState.shared`,
     // lifted out of view-local @State so it survives TabDetailView recreation
     // (codex #46750 "preserve startup drafts"). Do NOT reintroduce @State copies.
 
-    // NSEvent monitor handle — disposed on .onDisappear to prevent leak
+    // NSEvent monitor handle. Disposed on .onDisappear to prevent leak
     #if os(macOS)
     @State private var _keyboardMonitor: Any? = nil
     #endif
 
-    // Drag-and-drop feedback — HIG: a drop target must LOOK like one while a
+    // Drag-and-drop feedback. HIG: a drop target must LOOK like one while a
     // drag hovers it. Ingest policy itself lives in ComposerIngest/ChatState.
     @State private var isDropTargeted = false
 
@@ -115,26 +115,26 @@ struct ChatView: View {
     @State private var windowReport: ResolvedContextWindow =
         ResolvedContextWindow(tokens: nil, source: .unknown)
 
-    // Multimodal controls panel — collapsed by default
+    // Multimodal controls panel. Collapsed by default
     @State private var showMultimodal = false
 
     // confirmation dialog for destructive operations (HIG requirement)
     @State private var showClearConfirmation = false
 
-    // Image attachments — lifted to ChatState.shared (codex #46750); binding below
+    // Image attachments. Lifted to ChatState.shared (codex #46750); binding below
     // references chatState.pendingAttachments directly.
     #if os(iOS)
-    // iOS photo picker — PhotosPicker (iOS 16+, HIG-compliant)
+    // iOS photo picker. PhotosPicker (iOS 16+, HIG-compliant)
     @State private var showPhotoPicker = false
     @State private var photoPickerItems: [PhotosUI.PhotosPickerItem] = []
     #endif
 
-    // streaming reasoning block collapse state — default COLLAPSED: the answer
+    // streaming reasoning block collapse state. Default COLLAPSED: the answer
     // is the product, raw thinking is a disclosure, not the first screen
     // (consumer-facing "breathable" default; owner can still expand inline).
     @State private var showStreamingReasoning = false
 
-    // Shared settings observation — per-turn telemetry is an owner opt-in
+    // Shared settings observation. Per-turn telemetry is an owner opt-in
     // (consumer default OFF), see SettingsState.showPerformanceMetrics.
     @State private var settingsState: SettingsState
 
@@ -143,7 +143,7 @@ struct ChatView: View {
         _settingsState = State(initialValue: SettingsState.shared)
     }
 
-    /// Dispose NSEvent monitor handle — cancels DispatchSource to break RC cycle on tab switch
+    /// Dispose NSEvent monitor handle. Cancels DispatchSource to break RC cycle on tab switch
     private func disposeKeyboardMonitor() {
         #if os(macOS)
         if let monitor = self._keyboardMonitor as? DispatchSource {
@@ -154,7 +154,7 @@ struct ChatView: View {
     }
 
     private var isStreaming: Bool {
-        // Use loading as the primary signal — activeTask is only for cancellation
+        // Use loading as the primary signal. ActiveTask is only for cancellation
         chatState.loading
     }
 
@@ -171,7 +171,7 @@ struct ChatView: View {
     /// (iOS SwiftUI type-checks the whole toolbar closure as one expression).
     @ToolbarContentBuilder
     private var modelSelectorToolbar: some ToolbarContent {
-        // Model selector moved to toolbar — HIG: global controls belong in toolbar
+        // Model selector moved to toolbar. HIG: global controls belong in toolbar
         ToolbarItem(placement: .automatic) {
             Menu {
                 ForEach(models, id: \.self) { m in
@@ -204,7 +204,7 @@ struct ChatView: View {
                     .padding(.top, 4)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            // Session context watermark (Bionic introspection gap) — one
+            // Session context watermark (Bionic introspection gap). One
             // session-level bar between transcript and input. Shown only when
             // the model has a configured window (limit unknown → hidden, codex
             // `unknown` path: never fabricate a budget in UI).
@@ -212,13 +212,13 @@ struct ChatView: View {
             inputBar
         }
         .background(theme.windowBg)
-        // .task{} lifecycle: start health polling + load models
+        //  .task{} lifecycle: start health polling + load models
         .task {
             chatState.start()
             await ModelManager.shared.loadModels()
             let idStrings = ModelManager.shared.modelIdStrings()
             if idStrings.isEmpty {
-                // No local models yet — use configured default model ID
+                // No local models yet. Use configured default model ID
                 currentModel = OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? ""
             } else {
                 currentModel = idStrings.first ?? ""
@@ -235,7 +235,7 @@ struct ChatView: View {
             disposeKeyboardMonitor()
             chatState.stop()
         }
-        // dispose-before-register — rapid tab switching spawns duplicate monitors
+        // dispose-before-register. Rapid tab switching spawns duplicate monitors
         // that outlive the view because onDisappear never fires for the replaced view
         #if os(macOS)
         .onAppear {
@@ -243,7 +243,7 @@ struct ChatView: View {
             _keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                 let cmd = event.modifierFlags.contains(.command)
                 let opt = event.modifierFlags.contains(.option)
-                // ⌘+Return — send message (even when TextField not focused).
+                // ⌘+Return. Send message (even when TextField not focused).
                 // P2 fix: use keyEquivalent instead of hardcoded keyCode (keyCode varies by layout).
                 if cmd && event.characters == "\r" {
                     guard !isStreaming else { return event }
@@ -253,14 +253,14 @@ struct ChatView: View {
                     }
                     return event
                 }
-                // ⌘+Option+M — toggle multimodal panel
+                // ⌘+Option+M. Toggle multimodal panel
                 if cmd && opt, let c = event.characters {
                     if c.lowercased() == "m" {
                         showMultimodal.toggle()
                         return NSEvent()
                     }
                 }
-                // Esc — interrupt streaming (keyboard-only work style, HIG inputs;
+                // Esc. Interrupt streaming (keyboard-only work style, HIG inputs;
                 // mirrors codex TUI Esc→interrupt). Guarded on isStreaming so Esc
                 // always falls through to TextField/editing when idle.
                 if event.keyCode == 53 && isStreaming {
@@ -271,7 +271,7 @@ struct ChatView: View {
             }
         }
         #endif
-        // observe session selection from Session tab — reload chat when user switches
+        // observe session selection from Session tab. Reload chat when user switches
         .onChange(of: SessionManager.shared.selectedSession?.id) { _, newSessionId in
             if let newId = newSessionId {
                 if let session = SessionManager.shared.sessions.first(where: { $0.id == newId }) {
@@ -281,7 +281,7 @@ struct ChatView: View {
                 }
             }
         }
-        // Voice loop: observe MultimodalState.pendingVoiceTranscript via @Observable —
+        // Voice loop: observe MultimodalState.pendingVoiceTranscript via @Observable,
         // replaces NotificationCenter (avoids cross-module coupling through @Observable singleton)
         #if os(macOS)
         .onChange(of: MultimodalState.shared.pendingVoiceTranscript) { _, transcript in
@@ -303,8 +303,8 @@ struct ChatView: View {
         }
         .toolbar {
             modelSelectorToolbar
-            // HIG-02: destructive non-modal operations shouldn't be in .primaryAction —
-            // .automatic is the neutral placement for secondary/destructive toolbar items
+            // HIG-02: destructive non-modal operations shouldn't be in .primaryAction,
+            //  .automatic is the neutral placement for secondary/destructive toolbar items
             ToolbarItem(placement: .automatic) {
                 Button(role: .destructive) {
                     showClearConfirmation = true
@@ -337,11 +337,11 @@ struct ChatView: View {
         .overlay(alignment: .bottom) {
             ChannelShiftToastOverlay(toast: AppState.shared.channelShiftToast)
         }
-        // Agent approval banner — codex `ExecApprovalRequest` → 三档裁决
+        // Agent approval banner. Codex `ExecApprovalRequest` → 三档裁决
         .overlay(alignment: .bottom) {
             ApprovalBanner(appState: AppState.shared)
         }
-        // B4 fix: removed .sheet — model search/load already available via Models tab
+        // B4 fix: removed .sheet. Model search/load already available via Models tab
         // P0-2: On model selector change, unload old model to free GPU memory
         .onChange(of: currentModel) { _, newModel in
             let targetModel =
@@ -352,12 +352,12 @@ struct ChatView: View {
             chatState.onModelChanged(newModelId: targetModel)
         }
         .accessibilityLabel(StringKey.chatLabel.l)
-        // iOS photo picker sheet — PhotosPicker (iOS 16+, HIG-compliant)
+        // iOS photo picker sheet. PhotosPicker (iOS 16+, HIG-compliant)
         #if os(iOS)
         .sheet(isPresented: $showPhotoPicker) {
             // `label:` on the `maxSelectionCount:` init expects a `@Sendable () -> some View`
             // closure (SwiftUI overlay, iOS 27 SDK). Use the positional String-title init
-            // (no `label:` param) — SDK-verified (L148, `S : StringProtocol`).
+            // (no `label:` param). SDK-verified (L148, `S : StringProtocol`).
             PhotosUI.PhotosPicker(
                 StringKey.attachFiles.l,
                 selection: $photoPickerItems,
@@ -407,13 +407,13 @@ struct ChatView: View {
                             ChatBubble(message: ChatBubbleMessage(from: msg))
                                 .id(msg.id)
                         }
-                        // Streaming preview — show assistant's partial response in real-time.
+                        // Streaming preview. Show assistant's partial response in real-time.
                         // P0-2 fix: use responseTextDisplay (strips <thinking> tags) so raw
                         // reasoning markup doesn't render in the live preview.
                         if !chatState.responseTextDisplay.isEmpty {
                             VStack(spacing: 4) {
                                 ChatHeader(isUser: false, timestamp: Date())
-                                // collapsible streaming reasoning block —
+                                // collapsible streaming reasoning block,
                                 // users can toggle visibility via header button.
                                 if !chatState.currentReasoningText.isEmpty {
                                     VStack(alignment: .leading, spacing: 6) {
@@ -480,7 +480,7 @@ struct ChatView: View {
                                 MarkdownMessage(content: chatState.responseTextDisplay)
                                     .opacity(0.85)
                                     .transition(.opacity.combined(with: .move(edge: .bottom)))
-                                // Live streaming metrics indicator — owner opt-in only.
+                                // Live streaming metrics indicator. Owner opt-in only.
                                 // Consumer-facing default: the answer streams clean;
                                 // tok/s / TTFT / token meters ("how many liters of
                                 // air") are surfaced only when the owner enables them
@@ -489,7 +489,7 @@ struct ChatView: View {
                                 // chunks carry `tokPerSec: nil` (`DirectInferenceClient.swift:545`)
                                 // and the rate rides the terminal chunk (:627), which lands in the
                                 // same MainActor turn that clears it and sets `loading = false`
-                                // (`ChatViewModel.swift:1437`) — so by the first frame that could
+                                // (`ChatViewModel.swift:1437`), so by the first frame that could
                                 // draw it, `isStreaming` is already false. Measured: zero sightings
                                 // across two live turns polled at 20 ms. The fix is a placement
                                 // call (a finished turn's rate), not a value to fabricate.
@@ -536,7 +536,7 @@ struct ChatView: View {
                             .accessibilityLabel(StringKey.assistantTyping.l)
                             .accessibilityHidden(false)
                         } else if isStreaming {
-                            // No text yet — show typing indicator with phase context
+                            // No text yet. Show typing indicator with phase context
                             // so users see what the engine is actually doing instead
                             // of staring at three bouncing dots.
                             HStack {
@@ -550,7 +550,7 @@ struct ChatView: View {
                                             .lineLimit(1)
                                             .accessibilityHidden(true)
                                     }
-                                    // P0: Lane badge — which pipeline served this turn:
+                                    // P0: Lane badge, which pipeline served this turn:
                                     // Metal (GPU), CoreAI (ANE, where available), or the
                                     // guard lane (caches/speculation dropped). It is not a
                                     // claim that the compute device was switched: the Metal
@@ -586,8 +586,8 @@ struct ChatView: View {
             }
             // HIG: keep scroll indicators visible so users can manually scroll
             // when not at the bottom of the chat.
-            // .scrollIndicators(.automatic) is the default; we do not force .never.
-            // .defaultScrollAnchor is the native SwiftUI mechanism for chat auto-scroll.
+            //  .scrollIndicators(.automatic) is the default; we do not force .never.
+            //  .defaultScrollAnchor is the native SwiftUI mechanism for chat auto-scroll.
             // Applied here so the framework keeps bottom-aligned during token-by-token growth.
             // The two .onChange handlers below handle explicit state transitions
             // (new message added / responseText cleared) where the anchor alone is insufficient.
@@ -608,7 +608,7 @@ struct ChatView: View {
 
     // MARK: - Streaming Preview
 
-    // streamingPreview dead code removed — messageList renders inline (lines 290–310)
+    // streamingPreview dead code removed. MessageList renders inline (lines 290–310)
 
     // MARK: - Empty State
 
@@ -659,7 +659,7 @@ struct ChatView: View {
     // MARK: - Session Context Watermark
 
     /// Session-level context window watermark (used / window).
-    /// `nil` window (model has no configured cap) → hidden entirely —
+    /// `nil` window (model has no configured cap) → hidden entirely,
     /// codex `unknown` path: we report no number rather than a fabricated one.
     /// Resolved through the codex-aligned `ContextRemaining` pure function so
     /// UI and the `get_context_remaining` tool stay on one definition.
@@ -720,7 +720,7 @@ struct ChatView: View {
 
     private var inputBar: some View {
         VStack(spacing: 8) {
-            // Attachment preview strip — shows thumbnails of attached images
+            // Attachment preview strip. Shows thumbnails of attached images
             if !chatState.pendingAttachments.isEmpty {
                 HStack(spacing: 8) {
                     ForEach(chatState.pendingAttachments) { attachment in
@@ -852,7 +852,7 @@ struct ChatView: View {
                     !isStreaming && chatState.inputText.trimmingCharacters(in: .whitespaces).isEmpty
                         && chatState.pendingAttachments.isEmpty)
             }
-            // Steering queue chip — truthful badge: engine drains decrement it,
+            // Steering queue chip. Truthful badge: engine drains decrement it,
             // turn-end flush zeroes it. Only ever visible while streaming.
             if chatState.pendingSteerCount > 0 {
                 HStack(spacing: 4) {
@@ -868,7 +868,7 @@ struct ChatView: View {
         }
         .padding()
         // MARK: - Front door: what the user holds in their hand reaches the agent
-        // Policy = ComposerIngest, funnel = ChatState.ingestFileURLs — the same
+        // Policy = ComposerIngest, funnel = ChatState.ingestFileURLs. The same
         // door the picker now uses, so drop / paste / pick can never disagree.
         .dropDestination(for: URL.self) { urls, _ in
             chatState.ingestFileURLs(urls).landed > 0
@@ -908,7 +908,7 @@ struct ChatView: View {
         #if os(macOS)
         // ⌘V on a screenshot or a Finder copy. The field editor sometimes keeps
         // ⌘V for itself, which is why Edit ▸ Paste Image or Files (⇧⌘V) exists
-        // as the guaranteed route — this is the one people actually reach for.
+        // as the guaranteed route. This is the one people actually reach for.
         .onPasteCommand(of: [.fileURL, .image, .png, .jpeg, .tiff, .heic]) { providers in
             Task { @MainActor in
                 await chatState.ingest(itemProviders: providers)
@@ -919,7 +919,7 @@ struct ChatView: View {
 
     // MARK: - Image Picker
 
-    /// Image picker — disk I/O and compression offloaded to background to avoid main-thread blocking
+    /// Image picker. Disk I/O and compression offloaded to background to avoid main-thread blocking
     @MainActor
     private func pickImages() {
         #if os(macOS)
@@ -938,7 +938,7 @@ struct ChatView: View {
             chatState.ingestFileURLs(panel.urls)
         }
         #else
-        // iOS — present PhotosPicker sheet (iOS 16+, HIG-compliant)
+        // iOS. Present PhotosPicker sheet (iOS 16+, HIG-compliant)
         showPhotoPicker = true
         #endif
     }
@@ -980,15 +980,15 @@ struct ChatView: View {
         sendVoiceMessage(chatState.inputText.trimmingCharacters(in: .whitespaces))
     }
 
-    // Voice-to-voice: send transcript from STT — skips setting chatState.inputText
+    // Voice-to-voice: send transcript from STT. Skips setting chatState.inputText
     // so the user can still type while voice loop is active
     private func sendVoiceMessage(_ text: String) {
         let hasText = !text.isEmpty
         guard hasText || !chatState.pendingAttachments.isEmpty else { return }
         // Mid-turn steering: while a stream is active, a send is NOT a new
-        // request — it is a course-correction. Route to the steer path instead
+        // request. It is a course-correction. Route to the steer path instead
         // of swallowing it behind the old `!isStreaming` guard (that guard made
-        // the live agent deaf to the user for the whole turn — the chat-shell
+        // the live agent deaf to the user for the whole turn. The chat-shell
         // failure mode; Hermes-style steering is the fix). Attachments/voice
         // do not steer (queue-only modalities need a fresh turn) → fall back.
         if isStreaming {
@@ -1071,7 +1071,7 @@ struct ChatBubble: View {
                 }
 
                 // Edit mode replaces the bubble in place (HIG: keep the user
-                // where they are — a sheet would move the thing they are fixing).
+                // where they are. A sheet would move the thing they are fixing).
                 if isEditing {
                     editEditor
                 } else if let parts = message.parts, !parts.isEmpty, !isUser {
@@ -1081,7 +1081,7 @@ struct ChatBubble: View {
                     // Fallback: flat content (legacy messages + user input)
                     ChatMessageInner(text: message.displayContent, isUser: isUser)
                 }
-                // Interrupted indicator — shows when generation was cancelled
+                // Interrupted indicator. Shows when generation was cancelled
                 if message.interrupted, !isUser {
                     HStack(spacing: 4) {
                         Image(systemName: "stop.circle")
@@ -1364,7 +1364,7 @@ struct TranscriptContentView: View {
                 case .truncatedByBudget:
                     // Output hit the token budget before finishing (reasoning
                     // ran out of budget / max response tokens). The user's only
-                    // signal the answer is INCOMPLETE — without it a truncated
+                    // signal the answer is INCOMPLETE. Without it a truncated
                     // response renders as a normal ending (GAP-4 close).
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -1416,7 +1416,7 @@ struct TranscriptContentView: View {
             withAnimationRespectingAccessibility { toggleReasoning(index) }
         } label: {
             VStack(alignment: .leading, spacing: 6) {
-                // Header row — always visible
+                // Header row. Always visible
                 HStack(spacing: 6) {
                     Image(systemName: "brain")
                         .font(.ocoreaiText(10))
@@ -1485,7 +1485,7 @@ struct TranscriptContentView: View {
 
 // MARK: - Preview
 
-/// #Preview requires Xcode PreviewsMacros plugin — disabled for swift build.
+/// #Preview requires Xcode PreviewsMacros plugin. Disabled for swift build.
 /// For live previews open the project in Xcode instead.
 
 // MARK: - Error Overlay Component
@@ -1503,7 +1503,7 @@ struct InferenceErrorOverlay: View {
                     .lineLimit(3)
                 if chatState.modelNotReady {
                     // First-launch dead-end prevention: a missing model is not a
-                    // retry-able transient — route the user to download it.
+                    // retry-able transient. Route the user to download it.
                     Button {
                         AppState.shared.selectedTab = .models
                         chatState.errorMessage = nil
@@ -1516,7 +1516,7 @@ struct InferenceErrorOverlay: View {
                     .accessibilityHint(StringKey.modelNotReadyAction.l)
                 }
                 Spacer()
-                // Retry button — re-attempt inference with the last user input
+                // Retry button. Re-attempt inference with the last user input
                 Button {
                     chatState.retryLastMessage()
                 } label: {
@@ -1558,8 +1558,8 @@ struct ChannelShiftToastOverlay: View {
                 // One mark, not an A→B device diagram: nothing migrates between
                 // accelerators at runtime (the device is bound at ModelContainer load),
                 // so "GPU → CPU" depicted a switch that never happened. This block
-                // also used to render the literal text "arrow.right" — the symbol NAME
-                // — because it was a Text, not an Image.
+                // also used to render the literal text "arrow.right". The symbol NAME
+                //, because it was a Text, not an Image.
                 Image(systemName: toast.to.badgeIcon)
                     .font(.system(.caption))
                     .foregroundStyle(ComputeChannelUI.colorFor(toast.to))
@@ -1600,7 +1600,7 @@ extension ChannelShiftToast {
 /// SwiftUI-side color and label mapping for ``ComputeChannel`` badges.
 /// Lives here (not in HardwareRouter) to keep the scheduler module SwiftUI-free.
 /// Badge label uses a generic abbreviation (GPU/ANE/CPU) since these are accelerator names,
-/// not user-facing strings — consistent with macOS Activity Monitor conventions.
+/// not user-facing strings. Consistent with macOS Activity Monitor conventions.
 private enum ComputeChannelUI {
     static func colorFor(_ ch: ComputeChannel) -> Color {
         switch ch {
@@ -1613,7 +1613,7 @@ private enum ComputeChannelUI {
 
 // MARK: - Agent Approval Banner
 
-/// 高危工具审批 banner — codex `ExecApprovalRequest` → TUI approvals cell 形状。
+/// 高危工具审批 banner. Codex `ExecApprovalRequest` → TUI approvals cell 形状。
 /// 呈现：工具名 + 参数 snippet（`ApprovalCore.snippet` 已截断）+ 三档裁决按钮。
 /// 空 pending → 不占位（`EmptyView`）。
 struct ApprovalBanner: View {
@@ -1693,9 +1693,9 @@ struct ApprovalBanner: View {
 // MARK: - Proactive Suggestion Bar (autonomous-loop slice 1)
 
 /// 主动建议条：呈现 `ProactiveSuggestionStore.current`。
-/// 契约 — **只提案、永不自动执行**：
-///  - "查看" = 把草稿填入输入框（用户审完自己按发送，发送权在用户手里）
-///  - "忽略" = 清场
+/// 契约。**只提案、永不自动执行**：
+/// - "查看" = 把草稿填入输入框（用户审完自己按发送，发送权在用户手里）
+/// - "忽略" = 清场
 /// 无待呈递建议 → `EmptyView`（不占位）。
 struct ProactiveSuggestionBar: View {
     var appState: AppState

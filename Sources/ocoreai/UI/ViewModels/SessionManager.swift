@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Session Manager — bridges SessionCompressor with SwiftUI
+/// Session Manager. Bridges SessionCompressor with SwiftUI
 
 import Foundation
 import Logging
@@ -9,7 +9,7 @@ import Observation
 @Observable
 @MainActor
 final class SessionManager {
-    /// Shared singleton — survives view recreation (tab switch, NavigationSplitView).
+    /// Shared singleton. Survives view recreation (tab switch, NavigationSplitView).
     static let shared = SessionManager()
     private init() {}
 
@@ -36,7 +36,7 @@ final class SessionManager {
         OcoreaiEngine.shared.activeSessionCompressor
     }
 
-    /// Summary fetch task — cancel on rapid switch to prevent stale summary overwriting.
+    /// Summary fetch task. Cancel on rapid switch to prevent stale summary overwriting.
     private var _summaryTask: Task<Void, Never>?
 
     // MARK: - Lifecycle
@@ -64,7 +64,7 @@ final class SessionManager {
         SettingsStore.shared.lastSessionId = session.id
         // Clear stale error when user selects a session
         errorMessage = nil
-        // Cancel previous summary fetch — rapid session switching would otherwise
+        // Cancel previous summary fetch. Rapid session switching would otherwise
         // let stale results overwrite the current session's summary.
         _summaryTask?.cancel()
         _summaryTask = Task { @MainActor [weak self] in
@@ -90,7 +90,7 @@ final class SessionManager {
                 if SettingsStore.shared.lastSessionId == session.id {
                     SettingsStore.shared.lastSessionId = nil
                 }
-                // The deleted session supplied the active worktree — drop the
+                // The deleted session supplied the active worktree. Drop the
                 // pointer (otherwise exec/file keep reading the orphaned dir).
                 SessionWorkspace.clear()
             }
@@ -124,7 +124,7 @@ final class SessionManager {
             // session is bound before reload so the chat loads into it.
             try await compressor.bindWorkspace(created.root, for: newId)
             // Project container: a session created while a project is open
-            // files into it (project_id + folder inheritance — the verified
+            // files into it (project_id + folder inheritance. The verified
             // ExecTools.effectiveCwd / FileTools.resolve chain).
             if let project = ProjectStore.shared.selectedProject {
                 await ProjectStore.shared.addSession(newId, to: project)
@@ -192,7 +192,7 @@ final class SessionManager {
     private func restoreLastSelectedSession() {
         guard let persistedId = SettingsStore.shared.lastSessionId else { return }
         guard let session = sessions.first(where: { $0.id == persistedId }) else {
-            // Persisted session was deleted or expired — clean up
+            // Persisted session was deleted or expired. Clean up
             SettingsStore.shared.lastSessionId = nil
             return
         }

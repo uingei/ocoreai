@@ -1,8 +1,8 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PlanCard — `update_plan` 任务态面板（Recover 片 1 的 UI 消费面）
+/// PlanCard, `update_plan` 任务态面板（Recover 片 1 的 UI 消费面）
 ///
-/// 第一性：plan 事件过去纯内存（生产 publish→nil 静默丢弃）**且无持久化、无面板**——
+/// 第一性：plan 事件过去纯内存（生产 publish→nil 静默丢弃）**且无持久化、无面板**。
 /// 模型调了 `update_plan`，用户看不到任务在推进什么。本面板消费 `PlanTaskStore.current`
 /// （attach SQLite 后跨重启可恢复），在 ChatView 输入区上方常显任务轨迹：
 /// 步骤列表（pending / in_progress / completed 三态）+ 可选 explanation。
@@ -88,7 +88,7 @@ struct PlanCard: View {
 
 // MARK: - Preview
 
-// #Preview("推进中") — #Preview requires Xcode PreviewsMacros plugin — disabled for swift build.
+// #Preview("推进中"). #Preview requires Xcode PreviewsMacros plugin. Disabled for swift build.
 // For live previews open the project in Xcode instead.
 // Preview content: PlanCard(snapshot: PlanSnapshot(items: [completed/in_progress/pending 3 steps],
 // explanation: "Recover ring closure", updatedAt: 0)).frame(maxWidth: 400).padding()

@@ -27,7 +27,7 @@ enum Input: Sendable {
     /// - Parameter String: The prompt text to be formatted
     case prompt(String)
 
-    /// Pre-tokenized input - bypasses tokenization entirely
+    /// Pre-tokenized input. Bypasses tokenization entirely
     /// - Parameter [Int]: Array of token IDs
     case tokens([Int])
 }
@@ -56,7 +56,7 @@ struct PromptUtils {
 
             return promptTokens
         case .tokens(let tokenIds):
-            // Already tokenized - return as-is
+            // Already tokenized. Return as-is
             return tokenIds
         }
     }

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MCP Stdio Client — 通过 stdio 管道连接外部 MCP server 子进程。
+/// MCP Stdio Client。通过 stdio 管道连接外部 MCP server 子进程。
 ///
 /// 生命周期的每一步都经过 actor mailbox，确保并发安全。
 /// 子进程通过 Foundation.Process + Pipe 管理，
@@ -38,7 +38,7 @@ actor MCPStdioClient {
     /// 子进程句柄
     private var process: Process?
     #else
-    /// iOS: no Process support — connection always fails
+    /// iOS: no Process support. Connection always fails
     private var processHandle: Int?
     #endif
     /// 传输层（管道模式）
@@ -59,14 +59,14 @@ actor MCPStdioClient {
     private(set) var childExitStatus: Int32?
     /// 入站请求（server→client）应答：返回要写回的响应行，`nil` = 不应答
     /// （notification / 无法应答）。接入后 `waitForResponse` 把带 method 的行
-    /// 全部先路由至此——无此路由层时，elicit 行会被误当
+    /// 全部先路由至此。无此路由层时，elicit 行会被误当
     /// tools/call 响应消费（elicitation server 挂死 / 调用返回错乱垃圾）。
     private let incomingRequestHandler: (@Sendable (String) async -> String?)?
-    /// 已应答的入站请求计数（按 method）——精确值测试断言面（elicit→1、ping→1）。
+    /// 已应答的入站请求计数（按 method）。精确值测试断言面（elicit→1、ping→1）。
     private(set) var inboundResponses: [String: Int] = [:]
 
     /// 本次连接生效的两条预算，构造时一次定稿（来源 = endpoint 覆盖 → bridge config →
-    /// ``MCPTimeouts`` 硬默认）。这是本仓唯一决定"外部 server 能等多久"的地方——旧写法把
+    /// ``MCPTimeouts`` 硬默认）。这是本仓唯一决定"外部 server 能等多久"的地方。旧写法把
     /// `15` 抄在两处，且 config 里那个 knob 无人读取。
     private let budgets: MCPRPCBudgets
 
@@ -135,7 +135,7 @@ actor MCPStdioClient {
     func request(
         _ method: String, params: [String: Any]?, phase: MCPRPCPhase = .tool
     ) async throws -> String {
-        // 断连/错误状态 → 直接抛错（不重试 — 对齐 codex: reconnect_failed_startup 后保持断开）
+        // 断连/错误状态 → 直接抛错（不重试。对齐 codex: reconnect_failed_startup 后保持断开）
         if status != .connected {
             throw MCPClientError.notConnected(endpoint.name, stderr: stderrTail.snapshot())
         }
@@ -160,7 +160,7 @@ actor MCPStdioClient {
         }
     }
 
-    /// 不走状态守卫的原始 RPC（内部握手 initialize 用 — 此时 status 尚未 .connected）。
+    /// 不走状态守卫的原始 RPC（内部握手 initialize 用。此时 status 尚未 .connected）。
     private func sendRPC(
         id: Int, method: String, params: [String: Any]?, timeout: TimeInterval
     ) async throws -> String {
@@ -259,7 +259,7 @@ actor MCPStdioClient {
             self?.onChildExit(proc)
         }
 
-        // Strip server secrets (OCOREAI_API_KEYS, OCOREAI_ADMIN_KEYS) —
+        // Strip server secrets (OCOREAI_API_KEYS, OCOREAI_ADMIN_KEYS),
         // MCP servers are third-party code that receive the env at exec.
         proc.environment = ChildProcessEnv.sanitized()
 
@@ -283,7 +283,7 @@ actor MCPStdioClient {
                 ],
                 "clientInfo": [
                     "name": "ocoreai-mcp-bridge",
-                    // The bridge IS the app — peer-visible identity must match
+                    // The bridge IS the app. Peer-visible identity must match
                     // the artifact on disk, never a frozen literal.
                     "version": AppInfo.shortVersion,
                 ],
@@ -312,7 +312,7 @@ actor MCPStdioClient {
     /// 每次循环迭代都检测：
     /// - `Task.isCancelled`：外层 withTimeout 的 cancelAll() 生效 → 立即退出，不空转。
     /// - 死进程：子进程已退出 → 管道已 EOF，读回 nil 无意义，直接判错交上层重连。
-    /// - **入站请求**（带 method）：路由给 `incomingRequestHandler` 应答后继续等——
+    /// - **入站请求**（带 method）：路由给 `incomingRequestHandler` 应答后继续等。
     ///   MCP stdio 是双向通道，elicitation server 会在 tools/call 响应之前
     ///   发 `elicit`/`ping` 请求（codex `555b82afa9` user-verification）。
     ///   旧缺陷：无应答面 → 这些行要么被误当响应返回（调用结果错乱），
@@ -321,7 +321,7 @@ actor MCPStdioClient {
         // 这里**不再**自带一条死线：死线唯一的主人是调用方 sendRPC 的 withTimeout
         // （第二个家会让 config 无论填什么都白填）。循环能收口靠两点：
         // `transport.readLine()` 单次有界等待 ≤50ms（MCPStdioTransport.readLine 契约），
-        // 且每轮开头查 Task.isCancelled —— 外层 cancelAll 生效即退出。
+        // 且每轮开头查 Task.isCancelled。外层 cancelAll 生效即退出。
         while true {
             if Task.isCancelled {
                 throw MCPClientError.timeout(endpoint.name, timeout, stderr: stderrTail.snapshot())
@@ -399,12 +399,12 @@ actor MCPStdioClient {
     private func applyChildExit(status: Int32, signal: Int32) {
         self.childExitStatus = signal != 0 ? signal : status
         // status 不变（.connected → 下次 request() 检测 process.isRunning==false）
-        // reconnectionAttempts 不在此处递增 — 由 reconnectOrFail() 每次尝试递增、
+        // reconnectionAttempts 不在此处递增。由 reconnectOrFail() 每次尝试递增、
         // attemptConnection() 成功后重置，防止意外退出路径误计。
     }
 
     /// 起一条 drain 收 stderr：写进 ``MCPStderrTail``，并逐行落日志（codex
-    /// `executor_process_transport.rs:465-487` 两件事都做——日志是给现场的，尾部是给
+    /// `executor_process_transport.rs:465-487` 两件事都做。日志是给现场的，尾部是给
     /// 这一次调用方的拒绝文案的）。
     ///
     /// 用阻塞 `read(2)` 而不是 `FileHandle.read(upToCount:)`：后者在本机 macOS 27 beta 上
@@ -451,7 +451,7 @@ actor MCPStdioClient {
     ///
     /// 刻意写成**次数**而不是 `ContinuousClock.now + …`：本文件的门
     /// （`MCPTimeoutDeliveryTests.scanFloors`）规定"响应等待只能有一条死线，且归调用方"。
-    /// 这不是响应等待而是一次有界收尾轮询——写成次数既不去撞那条规则，也不会哪天被读成
+    /// 这不是响应等待而是一次有界收尾轮询。写成次数既不去撞那条规则，也不会哪天被读成
     /// 第二个预算家（同一个文件里出现第二条绝对死线，正是那个 gate 存在的理由）。
     private func stderrEvidence() async -> String? {
         if let early = stderrTail.snapshot() { return early }
@@ -470,7 +470,7 @@ actor MCPStdioClient {
     }
 
     /// 从意外退出状态恢复连接。
-    /// 成功 → `.connected`；失败 → `.error`（后续 request() 直接抛错，不重试 —
+    /// 成功 → `.connected`；失败 → `.error`（后续 request() 直接抛错，不重试,
     /// 对齐 codex rmcp_client reconnect_failed_startup 语义）。
     private func connectViaPipeline() async throws {
         #if os(macOS)
@@ -526,7 +526,7 @@ actor MCPStdioClient {
 
     func reconnectOrFail() async throws {
         #if os(macOS)
-        // 子进程已退出 — cleanup 后重连
+        // 子进程已退出。cleanup 后重连
         if let proc = process {
             _ = proc.terminationStatus  // 确保 terminationStatus 已同步
             // 若子进程还在（极端竞态）→ SIGKILL 确保不再卡管道
@@ -550,7 +550,7 @@ actor MCPStdioClient {
 
     // MARK: - Test hooks（精确值测试驱动重连路径，模拟子进程意外崩溃）
 
-    /// 终止子进程（模拟意外崩溃），不触发 cleanup — 保留 process 句柄 +
+    /// 终止子进程（模拟意外崩溃），不触发 cleanup。保留 process 句柄 +
     /// status==.connected，使下次 request() 能命中检测路径并自动重连。
     func testTerminateChild() {
         #if os(macOS)
@@ -579,7 +579,7 @@ actor MCPStdioClient {
     /// 最后一次错误描述（测试断言精确值）。
     func testLastError() -> String? { lastError }
 
-    /// 入站请求应答计数（按 method）——精确值测试断言面（elicit→1、ping→1）。
+    /// 入站请求应答计数（按 method）。精确值测试断言面（elicit→1、ping→1）。
     func testInboundResponses() -> [String: Int] { inboundResponses }
 
     /// 子进程 stderr 尾部快照（测试断言面：证据是否真被收下、是否被截断）。
@@ -615,7 +615,7 @@ actor MCPStdioClient {
     }
 
     /// 解析 tools/call 响应体（Sendable 兼容）。
-    /// 委托 `MCPBridge.parseToolCallJSON` — structuredContent 优先级链（codex 基准）单一真源。
+    /// 委托 `MCPBridge.parseToolCallJSON`. StructuredContent 优先级链（codex 基准）单一真源。
     private func parseToolCallResponse(_ json: String) -> [[String: String]] {
         return MCPBridge.parseToolCallJSON(json)
     }
@@ -629,12 +629,12 @@ enum MCPClientError: Error, LocalizedError {
     /// 只报"timed out"会让人去查一个代码里根本不存在的默认值（旧文案就是这样）。
     case timeout(String, TimeInterval, stderr: String?)
     case protocolError(String, stderr: String?)
-    /// 子进程已退出（termination status 携带）——上层据此区分"重连/放弃"。
+    /// 子进程已退出（termination status 携带）。上层据此区分"重连/放弃"。
     case childExited(Int32, stderr: String?)
     case platformNotSupported
 
     // 无证据的同名构造：绝大多数站点确实拿不到 stderr，在每个调用点写 `nil` 只是噪声，
-    // 而"带证据"的那几个点必须显式写出来——它们正是这套诊断的意义所在。
+    // 而"带证据"的那几个点必须显式写出来。它们正是这套诊断的意义所在。
     static func notConnected(_ name: String) -> MCPClientError { .notConnected(name, stderr: nil) }
     static func timeout(_ name: String, _ seconds: TimeInterval) -> MCPClientError {
         .timeout(name, seconds, stderr: nil)
@@ -654,7 +654,7 @@ enum MCPClientError: Error, LocalizedError {
         }
     }
 
-    /// 把证据折进诊断——唯一落点。已有证据就不覆盖：同一死因说两遍等于没说
+    /// 把证据折进诊断。唯一落点。已有证据就不覆盖：同一死因说两遍等于没说
     /// （`attemptConnection` 会把内层已带证据的错误再包一次，靠这里挡住重复）。
     func withStderr(_ tail: String?) -> MCPClientError {
         guard let tail, !tail.isEmpty else { return self }
@@ -671,7 +671,7 @@ enum MCPClientError: Error, LocalizedError {
         }
     }
 
-    /// 结论本身（不含证据）——这些文案的唯一落点，别再抄第二份。
+    /// 结论本身（不含证据）。这些文案的唯一落点，别再抄第二份。
     var headline: String {
         switch self {
         case .notConnected(let name, _):

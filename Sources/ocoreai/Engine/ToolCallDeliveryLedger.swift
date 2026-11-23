@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! ToolCallDeliveryLedger.swift — what this process has *seen* a model do with tools.
+//! ToolCallDeliveryLedger.swift. What this process has *seen* a model do with tools.
 //!
 //! A client that posts `tools[]` and gets back a paragraph of markdown prose instead of
 //! `tool_calls` has its agent loop dead on arrival, and until now nothing on any
@@ -8,18 +8,18 @@
 //! prefix reuse (`PrefixReuseLedger`) but said nothing about the one capability a coding
 //! agent is judged on. Measured 10-18 on `mlx-community/gemma-4-e2b-it-4bit`: a request
 //! declaring `get_weather` answered with a fenced JSON block naming the tool, while
-//! `finish_reason` said `stop` — prose where a call belonged.
+//! `finish_reason` said `stop`. Prose where a call belonged.
 //!
 //! So this is evidence-shaped, following the two ledgers above: the value is a closed
 //! vocabulary keyed by what a completed turn in *this* process did, never a capability
 //! read off an architecture name. `not_observed` means only that no tool-declaring turn
-//! has run here yet — it is not a verdict on whether the model can call functions.
+//! has run here yet. It is not a verdict on whether the model can call functions.
 //!
 //! `prose_only` is deliberately narrow. Small models mention tool names in ordinary
 //! sentences all the time, and a surface that called that a dialect failure would
 //! over-claim in the other direction. A turn counts as prose-only only when the answer
-//! carries call *shape* — a declared tool name together with the key vocabulary of a
-//! call object (`name`/`arguments`/`parameters`/`tool_name`/`params`) — and nothing
+//! carries call *shape*. A declared tool name together with the key vocabulary of a
+//! call object (`name`/`arguments`/`parameters`/`tool_name`/`params`), and nothing
 //! parsed. That is a fact about the bytes we served, not a guess about intent.
 
 /// What one tool-declaring turn produced.
@@ -27,9 +27,9 @@ enum ToolCallTurnOutcome: String, Sendable, Equatable {
     /// The turn came back as structured `tool_calls` the client can execute.
     case parsed
     /// No call parsed, but the answer text carries a declared tool name inside
-    /// call-shaped JSON — the client's agent loop would read it as an answer.
+    /// call-shaped JSON. The client's agent loop would read it as an answer.
     case proseOnly
-    /// Tools were declared and the model answered without any call shape — ordinary
+    /// Tools were declared and the model answered without any call shape. Ordinary
     /// behaviour for a question that needs no tool, so it is evidence of neither.
     case noCall
 }
@@ -74,7 +74,7 @@ struct ToolCallDeliveryRecord: Encodable, Equatable, Sendable {
 /// ``VideoDeliveryLedger``/``PrefixReuseLedger``): no globals, and an unload drops the
 /// claim together with the weights.
 struct ToolCallDeliveryLedger: Sendable {
-    /// Closed vocabulary — the wire must never invent a fourth value.
+    /// Closed vocabulary. The wire must never invent a fourth value.
     static let statusParsed = "parsed"
     static let statusProseOnly = "prose_only"
     static let statusNotObserved = "not_observed"
@@ -202,7 +202,7 @@ struct ToolCallDeliveryAggregate: Equatable, Sendable {
     /// Turns where the call stayed in prose.
     var proseTurns: Int = 0
 
-    /// Nothing observed yet — the honest negative, not a claim of inability.
+    /// Nothing observed yet. The honest negative, not a claim of inability.
     var isEmpty: Bool { models == 0 }
 
     /// The sentence the aggregate publishes beside the status.

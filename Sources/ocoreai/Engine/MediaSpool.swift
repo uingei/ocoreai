@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// MediaSpool.swift — where the bytes behind a `data:` media URL live, and for how long.
+// MediaSpool.swift, where the bytes behind a `data:` media URL live, and for how long.
 //
 // ### The defect this closes (measured 10-16, `scripts/probes/08-video-honesty.sh`)
 // AVFoundation cannot read a `data:` URL, so video and audio arriving inline are written
 // to a file and handed to the model as `.url(fileURL)`. That file used to be deleted
 // when the *request* ended. But a conversation's transcript is not request-scoped:
-// upstream `ChatSession` keeps the message it was given — with the resolved URL inside it
-// — and re-feeds that whole transcript to `processor.prepare` on **every later turn**
+// upstream `ChatSession` keeps the message it was given, with the resolved URL inside it
+//, and re-feeds that whole transcript to `processor.prepare` on **every later turn**
 // (`ChatSession.swift:1354`: `templateMessages = leadingMessages +
 // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1336 templateMessages = leadingMessages
 // currentConversation.messages`). So the next turn opened a file that no longer existed,
@@ -15,16 +15,16 @@
 // failed: The operation could not be completed"}`.
 //
 // Measured on this host, same model (`gemma-4-e2b-it-4bit`), same clip bytes:
-//   • clip as a `data:` URL  → turn 1 `200` "Red" (+79 prompt tokens: frames arrived);
+//  • clip as a `data:` URL  → turn 1 `200` "Red" (+79 prompt tokens: frames arrived);
 //     turn 2, a plain text follow-up in the same session → `500`, and every turn after
-//     it `500` — the session was permanently poisoned by its own transcript.
-//   • the same clip as a persistent `file://` URL → turn 1 `200` "Blue", turn 2 `200`
+//     it `500`. The session was permanently poisoned by its own transcript.
+//  • the same clip as a persistent `file://` URL → turn 1 `200` "Blue", turn 2 `200`
 //     "Blue" (the model recalled the clip it had been shown), turn 3 `200` "Red".
 // Same bytes, different URL scheme, opposite outcomes. The difference was only whether
 // the file the transcript cited still existed.
 //
 // ### The rule, therefore
-// **Media bytes live exactly as long as a live pooled session cites them** — not one
+// **Media bytes live exactly as long as a live pooled session cites them**, not one
 // turn longer (the pool releases them the moment the session that named them is gone)
 // and not one turn shorter (which is what poisoned the conversation above). Two backstops
 // cover what the pool cannot see: an idle TTL, for files orphaned by a killed process,
@@ -57,7 +57,7 @@ enum MediaSpool {
     ///
     /// `FileManager.temporaryDirectory` hands back `/var/folders/…`, which is a symlink to
     /// `/private/var/folders/…`, and a directory listing resolves it. Keying pins by one
-    /// spelling and comparing against the other makes every check miss — which, for a
+    /// spelling and comparing against the other makes every check miss, which, for a
     /// pin, means "delete the bytes a request is reading". One canonical form, everywhere.
     static func canonicalPath(_ url: URL) -> String {
         url.resolvingSymlinksInPath().path
@@ -65,7 +65,7 @@ enum MediaSpool {
 
     /// Whether a name is one this spool wrote: `<16 hex>-<bytes>.<ext>`.
     ///
-    /// Both collectors check it, so neither can delete anything it did not create —
+    /// Both collectors check it, so neither can delete anything it did not create,
     /// a foreign file in the same directory is not ours to touch, whatever a caller's
     /// list says.
     static func isSpoolName(_ url: URL) -> Bool {
@@ -74,7 +74,7 @@ enum MediaSpool {
 
     /// Compared as path *strings*, not `URL == URL`: `deletingLastPathComponent()` puts
     /// the directory placeholder back (`…/media/`), so a URL-to-URL comparison is false
-    /// for a file spool that is otherwise identical — and a containment guard that is
+    /// for a file spool that is otherwise identical, and a containment guard that is
     /// always false deletes nothing at all. That is not a hypothetical: it is exactly how
     /// the first cut of this file silently released nothing (caught by
     /// `MediaLifetimeTests`, not by the live probe, which only ever sees bytes that stayed).
@@ -86,7 +86,7 @@ enum MediaSpool {
     ///
     /// Why a pin rather than an ordering fix at each call site: the spool write happens
     /// when the wire message is converted, while the decisions that delete files happen
-    /// later and elsewhere — a diverged conversation discarded during ``acquire``, an LRU
+    /// later and elsewhere. A diverged conversation discarded during ``acquire``, an LRU
     /// or pressure eviction, a sweep. Any one of them can run between "this turn spooled
     /// its clip" and "this turn's processor opened it", and when they do, the turn dies
     /// with an AVFoundation error over bytes it wrote itself. Measured 10-16 with the
@@ -174,8 +174,8 @@ enum MediaSpool {
 
     /// Where the spool lives: `OCOREAI_MEDIA_SPOOL` wins (the same escape hatch the Metal
     /// library resolution offers, and an escape hatch that loses to a caller is not an
-    /// escape hatch), then the caller's `fallback` — the session pool passes the
-    /// directory next to its KV cache, so redirecting one redirects both — then
+    /// escape hatch), then the caller's `fallback`. The session pool passes the
+    /// directory next to its KV cache, so redirecting one redirects both. Then
     /// `<Application Support>/ocoreai/cache/media`, then a subdirectory of the temp dir.
     /// A subdirectory, never the temp dir itself: a sweep must only ever be able to
     /// delete files this enum wrote.
@@ -201,7 +201,7 @@ enum MediaSpool {
     /// Idempotent by content: the same bytes return the same path (and refresh its
     /// idle clock), so a conversation that replays a clip every turn cites one file
     /// rather than accumulating a copy per turn. `nil` means the bytes could not be
-    /// written — the caller must then treat the media as *not delivered*, never as
+    /// written. The caller must then treat the media as *not delivered*, never as
     /// silently ignorable.
     static func spool(
         _ bytes: Data,
@@ -241,7 +241,7 @@ enum MediaSpool {
         }
     }
 
-    /// Delete files a session no longer cites — unless a *different* live session
+    /// Delete files a session no longer cites. Unless a *different* live session
     /// cites them too, which content-addressing makes possible.
     ///
     /// - Parameter keeping: paths still referenced by sessions that remain in the pool.
@@ -291,7 +291,7 @@ enum MediaSpool {
             let bytes = UInt64(max(0, values?.totalFileAllocatedSize ?? 0))
             let touched = values?.contentModificationDate ?? .distantPast
             // Idle by the clock, and no request is holding it: collectable. A pinned file
-            // stays and stays *out of the budget arithmetic* — it cannot be deleted, so
+            // stays and stays *out of the budget arithmetic*. It cannot be deleted, so
             // counting it against a budget the sweep cannot meet would only make the next
             // sweep delete live files sooner.
             let idle = now.timeIntervalSince(touched) >= Double(policy.idleTTL.components.seconds)

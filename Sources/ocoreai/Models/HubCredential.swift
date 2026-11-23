@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! HubCredential.swift — one home for "may this request carry credentials, and exactly what
+//! HubCredential.swift. One home for "may this request carry credentials, and exactly what
 //! does the header say".
 //!
 //! ### Why this exists
@@ -15,16 +15,16 @@
 //! - a token pasted with a trailing newline (`MODELSCOPE_TOKEN="$(cat token.txt)"`) produced a
 //!   header value containing a control character. A CR/LF inside a field value is a
 //!   request-splitting primitive, never part of a token;
-//! - a blank/whitespace-only stored value produced `Authorization: Bearer ` — a request that
+//! - a blank/whitespace-only stored value produced `Authorization: Bearer `. A request that
 //!   *claims* to be authenticated while carrying no credentials, and comes back 401;
 //! - when the hub refused, the user-facing text said `ModelScope API error (401)` and the gated
 //!   hint said the repo *may* require a token (AGENTS.md invariant 2: speculate where the
 //!   engine knows). This process knows whether it offered a credential, and whether the value
-//!   it stored was usable — so it says that instead.
+//!   it stored was usable, so it says that instead.
 //!
 //! ### Deliberate limits
 //! Not anonymous-by-default: a hub call with no credential is legitimate (public repos answer
-//! anonymously), so `.absent` still sends an unauthenticated request — with the state named in
+//! anonymously), so `.absent` still sends an unauthenticated request, with the state named in
 //! any refusal. What is never legitimate is a *partial* credential on the wire. And nothing
 //! here retries anything: `isRetryable(statusCode:)` is already that home; `HubRejection` only
 //! decides what to **tell** the caller, and `HubCredentialTests` traverses both so they cannot
@@ -34,7 +34,7 @@ import Foundation
 
 // MARK: - Provider identity
 
-/// Which hub a request goes to — the identity every credential decision is keyed on.
+/// Which hub a request goes to. The identity every credential decision is keyed on.
 ///
 /// Declared here rather than in the UI file that first used it: `Engine/HubConfigFetcher`,
 /// `Models/ModelIdentity` and `Models/ModelScopeDownloader` all key on it, so a type declared
@@ -58,7 +58,7 @@ extension HubSource {
 
     /// Where the user-saved (non-env) half of this provider's token lives on disk. The name is
     /// quoted in advice and read by `SettingsStore`, so it belongs next to `envVar` rather than
-    /// in two files that can drift apart — `HubSourceCredentialIdentityTests` pins it against
+    /// in two files that can drift apart, `HubSourceCredentialIdentityTests` pins it against
     /// the `SettingsStore.Key` raw values.
     var userDefaultsKey: String {
         switch self {
@@ -73,7 +73,7 @@ extension HubSource {
 /// A hub access token that has been checked well enough to put on the wire.
 ///
 /// Invariant (the reason the type exists rather than a `String?`): `token` is non-empty,
-/// contains only printable ASCII, and is within `maxTokenCharacters` — so `headerValue`
+/// contains only printable ASCII, and is within `maxTokenCharacters`, so `headerValue`
 /// can never emit a partial credential or split a header.
 struct HubCredential: Hashable, Sendable {
     /// Ceiling for a token value. Fine-grained HuggingFace tokens are JWTs (hundreds of
@@ -122,7 +122,7 @@ enum HubCredentialIssue: String, Equatable, Sendable {
     /// header, so this value is refused outright rather than sanitised into something the user
     /// never saved.
     case malformed
-    /// Longer than ``HubCredential/maxTokenCharacters`` — a blob, not a token.
+    /// Longer than ``HubCredential/maxTokenCharacters``. A blob, not a token.
     case oversized
 }
 
@@ -146,7 +146,7 @@ enum HubCredentialResolution: Equatable, Sendable {
     }
 
     /// The precedence rule as its own function: of the two configured values, which one is the
-    /// caller's intent. Spelled here and nowhere else — `SettingsStore` and the startup path in
+    /// caller's intent. Spelled here and nowhere else, `SettingsStore` and the startup path in
     /// `App.swift` both need those same two lines, and a third copy is how "env vars take
     /// precedence" (a promise the Settings UI makes in its own label text) starts meaning
     /// different things on different surfaces. `HubSourceCredentialIdentityTests` pins that this
@@ -180,7 +180,7 @@ enum HubCredentialResolution: Equatable, Sendable {
     }
 
     /// The complete header value, or `nil` when nothing may be sent. Call sites write
-    /// `if let value = resolution.headerValue` — one spelling for "this request is authenticated".
+    /// `if let value = resolution.headerValue`. One spelling for "this request is authenticated".
     var headerValue: String? { credential?.headerValue }
 
     var offersCredential: Bool { credential != nil }
@@ -239,7 +239,7 @@ struct HubRejection: Equatable, Sendable {
     let kind: Kind
     let credential: HubCredentialResolution
 
-    /// `nil` for a 2xx — nothing happened. Retryability comes from `isRetryable(statusCode:)`,
+    /// `nil` for a 2xx. Nothing happened. Retryability comes from `isRetryable(statusCode:)`,
     /// the existing home, so this cannot call a code transient while the retry loop sits on it
     /// (pinned by `HubRejectionAgreesWithRetryClassifier`).
     static func classify(
@@ -262,8 +262,8 @@ struct HubRejection: Equatable, Sendable {
     /// name would shadow the free `isRetryable(statusCode:)` whose verdict this mirrors.
     var isTransient: Bool { kind == .transient }
 
-    /// Actionable text for whatever surface reports this failure. States the measured fact —
-    /// whether a credential was on the request at all — before any speculation about the
+    /// Actionable text for whatever surface reports this failure. States the measured fact,
+    /// whether a credential was on the request at all. Before any speculation about the
     /// repository.
     var advice: String {
         switch kind {

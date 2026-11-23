@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! SessionTranscript.swift — what one turn actually adds to a stored conversation.
+//! SessionTranscript.swift. What one turn actually adds to a stored conversation.
 //!
 //! A chat client re-sends the whole history on every request, while `messages` rows are
 //! append-only. Inserting the whole transcript each turn charged a session for the same
 //! messages over and over (measured 10-21: three turns on one conversation key wrote one
 //! snapshot session per request), and that running total is what ``SessionCompressor``
-//! compares against `tokenThreshold` to decide when to prune — so the number that gates
+//! compares against `tokenThreshold` to decide when to prune, so the number that gates
 //! memory was counting history once per turn.
 //!
 //! The rule comes from the conversation's own shape: both the stored rows and the incoming
@@ -42,7 +42,7 @@ enum SessionTranscript {
     /// (both oldest-first).
     ///
     /// - No stored rows ⇒ the whole transcript is new (first turn of a conversation).
-    /// - `incoming` extends `existing` ⇒ only the tail is new — the ordinary turn.
+    /// - `incoming` extends `existing` ⇒ only the tail is new. The ordinary turn.
     /// - `incoming` is a prefix of `existing` (a rewind) ⇒ nothing is added; the stored
     ///   rows already reach further than the client's view.
     /// - The two diverge mid-history (the client reworded a past turn) ⇒ everything from the
@@ -67,7 +67,7 @@ enum SessionTranscript {
     /// neither. Both sides of ``newEntries(existing:incoming:)`` must use this filter: the
     /// stored rows interleave assistant replies, so comparing them shape-for-shape against a
     /// client list that has none would stop the overlap at the first reply and re-store every
-    /// earlier turn — the same defect this file exists to fix, one level down.
+    /// earlier turn. The same defect this file exists to fix, one level down.
     static func persists(role: String) -> Bool {
         persistedRoles.contains(role)
     }

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PerceptionFrame — a timestamped snapshot from any perception channel.
+/// PerceptionFrame. A timestamped snapshot from any perception channel.
 ///
 /// Each frame carries source identity, timestamp, and context payload
 /// (image URL, OCR text, audio URL, or text). Frames are immutable once
@@ -46,7 +46,7 @@ public struct PerceptionFrame: Codable, Sendable {
     public let audioURL: String?
     /// Free-form text context (network state, ambient sensor data)
     public let textContext: String?
-    /// Estimated token cost — used by budget tracker
+    /// Estimated token cost. Used by budget tracker
     public let estimatedTokens: Int
     /// Stable frame ID for deduplication
     public let id: String
@@ -116,7 +116,7 @@ public struct PerceptionBudget: Codable, Sendable {
     public var maxTokens: Int
     /// Maximum number of frames per channel
     public var maxFramesPerChannel: Int
-    /// Maximum age in seconds — frames older than this are excluded
+    /// Maximum age in seconds. Frames older than this are excluded
     public var maxAgeSeconds: TimeInterval
     /// Whether to prefer OCR text over images when both available
     public var ocrPreferText: Bool
@@ -128,7 +128,7 @@ public struct PerceptionBudget: Codable, Sendable {
         ocrPreferText: true
     )
 
-    /// Low-power profile — tighter budget for constrained environments
+    /// Low-power profile. Tighter budget for constrained environments
     public static let `lazy` = PerceptionBudget(
         maxTokens: 512,
         maxFramesPerChannel: 1,
@@ -173,7 +173,7 @@ public final class PerceptionBuffer: @unchecked Sendable {
             var result: [PerceptionChannel: PerceptionFrame] = [:]
             var usedTokens = 0
 
-            // Sort newest first — prefer recent observations
+            // Sort newest first. Prefer recent observations
             let sorted = frames.sorted {
                 $0.capturedAt.timeIntervalSinceNow > $1.capturedAt.timeIntervalSinceNow
             }

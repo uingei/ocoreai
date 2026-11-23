@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Opt-in per-turn tool-surface curation — decides which measured arm a native turn is
+/// Opt-in per-turn tool-surface curation. Decides which measured arm a native turn is
 /// handed, and off means byte-identical to the old full-registry behavior.
 ///
 /// The policy is the eval-measured arm, never re-invented here: the names and the paired
@@ -19,7 +19,7 @@ enum ToolSurfaceCuration {
     }
 
     /// The whole flag decision, so off/on is assertable without a view model. Off (or a
-    /// nil surface — the no-tools route) returns the input untouched.
+    /// nil surface. The no-tools route) returns the input untouched.
     static func apply(_ defs: [ToolDef]?, enabled: Bool) -> [ToolDef]? {
         guard enabled, let defs else { return defs }
         return curated(defs)

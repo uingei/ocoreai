@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Pre-fill Admission Gate — per-request memory budget admission control.
+/// Pre-fill Admission Gate. Per-request memory budget admission control.
 ///
 /// Before any dispatch, the gate estimates the memory cost of the request
 /// and checks if sufficient headroom exists. This prevents OOM mid-generation
 /// by refusing large requests when budget is tight.
 ///
-/// On Apple Silicon UMA, memory pressure is system-wide — CPU/GPU share RAM.
+/// On Apple Silicon UMA, memory pressure is system-wide. CPU/GPU share RAM.
 /// The gate uses MemoryTracker (which polls host_statistics64) as the source
 /// of truth for current usage, and tracks per-request reservations on top.
 ///
@@ -29,13 +29,13 @@ public struct AdmissionResult: Sendable, Codable {
     public let estimatedCostMB: Double
 
     /// Recommended compute channel from HardwareRouter (nil when router unavailable).
-    /// The dispatcher should respect this — e.g. .ane means the request was admitted
+    /// The dispatcher should respect this. E.g. .ane means the request was admitted
     /// but should be routed to CoreAI/ANE rather than MLX/GPU.
     public let recommendedChannel: ComputeChannel?
 
     /// Bytes per KV token this decision reserved at, and whether that price was measured off
     /// a real cache or is the unknown-model fallback. A reservation number without its basis is
-    /// the kind of figure a later reader has to re-derive — AGENTS.md invariant 2 says a number
+    /// the kind of figure a later reader has to re-derive. AGENTS.md invariant 2 says a number
     /// carries its source, so the decision states it.
     public let kvBytesPerToken: UInt64
     /// `measured` | `fallback`.
@@ -62,7 +62,7 @@ public struct AdmissionResult: Sendable, Codable {
         self.pricingBasis = pricingBasis
     }
 
-    /// Admitted without a new reservation — the request already holds one.
+    /// Admitted without a new reservation. The request already holds one.
     /// Price and basis are required, not defaulted: a result that could be built without stating
     /// its basis is one that would quietly call the fallback a measurement for a model priced 10×
     /// higher.
@@ -92,15 +92,15 @@ public struct AdmissionResult: Sendable, Codable {
     }
 }
 
-/// Pre-fill Admission Gate — actor for thread-safe budget reservation.
+/// Pre-fill Admission Gate. Actor for thread-safe budget reservation.
 actor AdmissionGate {
     // MARK: - Configuration
 
     // The 1KB/token baseline (bits4 q4_0) lives in ``KVCacheBudget``, shared with
-    // SchedulerActor — see that file for why the conversion must not trap.
+    // SchedulerActor. See that file for why the conversion must not trap.
 
     /// Abort margin: percentage of remaining budget to always reserve
-    /// Production: 0.15. Tuning knob — increase if OOM still occurs, decrease if
+    /// Production: 0.15. Tuning knob. Increase if OOM still occurs, decrease if
     /// admission is too aggressive and rejects valid requests.
     private let abortMarginFraction: Double = 0.15
 
@@ -118,10 +118,10 @@ actor AdmissionGate {
     /// Current active pre-fill count (for jitter limiting)
     private var activePreFills: Int = 0
 
-    /// MemoryTracker reference — source of truth for system memory state
+    /// MemoryTracker reference. Source of truth for system memory state
     private var memoryTracker: MemoryTracker?
 
-    /// Hardware router — runtime compute channel recommendation
+    /// Hardware router. Runtime compute channel recommendation
     private var hardwareRouter: HardwareRouter?
 
     private let logger: Logger
@@ -154,7 +154,7 @@ actor AdmissionGate {
             bytesPerToken: KVCacheBudget.bytesPerToken)
     }
 
-    /// Cost at a specific price per token — the shape the gate decides with once the model has
+    /// Cost at a specific price per token. The shape the gate decides with once the model has
     /// been priced by a real cache.
     func estimatedCost(
         inputTokens: Int,
@@ -162,7 +162,7 @@ actor AdmissionGate {
         bytesPerToken price: UInt64
     ) -> UInt64 {
         // Each term is floored separately: a negative output budget must not buy the request
-        // a discount on the tokens it really does need (input) — and must not trap.
+        // a discount on the tokens it really does need (input), and must not trap.
         KVCacheBudget.bytes(inputTokens, bytesPerToken: price)
             + KVCacheBudget.bytes(maxOutputTokens, bytesPerToken: price)
     }
@@ -188,17 +188,17 @@ actor AdmissionGate {
     ///
     /// We deliberately do NOT subtract the whole-machine usage
     /// (active + inactive + wired + compressed ≈ the entire system, e.g. ~20 GiB
-    /// on a loaded 16 GiB box) from our 8.8 GiB cap — that mixes two unrelated
+    /// on a loaded 16 GiB box) from our 8.8 GiB cap, that mixes two unrelated
     /// quantities with two unrelated denominators and rejects *every* request
     /// the moment other apps or the file cache consume more than our cap,
     /// producing the "one chat and it dies" symptom. That is the same
     /// whole-machine-vs-our-budget conflation already fixed as advisory logging
     /// in ``MemoryTracker`` (see `checkSystemLevel` "previously … permanently
     /// stuck at .oom"). System pressure stays advisory: it drives the OOMGuard
-    /// downgrade level and the routing channel — it does not gate the per-request
+    /// downgrade level and the routing channel. It does not gate the per-request
     /// headroom. The real OOM backstop is MLX's own `Memory.cacheLimit`.
     ///
-    /// ### Decision status — the budget is accounting; OWNER'S CALL as a device ceiling
+    /// ### Decision status. The budget is accounting; OWNER'S CALL as a device ceiling
     /// This budget (~70 GB on a 128 GB box) gates admission here and feeds OOMGuard's level. It is
     /// deliberately not written to `MLX.Memory.memoryLimit`, whose value is Metal's recommended max
     /// working set (121 GB here; boot prints the budget and the ceiling on two lines). Clamping the
@@ -210,12 +210,12 @@ actor AdmissionGate {
         priority: RequestPriority = .chat
     ) async -> (totalBudget: UInt64, available: UInt64, channel: ComputeChannel?) {
         guard let tracker = memoryTracker else {
-            // No tracker — allow everything (defer to downstream OOMGuard)
+            // No tracker. Allow everything (defer to downstream OOMGuard)
             return (0, .max, nil)
         }
 
         // Advisory: system pressure level + recommended compute channel.
-        // (currentUsage() is not part of the headroom math — see doc above.)
+        // (currentUsage() is not part of the headroom math. See doc above.)
         _ = await tracker.currentUsage()
         let gpuActive = await tracker.gpuActiveMemoryBytes()
         let budget = await tracker.getBudget()
@@ -254,7 +254,7 @@ actor AdmissionGate {
             inputTokens: inputTokens, maxOutputTokens: maxOutputTokens, bytesPerToken: price)
         let costMB = Double(cost) / (1024 * 1024)
 
-        // Already reserved for this request — allow continuation
+        // Already reserved for this request. Allow continuation
         if reservations[requestId] != nil {
             return .ok(kvBytesPerToken: price, pricingBasis: basis)
         }
@@ -294,7 +294,7 @@ actor AdmissionGate {
             pricingBasis: basis)
     }
 
-    /// Admit a request — reserve its memory cost.
+    /// Admit a request. Reserve its memory cost.
     /// - Parameters:
     ///   - requestId: Unique request identifier.
     ///   - inputTokens: Number of input tokens.
@@ -318,7 +318,7 @@ actor AdmissionGate {
 
         // Visible at default log level: what this turn reserved, and on what authority. A
         // reservation priced by a guess has to read differently, in the log, from one priced off
-        // the model's own cache — that difference is the point of measuring the price at all.
+        // the model's own cache, that difference is the point of measuring the price at all.
         let reservedMB = Int(cost / 1_048_576)
         let totalGB = Int(reservedBytes / 1_073_741_824)
         let pricing = "\(basis) \(price) B/token"

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Dashboard ViewModel — reads metrics directly from EnginePool + MetricsRegistry (Fast Path, no HTTP).
+/// Dashboard ViewModel. Reads metrics directly from EnginePool + MetricsRegistry (Fast Path, no HTTP).
 ///
 /// @Observable: property-level change tracking.
 /// .task{await vm.load()} drives state machine.
@@ -81,7 +81,7 @@ enum DashboardHealth: Equatable, Sendable {
 @Observable
 @MainActor
 final class DashboardState {
-    /// Shared singleton — survives view recreation (tab switch, NavigationSplitView).
+    /// Shared singleton. Survives view recreation (tab switch, NavigationSplitView).
     /// Accessed via @State initial: DashboardState.shared in DashboardView.
     static let shared = DashboardState()
     private init() {}
@@ -95,14 +95,14 @@ final class DashboardState {
 
     /// Connection state
     var connected: Bool = false
-    /// Time the engine first became ready — survives view recreation, tab switches, etc.
+    /// Time the engine first became ready. Survives view recreation, tab switches, etc.
     /// Used by DashboardView for the uptime display; `nil` before first engine boot.
     private(set) var launchTime: Date?
     var isLive: Bool {
         connected
     }
 
-    /// The engine's own lifecycle, read at display time — see ``DashboardHealth``.
+    /// The engine's own lifecycle, read at display time. See ``DashboardHealth``.
     var health: DashboardHealth {
         DashboardHealth.derive(
             state: OcoreaiEngine.shared.lifecycleState,
@@ -121,22 +121,22 @@ final class DashboardState {
     // MARK: - Screen lifecycle
 
     /// Consume metrics from AppState (single source of truth).
-    /// AppState.metricsTask does the actual polling — we track chart history here.
-    /// Idempotent — safe to call on every DashboardView appearance (.task{} block).
+    /// AppState.metricsTask does the actual polling. We track chart history here.
+    /// Idempotent. Safe to call on every DashboardView appearance (.task{} block).
     /// Fixes: P0-1 (eliminated duplicate polling), P1-1 (no [self] strong capture)
     @MainActor
     func startPolling() async {
-        // Idempotency guard — prevents duplicate polling on tab switch / view recreation.
+        // Idempotency guard. Prevents duplicate polling on tab switch / view recreation.
         // Also avoids the old task being orphaned (not cancelled but reference lost).
         guard pollingTask == nil else { return }
 
-        // Record launch time on first polling start — persists across view recreation
+        // Record launch time on first polling start. Persists across view recreation
         // since DashboardState is a singleton. Used by DashboardView for uptime display.
         if launchTime == nil {
             launchTime = .now
         }
 
-        // Wait until engine core is fully initialized — 30s timeout guard
+        // Wait until engine core is fully initialized, 30s timeout guard
         let deadline = Date().addingTimeInterval(30.0)
         while !OcoreaiEngine.shared.engineReady, Date() < deadline, !Task.isCancelled {
             try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms
@@ -146,7 +146,7 @@ final class DashboardState {
             return
         }
 
-        // Poll on MainActor directly — DashboardState is @MainActor,
+        // Poll on MainActor directly. DashboardState is @MainActor,
         // consumeMetrics reads AppState.currentMetrics (same-actor), no detached task needed.
         pollingTask = Task(priority: .utility) {
             while !Task.isCancelled {

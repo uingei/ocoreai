@@ -90,7 +90,7 @@ enum SignpostCategory: String, Sendable {
 /// ```swift
 /// let span = Instrumentation.beginPrompt(tokens: 10)
 /// // ... do work ...
-/// span.end()  // Consuming - cannot use span after this
+/// span.end()  // Consuming. Cannot use span after this
 /// ```
 @available(macOS 27.0, iOS 27.0, *)
 struct ProfileSpan: ~Copyable {

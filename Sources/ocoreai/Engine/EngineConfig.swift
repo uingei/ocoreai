@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// EngineConfig.swift — EnginePool configuration
+/// EngineConfig.swift. EnginePool configuration
 
 import CoreGraphics
 import Foundation
 import Logging
 
-/// Engine pool configuration — passed by value, immutable after initialization.
+/// Engine pool configuration. Passed by value, immutable after initialization.
 ///
 /// Controls concurrent session limits, queue depth, model paths, warmup behavior,
 /// and optional KV cache management.
@@ -40,7 +40,7 @@ public struct EnginePoolConfig: Sendable {
     /// A policy, not an engine constant: the shipping default checkpoint takes 794 s to fetch at
     /// hub speed (11-01(101)), so no value short enough to keep a harness responsive covers a
     /// cold first run, and the number that matters is what the refusal carries instead.
-    /// Default 120 s — the value hard-coded here before it was a field, so adopting it changes
+    /// Default 120 s. The value hard-coded here before it was a field, so adopting it changes
     /// no behaviour.
     var loadWaitSeconds: Int
 
@@ -48,13 +48,13 @@ public struct EnginePoolConfig: Sendable {
     /// When enabled, ChatSession instances are pooled per-conversation for KV cache reuse.
     var sessionPoolConfig: SessionPoolConfig?
 
-    /// KV cache dynamic quantization — KV auto-downgrades FP16 → INT4/INT8 after N tokens.
+    /// KV cache dynamic quantization. KV auto-downgrades FP16 → INT4/INT8 after N tokens.
     var kvCacheQuantization: KVCacheQuantizationConfig = .default
 
     /// Wired memory GPU hard-isolation (Layer 0 below OOMGuard).
     var wiredMemory: WiredMemoryConfig = .default
 
-    /// Speculative decoding — draft model proposes tokens, main model verifies.
+    /// Speculative decoding. Draft model proposes tokens, main model verifies.
     /// Defaults to disabled (zero behavior change).
     var specDecoding: SpecDecodingConfig = .default
 

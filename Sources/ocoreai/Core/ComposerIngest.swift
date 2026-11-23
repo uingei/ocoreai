@@ -1,20 +1,20 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ComposerIngest.swift — pure ingest policy for the chat composer front door.
+/// ComposerIngest.swift. Pure ingest policy for the chat composer front door.
 ///
 /// ### Why this exists (proven gap, 2026-10-12)
 /// The composer is the app's front door, and a user's hands hold three kinds of
-/// things: text, images, and *files*. Text worked. Images worked — but only via
+/// things: text, images, and *files*. Text worked. Images worked, but only via
 /// `NSOpenPanel` filtered to 4 image UTTypes (`ChatView.pickImages`). Files were
 /// physically impossible to hand over: no `.dropDestination`, no `.onPasteCommand`
 /// (both grep to 0 across `Sources/`), and the picker rejected everything that
-/// was not a picture — while its own accessibility label promised "Attach Files".
+/// was not a picture. While its own accessibility label promised "Attach Files".
 /// That is a front-door gap, not an engine gap: `read_file` already consumes text,
 /// code, and PDF text layers natively (see CHANGELOG 09-28 PDF slice). The
 /// capability existed; the door refused to open.
 ///
 /// ### First principles
-/// 1. Accept what the user has in hand: drop, paste, or pick — same policy once.
+/// 1. Accept what the user has in hand: drop, paste, or pick. Same policy once.
 /// 2. Route by what the ENGINE can consume, not by file-icon prettiness:
 ///    • image bytes → the existing image-attachment pipeline (VLM content part)
 ///    • text/code/document/PDF → a self-describing ABSOLUTE PATH token, because
@@ -25,12 +25,12 @@
 /// 4. The picker's offered types are DERIVED from this policy (one source of
 ///    truth) so the panel can never offer what the policy would reject.
 ///
-/// ### Path token format (AGENT-FACING — pinned by ComposerIngestTests)
+/// ### Path token format (AGENT-FACING. Pinned by ComposerIngestTests)
 /// `" [Attached file] /abs/path"` / `" [Attached folder] /abs/path"`, matching the
 /// existing `" [Voice Input] …"` bracket convention in `ChatState.chat()`. The token
 /// lands in the composer's own text, so the user sees exactly what the model gets,
 /// can edit it away, and it survives SQLite persistence + session resume (the
-/// messages table has no attachment column — text is the only durable surface).
+/// messages table has no attachment column. Text is the only durable surface).
 /// No angle brackets: those are reserved for reasoning/tool markers.
 
 import Foundation
@@ -53,7 +53,7 @@ enum ComposerIngest {
         case reject(URL, reason: RejectReason)
     }
 
-    /// Honest refusal reasons — every one renders a message that names the file.
+    /// Honest refusal reasons. Every one renders a message that names the file.
     enum RejectReason: Equatable {
         /// Extension the engine has no reader for (reported without the dot).
         case unsupportedType(ext: String)
@@ -68,14 +68,14 @@ enum ComposerIngest {
     enum PasteRoute: Equatable {
         case fileURLs
         case imageData
-        /// Text field pastes it itself — the composer must not intercept.
+        /// Text field pastes it itself. The composer must not intercept.
         case text
         case nothing
     }
 
     // MARK: - Policy constants
 
-    /// Raw-byte ceiling for image ingest — inherited verbatim from the image
+    /// Raw-byte ceiling for image ingest. Inherited verbatim from the image
     /// picker it replaces (10 MB raw → ~500 KB after `compressImage`).
     static let maxImageBytes = 10 * 1024 * 1024
 
@@ -86,7 +86,7 @@ enum ComposerIngest {
     ]
 
     /// Extensions `read_file` / `search_files` consume natively (text or PDF text
-    /// layer). Routed as path tokens — the engine windows the bytes, not the UI.
+    /// layer). Routed as path tokens. The engine windows the bytes, not the UI.
     static let documentExtensions: Set<String> = [
         "txt", "text", "md", "markdown", "mdx", "rst", "log", "csv", "tsv", "json",
         "jsonl", "yaml", "yml", "toml", "ini", "env", "xml", "html", "htm", "css",
@@ -97,7 +97,7 @@ enum ComposerIngest {
     ]
 
     /// Every extension this policy accepts. The picker's allowed types derive
-    /// from this set — the panel can never offer what classify() would reject.
+    /// from this set. The panel can never offer what classify() would reject.
     static var allowedExtensions: Set<String> {
         imageExtensions.union(documentExtensions)
     }
@@ -109,7 +109,7 @@ enum ComposerIngest {
         url.pathExtension.lowercased()
     }
 
-    /// Pure classification from already-known facts — no stat, fully testable.
+    /// Pure classification from already-known facts, no stat, fully testable.
     static func classify(url: URL, isDirectory: Bool, byteCount: Int?) -> Action {
         if isDirectory { return .folder(url) }
         let ext = ext(for: url)
@@ -152,7 +152,7 @@ enum ComposerIngest {
         isDirectory ? " [Attached folder] \(url.path)" : " [Attached file] \(url.path)"
     }
 
-    /// A path already referenced in the composer text is not referenced twice —
+    /// A path already referenced in the composer text is not referenced twice,
     /// duplicate tokens burn context and read as clutter to the user.
     static func isReferenced(_ url: URL, in text: String) -> Bool {
         text.contains(url.path)
@@ -168,12 +168,12 @@ enum ComposerIngest {
 
     // MARK: - Honest refusals
 
-    /// Human-readable MB with one decimal — a byte count is not reviewable prose.
+    /// Human-readable MB with one decimal. A byte count is not reviewable prose.
     static func megabytes(_ bytes: Int) -> String {
         String(format: "%.1f", Double(bytes) / (1024.0 * 1024.0))
     }
 
-    /// Rejection message naming the file. Never empty, never silent — the old
+    /// Rejection message naming the file. Never empty, never silent. The old
     /// picker dropped unreadable files inside an empty `catch {}`.
     static func rejectionMessage(url: URL, reason: RejectReason) -> String {
         let name = url.lastPathComponent
@@ -193,7 +193,7 @@ enum ComposerIngest {
 
     /// `NSOpenPanel.allowedContentTypes` derived from `allowedExtensions`, plus
     /// folders. One source of truth: a type the panel offers is by construction a
-    /// type `classify()` accepts — no more "Attach Files" label over an
+    /// type `classify()` accepts, no more "Attach Files" label over an
     /// images-only panel.
     static var allowedContentTypes: [UTType] {
         var types: [UTType] = []

@@ -1,20 +1,20 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// DocumentOCR — 结构化文档识别 (macOS 26 / iOS 26 代).
+/// DocumentOCR。结构化文档识别 (macOS 26 / iOS 26 代).
 ///
 /// `RecognizeDocumentsRequest`(Vision.swiftinterface, 27.0 SDK 逐字:
 /// `@available(macOS 26.0, iOS 26.0, tvOS 26.0, visionOS 26.0, *)`,
 /// `typealias Result = [DocumentObservation]`,
-/// `perform(on: Data)` async — ImageProcessingRequest L620)——
+/// `perform(on: Data)` async. ImageProcessingRequest L620)。
 /// `VNRecognizeTextRequest`(10.15/13)的 26 代后继:返回**结构**
 /// (标题 / 有序段落 / 表格行×列 / 带 marker 的列表),不是扁平观察列表。
 /// 对以代码 / 文档 / 表格为输入的 coding agent,结构就是价值。
 /// 消费 Apple 自带模型,不本地解析版面(不造轮子)。
 ///
 /// 三层(接缝按可测性切):
-///   `recognize(from:)`  OS 接缝 — 执行请求、结构→DTO
-///   `document(from:)`   OS 接缝 — `DocumentObservation` → `OCRDocument`(无渲染逻辑)
-///   `render(_:)`        纯函数  — `[OCRDocument]` → 结构化文本(可单测;
+///   `recognize(from:)`  OS 接缝。执行请求、结构→DTO
+///   `document(from:)`   OS 接缝, `DocumentObservation` → `OCRDocument`(无渲染逻辑)
+///   `render(_:)`        纯函数, `[OCRDocument]` → 结构化文本(可单测;
 ///                              SDK 的 `DocumentObservation` 无 public init,
 ///                              DTO 是唯一可构造的测试面)
 

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SystemContextSensor — system-level context awareness
+/// SystemContextSensor. System-level context awareness
 ///
 /// Monitors thermal state, memory pressure, CPU count,
 /// physical memory, uptime, and low-power mode for environmental awareness.
@@ -67,7 +67,7 @@ final class SystemContextSensor: Sendable {
         // Published to *this* instance, not to `Self.shared`: an instance method that writes a
         // global it does not own cannot be exercised without racing whoever does own it, and
         // `PerceptionEngine.stop()` fires a detached `SystemContextSensor.shared.stop()` that
-        // lands whenever the pool likes (measured 10-26 — it blanked the live suite's read).
+        // lands whenever the pool likes (measured 10-26. It blanked the live suite's read).
         // In production there is exactly one instance (`shared`, started at PerceptionEngine.swift:265),
         // so this changes no shipped behaviour; it makes the class honour its own state.
         _monitorTask = Task.detached(priority: .utility) { [self] in
@@ -163,7 +163,7 @@ final class SystemContextSensor: Sendable {
     private nonisolated static func vmPressureLevel() -> MemoryPressureLevel {
         // NOTE: `sysctlbyname("vm.page_count")` was the previous source but it is
         // (a) removed from macOS 27 (returns "unknown oid") and (b) always reported
-        // total page count, not free pages — used fraction would be stuck at 0.0.
+        // total page count, not free pages. Used fraction would be stuck at 0.0.
         // The mach kernel interface reports real free pages and works across macOS 12+.
         var stats = vm_statistics64()
         var count = mach_msg_type_number_t(

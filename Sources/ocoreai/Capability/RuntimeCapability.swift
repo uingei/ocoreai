@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// RuntimeCapability — capability matrix single source of truth (4-target OS: 14/17, 15/18, 26/26, 27/27).
+/// RuntimeCapability. Capability matrix single source of truth (4-target OS: 14/17, 15/18, 26/26, 27/27).
 ///
 /// Every capability surface in this runtime is already gated at the right
 /// layer in its own module:
@@ -38,7 +38,7 @@ public enum RuntimeCapability {
         ///
         /// Computed (not stored): excluded from the Encodable wire shape by
         /// Codable synthesis, so `GET /v1/capabilities` output is byte-unchanged.
-        /// Single source for the label too — UI, prompt and wire all render the
+        /// Single source for the label too. UI, prompt and wire all render the
         /// same name, never a second hand-rolled mapping in a view.
         public var label: String {
             switch name {
@@ -62,7 +62,7 @@ public enum RuntimeCapability {
 
     /// Static process facts computed once.
     ///
-    /// `osName` uses `#if os()` at compile time — this is a fact about the
+    /// `osName` uses `#if os()` at compile time. This is a fact about the
     /// build target, not a runtime observation. Parsing
     /// `operatingSystemVersionString` for the name is fragile (Foundation
     /// has changed the string shape across releases; on some versions the
@@ -78,7 +78,7 @@ public enum RuntimeCapability {
         #endif
     }()
 
-    /// OS version, normalized to "<osName> <major.minor> (Build …)" — a stable
+    /// OS version, normalized to "<osName> <major.minor> (Build …)". A stable
     /// human/wire shape regardless of the raw Foundation string form
     /// ("macOS 15.3 (Build 24D60)" on older SDKs, "Version 27.0 (Build …)"
     /// on newer ones).
@@ -123,17 +123,17 @@ public enum RuntimeCapability {
     /// Full capability matrix (evaluated once, immutable here).
     public static let lines: [Line] = {
         var result: [Line] = []
-        // Core agent loop — OS-independent, always present (14/17 → 27/27).
+        // Core agent loop. OS-independent, always present (14/17 → 27/27).
         result.append(
             .init(
                 name: "agent_loop", available: true,
                 note: "Tool + turn + recover loop, all 4 OS tiers"))
         // Composition limit, disclosed where every consumer reads: a `response_format` turn
-        // is a single-pass constrained answer — with tools declared beside it the answer
+        // is a single-pass constrained answer, with tools declared beside it the answer
         // grammar wins and the turn cannot emit a tool call first, so a grounded answer
         // cannot be grounded (measured: `OpenAIModels.swift` "the JSON wins"; board
         // structured tasks 11-08). Pure `response_format` turns work; "structured output:
-        // yes" alone would claim more than the engine delivers on the combination —
+        // yes" alone would claim more than the engine delivers on the combination,
         // invariant 2, the `tokenizerBackend` family. sglang treats the pair the same
         // (`serving_chat.py:1130`). In the tier matrix, not the measured overlay: the
         // prompt and the `info` tool read `lines` only.
@@ -164,7 +164,7 @@ public enum RuntimeCapability {
                     "Requires macOS 26+ / iOS 26+ with FoundationModelsIntegration trait — not on this build"
             ))
         #endif
-        // CoreAI (Apple Neural Engine) inference — compile-gated by canImport(CoreAI),
+        // CoreAI (Apple Neural Engine) inference. Compile-gated by canImport(CoreAI),
         // runtime-gated by #available(macOS 27.0, iOS 27.0, *).
         #if canImport(CoreAI)
         if #available(macOS 27.0, iOS 27.0, *) {
@@ -184,7 +184,7 @@ public enum RuntimeCapability {
                 name: "coreai_ane", available: false,
                 note: "canImport(CoreAI) false on this target (framework not in SDK)"))
         #endif
-        // Local STT (Speech framework) — runtime-gated to macOS 26+ / iOS 26+,
+        // Local STT (Speech framework). Runtime-gated to macOS 26+ / iOS 26+,
         // with cloud fallback on <26 (so speech itself is live on all tiers,
         // but local-only STT is 26+).
         #if !os(watchOS)
@@ -204,14 +204,14 @@ public enum RuntimeCapability {
                 ))
         }
         #endif
-        // TTS (AVSpeechSynthesizer) — live on all 4 OS tiers.
+        // TTS (AVSpeechSynthesizer). Live on all 4 OS tiers.
         result.append(
             .init(
                 name: "tts_speech", available: true,
                 note:
                     "AVSpeechSynthesizer output is tier-live here; whether this box can talk (installed-voice count) is measured on POST /v1/multimodal/status"
             ))
-        // Video generation (Wan pipeline) — 27 only.
+        // Video generation (Wan pipeline), 27 only.
         #if !os(watchOS)
         if #available(macOS 27.0, iOS 27.0, *) {
             result.append(
@@ -225,7 +225,7 @@ public enum RuntimeCapability {
                     note: "Requires macOS 27 / iOS 27"))
         }
         #endif
-        // MCP stdio — macOS only (iOS has no `Process`).
+        // MCP stdio. MacOS only (iOS has no `Process`).
         #if os(macOS)
         result.append(
             .init(
@@ -237,14 +237,14 @@ public enum RuntimeCapability {
                 name: "mcp_stdio", available: false,
                 note: "Not on iOS (Foundation.Process unavailable on iOS)"))
         #endif
-        // Screenshot perception — macOS tier (ScreenCaptureKit; iOS has no screen capture).
+        // Screenshot perception. MacOS tier (ScreenCaptureKit; iOS has no screen capture).
         //
         // `available` here is the tier floor, not a delivery promise. `CGPreflight…`
         // answers "did the user allow it", and on the box this ships from that answer was
         // true while every capture failed (measured 10-15: authorized, a display
         // enumerated, SCStream still returned "could not start stream"). So the note names
-        // where the measured verdict lives — the same split of duties `local_stt` above
-        // uses — and `GET /v1/capabilities` degrades this row from the record itself
+        // where the measured verdict lives. The same split of duties `local_stt` above
+        // uses, and `GET /v1/capabilities` degrades this row from the record itself
         // (``measured(_:)``). No row in this matrix may read as "it works" on the
         // strength of an OS answer alone.
         #if os(macOS)
@@ -260,7 +260,7 @@ public enum RuntimeCapability {
                 name: "screenshot_capture", available: false,
                 note: "Not on iOS (ScreenCaptureKit unavailable on iOS)"))
         #endif
-        // Fidelity — a model property, not an OS/hardware limit. Live-verified
+        // Fidelity. A model property, not an OS/hardware limit. Live-verified
         // 2026-09-19 (gemma-4-e2b default): tool layer executed faithfully
         // (exec/write success, server-logged) but the model misreported a
         // 6746-byte file as 24582 bytes and claimed 3/3 success with no
@@ -283,7 +283,7 @@ public enum RuntimeCapability {
 
     /// Prompt-facing section: tier boundaries first (so the model reads the
     /// 4-OS ladder contract BEFORE the ENABLED/UNAVAILABLE lists), then the
-    /// two lists. Kept deliberately short — the model reads line-by-line.
+    /// two lists. Kept deliberately short. The model reads line-by-line.
     public static var tierTruthSection: String {
         guard !unavailableLines.isEmpty else {
             return "This process's live capabilities:\n"
@@ -304,13 +304,13 @@ public enum RuntimeCapability {
     /// What this process has *done*, as opposed to what its SDK permits.
     ///
     /// Every field defaults to "no evidence", which is what a server that has never
-    /// attempted either surface must report — the overlay adds claims only when a real
+    /// attempted either surface must report. The overlay adds claims only when a real
     /// attempt earned them.
     struct Measurement: Sendable {
         /// Screen channel: has a capture pass produced a frame here? Same closed
         /// vocabulary the per-channel status uses, so both surfaces answer in one language.
         var screenshot: ScreenDelivery = .notAttempted
-        /// What the framework said when `screenshot == .failed` — quoted, not paraphrased.
+        /// What the framework said when `screenshot == .failed`. Quoted, not paraphrased.
         var screenshotError: String? = nil
         /// Latency of the frame that earned `.captured`, when it was timed.
         var screenshotLatencyMs: Int? = nil
@@ -345,7 +345,7 @@ public enum RuntimeCapability {
     ///   back as `tool_calls` here. `agent_loop: true` is a tier statement about the
     ///   loop's wiring, not evidence that a call reached a client.
     /// - `video_input` is appended. `video_generation` describes *output*, and until now
-    ///   nothing on this surface said whether the server can take a clip in at all —
+    ///   nothing on this surface said whether the server can take a clip in at all,
     ///   probe 08 measured a model answering questions about frames while the discovery
     ///   surface was silent about video in either direction. Measured only: `not_observed`
     ///   until a turn carrying video completes here (AGENTS.md invariant 2).

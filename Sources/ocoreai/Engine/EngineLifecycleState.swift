@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// EngineLifecycleState.swift — 6-state lifecycle machine + circuit breaker for EnginePool host
+/// EngineLifecycleState.swift, 6-state lifecycle machine + circuit breaker for EnginePool host
 ///
 /// Replaces the fragile `isRunning` + `engineReady` boolean pair with a proper
 /// state machine that tracks what the engine is actually doing, not just
@@ -39,17 +39,17 @@
 ///
 /// ### Circuit Breaker:
 /// Tracks consecutive startup failures. After `maxConsecutiveFailures` (default 3),
-/// the circuit opens — subsequent `start()` calls return immediately without
+/// the circuit opens. Subsequent `start()` calls return immediately without
 /// attempting to bootstrap. Manual `resetCircuit()` closes it again.
 
 import Foundation
 
-/// Engine lifecycle state — implicitly Sendable (all stored properties are Sendable).
+/// Engine lifecycle state. Implicitly Sendable (all stored properties are Sendable).
 public enum EngineLifecycleState: String, Codable, Sendable {
     /// Engine is not running, no pending initialization in flight.
     case idle = "idle"
 
-    /// Initialization in progress — components are being bootstrapped.
+    /// Initialization in progress. Components are being bootstrapped.
     case starting = "starting"
 
     /// All core components running and accepting inference requests.
@@ -58,7 +58,7 @@ public enum EngineLifecycleState: String, Codable, Sendable {
     /// Core running but at least one subsystem degraded (e.g. HTTP server failed).
     case degraded = "degraded"
 
-    /// Engine is shutting down — cancelling tasks, releasing resources.
+    /// Engine is shutting down. Cancelling tasks, releasing resources.
     case stopping = "stopping"
 
     /// Startup failed and circuit breaker is open.
@@ -106,12 +106,12 @@ public enum EngineLifecycleState: String, Codable, Sendable {
     }
 }
 
-/// Circuit breaker for engine startup — prevents crash-loop by tracking
+/// Circuit breaker for engine startup. Prevents crash-loop by tracking
 /// consecutive failures and enforcing a cooldown period.
 ///
 /// Default: 3 consecutive failures before circuit opens.
 /// Once open, start() refuses to attempt bootstrap until resetCircuit().
-/// Runs on MainActor via OcoreaiEngine — no @Sendable needed.
+/// Runs on MainActor via OcoreaiEngine, no @Sendable needed.
 final class EngineCircuitBreaker {
 
     /// Maximum consecutive failures before opening the circuit.
@@ -153,7 +153,7 @@ final class EngineCircuitBreaker {
         _failureCount
     }
 
-    /// Record a successful startup — resets the failure counter.
+    /// Record a successful startup. Resets the failure counter.
     public func recordSuccess() {
         _failureCount = 0
         self.failureTimestamps.removeAll()
@@ -183,15 +183,15 @@ final class EngineCircuitBreaker {
         let elapsed =
             UInt64(DispatchTime.now().uptimeNanoseconds - _lastFailureNano) / 1_000_000_000
         if elapsed >= cooldownSeconds {
-            // Cool down expired — allow one more attempt
+            // Cool down expired. Allow one more attempt
             return true
         }
 
-        // Still in cooldown — block the attempt
+        // Still in cooldown. Block the attempt
         return false
     }
 
-    /// Manually reset the circuit breaker — closes the circuit, clears failure count.
+    /// Manually reset the circuit breaker. Closes the circuit, clears failure count.
     /// Call this after the user fixes the environment (e.g. frees up GPU memory).
     public func resetCircuit() {
         _isOpen = false

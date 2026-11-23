@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Post-write syntax verdict — the difference between "the bytes landed" and "what they say
+/// Post-write syntax verdict. The difference between "the bytes landed" and "what they say
 /// is valid".
 ///
 /// ### Why (AGENTS.md invariant 2, applied one layer down)
 /// `write_file`/`edit_file` already re-read the file and byte-compare, so their `OK` means
 /// *durability*, never *correctness*: a `.py` that cannot compile is reported as a success,
 /// the audit trail books it as `success`, and `check_tools` therefore tells the model that
-/// the failing thing it just did was fine. Measured 10-22 on the 24-task scoreboard — the
+/// the failing thing it just did was fine. Measured 10-22 on the 24-task scoreboard. The
 /// four tasks that flip between identical runs (`fix-syntax-error`, `fix-off-by-one`,
 /// `make-failing-test-pass`, `move-into-subdir`) and four of the always-failing ones are all
 /// "write something to disk and it is wrong", while write/read/exec/honesty never flip. The
@@ -16,7 +16,7 @@
 /// ### Discipline
 /// Decidable types only, and nothing is executed: `py_compile` compiles, it does not import or
 /// run. Types this file cannot decide return `nil` and the tool result stays exactly what it
-/// was — an unavailable check is never reported as a pass, and never as a failure either.
+/// was. An unavailable check is never reported as a pass, and never as a failure either.
 /// The Python spawn refuses to happen without evidence of an installed toolchain, because
 /// Apple's `/usr/bin/python3` shim answers a missing toolchain with a modal dialog, and a
 /// syntax check must never cost the user one.
@@ -27,7 +27,7 @@ enum PostWriteSyntax: Sendable {
     enum Verdict: Sendable, Equatable {
         /// The artefact is valid for its type ("py_compile OK").
         case valid(String)
-        /// The bytes landed but are not valid for their type — the case the model must see.
+        /// The bytes landed but are not valid for their type. The case the model must see.
         case invalid(String)
         /// The check could not run here; says nothing about the file.
         case notChecked(String)
@@ -105,7 +105,7 @@ enum PostWriteSyntax: Sendable {
         }
     }
 
-    /// `python3 -m py_compile` — compiles to bytecode, imports nothing, runs nothing.
+    /// `python3 -m py_compile`. Compiles to bytecode, imports nothing, runs nothing.
     static func pythonVerdict(path: String) -> Verdict {
         #if !os(macOS)
         // `Process` is unavailable in iOS, and an App Store sandbox could not spawn an
@@ -126,7 +126,7 @@ enum PostWriteSyntax: Sendable {
         let errPipe = Pipe()
         proc.standardError = errPipe
         proc.standardOutput = Pipe()
-        // Strip server secrets — python inherits the full parent env otherwise.
+        // Strip server secrets. Python inherits the full parent env otherwise.
         proc.environment = ChildProcessEnv.sanitized()
         do {
             try proc.run()

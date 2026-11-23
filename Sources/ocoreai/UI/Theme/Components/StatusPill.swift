@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// StatusPill — dot + label status indicator.
+/// StatusPill. Dot + label status indicator.
 /// 5 built-in states: running, starting, stopping, stopped, error.
 /// Compact mode: dot only.
 

@@ -11,7 +11,7 @@
 /// `MLXLMCommon.Tokenizer` to build a `GrammarTokenizer` (vocab extraction
 /// via `TokenizerVocabExtractor.extractForGrammar` only calls
 /// `convertIdToToken`). This adapter satisfies that minimal interface with
-/// pure delegation — no MLX tensor types, no MLXLM model dependency.
+/// pure delegation, no MLX tensor types, no MLXLM model dependency.
 ///
 /// Conformance notes (verified against `MLXLMCommon/Tokenizer.swift`):
 /// - `encode` / `decode` / `convertTokenToId` / `convertIdToToken`:
@@ -46,7 +46,7 @@ import Tokenizers
 @preconcurrency
 /// All stored fields are immutable `let` set in `init` (no mutation after
 /// creation), so Sendability reduces to the wrapped `base` tokenizer's
-/// Sendability (swift-transformers `Tokenizer` protocol — thread-safe by
+/// Sendability (swift-transformers `Tokenizer` protocol. Thread-safe by
 /// design; we never cache mutable state here).
 final class TokenizersMLXTokenizerAdapter: MLXLMCommon.Tokenizer, @unchecked Sendable {
     private let base: any Tokenizers.Tokenizer
@@ -65,14 +65,14 @@ final class TokenizersMLXTokenizerAdapter: MLXLMCommon.Tokenizer, @unchecked Sen
     //
     // Each required member maps 1:1 to the swift-transformers
     // `Tokenizer` protocol. Signature differences are purely
-    // naming (snake_case vs camelCase) — verified by reading
+    // naming (snake_case vs camelCase). Verified by reading
     // both protocol definitions.
 
     /// Encodes text. `addSpecialTokens` is passed through to the
     /// swift-transformers tokenizer. CoreAI bootstrap path only
     /// uses the vocabulary side of this protocol (per
     /// `TokenizerVocabExtractor.extractForGrammar`), so this
-    /// method is never called on this path — its signature
+    /// method is never called on this path. Its signature
     /// exists for protocol conformance.
     func encode(text: String, addSpecialTokens: Bool) -> [Int] {
         base.encode(text: text, addSpecialTokens: addSpecialTokens)
@@ -94,7 +94,7 @@ final class TokenizersMLXTokenizerAdapter: MLXLMCommon.Tokenizer, @unchecked Sen
     var eosToken: String? { _eosToken }
     var unknownToken: String? { _unknownToken }
 
-    /// 3-argument `applyChatTemplate` — required by
+    /// 3-argument `applyChatTemplate`. Required by
     /// `MLXLMCommon.Tokenizer`. In the CoreAI path `fastForward`
     /// is `false`, so the host tokenizer is only used for
     /// vocabulary extraction, never for chat-template rendering.

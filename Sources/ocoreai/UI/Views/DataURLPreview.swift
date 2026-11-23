@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// DataURLPreview — renders base64 data URLs as SwiftUI images.
+/// DataURLPreview. Renders base64 data URLs as SwiftUI images.
 ///
 /// Fix for P0-4: AsyncImage(url:) silently drops data:image/jpeg;base64,… URLs
 /// because URLSession only handles http(s) schemes. This component decodes
@@ -67,7 +67,7 @@ struct DataURLPreview: View {
 extension String {
     /// Decode a `data:image/jpeg;base64,…` or `data:image/png;base64,…` data URL
     /// into a platform image (UIImage on iOS, NSImage on macOS), or nil on decode failure.
-    /// `Any?` — the concrete type varies by platform; callers narrow with `as? PlatformImage`.
+    /// `Any?`. The concrete type varies by platform; callers narrow with `as? PlatformImage`.
     var dataURLImage: Any? {
         guard hasPrefix("data:image/") else { return nil }
 

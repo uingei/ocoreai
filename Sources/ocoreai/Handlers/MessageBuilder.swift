@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MessageBuilder.swift — Context assembly for inference pipeline
+/// MessageBuilder.swift. Context assembly for inference pipeline
 ///
 /// Extracted from ChatHandler.swift so both Fast Path (SwiftUI direct)
 /// and Bridge Path (HTTP handler) share the SAME context assembly logic.
@@ -11,7 +11,7 @@
 /// 3. Inject tool definitions as markdown
 /// 4. Inject adaptive reasoning scaffold (三思而后行)
 ///
-/// This is a pure assembly module — it does NOT dispatch inference,
+/// This is a pure assembly module. It does NOT dispatch inference,
 /// does NOT touch HTTP, and does NOT depend on Hummingbird.
 ///
 /// ### Actor Access:
@@ -23,7 +23,7 @@ import Logging
 
 // MARK: - Message Builder Context
 
-/// Dependencies required for message assembly — passed by the caller.
+/// Dependencies required for message assembly. Passed by the caller.
 /// Fast Path and Bridge Path both provide their own context.
 struct MessageBuilderContext {
     /// Model identifier
@@ -49,7 +49,7 @@ struct MessageBuilderContext {
 /// vllm routes both to the developer channel (`entrypoints/openai/responses/harmony.py:128`,
 /// `entrypoints/openai/parser/harmony_utils.py:436`) and sglang admits both as generic
 /// message roles (`srt/entrypoints/openai/protocol.py:727-729`). Both are secondary for the
-/// semantics: the role set is defined by the format's own tree — `openai/harmony`
+/// semantics: the role set is defined by the format's own tree, `openai/harmony`
 /// `src/chat.rs:44-52` carries `system` and `developer` as first-class roles beside
 /// user/assistant/tool, read 11-12 at its `abd677f`. `developer` is the role
 /// OpenAI's current spec uses in place of `system`.
@@ -59,15 +59,15 @@ nonisolated let instructionMessageRoles: Set<String> = ["system", "developer"]
 ///
 /// Why this exists, measured 10-20 on this host (`mlx-community/gemma-4-e2b-it-4bit`,
 /// temp 0): a request whose `messages[0]` was a ~1000-character `system` message delivered
-/// the *same* `usage.prompt_tokens` (705) as the identical request with no system message —
-/// a differential of zero, i.e. the client's instructions never reached the model — while
+/// the *same* `usage.prompt_tokens` (705) as the identical request with no system message,
+/// a differential of zero, i.e. the client's instructions never reached the model. While
 /// this server's own estimate line counted them (`promptTokens=838` against 705). The
 /// Anthropic face, whose spec puts `system` in a top-level field, delivered the same text
 /// (+182 input tokens), so one face honoured the most-used instruction channel in the
 /// OpenAI wire and the other silently dropped it.
 ///
-/// The drop was structural: the engine delivers instructions through exactly one channel —
-/// the first `system` message it finds (`EngineInference.swift:1791`) — and filters every
+/// The drop was structural: the engine delivers instructions through exactly one channel,
+/// the first `system` message it finds (`EngineInference.swift:1791`), and filters every
 /// `system` role out of the feed it renders, because mlx-swift-lm's `Chat.Message.Role`
 /// (Chat.swift:124-124) has no `developer` case either. `buildMessages` then inserted this
 /// server's own prompt at index 0 and left the client's message in the list, so the client's
@@ -116,7 +116,7 @@ private let toolProseLogger = Logger(label: "ocoreai.tool-prose")
 ///
 /// `wireOutputBudget` names what the client asked to spend. It goes on the same line because
 /// `max_tokens` is a knob whose delivery has been measured to fail: on one session the turn
-/// after a grammar/tool turn spent the *previous* turn's budget (fixed 10-20 — a reused
+/// after a grammar/tool turn spent the *previous* turn's budget (fixed 10-20. A reused
 /// pooled session carried the old parameters, see `MLXSessionPool.staleSamplingFields`), and a
 /// response whose `usage.completion_tokens` exceeds the request's `max_tokens` is unreadable
 /// unless the log says which side dropped the number. Handler-side "asked" versus
@@ -156,7 +156,7 @@ actor MessageBuilder {
     private let complexityAnalyzer: ComplexityAnalyzer
     private let thinkingBudget: ThinkingBudget
 
-    /// Internal initializer — takes actor references directly.
+    /// Internal initializer. Takes actor references directly.
     init(
         systemPromptBuilder: SystemPromptBuilder,
         sessionCompressor: SessionCompressor,
@@ -169,7 +169,7 @@ actor MessageBuilder {
         self.thinkingBudget = thinkingBudget
     }
 
-    /// Last analyzed complexity score — cached so ChatHandler can peek at `taskType`
+    /// Last analyzed complexity score. Cached so ChatHandler can peek at `taskType`
     /// without duplicating the classification work.
     private var lastScore: ComplexityScore?
 
@@ -218,11 +218,11 @@ actor MessageBuilder {
                     """
             }
         } catch {
-            // Memory recall failure is non-fatal — proceed without it
+            // Memory recall failure is non-fatal. Proceed without it
         }
 
         // Phase 3: Compose final system prompt (priority: user > workspace/project
-        // instructions > built base+skills > memory — codex agents_md.rs order:
+        // instructions > built base+skills > memory. Codex agents_md.rs order:
         // host user instructions before project AGENTS.md docs, both before
         // internal guidance). Workspace section comes from the active session's
         // working directory (worktree session) or the configured working directory
@@ -271,7 +271,7 @@ actor MessageBuilder {
             if !toolDefs.isEmpty {
                 // One declaration per turn, and the checkpoint decides which one: when its own
                 // chat template already writes the tool in the dialect the model was trained on
-                // (`<|tool>…<tool|>` for Gemma-4), this prose is a second copy — measured per
+                // (`<|tool>…<tool|>` for Gemma-4), this prose is a second copy. Measured per
                 // model at load by ``ToolProseLedger``, because a template that ignores `tools`
                 // would be left with no declaration at all. Unmeasured keeps the prose: the
                 // default is the behaviour that predates the ledger, not a guess (probe 16).
@@ -300,7 +300,7 @@ actor MessageBuilder {
             }
         }
 
-        // Phase 6: Guard — message list must not be empty
+        // Phase 6: Guard. Message list must not be empty
         guard !messages.isEmpty else {
             throw AppError.invalidRequest(
                 "Message list is empty for model '\(context.modelId)'",
@@ -316,7 +316,7 @@ actor MessageBuilder {
         // causing ComplexityAnalyzer to score 0 and ThinkingBudget to return no scaffold.
         // Detect multimodal messages and provide a fallback for complexity analysis.
         // Uses Message.mediaPartCount (single source of truth with the engine's
-        // VLM guard — previously a parallel reduce over ContentPart).
+        // VLM guard. Previously a parallel reduce over ContentPart).
         let totalMediaParts = messages.reduce(0) { $0 + $1.mediaPartCount }
         let hasMultimodal = totalMediaParts > 0
 
@@ -349,7 +349,7 @@ actor MessageBuilder {
                 case .none:
                     messages[sysIdx].content = .text(reasoningScaffold)
                 case .parts:
-                    // System message with .parts — append scaffold as text part
+                    // System message with .parts. Append scaffold as text part
                     var parts: [ContentPart]
                     if case .parts(let p) = messages[sysIdx].content {
                         parts = p
@@ -360,7 +360,7 @@ actor MessageBuilder {
                     messages[sysIdx].content = .parts(parts)
                 }
             } else {
-                // No system message found — prepend one with the scaffold
+                // No system message found. Prepend one with the scaffold
                 let sysMsg = Message(role: "system", content: reasoningScaffold)
                 messages.insert(sysMsg, at: 0)
             }

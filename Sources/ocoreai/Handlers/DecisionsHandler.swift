@@ -1,23 +1,23 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// DecisionsHandler.swift — `POST /v1/decisions`, the Jev / System 1 decision surface.
+/// DecisionsHandler.swift, `POST /v1/decisions`, the Jev / System 1 decision surface.
 ///
 /// ### What a decision answer is, so the refusal below is checkable
 /// sglang routes this API with the words *"scoring single-token answer labels through the scoring
 /// API, without generation"* (`sglang/python/sglang/srt/entrypoints/http_server.py:2050`),
 /// so an answer is not generated text to parse: it is the probability of each offered label read at
-/// the answer position, then normalized. That is the same primitive as A2 loglikelihood — score a
-/// prompt against a forced continuation — which this repo already ports copy-first from
+/// the answer position, then normalized. That is the same primitive as A2 loglikelihood. Score a
+/// prompt against a forced continuation, which this repo already ports copy-first from
 /// coreai-models (`Engine/EngineLogprobs.swift:5-19`, from upstream
 /// `swift/Sources/Tools/llm-server/CompletionHandler.swift` at b11ac19), and which upstream has
 /// since reshaped into a reusable entry point `runLoglikelihood` with the unsupported refusal in
 /// one constant (coreai-models 1c25c57 / #382, read 11-02).
 ///
 /// ### Why every valid request is refused here today
-/// That port is CoreAI-gated (`Engine/EngineLogprobs.swift:22` — `#if canImport(CoreAI)`,
+/// That port is CoreAI-gated (`Engine/EngineLogprobs.swift:22`, `#if canImport(CoreAI)`,
 /// `@available(macOS 27.0, *)`), and the MLX path computes logits without publishing them
 /// (`Engine/EngineInference.swift:914,997` take `includeLogits: true` in-tree for constrained
-/// decoding only). So on the delivery platform there is no place to read a label probability from —
+/// decoding only). So on the delivery platform there is no place to read a label probability from,
 /// which is exactly why `POST /v1/completions` with `logprobs` answers 501 there
 /// (`Handlers/CompletionsHandler.swift:102`). The route therefore validates for real and refuses
 /// scoring, naming the missing prerequisite and both exits. Inventing a number is the one answer

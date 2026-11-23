@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ModelView — model management: load, switch, quantize with inline search
+/// ModelView. Model management: load, switch, quantize with inline search
 /// Fast Path: reads directly from EnginePool (no HTTP)
 /// @Observable pattern. i18n via StringKey. Accessibility: full VoiceOver.
 /// Search/download + local model list delegated to shared ModelManager (see ModelManager.swift).
@@ -12,7 +12,7 @@
 import SwiftUI
 
 struct ModelView: View {
-    // Unified model manager — search/download + local models + sampling config merge
+    // Unified model manager. Search/download + local models + sampling config merge
     @State private var modelManager: ModelManager
     @State private var editingModelId: String = ""
 
@@ -28,28 +28,28 @@ struct ModelView: View {
             Section(StringKey.tabModels.l) {
                 searchBoxCard
 
-                // Search results — delegated to dedicated View to break ConditionalTypeDescriptor chain
+                // Search results. Delegated to dedicated View to break ConditionalTypeDescriptor chain
                 ModelSearchResultsView(modelManager: modelManager)
 
-                // Error — unified OcoreaiErrorBanner
+                // Error. Unified OcoreaiErrorBanner
                 if let error = modelManager.currentError {
                     OcoreaiErrorBanner(error: error) { modelManager.currentError = nil }
                 }
 
-                // B4 fix: inline params instead of .sheet — user preference: inline embedding
+                // B4 fix: inline params instead of .sheet. User preference: inline embedding
                 if !editingModelId.isEmpty {
                     ModelParamsView(modelId: editingModelId)
                         .transition(.opacity.combined(with: .slide))
                 }
 
-                // Local models — delegated to dedicated View to break ConditionalTypeDescriptor chain
+                // Local models. Delegated to dedicated View to break ConditionalTypeDescriptor chain
                 ModelLocalListView(
                     modelManager: modelManager,
                     onEdit: { modelId in
                         editingModelId = modelId
                     })
 
-                // M7: ready-model directory (就绪模型目录) — 所有已就绪模型的统一登记簿
+                // M7: ready-model directory (就绪模型目录)。所有已就绪模型的统一登记簿
                 if !modelManager.readyRootPath.isEmpty {
                     HStack(spacing: 6) {
                         Image(systemName: "folder.badge.gearshape")
@@ -72,7 +72,7 @@ struct ModelView: View {
             await modelManager.loadModels()
         }
         .task {
-            // The page's render driver for live bytes — one loop for every row, alive exactly
+            // The page's render driver for live bytes. One loop for every row, alive exactly
             // while this page is (see `ModelManager.runWaitTicker`).
             await modelManager.runWaitTicker()
         }
@@ -100,7 +100,7 @@ struct ModelView: View {
             Task { await modelManager.search(modelManager.searchQuery) }
         }
 
-        // macOS Form intercepts .onSubmit for row navigation — use a button as the primary trigger
+        // macOS Form intercepts .onSubmit for row navigation. Use a button as the primary trigger
         Button(action: { Task { await modelManager.search(modelManager.searchQuery) } }) {
             Image(systemName: "magnifyingglass").font(.ocoreaiText(12))
         }
@@ -261,7 +261,7 @@ private struct ModelResultRow: View {
     let modelId: String
     let modelManager: ModelManager
     let theme: OcoreaiTheme
-    /// License shown BEFORE the download click — clicking download is
+    /// License shown BEFORE the download click. Clicking download is
     /// accepting the terms, and "know what you're accepting" is the
     /// first-principles duty of a model browser (HF model cards do this;
     /// a row that hides the license until after the fact fails it).
@@ -279,7 +279,7 @@ private struct ModelResultRow: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(display).font(.ocoreaiText(14)).fontWeight(.semibold).lineLimit(1)
-                // The badge claims "resume me from N"; a live transfer makes that stale prose —
+                // The badge claims "resume me from N"; a live transfer makes that stale prose,
                 // the ring on the right is the current fact. One gate (the wait face) decides
                 // both halves, so badge and ring can never contradict each other.
                 if resumableBytes > 0, !modelManager.waitFace(for: modelId).isLive {
@@ -334,7 +334,7 @@ private struct ModelResultRow: View {
                 return ModelScopeDownloader.resumableBytes(in: ModelStore.msRepoDir(repoId))
             case .huggingFace(let repoId):
                 // SDK blobs live at hubRoot/models--<org>--<name>/blobs
-                // (HubCache.repoDirectory naming — verified against the pin).
+                // (HubCache.repoDirectory naming. Verified against the pin).
                 let encoded = repoId.replacingOccurrences(of: "/", with: "--")
                 return ModelScopeDownloader.hfIncompleteBytes(
                     inBlobsDir: ModelStore.hubRoot
@@ -354,10 +354,10 @@ private struct ModelResultRow: View {
         return String(format: "%.0f KB", Double(bytes) / 1024)
     }
 
-    /// The tappable Stop center — HIG: every long-running operation stays cancellable from where
+    /// The tappable Stop center. HIG: every long-running operation stays cancellable from where
     /// its progress is visible. Bytes survive the stop (resume keeps the offset), so pausing
     /// costs nothing. It renders only when `stoppable`, which is true only for the window that
-    /// owns the task — an engine-initiated wait is shown honestly, affordance and all.
+    /// owns the task. An engine-initiated wait is shown honestly, affordance and all.
     private var stopButton: some View {
         Button {
             modelManager.cancelDownload()
@@ -374,7 +374,7 @@ private struct ModelResultRow: View {
     @ViewBuilder
     private var downloadButton: some View {
         // Gated on the wait face (store bytes ∥ this window's task), not on `downloadingModelId`
-        // alone — a boot prewarm lands gigabytes while that flag is empty, and this is the page
+        // alone. A boot prewarm lands gigabytes while that flag is empty, and this is the page
         // the failure banner routes a waiting user to.
         switch modelManager.waitFace(for: modelId) {
         case .downloading(let progress, let stoppable):
@@ -500,7 +500,7 @@ private struct ModelListContent: View {
         LazyVStack(spacing: 8) {
             ForEach(modelManager.localModels, id: \.id) { model in
                 // Model status: the pool's own loading state (engine truth, carried on the
-                // entry) ∥ this page's wait face — `downloadingModelId` alone hid a
+                // entry) ∥ this page's wait face, `downloadingModelId` alone hid a
                 // disk-backed load the page never started.
                 let isCurrentlyLoading =
                     model.isPoolLoading || modelManager.waitFace(for: model.id).isLive
@@ -527,7 +527,7 @@ private struct ModelListContent: View {
 
 private struct ModelEmptyState: View {
     @Environment(\.ocoreaiTheme) private var theme
-    // modelManager is @Observable passed from parent — use stored property, not @State
+    // modelManager is @Observable passed from parent. Use stored property, not @State
     let modelManager: ModelManager
     @State private var quickLoading: String?
 
@@ -585,7 +585,7 @@ private struct ModelEmptyState: View {
                 ZStack {
                     ProgressView()
                         .scaleEffect(0.8)
-                    // Stop lives on the quick row too — HIG: cancellable
+                    // Stop lives on the quick row too. HIG: cancellable
                     // wherever progress shows. Bytes survive; next tap resumes.
                     if modelManager.isDownloading {
                         Button {

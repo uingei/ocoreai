@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Reactive global state — coordinates metrics polling, UI navigation, and theme updates.
+/// Reactive global state. Coordinates metrics polling, UI navigation, and theme updates.
 ///
 /// @Observable: property-level change tracking,
 /// no @Published needed. Observers auto-track mutations.
@@ -16,7 +16,7 @@ final class AppState {
     var isConnected: Bool = false
     var currentMetrics: MetricsSnapshot = .empty
     var selectedTab: AppTab = .dashboard
-    /// ScenePhase gate — true when app is active, false in background
+    /// ScenePhase gate. True when app is active, false in background
     var isForeground: Bool = true
 
     /// P1: Current compute channel baseline from HardwareRouter
@@ -33,8 +33,8 @@ final class AppState {
     ///
     /// `actioned` says whether the engine actually degraded anything after
     /// corroborating the reading against its own footprint (`EnginePool`). The
-    /// poller's verdict is machine-wide — `wire_count` includes every process's
-    /// GPU-wired pages — so an uncorroborated event must not stamp a
+    /// poller's verdict is machine-wide, `wire_count` includes every process's
+    /// GPU-wired pages, so an uncorroborated event must not stamp a
     /// "your accelerator changed" badge and toast onto the user's screen.
     func onThermalPressureEvent(_ event: ThermalPressureEvent, actioned: Bool = true) async {
         await MainActor.run { [self] in
@@ -62,7 +62,7 @@ final class AppState {
         }
     }
 
-    /// Undo slot — set by any ViewModel before a destructive op, cleared after undo
+    /// Undo slot. Set by any ViewModel before a destructive op, cleared after undo
     var undoAction: (@MainActor () -> Void)?
 
     /// Whether undo is available (for menu item enabling)
@@ -78,7 +78,7 @@ final class AppState {
 
     // MARK: - Agent tool approval (codex ExecApprovalRequest → 裁决)
 
-    /// Pending approval requests — published by `ApprovalBroker` observers,
+    /// Pending approval requests. Published by `ApprovalBroker` observers,
     /// presented in ChatView banner, cleared on resolve.
     var pendingApprovals: [PendingApproval] = []
 
@@ -133,7 +133,7 @@ final class AppState {
 
     private let engine = OcoreaiEngine.shared
     private var metricsTask: Task<Void, Never>?
-    /// Idempotency guard — initialize() is safe to call multiple times
+    /// Idempotency guard. Initialize() is safe to call multiple times
     private var _initialized = false
 
     /// Read live metrics from EnginePool + MetricsRegistry (Fast Path, no HTTP)
@@ -187,7 +187,7 @@ final class AppState {
         )
     }
 
-    /// Called on app launch — start internal server + sync engine state
+    /// Called on app launch. Start internal server + sync engine state
     /// Idempotent: safe to call multiple times (e.g., repeated onAppear in SwiftUI)
     func initialize() {
         guard !_initialized else { return }
@@ -209,7 +209,7 @@ final class AppState {
             guard let self else { return }
             while !Task.isCancelled {
                 await MainActor.run {
-                    // isConnected is based on engineReady, not loadedModels —
+                    // isConnected is based on engineReady, not loadedModels,
                     // EnginePool starts empty (lazy model loading), so loadedModels == 0
                     // does NOT mean the engine is down.
                     self.isConnected = OcoreaiEngine.shared.engineReady
@@ -273,7 +273,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         }
     }
 
-    // Sidebar section groups — HIG compliant: max 2-3 groups, balanced size
+    // Sidebar section groups. HIG compliant: max 2-3 groups, balanced size
     static var serverGroup: [AppTab] {
         [.dashboard, .chat]
     }

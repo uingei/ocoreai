@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// TypingIndicator — three-dot bouncing animation (Apple HIG pattern).
+/// TypingIndicator. Three-dot bouncing animation (Apple HIG pattern).
 ///
 /// Shown during streaming inference to signal "thinking" state.
-/// Respects .accessibilityReduceMotion — falls back to static dots.
+/// Respects .accessibilityReduceMotion. Falls back to static dots.
 ///
-/// Pattern source: Apple HIG Chat Examples — animated read receipt dots.
+/// Pattern source: Apple HIG Chat Examples. Animated read receipt dots.
 /// Each dot animates opacity in sequence with staggered delays.
 ///
 
@@ -16,7 +16,7 @@ struct TypingIndicator: View {
     @Environment(\.ocoreaiTheme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    // Animation timing — three dots staggered at 0.3s intervals
+    // Animation timing. Three dots staggered at 0.3s intervals
     @State private var dot1Opacity: Double = 0.3
     @State private var dot2Opacity: Double = 0.3
     @State private var dot3Opacity: Double = 0.3
@@ -48,11 +48,11 @@ struct TypingIndicator: View {
     }
 
     /// Infinite loop: pulse each dot with 0.3s stagger, 1.2s cycle.
-    /// Respects runtime Reduce Motion toggle — checks each cycle tick.
+    /// Respects runtime Reduce Motion toggle. Checks each cycle tick.
     private func animateDots() async {
         while !Task.isCancelled {
             guard !reduceMotion else {
-                // Wait a beat before rechecking — avoids busy-waiting
+                // Wait a beat before rechecking. Avoids busy-waiting
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 continue
             }
@@ -87,5 +87,5 @@ struct TypingIndicator: View {
 
 // MARK: - Preview
 
-/// #Preview requires Xcode PreviewsMacros plugin — disabled for swift build.
+/// #Preview requires Xcode PreviewsMacros plugin. Disabled for swift build.
 /// For live previews open the project in Xcode instead.

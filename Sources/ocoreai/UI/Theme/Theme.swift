@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Theme system — design tokens injected via @Environment.
+/// Theme system. Design tokens injected via @Environment.
 /// Dynamic system colors track macOS appearance.
 ///
 /// Token table covers: surfaces, text, accent, status dots, codeBg, group borders,
-/// row separators. All colors derive from semantic SwiftUI system colors — auto dark/light.
+/// row separators. All colors derive from semantic SwiftUI system colors. Auto dark/light.
 
 import SwiftUI
 
@@ -14,7 +14,7 @@ import AppKit
 
 // MARK: - Token struct
 
-/// Dynamic theme token — cross-platform safe (macOS + iOS).
+/// Dynamic theme token. Cross-platform safe (macOS + iOS).
 struct OcoreaiTheme {
     let isDark: Bool
 

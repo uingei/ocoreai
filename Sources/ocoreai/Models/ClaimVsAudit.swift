@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ClaimVsAudit.swift — a turn's last sentence about itself has to match what its tools did.
+/// ClaimVsAudit.swift. A turn's last sentence about itself has to match what its tools did.
 ///
 /// Invariant 2 ("the surface never claims more than the engine delivered") has a hole at the
 /// end of a turn: the loop stops when the model stops, and nothing compares the final sentence
@@ -14,7 +14,7 @@
 /// ride into session memory, FTS and `/sessions` and stay there.
 ///
 /// The audit side of the comparison is `ToolMutationLedger`, fed from the single dispatch
-/// chokepoint (`ToolRegistry.call`), so it counts what actually executed — not what the model
+/// chokepoint (`ToolRegistry.call`), so it counts what actually executed, not what the model
 /// said, and not what the wire echoed (native tool turns echo nothing: the loop runs inside
 /// `ChatSession`, which is why `usage` reports `tool_calls: null` on turns that edited files).
 
@@ -24,13 +24,13 @@ import Foundation
 struct SuccessfulMutation: Equatable, Sendable {
     /// Tool that performed it (`write_file`, `edit_file`, …).
     let tool: String
-    /// The path or command it named, when its arguments carried one — the part a user acts on.
+    /// The path or command it named, when its arguments carried one. The part a user acts on.
     let target: String?
     /// The caller-minted key of the turn whose dispatch produced this record, when the caller
-    /// threaded one — every in-process lane does, FM proxies included (its runtime is the
+    /// threaded one. Every in-process lane does, FM proxies included (its runtime is the
     /// macOS-27 window, its wiring gate is the text scan in `ClaimVsAuditTurnKeyTests`). GUI
     /// and external `tools/call` dispatch keyless by design, and their records never match a
-    /// turn query — the honest direction: a write that belongs to no audited turn must not be
+    /// turn query. The honest direction: a write that belongs to no audited turn must not be
     /// credited to some other turn's audit. `var` on purpose: a `let` with a default is dropped
     /// from the memberwise init, which would force every pre-existing literal to name the field.
     var turnToken: String? = nil
@@ -42,7 +42,7 @@ struct SuccessfulMutation: Equatable, Sendable {
 /// server looked, in the audit, like a write, which silenced the line whose whole job is to
 /// say "nothing was written" (`docs/agent/open-items.md`, diary 11-01(95)).
 enum WriteEvidence: String, Equatable, Sendable {
-    /// A file-writing tool reported a durable change — the audit's mutation truth.
+    /// A file-writing tool reported a durable change. The audit's mutation truth.
     case reported
     /// The registry declares the tool never writes (`ToolRegistry.readOnlyWhitelist`).
     case readOnly
@@ -61,7 +61,7 @@ enum WriteEvidence: String, Equatable, Sendable {
 /// the record's `turnToken` (minted by the wire handler, threaded through the engine's agent
 /// loop to the dispatch chokepoint): `since(_:turnToken:)` credits only the querying turn's own
 /// dispatches. A record carrying nil belongs to no audited turn (GUI and external `tools/call`
-/// dispatch keyless by design) and never matches a turn query — the conservative direction,
+/// dispatch keyless by design) and never matches a turn query. The conservative direction,
 /// where the audited turn must not be credited another's write.
 actor ToolMutationLedger {
     static let shared = ToolMutationLedger()
@@ -107,7 +107,7 @@ actor ToolMutationLedger {
         total
     }
 
-    /// Everything that succeeded after `baseline`, oldest first — every turn, unattributed.
+    /// Everything that succeeded after `baseline`, oldest first. Every turn, unattributed.
     /// The wire handlers use the turn-keyed form below; this stays for consumers that have
     /// no turn identity (and for the tests that read the window as a whole).
     func since(_ baseline: UInt64) -> [SuccessfulMutation] {
@@ -127,8 +127,8 @@ actor ToolMutationLedger {
 /// `ToolMutationLedger` keeps only successes, which answers "did this turn change a file" and
 /// leaves the other half of the record unkept: a turn that fired `edit_file` five times and hit
 /// nothing looks, in that audit, exactly like a turn that never touched a tool. On the
-/// scoreboard they are different failures with different remedies — one needs a retry the model
-/// can act on, the other needs the work to be asked for — and neither can be told apart, or
+/// scoreboard they are different failures with different remedies. One needs a retry the model
+/// can act on, the other needs the work to be asked for, and neither can be told apart, or
 /// counted, without the failure half.
 struct ToolAttempt: Equatable, Sendable {
     enum Outcome: String, Equatable, Sendable {
@@ -140,14 +140,14 @@ struct ToolAttempt: Equatable, Sendable {
     let tool: String
     /// The path or command it named, when its arguments carried one.
     let target: String?
-    /// What the call proves about the workspace — decided where that truth lives
+    /// What the call proves about the workspace. Decided where that truth lives
     /// (`ToolRegistry.readOnlyWhitelist`, `ToolRegistry.execHostToolNames`), so the ledger
     /// never invents a second classifier.
     let evidence: WriteEvidence
     let outcome: Outcome
     /// First line of the refusal, redacted and capped; nil on success.
     let failure: String?
-    /// Turn key of the dispatch that produced this record — see ``SuccessfulMutation/turnToken``
+    /// Turn key of the dispatch that produced this record. See ``SuccessfulMutation/turnToken``
     /// (`var` for the same memberwise-init reason).
     var turnToken: String? = nil
 }
@@ -187,12 +187,12 @@ actor ToolAttemptLedger {
         total
     }
 
-    /// Everything dispatched after `baseline`, oldest first — every turn, unattributed.
+    /// Everything dispatched after `baseline`, oldest first. Every turn, unattributed.
     func since(_ baseline: UInt64) -> [ToolAttempt] {
         recent.filter { $0.seq > baseline }.map(\.attempt)
     }
 
-    /// The dispatches belonging to `turnToken` that landed after `baseline`, oldest first —
+    /// The dispatches belonging to `turnToken` that landed after `baseline`, oldest first,
     /// the same equality attribution as ``ToolMutationLedger/since(_:turnToken:)``.
     func since(_ baseline: UInt64, turnToken: String) -> [ToolAttempt] {
         recent.filter { $0.seq > baseline && $0.attempt.turnToken == turnToken }.map(\.attempt)
@@ -202,7 +202,7 @@ actor ToolAttemptLedger {
     ///
     /// Ordering matters: a failure that a later success repaired is not an open problem, so the
     /// count resets on every successful mutation. It is 0 when nothing was attempted, and 0 when
-    /// every attempt succeeded — a turn is never accused on the strength of a repaired mistake.
+    /// every attempt succeeded. A turn is never accused on the strength of a repaired mistake.
     nonisolated static func unresolvedMutatingFailures(_ attempts: [ToolAttempt]) -> Int {
         var unresolved = 0
         for attempt in attempts where attempt.evidence == .reported {
@@ -240,7 +240,7 @@ enum ClaimVsAudit {
     ]
 
     /// Narrower set for a **failure** claim: only file-operation verbs. "the test fails" and
-    /// "it cannot compile" are verification statements — a successful edit does not refute
+    /// "it cannot compile" are verification statements. A successful edit does not refute
     /// them, so calling them contradicted would over-claim in the other direction.
     private static let operationVerbs = [
         "creat", "writ", "sav", "updat", "modif", "patch", "delet", "append", "edit",  // codespell:ignore
@@ -262,7 +262,7 @@ enum ClaimVsAudit {
         "文件", "目录", "代码", "配置", "脚本", "函数", "文档", "笔记", "报告", "测试",
     ]
 
-    /// Extension-ish token (`.py`, `.toml`, `.md`) — a file named without saying "file".
+    /// Extension-ish token (`.py`, `.toml`, `.md`). A file named without saying "file".
     private static let extensionPattern = try? NSRegularExpression(
         pattern: "\\.[A-Za-z][A-Za-z0-9]{1,5}\\b")
 
@@ -314,14 +314,14 @@ enum ClaimVsAudit {
     ///
     /// `attempts` is the failure half of the same turn's record. When a completion claim meets an
     /// empty mutation set *and* open failed writes, the honest sentence is not "nothing happened"
-    /// — something happened, and it did not land; naming the attempts is what tells an over-claim
+    /// Something happened, and it did not land; naming the attempts is what tells an over-claim
     /// apart from a give-up. With no writer attempted at all, "nothing was written" is the whole
     /// truth and the older copy stands.
     ///
     /// A third copy exists because a shell call is not a witnessed write: when the turn's only
     /// dispatched calls were `exec_command`-class, this audit cannot say the workspace is
     /// unchanged (the command may well have written), and cannot say it changed either. It says
-    /// which of the two it is missing — measured 2026-11-01, where the flat "nothing was
+    /// which of the two it is missing. Measured 2026-11-01, where the flat "nothing was
     /// written" copy was unreachable and the over-claim went out uncorrected.
     static func notice(
         text: String,

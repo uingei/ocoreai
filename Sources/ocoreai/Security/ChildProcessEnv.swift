@@ -13,7 +13,7 @@ import Foundation
 /// Design:
 /// - Only the variables listed in `safeKeys` are allowed through.
 /// - All other keys are stripped, including every `OCOREAI_*` secret.
-/// - The set is intentionally small — if a child needs something new,
+/// - The set is intentionally small, if a child needs something new,
 ///   it must be added explicitly here with a reason.
 
 @_spi(ChildProcessEnv)
@@ -41,7 +41,7 @@ public enum ChildProcessEnv {
         "HF_ENDPOINT",  // HuggingFace mirror URL
     ]
 
-    /// Keys that are NEVER allowed, even if listed above — explicit deny list.
+    /// Keys that are NEVER allowed, even if listed above. Explicit deny list.
     private static let deniedKeys: Set<String> = [
         "OCOREAI_API_KEYS",
         "OCOREAI_ADMIN_KEYS",
@@ -50,7 +50,7 @@ public enum ChildProcessEnv {
     ]
 
     /// Strip only the named secrets and keep everything else. For launchers that
-    /// must carry the operator's own environment by design — `ocoreai connect`
+    /// must carry the operator's own environment by design, `ocoreai connect`
     /// hands a harness the caller's config, so a full whitelist would break its
     /// contract; the secrets are what must never ride. The secret list has one
     /// home: `deniedKeys`, which both this and `sanitized` read.

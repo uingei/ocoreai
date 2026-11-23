@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// System View — MCP servers, tools, audit trail, reasoning status
+/// System View. MCP servers, tools, audit trail, reasoning status
 /// Accessibility: VoiceOver labels, hints, groups
 /// Reduced Motion: all animations respect user preference
 

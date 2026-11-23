@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SectionHeader — uppercase semibold section labels with optional subtitle and trailing content.
+/// SectionHeader. Uppercase semibold section labels with optional subtitle and trailing content.
 /// 11pt semibold uppercase + kerning + Content: View generic for trailing.
 
 import SwiftUI

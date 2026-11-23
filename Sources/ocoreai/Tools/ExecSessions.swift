@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ExecSessions — session (yield + interactive) exec surface, additive to
+/// ExecSessions. Session (yield + interactive) exec surface, additive to
 /// the pinned blocking `exec_command` (`ExecTools.run`, whose 9-test gate in
 /// `ExecCommandToolTests.swift` locks the block-then-report contract).
 ///
@@ -18,13 +18,13 @@
 ///                      new delta (a finished session returns its cached
 ///                      final report)
 ///
-/// Baseline — codex `unified_exec` (references/codex, HEAD):
+/// Baseline. Codex `unified_exec` (references/codex, HEAD):
 ///   - `clamp_yield_time` (core/src/unified_exec/mod.rs:210):
-///     `yield_ms.clamp(MIN_YIELD_TIME_MS=250, MAX_YIELD_TIME_MS=30_000)` —
+///     `yield_ms.clamp(MIN_YIELD_TIME_MS=250, MAX_YIELD_TIME_MS=30_000)`,
 ///     mirrored exactly by `clampYieldMs` (bounds are test-pinned).
 ///   - `write_stdin` handler (tools/handlers/unified_exec/write_stdin.rs):
 ///     empty `data` ⇒ pure yield/poll, the pipe is never touched; non-empty
-///     ⇒ write then yield — mirrored by `writeStdin` (empty `data` never
+///     ⇒ write then yield. Mirrored by `writeStdin` (empty `data` never
 ///     touches the stdin handle).
 ///   - `MAX_UNIFIED_EXEC_PROCESSES = 64` → ocoreai `maxLive = 16`
 ///     (documented deviation: a desktop agent rarely needs 64 concurrent
@@ -41,8 +41,8 @@
 /// reference may be held by actor state and captured by `@Sendable`
 /// closures; every `Process` method call is lock-bounded. All child
 /// interaction that could block (drain / kill / eviction) runs inside ONE
-/// `@Sendable` closure on a background `DispatchQueue` — the proven
-/// `ExecTools.runSync` pattern — and only `Sendable` values cross the
+/// `@Sendable` closure on a background `DispatchQueue`. The proven
+/// `ExecTools.runSync` pattern, and only `Sendable` values cross the
 /// closure boundary. File capture uses temp files (not pipes) so a killed
 /// child can never deadlock the reader (same invariant as `ExecTools`).
 import Foundation
@@ -137,7 +137,7 @@ private final class SessionProc: @unchecked Sendable {
 // iOS: `Process`/subprocesses are not available (sandbox). The class is
 // kept as a no-op stub so shared non-procedural code (Session struct,
 // makeRoom, finishSession, drainBlocking) compiles identically on both
-// platforms. iOS code paths never actually touch this — spawn/write_stdin/
+// platforms. iOS code paths never actually touch this. Spawn/write_stdin/
 // kill all throw `checkFailed` first.
 private final class SessionProc: @unchecked Sendable {
     init(process: AnyObject, stdinHandle: FileHandle?) {
@@ -159,7 +159,7 @@ private final class SessionProc: @unchecked Sendable {
 actor ExecSessionManager {
     // MARK: - Bounds (codex parity where noted)
 
-    // codex `mod.rs:73-78` constants + `write_stdin.rs:28` serde default —
+    // codex `mod.rs:73-78` constants + `write_stdin.rs:28` serde default,
     // the three yield regimes verbatim (see `clampYieldMs`/`clampEmptyYieldMs`
     // docs for which surface each applies to).
     static let clampMinYieldMs = 250  // codex MIN_YIELD_TIME_MS (mod.rs:73)
@@ -196,20 +196,20 @@ actor ExecSessionManager {
     private var sessions: [Int: Session] = [:]
     private var counter: Int = 0
 
-    /// Shared instance — the tool surface (BuiltInTools) and the app
+    /// Shared instance. The tool surface (BuiltInTools) and the app
     /// lifecycle address the same manager.
     static let shared = ExecSessionManager()
 
     // MARK: - Pure helpers (test-pinned, no actor hop)
 
-    /// Non-empty-stdin + spawn regime: `yield_ms.clamp(250, 30_000)` —
+    /// Non-empty-stdin + spawn regime: `yield_ms.clamp(250, 30_000)`,
     /// codex `clamp_yield_time` (mod.rs:210) + `process_manager.rs:936`
     /// `time_ms.min(MAX_YIELD_TIME_MS)` branch.
     static func clampYieldMs(_ ms: Int) -> Int {
         min(max(ms, clampMinYieldMs), clampMaxYieldMs)
     }
 
-    /// Empty-stdin (poll) regime: `yield_ms.clamp(5_000, 300_000)` —
+    /// Empty-stdin (poll) regime: `yield_ms.clamp(5_000, 300_000)`,
     /// codex `process_manager.rs:934` `clamp(MIN_EMPTY_YIELD_TIME_MS,
     /// max_write_stdin_yield_time_ms)` branch (empty polls use the
     /// background-timeout bounds; non-empty writes keep the 250/30_000
@@ -219,7 +219,7 @@ actor ExecSessionManager {
     }
 
     /// Which finished sessions retention collects: everything idle past `idleSeconds`, then the
-    /// oldest ones past `ceiling`. Pure — pinned by exact values, no spawn, no actor hop.
+    /// oldest ones past `ceiling`. Pure. Pinned by exact values, no spawn, no actor hop.
     static func finishedToCollect(
         _ finished: [(id: Int, ageSeconds: TimeInterval)],
         idleSeconds: TimeInterval = finishedIdleSeconds,
@@ -233,7 +233,7 @@ actor ExecSessionManager {
         return aged + oldestFresh.prefix(survivors - ceiling).map { $0.id }
     }
 
-    /// Head+tail truncation — identical marker to `ExecTools.truncate`.
+    /// Head+tail truncation. Identical marker to `ExecTools.truncate`.
     static func truncate(_ s: String) -> String {
         if s.count <= maxReportChars { return s }
         let half = maxReportChars / 2
@@ -285,7 +285,7 @@ actor ExecSessionManager {
         proc.standardOutput = outHandle
         proc.standardError = errHandle
         proc.standardInput = stdinPipe
-        // Strip server secrets — interactive shells inherit the full parent env otherwise.
+        // Strip server secrets. Interactive shells inherit the full parent env otherwise.
         proc.environment = ChildProcessEnv.sanitized()
         let owner = SessionProc(process: proc, stdinHandle: stdinPipe.fileHandleForWriting)
 
@@ -343,10 +343,10 @@ actor ExecSessionManager {
     }
 
     /// `data`: text to write verbatim to the child's stdin pipe (no
-    /// implicit newline). Empty `data` ⇒ pure poll — the pipe is never
+    /// implicit newline). Empty `data` ⇒ pure poll. The pipe is never
     /// touched (codex `write_stdin.rs` empty-write semantics).
     @discardableResult
-    /// `yieldMs`: codex regime — non-empty `data` clamps to 250–30_000
+    /// `yieldMs`: codex regime. Non-empty `data` clamps to 250–30_000
     /// (default 250, `default_write_stdin_yield_time_ms`=250 in
     /// (`unified_exec.rs:66`); empty `data` clamps to 5_000–300_000
     /// (default 5_000) per `process_manager.rs:934`. `nil` = regime default.
@@ -403,7 +403,7 @@ actor ExecSessionManager {
         #endif
     }
 
-    /// Pure poll (no stdin write) — the `exec_poll` tool surface.
+    /// Pure poll (no stdin write). The `exec_poll` tool surface.
     /// `yieldMs`: empty-stdin regime (5_000–300_000, default 5_000, nil = default).
     @discardableResult
     func poll(sessionId: Int, yieldMs: Int? = nil) async throws -> PollResult {
@@ -438,7 +438,7 @@ actor ExecSessionManager {
             if ownerProc.isRunning() { ownerProc.forceKill() }
             // Bounded reap after SIGKILL (delivery is async): poll the
             // proven non-wedging `isRunning()` primitive with a deadline
-            // instead of an unbounded `waitUntilExit()` — which can wedge
+            // instead of an unbounded `waitUntilExit()`, which can wedge
             // the whole CI job on the macOS 26 runner.
             let reapDeadline = Date(timeIntervalSinceNow: Self.killGraceSeconds)
             while ownerProc.isRunning() && Date() < reapDeadline {
@@ -525,7 +525,7 @@ actor ExecSessionManager {
     /// Codex keeps ≤ `MAX_UNIFIED_EXEC_PROCESSES` live; we keep ≤ `maxLive`. Pressure is what
     /// collects a session, never the mere arrival of a new one: `kill`/`poll` document an
     /// idempotent answer for a session that already finished, and the previous "drop every
-    /// finished session" made that answer unreachable — the next spawn deleted the id its caller
+    /// finished session" made that answer unreachable. The next spawn deleted the id its caller
     /// was about to name. Finished entries are bounded by retention instead (`finishedToCollect`:
     /// idle TTL + ceiling, oldest first), the same shape `MediaSpool` uses for spooled bytes.
     private func makeRoom() async {
@@ -592,7 +592,7 @@ actor ExecSessionManager {
     }
 
     /// Drain new bytes from both capture files for ≤ `yieldMs`, then
-    /// finalize if the child exited. SYNCHRONOUS — only ever called inside
+    /// finalize if the child exited. SYNCHRONOUS, only ever called inside
     /// a `@Sendable` background closure (the pinned `ExecTools.runSync`
     /// pattern), so `Thread.sleep` never touches the actor executor.
     private static func drainBlocking(
@@ -618,7 +618,7 @@ actor ExecSessionManager {
             // No `waitUntilExit()` here: `isRunning() == false` means
             // Foundation already reaped the child, so `terminationStatus`
             // is cached (probe: exit 0/7/signal all readable straight
-            // after — `scripts/proc-status-cache-probe.swift`). The
+            // after, `scripts/proc-status-cache-probe.swift`). The
             // redundant blocking wait is a SECOND `waitpid` on the
             // reaped child that wedges the whole CI job on macOS 26.
             exitCode = owner.terminationStatus()

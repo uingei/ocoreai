@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Settings ViewModel — bridges SettingsStore (UserDefaults persistence)
+/// Settings ViewModel. Bridges SettingsStore (UserDefaults persistence)
 /// with transient UI state (verify status, model list).
 ///
 /// @Observable: property-level change tracking.
@@ -16,29 +16,29 @@ import SwiftUI
 @Observable
 @MainActor
 final class SettingsState {
-    /// Shared singleton — survives view recreation (tab switch, NavigationSplitView).
+    /// Shared singleton. Survives view recreation (tab switch, NavigationSplitView).
     static let shared = SettingsState()
     private init() {
-        // Properties are initialized below with SettingsStore defaults —
+        // Properties are initialized below with SettingsStore defaults,
         // @Observable macro requires all stored properties initialized before
         // calling any method on self.
     }
 
     /// Cold-boot truth application: restore every persisted lever, then act
     /// on it. Before this existed, applyPerceptionSettings was reachable ONLY
-    /// from toggle didSet — a cold launch with persisted perception=true never
+    /// from toggle didSet. A cold launch with persisted perception=true never
     /// started the engine, and a cold launch after `defaults write` (or any
     /// out-of-process persistence) left the engine state decoupled from the
     /// store. User-visible symptom (live-observed 10-10): perception enabled
     /// in Settings, buffer empty forever, observe_state honestly reports
-    /// "no recent frames" — the honest tool exposing that the engine simply
+    /// "no recent frames". The honest tool exposing that the engine simply
     /// never booted.
     func bootPerceptionFromStore() {
         reloadFromStore()
         applyPerceptionSettings()
     }
 
-    /// Reload all settings from SettingsStore — safe to call multiple times.
+    /// Reload all settings from SettingsStore. Safe to call multiple times.
     func reloadFromStore() {
         serverHost = SettingsStore.shared.serverHost
         serverPort = SettingsStore.shared.serverPort
@@ -173,7 +173,7 @@ final class SettingsState {
         }
     }
 
-    // MARK: - Plan（update_plan opt-in，默认 false — 对齐 codex `#41744`）
+    // MARK: - Plan（update_plan opt-in，默认 false。对齐 codex `#41744`）
 
     var updatePlanEnabled: Bool = SettingsStore.shared.updatePlanEnabled {
         didSet {
@@ -214,7 +214,7 @@ final class SettingsState {
         }
     }
 
-    /// User's custom system prompt — every new inference uses this value.
+    /// User's custom system prompt. Every new inference uses this value.
     var customSystemPrompt: String = SettingsStore.shared.customSystemPrompt {
         didSet {
             guard oldValue != customSystemPrompt else { return }
@@ -323,7 +323,7 @@ final class SettingsState {
 
     /// Ask the OS for Personal Voice authorization
     /// (`AVSpeechSynthesizer.requestPersonalVoiceAuthorization`). The OS
-    /// caches the decision — a repeat call does not re-prompt once decided.
+    /// caches the decision. A repeat call does not re-prompt once decided.
     func requestPersonalVoice() async {
         _ = await PersonalVoiceTTS.requestAuthorization()
     }
@@ -392,7 +392,7 @@ final class SettingsState {
         didSet {
             guard oldValue != useHFMirror else { return }
             SettingsStore.shared.useHFMirror = useHFMirror
-            // Re-read the truth after the policy applied it — if operator env
+            // Re-read the truth after the policy applied it, if operator env
             // pins the endpoint, the decision (and the disabled Toggle) must
             // reflect that immediately, not the value the user just flipped to.
             hfEndpointDecision = SettingsStore.shared.hfEndpointDecision
@@ -473,7 +473,7 @@ final class SettingsState {
     }
 
     /// Snapshot current settings, then reset all to defaults.
-    /// NOTE: Hub tokens are NOT snapshotted — they are sensitive credentials
+    /// NOTE: Hub tokens are NOT snapshotted. They are sensitive credentials
     /// that should never be restored via Cmd+Z after a reset.
     func resetToDefaults() {
         undoSettings = SettingsSnapshot(from: self, includeTokens: false)
@@ -529,7 +529,7 @@ extension SettingsState {
         let appThemeMode: ThemeModeRaw
         let customSystemPrompt: String
 
-        /// Create snapshot. Tokens are intentionally excluded for security —
+        /// Create snapshot. Tokens are intentionally excluded for security,
         /// they should never be restored via Cmd+Z.
         init(from state: SettingsState, includeTokens: Bool = false) {
             serverHost = state.serverHost

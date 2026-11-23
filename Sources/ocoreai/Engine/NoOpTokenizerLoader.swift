@@ -1,9 +1,9 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// NoOpTokenizerLoader.swift — Stub tokenizer loader for MTP drafter loading.
+/// NoOpTokenizerLoader.swift. Stub tokenizer loader for MTP drafter loading.
 ///
 /// MTPDrafterModelFactory._load() accepts a TokenizerLoader but immediately
-/// ignores it — the drafer borrows its target's tokenizer at inference time.
+/// ignores it. The drafer borrows its target's tokenizer at inference time.
 /// This no-op implementation satisfies the protocol requirement.
 
 import Foundation
@@ -13,12 +13,12 @@ import MLXLMCommon
 /// which don't need their own tokenizer.
 ///
 /// MTPDrafterModelFactory._load() accepts a TokenizerLoader but immediately
-/// ignores it — the drafer borrows its target's tokenizer at inference time.
+/// ignores it. The drafer borrows its target's tokenizer at inference time.
 final class NoOpTokenizerLoader: TokenizerLoader, Sendable {
     struct NotLoadedError: Error {}
 
     func load(from directory: URL) async throws -> any Tokenizer {
-        // Restored declared semantics: this loader throws when asked —
+        // Restored declared semantics: this loader throws when asked,
         // MTP drafters borrow the target's tokenizer and never load one.
         throw NotLoadedError()
     }

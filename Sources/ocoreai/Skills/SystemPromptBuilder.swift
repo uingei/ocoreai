@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SystemPromptBuilder.swift — Hot-updateable system prompt assembly
+/// SystemPromptBuilder.swift. Hot-updateable system prompt assembly
 ///
 /// Assembles system prompt from base prompt + skill content in dependency-resolved order.
 /// Supports file-watch hot-reload without service restart.
@@ -20,7 +20,7 @@ actor SystemPromptBuilder {
     /// final): "an agent for open models, natively local, built for creativity,
     /// work, and code", with the 09-27 fuller elaboration "a complete agentic
     /// system designed for coding and knowledge work" attached as a non-conflicting
-    /// companion phrase. Both phrasings coexist; the owner sentence leads —
+    /// companion phrase. Both phrasings coexist; the owner sentence leads,
     /// per AGENTS.md "What it is" and README headline.
     ///
     /// Consumed by `App` at startup and asserted by
@@ -34,16 +34,16 @@ actor SystemPromptBuilder {
     /// change.") and with the owner standing safety principle
     /// (`ConfigStruct.SafetyConfig`): 最大求真 + 最大好奇心 + 诚实
     /// (maximum truth-seeking + maximum curiosity + honesty), NOT
-    /// human-preference alignment — the base prompt states the principle as a
+    /// human-preference alignment. The base prompt states the principle as a
     /// behavioral command, not "safe and helpful" politeness, and contains
     /// no "NEVER do X unless Y" preference-alignment line: permission to act
     /// comes from the authority layer (`ApprovalBroker` / `approvalPolicy` /
     /// codex `ExecApprovalRequest`), which is an explicit config surface
-    /// (`.auto` / `.interactive` / `.never`) that the user controls — not
+    /// (`.auto` / `.interactive` / `.never`) that the user controls, not
     /// from a prompt that hard-codes "destructive = don't".
-    /// Kept short-phrase on purpose — the target models (1.5B–8B local) need
+    /// Kept short-phrase on purpose. The target models (1.5B–8B local) need
     /// a direct behavioral command, not policy prose.
-    /// Identity + honesty — valid on EVERY turn, tools present or not.
+    /// Identity + honesty. Valid on EVERY turn, tools present or not.
     static let codingAgentIdentity =
         "You are oCoreAI — an agent for open models, natively local, built for creativity, work, and code; "
         + "a complete agentic system designed for coding and knowledge work. "
@@ -51,12 +51,12 @@ actor SystemPromptBuilder {
         + "prefer the correct answer over the softer one, keep investigating when the answer is uncertain, "
         + "and state plainly what you did not verify — never hide, soften, or fabricate results."
 
-    /// Action-first directive — valid ONLY when this turn actually has tools.
+    /// Action-first directive. Valid ONLY when this turn actually has tools.
     ///
     /// The claim-discipline sentence is not decoration. Live on 2026-10-12 with
     /// `web_search` declared, gemma-4-e2b-it-4bit answered "I have searched the
     /// web for the latest MLX release notes… (Source: https://mlx.studio/)" with
-    /// NO tool call dispatched — a narrated action plus invented citations. A
+    /// NO tool call dispatched. A narrated action plus invented citations. A
     /// narrative that sounds like a completed action is the most expensive failure
     /// mode for an agent product, so the rule is stated operationally rather than
     /// as a value: claiming an action requires having called the tool and seen the
@@ -69,12 +69,12 @@ actor SystemPromptBuilder {
         + "searched, fetched, ran, read, or changed anything unless a tool result in this "
         + "conversation says so — narration that sounds like a completed action is not one."
 
-    /// Zero-tool directive — what to do instead, plus an explicit ban on
+    /// Zero-tool directive. What to do instead, plus an explicit ban on
     /// simulating tools. Required, not decorative: with the action-first line
     /// still present and no tools bound, a live gemma-4-e2b-it-4bit turn
     /// (2026-10-12, `tools` absent → engine resolved a zero surface) answered
-    /// "count from 1 to 60" with a fabricated transcript —
-    /// `terminal\ncommand: "seq 1 60"\nstdout: "1 2 3 …"` — i.e. invented
+    /// "count from 1 to 60" with a fabricated transcript,
+    /// `terminal\ncommand: "seq 1 60"\nstdout: "1 2 3 …"`. I.e. invented
     /// command output presented as fact, the exact failure the identity line
     /// forbids. A model told to "run commands" will simulate them when it can't.
     static let noToolsDirective =
@@ -109,20 +109,20 @@ actor SystemPromptBuilder {
         self.basePrompt = basePrompt
     }
 
-    /// Build the full system prompt — returns cached result if content unchanged.
+    /// Build the full system prompt. Returns cached result if content unchanged.
     func build(includeCategories: [String]? = nil, hasTools: Bool = true) async -> String {
         // Compute content hash
         let newHash = await computeHash(categories: includeCategories, hasTools: hasTools)
 
-        // Cache hit — content unchanged
+        // Cache hit. Content unchanged
         if newHash == lastHash, let cached = currentPrompt {
             return cached
         }
 
-        // Cache miss — rebuild
+        // Cache miss. Rebuild
         //
         // Contract: an empty basePrompt is a "build nothing" signal (used by
-        // the empty-message guard — MessageBuilder throws when raw messages
+        // the empty-message guard. MessageBuilder throws when raw messages
         // are empty AND the prompt is empty). We must never inject the
         // capability section on top of an emptied base: empty in → empty out.
         guard !basePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -256,7 +256,7 @@ actor SystemPromptBuilder {
         }
     }
 
-    /// Invalidate internal cache — called when registry or base prompt changes.
+    /// Invalidate internal cache. Called when registry or base prompt changes.
     private func invalidate() {
         currentPrompt = nil
         lastHash = nil
@@ -269,7 +269,7 @@ actor SystemPromptBuilder {
         return await reg.list()
     }
 
-    /// Build system prompt for a given model — injected into inference pipeline.
+    /// Build system prompt for a given model. Injected into inference pipeline.
     ///
     /// `hasTools` must reflect the tool surface this turn can actually execute:
     /// it decides whether the model is told to act with tools or to answer

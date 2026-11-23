@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// App lifecycle tools — 「自主操作计算机」的应用级动作面。
+/// App lifecycle tools。「自主操作计算机」的应用级动作面。
 ///
 /// 第一性: 桌面控制 6 原语(move_mouse/click/…/key_press)全部作用于「当前前台 app」。
 /// 但「让目标 app 成为前台」这个前置步骤此前只有一条间接路(shell `open`), 不是工具面:
@@ -8,9 +8,9 @@
 /// 出错时模型拿不到诚实原因(找不到/已运行/权限)。
 ///
 /// 三个一等工具:
-///   1. open_app  — 已运行 → activate(幂等); 未运行 → NSWorkspace 启动(审批门)。
-///   2. activate_app — 仅把给定 app 提到前台(不改启动状态), 幂等。
-///   3. list_apps — 已运行 app 清单(名 + bundle id), 给模型以寻址依据(先 list 再 act)。
+///   1. open_app。已运行 → activate(幂等); 未运行 → NSWorkspace 启动(审批门)。
+///   2. activate_app。仅把给定 app 提到前台(不改启动状态), 幂等。
+///   3. list_apps。已运行 app 清单(名 + bundle id), 给模型以寻址依据(先 list 再 act)。
 ///
 /// Apple 平台深度: NSWorkspace.shared.urlForApplication(withBundleIdentifier:)
 /// (10.6+, 非弃用) + openApplication(at:configuration:)(10.15+, 非弃用,
@@ -25,7 +25,7 @@ import Foundation
 import AppKit
 #endif
 
-// MARK: - Pure(离线可测 — 不触 NSWorkspace 运行时状态)
+// MARK: - Pure(离线可测。不触 NSWorkspace 运行时状态)
 
 enum AppLifecycle {
     /// app 标识归一: 空白/大小写归一(bundle id 大小写不敏感匹配)。纯, 可测。
@@ -52,7 +52,7 @@ enum AppLifecycle {
         min(max(limit, 1), 500)
     }
 
-    /// 行格式化: `name\tbundleID\tactive` — 列分隔可机械解析。纯, 精确可测。
+    /// 行格式化: `name\tbundleID\tactive`。列分隔可机械解析。纯, 精确可测。
     static func line(name: String, bundle: String, active: Bool) -> String {
         "\(name)\t\(bundle)\t\(active ? "active" : "background")"
     }
@@ -80,7 +80,7 @@ enum AppLifecycle {
     }
 }
 
-// MARK: - Driver + Client(macOS 门 — NSWorkspace, 全 Safe)
+// MARK: - Driver + Client(macOS 门。NSWorkspace, 全 Safe)
 
 #if os(macOS)
 
@@ -119,7 +119,7 @@ enum AppLifecycleDriver {
     }
 
     /// 目标 URL 解析: bundle id → NSWorkspace 官方映射(非弃用); 名 → 三个标准
-    /// Applications 根查找 `<name>.app`(大小写不敏感)—— NSWorkspace 无「按名查 URL」
+    /// Applications 根查找 `<name>.app`(大小写不敏感)。NSWorkspace 无「按名查 URL」
     /// 非弃用 API, 标准根查找是其官方替代面。找不到 → nil(诚实)。
     static func resolveURL(_ app: String) -> URL? {
         switch AppLifecycle.addressKind(app) {
@@ -151,7 +151,7 @@ enum AppLifecycleDriver {
     /// 返回给模型的诚实结果文本。
     ///
     /// 结构(10-06): MainActor 只做「寻址 + 运行态」快照(瞬时), 焦点落地轮询与
-    /// 启动完成都在 main-actor 外用协作式 async — 旧版在 MainActor.run 里
+    /// 启动完成都在 main-actor 外用协作式 async。旧版在 MainActor.run 里
     /// semaphore.wait(30s) 阻塞主线程, 是窗口卡顿的潜在源。
     static func openApp(_ app: String) async -> String {
         struct OpenTarget: Sendable {
@@ -180,7 +180,7 @@ enum AppLifecycleDriver {
                 + "/Applications, /System/Applications, ~/Applications."
         }
         return await withCheckedContinuation { (cont: CheckedContinuation<String, Never>) in
-            // openApplication 的 completion 可能不来(极端挂起) — 30s 兜底诚实报超时。
+            // openApplication 的 completion 可能不来(极端挂起), 30s 兜底诚实报超时。
             let box = OpenBox()
             Task { @MainActor in
                 // cfg 在 MainActor 区内构造(region isolation: 不跨区送可变引用)
@@ -261,12 +261,12 @@ enum AppLifecycleDriver {
     }
 
     /// activate(from:options:) 的 macOS 14 签名(新 API, 非弃用); 返回是否生效。
-    /// 焦点落地 — Apple 文档语义: `activate(options:)` 的 Bool 是「请求是否被受理」,
+    /// 焦点落地。Apple 文档语义: `activate(options:)` 的 Bool 是「请求是否被受理」,
     /// **不是**「已在前台」; 前台变更是异步的, canonical 真值 = 轮询
     /// `NSWorkspace.shared.frontmostApplication`(或 didBecomeActive 通知)。
     ///
     /// 活体证据(10-06 全量门, stash 基线复现): hermes 前台活跃时首窗
-    /// `activate` 调用返回 true 但前台不落地, 或返回 false 且确实未落地 —
+    /// `activate` 调用返回 true 但前台不落地, 或返回 false 且确实未落地,
     /// 单次调用 + 立即读返回值当终局 = 谎报。真实恢复模式 = 收敛窗口内
     /// 轮询 + 中段重申一次(WindowServer focus-stealing 抑制对二次请求宽容);
     /// prohibited 策略 app 结构性无法成为前台 → 诚实报因, 不烧窗口。
@@ -274,7 +274,7 @@ enum AppLifecycleDriver {
     /// 协作式 async(不占 main thread): `NSRunningApplication.activate` 是 IPC,
     /// `frontmostApplication` 轮询与 AppLifecycleLiveTests 同范式(main-actor 外)。
     ///
-    /// - Returns: (settled, reason) — settled=前台已实证; reason 永远诚实。
+    /// - Returns: (settled, reason). Settled=前台已实证; reason 永远诚实。
     static func activateRunningAndSettle(
         _ running: NSRunningApplication,
         pollIntervalNs: UInt64 = 50_000_000,

@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ChatCompletionsRouter.swift — Hummingbird route registration + middleware wiring
+/// ChatCompletionsRouter.swift. Hummingbird route registration + middleware wiring
 ///
 /// ### Route Matrix:
 /// - ``GET /health`` → Health check + engine pool metrics
-/// - ``GET /ready`` → Readiness probe (ready/busy) — public
+/// - ``GET /ready`` → Readiness probe (ready/busy). Public
 /// - ``GET /v1/models`` → Loaded model list (OpenAI-compatible)
-/// - ``GET /v1/stats`` → Inference counters/gauges (JSON) — public
+/// - ``GET /v1/stats`` → Inference counters/gauges (JSON). Public
 /// - ``GET /metrics`` → Prometheus-compatible metrics endpoint
 /// - ``POST /v1`` → Auto-route (prompt → completions, else chat)
 /// - ``POST /v1/chat/completions`` → Chat completion (streaming / non-streaming)
@@ -20,7 +20,7 @@
 /// - ``GET /v1/models/:model/kv-cache`` → Planned KV cache topology + capacity disposition
 ///
 /// ### Auth Scope:
-/// One home: `AuthRoutePolicy.publicPaths` in `Middleware/AuthMiddleware.swift` — the set
+/// One home: `AuthRoutePolicy.publicPaths` in `Middleware/AuthMiddleware.swift`. The set
 /// `AuthMiddleware` actually consults, and the set `/v1/capabilities` publishes. This block
 /// deliberately does not re-list it. The copy that used to sit here named 5 of the 7 public
 /// paths and then asserted "All other endpoints require valid API key", which was false for
@@ -85,7 +85,7 @@ struct OCoreAIContext: RequestContext {
 
 // MARK: - Router Builder
 
-/// Calls ``EnginePool`` actor methods directly — no ``@MainActor`` bridge needed
+/// Calls ``EnginePool`` actor methods directly, no ``@MainActor`` bridge needed
 func buildRouter(
     enginePool: EnginePool,
     scheduler: SchedulerActor,
@@ -103,7 +103,7 @@ func buildRouter(
     msToken: String? = nil,
     toolRegistry: ToolRegistry? = nil,
 ) -> Router<OCoreAIContext> {
-    // autoGenerateHeadEndpoints: HEAD is a first-class method — RFC 9110
+    // autoGenerateHeadEndpoints: HEAD is a first-class method. RFC 9110
     // says GET implies HEAD; without the option `HEAD /health` 404s
     // (live-observed 10-07), lying about a route that exists.
     let routes = Router(context: OCoreAIContext.self, options: [.autoGenerateHeadEndpoints])
@@ -112,14 +112,14 @@ func buildRouter(
     // `Authorization`, so an auth-first chain answers 401 to the question the browser
     // asks before it can send the key; and upstream's CORS layer re-throws a downstream
     // error as one that *adds* its headers (CORSMiddleware.swift:220-229), which the 404
-    // middleware — matching on `HTTPError`, not on the wrapper — would then miss and the
+    // middleware. Matching on `HTTPError`, not on the wrapper. Would then miss and the
     // error body would lose its envelope. Outside it instead, a browser reads a 404 that
     // still says `route_not_found`. `nil` (the default posture) registers nothing.
     if let corsMiddleware {
         routes.add(middleware: corsMiddleware)
     }
-    // Registered ahead of auth and every route so the whole surface — including
-    // unmatched paths — is covered: HB composes the notFound responder through this
+    // Registered ahead of auth and every route so the whole surface. Including
+    // unmatched paths. Is covered: HB composes the notFound responder through this
     // same middleware chain (Router.swift:70), so the trie miss picks up the flat-JSON
     // 404 envelope instead of Hummingbird's bare empty body.
     routes.add(middleware: NotFoundEnvelopeMiddleware<OCoreAIContext>())
@@ -141,7 +141,7 @@ func buildRouter(
     /// Readiness probe (OpenAI/llm-server convention).
     ///
     /// Unlike ``GET /health`` (process liveness), ``GET /ready`` reports whether
-    /// the inference path is currently free to accept work — `ready` when no
+    /// the inference path is currently free to accept work, `ready` when no
     /// session is generating, `busy` otherwise. Public (bypasses ``AuthMiddleware``).
     ///
     /// - Returns: ``ReadyResponse`` with status + current pool gauges.
@@ -158,22 +158,22 @@ func buildRouter(
 
     // MARK: Models
 
-    /// `GET /v1/models` — **磁盘就绪 ∪ 内存已加载**(来源无关)。
+    /// `GET /v1/models`. **磁盘就绪 ∪ 内存已加载**(来源无关)。
     ///
     /// OpenAI 语义:客户端用本端点**选模型**,故必须列出磁盘上全部就绪模型
-    /// (safetensors / CoreAI .aimodel 完整),不能只报 `loadedModels` — 冷启动
+    /// (safetensors / CoreAI .aimodel 完整),不能只报 `loadedModels`。冷启动
     /// 未 prewarm 时只报已加载会让用户以为"模型不存在"。
     ///
     /// id = `root/<org>/<name>` 相对路径(ModelStore 布局即 flat root),
-    /// **不带** `hf:`/`mscope:` 来源前缀 — 下载来源对模型身份透明;
+    /// **不带** `hf:`/`mscope:` 来源前缀。下载来源对模型身份透明;
     /// local 源(绝对路径)原样保留。加载状态由 `state` 表达:
     /// `"ready"`(可用) / `"loading"`(prewarm 中);未知 → `"ready"`。
     /// 客户端按 id 请求 chat 时,Engine 侧 prefix 归一化兜底
     /// (`loadModel` 剥前缀 + flat root 本地短路)。
     routes.get("/v1/models") { _, _ in
-        // 1) 内存已加载(EnginePool 内部 id 保留原样 — chat/session 键依赖它)
+        // 1) 内存已加载(EnginePool 内部 id 保留原样。chat/session 键依赖它)
         let loaded = await enginePool.listModels()
-        // 2) 磁盘就绪 — 只管 `~/.ocoreai/models`(root),不跨到 .cache 遗留缓存;
+        // 2) 磁盘就绪。只管 `~/.ocoreai/models`(root),不跨到 .cache 遗留缓存;
         //    来源无关(ModelStore 已 dedup + 判定有权重才算就绪)
         let rootP = ModelStore.root.standardizedFileURL.path
         let ready = ModelStore.discoverReady().filter {
@@ -209,7 +209,7 @@ func buildRouter(
             object.maxModelLen = Int(m["max_context_length"] ?? "")
             objects.append(object)
         }
-        // 3.5) 内嵌 embedder — /v1/embeddings 是常开路由，能力必须可发现：
+        // 3.5) 内嵌 embedder. /v1/embeddings 是常开路由，能力必须可发现：
         // 标准 OpenAI 客户端通过 /v1/models 探测服务器能力面，看不到 id
         // 就等于不存在。`capabilities: ["embed"]` 是显式扩展字段；
         // state 诚实区分缓存命中（离线可服务）与首次需下载。
@@ -222,7 +222,7 @@ func buildRouter(
         embedderRow.maxModelLen = EmbeddingService.canonicalContextLength
         objects.append(embedderRow)
         // Default-model discoverability: clients must not guess who the
-        // server-wide default is via trial requests — flag it directly.
+        // server-wide default is via trial requests. Flag it directly.
         // Compare NORMALIZED ids (PATCH stores whatever form the client
         // used; the list exposes bare ids).
         if let defaultId = await enginePool.defaultModelId() {
@@ -240,7 +240,7 @@ func buildRouter(
         let toolLedger = await enginePool.toolCallDeliverySnapshot()
         let effortLedger = await enginePool.reasoningEffortSnapshot()
         // Loads in flight, measured by the pool. Looked up under the raw and normalized id like
-        // the ledgers above, and attached to `"loading"` rows only — a ready row carrying
+        // the ledgers above, and attached to `"loading"` rows only. A ready row carrying
         // progress would read as a load that never ended.
         let loadProgress = await enginePool.loadProgressSnapshot()
         for i in objects.indices {
@@ -286,7 +286,7 @@ func buildRouter(
 
     // MARK: Tool Surface Discovery (OpenAI-compat `tools[]` echo)
 
-    /// `GET /v1/tools` — discoverable agent-tool surface.
+    /// `GET /v1/tools`. Discoverable agent-tool surface.
     ///
     /// First principles: the chat path only executes tools whose names it can
     /// resolve, so a client that cannot enumerate the registry is forced to
@@ -294,12 +294,12 @@ func buildRouter(
     /// → whitelist resolves ∅ → honest-but-useless zero-tool answer). Every
     /// capability the wire gains must be DISCOVERABLE; this closes that
     /// obligation for the tool surface. Output is the EXACT OpenAI `tools[]`
-    /// shape — literally `registry.toToolSpecs()` — so a client can paste this
+    /// shape. Literally `registry.toToolSpecs()`, so a client can paste this
     /// array straight into the next request's `tools:` field (discovery
     /// output == request input, one truth source, no separate wire model to
     /// drift). Sorted by name for a stable, diffable surface (specs derive
     /// from a dictionary whose values order is unstable). Registry unavailable
-    /// → `{"object":"list","data":[]}` — honest empty, never fabricated.
+    /// → `{"object":"list","data":[]}`. Honest empty, never fabricated.
     ///
     /// Public (same class as `/v1/models`): tool names + JSON schemas are not
     /// secrets; execution stays gated downstream by the destructive-hook +
@@ -317,7 +317,7 @@ func buildRouter(
         } else {
             specs = []
         }
-        // specs 已是合法 JSON 对象树(纯 String/字典/数组) — JSONSerialization
+        // specs 已是合法 JSON 对象树(纯 String/字典/数组). JSONSerialization
         // 直接序列化, 不另造 Encodable 壳(仓库惯例同 WebSearchTool:124)。
         var dataObjects: [[String: Any]] = []
         dataObjects.reserveCapacity(specs.count)
@@ -339,9 +339,9 @@ func buildRouter(
             })
     }
 
-    /// `GET /v1/capabilities` — runtime capability matrix on *this* hardware + OS version.
+    /// `GET /v1/capabilities`. Runtime capability matrix on *this* hardware + OS version.
     ///
-    /// Public (bypasses AuthMiddleware, same as `/v1/models`) — read-only observability,
+    /// Public (bypasses AuthMiddleware, same as `/v1/models`). Read-only observability,
     /// no sensitive data. This is the wire readout of `RuntimeCapability`:
     /// the single source of truth that the system prompt and the `info` tool also consume,
     /// so model/UI/HTTP clients never see three different answers.
@@ -368,21 +368,21 @@ func buildRouter(
             /// offered the endpoint (proven 10-12: count-tokens 404s on a ready model).
             let tokenizerBackend: String
             /// Which engine a served turn comes from: `mlx`, `coreai`, `scripted` (a replayed
-            /// script — see `ScriptedInference`), or `unloaded`. A client needs this because a
+            /// script. See `ScriptedInference`), or `unloaded`. A client needs this because a
             /// scripted turn is a wire-contract fixture, not a capability: it must never be read
             /// as a model having done anything, and `scripts/eval/run.sh` refuses to score it.
             let engineBackend: String
             /// Instruction-surface truth for the workspace this process injects from: the
             /// byte cap honoured, what was spent, and how many docs fell off. A project
             /// instruction that was truncated or never read used to be invisible to the
-            /// model *and* to the caller — the same defect family `tokenizerBackend` was
+            /// model *and* to the caller. The same defect family `tokenizerBackend` was
             /// added for (a degraded component a client must be able to read), and the
             /// chain here is 98 % of the cap. Absolute paths stay off this public row;
             /// `docs[].label` is rooted at `<root>`.
             let instructionBudget: WorkspaceContext.InstructionBudget
             /// Machine-readable index of this server's HTTP surface. The 404
             /// envelope has pointed clients here for weeks
-            /// (`NotFoundEnvelopeMiddleware.swift:53` — "endpoints via
+            /// (`NotFoundEnvelopeMiddleware.swift:53`. "endpoints via
             /// GET /v1/capabilities") while nothing here enumerated endpoints,
             /// so the discovery promise had no delivery seam behind it.
             /// ``V1EndpointCatalog`` is the index, and `V1EndpointCatalogTests`
@@ -390,7 +390,7 @@ func buildRouter(
             let endpoints: [EndpointLine]
         }
         // Measured overlay: this is the surface a client routes by, so it states what the
-        // process has *done*, not only what its SDK permits. Two rows are affected — the
+        // process has *done*, not only what its SDK permits. Two rows are affected. The
         // screen degrades on a measured capture failure, and `video_input` reports whether
         // any model here has completed a turn carrying a clip. Both read the same records
         // as `/v1/models` and `/v1/multimodal/status`; nothing here re-derives a verdict.
@@ -428,9 +428,9 @@ func buildRouter(
 
     /// Structured inference counters/gauges for JSON consumers (llm-server
     /// ``GET /v1/stats`` convention). Distinct from ``GET /metrics`` (Prometheus
-    /// text) — same underlying ``MetricsRegistry``, different wire shape.
+    /// text). Same underlying ``MetricsRegistry``, different wire shape.
     ///
-    /// Public (bypasses ``AuthMiddleware``) — read-only observability, no
+    /// Public (bypasses ``AuthMiddleware``). Read-only observability, no
     /// sensitive data.
     ///
     /// - Returns: ``StatsResponse`` with request/token/duration/gauge counters.
@@ -461,17 +461,17 @@ func buildRouter(
 
     // MARK: - Perception Honesty Gauge
 
-    /// ``GET /v1/perception`` — flags + ages ONLY (never frame content).
+    /// ``GET /v1/perception``. Flags + ages ONLY (never frame content).
     /// The honest invariant made machine-readable: per channel, persisted user
     /// vote vs live engine flag vs actual frame flow.
     ///
-    /// Auth: keyed, **not public** — this path is absent from
+    /// Auth: keyed, **not public**. This path is absent from
     /// `AuthRoutePolicy.publicPaths`, so it requires an API key whenever
     /// `OCOREAI_API_KEYS` is set. The word "public" here had no owner: the
     /// enforced set never contained it, and this file is the only place that
     /// said otherwise. Whether the gauge *should* join the public discovery
     /// surface is an open question for the owner (it carries no frame
-    /// content, so the case is arguable) — widening auth is not a doc fix, so
+    /// content, so the case is arguable). Widening auth is not a doc fix, so
     /// the code keeps its current behaviour and the wording follows the code.
     /// `make docs-check` P10 diffs the README route lists and public-path
     /// list against this router and `AuthMiddleware`, so no third copy drifts.
@@ -520,14 +520,14 @@ func buildRouter(
         )
     }
 
-    /// `POST /v1/messages/count_tokens` — Anthropic's context-budget pre-flight.
+    /// `POST /v1/messages/count_tokens`. Anthropic's context-budget pre-flight.
     ///
     /// Anthropic SDKs call this before sending a conversation. Live 10-13 it
     /// answered 404 while `/v1/messages` worked: the compat surface claimed the
     /// Messages API but not its counting half, so a budget check failed on a
     /// server that would have served the conversation fine.
     ///
-    /// The list counted is ``buildAnthropicMessageList`` — the same builder
+    /// The list counted is ``buildAnthropicMessageList``. The same builder
     /// `/v1/messages` feeds the model: the agent context this server injects (skills,
     /// workspace, recalled memory, reasoning scaffold), the caller's `system`, the
     /// conversation, and the tool declarations the shared assembly renders into the system
@@ -566,25 +566,25 @@ func buildRouter(
     // MARK: Steering (mid-turn course-correction, in-flight turn control)
 
     /// Enqueue a mid-turn steer for a conversation. Same-queue contract as the
-    /// GUI composer's steer path — this route adds only the wire, zero new
+    /// GUI composer's steer path. This route adds only the wire, zero new
     /// queueing logic (one `SteerQueue`; where it gets delivered is spelled out
     /// in Semantics below, pinned by `SteerRequestHeadTests`).
     ///
     /// Semantics (deliberately accept-always-on-valid-input): the queue is
     /// persistent, not turn-scoped, and every accepted steer has exactly one
-    /// of three delivery points —
+    /// of three delivery points,
     ///   1. a live turn that dispatches a tool: injected at that boundary, so
     ///      the model course-corrects inside the turn in flight;
     ///   2. otherwise: drained at the head of the NEXT `/v1/chat/completions`
     ///      or `/v1/messages` request carrying the same `session_id`, appended
-    ///      as a user-role turn (`mergingSteeredTurn`, ChatHandler) — a turn
+    ///      as a user-role turn (`mergingSteeredTurn`, ChatHandler). A turn
     ///      that never dispatches a tool cannot take the steer mid-flight, so
     ///      it lands at the next prompt instead of dying in the queue.
     ///      `/v1/completions` has no `session_id` field, so it never carries
     ///      steering; send steered conversations to the chat endpoints.
     ///   3. the in-app composer additionally returns leftovers to the input
     ///      box at turn end, where the user can edit and resubmit.
-    /// This mirrors codex's interjection queue — there is no "turn busy?
+    /// This mirrors codex's interjection queue. There is no "turn busy?
     /// 409" surface because steer-by-definition never fails on availability.
     /// Clients that want the steer as an ordinary turn should just send it in
     /// `messages`: a trailing user turn with the same text is not duplicated.
@@ -594,7 +594,7 @@ func buildRouter(
             let sessionId: String
             let text: String
             // Explicit wire keys: the request decoder is plain (this server's
-            // contract is snake_case on the wire — `session_id`/`queued_count`
+            // contract is snake_case on the wire, `session_id`/`queued_count`
             // like every other endpoint), same convention as
             // CountTokensResponse.CodingKeys.
             enum CodingKeys: String, CodingKey {
@@ -659,14 +659,14 @@ func buildRouter(
     /// Some consumers (e.g. lm-evaluation-harness) POST directly to the base
     /// URL instead of a specific endpoint. This route inspects the request
     /// body: a top-level ``prompt`` key dispatches to ``POST /v1/completions``,
-    /// otherwise to ``POST /v1/chat/completions`` — then reuses the exact same
+    /// otherwise to ``POST /v1/chat/completions``. Then reuses the exact same
     /// handler dispatch, so auth, guard, and wire behavior are identical to
     /// the explicit endpoints.
     routes.post("/v1") { request, _ in
         let bodyBuffer = try await request.body.collect(upTo: 10 * 1024 * 1024)
         let data = Data(bodyBuffer.readableBytesView)
         // Sniff the dispatch key (a lightweight key-existence check, not a full
-        // decode) — mirrors the llm-server handleAutoRoute contract.
+        // decode). Mirrors the llm-server handleAutoRoute contract.
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             // Malformed JSON is a client error: 400, not a 500 via raw SerializationError.
             throw AppError.invalidRequest("Body is not valid JSON")
@@ -711,7 +711,7 @@ func buildRouter(
         )
     }
 
-    /// `POST /v1/count-tokens` — how big is this request, on this model.
+    /// `POST /v1/count-tokens`. How big is this request, on this model.
     ///
     /// Bodies accepted (see ``CountTokensRequest``): `prompt` (this server's
     /// original shape), `input` (OpenAI: string | `[String]` | `[{role,content}]`),
@@ -721,7 +721,7 @@ func buildRouter(
     /// to tell a client how big its request is.
     ///
     /// The count comes from the model's own chat template over the whole message
-    /// list — a multi-turn conversation pays per-turn control tokens, which
+    /// list. A multi-turn conversation pays per-turn control tokens, which
     /// flattening every message into one user turn would under-count.
     routes.post("/v1/count-tokens") { request, context in
         let countRequest = try await request.decode(
@@ -741,11 +741,11 @@ func buildRouter(
 
     // MARK: - Embeddings (OpenAI-compatible wire)
 
-    /// POST /v1/embeddings — the app's local embedding capability
+    /// POST /v1/embeddings. The app's local embedding capability
     /// (LFM2.5-Embedding-350M, width `EmbeddingService.embeddingDimension`) exposed to standard clients
     /// (RAG tools, vector DBs, langchain). Convergence with the P0
     /// truth-set principle: the SAME EmbeddingService actor behind both the
-    /// GUI fire-and-forget path and this wire surface — one circuit breaker,
+    /// GUI fire-and-forget path and this wire surface. One circuit breaker,
     /// one HF endpoint, no second unthrottled hammer. Breaker open →
     /// honest 503 (never a fabricated vector).
     routes.post("/v1/embeddings") { request, context in
@@ -768,7 +768,7 @@ func buildRouter(
         return try Response.json(response)
     }
 
-    /// `POST /v1/decisions` — the Jev / System 1 decision API (typed choice | score | yes_no
+    /// `POST /v1/decisions`. The Jev / System 1 decision API (typed choice | score | yes_no
     /// questions answered as label probabilities, no generation). The contract lives in
     /// `Wire/DecisionsWire.swift` and the scoring state in `Handlers/DecisionsHandler.swift`; the
     /// body is decoded here rather than by `request.decode(as:)` because the contract refuses an
@@ -784,7 +784,7 @@ func buildRouter(
         return try DecisionsHandler.handle(decoded)
     }
 
-    // MARK: - LLM Lifecycle — Train + Evaluate
+    // MARK: - LLM Lifecycle. Train + Evaluate
 
     routes.post("/v1/models/train") { request, context in
         let trainRequest = try await request.decode(as: TrainRequest.self, context: context)
@@ -819,9 +819,9 @@ func buildRouter(
     // key. Resolve it to the CANONICAL storage key
     // = bare normalized id. Without this, `%2F` ids created ghost keys and
     // GET answered `nil → .default` while the real entry lived under another
-    // key (live-observed 10-06: DELETE on %2F id 'reset' nothing — the flag
+    // key (live-observed 10-06: DELETE on %2F id 'reset' nothing. The flag
     // stayed True; GET answered fabricated defaults). Existence validated
-    // against resolvableModelIds() — the same truth source the chat acquire
+    // against resolvableModelIds(). The same truth source the chat acquire
     // uses; prefixed forms (hf:/mscope:) are tolerated in, never stored.
     @Sendable func resolvedPathModelId(raw: String) async throws -> String {
         guard let decoded = raw.removingPercentEncoding else {
@@ -851,7 +851,7 @@ func buildRouter(
         let modelId = try await resolvedPathModelId(
             raw: context.parameters.getCatchAll().joined(separator: "/"))
         let patch = try await request.decode(as: ModelSamplingPatch.self, context: context)
-        // default_model must point at a CHAT model — the embedder is
+        // default_model must point at a CHAT model. The embedder is
         // resolvable but never chatable (chat route fast-400s it); making
         // it default would 400 every model-less request. Same truth source
         // as the chat gate: EmbeddingService.embedderModelIds.
@@ -859,7 +859,7 @@ func buildRouter(
             throw AppError.invalidRequest(
                 "'\(modelId)' is an embedding model and cannot be the default chat model.")
         }
-        // PATCH semantics: merge onto the existing config — a partial patch
+        // PATCH semantics: merge onto the existing config. A partial patch
         // must not silently wipe unrelated fields (full-replace semantics of
         // `toConfig()` over a fresh default would reset default_model,
         // penalties, context sizes to defaults on any single-field patch).
@@ -874,7 +874,7 @@ func buildRouter(
         let modelId = try await resolvedPathModelId(
             raw: context.parameters.getCatchAll().joined(separator: "/"))
         // Reset drops tuning knobs; the config-authored default re-seeds
-        // inside the actor (reseedConfigDefaultIfNeeded) — single throat.
+        // inside the actor (reseedConfigDefaultIfNeeded). Single throat.
         await enginePool.resetSamplingConfig(modelId: modelId)
         let config = await enginePool.getSamplingConfig(modelId: modelId)
         let response = ModelSamplingResponse(config: config)
@@ -1051,7 +1051,7 @@ func buildRouter(
 
     // Rendered per request, never read from a file: the committed openapi.json is the same
     // bytes re-derived by `make openapi`, and a served copy that could go stale would be the
-    // second home this repo keeps deleting. Open by design — everything it discloses (route
+    // second home this repo keeps deleting. Open by design. Everything it discloses (route
     // set, auth scope) is already public on /v1/capabilities.
     routes.get("/openapi.json") { _, _ in
         let text = OpenAPIDocument.render()
@@ -1108,7 +1108,7 @@ struct HealthResponse: Codable {
     let engineSummary: EngineSummary
 }
 
-/// ``GET /v1/perception`` response — machine-readable honesty gauge for the
+/// ``GET /v1/perception`` response. Machine-readable honesty gauge for the
 /// perception subsystem. Before this endpoint, verifying "voted lever ==
 /// runtime behavior" required an LLM round-trip through observe_state; any
 /// script/monitor on this machine now asserts it directly.
@@ -1135,7 +1135,7 @@ struct PerceptionGaugeResponse: Codable {
     let timestamp: Int64
 }
 
-/// ``GET /ready`` response — readiness state of the inference path.
+/// ``GET /ready`` response. Readiness state of the inference path.
 ///
 /// `ready` when no session is generating (work can be accepted);
 /// `busy` when at least one session is mid-generation.
@@ -1146,7 +1146,7 @@ struct ReadyResponse: Codable {
     let loadedModels: Int
 }
 
-/// ``GET /v1/stats`` response — structured inference counters/gauges.
+/// ``GET /v1/stats`` response. Structured inference counters/gauges.
 ///
 /// JSON twin of ``GET /metrics`` (Prometheus text). Field names follow the
 /// llm-server ``GET /v1/stats`` convention; values come from
@@ -1195,7 +1195,7 @@ struct SessionDeleteResponse: Codable {
     let id: Int64
 }
 
-/// `POST /v1/steer` response — echoes the queue truth after accept.
+/// `POST /v1/steer` response. Echoes the queue truth after accept.
 /// Wire: `{"session_id": …, "queued_count": N}` (snake_case on the wire,
 /// consistent with the OpenAI-compatible surface; decoder is snake_case).
 struct SteerResponse: Codable {
@@ -1217,7 +1217,7 @@ struct ModelListResponse: Codable {
 
 /// `state` / `vlm` / `weightsDir` 是 ocoreai 扩展字段,OpenAI 兼容客户端忽略即可。
 ///
-/// 客户端拿这些 id 直接发 chat:MLX 模型已实证 — `loadModel` → ModelScope
+/// 客户端拿这些 id 直接发 chat:MLX 模型已实证, `loadModel` → ModelScope
 /// 本地缓存短路在 `~/.ocoreai/models/<org>/<name>/` 平级根命中,秒级加载。
 struct ModelObject: Codable {
     var id: String
@@ -1229,7 +1229,7 @@ struct ModelObject: Codable {
     /// `vllm/vllm/entrypoints/serve/engine/protocol.py:108`), which makes the same model look
     /// newer on every poll; ours is a fact about the row.
     var created: Int = ModelRowClock.created(weightsDir: nil)
-    /// OpenAI's own key, not this object's camelCase — the one field on this row whose spelling
+    /// OpenAI's own key, not this object's camelCase. The one field on this row whose spelling
     /// is the spec's: both references publish `owned_by` (cites above) and `openai-python`'s
     /// `Model` reads that name, so a camelCase rename leaves a spec field simply absent for
     /// that client. Every other key here stays camelCase (`weightsDir` is pinned by
@@ -1242,15 +1242,15 @@ struct ModelObject: Codable {
     /// OpenAI clients can route correctly (`["embed"]` → call /v1/embeddings,
     /// never /v1/chat/completions). Absent = chat model (default).
     var capabilities: [String]? = nil
-    /// ocoreai extension: this model is the server-wide default — a chat
+    /// ocoreai extension: this model is the server-wide default. A chat
     /// request that omits `model` resolves here. Exactly one entry is
     /// flagged at most; absent everywhere means no resolvable default is
     /// configured. Discoverable so clients don't guess via trial requests.
     /// camelCase like every other key THIS object emits (`weightsDir` is
-    /// pinned camelCase by ModelsWireShapeTests) — PATCH inputs are a
+    /// pinned camelCase by ModelsWireShapeTests). PATCH inputs are a
     /// different object and use snake_case there; shape is per-object.
     var defaultModel: Bool? = nil
-    /// ocoreai extension: served context window in tokens — the honest
+    /// ocoreai extension: served context window in tokens. The honest
     /// ceiling for prompt+completion. Read from the model's own config
     /// (`max_context_length` → `max_position_embeddings` → `n_ctx`), never
     /// a server-side guess; absent config → field omitted (unknown ≠ 0).
@@ -1262,7 +1262,7 @@ struct ModelObject: Codable {
     /// and probe 03 keep the retired key off.
     var maxModelLen: Int? = nil
     /// ocoreai extension: what THIS server has measured with video, in a closed
-    /// vocabulary — `delivered` (a turn carrying video parts completed against this
+    /// vocabulary, `delivered` (a turn carrying video parts completed against this
     /// model in this process) or `not_observed` (nothing has yet, which is NOT a
     /// statement that the model cannot see video). Never inferred from a config key:
     /// video support is per-checkpoint (`Gemma4Processor` reads `input.videos`,
@@ -1273,7 +1273,7 @@ struct ModelObject: Codable {
     /// prompt size, so the claim ships with how it was earned.
     var videoEvidence: String? = nil
     /// ocoreai extension: whether a `tools`-declaring request against this model ever
-    /// came back as structured `tool_calls` here — `parsed`, `prose_only` (the call
+    /// came back as structured `tool_calls` here, `parsed`, `prose_only` (the call
     /// stayed in the answer text), or `not_observed` (no declaring turn yet, which is
     /// NOT a statement that this model cannot call functions). Measured, never inferred
     /// from an architecture name; see `ToolCallDeliveryLedger` and probe 11.
@@ -1282,15 +1282,15 @@ struct ModelObject: Codable {
     /// names that actually came back.
     var toolCallEvidence: String? = nil
     /// ocoreai extension: whether a `reasoning_effort` the caller sends can reach this
-    /// checkpoint at all — `honored` (its own chat template read the kwarg), `template_ignores`
+    /// checkpoint at all, `honored` (its own chat template read the kwarg), `template_ignores`
     /// (measured: the rendered prompt is identical with and without it, so the word is dropped
     /// before generation and a chat request asking for it gets 400), or `not_observed`
-    /// (this process never rendered this checkpoint with the kwarg — NOT a statement that the
+    /// (this process never rendered this checkpoint with the kwarg. NOT a statement that the
     /// model cannot honor it). Measured by rendering at load, never read off a config key;
     /// see `ReasoningEffortLedger` and probe 38.
     var reasoningEffort: String? = nil
     /// ocoreai extension: present ONLY on a row whose `state` is `"loading"`, and then only with
-    /// numbers this process actually measured — how long the load has been running, and the
+    /// numbers this process actually measured. How long the load has been running, and the
     /// bytes if a hub transfer is in flight (`ModelLoadProgress`). Absent on every ready row, and
     /// absent on a loading row the pool holds no clock for, so the surface cannot imply progress
     /// it has not seen. This is the field a caller polls while a 503 `model_loading` tells it to
@@ -1299,7 +1299,7 @@ struct ModelObject: Codable {
     var loadProgress: ModelLoadProgress? = nil
 
     /// Written out rather than synthesized for one key: `owned_by`. Listing every field is the
-    /// hazard, and `ModelsWireShapeTests.modelRowCarriesEveryStoredProperty` closes it — that
+    /// hazard, and `ModelsWireShapeTests.modelRowCarriesEveryStoredProperty` closes it, that
     /// test reflects the struct and fails if a stored property stops reaching the wire.
     enum CodingKeys: String, CodingKey {
         case id, object, created
@@ -1315,7 +1315,7 @@ struct ModelObject: Codable {
 /// reach for a clock of its own: `now` at list time is the reference stacks' choice and it is a
 /// number about the poll, not the model.
 enum ModelRowClock {
-    /// Fixed the first time this process publishes a row, then reused — so a client that caches
+    /// Fixed the first time this process publishes a row, then reused, so a client that caches
     /// `created` is not told the model changed. Rows with no directory on disk (loaded but not
     /// discovered by the disk scan, the embedder before its first cache) have no earlier honest
     /// instant to name: it is when this server came to know them.
@@ -1339,14 +1339,14 @@ enum ModelRowClock {
 
 // MARK: - Count Tokens Request/Response
 
-/// `POST /v1/count-tokens` request — `model` plus ONE of the three
+/// `POST /v1/count-tokens` request, `model` plus ONE of the three
 /// spec-legal ways to say "this prompt":
 ///
 /// | shape | client convention |
 /// |---|---|
 /// | `{model, prompt}` | this server's original shape (plain string) |
-/// | `{model, input}` | OpenAI — string, `[String]`, or `[{role,content}]` |
-/// | `{model, messages, system?}` | Anthropic — message list, system beside it |
+/// | `{model, input}` | OpenAI. String, `[String]`, or `[{role,content}]` |
+/// | `{model, messages, system?}` | Anthropic. Message list, system beside it |
 ///
 /// Precedence when a body carries more than one: `messages` → `input` → `prompt`
 /// (the most specific description of the prompt wins).
@@ -1359,7 +1359,7 @@ struct CountTokensRequest: Decodable {
     let model: String
 
     /// The prompt as a message list, normalized from whichever field arrived.
-    /// A bare string becomes one user turn — the pre-existing contract, so
+    /// A bare string becomes one user turn. The pre-existing contract, so
     /// clients already calling this endpoint see identical counts.
     let messages: [Message]
 
@@ -1409,7 +1409,7 @@ struct CountTokensRequest: Decodable {
 ///
 /// Order matters: `[{role,content}]` fails to decode as `[String]`, and
 /// `["a","b"]` fails as `[Message]` (`role` is required), so the two array
-/// forms cannot be confused — and anything else throws with the shapes named.
+/// forms cannot be confused, and anything else throws with the shapes named.
 enum CountTokensInput: Decodable {
     case text(String)
     case texts([String])
@@ -1443,7 +1443,7 @@ struct CountTokensResponse: Codable {
     /// template included), `heuristic` = the CJK-aware byte estimate used by
     /// `usage.prompt_tokens` when no tokenizer is registered for this model.
     /// Same vocabulary as `GET /v1/capabilities` → `tokenizerBackend`, so a
-    /// client can tell an estimate from a token-exact count without guessing —
+    /// client can tell an estimate from a token-exact count without guessing,
     /// the rule this repo learned when a stubbed tokenizer reported real counts
     /// (AGENTS.md → "A stub that replaces a real component must be detectable").
     let tokenizerBackend: String
@@ -1478,7 +1478,7 @@ func countTokensHandler(
 /// Count a prompt against a model, and say honestly where the number came from.
 ///
 /// `EnginePool.tokenize` throws `modelNotFound` when the model has no tokenizer
-/// registered — a *tokenizer* miss wearing a *model* error, which is exactly
+/// registered. A *tokenizer* miss wearing a *model* error, which is exactly
 /// what made `/v1/count-tokens` deny models that `GET /v1/models` listed as
 /// ready (10-12). Counting is a budget utility, so an estimate answers here
 /// instead of a 404, and `backend` labels it.
@@ -1508,7 +1508,7 @@ func countPromptTokens(
 /// (string | [string] | [int] | [[int]]) upstream; accepted forms here:
 /// string + string array. Token-array inputs are rejected with a clear 400
 /// rather than silently re-tokenized (pre-token ids from a foreign tokenizer
-/// would produce garbage vectors against the LFM embedding tokenizer —
+/// would produce garbage vectors against the LFM embedding tokenizer,
 /// honest reject beats garbage output).
 struct EmbeddingsRequest: Codable {
     let model: String?
@@ -1530,7 +1530,7 @@ struct EmbeddingsRequest: Codable {
 }
 
 /// Which wire shape the `data[].embedding` field carries: a float array, or base64 of the
-/// contiguous little-endian float32 bytes (the OpenAI spec's second shape —
+/// contiguous little-endian float32 bytes (the OpenAI spec's second shape,
 /// `Embedding.embedding` is `anyOf: [array<float>, string(base64)]` in `openai/openai-openapi`).
 enum EmbeddingsEncoding: Equatable, Sendable {
     case float
@@ -1540,10 +1540,10 @@ enum EmbeddingsEncoding: Equatable, Sendable {
 /// Pure so both refusals are decidable without the embedder's weights. Absent or `"float"` keeps
 /// today's float array; `"base64"` gets the spec's base64 string; any other word is a named 400.
 /// A `dimensions` this embedder cannot answer is refused the same way rather than silently
-/// reinterpreted — the shape every comparator that implements these fields ships (ollama
+/// reinterpreted. The shape every comparator that implements these fields ships (ollama
 /// refuses an unknown format in `middleware/openai.go:409-410`, sglang in
 /// `serving_embedding.py:46-49`), Rapid-MLX truncates then re-normalizes
-/// (`routes/embeddings.py:303-321`) — we refuse instead, since nothing measured here says this
+/// (`routes/embeddings.py:303-321`). We refuse instead, since nothing measured here says this
 /// embedder's cosine tolerates truncation).
 func embeddingsWireEncoding(
     encodingFormat: String?,
@@ -1610,7 +1610,7 @@ enum EmbeddingsInput: Codable {
 /// One `data[]` element. The base64 shape rides the SAME `embedding` key as a string, not a
 /// `b64_json` field: that is what the fetched spec says (`Embedding.embedding` =
 /// `anyOf: [array<float>, string(base64)]`, `openai/openai-openapi openapi.yaml` ~:51627), and
-/// every comparator that implements `encoding_format` puts the string there — ollama
+/// every comparator that implements `encoding_format` puts the string there. Ollama
 /// `openai/openai.go:533-549`, vllm `pooling/embed/protocol.py:206-209` (its own example decodes
 /// `data["embedding"]`, `embedding_requests_base64_online.py:56`), sglang `EmbeddingObject`,
 /// Rapid-MLX `EmbeddingData`. (`b64_json` exists in the spec, but only on images.)
@@ -1636,7 +1636,7 @@ struct EmbeddingDatum: Codable, Equatable {
         payload = .base64(base64)
     }
 
-    /// base64 of the contiguous LITTLE-ENDIAN float32 bytes — the spec's base64 shape. Packed from
+    /// base64 of the contiguous LITTLE-ENDIAN float32 bytes. The spec's base64 shape. Packed from
     /// each value's `bitPattern` rather than re-emitting the resident blob, so the wire never
     /// inherits the host's byte order (sglang's explicit `<Nf` pack, `serving_embedding.py:275-279`).
     /// `bitPattern.littleEndian` over `Float.littleEndian`: the byte-swap property on a floating
@@ -1698,7 +1698,7 @@ struct EmbeddingsResponse: Codable {
 
 /// Embed via the shared EmbeddingService actor (one breaker / one endpoint).
 /// The response `model` field reports the ACTUAL embedder that ran
-/// (LFM2.5-Embedding-350M-4bit), not an echo of the request — truthful wire
+/// (LFM2.5-Embedding-350M-4bit), not an echo of the request. Truthful wire
 /// (a client choosing "text-embedding-ada-002" must not be told it got it).
 func embeddingsHandler(
     request: EmbeddingsRequest,
@@ -1723,7 +1723,7 @@ func embeddingsHandler(
         (datas, tokenCounts) = try await semanticSearch.embedTextsDetailed(texts)
     } catch {
         // Breaker open / load failure: surface as 503 with the underlying
-        // reason logged — the client can distinguish retry-later from never.
+        // reason logged. The client can distinguish retry-later from never.
         EmbeddingService.logger.warning(
             "embeddings wire request failed offline-degraded: \(error.localizedDescription)")
         throw AppError.engineUnavailable

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// EngineManager.swift — Umbrella module for the engine subsystem
+/// EngineManager.swift. Umbrella module for the engine subsystem
 ///
 /// After the p2-enginemgr refactor this file is intentionally minimal. The real
 /// implementation lives in these files:

@@ -1,9 +1,9 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// LocalSTT.swift — L3 of the adaptive audio ladder (macOS 26+ / iOS 26+).
+/// LocalSTT.swift. L3 of the adaptive audio ladder (macOS 26+ / iOS 26+).
 ///
 /// Fully LOCAL, offline speech-to-text built on the Speech framework's
-/// `SpeechAnalyzer` + `SpeechTranscriber` — the successor to SFSpeechRecognizer
+/// `SpeechAnalyzer` + `SpeechTranscriber`. The successor to SFSpeechRecognizer
 /// for file input. Capability floors (27.0 SDK, verbatim):
 ///
 ///   SpeechAnalyzer              @available(anyAppleOS 26)   [Speech.swiftinterface L339]
@@ -22,7 +22,7 @@
 ///
 /// Hardware VAD: the 26-gen `SpeechDetector` (hardware speech-activity
 /// detection, anyAppleOS 26) runs inside the SAME `SpeechAnalyzer` as the
-/// transcriber — no separate engine. `transcribe` now also reports
+/// transcriber, no separate engine. `transcribe` now also reports
 /// `detected: Bool` (true iff the OS speech detector fired), so callers can
 /// answer "was there speech in this file" with OS truth instead of guessing
 /// from empty text. The legacy hand-rolled RMS-VAD path (AudioIO.live-mic)
@@ -30,7 +30,7 @@
 /// hardware detector for free.
 ///
 /// The LIVE-microphone variant (`CaptureInputSequenceProvider`) is `anyAppleOS 27`
-/// and requires a `AVCaptureSession` mic pipeline — that ships in the next
+/// and requires a `AVCaptureSession` mic pipeline, that ships in the next
 /// batch (27-only). This file covers the FILE path, which is what
 /// press-to-talk (record → transcribe) already produces.
 ///
@@ -53,7 +53,7 @@ public enum LocalSTT {
     ///   - locale: preferred result locale; falls back to a supported one.
     ///   - onResult: optional per-result callback (streaming partials if
     ///     the transcriber reports them; at minimum the final chunk lands here).
-    /// - Returns: the transcribed text plus `detected` — OS truth from the
+    /// - Returns: the transcribed text plus `detected`. OS truth from the
     ///   26-gen `SpeechDetector` (was there speech in the file at all). Empty
     ///   text + `detected == false` = honest "no speech"; empty text +
     ///   `detected == true` = speech was there but no words were produced.
@@ -63,7 +63,7 @@ public enum LocalSTT {
         locale: Locale,
         onResult: (@Sendable (String, Bool) -> Void)? = nil,
     ) async throws -> SttResult {
-        // Step 1 (Apple docs): resolve a SUPPORTED locale — the transcriber
+        // Step 1 (Apple docs): resolve a SUPPORTED locale. The transcriber
         // may map our locale to a nearby supported one.
         guard
             let supported =
@@ -71,12 +71,12 @@ public enum LocalSTT {
                 .supportedLocale(equivalentTo: locale),
             let transcriber = localeFor(supported, current: locale)
         else {
-            // No local model for this language — fall through to a best-effort.
+            // No local model for this language. Fall through to a best-effort.
             return try await transcribeFallback(file: file, onResult: onResult)
         }
         let t = SpeechTranscriber(locale: transcriber, preset: .transcription)
         // Hardware VAD (26 代): speech-activity detection inside the SAME
-        // analyzer as the transcriber — OS truth, no separate engine.
+        // analyzer as the transcriber. OS truth, no separate engine.
         let detector = SpeechDetector(
             detectionOptions: .init(sensitivityLevel: .medium),
             reportResults: true
@@ -92,7 +92,7 @@ public enum LocalSTT {
         }
 
         // Step 3-4: analyzer over the audio file (file-path convenience init, 26+).
-        // finishAfterFile: true — Apple docs require it for file input: otherwise
+        // finishAfterFile: true. Apple docs require it for file input: otherwise
         // the analyzer "won't terminate its result streams and will wait for
         // additional audio input sequences", so the `for try await` drains below
         // would hang. (Default is false; see Speech.swiftinterface L340.)
@@ -121,7 +121,7 @@ public enum LocalSTT {
                 }
             }
         } catch {
-            // Drain error — analysis may still be settling; fall through.
+            // Drain error. Analysis may still be settling; fall through.
         }
         do {
             for try await d in detector.results {
@@ -130,7 +130,7 @@ public enum LocalSTT {
                 }
             }
         } catch {
-            // Detector drain is best-effort — text is the authoritative output.
+            // Detector drain is best-effort. Text is the authoritative output.
         }
         _ = try await run
 
@@ -157,7 +157,7 @@ public enum LocalSTT {
     }
 
     /// Whether the local (non-cloud) transcriber has a usable model for the
-    /// current locale — cheap capability probe for UI display.
+    /// current locale. Cheap capability probe for UI display.
     public static func isAvailable(for locale: Locale) async -> Bool {
         let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale)
         return supported != nil
@@ -213,7 +213,7 @@ public enum LocalSTT {
         } catch {
             // Drain error is best-effort: `t.results` is a partial-collection
             // side-channel. The authoritative completion is `analyzeSequence`
-            // (awaited below), which still throws on real failure — so a drain
+            // (awaited below), which still throws on real failure, so a drain
             // hiccup here must not cancel a successful analysis.
         }
         do {

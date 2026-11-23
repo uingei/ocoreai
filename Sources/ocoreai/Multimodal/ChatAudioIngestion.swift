@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ChatAudioIngestion.swift — what `/v1/chat/completions` does with audio it cannot deliver.
+/// ChatAudioIngestion.swift. What `/v1/chat/completions` does with audio it cannot deliver.
 ///
 /// ### The measurement this rests on
 /// At the pinned mlx-swift-lm revision (`4cc550451`, what `.build-clt` resolves), `audios`
-/// appears in exactly three files under `Libraries/` — `Chat.swift`, `UserInput.swift`,
-/// `ChatSession.swift` — all of it plumbing that carries the array, and `audio` appears
+/// appears in exactly three files under `Libraries/`, `Chat.swift`, `UserInput.swift`,
+/// `ChatSession.swift`. All of it plumbing that carries the array, and `audio` appears
 /// **zero** times under `Libraries/MLXVLMCommon`: no model `UserInputProcessor` consumes
 /// it. Waveform therefore cannot reach any model through the engine today. Live consequence
 /// (measured 10-15, `scripts/probes/06-chat-audio.sh`): a 1.5 s utterance posted as an
@@ -14,11 +14,11 @@
 ///
 /// That is AGENTS.md invariant 2 wearing a speaker: the surface accepted the request,
 /// answered 200, and dropped the only payload the client cared about. At that moment three
-/// routes are open — deliver the speech, refuse it, or say nothing — and the third is the
+/// routes are open. Deliver the speech, refuse it, or say nothing, and the third is the
 /// bug. This file makes the third unreachable:
 ///
 ///   * every `audio_url` part is transcribed through the OS seam (`Hearing`, the same gate
-///     `/v1/audio/transcriptions` uses — silently, never prompting, never running a pass
+///     `/v1/audio/transcriptions` uses. Silently, never prompting, never running a pass
 ///     that could SIGTRAP the server), and what it heard replaces the part in the turn that
 ///     spoke it, tagged with the locale that resolved;
 ///   * if nothing can hear it, the request is refused with a typed `error_code` naming the
@@ -31,7 +31,7 @@
 /// "The model answered what you said" and "the model answered what OS ASR heard" are two
 /// different claims. ``ChatCompletion.audioInput`` says which one happened, in the response
 /// body, whenever the request carried audio. Streaming cannot carry it without inventing an
-/// SSE field clients do not expect, so the streamed route logs the same fact instead — and
+/// SSE field clients do not expect, so the streamed route logs the same fact instead, and
 /// the refusal, which is the part that protects a client from a blind answer, behaves
 /// identically in both modes because it happens before any token is produced.
 ///
@@ -53,7 +53,7 @@ struct HeardAudio: Equatable, Sendable {
     let text: String?
     /// The locale the analyzer resolved, when it got far enough to resolve one.
     let locale: String?
-    /// The pass ran and found no speech — a measurement, not a refusal.
+    /// The pass ran and found no speech. A measurement, not a refusal.
     let silent: Bool
     /// Engine that produced the text (``HearingReadiness/engineName`` today).
     let engine: String
@@ -94,19 +94,19 @@ struct ChatAudioIngested: Sendable {
 enum ChatAudio {
     /// Can the engine carry waveform bytes into a model?
     ///
-    /// Measured NO at the pinned revision — see the file header for the two greps and the
+    /// Measured NO at the pinned revision. See the file header for the two greps and the
     /// live 200-with-no-audio run. `ChatAudioIngestionTests` pins this to `false` so that
     /// the day upstream grows an audio `UserInputProcessor`, flipping it is a deliberate,
     /// tested act rather than a silent change of behaviour.
     static var modelConsumesAudio: Bool { false }
 
-    /// Cap on audio parts heard per request. Not a spec limit — a bound on how much wall
+    /// Cap on audio parts heard per request. Not a spec limit. A bound on how much wall
     /// time one chat turn can spend in ASR; past it the request is refused loudly rather
     /// than quietly listening to some parts and dropping the rest.
     static let maxPartsPerRequest = 8
 
     /// Every `audio_url` in the conversation, in wire order, with the message it belongs to.
-    /// Pure — the extraction the splice and the refusal both key off.
+    /// Pure. The extraction the splice and the refusal both key off.
     static func audioParts(in messages: [Message]) -> [(messageIndex: Int, url: String)] {
         var found: [(messageIndex: Int, url: String)] = []
         for (index, message) in messages.enumerated() {
@@ -128,7 +128,7 @@ enum ChatAudio {
     /// turn, and therefore stops being routed as a media request it cannot satisfy.
     ///
     /// Each transcript takes the slot the audio occupied, so a turn that interleaved
-    /// "translate this:" / ⟨audio⟩ / "into French" keeps that order — the client wrote the
+    /// "translate this:" / ⟨audio⟩ / "into French" keeps that order. The client wrote the
     /// instruction around the payload, and the payload's words belong in the same place.
     static func spliced(
         _ messages: [Message], heard: [(messageIndex: Int, audio: HeardAudio)]
@@ -164,7 +164,7 @@ enum ChatAudio {
     }
 
     /// The text that stands in for one heard part: tagged with the locale that resolved, and
-    /// explicit when the pass ran and found nothing — the marker is what lets a reader of the
+    /// explicit when the pass ran and found nothing. The marker is what lets a reader of the
     /// transcript tell "the machine heard these words" from "the machine heard nothing".
     private static func heardMarker(_ audio: HeardAudio) -> String {
         let locale = audio.locale.map { " · \($0)" } ?? ""
@@ -249,7 +249,7 @@ enum ChatAudio {
     ) async -> Result<HeardAudio, TranscriptFailure> {
         let stagedURL: URL? = {
             // Inline first: a chat part is normally a data URL (or bare base64), and
-            // `resolveURL` does not decode either — it only accepts `file://`.
+            // `resolveURL` does not decode either. It only accepts `file://`.
             if url.hasPrefix("data:") || !url.contains("://") {
                 guard let decoded = AudioTranscription.decodeBase64(url), !decoded.isEmpty else {
                     return nil

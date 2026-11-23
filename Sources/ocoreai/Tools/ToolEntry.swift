@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ToolRegistryActor — central tool registration and dispatch.
+/// ToolRegistryActor. Central tool registration and dispatch.
 ///
 /// Thread safety: Actor isolation, all access via mailbox.
 /// Lookup complexity: O(1) dictionary per toolset, +1 actor hop ≈ 3μs.
@@ -12,7 +12,7 @@ struct ToolEntry {
     let name: String
     let toolset: String
     let schema: ToolSchema
-    /// Human-readable description of what the tool does — surfaced to the model
+    /// Human-readable description of what the tool does. Surfaced to the model
     /// via `toToolSpecs()` / `toToolDef()`. Empty = not provided → callers fall
     /// back to a clean synthesized line (never the raw source text).
     let description: String
@@ -20,11 +20,11 @@ struct ToolEntry {
     let checkFn: @Sendable () async -> Bool
     let isDestructive: Bool
     let maxDepth: Int
-    /// MCP endpoint source name — used for lifecycle cleanup when endpoint disconnects.
+    /// MCP endpoint source name. Used for lifecycle cleanup when endpoint disconnects.
     /// nil for built-in tools, non-nil for tools discovered from an external MCP server.
     let mcpSource: String?
 
-    /// Default TTL for checkFn cache — 30 seconds
+    /// Default TTL for checkFn cache, 30 seconds
     static let checkTTL: TimeInterval = 30.0
 
     init(
@@ -133,7 +133,7 @@ final class ToolParameter: Codable, Equatable, @unchecked Sendable {
     static let number = ToolParameter(type: .number)
     /// 对象必填键（仅 `.object` 有效；元素级必填，如 plan step 的 `step`）。
     let required: [String]?
-    /// 对象子键 schema（仅 `.object` 有效；对齐 JSON Schema `properties`）——
+    /// 对象子键 schema（仅 `.object` 有效；对齐 JSON Schema `properties`）。
     /// 对象面如 update_plan.plan items 的 step/status 在 wire/FM 层不退化空 object。
     let properties: [String: ToolParameter]?
 
@@ -148,7 +148,7 @@ final class ToolParameter: Codable, Equatable, @unchecked Sendable {
         self.properties = properties
     }
 
-    /// Static shorthands for dictionary literals — e.g. `["key": .string]`。
+    /// Static shorthands for dictionary literals. E.g. `["key": .string]`。
     /// 不可变全局 `let` + 类属性全 `let` → 无数据竞争面。
     static let string = ToolParameter(type: .string)
     static let integer = ToolParameter(type: .integer)
@@ -181,10 +181,10 @@ enum ParameterType: String, Codable, CaseIterable {
 // MARK: - ToolDef bridge
 
 extension ToolEntry {
-    /// Convert to OpenAI-format ToolDef — used by Fast Path callers.
+    /// Convert to OpenAI-format ToolDef. Used by Fast Path callers.
     func toToolDef() -> ToolDef {
         // 优先工具自带 description;缺失才回退合成行(name/toolset/参数摘要)
-        // — 否则 22 个有真实描述的内置工具也发不出。
+        //。否则 22 个有真实描述的内置工具也发不出。
         let synth = "Tool: \(name) [\(toolset)]. Parameters: \(parametersDescription)"
         let function = FunctionDef(
             name: name,
@@ -201,7 +201,7 @@ extension ToolEntry {
     private func buildParametersJSON() -> [String: AnyCodable]? {
         guard !schema.parameters.isEmpty else { return nil }
         // Build properties as [String: AnyCodable] where each value is a JSON Schema object
-        // containing both "type" and "description" — aligns with upstream ToolParameter.schema.
+        // containing both "type" and "description". Aligns with upstream ToolParameter.schema.
         // `.array` 元素带 `items`；`.object` 元素带 `required`（JSON Schema 标准形状）。
         func propSchema(_ param: ToolParameter) -> [String: Any] {
             var s: [String: Any] = ["type": param.type.rawValue]
@@ -247,8 +247,8 @@ enum ToolError: Error, LocalizedError {
     case loopDetected(String)
     case executionFailed(Error)
     /// The gate refused the call. Five sites throw this and exactly one of them is a
-    /// `PreToolUse` hook (codex `HookEventName.preToolUse`) — a `.never` policy, a headless
-    /// channel, the person's own denial and a missing broker throw the same case — so the
+    /// `PreToolUse` hook (codex `HookEventName.preToolUse`). A `.never` policy, a headless
+    /// channel, the person's own denial and a missing broker throw the same case, so the
     /// wrapper names the verdict and never the mechanism. `reason` is the cause its thrower
     /// owns and travels verbatim; surfaced to the caller as an HTTP 403-equivalent, and to
     /// the model as the `[tool_error: …]` line.
@@ -259,7 +259,7 @@ enum ToolError: Error, LocalizedError {
     /// rather than looking like a same-input cycle.
     case breakerEngaged(String)
     /// The same call has been refused so often that refusing it again is no longer
-    /// information: the caller is stuck, not misinformed. Terminal — the lane that owns
+    /// information: the caller is stuck, not misinformed. Terminal. The lane that owns
     /// its loop stops on it, and its wording forbids another attempt instead of
     /// inviting one. `loopDetected` says "vary the arguments"; after three refusals that
     /// instruction is what keeps the cycle alive (measured 86 refusals in one task).

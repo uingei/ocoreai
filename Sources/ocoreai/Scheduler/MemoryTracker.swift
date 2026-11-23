@@ -1,8 +1,8 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MemoryTracker — GPU memory budget monitoring with OOM alerts.
+/// MemoryTracker. GPU memory budget monitoring with OOM alerts.
 ///
-/// On Apple Silicon UMA, GPU/CPU share physical RAM — there is no separate
+/// On Apple Silicon UMA, GPU/CPU share physical RAM. There is no separate
 /// "GPU memory" to query. Uses `host_page_size` + `host_info` / `vm_statistics`
 /// for system-level memory pressure monitoring (authoritative on UMA).
 ///
@@ -19,9 +19,9 @@ public enum MemoryLevel: String, Sendable, Codable {
     case normal
     /// < 20% used
     case warning
-    /// 20-50% used — consider downgrading
+    /// 20-50% used. Consider downgrading
     case critical
-    /// 50-80% used — force downgrade
+    /// 50-80% used. Force downgrade
     case oom/// > 80% used — start refusing new requests
 }
 
@@ -30,17 +30,17 @@ public enum MemoryLevel: String, Sendable, Codable {
 /// Uses Darwin host API for authoritative memory pressure on Apple Silicon UMA.
 /// Falls back to allocation accounting when Darwin API is unavailable.
 /// GPU telemetry: ``gpuActiveBytes`` tracks MLX GPU active memory independently
-/// of our own allocation accounting — on UMA, CPU/GPU share RAM so both matter.
+/// of our own allocation accounting. On UMA, CPU/GPU share RAM so both matter.
 ///
-/// Reference: vm_statistics.6 — host_statistics64(HOST_VM_INFO64)
+/// Reference: vm_statistics.6. Host_statistics64(HOST_VM_INFO64)
 actor MemoryTracker {
     private let budgetBytes: UInt64
 
     /// Ocoreai's own KV cache reservations (allocation / deallocation accounting).
-    /// Independent of system-wide memory — this tracks what **we** have allocated.
+    /// Independent of system-wide memory. This tracks what **we** have allocated.
     private var reservedBytes: UInt64 = 0
 
-    /// GPU active memory from MLX Memory.activeMemory — not included in reservedBytes.
+    /// GPU active memory from MLX Memory.activeMemory, not included in reservedBytes.
     /// Updated via reportGPUActiveBytes(). On UMA this is real pressure on system RAM.
     private var gpuActiveBytes: UInt64 = 0
 
@@ -69,7 +69,7 @@ actor MemoryTracker {
     /// Read current memory usage from system statistics via ProcessInfo.
     ///
     /// `ProcessInfo.globalMemoryPressure` gives the system-level memory
-    /// pressure state — this is the most direct way to know if the system
+    /// pressure state. This is the most direct way to know if the system
     /// is under memory pressure without raw kernel calls.
     ///
     /// For byte-level detail we also use `ProcessInfo.activeProcessorCount`
@@ -124,7 +124,7 @@ actor MemoryTracker {
     /// Snapshot current system memory usage (does NOT touch reservedBytes).
     ///
     /// Tries the injected override (tests) or Darwin kernel poll first.
-    /// Returns system-wide used memory — advisory for the level chain and
+    /// Returns system-wide used memory. Advisory for the level chain and
     /// logging. Falls back to `reservedBytes` when both are unavailable.
     func currentUsage() -> UInt64 {
         if let systemUsage = systemUsageOverride?() ?? pollSystemMemory() {
@@ -258,7 +258,7 @@ actor MemoryTracker {
     }
 
     /// Check system-wide memory usage for advisory logging only.
-    /// Does NOT modify currentLevel or levelHistory — that belongs exclusively
+    /// Does NOT modify currentLevel or levelHistory, that belongs exclusively
     /// to checkAllocationLevel, which tracks what we actually allocated.
     /// Mixing system-level readings (denominator: physical RAM) with
     /// allocation-level readings (denominator: our budget) would produce
@@ -267,7 +267,7 @@ actor MemoryTracker {
     /// FIX: Previously this appended to levelHistory using systemUsage / budgetBytes,
     /// which is always >>1.0 → permanently stuck at .oom. Now purely advisory.
     private func checkSystemLevel(using systemUsage: UInt64) {
-        // Advisory logging — system memory stats may be useful for debugging
+        // Advisory logging. System memory stats may be useful for debugging
         // but should not drive the degradation chain (that's what allocation
         // tracking is for).
         let usageGB = Double(systemUsage) / 1_073_741_824

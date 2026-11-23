@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// WebFetchTool — 读取一个已知 URL 的渲染后内容,一等工具。
+/// WebFetchTool。读取一个已知 URL 的渲染后内容,一等工具。
 ///
 /// 与 `web_search` 的分工(两条正交轴,不混):
-///   web_search — 不知道去哪个站点,拿到"答案文本"(后端=本地 ollama /v1/responses,不渲染)
-///   web_fetch  — 已知具体 URL,拿到"页面渲染内容"(后端=WebKit WKWebView)。
+///   web_search。不知道去哪个站点,拿到"答案文本"(后端=本地 ollama /v1/responses,不渲染)
+///   web_fetch。已知具体 URL,拿到"页面渲染内容"(后端=WebKit WKWebView)。
 ///                JS 渲染站(如 developer.apple.com)纯 HTTP 拿不到真实 DOM,WebKit 能
 ///                (本机实证:CLI 进程 WKWebView 抓取该站,9277 字符标题/正文完整)。
 /// 与 CDP 轴的分工:
@@ -12,12 +12,12 @@
 ///   WebKit 不支持 CDP,不进那条轴;web_fetch 只"读一个页面",不驱动、不批量,轻量本地读取。
 ///
 /// 可测 seam(均可离线):
-///   1. `WebFetchRequest.build`  — URL 规范化/拒绝(纯函数)
-///   2. `WebFetchParser`         — 结果归一化/报告(纯函数)
-///   3. `WebKitFetcher.fetch`    — WebKit 抓取(主线程 RunLoop pump,可用 data: URL 离线验证)
+///   1. `WebFetchRequest.build`. URL 规范化/拒绝(纯函数)
+///   2. `WebFetchParser`。结果归一化/报告(纯函数)
+///   3. `WebKitFetcher.fetch`. WebKit 抓取(主线程 RunLoop pump,可用 data: URL 离线验证)
 ///
 /// 后端配置(env,运行期可注入便于测试):
-///   OCRE_FETCH_TIMEOUT — 默认 30 (秒,clamp 1...120)
+///   OCRE_FETCH_TIMEOUT。默认 30 (秒,clamp 1...120)
 ///
 /// 失败诚实:加载失败/超时/空页 → 返回 `error: ...` 文本(不造假、不吞),
 /// 让模型自行降级(如改用 `exec_command curl` 或如实告知用户)。
@@ -136,7 +136,7 @@ enum WebFetchParser {
 
 // MARK: - WebKit 抓取(主线程,可注入)
 
-/// WebKit 抓取后端接口 — 便于测试替换(离线 fake)。
+/// WebKit 抓取后端接口。便于测试替换(离线 fake)。
 protocol WebFetchBackend: Sendable {
     func fetch(_ req: WebFetchRequest.Built) async -> WebFetchResult
 }
@@ -288,7 +288,7 @@ enum WebFetchClient {
 // MARK: - Tool 注册
 
 extension WebFetchClient {
-    /// `web_fetch` ToolEntry — 已知 URL 的网页内容读取。
+    /// `web_fetch` ToolEntry。已知 URL 的网页内容读取。
     static func toolEntry() -> ToolEntry {
         struct WebFetchArgs: Codable {
             let url: String

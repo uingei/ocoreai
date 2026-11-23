@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// EngineHandle.swift — Non-blocking facade returned by EnginePool/acquire
+/// EngineHandle.swift. Non-blocking facade returned by EnginePool/acquire
 ///
 /// Extracted from EngineManager.swift. Every handler creates one per
 /// request and ``defer``-releases it. All operations delegate to the
-/// pool actor via mailbox isolation — the handle never blocks.
+/// pool actor via mailbox isolation. The handle never blocks.
 
 import Foundation
 
@@ -39,7 +39,7 @@ struct EngineHandle {
         await pool.releaseSession(modelId: modelId, sessionId: sessionId)
     }
 
-    /// Mark this session as active — resets the idle eviction timer.
+    /// Mark this session as active. Resets the idle eviction timer.
     /// Called at the start of inference.
     func markActive() async {
         await pool.markSessionActive(sessionId: sessionId)
@@ -74,13 +74,13 @@ struct EngineHandle {
 
     // MARK: - Inference (delegates to pool)
 
-    /// Start generation — returns async stream of ``InferenceEvent`` values.
+    /// Start generation. Returns async stream of ``InferenceEvent`` values.
     ///
     /// - Parameters:
     ///   - input: Tokenized input array
     ///   - sampling: Sampling configuration
     ///   - options: Inference options
-    ///   - cancellation: Cancellation token (default ``none`` — never autocancels)
+    ///   - cancellation: Cancellation token (default ``none``. Never autocancels)
     /// - Returns: Async throwing stream of events
     func generateTokens(
         input: [Int32],
@@ -118,7 +118,7 @@ struct EngineHandle {
         }
     }
 
-    /// Start generation from messages directly — eliminates tokenize→detokenize→re-tokenize loop on MLX path.
+    /// Start generation from messages directly. Eliminates tokenize→detokenize→re-tokenize loop on MLX path.
     ///
     /// On MLX backend: passes messages directly to ``ChatSession`` (MLX tokenizes internally).
     /// On CoreAI backend: falls through to ``generateTokens(input:sampling:options:)`` after tokenizing.
@@ -128,7 +128,7 @@ struct EngineHandle {
     ///   - sampling: Sampling configuration
     ///   - options: Inference options
     ///   - conversationId: Optional conversation ID for session pooling / KV cache reuse
-    ///   - cancellation: Cancellation token (default ``none`` — never autocancels)
+    ///   - cancellation: Cancellation token (default ``none``. Never autocancels)
     /// - Returns: Async throwing stream of events
     /// - Parameter turnToken: The caller's turn key, threaded to the dispatch chokepoint so
     ///   the claim/audit record this turn produces is attributable to it

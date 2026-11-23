@@ -2,31 +2,31 @@
 // Licensed under MIT.
 import Foundation
 
-/// `ocoreai connect` — hand an installed coding harness this server's wire.
+/// `ocoreai connect`. Hand an installed coding harness this server's wire.
 ///
 /// The field's shape (`docs/agent/comparator-consensus.md` § The harness side): nine of twelve
 /// serving trees ship detection plus a config writer. Launching instead of writing is the higher
 /// rung under "respect the person": the child process is the only thing the contract touches, and
-/// its exit undoes it — no user file is merged, so the two ways a naive merge eats the user's own
+/// its exit undoes it, no user file is merged, so the two ways a naive merge eats the user's own
 /// entries (the failure `Rapid-MLX` documents before writing its code) cannot occur here.
 ///
 /// The contract itself is the one probe 53 measured green end-to-end: `ANTHROPIC_BASE_URL` set to
 /// our base, a key synthesized only when the caller carries none. The server counts as ours only
-/// after `/v1/models` answers in our shape — a listener nobody probed is not "ours".
+/// after `/v1/models` answers in our shape. A listener nobody probed is not "ours".
 enum HarnessConnect {
     /// Exact subcommand token, parallel to `HeadlessMode.serveCommand`.
     static let connectCommand = "connect"
     static let dryRunFlag = "--dry-run"
 
     /// Our token → the binary to find on PATH. Only listed names are promised; anything else is
-    /// refused named — argv owes the same honesty rule as `/v1/*`.
+    /// refused named. Argv owes the same honesty rule as `/v1/*`.
     static let harnesses: [String: String] = ["claude-code": "claude"]
 
     /// Placeholder bearer for a caller with no key: the bridge itself is unauthenticated by
     /// default, and some harnesses refuse to build a request without any key at all.
     static let synthesizedAPIKey = "ocoreai-local"
 
-    /// EX_UNAVAILABLE — the subject of the command is absent (no binary, no bridge). 64 is
+    /// EX_UNAVAILABLE. The subject of the command is absent (no binary, no bridge). 64 is
     /// reserved for the classifier refusing tokens before anything runs.
     static let unavailableExit: Int32 = 69
 
@@ -70,7 +70,7 @@ enum HarnessConnect {
         return .run(harness: name, binaryName: binaryName, dryRun: dryRun, harnessArgs: harnessArgs)
     }
 
-    /// Absolute path of the first executable of this name on a PATH string, in PATH order — a
+    /// Absolute path of the first executable of this name on a PATH string, in PATH order. A
     /// different search order would report a binary the user's own `which` denies.
     static func pathOfExecutable(named name: String, inPath path: String) -> String? {
         for dir in path.split(separator: ":", omittingEmptySubsequences: true) {
@@ -86,7 +86,7 @@ enum HarnessConnect {
         case notOurs(baseURL: String, httpStatus: Int)
     }
 
-    /// The bridge's own address rules — the same two variables `serve` binds with.
+    /// The bridge's own address rules. The same two variables `serve` binds with.
     static func baseURL(from env: [String: String]) -> String {
         let host = env["OCOREAI_HOST"].flatMap { $0.isEmpty ? nil : $0 } ?? "127.0.0.1"
         let port = env["OCOREAI_PORT"].flatMap { Int($0) } ?? 8080
@@ -160,7 +160,7 @@ enum HarnessConnect {
     }
 
     /// The child's environment: inherited minus the server's own secrets, plus the measured
-    /// contract. A caller-supplied key is kept — severing a real credential is probe 53's job (it
+    /// contract. A caller-supplied key is kept. Severing a real credential is probe 53's job (it
     /// must prove one possible source), not connect's, where the base URL alone already routes
     /// every request here. The server's keys are not the caller's contract: the connect launcher
     /// scrubs them like every other spawn site.
@@ -216,7 +216,7 @@ enum HarnessConnect {
             try process.run()
         } catch {
             // The cause is the OS's refusal, not a symptom: permission, arch, or the binary
-            // vanished between detect and exec — all three need different remedies.
+            // vanished between detect and exec. All three need different remedies.
             FileHandle.standardError.write(
                 Data(
                     "ocoreai connect: exec of \(found) failed: \(error.localizedDescription)\n".utf8

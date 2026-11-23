@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// GlobalCrashHandler — Uncaught exception + POSIX signal handler + crash log persistence
+/// GlobalCrashHandler. Uncaught exception + POSIX signal handler + crash log persistence
 ///
 /// Purpose: when the inference engine or any subsystem crashes, we write
 /// a structured log to `~/Library/Application Support/ocoreai/logs/` before exit.
@@ -164,7 +164,7 @@ private final class CrashHandler: @unchecked Sendable {
             try content.write(to: fileURL, atomically: true, encoding: .utf8)
             fputs("\(content)\n", stderr)
         } catch {
-            // silent — we're already crashing
+            // silent. We're already crashing
         }
     }
 }

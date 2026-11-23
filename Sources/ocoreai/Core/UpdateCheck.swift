@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Release update check — the last honest surface a shipping app needs.
+/// Release update check. The last honest surface a shipping app needs.
 ///
 /// First principles: an app that ships owes its users a way to KNOW a newer
 /// build exists. Auto-install is out of scope (that's Sparkle + Developer ID
 /// signing territory); the honest minimum is: check, compare, offer the release
-/// page. No nagging, no silent downloads — the user decides.
+/// page. No nagging, no silent downloads. The user decides.
 ///
 /// Compares `AppInfo.shortVersion` (the running artifact's truth) against
 /// the `tag_name` of `/releases/latest`. Version comparison is
@@ -63,7 +63,7 @@ public enum UpdateCheck {
     }
 
     /// Latest release straight from GitHub. `latestURL` is injectable for
-    /// tests (the network itself is not mocked here — this is a thin,
+    /// tests (the network itself is not mocked here. This is a thin,
     /// honest reader of the public releases API; 60 req/h unauthenticated
     /// is ample for an explicit user action).
     public static func latestRelease(

@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Measured multimodal device facts — what macOS currently grants and what hardware is
+/// Measured multimodal device facts. What macOS currently grants and what hardware is
 /// actually present, as distinct from what the user's toggles wish.
 ///
 /// Why this exists: `POST /v1/multimodal/status` is indexed as the multimodal
 /// *permission + device* status and published only three UI toggles. A toggle is an
-/// intent; permission and device presence are facts, and the two disagree constantly —
+/// intent; permission and device presence are facts, and the two disagree constantly,
 /// `cameraEnabled: true` on a box where TCC denies the camera, or where no camera is
 /// attached, or with zero voices installed for TTS. AGENTS.md invariant 2 (the surface
 /// never claims more than the engine delivered) means the wire has to say which.
@@ -16,18 +16,18 @@
 ///      `SFSpeechRecognizer.requestAuthorization` put a modal TCC dialog in front of the
 ///      user. A status read must be a read. `authorizationStatus` /
 ///      `SFSpeechRecognizer.authorizationStatus()` / `CGPreflightScreenCaptureAccess()`
-///      answer the same question silently — the pattern `PersonalVoiceTTS.isAuthorized`
+///      answer the same question silently. The pattern `PersonalVoiceTTS.isAuthorized`
 ///      already uses for Personal Voice.
 ///   2. **Unknown is not zero, and unsupported is not denied.** Device enumeration and
 ///      the Speech framework do not exist on every tier, and a count of `0` means "looked,
-///      found none" — a different claim from "cannot tell here". Counts are therefore
+///      found none". A different claim from "cannot tell here". Counts are therefore
 ///      Optional (the key is omitted when the count could not be taken, same convention as
 ///      `ModelObject`), and the vocabularies below carry explicit `unknown` /
 ///      `unsupported` members instead of collapsing them into a verdict.
 ///
 /// Measured on this host (2026-10-14, unsandboxed CLI reading of the same APIs):
 /// camera/microphone `.denied`, 0 video and 0 audio devices visible, 180 installed voices,
-/// speech recognition `.denied` — i.e. every claim of "can see / can hear" here would have
+/// speech recognition `.denied`. I.e. every claim of "can see / can hear" here would have
 /// been false while the toggles alone said nothing either way.
 
 import Foundation
@@ -53,7 +53,7 @@ enum DevicePermission: String, Codable, CaseIterable, Sendable {
     /// Never asked; the first real use will prompt.
     case notDetermined
     /// The API reports permitted vs not-permitted only, so the specific TCC state is not
-    /// readable — `CGPreflightScreenCaptureAccess()` is the one surface here like that.
+    /// readable, `CGPreflightScreenCaptureAccess()` is the one surface here like that.
     case notGranted
     /// This axis does not exist on the compiled target (no camera on a watchOS build).
     case unsupported
@@ -73,22 +73,22 @@ enum ChannelReadiness: String, Codable, CaseIterable, Sendable {
     case blocked
     /// A fact could not be measured, so delivery is unverified either way.
     case unknown
-    /// The channel is not part of this build's platform — not fixable by the user.
+    /// The channel is not part of this build's platform, not fixable by the user.
     case unsupported
 
     /// The closed set a probe can assert published values against.
     static var vocabulary: [String] { allCases.map(\.rawValue) }
 }
 
-/// What the screen channel has actually produced in this process — the delivery axis that
+/// What the screen channel has actually produced in this process. The delivery axis that
 /// no permission API can supply.
 ///
 /// `CGPreflightScreenCaptureAccess()` answers "did the user allow it", and on this box that
 /// answer is true while capture fails: measured 10-15, `screenPermission=authorized` with a
 /// display enumerated, and `SCScreenshotManager.captureImage` still returned
 /// "could not start stream". Publishing `ready` from the grant alone is the same error the
-/// hearing seam spends a child process avoiding — an OS answer standing in for a delivered
-/// result (AGENTS.md invariant 2) — except here the OS answer is not even the last word:
+/// hearing seam spends a child process avoiding. An OS answer standing in for a delivered
+/// result (AGENTS.md invariant 2). Except here the OS answer is not even the last word:
 /// it is the *first* of two, and only a frame answers the second.
 enum ScreenDelivery: String, Codable, CaseIterable, Sendable {
     /// Nothing has been attempted in this process: no evidence in either direction.
@@ -113,7 +113,7 @@ enum ScreenDelivery: String, Codable, CaseIterable, Sendable {
 /// there, so recording costs no lock and the status path gains no `await`.
 ///
 /// The record is deliberately *not* sticky-with-history: it reports the last attempt, so a
-/// failure does not become a permanent verdict and a grant fix does not need a restart —
+/// failure does not become a permanent verdict and a grant fix does not need a restart,
 /// the next attempt overwrites it. What it never does is guess the outcome of an attempt
 /// that has not happened.
 @MainActor
@@ -153,8 +153,8 @@ enum ScreenDeliveryRecord {
 /// hat: the endpoint took a call it had no route to deliver.
 ///
 /// So the HTTP path decides from the measured permission and never prompts. The GUI keeps
-/// prompting — flipping the camera toggle *is* the user asking to be asked (see
-/// `MultimodalState.wireCamera`) — and a channel already streaming skips the check, since
+/// prompting. Flipping the camera toggle *is* the user asking to be asked (see
+/// `MultimodalState.wireCamera`), and a channel already streaming skips the check, since
 /// it could only have started with a grant. `.unknown` still attempts: refusing on an
 /// unreadable value would block paths that work, and the honest direction to err is the
 /// loud refusal, not the quiet one.
@@ -175,7 +175,7 @@ func privacyPane(forChannel channel: String) -> String {
     }
 }
 
-/// Decide a capture attempt from the permission alone — the seam that keeps `requestAccess`
+/// Decide a capture attempt from the permission alone. The seam that keeps `requestAccess`
 /// out of the request path (`MultimodalStatusHonestyTests` pins every row).
 func captureAttempt(channel: String, permission: DevicePermission) -> CaptureAttempt {
     let pane = privacyPane(forChannel: channel)
@@ -221,17 +221,17 @@ struct MultimodalDeviceFacts: Codable, Equatable, Sendable {
     var speechVoiceCount: Int?
 
     /// The screen channel's delivery axis: what the last capture pass in this process
-    /// produced. Defaults to `.notAttempted` — the absence of evidence, not a verdict.
+    /// produced. Defaults to `.notAttempted`. The absence of evidence, not a verdict.
     var screenDelivery: ScreenDelivery = .notAttempted
     /// What the framework said when the last attempt produced no frame; `nil` unless the
     /// delivery is `.failed`.
     var screenDeliveryError: String?
-    /// How long that attempt took, in ms — a refusal that took 190 ms and one that timed
+    /// How long that attempt took, in ms. A refusal that took 190 ms and one that timed
     /// out are different diagnoses, and the number is what distinguishes them.
     var screenDeliveryLatencyMs: Int?
 
     /// The permission axis behind a channel name (`camera` / `microphone` / `screen` /
-    /// `transcription`) — the lookup the capture gate and the limitation lines share.
+    /// `transcription`). The lookup the capture gate and the limitation lines share.
     func permission(forChannel channel: String) -> DevicePermission {
         switch channel {
         case "camera": return cameraPermission
@@ -250,7 +250,7 @@ struct MultimodalDeviceFacts: Codable, Equatable, Sendable {
         Self.readiness(microphonePermission, microphoneDeviceCount)
     }
 
-    /// TTS needs no permission and no enumeration — only an installed voice to speak with.
+    /// TTS needs no permission and no enumeration, only an installed voice to speak with.
     var speakerStatus: ChannelReadiness { Self.speakerReadiness(speechVoiceCount) }
 
     /// Permission says the user allowed it; only a frame says it works.
@@ -258,7 +258,7 @@ struct MultimodalDeviceFacts: Codable, Equatable, Sendable {
     /// Both axes, then, in the same precedence the other channels use: a refusal is
     /// decisive, a measured delivery failure is decisive, and an axis with no evidence
     /// stays `unknown` rather than inheriting `ready` from the grant. The delivery axis is
-    /// not a device count — display enumeration passes on the box where capture fails
+    /// not a device count. Display enumeration passes on the box where capture fails
     /// (measured 10-15), so counting displays would rebuild the same false positive with
     /// extra steps.
     var screenStatus: ChannelReadiness {
@@ -269,7 +269,7 @@ struct MultimodalDeviceFacts: Codable, Equatable, Sendable {
             return .unsupported
         case .notGranted, .notDetermined, .unknown:
             // The promise the doc above already made: a measured delivery failure is
-            // decisive even against a permission read that only says "not granted yet" —
+            // decisive even against a permission read that only says "not granted yet",
             // probe 04's refused leg (167 ms) outranks the axis that predicted nothing.
             return screenDelivery == .failed ? .blocked : .unknown
         case .authorized:
@@ -297,7 +297,7 @@ struct MultimodalDeviceFacts: Codable, Equatable, Sendable {
     }
 
     /// Plain-language reason for every channel that is not `ready`, in a fixed order.
-    /// Empty means every channel measured ready — never a silent "all good".
+    /// Empty means every channel measured ready. Never a silent "all good".
     var limitations: [String] {
         var out: [String] = []
         Self.appendLimit(
@@ -320,7 +320,7 @@ struct MultimodalDeviceFacts: Codable, Equatable, Sendable {
 
     /// The measured reason for one channel, with its `"<channel>: "` prefix removed, or nil
     /// when nothing measured blocks it (which for a capture means "no fact explains the
-    /// miss" — e.g. a frame refused by the sampler's rate limit).
+    /// miss". E.g. a frame refused by the sampler's rate limit).
     func limitation(forChannel channel: String) -> String? {
         let prefix = "\(channel): "
         for line in limitations where line.hasPrefix(prefix) {
@@ -478,8 +478,8 @@ extension MultimodalDeviceFacts {
     ///
     /// Deliberately does *not* reuse `CaptureService.availableCameras`: that list is
     /// discovered once at service init, so a grant given after launch would report
-    /// `0 devices` forever — a false "blocked". A status read answers for now.
-    /// Installed speech voices — the asset TTS needs, and the one axis the speak path can
+    /// `0 devices` forever. A false "blocked". A status read answers for now.
+    /// Installed speech voices. The asset TTS needs, and the one axis the speak path can
     /// check without enumerating cameras. `nil` = AVFoundation not on this target.
     @MainActor
     static func voiceCount() -> Int? {
@@ -490,7 +490,7 @@ extension MultimodalDeviceFacts {
         #endif
     }
 
-    /// The four permission axes only — what a capture decision needs, with no device
+    /// The four permission axes only. What a capture decision needs, with no device
     /// enumeration and no voice inventory (the paths that cost hundreds of ms).
     @MainActor
     static func permissionsOnly() -> MultimodalDeviceFacts {
@@ -506,7 +506,7 @@ extension MultimodalDeviceFacts {
         #endif
         #if os(macOS)
         facts.screenPermission = CGPreflightScreenCaptureAccess() ? .authorized : .notGranted
-        // The delivery axis costs nothing to read — it is a memory of what already happened,
+        // The delivery axis costs nothing to read. It is a memory of what already happened,
         // not a capture. Read here rather than in `gather()` so both fact paths answer the
         // same question with the same evidence.
         facts.screenDelivery = ScreenDeliveryRecord.outcome
@@ -540,7 +540,7 @@ extension MultimodalDeviceFacts {
 
 extension DevicePermission {
     #if canImport(AVFoundation)
-    /// Map TCC's camera/microphone status. Silent — no prompt.
+    /// Map TCC's camera/microphone status. Silent, no prompt.
     init(_ status: AVAuthorizationStatus) {
         switch status {
         case .authorized: self = .authorized
@@ -553,7 +553,7 @@ extension DevicePermission {
     #endif
 
     #if canImport(Speech)
-    /// Map Speech-recognition authorization. Silent — no prompt.
+    /// Map Speech-recognition authorization. Silent, no prompt.
     init(_ status: SFSpeechRecognizerAuthorizationStatus) {
         switch status {
         case .authorized: self = .authorized

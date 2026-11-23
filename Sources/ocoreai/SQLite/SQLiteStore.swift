@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SQLiteStore.swift — WAL-mode SQLite connection management and schema initialization
+/// SQLiteStore.swift. WAL-mode SQLite connection management and schema initialization
 ///
 /// Actor-isolated for strict concurrency safety. Handles schema migration, WAL configuration,
 /// and provides a safe connection pool for session/message storage.
@@ -107,7 +107,7 @@ private func _column_name(_ stmt: OpaquePointer, _ index: CInt) -> UnsafePointer
 @_silgen_name("sqlite3_errmsg")
 private func _errmsg(_ db: OpaquePointer) -> UnsafePointer<Int8>?
 
-// Destroy callback for sqlite3_bind_* — tells SQLite to copy data
+// Destroy callback for sqlite3_bind_*. Tells SQLite to copy data
 private let SQLITE_TRANSIENT: @convention(c) (UnsafeMutableRawPointer?) -> Void = { _ in }
 
 // MARK: - Connection Wrapper
@@ -132,7 +132,7 @@ actor SQLiteStore {
     /// The outcome of the WAL truncation attempted by the most recent ``open()``.
     ///
     /// `PRAGMA wal_checkpoint(TRUNCATE)` reports contention in the **first column of a returned
-    /// row**, not as an error code, so ``exec`` — which treats SQLITE_ROW as success — cannot see a
+    /// row**, not as an error code, so ``exec``, which treats SQLITE_ROW as success. Cannot see a
     /// truncation that never happened. Reading the column is the only way this promise is either
     /// kept or honestly reported (AGENTS.md invariant 2: a surface may not claim more than the
     /// engine delivered).
@@ -164,16 +164,16 @@ actor SQLiteStore {
         dbPath
     }
 
-    /// Default database path — cross-platform (macOS/iOS/iPadOS).
+    /// Default database path. Cross-platform (macOS/iOS/iPadOS).
     /// `OCOREAI_DATA_DIR` env override (same pattern as `OCOREAI_MODELS_DIR`,
     /// ModelStore.swift:56) > platform default. The env gate is what lets a
     /// live-inference regression harness run a real server end-to-end without
-    /// touching the operator's production `ocoreai.sqlite` — without it every
+    /// touching the operator's production `ocoreai.sqlite`. Without it every
     /// `sessionID`-routed API request writes into the live DB (R2b lesson:
     /// manual post-hoc cleanup is error-prone). Empty/unset → platform default.
     static let defaultPath: String = resolveDefaultPath(ProcessInfo.processInfo.environment)
 
-    /// Pure path resolution (seam for exact-value tests — decoupled from
+    /// Pure path resolution (seam for exact-value tests. Decoupled from
     /// process env so tests are deterministic regardless of suite order).
     static func resolveDefaultPath(_ env: [String: String]) -> String {
         if let override = env["OCOREAI_DATA_DIR"], !override.isEmpty {
@@ -194,7 +194,7 @@ actor SQLiteStore {
         ).first?.appendingPathComponent("ocoreai/data") {
             baseDir = cacheURL.path
         } else {
-            // Last resort — use temp directory
+            // Last resort. Use temp directory
             baseDir = (NSTemporaryDirectory() as NSString).appendingPathComponent("ocoreai/data")
         }
         try? FileManager.default.createDirectory(atPath: baseDir, withIntermediateDirectories: true)
@@ -222,19 +222,19 @@ actor SQLiteStore {
             throw SQLiteError.connectionFailed(detail: "sqlite3_open error: \(result)")
         }
 
-        // PRAGMAs — `busy_timeout` must be the *first* statement, because everything below it
+        // PRAGMAs, `busy_timeout` must be the *first* statement, because everything below it
         // either contends with another connection or is guarded by the timeout. Measured 10-20 on
         // macOS' system libsqlite3, two connections on one file, the writer holding
         // `BEGIN IMMEDIATE` and committing 300 ms later (pinned by
         // Tests/ocoreaiTests/SQLiteOpenBusyTimeoutTests.swift):
-        //   * `wal_checkpoint(TRUNCATE)` reports contention in column 0 of its result row, not as
+        //  * `wal_checkpoint(TRUNCATE)` reports contention in column 0 of its result row, not as
         //     an error code: at timeout=0 it answers busy=1/log=2 in ~4 ms and leaves the WAL to
         //     grow, unnoticed; with the timeout in force it waits for the writer (262 ms) and
         //     truncates (busy=0).
-        //   * `journal_mode=WAL` is a no-op row in the steady state (the file is already WAL).
+        //  * `journal_mode=WAL` is a no-op row in the steady state (the file is already WAL).
         //     Converting a database that is *not* in WAL mode while another connection holds a
         //     transaction is refused with SQLITE_BUSY immediately, and the timeout does not turn
-        //     that into a wait (`PRAGMA busy_timeout` reads back 5000 either way) — so refusing to
+        //     that into a wait (`PRAGMA busy_timeout` reads back 5000 either way), so refusing to
         //     retry it here is a measured limit, not an oversight; see CHANGELOG 10-20(续21).
         try SQLiteStore.exec(
             sql: "PRAGMA busy_timeout=\(SQLiteStore.walBusyTimeoutMilliseconds);", db: ptr)
@@ -243,7 +243,7 @@ actor SQLiteStore {
         let checkpoint = try SQLiteStore.walCheckpointTruncate(db: ptr)
         lastOpenWALCheckpoint = checkpoint
         if checkpoint.busy {
-            // Not fatal: SQLite auto-checkpoints on later writes. Stated, not swallowed — a WAL
+            // Not fatal: SQLite auto-checkpoints on later writes. Stated, not swallowed. A WAL
             // that never truncates is a growing file nobody reported.
             logger.warning(
                 """
@@ -396,7 +396,7 @@ actor SQLiteStore {
     /// `PRAGMA wal_checkpoint(TRUNCATE)` with its three result columns read.
     ///
     /// Contention here is a *value*, not an error code (busy is column 0 of the returned row), so
-    /// this bypasses ``exec`` — which would call a refused truncation a success.
+    /// this bypasses ``exec``, which would call a refused truncation a success.
     private static func walCheckpointTruncate(db: OpaquePointer) throws -> WALCheckpoint {
         guard let stmt = try prepare(sql: "PRAGMA wal_checkpoint(TRUNCATE);", db: db) else {
             return WALCheckpoint(busy: false, logPages: 0, checkpointedPages: 0, statementMs: 0)
@@ -591,7 +591,7 @@ actor SQLiteStore {
             db: db)
 
         // Conversation identity (CHANGELOG 10-21): the HTTP face gets a *client* key
-        // (`session_id` — a UUID, a `PROBE-…` string), while `sessions.id` is a row id the
+        // (`session_id`. A UUID, a `PROBE-…` string), while `sessions.id` is a row id the
         // client can never obtain (`/sessions` is read-only, there is no POST). Without a
         // column to hold the client's key, every request had to create its own session row:
         // three turns on one conversation key made three sessions, so memory, FTS and the
@@ -661,9 +661,9 @@ actor SQLiteStore {
             sql: "CREATE INDEX IF NOT EXISTS idx_audit_traces_ts ON audit_traces(timestamp_ms);",
             db: db)
 
-        // Structured memory events — six-element knowledge model (方案 B 单层)
+        // Structured memory events. Six-element knowledge model (方案 B 单层)
         // 时间(timestamp), 地点(context), 人物(entities), 起因(cause), 经过(process), 结果(result)
-        // SET NULL on session delete — events survive session TTL as permanent memory
+        // SET NULL on session delete. Events survive session TTL as permanent memory
         // memory_type drives retention: transient=purge, pattern/fact/preference=long-lived
         try Self.exec(
             sql: """
@@ -761,7 +761,7 @@ actor SQLiteStore {
 /// - ``null``      → SQLITE_NULL
 ///
 /// Consumers switch on the enum (or use the convenience `as*` computed
-/// properties) to extract the strongly-typed value — no `as?` runtime casts needed.
+/// properties) to extract the strongly-typed value, no `as?` runtime casts needed.
 public enum SendableValue: Sendable {
     case integer(Int64)
     case float(Double)
@@ -794,7 +794,7 @@ public enum SendableValue: Sendable {
         case is NSNull:
             self = .null
         default:
-            // Defensive fallback — SQLite never produces this path, but
+            // Defensive fallback. SQLite never produces this path, but
             // we must handle the non-exhaustive switch for type-safety.
             self = .null
         }

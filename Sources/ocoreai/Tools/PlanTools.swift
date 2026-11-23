@@ -1,23 +1,23 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `update_plan` — codex plan 工具原语(codex HEAD 逐行对齐; 默认关、opt-in):
+/// `update_plan`. Codex plan 工具原语(codex HEAD 逐行对齐; 默认关、opt-in):
 ///
 ///   update_plan({explanation?: String, plan: [{step: String, status: enum}]})
 ///     → 校验通过后输出 `Plan updated`(codex `PLAN_UPDATED_MESSAGE`)
 ///
 /// 基准: codex `codex-rs/core/src/tools/handlers/plan_spec.rs`
 /// (ToolSpec: name=`update_plan`, required=`["plan"]`, `explanation` optional,
-///  `plan` = array of object `{step: string, status: enum[pending|in_progress|completed]}`,
-///  description 含 "At most one step can be in_progress at a time.")
+/// `plan` = array of object `{step: string, status: enum[pending|in_progress|completed]}`,
+/// description 含 "At most one step can be in_progress at a time.")
 /// + `codex-rs/core/src/tools/handlers/plan.rs`
 /// (`PLAN_UPDATED_MESSAGE = "Plan updated"`, output success=true;
-///  参数解析失败/状态越界 = `RespondToModel`(可读拒绝, 不发事件))
+/// 参数解析失败/状态越界 = `RespondToModel`(可读拒绝, 不发事件))
 /// + config `tools.update_plan.enabled` 默认 **false**（codex `#41744`
-///  default→false，opt-in；#41630 的 default=true 已被上游翻转；API 面显式开启才注册）。
+/// default→false，opt-in；#41630 的 default=true 已被上游翻转；API 面显式开启才注册）。
 ///
 /// ocoreai 对齐:
 ///   - 工具名 / 参数名 / required 面 / 输出文案 = codex 原值;
-///   - 事件驱动: 成功路径发 PlanUpdate 事件(`PlanStatePublisher`) — 对齐 codex
+///   - 事件驱动: 成功路径发 PlanUpdate 事件(`PlanStatePublisher`)。对齐 codex
 ///     `send_event(EventMsg::PlanUpdate(args))`; 事件只影响 UI, 不影响工具返回
 ///     (codex handler 同理: 输出恒 `Plan updated`, 无持久状态);
 ///   - 「至多 1 个 in_progress」: codex spec description 声明该约束, ocoreai 同声明
@@ -106,7 +106,7 @@ struct UpdatePlanArgs: Codable, Sendable {
 
 // MARK: - 事件交付 seam(对齐 codex `send_event(EventMsg::PlanUpdate)`)
 
-/// Plan 更新事件订阅者 — 生产实现转发 UI(任务面板);测试注入记录器断言精确值。
+/// Plan 更新事件订阅者。生产实现转发 UI(任务面板);测试注入记录器断言精确值。
 /// 无订阅者时事件静默丢弃(工具输出仍为 `Plan updated`, 模型侧语义不变;
 /// codex 同理: 事件只影响 UI, 不影响工具返回值)。
 protocol PlanStatePublisher: Sendable {
@@ -192,18 +192,18 @@ enum UpdatePlanClient {
     }
 }
 
-// MARK: - 读面 (get_plan — 模型的 durable 任务态读回, Recover 片 1 的 agent 侧闭环)
+// MARK: - 读面 (get_plan。模型的 durable 任务态读回, Recover 片 1 的 agent 侧闭环)
 
-/// `get_plan` — 读回本会话最近一次 `update_plan` 的 durable 快照（`update_plan` 的模型侧读面）:
+/// `get_plan`。读回本会话最近一次 `update_plan` 的 durable 快照（`update_plan` 的模型侧读面）:
 ///
 ///   get_plan()  → step × [completed|in_progress|pending] + 计数 + note(explanation?) + updated 时刻
 ///
 /// 定位（Recover 片 1 收口, `PlanPersistence.swift:11` 点名的"后续切片"）: plan 状态
 /// durable（`plans` 表, `PlanTaskStore.persist`）+ rehydrate（`PlanTaskStore.rehydrate`,
-/// 会话激活后 hydrate）——但两者此前只喂 UI 面板（`PlanCard`）, **模型侧零读面**
+/// 会话激活后 hydrate）。但两者此前只喂 UI 面板（`PlanCard`）, **模型侧零读面**
 /// （grep `get_plan`/`plan_status`/`read_plan` 全库 = 0 命中）: 模型自己的任务态只活在
 /// 对话历史里（会被 compaction 剥掉）, 而 durable 副本就在 `PlanTaskStore.shared.current`
-/// （与 UI 面板同源的 SSOT）。本工具把该读回暴露给模型——断点续跑时模型可自问
+/// （与 UI 面板同源的 SSOT）。本工具把该读回暴露给模型。断点续跑时模型可自问
 /// "我做到哪步了、哪些 pending", 决策权仍在模型。
 ///
 /// 与 check_tools / observe_state 同一纪律: 只读、零副作用、**不替模型决策**
@@ -213,7 +213,7 @@ enum UpdatePlanClient {
 /// 纯渲染（离线可测; 快照注入, 不触 PlanTaskStore / SQLite / wall clock）。
 enum PlanRead {
     /// UTC 时刻字符串（`curr_time` 同纪律: `yyyy-MM-dd HH:mm:ss 'UTC'`, en_US_POSIX + GMT）,
-    /// 固定 formatter — 精确断言锚点（本地时区/locale 漂移不污染输出）。
+    /// 固定 formatter。精确断言锚点（本地时区/locale 漂移不污染输出）。
     static func utcTime(_ timestamp: Int64) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
@@ -224,7 +224,7 @@ enum PlanRead {
 
     /// 渲染精确形态:
     /// ```
-    /// plan — 4 steps: 1 completed, 1 in_progress, 2 pending
+    /// plan, 4 steps: 1 completed, 1 in_progress, 2 pending
     /// note: 修复感知轴            (explanation 非空时)
     /// 1. [x] init repo (completed)
     /// 2. [>] fix channel gating (in_progress)
@@ -263,7 +263,7 @@ enum PlanRead {
     }
 }
 
-/// `get_plan` — 零参查询面（真值源 = `PlanTaskStore.shared.current`, 与 UI 面板同源 SSOT）
+/// `get_plan`。零参查询面（真值源 = `PlanTaskStore.shared.current`, 与 UI 面板同源 SSOT）
 enum GetPlanClient {
     static let toolName = "get_plan"
 

@@ -3,7 +3,7 @@
 // Original: swift/Sources/CoreAILanguageModels/ToolCallParser.swift
 //
 // Vended: Pure Foundation, no heavy deps. Used in CoreAI inference path
-// to detect tool call blocks in decoded token deltas — aligns with upstream
+// to detect tool call blocks in decoded token deltas. Aligns with upstream
 // CoreAIExecutor.respondVanilla() pipeline.
 //
 // Tool-call id → `call_<8hex>` (coreai-models #203,
@@ -36,7 +36,7 @@ struct ToolCallParser {
 
     /// Emit any pending buffered content as final events.
     ///
-    /// Required at end of stream — without it, text held back to wait for a
+    /// Required at end of stream. Without it, text held back to wait for a
     /// possible marker match is silently lost. An unclosed block
     /// at EOS is dropped (malformed JSON is not useful to surface as text).
     /// Exception: newline-terminated formats (e.g. Mistral\'[TOOL_CALLS])

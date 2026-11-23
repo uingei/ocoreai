@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// IntentExtractor.swift — Intent recognition from user messages
+/// IntentExtractor.swift. Intent recognition from user messages
 ///
 /// Extracts user intent: action type, target entity, urgency level.
 /// Lightweight pattern matching, no ML model dependency required.
@@ -36,7 +36,7 @@ struct ExtractedIntent: Codable {
     let confidence: Double
 }
 
-/// Lightweight intent extractor — pattern-based recognition.
+/// Lightweight intent extractor. Pattern-based recognition.
 struct IntentExtractor {
     private let actionPatterns: [(action: IntentAction, patterns: [String])]
     private let urgencyPatterns: [(urgency: IntentUrgency, patterns: [String])]
@@ -152,7 +152,7 @@ struct IntentExtractor {
                     ? .askQuestion : .other
             }
 
-        // Determine urgency — always keep the highest level found
+        // Determine urgency. Always keep the highest level found
         var urgency: IntentUrgency = .medium
         for (urgencyType, patterns) in urgencyPatterns {
             for pattern in patterns {

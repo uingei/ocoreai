@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Open URL — 「自主操作计算机」按 URL 路由到系统 handler app 的跨平台动作面。
+/// Open URL。「自主操作计算机」按 URL 路由到系统 handler app 的跨平台动作面。
 ///
 /// 第一性: "深度适配 Apple 各平台 framework" + "iOS 17 深度适配" = agent 必须能
 /// 通过 URL 触发 handler app:
 ///   http(s)→Safari/系统浏览器        mailto:→Mail         tel:→Phone/FaceTime
 ///   custom scheme→已注册 App        https://app.link/...→handler app (Universal Link)
 /// 这是 iOS 上 agent → "外部 App" 的 **唯一主动通道**(无 NSWorkspace / CGEvent 面);
-/// macOS 上与 `open_app`("按 App 名启动本地 GUI app")不同轴——open_url 是 "按 URL 路由"。
+/// macOS 上与 `open_app`("按 App 名启动本地 GUI app")不同轴。open_url 是 "按 URL 路由"。
 ///
 /// 跨平台 gate 判据(同 clipboard/system_info):
 ///   macOS 14  NSWorkspace.shared.open(url: URL) -> Bool     (非弃用, 10.15+)
@@ -27,7 +27,7 @@ import AppKit
 import UIKit
 #endif
 
-// MARK: - Pure(双平台离线可测 — 不触 NSWorkspace/UIApplication 运行时)
+// MARK: - Pure(双平台离线可测。不触 NSWorkspace/UIApplication 运行时)
 
 enum OpenURL {
     enum ValidationError: Error, Equatable, Sendable {

@@ -1,30 +1,30 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SessionWorkspace — per-session working-directory seam (session ↔ workspace isolation).
+/// SessionWorkspace. Per-session working-directory seam (session ↔ workspace isolation).
 ///
-/// Baseline: codex Agent axis (references/codex, HEAD) — a session is bound to an
+/// Baseline: codex Agent axis (references/codex, HEAD). A session is bound to an
 /// isolated working tree:
-///   - `core/worktree/src/lib.rs` `WorktreeManager::create` — `worktree add
+///   - `core/worktree/src/lib.rs` `WorktreeManager::create`, `worktree add
 ///     --detach` at the resolved HEAD sha; root allocated outside the source repo.
-///   - `core/worktree/src/git.rs:98-135` `default_worktree_base` — resolve the
+///   - `core/worktree/src/git.rs:98-135` `default_worktree_base`. Resolve the
 ///     cached default branch: remote-HEAD first, then `main`, then `master`
-///     (origin-tracking refs before local). **No fetch** — the cached default only.
-///   - TUI `worktree_startup.rs` — a blank session is bound in the new worktree; on
+///     (origin-tracking refs before local). **No fetch**. The cached default only.
+///   - TUI `worktree_startup.rs`. A blank session is bound in the new worktree; on
 ///     startup failure **retain the checkout and report its path** for manual
 ///     `git worktree remove`.
 ///
 /// ocoreai seam: `currentDirectory()` is the top level of the same chain the
-/// existing keyless consumers already read — `MessageBuilder` (system-prompt
+/// existing keyless consumers already read, `MessageBuilder` (system-prompt
 /// `working_directory` + AGENTS.md discovery), `ExecTools.effectiveCwd`,
-/// `FileTools.resolve` — falling back to the configured global directory
+/// `FileTools.resolve`. Falling back to the configured global directory
 /// (`WorkspaceContext.configuredDirectory()`). That is what actually lands in the
 /// session's `exec_command` / file tools, so the isolation is behavioral, not just
 /// a prompt line.
 ///
 /// Concurrency (Swift 6, tools-version 6.2, `.swiftLanguageMode(.v6)`):
 /// the active directory is held by a `final class` singleton behind an `NSLock`
-/// (`@unchecked Sendable`) — the `SessionProc` (`ExecSessions.swift`) /
-/// `StreamOutputFilter` idiom — so a captured `@Sendable` closure touching the
+/// (`@unchecked Sendable`). The `SessionProc` (`ExecSessions.swift`) /
+/// `StreamOutputFilter` idiom, so a captured `@Sendable` closure touching the
 /// git worker queue and the UI both see lock-bounded access to shared state.
 import Foundation
 
@@ -32,7 +32,7 @@ enum SessionWorkspace {
     // MARK: - Active session directory (atomic, lock-guarded singleton)
 
     /// `@unchecked Sendable`: every mutable touch (`_directory`) is
-    /// `NSLock`-bounded and the instance outlives the process — the same
+    /// `NSLock`-bounded and the instance outlives the process. The same
     /// idiom as `StreamOutputFilter` / `SessionProc` (`ExecSessions.swift`).
     private final class ActiveDirectory: @unchecked Sendable {
         static let shared = ActiveDirectory()
@@ -61,7 +61,7 @@ enum SessionWorkspace {
         ActiveDirectory.shared.set(dir)
     }
 
-    /// Clear on conversation reset — a reset chat must not keep a previous
+    /// Clear on conversation reset. A reset chat must not keep a previous
     /// session's worktree as its working directory.
     static func clear() {
         setDirectory(nil)
@@ -94,7 +94,7 @@ enum SessionWorkspace {
 
     /// Create a detached worktree from the repo's cached default branch (codex
     /// order, no fetch) and bind the active session to it. Any base is honored:
-    /// `worktreeRoot` parameter (deterministic — used by tests), else the
+    /// `worktreeRoot` parameter (deterministic. Used by tests), else the
     /// `OCOREAI_WORKTREE_ROOT` env override, else `~/ocoreai-worktrees`. On failure
     /// any partially created checkout is retained and its path is reported (codex
     /// `worktree_startup`), so it can be cleaned with `git worktree remove`.
@@ -158,7 +158,7 @@ enum SessionWorkspace {
 
     // MARK: - git primitives
 
-    /// Nearest ancestor (inclusive) containing `.git` — codex `repository_root`,
+    /// Nearest ancestor (inclusive) containing `.git`. Codex `repository_root`,
     /// `WorkspaceContext.projectRoot` marker parity.
     private static func gitRoot(containing start: String) -> String? {
         var cursor = URL(fileURLWithPath: (start as NSString).expandingTildeInPath)
@@ -173,7 +173,7 @@ enum SessionWorkspace {
         }
     }
 
-    /// codex `default_worktree_base` order — first ref that resolves (no fetch):
+    /// codex `default_worktree_base` order. First ref that resolves (no fetch):
     /// 1) remote HEAD (`refs/remotes/<origin>/HEAD` symref target),
     /// 2) origin `main`, 3) local `main`, 4) origin `master`, 5) local `master`.
     private static func defaultBase(in dir: String) -> String? {
@@ -199,7 +199,7 @@ enum SessionWorkspace {
     }
 
     /// Run a git command, capturing stdout/stderr to temp files (killed children
-    /// cannot deadlock us — `ExecTools.runSync` pattern).
+    /// cannot deadlock us, `ExecTools.runSync` pattern).
     /// macOS-only: `Foundation.Process` does not exist on iOS (`#if os(macOS)`,
     /// same gate as `ExecTools` / `ExecSessions` / `MCPStdioClient`).
     #if os(macOS)
@@ -225,7 +225,7 @@ enum SessionWorkspace {
         proc.standardOutput = outHandle
         proc.standardError = errHandle
         proc.standardInput = FileHandle.nullDevice
-        // Strip server secrets — git inherits the full parent env otherwise.
+        // Strip server secrets. Git inherits the full parent env otherwise.
         proc.environment = ChildProcessEnv.sanitized()
         try proc.run()
         proc.waitUntilExit()

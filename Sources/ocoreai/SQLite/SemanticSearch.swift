@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SemanticSearch.swift — Vector-based semantic search over session messages
+/// SemanticSearch.swift. Vector-based semantic search over session messages
 ///
 /// Complements FTS5 keyword search with dense vector similarity recall.
 /// Uses EmbeddingService (MLXEmbedders) to produce embeddings, then performs
@@ -9,7 +9,7 @@
 
 import Foundation
 
-/// Semantic search result — message matched by vector similarity.
+/// Semantic search result. Message matched by vector similarity.
 struct SemanticSearchResult: Identifiable, Sendable {
     let id: Int64
     let sessionId: Int64
@@ -18,12 +18,12 @@ struct SemanticSearchResult: Identifiable, Sendable {
     let createdAt: Date
 }
 
-/// Semantic search and embedding pipeline — actor-isolated via SQLiteStore.
+/// Semantic search and embedding pipeline. Actor-isolated via SQLiteStore.
 actor SemanticSearch {
     private let store: SQLiteStore
     private let embeddingService: EmbeddingService
 
-    // The BLOB's width IS the embedder's output width — one home (§ one decision,
+    // The BLOB's width IS the embedder's output width. One home (§ one decision,
     // one owner): EmbeddingService owns the number the vectors were produced with.
     private static let vectorDim = EmbeddingService.embeddingDimension
     private static let defaultLimit = 20
@@ -36,7 +36,7 @@ actor SemanticSearch {
 
     // MARK: - Embedding
 
-    /// Public passthrough for the wire surface (`POST /v1/embeddings`) —
+    /// Public passthrough for the wire surface (`POST /v1/embeddings`),
     /// same actor-isolated EmbeddingService, same circuit breaker: the wire
     /// inherits fail-fast offline degradation instead of becoming a second
     /// unthrottled HF hammer. Throws when the breaker is open; consumes via

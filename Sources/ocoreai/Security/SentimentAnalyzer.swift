@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SentimentAnalyzer.swift — Real-time sentiment analysis for customer satisfaction
+/// SentimentAnalyzer.swift. Real-time sentiment analysis for customer satisfaction
 ///
 /// Analyzes message sentiment with polarity scoring and emoji-based quick detection.
 /// Supports continuous emotion scoring for monitoring.
@@ -51,7 +51,7 @@ struct SentimentResult: Codable {
     }
 }
 
-/// Lightweight sentiment analyzer — no ML dependency, keyword-based scoring.
+/// Lightweight sentiment analyzer, no ML dependency, keyword-based scoring.
 struct SentimentAnalyzer {
     private let positiveWords: [String]
     private let negativeWords: [String]
@@ -123,7 +123,7 @@ struct SentimentAnalyzer {
         if totalEmotive > 0 {
             compound =
                 (Double(positiveCount) - Double(negativeCount)) / Double(max(totalEmotive, 1))
-            // Scale based on word count — more words with same ratio = stronger signal
+            // Scale based on word count. More words with same ratio = stronger signal
             compound *= min(Double(totalEmotive) * 0.2, 1.0)
         }
 

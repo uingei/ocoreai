@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Session View — session list, detail, memory search
+/// Session View. Session list, detail, memory search
 /// Accessibility: VoiceOver labels, hints, groups
 
 import SwiftUI

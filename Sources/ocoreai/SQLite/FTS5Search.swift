@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// FTS5Search.swift — Full-text search over session messages
+/// FTS5Search.swift. Full-text search over session messages
 ///
 /// Uses SQLite FTS5 virtual table for fast keyword search across all sessions.
 /// Supports relevance scoring, snippet generation, and session filtering.
 
 import Foundation
 
-/// FTS5 full-text search operations — actor-isolated via SQLiteStore.
+/// FTS5 full-text search operations. Actor-isolated via SQLiteStore.
 actor FTS5Search {
     private let store: SQLiteStore
 
@@ -35,7 +35,7 @@ actor FTS5Search {
             // column name", which surfaced as Search failed: on GET
             // /sessions/search. Filtering and matching on the FTS side keeps the
             // MATCH against the index. Both branches are pinned by
-            // FTS5SearchTests - the unscoped branch was the same bug, and it is
+            // FTS5SearchTests. The unscoped branch was the same bug, and it is
             // the documented default call (GET /sessions/search?q=).
             whereClause = "WHERE fts.session_id = ? AND fts.content MATCH ?"
             params = [sid, query]

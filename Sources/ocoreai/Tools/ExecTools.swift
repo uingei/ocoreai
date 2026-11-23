@@ -1,30 +1,30 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ExecTools — real shell-command execution for the agent tool surface.
+/// ExecTools. Real shell-command execution for the agent tool surface.
 ///
 /// Closes the coding-agent action loop (product goal: a coding agent must be
 /// able to RUN what it edits): the registry's destructive blacklist already
-/// reserved `execute_code` (ToolRegistry L40) but no command tool existed —
+/// reserved `execute_code` (ToolRegistry L40) but no command tool existed,
 /// the surface was edit-only.
 ///
 /// Baseline: codex `exec_command` (unified exec,
 /// `core/src/unified_exec/process_manager.rs:1308` `ToolName::plain("exec_command")`)
-/// — zsh via `core/src/shell.rs`, per-command timeout + cwd, approval on
+/// Zsh via `core/src/shell.rs`, per-command timeout + cwd, approval on
 /// destructive calls. ocoreai keeps the name/shape, drops codex's remote-env /
 /// async-watcher planes (out of scope; user mandate: no multi-agent surface).
 ///
 /// Safety invariants (LLM inputs are untrusted):
-/// - `timeoutSeconds` clamped to 1…300 — the model cannot self-extend it.
+/// - `timeoutSeconds` clamped to 1…300. The model cannot self-extend it.
 /// - stdout/stderr land in temp FILES (not pipes) → no pipe-full deadlock;
 ///   the child can be killed at the deadline and `waitUntilExit` still returns.
-/// - On-disk capture capped (`maxDiskOutputBytes`) — a runaway writer is
+/// - On-disk capture capped (`maxDiskOutputBytes`). A runaway writer is
 ///   terminated, never allowed to fill the disk.
 /// - Report truncated to `maxReportChars` head+tail so one call cannot
 ///   balloon the model context.
 /// - Execution runs on a background dispatch queue, never on the
 ///   cooperative thread pool (a 300 s sleep must not hang the app).
 /// - `isDestructive: true` → routes through the ApprovalBroker gate
-///   (ToolRegistry.call hook `.ask`) — approval is user-side, not model-side.
+///   (ToolRegistry.call hook `.ask`). Approval is user-side, not model-side.
 import Foundation
 
 #if os(macOS)
@@ -32,7 +32,7 @@ import Darwin
 #endif
 
 enum ExecTools {
-    // Bounds — every resource dimension is explicitly capped.
+    // Bounds. Every resource dimension is explicitly capped.
     static let maxTimeoutSeconds = 300  // hard upper clamp (LLM cannot exceed)
     static let minTimeoutSeconds = 1
     static let defaultTimeoutSeconds = 60
@@ -156,14 +156,14 @@ enum ExecTools {
     /// the default and the refusal cannot disagree.
     ///
     /// A `cwd` naming a *file* is the most common slip on this surface (measured: three lost
-    /// tasks in two scored runs), and the launch error it produces — "The operation couldn't
-    /// be completed. Not a directory" — reads as though the operand were missing, so the
+    /// tasks in two scored runs), and the launch error it produces. "The operation couldn't
+    /// be completed. Not a directory". Reads as though the operand were missing, so the
     /// model abandons a task it could have finished. The intent is unambiguous: run in the
     /// file's directory and say so.
     static func resolveCwd(_ cwd: String?) throws -> (dir: String?, note: String?) {
         guard let cwd, !cwd.isEmpty else { return (effectiveCwd(nil), nil) }
         // A relative `cwd` anchors on the workspace, exactly as `FileTools.resolve` anchors a
-        // relative `path` — the schema promises both, and a tool pair disagreeing about where
+        // relative `path`. The schema promises both, and a tool pair disagreeing about where
         // "src" is makes a written file unreadable by the command that was meant to check it.
         let path: String = {
             let expanded = expand(cwd)
@@ -214,7 +214,7 @@ enum ExecTools {
         proc.standardError = errHandle
         proc.standardInput = FileHandle.nullDevice
 
-        // Strip server secrets — shell commands run with full parent env otherwise.
+        // Strip server secrets. Shell commands run with full parent env otherwise.
         proc.environment = ChildProcessEnv.sanitized()
 
         do {

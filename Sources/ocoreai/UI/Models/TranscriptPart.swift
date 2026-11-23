@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// TranscriptPart — semantic building blocks for structured message content.
+/// TranscriptPart. Semantic building blocks for structured message content.
 ///
 /// Mirrors Apple Foundation Models transcript architecture:
 /// - Transcript.TextSegment → .text
@@ -8,42 +8,42 @@
 /// - Transcript.ToolCall → .toolCall (function invocation visualization)
 /// - Transcript.ImageAttachment → .image (VLM input/output)
 ///
-/// Design principle: backward compatible — every Part can produce a plain
+/// Design principle: backward compatible. Every Part can produce a plain
 /// String via `displayText` for rendering in legacy contexts.
 
 import Foundation
 
 /// Semantic content part inside a structured ChatMessage.
 ///
-/// A message's `.parts` array fully describes its content — replaces the
+/// A message's `.parts` array fully describes its content. Replaces the
 /// flat `content: String` model for new messages. Legacy messages (from
 /// SQLite restore or API) still populate `content` as a convenience.
 ///
 /// Mirrors upstream MLXChatExample transcript parts: .text, .reasoning,
-/// .toolCall, .image, .video — see MediaPreviewView.swift for reference.
+/// .toolCall, .image, .video. See MediaPreviewView.swift for reference.
 enum TranscriptPart: Codable, Hashable, Sendable {
 
     /// Plain text content (user input, assistant response body).
     /// Equivalent to Transcript.TextSegment.
     case text(String)
 
-    /// Reasoning/thinking process — displayed in a collapsible section.
+    /// Reasoning/thinking process. Displayed in a collapsible section.
     /// Equivalent to Transcript.Reasoning.
     case reasoning(String)
 
-    /// Tool/function call invocation — shown as a badge/chip.
+    /// Tool/function call invocation. Shown as a badge/chip.
     /// Equivalent to Transcript.ToolCall.
     case toolCall(ToolCallPart)
 
     /// Context was auto-compacted (oldest turns pruned) to fit the model's
     /// window before this turn. Carries how many messages were removed so the
     /// UI can tell the user their earlier context was pruned.
-    /// Codex #42319 "live compaction status" — ocoreai surfaces it as a
+    /// Codex #42319 "live compaction status". Ocoreai surfaces it as a
     /// per-turn badge instead of a TUI banner (no terminal surface here).
     case compactionNote(removedCount: Int)
 
     /// Output was cut off by the model's token budget before it finished
-    /// (reasoning ran out of budget / max response tokens hit) — the user's
+    /// (reasoning ran out of budget / max response tokens hit). The user's
     /// only signal that this response is INCOMPLETE. Without this badge a
     /// truncated answer renders as a normal ending.
     /// Wire: Engine `.guidedGenDiagnostic(incompleteOutput: true)` →
@@ -55,7 +55,7 @@ enum TranscriptPart: Codable, Hashable, Sendable {
     /// Equivalent to Transcript.ImageAttachment.
     case image(String)  // base64 data URL
 
-    /// Video attachment (VLM input — Gemma4, Qwen2.5VL).
+    /// Video attachment (VLM input. Gemma4, Qwen2.5VL).
     /// Mirrors upstream UserInput.Video in MLXChatExample.
     case video(String)  // URL or data URL
 
@@ -80,11 +80,11 @@ enum TranscriptPart: Codable, Hashable, Sendable {
     var visibleByDefault: Bool {
         switch self {
         case .text, .image, .video: return true
-        // compactionNote is ALWAYS visible — it is the user's only signal that
+        // compactionNote is ALWAYS visible. It is the user's only signal that
         // their context was pruned; hiding it would recreate the invisibility
         // gap this part exists to close.
         case .compactionNote: return true
-        // truncatedByBudget is ALWAYS visible — same class of invisibility gap:
+        // truncatedByBudget is ALWAYS visible. Same class of invisibility gap:
         // without it, a budget-truncated answer looks like a finished one.
         case .truncatedByBudget: return true
         case .reasoning, .toolCall: return false

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Clock namespace — codex `clock` namespace 两个原语(0.150.1 HEAD, 逐行对齐):
+/// Clock namespace. Codex `clock` namespace 两个原语(0.150.1 HEAD, 逐行对齐):
 ///
 ///   curr_time  无参, 返回当前 UTC 时间 `YYYY-MM-DD HH:MM:SS UTC`
 ///   sleep      `duration_ms` 1..43,200,000(12h) 暂停 agent 循环, 报实际经过秒
@@ -16,12 +16,12 @@
 /// 工具集语义面对齐上游基准(同 `unified_exec` 三工具名、`view_image` 同形对齐先例)。
 ///
 /// 「新输入提前唤醒」已接(10-21, 借自 codex #55644 `305db3808c`): codex 那条修的是
-/// 「注入发生在 wait/sleep **开始之前**」——它此前只在 activity 订阅上等**变化**才唤醒,
+/// 「注入发生在 wait/sleep **开始之前**」。它此前只在 activity 订阅上等**变化**才唤醒,
 /// 已经排在 turn_state 里的 injection 反而打不断自己招来的等待。
 ///
 /// ocoreai 形状不同, 且更简单: `SteerQueue.pendingCount(sessionKey:)` 读的是**当前深度**
 /// 而非变更通知, 所以「等待开始前就已注入」天然覆盖; 代价是按节拍轮询(见
-/// `SystemSleepBackend` —— 每轮只睡一个轮询间隔, 绝不睡到 deadline, AGENTS.md 并发条)。
+/// `SystemSleepBackend`。每轮只睡一个轮询间隔, 绝不睡到 deadline, AGENTS.md 并发条)。
 /// 会话键唯一设值点 = `ToolRegistry.call`(经 `ToolInvocationContext.conversationKey` 传播)。
 ///
 /// 两个方向都由 `SleepSteerWakeTests` 钉住: 排在前面的转向必须打断(正向 = codex 修的那格);
@@ -32,7 +32,7 @@ import Foundation
 
 // MARK: - curr_time
 
-/// 时间提供 seam — 唯一的「真实时钟」边界。生产实现读 `Date()`;测试注入固定时间戳,
+/// 时间提供 seam。唯一的「真实时钟」边界。生产实现读 `Date()`;测试注入固定时间戳,
 /// 报告可离线断言(不 touch wall clock)。
 protocol ClockTimeProvider: Sendable {
     func now() -> Date
@@ -43,8 +43,8 @@ struct SystemClockTimeProvider: ClockTimeProvider, @unchecked Sendable {
     nonisolated func now() -> Date { Date() }
 }
 
-/// 真实延迟 seam — 唯一的「真等」边界。生产走 `Task.sleep`(不阻塞 actor executor,
-/// 对齐 ExecSessions 的 `Thread.sleep` 纪律);测试注入 fake 不真等 —— 12h 上限可安全
+/// 真实延迟 seam。唯一的「真等」边界。生产走 `Task.sleep`(不阻塞 actor executor,
+/// 对齐 ExecSessions 的 `Thread.sleep` 纪律);测试注入 fake 不真等。12h 上限可安全
 /// 触发, 离线断言 duration/报告形态, 不拖慢 CI。
 /// 一次有界等待的终局: 睡满了, 还是被本会话的输入提前叫走。
 enum SleepOutcome: Equatable, Sendable {
@@ -55,7 +55,7 @@ enum SleepOutcome: Equatable, Sendable {
 protocol SleepBackend: Sendable {
     /// 最多等 `milliseconds`; `wakeCheck` 说本会话有输入在等, 立刻返回 `.interrupted`。
     ///
-    /// 第一刀之前先查一次 —— 这正是 codex #55644 修的那一格: 等待开始**之前**排进来的
+    /// 第一刀之前先查一次。这正是 codex #55644 修的那一格: 等待开始**之前**排进来的
     /// 输入也必须结束这次等待。
     nonisolated func sleep(
         milliseconds: Int, wakeCheck: @escaping @Sendable () -> Bool
@@ -64,7 +64,7 @@ protocol SleepBackend: Sendable {
 
 struct SystemSleepBackend: SleepBackend, @unchecked Sendable {
     // 无共享可变状态(每次 sleep 独立 Task), 故 @unchecked Sendable 安全。
-    /// 轮询节拍: 每轮只睡一个间隔, 绝不睡到 deadline(AGENTS.md 并发条 —— 睡到 deadline 的
+    /// 轮询节拍: 每轮只睡一个间隔, 绝不睡到 deadline(AGENTS.md 并发条。睡到 deadline 的
     /// 轮询循环不管条件何时清掉, 都把等待者按满整个窗口)。100 ms 让转向唤醒人手无感,
     /// 又不至于空转。
     static let pollIntervalMs = 100
@@ -128,7 +128,7 @@ enum ClockSleep {
     /// 报告(codex `sleep.rs` 原形): `Wall time: {elapsed:.4f} seconds\n{message}`,
     /// message ∈ {`Sleep completed.`, `Sleep interrupted by new input.`}。
     ///
-    /// `outcome` 无默认值 —— 这个词必须由 backend 实测出的终局提供。给一个 `.completed`
+    /// `outcome` 无默认值。这个词必须由 backend 实测出的终局提供。给一个 `.completed`
     /// 默认值 = 让任何忘记传终局的调用方默认宣称「睡满了」, 那是比实际更短的等待(不变量 2)。
     static func report(elapsedSeconds: Double, outcome: SleepOutcome) -> String {
         let message =
@@ -148,7 +148,7 @@ enum ClockSleep {
 
 /// 「本会话是否已有输入在等」的唯一判断点。
 ///
-/// 只看 `SteerQueue.pendingCount(sessionKey:)` —— 引擎 steer 用的同一个键、同一个字典,
+/// 只看 `SteerQueue.pendingCount(sessionKey:)`。引擎 steer 用的同一个键、同一个字典,
 /// 不另立第二套身份(env var / model id / 进程级标志)。被 drain 走的那条 steer 计数即归零,
 /// 所以「已经投递给模型的转向」天然不会再叫醒下一场等待(codex #55644 把
 /// `has_pending_injection` 连 items 一起 `std::mem::take` 清零, 同一个方向)。

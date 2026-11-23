@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Shared animation helpers — reduce motion guard for all SwiftUI animations
+/// Shared animation helpers. Reduce motion guard for all SwiftUI animations
 /// Centralized so P1 HIG compliance is enforced app-wide, not per-view.
 
 import SwiftUI

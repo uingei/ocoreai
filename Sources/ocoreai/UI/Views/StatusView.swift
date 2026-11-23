@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// StatusView — real-time system status panel
+/// StatusView. Real-time system status panel
 /// ViewModel + SectionHeader + StatusPill + StatusRow
 /// @Observable pattern. i18n via StringKey. Accessibility: full VoiceOver.
 

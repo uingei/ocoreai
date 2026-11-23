@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// FMToolBridge.swift — Bridge between ocoreai ToolRegistry and FoundationModels.Tool
+/// FMToolBridge.swift. Bridge between ocoreai ToolRegistry and FoundationModels.Tool
 ///
 /// Adapts ocoreai's tool infrastructure to the FM SDK's Tool protocol conformance,
 /// enabling proper tool routing through the FM path (macOS 27+).
@@ -20,15 +20,15 @@ import FoundationModels
 /// 契约(代码即文档): Arguments = GeneratedContent(非 String)。
 /// SDK swiftinterface 明文: 标量 Arguments(String/Int/Double/Float/Decimal/Bool)
 /// 的 `parameters` 便捷实现全标 unavailable("Use '@Generable' struct instead")。
-/// parse 通道 = Arguments.init(_ content: GeneratedContent) — 模型生成的工具参数
+/// parse 通道 = Arguments.init(_ content: GeneratedContent)。模型生成的工具参数
 /// 是结构体 {…}(GeneratedContent.Kind.structure),String 通道拿不到 → 运行期
 /// 报 "Failed to parse generated content"(SDK 运行期抛,ocoreai/三仓全树零命中)。
-/// GeneratedContent 自身 conform Generable 且自带 .jsonString — 结构动态工具
+/// GeneratedContent 自身 conform Generable 且自带 .jsonString。结构动态工具
 /// (27 内置 + MCP)的 Arguments 唯一恒等类型;@Generable 结构体需编译期定型,
 /// 覆盖不了运行期注册的 MCP 工具面。
 ///
 /// The `parameters` property builds a GenerationSchema from the tool's JSON
-/// schema by serializing → Codable init — the SDK's authoritative path.
+/// schema by serializing → Codable init. The SDK's authoritative path.
 ///
 /// NOTE: We use `FoundationModels.Tool` fully qualified everywhere to avoid
 /// collision with `MLXLMCommon.Tool` (struct, not protocol).
@@ -73,7 +73,7 @@ struct FMToolProxy: FoundationModels.Tool {
     /// Build a [any FoundationModels.Tool] array from toToolSpecs output.
     /// - Parameter turnToken: The owning turn's audit key, forwarded to every dispatch so the
     ///   FM lane's records attribute to the turn like every other lane's
-    ///   (`Models/ClaimVsAudit.swift`). nil unkeys the records — the old behaviour.
+    ///   (`Models/ClaimVsAudit.swift`). nil unkeys the records. The old behaviour.
     static func tools(
         from registry: ToolRegistry,
         toolSpecs: [[String: any Sendable]],
@@ -92,7 +92,7 @@ struct FMToolProxy: FoundationModels.Tool {
 
             let schema = tryToBuildSchema(from: toolParams, name: toolName, logger: logger)
             guard let schema else {
-                // A tool with an unusable schema is worse than no tool — skip it.
+                // A tool with an unusable schema is worse than no tool. Skip it.
                 continue
             }
             let proxy = FMToolProxy(
@@ -109,7 +109,7 @@ struct FMToolProxy: FoundationModels.Tool {
                         // MLX path EngineInference L2683-2690): a handler-level
                         // failure (e.g. edit_file refusing a partial edit) is
                         // returned to the model AS a tool-result error string so
-                        // it can self-correct and retry — instead of propagating
+                        // it can self-correct and retry. Instead of propagating
                         // `throw` to the FM SDK, which terminates the whole
                         // generation with a 500 and zero recovery path.
                         // E2E 09-10 repro: 4B guess-wrong oldString → hard 500.
@@ -167,7 +167,7 @@ struct FMToolProxy: FoundationModels.Tool {
     ) -> FoundationModels.DynamicGenerationSchema? {
         let type = schema["type"] as? String ?? "object"
 
-        // 标量映射 — Generable 原生类型
+        // 标量映射。Generable 原生类型
         switch type {
         case "string":
             return FoundationModels.DynamicGenerationSchema(type: String.self, guides: [])
@@ -226,7 +226,7 @@ struct FMToolProxy: FoundationModels.Tool {
 
 @available(macOS 27.0, iOS 27.0, *)
 enum FMTranscriptHelpers {
-    // Transcript.Prompt takes [Transcript.Segment] — distinct from FoundationModels.Prompt (PromptRepresentable)
+    // Transcript.Prompt takes [Transcript.Segment]. Distinct from FoundationModels.Prompt (PromptRepresentable)
     typealias TMEntry = FoundationModels.Transcript.Entry
     typealias TMSegment = FoundationModels.Transcript.Segment
     typealias TTPrompt = FoundationModels.Transcript.Prompt
@@ -270,7 +270,7 @@ enum FMTranscriptHelpers {
                 }
                 // NOTE: Transcript path carries text only. Transcript.ImageAttachment has
                 // no public initializer (opaque SDK type), so image segments cannot be
-                // constructed here — an SDK API-surface constraint, not a pending task.
+                // constructed here. An SDK API-surface constraint, not a pending task.
                 // Core value (tools/reasoning/sampling) is fully unlocked without images.
                 _ = msg.images  // avoid unused warning
                 if !segments.isEmpty {
@@ -331,15 +331,15 @@ enum FMTranscriptHelpers {
 /// Classify a `LanguageModelSession` throw into the human/UI-facing error
 /// message.
 ///
-/// Context exhaustion is the ONLY case that gets a bespoke surface —
-/// "start a fresh conversation" — for parity with the non-FM path's
+/// Context exhaustion is the ONLY case that gets a bespoke surface,
+/// "start a fresh conversation", for parity with the non-FM path's
 /// `AppError.contextWindowExhausted(postTokens:cap:)` (OpenAIModels.swift).
 /// The SDK payload (`ContextSizeExceeded { contextSize, tokenCount }`)
 /// carries the real numbers, so both are surfaced instead of a bare
 /// `localizedDescription` that would loop the user into a pointless retry.
 ///
-/// Every other throw — `rateLimited`, `refusal`, `timeout`, the
-/// `unsupported*` family, and any non-FM error — surfaces its
+/// Every other throw, `rateLimited`, `refusal`, `timeout`, the
+/// `unsupported*` family, and any non-FM error. Surfaces its
 /// `localizedDescription` verbatim. Isolated here (not inlined in the catch
 /// site) so the classification is unit-testable against real
 /// `LanguageModelError` values instead of a `count > N` smoke check.
@@ -383,9 +383,9 @@ enum FMOptionResolver {
         }
     }
 
-    /// Tool-calling mode resolution — mode must match actual tool state.
+    /// Tool-calling mode resolution. Mode must match actual tool state.
     /// Using .allowed when no tools exist causes FM SDK to inject tool-calling
-    /// template markers into the prompt — triggering spurious tool responses
+    /// template markers into the prompt. Triggering spurious tool responses
     /// from models that don't actually know tools. Use .disallowed when empty.
     /// Upstream ToolCallingModeResolution supports .allowed / .required / .disallowed.
     /// .required enables think-then-call reasoning phase before tool dispatch.
@@ -394,10 +394,10 @@ enum FMOptionResolver {
         explicitToolChoice: String?
     ) -> FoundationModels.GenerationOptions.ToolCallingMode {
         guard toolsPresent else {
-            // No tools — force .disallowed regardless of user preference
+            // No tools. Force .disallowed regardless of user preference
             return .disallowed
         }
-        // Tools available — resolve mode from explicit option or default to .allowed
+        // Tools available. Resolve mode from explicit option or default to .allowed
         switch explicitToolChoice?.lowercased() {
         case "required": return .required
         case "disallowed": return .disallowed
@@ -435,7 +435,7 @@ enum FMOptionResolver {
                 }
             }
         } else if enableReasoning == true {
-            // Legacy boolean path — defaults to .deep for alignment
+            // Legacy boolean path. Defaults to .deep for alignment
             log.info("Reasoning enabled via ContextOptions.reasoningLevel=.deep")
             return ContextOptions(reasoningLevel: .deep)
         } else {
@@ -445,7 +445,7 @@ enum FMOptionResolver {
 
     /// Guided-generation schema resolution: grammarSchema (standard JSON Schema)
     /// → FoundationModels.GenerationSchema via the DynamicGenerationSchema tree
-    /// (same route as FMToolProxy — GenerationSchema's Codable is the canonical
+    /// (same route as FMToolProxy. GenerationSchema's Codable is the canonical
     /// shape with x-order/title, so a plain JSON Schema must NOT be decoded).
     /// Returns nil when absent or malformed (caller falls back to unguided).
     static func guidedSchema(

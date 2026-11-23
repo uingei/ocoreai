@@ -83,13 +83,13 @@ final class GrammarCompiler {
         return CompiledGrammar(handle: grammarHandle, tokenizerInfo: tokenizerInfo)
     }
 
-    /// Compile a structural tag — one grammar that admits several formats in a single turn.
+    /// Compile a structural tag. One grammar that admits several formats in a single turn.
     ///
     /// This is what a turn that names BOTH a JSON `response_format` and `tools[]` needs: today
     /// `buildGrammarSchema` picks a side, and whichever side loses is ungeneratable for that
     /// turn (measured four ways, CHANGELOG 10-24(1)). A tag whose structure is
     /// `or[json_schema(caller), json_schema(envelope)]` keeps both channels reachable while the
-    /// output stays grammar-valid — the route sglang takes with StructuralTag
+    /// output stays grammar-valid. The route sglang takes with StructuralTag
     /// (~/references/sglang: xgrammar-backed), compiled here by
     /// `xgrammar_compile_structural_tag` over xgrammar 0.2.2's `CompileStructuralTag`
     /// (include/xgrammar/compiler.h:96).

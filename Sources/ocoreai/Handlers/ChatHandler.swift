@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// chat_handler.swift — OpenAI-compatible chat completions handler
+/// chat_handler.swift. OpenAI-compatible chat completions handler
 ///
 /// DEFENSIVE: Full OpenAI API compat layer (chat completions, SSE streaming,
 /// tool calling, usage tracking). If CoreAI ships an official OpenAI-compatible
@@ -19,7 +19,7 @@
 /// Full accumulation → detokenize → diff extraction (aligned with Apple `respondVanilla`).
 ///
 /// ### Tool Calling:
-/// Full function/AGI tool call support — model requests tool invocation,
+/// Full function/AGI tool call support. Model requests tool invocation,
 /// client executes, sends follow-up with tool role messages, model integrates results.
 ///
 /// ### Parameter Fallback Chain (v9):
@@ -38,7 +38,7 @@ import CoreAI
 
 // MARK: - Self-Correction Integration
 
-/// Top-level pipeline instance — Sendable, zero cost when self-correction is off.
+/// Top-level pipeline instance. Sendable, zero cost when self-correction is off.
 private let selfCorrectionPipeline = SelfCorrectionPipeline()
 
 /// Decide whether to activate the post-inference self-correction pipeline.
@@ -47,7 +47,7 @@ private let selfCorrectionPipeline = SelfCorrectionPipeline()
 ///   1. ``ChatCompletionRequest/selfCorrection`` is explicitly ``true``, OR
 ///   2. (Future) confidence from Phase 1 rule check drops below 0.85.
 ///
-/// When disabled this is a single ``Bool`` check — no allocations, no async hops.
+/// When disabled this is a single ``Bool`` check, no allocations, no async hops.
 private func shouldRunSelfCorrection(_ request: ChatCompletionRequest) -> Bool {
     request.selfCorrection == true
 }
@@ -126,7 +126,7 @@ private func buildCorrectedMessages(
 /// Wire-content projection with reasoning-channel fallback (file-scope so
 /// the contract is unit-testable). Verified (Qwen3.5-4B
 /// over the FM/SDK path, thinking on): the SDK classifies the ENTIRE
-/// generation — answer included — into `Transcript.Entry.reasoning`, so
+/// generation. Answer included. Into `Transcript.Entry.reasoning`, so
 /// the text channel arrives empty (non-stream: reasoning_tokens>0 with
 /// content=""; stream: zero `delta.content`, all text on
 /// `reasoning_content`). Both wire projections (non-stream
@@ -152,7 +152,7 @@ func contentWireFallback(
     // scaffold ("" / `[\n\n]`) as fast-forward tokens BEFORE pass-2 prose;
     // the scaffold is protocol text, not answer prose. `removeToolCallArrays`
     // deliberately passes empty arrays through (byte-faithful for prose
-    // `arr = []`), so the scoped removal lives HERE — gated on the tools
+    // `arr = []`), so the scoped removal lives HERE. Gated on the tools
     // path, leading position only, never mid-prose.
     if toolsPath {
         stripped = OutputSanitizer.stripLeadingToolScaffold(stripped)
@@ -174,11 +174,11 @@ func chatCompletionsHandler(
     logger: Logger,
     toolsSurfaceEnforced: Bool = false,
 ) async throws -> Response {
-    /// Numeric domain gate — first line, before model resolution, before the safety guards,
+    /// Numeric domain gate. First line, before model resolution, before the safety guards,
     /// before the scheduler reserves anything.
     ///
     /// Measured 10-17: `{"max_tokens":-5}` was accepted, reached
-    /// ``SchedulerActor/dispatch()``, and `UInt64(tokenBudget)` trapped there —
+    /// ``SchedulerActor/dispatch()``, and `UInt64(tokenBudget)` trapped there,
     /// `EXC_BREAKPOINT (SIGTRAP)`, process gone, client got an empty reply, and every other
     /// conversation on the box died with it. A trap is not a refusal: no status, no
     /// `error_code`, no remediation, nothing left to serve the next request. Every bounded
@@ -192,7 +192,7 @@ func chatCompletionsHandler(
 
     /// `tool_choice` naming a choice from a set the client never declared is a
     /// contradiction, not a preference: both reference stacks refuse it
-    /// (vllm `chat_completion/protocol.py:976-981` — *"When using `tool_choice`,
+    /// (vllm `chat_completion/protocol.py:976-981`. *"When using `tool_choice`,
     /// `tools` must be set"*; sglang `protocol.py:1020-1027`), with `"none"` exempt
     /// because it demands nothing. Same seat as the numeric gate: before model
     /// resolution, before the safety guards, before the scheduler reserves anything.
@@ -212,7 +212,7 @@ func chatCompletionsHandler(
         )
     }
 
-    /// Capability gate: embedding models have no generation head — a chat
+    /// Capability gate: embedding models have no generation head. A chat
     /// request on one would load a non-generating container on CPU and hang
     /// (live-observed 10-06: 90s no-return, tokenization fell back to
     /// heuristics). /v1/models lists it with `capabilities: ["embed"]`;
@@ -225,10 +225,10 @@ func chatCompletionsHandler(
 
     /// Capability gate, measured per checkpoint: a caller that demands thinking control
     /// gets refused when this server has rendered this checkpoint's own template and seen it
-    /// ignore the kwarg — the word cannot reach the model, so the turn would only look
+    /// ignore the kwarg. The word cannot reach the model, so the turn would only look
     /// controlled. Unmeasured is never refused (`ReasoningEffortLedger`): the pass-through
     /// stays, and `/v1/models` says `not_observed`. Same seat as the numeric and
-    /// `tool_choice` gates — before the safety guards, before the scheduler.
+    /// `tool_choice` gates. Before the safety guards, before the scheduler.
     if let refusal = ReasoningEffortWire.refusal(
         modelId: modelId,
         requestedValue: request.reasoningEffort,
@@ -242,7 +242,7 @@ func chatCompletionsHandler(
 
     /// Tool-surface gate, opt-in (`settings.toolsSurface.enforce`, default OFF): a caller that
     /// declares tools[] against a checkpoint this server has MEASURED leaving every declaring
-    /// turn in the prose is refused with both exits — the enforcement half of the fact
+    /// turn in the prose is refused with both exits. The enforcement half of the fact
     /// `/v1/models` already publishes as `toolCallDelivery`. A delivered call and a never-
     /// observed model both pass through; flag OFF keeps today byte-identical. Same seat as
     /// the reasoning-effort gate, before the safety guards and the scheduler.
@@ -263,13 +263,13 @@ func chatCompletionsHandler(
 
     /// NOTE: Empty-messages guard is in the router (ChatCompletionsRouter:148).
     /// If this handler is ever called directly, empty messages will still cause
-    /// downstream failures — the router guard is the source of truth.
+    /// downstream failures. The router guard is the source of truth.
 
     /// A part that names an attachment this server has no shape for is refused before
     /// anything else runs, with the client's own field path: until now `file`, an
     /// unknown type, and an `image_url` with no payload decoded into a part that carries
-    /// nothing, so every consumer downstream — media resolution, audio ingestion, the
-    /// tokenizer, the engine — was correct about a request that had silently lost its
+    /// nothing, so every consumer downstream. Media resolution, audio ingestion, the
+    /// tokenizer, the engine. Was correct about a request that had silently lost its
     /// payload, and the caller got a 200 and a confident answer about bytes nobody read.
     /// Cheapest check in this function, and the only one that runs on the DTO alone.
     let uncarried = ChatMedia.uncarried(in: request.messages)
@@ -284,13 +284,13 @@ func chatCompletionsHandler(
             value: first.type)
     }
 
-    /// An unpaired `role:"tool"` result renders into nothing (orphaned — no assistant
+    /// An unpaired `role:"tool"` result renders into nothing (orphaned, no assistant
     /// `tool_calls` claims it) or into an `unknown`-labelled block (id matches no open
     /// call); both measured live 11-16 as a 200 over a prompt that silently lost or
     /// mislabelled the caller's content. A non-result message cutting into an
     /// unanswered run breaks the same rendering. The three kinds are sglang's shipped
     /// walker (`serving_chat.py:300-330`); a run left open at the END stays legal there
-    /// and here — it is what the completion is asked to answer. One pass, the DTO
+    /// and here. It is what the completion is asked to answer. One pass, the DTO
     /// alone, beside the media refusal it mirrors.
     if let pair = ToolHistory.pairingViolation(in: request.messages) {
         logger.warning(
@@ -314,7 +314,7 @@ func chatCompletionsHandler(
             value: pair.toolCallID)
     }
 
-    /// Audio attached to a chat turn cannot reach a model as waveform in this build —
+    /// Audio attached to a chat turn cannot reach a model as waveform in this build,
     /// `ChatAudioIngestion` carries the measurement (no `UserInputProcessor` at the pinned
     /// revision consumes `input.audios`) and the two honest routes that remain: hear it
     /// into text, or refuse with a typed code. What is no longer possible is a 200 with
@@ -339,10 +339,10 @@ func chatCompletionsHandler(
     /// Media referenced by path gets the same treatment as audio: checked before the
     /// safety guards, the scheduler and any engine handle, and refused with the part type
     /// and the path named. Until this existed the condition surfaced from inside
-    /// AVFoundation as `500 … The operation could not be completed` — a status that
+    /// AVFoundation as `500 … The operation could not be completed`. A status that
     /// blames the service, for a message that names nothing the client can act on.
     /// See `ChatMediaResolution` for what counts (paths) and what deliberately does not
-    /// (`data:` inline, `http(s)://` — upstream's to fetch).
+    /// (`data:` inline, `http(s)://`. Upstream's to fetch).
     let unresolvableMedia = ChatMedia.unresolvable(in: request.messages)
     if !unresolvableMedia.isEmpty {
         let remediation = ChatMedia.remediation(for: unresolvableMedia)
@@ -369,7 +369,7 @@ func chatCompletionsHandler(
         }
     }
 
-    /// Prompt injection detection — uses precompiled regex from AuthConfig
+    /// Prompt injection detection. Uses precompiled regex from AuthConfig
     if AuthConfig.default.promptInjectionEnabled {
         if AuthConfig.detectPromptInjection(
             in: request.messages,
@@ -439,8 +439,8 @@ func chatCompletionsHandler(
         /// accept-always semantics: a steer no live turn drained "survives and
         /// merges into the NEXT request for the same conversation". The engine
         /// drains the queue only at tool-dispatch boundaries inside a turn, so
-        /// a steer that arrives while no turn runs — or during a turn that
-        /// never dispatches a tool — would stay queued, invisible to the model
+        /// a steer that arrives while no turn runs, or during a turn that
+        /// never dispatches a tool. Would stay queued, invisible to the model
         /// and never returned to a wire client (the GUI has a composer flush;
         /// the HTTP path had nothing). Draining before the prompt is built
         /// delivers it on this request, and `prompt_tokens` counts it honestly.
@@ -500,7 +500,7 @@ func chatCompletionsHandler(
             usedTokens: promptTokenCount, windowLimit: modelContextCap)
         // Post-compaction floor, carried to the wall when compaction removed ≥1
         // unit (the "even fully compacted it is still X > cap" number). nil when
-        // no compaction ran — then the transcript's own estimate is the floor.
+        // no compaction ran. Then the transcript's own estimate is the floor.
         var postFloor: Int? = nil
         if promptExceedsContextWindow(
             promptTokens: promptTokenCount, maxContextWindow: modelContextCap)
@@ -590,7 +590,7 @@ func chatCompletionsHandler(
                     "windowSource": .string(resolvedWindow.source.rawValue),
                 ])
             // Typed exhaustion (hermes-agent #106260): compaction already removed
-            // every removable unit — the client-visible JSON carries
+            // every removable unit. The client-visible JSON carries
             // error_code "context_window_exhausted" + post/cap numbers so a JSON
             // client can branch without string-parsing, and knows retrying an
             // equally-sized request fails identically (start a fresh session).
@@ -612,7 +612,7 @@ func chatCompletionsHandler(
         /// Resolve effective temperature.
         /// Note: ChatCompletionRequest.temperature is Float = 0.7 (non-optional),
         /// so we cannot distinguish "user sent nothing" from "user sent 0.7".
-        /// Therefore request.temperature is always the source of truth —
+        /// Therefore request.temperature is always the source of truth,
         /// runtimeDefaults can only help for optional fields (topP, topK, etc.).
         /// Special case: temperature=0 is valid (deterministic mode).
         let effectiveTemp: Float = request.temperature
@@ -637,7 +637,7 @@ func chatCompletionsHandler(
             ? request.frequencyPenalty
             : runtimeDefaults.frequencyPenalty
 
-        /// #176 alignment — repetition penalty cascades nil-driven (request > runtime
+        /// #176 alignment. Repetition penalty cascades nil-driven (request > runtime
         /// > unset), mirroring upstream `repetitionPenalty`/`repetitionPenaltyWindow`.
         let effectiveRepetitionPenalty =
             request.repetitionPenalty ?? runtimeDefaults.repetitionPenalty
@@ -693,7 +693,7 @@ func chatCompletionsHandler(
         /// - Tool calls (structured function_call/tool_calling JSON)
         /// - JSON Schema responses (strict JSON output validation)
         /// `tool_choice: "none"` removes the tool surface (OpenAI contract:
-        /// "Model must not call any tools") — the json_schema branch below
+        /// "Model must not call any tools"). The json_schema branch below
         /// is independent and still honored.
         let effectiveTools = effectiveTools(from: request)
         /// The truth set for a tool turn is the DECLARATION, not the registry.
@@ -705,7 +705,7 @@ func chatCompletionsHandler(
         /// FORCED a call for a name upstream then rejected as `undeclared_tool`,
         /// recovery exhausted, and prose garbage replaced a correct call.
         ///
-        /// What the same policy also did — unnoticed until 10-18 — is delete the
+        /// What the same policy also did. Unnoticed until 10-18. Is delete the
         /// contract for every tool this server does not own. `tools:[get_weather]`
         /// left the handler with nothing, so grammar switched off, `hasNativeTools`
         /// went false, and the engine's surface resolved to ∅: the model was
@@ -713,11 +713,11 @@ func chatCompletionsHandler(
         /// `mlx-community/gemma-4-e2b-it-4bit`: the answer came back as a fenced
         /// JSON block naming the tool with `finish_reason: stop`, and no surface
         /// said a word. A client cannot execute a call it never received, so its
-        /// agent loop dies on the first turn — the most expensive failure shape a
+        /// agent loop dies on the first turn. The most expensive failure shape a
         /// tool API has, delivered as a 200 OK.
         ///
         /// OpenAI wire semantics put the caller in charge of the tools the caller
-        /// declares; vllm and sglang never execute a tool at all — they parse the
+        /// declares; vllm and sglang never execute a tool at all. They parse the
         /// model's output against the declaration and hand the call back. So the
         /// surface, the grammar and upstream validation all get the caller's FULL
         /// `tools[]` (that is P0-4's one truth set), while execution ownership is a
@@ -728,13 +728,13 @@ func chatCompletionsHandler(
         let declaredToolNames: [String]? = {
             if request.toolChoice == "none" { return [] }
             // 10-06 flip: nil (client declared nothing) reaches the engine as
-            // nil and resolves to ZERO tools there (`resolveToolSurface`) —
+            // nil and resolves to ZERO tools there (`resolveToolSurface`),
             // never the implicit full surface. [] = declared empty → zero
             // tools. Both are "no tools this turn" (OpenAI wire semantics).
             return request.tools?.map({ $0.function.name })
         }()
         /// Names in this turn's declaration that the local registry can execute.
-        /// Everything else is still declared to the model — the caller executes it.
+        /// Everything else is still declared to the model. The caller executes it.
         let locallyExecutableToolNames: Set<String> = await {
             guard let tools = effectiveTools, !tools.isEmpty else { return [] }
             guard let registry = enginePool.toolRegistry else { return [] }
@@ -751,11 +751,11 @@ func chatCompletionsHandler(
             responseFormat: request.responseFormat,
             toolChoice: request.toolChoice)
 
-        /// Reasoning switch — three-state (absent=nil → model default,
+        /// Reasoning switch. Three-state (absent=nil → model default,
         /// true → force on, false → force off). Aligned with upstream
         /// `thinkingEnabled: Bool?`.
 
-        /// Tool choice strategy — log and pass through to Engine
+        /// Tool choice strategy. Log and pass through to Engine
         if let tc = request.toolChoice {
             logger.info("Tool choice: \(tc)")
         }
@@ -772,7 +772,7 @@ func chatCompletionsHandler(
             )
         }
 
-        /// Build grammar schema string for GuidedGeneration constraint — built from
+        /// Build grammar schema string for GuidedGeneration constraint. Built from
         /// the DECLARATION, never a narrowed subset, so grammar == surface ==
         /// `tools[]` as the client sent it.
         let grammarSchema =
@@ -792,9 +792,9 @@ func chatCompletionsHandler(
             // loop (MLXLMCommon "loop can restart on tool calls"), NOT the
             // one-shot FM guided path. json_schema stays on guided (that is
             // guided's real job). Observed: tools on the FM guided path
-            // execute but never continue — the loop is the intended route.
+            // execute but never continue. The loop is the intended route.
             // 10-18: gate on the DECLARATION, the same set the grammar was
-            // built from — flag and grammar agreeing is what P0-4 asked for, and
+            // built from. Flag and grammar agreeing is what P0-4 asked for, and
             // the engine decides per name whether it dispatches or hands back.
             hasNativeTools: effectiveTools?.isEmpty == false,
             enableReasoning: request.reasoning,
@@ -802,7 +802,7 @@ func chatCompletionsHandler(
             reasoningEffort: request.reasoningEffort,
             // P0-3 + 10-06 flip: declared names (OpenAI `tools[]` whitelist);
             // nil (client declared none) resolves to ZERO tools at the engine
-            // choke (`resolveToolSurface`) — never the implicit full surface.
+            // choke (`resolveToolSurface`). Never the implicit full surface.
             // `tool_choice: "none"` → [] → same zero surface.
             declaredToolNames: declaredToolNames,
             // The caller's own schemas, so a name this server does not register
@@ -836,11 +836,11 @@ func chatCompletionsHandler(
         }
 
         /// Phase 5: Dispatch to stream OR non-stream path based on request flag.
-        /// Use ``generateFromMessages`` — MLX path passes messages directly to ChatSession,
+        /// Use ``generateFromMessages``. MLX path passes messages directly to ChatSession,
         /// eliminating the tokenize→detokenize→re-tokenize loop.
         if request.stream == true {
             // The stream cannot carry `audio_input` without inventing an SSE field clients
-            // do not expect, so the same fact is recorded where logs are queryable —
+            // do not expect, so the same fact is recorded where logs are queryable,
             // `ChatAudioIngestion`'s header claims the streamed route discloses it too, and
             // this is the line that makes that claim true. The refusal, which is the part
             // that protects a client from a blind answer, already stops both modes: it
@@ -910,7 +910,7 @@ func chatCompletionsHandler(
     return finalResult
 }
 
-// MARK: - Tool Call Parsing — uses shared ``parseToolCalls`` from OpenAIModels
+// MARK: - Tool Call Parsing. Uses shared ``parseToolCalls`` from OpenAIModels
 
 // MARK: - Non-stream with Tool Calling
 
@@ -954,7 +954,7 @@ private func nonStreamWithToolCalling(
     /// Baseline for the claim/audit cross-check at this turn's finalize site: "did anything
     /// change the workspace between here and the answer" is answered by `ToolMutationLedger`
     /// (fed at the `ToolRegistry` chokepoint), never by what the model said nor by the wire
-    /// echo — a native tool turn runs inside `ChatSession` and echoes no `tool_calls` at all.
+    /// echo. A native tool turn runs inside `ChatSession` and echoes no `tool_calls` at all.
     /// The baseline alone is NOT enough: under concurrency it inflates, and an inflated set
     /// invents the "This turn did change files" notice — measured 11-01 — so `turnKey` below
     /// attributes the record to THIS request's dispatches (`Models/ClaimVsAudit.swift`).
@@ -962,7 +962,7 @@ private func nonStreamWithToolCalling(
     /// The failure half of the same record: only `ToolAttemptLedger` knows a handler was
     /// reached and missed, which the mutation ledger alone cannot see (`Models/ClaimVsAudit.swift`).
     let attemptBaseline = await ToolAttemptLedger.shared.snapshot()
-    /// One key for this request's audit — the same value passed to every engine call below
+    /// One key for this request's audit. The same value passed to every engine call below
     /// (a degenerate-output correction stream is still this turn), and threaded by the engine
     /// to the dispatch chokepoint so only this request's tool records match at the finalize.
     let turnKey = UUID().uuidString
@@ -974,10 +974,10 @@ private func nonStreamWithToolCalling(
     /// Record inference start time for metrics.
     let startTime = ContinuousClock.now
 
-    /// Mark session active — resets KV cache idle eviction timer.
+    /// Mark session active. Resets KV cache idle eviction timer.
     await handle.markActive()
 
-    // MARK: P1-5 — Learn signal: recall MemoryEvents before inference
+    // MARK: P1-5. Learn signal: recall MemoryEvents before inference
     // SelfCorrectionPipeline stores structured memory events (correction traces,
     // patterns, facts). Recall them here so the next inference pass is informed
     // by what was learned from past requests. This closes the Learn→Observe loop.
@@ -1009,13 +1009,13 @@ private func nonStreamWithToolCalling(
             inferenceMessages = messages
         }
     } catch {
-        // Memory recall failure is non-fatal — proceed without it
+        // Memory recall failure is non-fatal. Proceed without it
         inferenceMessages = messages
     }
 
-    // MARK: Inference — direct stream via generateFromMessages
+    // MARK: Inference. Direct stream via generateFromMessages
     /// ChatSession owns tool execution internally (toolDispatch closure).
-    /// AgentLoop is no longer used for MLX paths — it served only as a wrapper
+    /// AgentLoop is no longer used for MLX paths. It served only as a wrapper
     /// that duplicated ChatSession's built-in tool loop. We now call the stream
     /// directly and collect the result.
     let tokenStream = handle.generateFromMessages(
@@ -1032,11 +1032,11 @@ private func nonStreamWithToolCalling(
     /// Reasoning text from `.reasoning` events (ReasoningEventEmitter /
     /// ThinkTagParser). Kept SEPARATE from `accumulatedContent` so the
     /// non-streaming response mirrors the streaming `reasoning_content`
-    /// channel — reasoning must not leak into `content`.
+    /// channel. Reasoning must not leak into `content`.
     var accumulatedReasoning = ""
     var detectedToolCalls: [ToolCall]? = nil
     /// Measured outcome of every tool this turn dispatched, published on the wire at the end
-    /// of the turn (the model's echo is not evidence of a dispatch — invariant 2).
+    /// of the turn (the model's echo is not evidence of a dispatch. Invariant 2).
     var toolResults: [ToolResultMeta] = []
     /// Reasoning tokens from upstream `.done(reasoningTokenCount:)` (baseline:
     /// mlx-swift-lm + coreai-models completion info) → OpenAI
@@ -1087,7 +1087,7 @@ private func nonStreamWithToolCalling(
             case .toolCall(let tc):
                 // tc is already ocoreai's ToolCall type (via InferenceEvent.mlxToolCall).
                 // P0-3 fix: APPEND, don't overwrite. A single generation turn may emit
-                // multiple tool calls — the CoreAI `ToolCallParser` yields every one via
+                // multiple tool calls. The CoreAI `ToolCallParser` yields every one via
                 // flush() (EngineInference.swift:474-492) and the MLX path streams each.
                 // The old `detectedToolCalls = [tc]` silently dropped every call but the
                 // last, corrupting multi-tool turns into a single-call response.
@@ -1098,7 +1098,7 @@ private func nonStreamWithToolCalling(
                 toolResults.append(meta)
                 break
             case .reasoning(let r):
-                // Reasoning from ReasoningEventEmitter — SEPARATE channel from
+                // Reasoning from ReasoningEventEmitter. SEPARATE channel from
                 // `content`: mirrors the streaming `reasoning_content` path.
                 // (Previously merged into `accumulatedContent`, which leaked the
                 // full thought block into the non-streaming `content` field.)
@@ -1172,11 +1172,11 @@ private func nonStreamWithToolCalling(
                         case .toolCall:
                             break
                         case .toolResult:
-                            // Self-correction re-generation — tool outcome is
+                            // Self-correction re-generation. Tool outcome is
                             // invisible to the correction loop; no-op.
                             break
                         case .reasoning(let r):
-                            // Keep out of the corrected RESPONSE text — the
+                            // Keep out of the corrected RESPONSE text. The
                             // critique evaluates the answer, and the corrected
                             // response mirrors the non-reasoning `content`.
                             _ = r
@@ -1189,7 +1189,7 @@ private func nonStreamWithToolCalling(
                             // Dead code: never emitted by Engine
                             break
                         case .channel:
-                            // Informational — no content
+                            // Informational, no content
                             break
                         }
                     }
@@ -1222,10 +1222,10 @@ private func nonStreamWithToolCalling(
     /// every call the engine had recognised: upstream consumes the native dialect
     /// (`<|tool_call>call:NAME{…}<tool_call|>` on gemma-4) and strips it from the
     /// text it hands back, so `finalContent` was empty, nothing parsed, and
-    /// `detectedToolCalls` — collected from `.toolCall` events a hundred lines up and
-    /// used for nothing but a metric — went nowhere. Measured 10-18 on
+    /// `detectedToolCalls`. Collected from `.toolCall` events a hundred lines up and
+    /// used for nothing but a metric. Went nowhere. Measured 10-18 on
     /// `mlx-community/gemma-4-e2b-it-4bit`: the model called, and the client got
-    /// `content:""`, `finish_reason:"stop"`, no `tool_calls` — neither an answer nor
+    /// `content:""`, `finish_reason:"stop"`, no `tool_calls`. Neither an answer nor
     /// a call, delivered as a 200 OK. The SSE path (line ~1556) already emitted
     /// these same events; a wire client that flipped `stream:true` saw the call and
     /// flipped back to see nothing. Two surfaces, one truth: take the events.
@@ -1242,7 +1242,7 @@ private func nonStreamWithToolCalling(
     /// forbade. `parallel_tool_calls:false` asked for one call at a time and got two
     /// (measured 10-19: `get_weather` Paris + London on the same request, both faces);
     /// the limit is applied here, so a forbidden call is neither shown nor counted as
-    /// delivered — the delivery ledger below records what the client actually got.
+    /// delivered. The delivery ledger below records what the client actually got.
     let toolCalls: [ToolCall]? = ToolCallWire.limitedToolCalls(
         emittedToolCalls, parallelToolCalls: request.parallelToolCalls)
 
@@ -1250,7 +1250,7 @@ private func nonStreamWithToolCalling(
     /// own: an unconditional override reported `tool_calls` for a generation the budget cut
     /// at `max_tokens` (measured 10-19: `completion_tokens == max_tokens == 18`, one call
     /// delivered, `finish_reason:"tool_calls"`), which leaves a client executing a call
-    /// list it cannot know was chopped. `length` stays visible — vllm
+    /// list it cannot know was chopped. `length` stays visible. Vllm
     /// `resolve_finish_reason` (`tool_calls_utils.py:41-59`) and sglang
     /// (`serving_chat.py:2149-2152`, "had tool calls **and stopped naturally**").
     let finishReasonFinal = ToolCallWire.resolveFinishReason(
@@ -1258,7 +1258,7 @@ private func nonStreamWithToolCalling(
 
     /// A client that DEMANDED a call and got none must not leave reading a normal empty answer,
     /// and the server must not invent a call to fill the gap. Measured 10-18 on a question the
-    /// checkpoint resists ("What is 2 + 2?"): constrained decoding yielded zero tokens —
+    /// checkpoint resists ("What is 2 + 2?"): constrained decoding yielded zero tokens,
     /// `content:""`, `finish_reason:"stop"`. Measured again 11-01 on the installed artefact, where
     /// the log was loud and the caller still read the turn as done: what an operator reads is not
     /// what a client reads, so the verdict now rides in the turn's own result
@@ -1279,7 +1279,7 @@ private func nonStreamWithToolCalling(
 
     /// Per-model delivery fact for `tool_call_delivery` on `/v1/models`
     /// (`ToolCallDeliveryLedger`): what a tool-declaring turn actually produced,
-    /// measured here at the wire edge — `parsed` only when the client really
+    /// measured here at the wire edge, `parsed` only when the client really
     /// received `tool_calls`.
     let declaredNamesForDelivery = request.tools?.map { $0.function.name } ?? []
     if !declaredNamesForDelivery.isEmpty {
@@ -1297,7 +1297,7 @@ private func nonStreamWithToolCalling(
     /// "failed") has to match what this turn's tools actually did. Measured 10-22 in
     /// `scripts/eval/run.sh`: a zero-tool turn answered "File created." with the file absent,
     /// and a turn whose `edit_file` had succeeded answered "I failed to fix the code".
-    /// Only a self-terminated answer turn is judged — a turn ending in `tool_calls` has not
+    /// Only a self-terminated answer turn is judged. A turn ending in `tool_calls` has not
     /// finished the work yet, so its text is not a completion claim.
     if toolCalls == nil, finishReasonFinal == "stop" {
         // Keyed attribution: only this request's dispatches match (ClaimVsAudit).
@@ -1345,7 +1345,7 @@ private func nonStreamWithToolCalling(
     /// Post-inference quality signal → ThinkingBudget calibration loop.
     // Complexity is cached in MessageBuilder from the buildMessages call upstream.
     // OcoreaiEngine is @MainActor → cross-actor property access requires await.
-    // This is a fire-and-forget calibration signal — failures are silently ignored.
+    // This is a fire-and-forget calibration signal. Failures are silently ignored.
     let budget = await OcoreaiEngine.shared.activeThinkingBudget
     // Key the calibration write by the SAME key the read path uses
     // (MessageBuilderContext.sessionId = raw session_id), not the Int64-ized
@@ -1446,7 +1446,7 @@ private func streamWithToolCalling(
     /// Baseline for the claim/audit cross-check at this turn's finalize site: "did anything
     /// change the workspace between here and the answer" is answered by `ToolMutationLedger`
     /// (fed at the `ToolRegistry` chokepoint), never by what the model said nor by the wire
-    /// echo — a native tool turn runs inside `ChatSession` and echoes no `tool_calls` at all.
+    /// echo. A native tool turn runs inside `ChatSession` and echoes no `tool_calls` at all.
     /// The baseline alone is NOT enough: under concurrency it inflates, and an inflated set
     /// invents the "This turn did change files" notice — measured 11-01 — so `turnKey` below
     /// attributes the record to THIS request's dispatches (`Models/ClaimVsAudit.swift`).
@@ -1454,7 +1454,7 @@ private func streamWithToolCalling(
     /// The failure half of the same record: only `ToolAttemptLedger` knows a handler was
     /// reached and missed, which the mutation ledger alone cannot see (`Models/ClaimVsAudit.swift`).
     let attemptBaseline = await ToolAttemptLedger.shared.snapshot()
-    /// One key for this request's audit — the same value passed to every engine call below
+    /// One key for this request's audit. The same value passed to every engine call below
     /// (a degenerate-output correction stream is still this turn), and threaded by the engine
     /// to the dispatch chokepoint so only this request's tool records match at the finalize.
     let turnKey = UUID().uuidString
@@ -1474,7 +1474,7 @@ private func streamWithToolCalling(
     // ran all 200 tokens and the next caller queued +4158ms behind it. `onTermination`
     // fires on our own `finish()` and on consumer-task cancellation, and Hummingbird
     // (pinned 55bc9025) cancels neither for a socket whose kernel buffer still accepts
-    // the frames — its public RequestContext exposes no channel/liveness handle
+    // the frames. Its public RequestContext exposes no channel/liveness handle
     // (CoreRequestContextStorage holds only logger, endpointPath, parameters). So this
     // bridge covers explicit cancellation, not disconnect. Fix options and the measured
     // numbers: CHANGELOG 10-22(9); probe 31 keeps the legs xfail-open until they close.
@@ -1491,7 +1491,7 @@ private func streamWithToolCalling(
         let startTime = ContinuousClock.now
         var ttfbTime: ContinuousClock.Instant? = nil
 
-        /// Streaming output safety guard — reused for every chunk
+        /// Streaming output safety guard. Reused for every chunk
         let streamGuard = await OcoreaiEngine.shared.activeContentGuard
 
         /// Streaming output-protocol filter: keeps the SSE `content` channel
@@ -1543,10 +1543,10 @@ private func streamWithToolCalling(
             return true
         }
 
-        /// Mark session active — resets KV cache idle eviction timer.
+        /// Mark session active. Resets KV cache idle eviction timer.
         await handle.markActive()
 
-        /// Start inference — MLX path passes messages directly to ChatSession.
+        /// Start inference. MLX path passes messages directly to ChatSession.
         let tokenStream = handle.generateFromMessages(
             messages: messages,
             sampling: sampling,
@@ -1559,7 +1559,7 @@ private func streamWithToolCalling(
         var totalOutputTokens = 0
         var accumulatedTokens: [Int32] = []
         var prevDecodedText = ""
-        /// `tool_calls` actually emitted on this stream — the delivery fact recorded
+        /// `tool_calls` actually emitted on this stream. The delivery fact recorded
         /// once at stream end for `tool_call_delivery` (``ToolCallDeliveryLedger``).
         var deliveredToolCalls: [ToolCall] = []
         /// Measured tool outcomes carried on the terminal chunk (same record the non-stream
@@ -1568,7 +1568,7 @@ private func streamWithToolCalling(
         /// Reasoning tokens from upstream `.done(reasoningTokenCount:)` →
         /// `completion_tokens_details.reasoning_tokens` in the usage chunk.
         var finalReasoningTokens: Int? = nil
-        /// [FIX P0 — T2 stream tool-loop] — last `.done`'s finish-reason, set per
+        /// [FIX P0. T2 stream tool-loop]. Last `.done`'s finish-reason, set per
         /// pass and consumed once by the stream-end settle (see
         /// `settleEndOfStream`). Replaces the per-pass
         /// "finalFinishReason" local that used to emit a stop chunk per pass.
@@ -1584,14 +1584,14 @@ private func streamWithToolCalling(
         // Prompt tokens served by a reused KV-cache prefix (upstream
         // GenerateCompletionInfo.cachedPromptTokenCount). nil → omit details object.
         var observedCachedPromptTokens: Int? = nil
-        /// Batch decode interval — detokenize every N tokens to avoid O(n²).
+        /// Batch decode interval. Detokenize every N tokens to avoid O(n²).
         let decodeBatchSize = 8
 
         /// Consume and process each stream event.
         do {
             for try await event in tokenStream {
                 switch event.kind {
-                /// .token — batch detokenize with prefix preservation.
+                /// .token. Batch detokenize with prefix preservation.
                 case .token(let tokenId):
                     try Task.checkCancellation()
                     accumulatedTokens.append(tokenId)
@@ -1619,7 +1619,7 @@ private func streamWithToolCalling(
                         continue
                     }
 
-                    /// Extract delta (new text since last chunk) — UTF-8 byte safe.
+                    /// Extract delta (new text since last chunk). UTF-8 byte safe.
                     let deltaText: String =
                         if newText.hasPrefix(prevDecodedText) {
                             String(newText.dropFirst(prevDecodedText.count))
@@ -1629,7 +1629,7 @@ private func streamWithToolCalling(
                         }
 
                     /// Emit SSE chunk if there's new text (via the protocol
-                    /// filter — see `emitSettled`; the content channel only
+                    /// filter. See `emitSettled`; the content channel only
                     /// settles at stream end, thinking streams now).
                     if !deltaText.isEmpty {
                         let settled = await emitSettled(deltaText)
@@ -1639,7 +1639,7 @@ private func streamWithToolCalling(
                     }
                     prevDecodedText = newText
 
-                /// .text — MLX path: text chunks already decoded, stream directly.
+                /// .text. MLX path: text chunks already decoded, stream directly.
                 case .text(let text):
                     try Task.checkCancellation()
                     totalOutputTokens += 1
@@ -1657,14 +1657,14 @@ private func streamWithToolCalling(
 
                     prevDecodedText.append(text)
 
-                /// .done — flush remaining tokens, detect tool calls, send stop chunk.
+                /// .done. Flush remaining tokens, detect tool calls, send stop chunk.
                 case .done(
                     let reason, let doneTokenCount, let donePromptTC, _, _, let reasoningTokenCount,
                     let doneCachedTC, _, _, _):
                     // Authoritative token count from the engine (both MLX and CoreAI
                     // paths emit it from tokenization truth). Streaming accumulated
-                    // per-event estimates — a `.text` chunk is a detokenized batch, a
-                    // `.reasoning` case a text segment — so overwrite, same pattern as
+                    // per-event estimates. A `.text` chunk is a detokenized batch, a
+                    // `.reasoning` case a text segment, so overwrite, same pattern as
                     // the non-streaming path (L670-673) and DirectInferenceClient.
                     if let doneTokenCount {
                         totalOutputTokens = doneTokenCount
@@ -1694,7 +1694,7 @@ private func streamWithToolCalling(
                     }
 
                     /// Detect tool calls at stream end (BEFORE releasing the
-                    /// content channel — the non-stream wire empties `content`
+                    /// content channel. The non-stream wire empties `content`
                     /// when toolCalls are present: the structured channel is
                     /// authoritative, no duplication).
                     let streamToolCalls: [ToolCall]? =
@@ -1704,7 +1704,7 @@ private func streamWithToolCalling(
                             nil
                         }
 
-                    /// [FIX P0 — T2 stream tool-loop] — DEFERRED to true stream-end.
+                    /// [FIX P0. T2 stream tool-loop]. DEFERRED to true stream-end.
                     /// Why: the engine (upstream `ChatSession` tool loop) emits
                     /// `.done` at every pass boundary, but the real SSE settle
                     /// (content + tool-calls + final stop chunk + usage) belongs
@@ -1714,19 +1714,19 @@ private func streamWithToolCalling(
                     /// `guard !finished`) and permanently silenced `feed()`,
                     /// so pass-2's natural-language continuation (the actual
                     /// model answer, exactly what the non-stream KEYNS wire
-                    /// returns) was silently dropped — zero content deltas and
+                    /// returns) was silently dropped. Zero content deltas and
                     /// `[DONE]` after the `tool_calls` intent frame.
                     ///
                     /// The settle and emission now happen once, after the
                     /// for-loop terminates, in the new local closure
-                    /// `settleEndOfStream` — exactly mirroring the non-stream
+                    /// `settleEndOfStream`. Exactly mirroring the non-stream
                     /// wire (ChatHandler:911-931), which parses tool calls from
                     /// the *full* accumulated content and suppresses `content`
                     /// when `toolCalls` is non-nil.
                     ///
                     /// We DO keep the token-count / prompt-token /
                     /// reasoning-token / cached-prompt-token observables here
-                    /// — they are per-pass truth and must be accumulated per
+                    /// They are per-pass truth and must be accumulated per
                     /// `.done`, not at stream end.
 
                     lastFinishReason = stopReasonToString(reason) ?? "stop"
@@ -1757,12 +1757,12 @@ private func streamWithToolCalling(
                         }
                     }
 
-                /// .toolCall — upstream TextToolTokenLoopHandler detected a tool call.
+                /// .toolCall. Upstream TextToolTokenLoopHandler detected a tool call.
                 /// Emit as SSE delta chunk with tool_calls in the delta.
                 case .toolCall(let tc):
                     if singleCallOnly, !deliveredToolCalls.isEmpty {
                         // Forbidden by the client's own `parallel_tool_calls:false`. This
-                        // `break` leaves the switch case only — the turn keeps running,
+                        // `break` leaves the switch case only. The turn keeps running,
                         // the extra call is simply never shown (vllm filters at the emit
                         // site the same way, `tool_calls_utils.py:38-42`).
                         break
@@ -1784,14 +1784,14 @@ private func streamWithToolCalling(
                     )
                     _ = yieldSSE(tcChunk, to: continuation)
 
-                /// .toolResult — tool finished. The loop hands the result text to the model
+                /// .toolResult. Tool finished. The loop hands the result text to the model
                 /// internally and the spec carries no `function_call_output` for a server-side
                 /// loop, so this event is the only place the client can learn a call ran.
                 case .toolResult(let meta):
                     streamToolResults.append(meta)
                     break
 
-                /// .error — send a raw diagnostic marker and terminate.
+                /// .error. Send a raw diagnostic marker and terminate.
                 /// NOT assistant content: the SSE consumer appends every content
                 /// delta to the transcript, so yielding `[error: ...]` as content
                 /// (prior behavior) poisoned the conversation with a fake
@@ -1805,7 +1805,7 @@ private func streamWithToolCalling(
                     logger.warning("SSE stream: engine error event — \(errorMsg)")
                     yieldSSERaw("[diagnostic: engine_error \(errorMsg)]", to: continuation)
 
-                /// .reasoning — ReasoningEventEmitter routed reasoning segment.
+                /// .reasoning. ReasoningEventEmitter routed reasoning segment.
                 /// Emit as SSE delta chunk with reasoning_content.
                 case .reasoning(let reasoningText):
                     try Task.checkCancellation()
@@ -1826,7 +1826,7 @@ private func streamWithToolCalling(
                     _ = yieldSSE(rChunk, to: continuation)
                     accumulatedEmittedReasoning += reasoningText
 
-                /// .guidedGenDiagnostic / .incompleteOutput — diagnostic events.
+                /// .guidedGenDiagnostic / .incompleteOutput. Diagnostic events.
                 /// Log instead of silently discarding; emit SSE diagnostic marker for client visibility.
                 case .guidedGenDiagnostic(
                     grammarTerminated: _,
@@ -1843,12 +1843,12 @@ private func streamWithToolCalling(
                     // Dead code: never emitted by Engine
                     break
                 case .channel:
-                    // Compute channel identification — no SSE equivalent
+                    // Compute channel identification, no SSE equivalent
                     break
                 }
             }
         } catch {
-            /// Stream consumption error — yield a raw diagnostic marker + done.
+            /// Stream consumption error. Yield a raw diagnostic marker + done.
             /// Same transcript-poisoning rule as the `.error` case above: never
             /// yield the failure as assistant content.
             logger.error("Stream token consumption failed: \(error)")
@@ -1862,15 +1862,15 @@ private func streamWithToolCalling(
             return
         }
 
-        /// [FIX P0 — T2 stream tool-loop] — ONE-SHOT end-of-stream settle.
+        /// [FIX P0. T2 stream tool-loop]. ONE-SHOT end-of-stream settle.
         /// Runs exactly once, after the ENTIRE tokenStream has been consumed
         /// (all passes finished). This is where `textFilter.finish()` is
-        /// called — the one-shot latch (StreamOutputFilter L111
+        /// called. The one-shot latch (StreamOutputFilter L111
         /// `guard !finished`) is consumed here, not in the per-pass `.done`
         /// branch. Exactly mirrors the non-stream decision (ChatHandler
         /// L911-931): the "authoritative" tool-call/content suppression is
         /// made on the FULL accumulated content; if the LAST pass ended in a
-        /// tool call (no continuation ran — e.g. the tool name was filtered
+        /// tool call (no continuation ran. E.g. the tool name was filtered
         /// and the engine did not restart), the content channel is
         /// suppressed (non-stream returns empty content + toolCalls); if the
         /// LAST pass was the natural-language continuation, answer is
@@ -1905,7 +1905,7 @@ private func streamWithToolCalling(
             _ = yieldSSE(rChunk, to: continuation)
         }
         /// Non-stream parity (L911): if the LAST pass's content parses as a
-        /// tool call, `content` is suppressed — the structured channel is
+        /// tool call, `content` is suppressed. The structured channel is
         /// authoritative (those intent frames were already emitted per-pass).
         /// This is the KEYST bug scenario: pass-2 was the natural-language
         /// continuation → parseToolCalls returns nil → answer is emitted
@@ -1982,7 +1982,7 @@ private func streamWithToolCalling(
         let streamResolvedFinish = ToolCallWire.resolveFinishReason(
             engineReason: lastFinishReason,
             toolCallsMade: !deliveredToolCalls.isEmpty)
-        /// Same verdict as the non-stream face, on the terminal chunk (four sites, one rule —
+        /// Same verdict as the non-stream face, on the terminal chunk (four sites, one rule,
         /// `OcoreaiTurn.assemble`).
         let streamToolChoiceVerdict = unsatisfiedToolChoice(
             demanded: request.toolChoice,
@@ -2019,7 +2019,7 @@ private func streamWithToolCalling(
             )
         }
 
-        /// FINAL stop chunk — the only chunk on this stream allowed a non-null
+        /// FINAL stop chunk. The only chunk on this stream allowed a non-null
         /// `finish_reason`, and the word it carries is resolved by the same rule the
         /// non-stream wire uses: `tool_calls` when a call reached this client and the
         /// engine stopped on its own, `length` when the budget cut the turn. (Before: the
@@ -2077,8 +2077,8 @@ private func streamWithToolCalling(
                 / 1e15
             // Only this lane knows whether a first byte exists, so the guard stays here and decides
             // the value it hands down: a turn that emitted nothing leaves `ttfbMsVal` at 0 and the
-            // recorder below skips it. The sample itself is counted in exactly one place —
-            // `observeInferenceDuration` — because counting it here too published two samples per
+            // recorder below skips it. The sample itself is counted in exactly one place,
+            // `observeInferenceDuration`, because counting it here too published two samples per
             // streamed turn (measured live: `ttfbSampleCount` 0 → 2, `ocoreai_ttfb_seconds_count` 2 → 4).
         }
         await metrics.observeInferenceDuration(
@@ -2101,7 +2101,7 @@ private func streamWithToolCalling(
             enginePool: enginePool,
         )
 
-        // MARK: Post-stream Self-Correction Trace (Phase 1 only — zero token cost)
+        // MARK: Post-stream Self-Correction Trace (Phase 1 only. Zero token cost)
 
         // Inline correction is too expensive for SSE; instead run the fast rule-based
         // critique and persist the trace for post-stream analysis.
@@ -2135,14 +2135,14 @@ private func streamWithToolCalling(
         /// Post-stream quality signal → ThinkingBudget calibration loop.
         // Stream path: no agentResult, send raw signals.
         // Resolve async properties before if-let guard:
-        //   - OcoreaiEngine is @MainActor → property access is async
-        //   - MessageBuilder.lastComplexityScore() is actor-isolated → async
+        //  - OcoreaiEngine is @MainActor → property access is async
+        //  - MessageBuilder.lastComplexityScore() is actor-isolated → async
         let budget = await OcoreaiEngine.shared.activeThinkingBudget
         let mbuilder = await OcoreaiEngine.shared.activeMessageBuilder
         // Stream path: write the calibration under the SAME key the read path uses
         // (request.sessionID) so scaffolding() actually sees the recorded quality.
         // Sessionless stream traffic skips calibration entirely (was previously
-        // polluting a shared "stream-unknown" bucket — a cross-session leak).
+        // polluting a shared "stream-unknown" bucket. A cross-session leak).
         if let budget, let sessionKey = request.sessionID {
             let complexity = await mbuilder?.lastComplexityScore()?.composite ?? 0.5
             _ = await ThinkingTelemetry.signal(
@@ -2175,22 +2175,22 @@ private func streamWithToolCalling(
 /// what a row costs (its own content tokens). A face that skips it is invisible to
 /// `/sessions`, `/sessions/:id/memory`, `/sessions/search` and the GUI session list.
 ///
-/// Fire-and-forget — errors are logged but do not affect the response. After persistence,
+/// Fire-and-forget. Errors are logged but do not affect the response. After persistence,
 /// each message is embedded for semantic search via MLXEmbedders.
 ///
 /// Two things this hop used to get wrong, both measured live on 10-21, both fixed here:
-/// • **identity** — every request created its own `sessions` row unless `session_id` parsed
+/// • **identity**. Every request created its own `sessions` row unless `session_id` parsed
 ///   as an integer, which no HTTP client can arrange (`/sessions` is read-only; nothing hands
 ///   out an id). Three turns on one conversation key made three sessions, so memory, FTS and
 ///   the GUI session list saw one snapshot per request instead of one conversation.
 ///   ``SessionCompressor/resolveSession(externalKey:modelId:ttlDays:)`` now maps the key to
 ///   the one row it owns.
-/// • **size and duplication** — the turn's whole prompt was divided over the user rows
+/// • **size and duplication**. The turn's whole prompt was divided over the user rows
 ///   (`tokensPerMsg = promptTokens / userMsgCount`), storing a 34-character message as 705
 ///   tokens, and every user message in the re-sent history was inserted again each turn. The
 ///   session total is what ``SessionCompressor`` compares against `tokenThreshold` to prune,
 ///   so that gate was fed the same history once per turn. Rows now carry their own content
-///   tokens (real tokenizer when this model has one, the byte heuristic otherwise — the
+///   tokens (real tokenizer when this model has one, the byte heuristic otherwise. The
 ///   substitution is nameable via ``TokenizerManager/isRealTokenizerBackend``), and only the
 ///   messages the turn actually adds are written (``SessionTranscript``).
 func persistConversation(
@@ -2245,7 +2245,7 @@ func persistConversation(
             role: "assistant",
             content: assistantContent,
             // `outputTokens` is what the engine generated for *this* reply, so it is already
-            // the message's own size — and it counts reasoning the model produced, which
+            // the message's own size, and it counts reasoning the model produced, which
             // content-only tokenizing would not see.
             tokenCount: outputTokens,
         )
@@ -2256,7 +2256,7 @@ func persistConversation(
             }
         }
     } catch {
-        // Non-fatal — response already sent to client
+        // Non-fatal. Response already sent to client
         logger.error("Persist failed: \(error)")
     }
 }
@@ -2264,7 +2264,7 @@ func persistConversation(
 /// Append steering text accepted by `POST /v1/steer` as one user-role turn.
 ///
 /// `messages` comes back unchanged when `steerText` is empty, and when the
-/// trailing user turn already carries the same text — a client that sends the
+/// trailing user turn already carries the same text. A client that sends the
 /// text both normally and through the steering route must not be heard twice.
 /// The marker-stripped comparison covers a client that echoes only the body.
 func mergingSteeredTurn(_ messages: [Message], _ steerText: String) -> [Message] {
@@ -2305,7 +2305,7 @@ func buildGrammarSchema(from request: ChatCompletionRequest) -> String? {
         from: request.tools, responseFormat: request.responseFormat, toolChoice: request.toolChoice)
 }
 
-// MARK: - Per-Model Settings (pure decision helpers — testable without a live pool)
+// MARK: - Per-Model Settings (pure decision helpers. Testable without a live pool)
 
 /// Resolve the target model for a request.
 ///
@@ -2320,7 +2320,7 @@ package func resolveModel(requested: String?, defaultModelId: String?) -> String
 
 /// Whether a prompt of ``promptTokens`` tokens exceeds the per-model context window.
 ///
-/// An unconfigured (`nil`) or non-positive cap never rejects — the system-level
+/// An unconfigured (`nil`) or non-positive cap never rejects. The system-level
 /// limit still applies downstream. This keeps the per-model cap an optional
 /// tightening, exactly like omlx's `max_context_window` (`None` = use global default).
 package func promptExceedsContextWindow(promptTokens: Int, maxContextWindow: Int?) -> Bool {

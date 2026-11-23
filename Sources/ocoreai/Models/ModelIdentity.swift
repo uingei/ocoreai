@@ -1,22 +1,22 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// ModelIdentity.swift — Unified model identity for HuggingFace / ModelScope / local sources
+// ModelIdentity.swift. Unified model identity for HuggingFace / ModelScope / local sources
 //
 // Problems this solves:
-//   1. Prefix rules (mscope:, hf:, huggingface:) duplicated in 4+ places
-//   2. String interpolation prone to typos — no compile-time safety
-//   3. Progress key alignment breaks when prefix stripping logic diverges
+//  1. Prefix rules (mscope:, hf:, huggingface:) duplicated in 4+ places
+//  2. String interpolation prone to typos, no compile-time safety
+//  3. Progress key alignment breaks when prefix stripping logic diverges
 
 import Foundation
 
-/// Strongly-typed model identity — replaces the prefix-based string convention.
+/// Strongly-typed model identity. Replaces the prefix-based string convention.
 ///
-/// - huggingFace(repoId:) — e.g. "mlx-community/Qwen3.5-4B"
-/// - modelScope(repoId:) — e.g. "Qwen/Qwen2.5-7B-Instruct"
-/// - local(path:) — filesystem path
+/// - huggingFace(repoId:). E.g. "mlx-community/Qwen3.5-4B"
+/// - modelScope(repoId:). E.g. "Qwen/Qwen2.5-7B-Instruct"
+/// - local(path:). Filesystem path
 ///
 /// The ``prefixedId`` property produces the EnginePool-compatible string
-/// (e.g. "mscope:Qwen/Qwen2.5-7B-Instruct") — this is the single place
+/// (e.g. "mscope:Qwen/Qwen2.5-7B-Instruct"). This is the single place
 /// where prefix concatenation happens.
 struct ModelIdentity: Identifiable, Hashable, Codable, Sendable {
     let id: String
@@ -116,7 +116,7 @@ struct ModelIdentity: Identifiable, Hashable, Codable, Sendable {
         if raw.hasPrefix("/") || raw.hasPrefix("~/") {
             return local(raw)
         }
-        // Single component — treat as local fallback
+        // Single component. Treat as local fallback
         return local(raw)
     }
 }

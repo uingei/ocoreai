@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// DegenerateMarginProbe.swift — measure *why* a collapsed turn answers EOS.
+/// DegenerateMarginProbe.swift. Measure *why* a collapsed turn answers EOS.
 ///
 /// ### The question this exists to answer
 /// `DegenerateTurn` detects the shape (1 token + `.eos` under a budget that asked for more) but
@@ -8,8 +8,8 @@
 /// single-variable experiments and two dead mechanism stories (`scripts/probes/30-repeated-prompt
 /// -delivery.sh` carries that record):
 ///   • a near-tie at slot 2 between EOS and the next candidate, resolved by numerics that are
-///     fixed per process — expected margin of order 1e-2…1e-1;
-///   • the delivered input differs from what the accounting claims — expected margin ≥ 5.
+///     fixed per process. Expected margin of order 1e-2…1e-1;
+///   • the delivered input differs from what the accounting claims. Expected margin ≥ 5.
 /// Those two are separated by **one number**: the log-probability margin between the chosen EOS
 /// and the best non-EOS candidate at the step where the collapse happened.
 ///
@@ -17,15 +17,15 @@
 /// `ChatSession` contains zero references to `logProbabilities` or `LogProbabilityTokenLoopHandler`
 /// (verified against the built checkout at the pinned revision), and `.probability` events exist
 /// only on `LogProbabilityTokenLoopHandler` (`LogProbabilityTokenLoopHandler.swift:9`). Assigning
-/// `chatSession.generateParameters.logProbabilities` would therefore be a silent no-op — exactly
+/// `chatSession.generateParameters.logProbabilities` would therefore be a silent no-op. Exactly
 /// the class AGENTS.md forbids (a knob that is accepted but never reaches the engine; a
 /// substitution must be detectable at runtime). So this probe re-enters upstream's own
 /// observability seam instead: `TokenIterator` + `generateLoopTask` wrapped in
 /// `LogProbabilityTokenLoopHandler`, per `Documentation.docc/generation-observability.md`.
 ///
 /// ### Fidelity, and how a wrong reconstruction announces itself
-/// The prompt is assembled the way `ChatSession` assembles it — `UserInput(chat:)` through
-/// `ModelContainer.prepare(input:)`, with instructions on the leading `.system` message — and the
+/// The prompt is assembled the way `ChatSession` assembles it, `UserInput(chat:)` through
+/// `ModelContainer.prepare(input:)`, with instructions on the leading `.system` message, and the
 /// probe reports `fidelity` by comparing *its own* `promptTokenCount` against the number the
 /// failed turn recorded. A reconstruction that silently dropped the injected instructions would
 /// report `fidelity=UNVERIFIED`, and its margins must then be read as nothing.
@@ -37,7 +37,7 @@
 /// `promptHash` covered no schema byte at all while the log line still read like a verdict on the
 /// request. Every "identical prompt bytes" reading taken from a *tool* turn before this paragraph
 /// was written is void: the hash could not see the difference it claimed to have ruled out
-/// (AGENTS.md invariant 2 — the surface never claims more than the engine delivered). The probe now
+/// (AGENTS.md invariant 2. The surface never claims more than the engine delivered). The probe now
 /// carries the same `[ToolSpec]` the std path handed `ChatSession.tools`
 /// (`EngineInference.swift:3281`) and prints `toolsCarried=N` on its line, so a reader can tell a
 /// schema-carrying hash from a blind one. Media stays out of scope: `hasMedia` skips the turn
@@ -47,19 +47,19 @@
 /// One extra short generation, gated by the caller: by default it fires only on a turn already
 /// judged degenerate (`OCOREAI_MARGIN_PROBE=1`), so healthy turns pay nothing.
 /// `OCOREAI_MARGIN_PROBE=all` widens that gate to every turn on the standard path, which is the
-/// only way to read a margin *against* an outcome — collapse-only mode has no healthy comparison
+/// only way to read a margin *against* an outcome. Collapse-only mode has no healthy comparison
 /// in the same build, so it can never test "small margin ⇒ collapse".
 ///
 /// ### What arm E measured (10-23, 12 cold boots, one content, greedy, `all` mode)
 /// Identical prompt bytes landed in **four discrete step-1 logprob regimes**, and the outcome
 /// tracked the regime with zero overlap: collapsed turns sat at lp −0.0111 / −0.0094 (margin
 /// 5.5677 / 5.8204), healthy turns at −0.0278 / −0.0222 (margin 4.4361 / 4.6290). So the
-/// collapse is preceded by *more* certainty at the first sampled token, not by a near-tie — and
+/// collapse is preceded by *more* certainty at the first sampled token, not by a near-tie, and
 /// a margin width cannot be the mechanism, since the collapsed margins are the wider ones.
 /// "Collapsed turns record no step 2" was an artifact of *this* instrument, not a fact about the
 /// model, and is corrected here (10-23, 95 probe turns): upstream routes a terminating stop token
 /// through `onStopToken` only when the handler asks for it, and hands that step its log
-/// probabilities only when `includeStopToken` is true — both default to false, so the step that
+/// probabilities only when `includeStopToken` is true. Both default to false, so the step that
 /// ends the turn was structurally invisible to a probe that left them at default. The probe now
 /// passes `includeStopToken: true`, and that is what makes the discriminating step readable: at
 /// step 2 a healthy turn takes `'\n'` at lp −0.5905 over `'<turn|>'` (this model's EOS) at
@@ -68,7 +68,7 @@
 /// Retracted by this run: a previously recorded "0.0466 nats at slot 2" does not appear in any
 /// of these reconstructions (step-2 margin here is 0.2172–0.8533), so it was a one-off reading
 /// of one reconstruction and must not be quoted as the margin at the collapse. Reconstruction
-/// still ≠ live turn — it re-prepares without the session's KV — which is why the regime, not
+/// still ≠ live turn. It re-prepares without the session's KV, which is why the regime, not
 /// any single margin, is the number worth chasing.
 ///
 /// ### What `firstTokenMs` is not, and what the collapse therefore is not
@@ -76,7 +76,7 @@
 /// standard non-stream path that chunk arrives when the generation completes: a healthy turn
 /// reported `firstTokenMs=4671.26` against `overallMs=4672.66` for 200 tokens, and 200 tokens do
 /// not decode in 1.4 ms. So `firstTokenMs` on this path is whole-turn latency, and the
-/// "healthy 4.7–7.5 s vs collapsed 0.12–0.22 s" split carries no independent signal — it is 200
+/// "healthy 4.7–7.5 s vs collapsed 0.12–0.22 s" split carries no independent signal. It is 200
 /// tokens against 1. Two points at the same 713-token prompt put the fixed cost at ≈124–176 ms
 /// and decode at ≈44 tok/s, which kills the prefill story in both directions: a collapsed turn
 /// pays what a prefill plus one token costs, exactly like a healthy one.
@@ -94,7 +94,7 @@ enum DegenerateMarginProbe {
         return mode == "1" || mode == "all"
     }
 
-    /// `OCOREAI_MARGIN_PROBE=all` — measure healthy turns too, so margins can be paired with
+    /// `OCOREAI_MARGIN_PROBE=all`. Measure healthy turns too, so margins can be paired with
     /// outcomes instead of only with collapses.
     static var runsOnEveryTurn: Bool {
         ProcessInfo.processInfo.environment["OCOREAI_MARGIN_PROBE"] == "all"
@@ -133,7 +133,7 @@ enum DegenerateMarginProbe {
         var fidelityMatched = false
         /// FNV-1a over the token ids actually fed to the model. `fidelity` compares a *count*,
         /// and a count cannot tell "identical bytes, different numerics" from "different bytes that
-        /// happen to tokenize to the same length" — the two have opposite fixes, and every margin
+        /// happen to tokenize to the same length". The two have opposite fixes, and every margin
         /// number read so far was ambiguous between them (AGENTS.md invariant 2).
         var promptHash = "-"
         /// How many `ToolSpec` dictionaries went into `UserInput.tools` for this reconstruction.
@@ -161,7 +161,7 @@ enum DegenerateMarginProbe {
         hasMedia: Bool,
         /// The turn's declared tool surface, exactly as the std path handed it to `ChatSession`
         /// (`EngineInference.swift:3281`). Without it the reconstruction omits every schema byte,
-        /// so `promptHash` cannot discriminate two requests that differ only in `tools[]` — which
+        /// so `promptHash` cannot discriminate two requests that differ only in `tools[]`, which
         /// is exactly the question probe 32 asks. `[String: any Sendable]` is Sendable, so the
         /// array crosses into `container.perform` unchanged: no JSON round-trip, no re-keying, and
         /// therefore no chance of the probe sorting bytes that the live turn left unsorted.
@@ -182,7 +182,7 @@ enum DegenerateMarginProbe {
         // Built once and frozen: the `perform` body runs on another executor, and Swift 6 rejects
         // a captured `var` there (measured: `#SendableClosureCaptures`).
         // Parity with the failed turn: start from the engine's own GenerateParameters, so the
-        // KV-cache scheme, penalties, min_p and seed are the ones that actually ran — not the
+        // KV-cache scheme, penalties, min_p and seed are the ones that actually ran, not the
         // defaults of a fresh struct. Two deliberate deltas: a short budget, and logprob
         // reporting (0 would report only the chosen token; the discriminator needs the rival).
         // `OCOREAI_MARGIN_NO_KV=1` drops the KV-cache configuration as the control arm.
@@ -204,7 +204,7 @@ enum DegenerateMarginProbe {
                     Task<Void, Never>, Int, String, String
                 ) in
                 // Rebuild the conversation inside the closure, with the instructions on a
-                // leading .system message — what ChatSession does with its `instructions:`
+                // leading .system message. What ChatSession does with its `instructions:`
                 // channel, which this probe has to reproduce because it bypasses ChatSession
                 // (see file header). Shared with the inference lanes, so a reconstruction and
                 // a live prompt cannot drift apart and call the result `fidelity`.
@@ -244,7 +244,7 @@ enum DegenerateMarginProbe {
                     // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2956 logProbabilities: includeStopToken
                     // anchor:mlx-swift-lm Libraries/MLXLMCommon/TokenLoopHandler.swift:69 receivesStopTokens
                     // Left at default a collapsed reconstruction stops after step 1 and the
-                    // terminating EOS carries no number — measured 10-23: 25 of 95 probe turns
+                    // terminating EOS carries no number. Measured 10-23: 25 of 95 probe turns
                     // reported exactly one step, and every one of them was a collapse.
                     includeStopToken: true,
                     handler: MLXLMCommon.LogProbabilityTokenLoopHandler(
@@ -351,7 +351,7 @@ enum DegenerateMarginProbe {
         logger.info("\(line)")
     }
 
-    /// FNV-1a (64-bit) over token ids — cheap, allocation-free, and stable across processes, so
+    /// FNV-1a (64-bit) over token ids. Cheap, allocation-free, and stable across processes, so
     /// boots that fed identical bytes share a hash and boots that did not can never collide into
     /// the same group by accident of length.
     static func hash(_ ids: [Int32]) -> String {

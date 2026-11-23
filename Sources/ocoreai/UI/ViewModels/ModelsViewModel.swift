@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ModelID — lightweight model identity for EnginePool listing.
+/// ModelID. Lightweight model identity for EnginePool listing.
 ///
 /// Used by ModelManager and ModelView. The former ModelsState class
 /// has been removed (ModelManager provides the same functionality).
@@ -16,7 +16,7 @@ struct ModelID: Identifiable, Hashable {
     let isVlm: Bool
     var paramsCustomized: Bool = false
     /// Whether this model has non-default sampling params
-    /// The pool's own `state == "loading"` at this refresh — engine truth
+    /// The pool's own `state == "loading"` at this refresh. Engine truth
     /// (`EnginePool.listModels` surfaces prewarms and in-flight loads, including
     /// for models not yet registered). The wait face cannot see a load whose
     /// weights are already on disk (no store row, no window task), so the card

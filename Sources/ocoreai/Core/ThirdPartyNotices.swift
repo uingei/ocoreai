@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ThirdPartyNotices — the GUI's access to the third-party license texts that
+/// ThirdPartyNotices. The GUI's access to the third-party license texts that
 /// ship inside the product bundle.
 ///
 /// First principles: BSD-3 clause 2 and Apache-2.0 section 4 oblige us to ship
@@ -33,7 +33,7 @@ public struct ThirdPartyNoticesManifest: Codable, Sendable {
         public let upstream: String
         public let license: String
         public let licenseFile: String
-        /// sha256 of `licenseFile` as committed — the bytes the product ships.
+        /// sha256 of `licenseFile` as committed. The bytes the product ships.
         public let licenseSha256: String?
         /// Upstream revision the shipped text was byte-compared against. Nil when the
         /// reference clone was not present at collection time: it is host-local, so the
@@ -43,7 +43,7 @@ public struct ThirdPartyNoticesManifest: Codable, Sendable {
         public let verifiedAgainstPin: Bool?
     }
 
-    /// A third-party file vendored into the source tree — redistributed, but not a
+    /// A third-party file vendored into the source tree. Redistributed, but not a
     /// SwiftPM dependency, so no pin or checkout exists to re-resolve it against.
     public struct Vendored: Codable, Sendable, Hashable {
         public let file: String
@@ -58,7 +58,7 @@ public struct ThirdPartyNoticesManifest: Codable, Sendable {
     public let apple: Apple
     public let dependencies: [ThirdPartyLicenseEntry]
     /// Empty when the manifest predates schema 2. Absent must not read as "this build
-    /// ships no vendored code" — that is the same absence-vs-falsehood distinction the
+    /// ships no vendored code", that is the same absence-vs-falsehood distinction the
     /// encode side of `toolProse` had to get right.
     public let vendored: [Vendored]
 
@@ -121,7 +121,7 @@ public enum ThirdPartyNotices {
         let manager = FileManager.default
         // Search roots, in order of "how shipped is this": the bundle's own
         // Resources, then the ancestors of the bundle, of the working directory
-        // and of argv[0] — the last two are what make an un-bundled host (SPM
+        // and of argv[0]. The last two are what make an un-bundled host (SPM
         // test runner, `swift run ocoreai serve`, a binary invoked from a shell)
         // find the committed folder instead of reporting it as absent.
         var roots: [URL] = []

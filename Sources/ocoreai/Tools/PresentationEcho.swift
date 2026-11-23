@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Presentation-echo guard — the text a write tool is about to land may be *our own* tool output,
+/// Presentation-echo guard. The text a write tool is about to land may be *our own* tool output,
 /// copied instead of the content the caller meant.
 ///
 /// ### Why
 /// `read_file` answers with `N|` prefixes and a `─── total_lines: … ───` footer (and a perception
 /// header used to ride the tail of every tool result). Measured on the task scoreboard
 /// (`scripts/eval/`, `copy-with-suffix`): read-then-write turns produced the tool result they had
-/// been shown — `1|KERNEL-7-COPY` plus the footer — with the requested transformation applied
+/// been shown, `1|KERNEL-7-COPY` plus the footer, with the requested transformation applied
 /// *inside* the copy, and both calls reported `OK`. Over k=6 that shape scored 0/13 at baseline,
 /// and adding a sentence to the footer telling the caller not to copy it made the artefact bigger,
 /// not smaller: the sentence was copied too. A hint aimed at the model is not a fix; the seam that
@@ -17,7 +17,7 @@
 /// detect → repair when the removal cannot be a mistake → report what was refused otherwise.
 /// A family alone that is self-identifying (this repo's footer, this repo's channel header) or
 /// corroborated (`N|` prefixes with chrome beside them) gets removed and said out loud. Anything
-/// that would empty the payload is never "repaired" — that would destroy content on a guess, so it
+/// that would empty the payload is never "repaired", that would destroy content on a guess, so it
 /// lands and comes back `OK-but-invalid` instead.
 ///
 /// ### False-positive floor
@@ -30,11 +30,11 @@ enum PresentationEcho: Sendable {
 
     /// One family of presentational artefacts produced by this repo's own read surface.
     enum Artifact: String, Sendable, CaseIterable {
-        /// `1|…`, `2|…` — `read_file`'s line-number prefixes.
+        /// `1|…`, `2|…`, `read_file`'s line-number prefixes.
         case numberedLines = "N| line numbers"
-        /// `─── total_lines: … ───` — `read_file`'s window footer.
+        /// `─── total_lines: … ───`, `read_file`'s window footer.
         case readFooter = "total_lines footer"
-        /// `[System Perception]` — the perception channel header.
+        /// `[System Perception]`. The perception channel header.
         case perceptionHeader = "[System Perception] channel header"
     }
 

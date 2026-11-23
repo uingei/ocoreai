@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Settings view — full panel: server, performance, KVCache, logs, app, about
+/// Settings view. Full panel: server, performance, KVCache, logs, app, about
 /// SwiftUI declarative: ViewModel + .task{} + Section/TextRow
 
 import SwiftUI
@@ -9,13 +9,13 @@ struct SettingsView: View {
     @State private var settingsState: SettingsState
     @Environment(\.ocoreaiTheme) private var theme
 
-    // Hub token local bindings — SecureField needs non-optional String
+    // Hub token local bindings. SecureField needs non-optional String
     @State private var _hfTokenField: String = ""
     @State private var _msTokenField: String = ""
 
     init() {
         _settingsState = State(initialValue: SettingsState.shared)
-        // Initialize token fields from persisted values — prevents empty→filled flicker
+        // Initialize token fields from persisted values. Prevents empty→filled flicker
         _hfTokenField = SettingsStore.shared.hfToken ?? ""
         _msTokenField = SettingsStore.shared.modelScopeToken ?? ""
     }
@@ -153,7 +153,7 @@ struct SettingsView: View {
                 .accessibilityLabel(StringKey.hfMirrorToggle.l)
                 // Honest surface (HIG visibility-of-status): show the live
                 // endpoint and which lever owns it. When operator env pins it,
-                // the Toggle is disabled — never a glowing control that does
+                // the Toggle is disabled. Never a glowing control that does
                 // nothing (the exact lie fixed at 4382dc3, now visible).
                 .disabled(settingsState.hfEndpointDecision.lockedByEnvironment)
                 Text(StringKey.hfMirrorHint.l)
@@ -479,7 +479,7 @@ struct SettingsView: View {
                     .font(.title2.bold())
                 Text(StringKey.version.l)
                     .font(.subheadline).foregroundStyle(.secondary)
-                // Version is read from the running bundle — the git-tag build
+                // Version is read from the running bundle. The git-tag build
                 // pipeline injects CFBundleShortVersionString (build-app.sh:72).
                 // A hardcoded literal here shipped "v1.0.0" while the app was
                 // v0.1.6: an identity lie users could touch. Never hardcode.
@@ -489,14 +489,14 @@ struct SettingsView: View {
                         AppInfo.shortVersion)
                 )
                 .font(.caption).foregroundStyle(.secondary)
-                // P1: Capability badge — shows which inference backends are available
+                // P1: Capability badge. Shows which inference backends are available
                 HStack(spacing: 6) {
                     Label(StringKey.capabilityBackend.l, systemImage: "cpu")
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                     capabilityBadges
                 }
-                // Update check — explicit user action, never a silent nag
+                // Update check. Explicit user action, never a silent nag
                 // (HIG: the user decides when to update). Opens the GitHub
                 // release page; auto-install waits on Developer ID signing.
                 Button {
@@ -557,14 +557,14 @@ struct SettingsView: View {
         }
     }
 
-    // Capability matrix — single source of truth (``RuntimeCapability.lines``).
+    // Capability matrix. Single source of truth (``RuntimeCapability.lines``).
     //
     // Reads the same 9-surface truth the model sees in the system prompt and
     // that ships on ``GET /v1/capabilities``: no hand-rolled
     // `#if canImport(CoreAI)` re-gating here (the previous version lived its
     // own, and the "MLX always available" comment asserted a fact about tiers,
     // not about *this* process). Whatever is live on this hardware + OS shows
-    // on; whatever is UNAVAILABLE shows greyed with the reason — exactly as
+    // on; whatever is UNAVAILABLE shows greyed with the reason. Exactly as
     // the model is told to treat it.
     @ViewBuilder
     private var capabilityBadges: some View {

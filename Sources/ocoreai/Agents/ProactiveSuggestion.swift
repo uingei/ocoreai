@@ -1,14 +1,14 @@
 // Copyright 2026 uingei@163.com.
 // Licensed under MIT.
-/// ProactiveSuggestion — 自主回路：感知到"值得注意的变化"→ 提案（不执行）
+/// ProactiveSuggestion。自主回路：感知到"值得注意的变化"→ 提案（不执行）
 ///
 /// 第一性定位：AGI 闭环 `感知 → 推理 → 行动` 里，ocoreai 当前停在"被动应答"
 /// （每步等人驱动）。本模块补**感知→提案→(用户批准)→可行动指令**的第一段桥梁，
 /// 且契约刻意保守：
 ///
-///   - **只提案、永不自动执行**——"查看"仅产出可执行草稿填入输入框，发送权留在用户手里。
+///   - **只提案、永不自动执行**。"查看"仅产出可执行草稿填入输入框，发送权留在用户手里。
 ///   - **确定性决策**（纯函数，可精确值测试），不用 LLM 判断"要不要提醒"。
-///   - **触发面 = 已开启的 perception 通道**——用户没开 filesystem 通道就不会有建议，
+///   - **触发面 = 已开启的 perception 通道**。用户没开 filesystem 通道就不会有建议，
 ///     即"开通道 = 允许被提醒"是既有显式同意，权限零新增。
 ///   - **观察可行动**（切片 3）：`ProactiveSuggestion` 携带触发文件的**绝对路径**
 ///     （可寻址目标）；"查看"草稿 = 可执行指令 + 完整路径，LLM 拿到 `read_file` 直接目标，
@@ -22,7 +22,7 @@ public struct ProactiveSuggestion: Equatable, Sendable, Identifiable {
     public let id: UUID
     /// 触发信号来源（切片 1 恒为 "filesystem"，保留扩展位）。
     public let source: String
-    /// 触发文件的**绝对路径**（可寻址目标——草稿/工具可直接引用 `read_file`）。
+    /// 触发文件的**绝对路径**（可寻址目标。草稿/工具可直接引用 `read_file`）。
     public let filePath: String
     /// 建议草稿模板 key（StringKey raw value）。
     public let detailKey: String
@@ -51,11 +51,11 @@ public struct ProactiveSuggestion: Equatable, Sendable, Identifiable {
 /// 纯决策：文件事件批 → 至多 1 条建议。
 ///
 /// 规则（确定性，逐条对应测试）：
-///  1. 空批 → 无建议。
-///  2. 仅 `modified`/`deleted` → 无建议（"我自己的改动"不构成"值得注意的到达"，避免噪声）。
-///  3. 仅 `created` 参与决策，取**时间戳最新**一条（同批多文件不刷屏）。
-///  4. 隐藏文件（`.` 前缀）→ 无建议（系统噪声）。
-///  输出 = **绝对路径**（可寻址目标），不输出裸文件名。
+/// 1. 空批 → 无建议。
+/// 2. 仅 `modified`/`deleted` → 无建议（"我自己的改动"不构成"值得注意的到达"，避免噪声）。
+/// 3. 仅 `created` 参与决策，取**时间戳最新**一条（同批多文件不刷屏）。
+/// 4. 隐藏文件（`.` 前缀）→ 无建议（系统噪声）。
+/// 输出 = **绝对路径**（可寻址目标），不输出裸文件名。
 public enum ProactiveAdvisor {
     public struct Evaluation: Equatable, Sendable {
         public let shouldSuggest: Bool
@@ -95,7 +95,7 @@ public final class ProactiveSuggestionStore: Sendable {
 
     private(set) public var current: ProactiveSuggestion?
 
-    /// 建议呈递 5 分钟后过期（读取/呈递时清场）——避免陈旧通知滞留。
+    /// 建议呈递 5 分钟后过期（读取/呈递时清场）。避免陈旧通知滞留。
     public static let ttl: TimeInterval = 300
 
     private init() {}

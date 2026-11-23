@@ -1,9 +1,9 @@
 // Copyright 2026 uingei@163.com.
 // Licensed under MIT.
-/// SpeakerFeedbackSensor — the `.speaker` perception channel's reader.
+/// SpeakerFeedbackSensor. The `.speaker` perception channel's reader.
 ///
 /// Reports one measured fact: whether this process is speaking right now. That is all
-/// AVFoundation exposes about an utterance in flight — queue depth and speech rate were
+/// AVFoundation exposes about an utterance in flight. Queue depth and speech rate were
 /// reported here as `queue=0` and a `rate=` clause that could not fire, i.e. constants a
 /// reader would take for readings (§ Invariant 2), so they are absent rather than zero.
 ///

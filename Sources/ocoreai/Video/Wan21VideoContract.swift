@@ -4,24 +4,24 @@
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 //
 // Provenance: derived from coreai-models `CoreAIVideoDiffusionPipeline` (Wan 2.1 text-to-video):
-//   - swift/Sources/CoreAIVideoDiffusionPipeline/Pipelines/VideoConfiguration.swift
+//  - swift/Sources/CoreAIVideoDiffusionPipeline/Pipelines/VideoConfiguration.swift
 //       (QualityPreset, VideoConfiguration, VideoConfiguration.from(preset:))
-//   - swift/Sources/CoreAIVideoDiffusionPipeline/Pipelines/WanPipeline.swift
+//  - swift/Sources/CoreAIVideoDiffusionPipeline/Pipelines/WanPipeline.swift
 //       (compression ratios, VAE temporal constants, latent-shape math,
 //        pre-generation validation rules + messages, WanError)
 //
-// ocoreai: Wan 2.1 consumption CONTRACT surface — the config / preset /
-//   validation / latent-shape / error layer, copied value-for-value from the CoreAI
-//   baseline. Pure Foundation (no CoreAI framework, no .aimodel dependency), so it
-//   compiles on the macOS 14 floor with NO @available gate and no platform bump.
-//   This is the upstream→consumer (S2) slice of the user-named Wan 2.1/2.2 support.
-//   The inference runtime (WanPipeline denoise loop + 3D-VAE decode, which requires
-//   .aimodel weights + the CoreAI.framework, floor macOS 27) is deferred to the
-//   runtime batch — that platform floor is a product decision, not a copy decision.
+// ocoreai: Wan 2.1 consumption CONTRACT surface. The config / preset /
+//  validation / latent-shape / error layer, copied value-for-value from the CoreAI
+//  baseline. Pure Foundation (no CoreAI framework, no .aimodel dependency), so it
+//  compiles on the macOS 14 floor with NO @available gate and no platform bump.
+//  This is the upstream→consumer (S2) slice of the user-named Wan 2.1/2.2 support.
+//  The inference runtime (WanPipeline denoise loop + 3D-VAE decode, which requires
+//  .aimodel weights + the CoreAI.framework, floor macOS 27) is deferred to the
+//  runtime batch, that platform floor is a product decision, not a copy decision.
 //
-//   Not copied here (runtime-owned, Batch 2): the denoise loop, CFG math,
-//   UMT5 encode, 3D-VAE decode, tiled decode, frame extraction — all depend on the
-//   system CoreAI framework and a real model directory.
+//  Not copied here (runtime-owned, Batch 2): the denoise loop, CFG math,
+//  UMT5 encode, 3D-VAE decode, tiled decode, frame extraction. All depend on the
+//  system CoreAI framework and a real model directory.
 
 import Foundation
 
@@ -127,7 +127,7 @@ public struct VideoConfiguration: Sendable {
     ///
     /// Resolution rules copied verbatim from upstream: `stepCount`, `numFrames`, and
     /// `cfgCutoffFraction` fall back to the preset when nil; `guidanceScale` keeps its
-    /// own default (5.0) — it is NOT taken from the preset.
+    /// own default (5.0). It is NOT taken from the preset.
     public static func from(
         preset: QualityPreset,
         prompt: String,
@@ -216,7 +216,7 @@ public struct WanBundleMetadata: Sendable {
 
     /// The URL of the asset the manifest declares for `key`. An undeclared key, or
     /// a declared file missing on disk, throws `WanError.missingComponent` naming
-    /// what was looked for — mirrors upstream `resolveDeclaredPipelineAsset`
+    /// what was looked for. Mirrors upstream `resolveDeclaredPipelineAsset`
     /// (coreai-models `DiffusionAssetResolution.swift:38-45`).
     public func assetURL(for key: String) throws -> URL {
         guard let filename = assets[key] else {
@@ -256,7 +256,7 @@ public enum WanError: Error, LocalizedError {
 // MARK: - Wan 2.1 architecture constants + latent-shape math + validation
 
 /// Wan 2.1 architecture constants, latent-shape math, and the pre-generation
-/// validation gate — copied value-for-value from coreai-models `WanPipeline`.
+/// validation gate. Copied value-for-value from coreai-models `WanPipeline`.
 ///
 /// These are the deterministic, runtime-free parts of the pipeline: the compression
 /// ratios, the VAE temporal export shape, the pixel→latent shape, and the config
@@ -328,7 +328,7 @@ public enum Wan21 {
     ///
     /// Returns nil if the configuration is valid (safe to proceed), otherwise the
     /// first violated rule as `WanError.invalidConfiguration`. No model is loaded
-    /// and no side effect occurs — a pure, total predicate.
+    /// and no side effect occurs. A pure, total predicate.
     public static func validationError(for config: VideoConfiguration) -> WanError? {
         if config.numFrames <= 0 {
             return WanError.invalidConfiguration("numFrames must be > 0")

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// HuggingFaceSearchClient.swift — Browse and search models on HuggingFace Hub
+/// HuggingFaceSearchClient.swift. Browse and search models on HuggingFace Hub
 ///
 /// Thin wrapper around swift-huggingface's HubClient.listModels().
 /// Download is handled by #hubDownloader() native macro (MLXHuggingFace).
@@ -36,7 +36,7 @@ struct HFHubModel: Identifiable, Hashable {
 
     /// License slug from the HF tag convention (`license:apache-2.0` →
     /// "apache-2.0"). Multi-license repos (`license:apache-2.0 OR llama3.1`)
-    /// show all, joined — picking one silently would misrepresent the terms.
+    /// show all, joined. Picking one silently would misrepresent the terms.
     /// nil = no license tag; the row shows nothing (absence is honest, a
     /// guessed "unknown" badge is noise).
     var licenseSlug: String? {
@@ -96,8 +96,8 @@ actor HuggingFaceSearchClient {
     private let hubClient: HubClient
 
     /// Create with auto-detected token (HF_TOKEN env var, ~/.huggingface/token, etc.)
-    /// Constructed fresh (not `.default`) so HF_ENDPOINT — the live lever
-    /// behind Settings' "use hf-mirror.com" toggle — is re-read per instance.
+    /// Constructed fresh (not `.default`) so HF_ENDPOINT. The live lever
+    /// behind Settings' "use hf-mirror.com" toggle. Is re-read per instance.
     init() {
         hubClient = HubClient()
     }

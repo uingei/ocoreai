@@ -1,9 +1,9 @@
 // Copyright © 2022-2026 uingei@163.com.
 // Licensed under MIT.
-/// DirectInferenceClient.swift — SwiftUI → EnginePool Fast Path
+/// DirectInferenceClient.swift. SwiftUI → EnginePool Fast Path
 ///
 /// Direct bridge between SwiftUI views and the inference engine.
-/// Bypasses HTTP entirely — uses native `AsyncStream` for streaming
+/// Bypasses HTTP entirely. Uses native `AsyncStream` for streaming
 /// and typed `Message` objects for zero-serialization data flow.
 ///
 /// ### Flow:
@@ -49,7 +49,7 @@ struct InferenceRequest {
     /// `false` = force off. Aligned with upstream `thinkingEnabled: Bool?`.
     let reasoning: Bool?
 
-    /// Reasoning level for FM backend (light/moderate/deep) — nil defaults to reasoning bool.
+    /// Reasoning level for FM backend (light/moderate/deep). Nil defaults to reasoning bool.
     let reasoningLevel: String?
 
     /// Reasoning effort (codex-aligned words) for model chat templates (e.g. Qwen3.8).
@@ -99,7 +99,7 @@ struct InferenceRequest {
 /// wire-path semantics (``ChatHandler`` Phase 3.5, omlx `max_context_window`).
 ///
 /// Historical gap: the Fast Path used a bare 400 backstop here while the wire
-/// path first ran a rule-based compaction pass — the same prompt survived over
+/// path first ran a rule-based compaction pass. The same prompt survived over
 /// HTTP (auto-compacted) but died in the native UI with "Shorten the input".
 /// This closes that behavioral branch: compact FIRST, throw the identical 400
 /// only if the transcript still exceeds the cap after compaction.
@@ -108,7 +108,7 @@ struct InferenceRequest {
 /// 1. estimate prompt tokens (same estimator as ``ConversationCompaction``)
 /// 2. if over cap → PreCompact hooks; a veto aborts with a 400
 ///    (codex `PreCompactHookOutcome::Stopped` → turn aborted)
-/// 3. ``ConversationCompaction/compact`` — LLM-free, oldest-turn-first,
+/// 3. ``ConversationCompaction/compact``. LLM-free, oldest-turn-first,
 ///    tool-call units atomic
 /// 4. PostCompact observation (fire-and-await)
 /// 5. re-estimate → adopt the compacted transcript if it now fits
@@ -173,7 +173,7 @@ func enforceContextWindow(
         //
         // `postTokens` = the POST-compaction floor (`compacted.estimatedTokens`),
         // i.e. the smallest transcript compaction can produce (protected prefix +
-        // suffix + note). That is the number that *proves* exhaustion — "even
+        // suffix + note). That is the number that *proves* exhaustion. "even
         // with zero removable messages left it is still X > cap". It equals the
         // original estimate when `removedCount == 0` (no-op), so one expression
         // is correct in both cases. (Using the original `finalTokens` here would
@@ -246,7 +246,7 @@ final class DirectInferenceClient {
                     // FIX: emit a terminal chunk so the caller knows the stream ended.
                     // Without this, the caller's for-await exits cleanly but responseText
                     // is never persisted (isComplete was never true).
-                    // D1 fix: sanitize error message — strip MLX/Metal internals before UI
+                    // D1 fix: sanitize error message. Strip MLX/Metal internals before UI
                     let msg = DirectInferenceClient.sanitizeEngineError(error.localizedDescription)
                     continuation.yield(
                         .init(
@@ -262,7 +262,7 @@ final class DirectInferenceClient {
         }
     }
 
-    /// Non-streaming inference — returns complete result.
+    /// Non-streaming inference. Returns complete result.
     func complete(request: InferenceRequest) async throws -> DirectInferenceResult {
         guard let engine = OcoreaiEngine.shared.activeEnginePool else {
             throw DirectInferenceError.engineNotReady
@@ -307,10 +307,10 @@ extension DirectInferenceClient {
         // Wire-path semantics (ChatHandler Phase 3.5): compact FIRST (LLM-free,
         // Pre/PostCompact hooks honored), the identical 400 wall only if the
         // compacted transcript still exceeds the cap. The Fast Path must never
-        // be a bare 400 backstop — the same prompt must survive over HTTP.
+        // be a bare 400 backstop. The same prompt must survive over HTTP.
         // Cap = EFFECTIVE window (human override → model-declared → unknown), so a
         // model that declares its own window budgets without any manual configuration
-        // — parity with the wire path, which resolves the same way.
+        // Parity with the wire path, which resolves the same way.
         let contextCap = await enginePool.effectiveContextWindow(modelId: request.modelId)
             .tokens
         let capResult = try await enforceContextWindow(
@@ -357,7 +357,7 @@ extension DirectInferenceClient {
             await scheduler.fail(schedulingRequest.id, with: error.localizedDescription)
             throw AppError.engineUnavailable
         }
-        // 1. Release handle — fire-and-forget is intentional: the inference stream
+        // 1. Release handle. Fire-and-forget is intentional: the inference stream
         //    already exited, so we only need handle.release() to decref, not to block
         //    on the finalizer. Placing it in a Task avoids holding the actor mailbox
         //    while the stream unwinds.
@@ -367,7 +367,7 @@ extension DirectInferenceClient {
             }
         }
 
-        // 2. Signal scheduler completion synchronously — avoids actor mailbox round-trip
+        // 2. Signal scheduler completion synchronously. Avoids actor mailbox round-trip
         //    and ensures the scheduling request's memory reservation is cleared
         //    immediately when this scope exits.
         defer {
@@ -395,7 +395,7 @@ extension DirectInferenceClient {
         let toolRouting = InferenceOptions.toolRouting(from: request.tools)
         // The GUI cannot express a demand, so this face must not install a calls-only
         // grammar: keying it off `tools` presence made every plain message resolve into
-        // a tool call. One rule, one home — `shouldConstrainOutput`, shared with the
+        // a tool call. One rule, one home, `shouldConstrainOutput`, shared with the
         // wire path (see `ChatHandler`).
         let constrainOutput = shouldConstrainOutput(
             declaredTools: request.tools,
@@ -426,7 +426,7 @@ extension DirectInferenceClient {
         // Compaction visibility (codex #42319 "live compaction status"): the wall
         // above auto-compacted the transcript to fit the per-model window. Emit a
         // structured note so the UI surfaces it (transcript part on the assistant
-        // message) — the user's context WAS pruned; they deserve to see it.
+        // message). The user's context WAS pruned; they deserve to see it.
         if compactedRemoved > 0 {
             continuation.yield(
                 .init(
@@ -445,20 +445,20 @@ extension DirectInferenceClient {
             cancellation: cancellation,
         )
 
-        // Use the token count from .done event — per-event counting is wrong
+        // Use the token count from .done event. Per-event counting is wrong
         // because a single .text event can contain multiple tokens.
         var outputTokens: Int? = nil
         var accumulatedText = ""
         var finishReason: String? = nil
 
-        // Real-time metrics tracking — so the UI can show TTFT during streaming.
+        // Real-time metrics tracking, so the UI can show TTFT during streaming.
         //
         // IMPORTANT (fix: real tok/s): the MLX backend emits `.text` chunks where a
         // single chunk may encode one-or-more tokens, so chunk count is NOT a token
         // count. We therefore do NOT estimate tok/s from chunk count (that produced a
         // fake, systematically-inflated speed). Instead we surface the REAL TTFT as
         // soon as the first chunk arrives, and only compute the accurate tok/s once
-        // the stream completes — using the genuine `outputTokens` from the `.done`
+        // the stream completes. Using the genuine `outputTokens` from the `.done`
         // event (actualTokenCount ?? metrics.generatedTokenCount from MLXLMCommon).
         var firstChunkTime: ContinuousClock.Instant?
         let streamStartTime = ContinuousClock.now
@@ -466,7 +466,7 @@ extension DirectInferenceClient {
         // Streaming output safety guard
         let streamGuard = OcoreaiEngine.shared.activeContentGuard
 
-        // Capture prompt throughput from engine layer — populated when .info fires
+        // Capture prompt throughput from engine layer. Populated when .info fires
         var enginePromptTokPerSec: Double?
         var engineTokPerSec: Double?
         // GAP-3/4: capture reasoning token count + MTP telemetry from .done
@@ -490,7 +490,7 @@ extension DirectInferenceClient {
             let ttftMs =
                 Double(ttftDuration.components.seconds) * 1000
                 + Double(ttftDuration.components.attoseconds) / 1e15
-            // tok/s is intentionally nil during streaming — see note above. The UI
+            // tok/s is intentionally nil during streaming. See note above. The UI
             // shows only TTFT until the accurate final tok/s is yielded at completion.
             return (ttftMs, nil, nil)
         }
@@ -499,10 +499,10 @@ extension DirectInferenceClient {
             for try await event in tokenStream {
                 switch event.kind {
                 case .token:
-                    // Individual token events — text will arrive in .text events
+                    // Individual token events. Text will arrive in .text events
                     break
                 case .prefillProgress(let processed, let total):
-                    // Prefill progress — emit to UI so long-context prefill
+                    // Prefill progress. Emit to UI so long-context prefill
                     // shows progress instead of a blank spinner.
                     continuation.yield(
                         .init(
@@ -530,7 +530,7 @@ extension DirectInferenceClient {
                     }
                     accumulatedText += text
                     // Streaming metrics: report the REAL TTFT only (tokPerSec stays nil
-                    // until completion — see note on currentMetrics()).
+                    // until completion. See note on currentMetrics()).
                     let (ttftMs, _, _) = currentMetrics()
                     // Emit phase on first content delta so UI transitions from prefill → generating
                     let generatingPhase: DirectChatChunk.InferencePhase? =
@@ -541,7 +541,7 @@ extension DirectInferenceClient {
                             text: text, isComplete: false, ttftMs: ttftMs, tokPerSec: nil,
                             phase: generatingPhase))
                 case .reasoning(let reasoningText):
-                    // Reasoning chunk from ReasoningEventEmitter — emit as reasoning content delta
+                    // Reasoning chunk from ReasoningEventEmitter. Emit as reasoning content delta
                     if firstChunkTime == nil {
                         firstChunkTime = ContinuousClock.now
                     }
@@ -557,7 +557,7 @@ extension DirectInferenceClient {
                     let reason, let tokenCount, _, let tokPS, let ptokPs,
                     let reasoningTC, _, let proposed, let accepted, let passthrough):
                     finishReason = stopReasonToString(reason) ?? "stop"
-                    // Use actual token count from upstream .info/.done — per-event
+                    // Use actual token count from upstream .info/.done. Per-event
                     // counting would severely underestimate when .text spans multiple tokens
                     outputTokens = tokenCount ?? 0
                     // Capture BOTH throughput metrics from engine layer (upstream GenerateCompletionInfo)
@@ -593,7 +593,7 @@ extension DirectInferenceClient {
                             phase: .toolExecuting(name: tc.function.name)
                         ))
                 case .toolResult(let tr):
-                    // Tool finished — forward the truthful outcome (result +
+                    // Tool finished. Forward the truthful outcome (result +
                     // measured duration + failure) so the UI upgrades the
                     // in-flight card in place instead of showing "…/0 ms" forever.
                     continuation.yield(
@@ -621,7 +621,7 @@ extension DirectInferenceClient {
         }
 
         // Send final chunk with metrics from upstream GenerateCompletionInfo.
-        // tokPerSec comes directly from .info.tokensPerSecond — generation-phase
+        // tokPerSec comes directly from .info.tokensPerSecond. Generation-phase
         // measurement (generationTokenCount / generateTime), not the previously
         // inaccurate total-stream estimate (outputTokens / totalElapsed).
         let finalTtftMs = firstChunkTime.map { ft -> Double in
@@ -696,7 +696,7 @@ extension DirectInferenceClient {
         )
         let fullMessages = try await messageBuilder.buildMessages(context: context)
 
-        // Enforce per-model context window cap — same compact-first wire
+        // Enforce per-model context window cap. Same compact-first wire
         // semantics as the stream path (parity: no behavioral branch between
         // the two Fast Path routes).
         // Cap = EFFECTIVE window (human override → model-declared → unknown), the
@@ -746,7 +746,7 @@ extension DirectInferenceClient {
             await scheduler.fail(schedulingRequest.id, with: error.localizedDescription)
             throw AppError.engineUnavailable
         }
-        // 1. Release handle — fire-and-forget is intentional: the inference stream
+        // 1. Release handle. Fire-and-forget is intentional: the inference stream
         //    already exited, so we only need handle.release() to decref, not to block
         //    on the finalizer. Placing it in a Task avoids holding the actor mailbox
         //    while the stream unwinds.
@@ -756,7 +756,7 @@ extension DirectInferenceClient {
             }
         }
 
-        // 2. Signal scheduler completion synchronously — avoids actor mailbox round-trip
+        // 2. Signal scheduler completion synchronously. Avoids actor mailbox round-trip
         //    and ensures the scheduling request's memory reservation is cleared
         //    immediately when this scope exits.
         defer {
@@ -803,9 +803,9 @@ extension DirectInferenceClient {
             midTurnSteer: request.midTurnSteer,
         )
 
-        // Phase 5: Dispatch inference — direct stream via generateFromMessages
+        // Phase 5: Dispatch inference. Direct stream via generateFromMessages
         /// ChatSession owns tool execution internally (toolDispatch closure).
-        /// AgentLoop is no longer used — it served only as a wrapper that duplicated
+        /// AgentLoop is no longer used. It served only as a wrapper that duplicated
         /// ChatSession's built-in tool loop and swallowed streaming output.
         await handle.markActive()
 
@@ -826,7 +826,7 @@ extension DirectInferenceClient {
             case .token:
                 outputTok += 1
             case .prefillProgress:
-                // Prefill progress — silent in direct client.
+                // Prefill progress. Silent in direct client.
                 break
             case .text(let text):
                 outputTok += 1
@@ -853,7 +853,7 @@ extension DirectInferenceClient {
                         durationMs: 0
                     ))
             case .toolResult(let tr):
-                // Tool finished — upgrade the matching in-flight part with the
+                // Tool finished. Upgrade the matching in-flight part with the
                 // truthful result + measured duration (or failure) so the
                 // non-streaming transcript is never stuck at "…/0 ms".
                 collectedToolCallParts = collectedToolCallParts ?? []
@@ -871,7 +871,7 @@ extension DirectInferenceClient {
                 outputTok += 1
                 reasoningContent += r
             case .guidedGenDiagnostic, .incompleteOutput, .channel:
-                // Diagnostic/channel events — informational, no content to accumulate
+                // Diagnostic/channel events. Informational, no content to accumulate
                 break
             }
         }
@@ -920,10 +920,10 @@ struct DirectChatChunk {
     let truncatedByBudget: Bool?
 
     /// Number of reasoning tokens consumed (separate from outputTokens).
-    /// Sourced from .done(reasoningTokenCount:) — nil for non-reasoning models.
+    /// Sourced from .done(reasoningTokenCount:). Nil for non-reasoning models.
     let reasoningTokenCount: Int?
 
-    /// MTP speculative decoding telemetry — nil when MTP not active.
+    /// MTP speculative decoding telemetry. Nil when MTP not active.
     let mptMetrics: MTPMetrics?
 
     /// Inference phase for UI progress indication.
@@ -936,10 +936,10 @@ struct DirectChatChunk {
     /// which accelerator handled the request before text arrives.
     let channel: ComputeChannel?
 
-    /// Inference phase enumeration — mirrors InferenceEvent.Kind phases
+    /// Inference phase enumeration. Mirrors InferenceEvent.Kind phases
     /// that matter to the end user.
     public enum InferencePhase: Codable, Sendable {
-        /// Model warming up — loading weights, warming caches.
+        /// Model warming up. Loading weights, warming caches.
         case preparing
         /// Prefilling context / KV cache.
         case prefilling(processed: Int, total: Int?)
@@ -952,14 +952,14 @@ struct DirectChatChunk {
     /// Metadata for structured inference events beyond plain text deltas.
     enum DirectChunkMetadata: Codable {
         case toolCall(ToolCallMeta)
-        /// A dispatched tool finished — carries truthful outcome + measured
+        /// A dispatched tool finished. Carries truthful outcome + measured
         /// duration (see `InferenceEvent.Kind.toolResult`). ChatViewModel upgrades
         /// the matching in-flight tool card in place.
         case toolResult(ToolResultMeta)
         case reasoningStart
         case reasoningEnd
         /// Context was auto-compacted to fit the per-model window before this
-        /// turn — carry the removed count so the UI can show a "已压缩" badge.
+        /// turn. Carry the removed count so the UI can show a "已压缩" badge.
         case compactionNote(removedCount: Int)
     }
 

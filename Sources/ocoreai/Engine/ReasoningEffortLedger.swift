@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! ReasoningEffortLedger.swift — whether a checkpoint's own chat template reads the
+//! ReasoningEffortLedger.swift. Whether a checkpoint's own chat template reads the
 //! `reasoning_effort` kwarg, measured by rendering it.
 //!
 //! ### Why this exists (AGENTS.md invariant 2)
 //! A caller can ask for thinking control on the wire (`reasoning_effort: "high"`), and this
-//! server forwards the word verbatim into the template context — `ReasoningEffortWire` holds
+//! server forwards the word verbatim into the template context, `ReasoningEffortWire` holds
 //! no enum and no word table on purpose, so the checkpoint is the only thing that can say
 //! whether the word means anything. For the two checkpoints on this host the honest answer is
 //! that it does not: neither `chat_template.jinja` names the variable, so the injected kwarg
@@ -22,16 +22,16 @@
 //! ### The asymmetry that decides the failure direction
 //! A refusal costs a caller a turn they asked for; a silent no-op costs them an answer they
 //! believed they controlled. So the probe only ever refuses on a *measured* negative, and every
-//! ambiguous outcome — a template that throws on the toolless feed, a tokenizer that cannot be
-//! built, a sentinel render that fails for an unrelated reason — lands on `notObserved`, which
+//! ambiguous outcome. A template that throws on the toolless feed, a tokenizer that cannot be
+//! built, a sentinel render that fails for an unrelated reason. Lands on `notObserved`, which
 //! keeps today's pass-through behaviour and says it was never measured.
 
 /// What this server may claim about `reasoning_effort` for one model.
 ///
-/// Closed vocabulary — a publisher must never invent a fourth value.
+/// Closed vocabulary. A publisher must never invent a fourth value.
 enum ReasoningEffortMode: String, Equatable, Sendable, CaseIterable {
     /// Measured: the kwarg reached the template (it changed the render, or evaluating the
-    /// sentinel raised — either way the checkpoint looked at it).
+    /// sentinel raised. Either way the checkpoint looked at it).
     case honored
 
     /// Measured: the render is identical with and without the kwarg, so nothing in this
@@ -59,8 +59,8 @@ enum ReasoningEffortMode: String, Equatable, Sendable, CaseIterable {
         }
     }
 
-    /// The one sentence every narrator prints — the refusal, the log line, the `/v1/models`
-    /// reason — because two publishers that each word one decision drift into two truths.
+    /// The one sentence every narrator prints. The refusal, the log line, the `/v1/models`
+    /// reason, because two publishers that each word one decision drift into two truths.
     var reasonPhrase: String {
         switch self {
         case .honored:
@@ -93,7 +93,7 @@ enum ReasoningEffortRule {
 /// Per-model record of that measurement, keyed by model id.
 ///
 /// Held as a plain value inside `EnginePool` (an actor), not a `shared` global: the fact is a
-/// property of weights the pool owns, so an unload drops the claim together with them — the
+/// property of weights the pool owns, so an unload drops the claim together with them. The
 /// same authority call `videoDeliveries` and `toolCallDeliveries` make, and the reason
 /// `/v1/models` can publish `not_observed` honestly instead of a stale `template_ignores`.
 struct ReasoningEffortLedger {

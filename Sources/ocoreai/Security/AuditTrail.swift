@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AuditTrail.swift — Tool call audit logging — who did what and when
+/// AuditTrail.swift. Tool call audit logging. Who did what and when
 ///
 /// Records every tool execution with caller identity, arguments, result,
 /// and duration for compliance and debugging.
@@ -8,7 +8,7 @@
 /// Durability: in-memory ring buffer (fast path) + optional SQLite backing
 /// (`audit_traces` table) bound via `attach(store:)`. Once bound, every
 /// completed token is persisted fire-and-forget (copy-first
-/// `PlanTaskStore.planUpdated` shape — `Task` async write, never blocks the
+/// `PlanTaskStore.planUpdated` shape, `Task` async write, never blocks the
 /// tool hot path) and `retentionDays` is enforced by the persist path
 /// (entries older than it are purged). Unbound = pure in-memory ring
 /// buffer (documented, not silent: `SystemViewModel.clearAudit` clears
@@ -58,7 +58,7 @@ struct AuditEntry: Codable, Sendable {
 }
 
 /// Persistence/serialization failures for the audit trail (copy
-/// `PlanPersistenceError` shape — exact-value testable).
+/// `PlanPersistenceError` shape. Exact-value testable).
 enum AuditPersistenceError: Error, Equatable {
     case encode
     case decode
@@ -73,7 +73,7 @@ extension AuditPersistenceError: LocalizedError {
     }
 }
 
-/// In-memory audit trail — actor-isolated for thread safety.
+/// In-memory audit trail. Actor-isolated for thread safety.
 actor AuditTrail {
     private var entries: [AuditEntry] = []
     private let maxEntries: Int
@@ -86,7 +86,7 @@ actor AuditTrail {
     /// Create audit trail with retention policy.
     /// - Parameters:
     ///   - maxEntries: Maximum entries to keep in memory (default 10000)
-    ///   - retentionDays: Days to retain **persistent** audit entries —
+    ///   - retentionDays: Days to retain **persistent** audit entries,
     ///     consumed by the `audit_traces` persist path (entries older than
     ///     this are purged on each flush). Default 30 = `MetricsConfig`
     ///     声明面同默认值（ConfigStruct.swift L630-638）
@@ -101,7 +101,7 @@ actor AuditTrail {
         self.auditLog = StructuredLogger(service: serviceName)
     }
 
-    // MARK: - Persistence binding (Verify P0 — same shape as PlanTaskStore.attach)
+    // MARK: - Persistence binding (Verify P0. Same shape as PlanTaskStore.attach)
 
     /// Bind the already-open SQLite connection so completed tokens persist
     /// to the `audit_traces` table (重启可恢复的合规面). Wiring:
@@ -121,7 +121,7 @@ actor AuditTrail {
         return await Self.readRecent(store: backing, limit: limit)
     }
 
-    /// Begin a new tool call audit — returns a token for completion.
+    /// Begin a new tool call audit. Returns a token for completion.
     /// - Parameters:
     ///   - caller: Agent/caller identity
     ///   - toolName: Tool being invoked
@@ -183,7 +183,7 @@ actor AuditTrail {
             ],
         )
 
-        // Verify P0: persist (fire-and-forget — 落盘失败不阻塞工具热路径、
+        // Verify P0: persist (fire-and-forget。落盘失败不阻塞工具热路径、
         // 不抛错；copy `PlanTaskStore.planUpdated` Task 异步写形状)
         if let backing {
             let store = backing
@@ -233,7 +233,7 @@ actor AuditTrail {
         return String(data: data, encoding: .utf8)
     }
 
-    /// Clear all entries — the in-memory ring AND the durable
+    /// Clear all entries. The in-memory ring AND the durable
     /// `audit_traces` table (the latter no-ops when unbound). Single
     /// semantic: "清空审计" = 全清（UI `SystemViewModel.clearAudit` 唯一调用面）。
     func clear() {
@@ -261,11 +261,11 @@ actor AuditTrail {
         }
     }
 
-    // MARK: - SQLite persistence (nonisolated static 纯函数 — 离线精确值可测)
+    // MARK: - SQLite persistence (nonisolated static 纯函数。离线精确值可测)
 
     /// Persist one entry to `audit_traces` (INSERT OR IGNORE = 先写生效、幂等),
     /// then enforce retention: entries older than `retentionDays` are purged
-    /// — `retentionDays` 由此从死参转正为真被消费。
+    ///, `retentionDays` 由此从死参转正为真被消费。
     /// - Parameter now: injectable clock for deterministic retention tests.
     nonisolated static func persistEntry(
         store: SQLiteStore,
@@ -324,7 +324,7 @@ actor AuditTrail {
     }
 
     /// Read the most recent `limit` persistent entries (timestamp DESC).
-    /// Malformed rows are skipped (durable-read robustness — copy
+    /// Malformed rows are skipped (durable-read robustness. Copy
     /// `SQLiteStore.bind` 对非 Int64 数值按文本绑定的已知行为 → LIMIT 显式 Int64).
     /// Failure → [].
     nonisolated static func readRecent(store: SQLiteStore, limit: Int) async -> [AuditEntry] {
@@ -376,8 +376,8 @@ actor AuditTrail {
     }
 
     /// Merge in-memory + persistent read faces: dedupe by id (in-memory
-    /// wins — it is the freshest state), sort timestamp DESC (id as
-    /// deterministic tiebreaker), trim to `limit`. Pure function — 精确值
+    /// wins. It is the freshest state), sort timestamp DESC (id as
+    /// deterministic tiebreaker), trim to `limit`. Pure function。精确值
     /// 可测 (UI 读面: `SystemViewModel.loadAudit`).
     nonisolated static func merge(
         inMemory: [AuditEntry],
@@ -394,7 +394,7 @@ actor AuditTrail {
         return Array(sorted.prefix(limit))
     }
 
-    /// JSON encode tool arguments (pure — 精确值可测).
+    /// JSON encode tool arguments (pure。精确值可测).
     nonisolated static func encodeArguments(_ arguments: [String: String]) throws -> String {
         let data = try JSONEncoder().encode(arguments)
         guard let text = String(data: data, encoding: .utf8) else {
@@ -403,7 +403,7 @@ actor AuditTrail {
         return text
     }
 
-    /// JSON decode tool arguments (pure — 精确值可测).
+    /// JSON decode tool arguments (pure。精确值可测).
     nonisolated static func decodeArguments(_ raw: String) throws -> [String: String] {
         guard let data = raw.data(using: .utf8) else {
             throw AuditPersistenceError.decode
@@ -412,7 +412,7 @@ actor AuditTrail {
     }
 }
 
-/// Token representing an in-flight tool call — used to record duration.
+/// Token representing an in-flight tool call. Used to record duration.
 struct AuditToken {
     let id: String
     let traceID: String

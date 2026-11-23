@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// DashboardView — live system metrics with auto-refresh, charts, and theme styling
+/// DashboardView. Live system metrics with auto-refresh, charts, and theme styling
 ///
 /// Systematic improvements (p1-dashboard):
 /// - 14-metric grid: throughput, latency, memory, cache, scheduler, rate limit
@@ -38,7 +38,7 @@ struct DashboardView: View {
 
     // MARK: - Uptime
 
-    /// Engine uptime — sourced from DashboardState singleton so it survives
+    /// Engine uptime. Sourced from DashboardState singleton so it survives
     /// tab switches and view recreation. Falls back to .now during the first
     /// frame before polling starts.
     private var engineUptime: TimeInterval {
@@ -145,7 +145,7 @@ struct DashboardView: View {
     }
 
     /// The way out each resting state owes. Tab navigation happens only because the
-    /// user pressed this button - a background state change never moves the foreground.
+    /// user pressed this button. A background state change never moves the foreground.
     private func recoverFromHealth() {
         switch dashboardState.health {
         case .degraded: AppState.shared.selectedTab = .system
@@ -388,7 +388,7 @@ struct DashboardView: View {
 
     private var tokenChartDomain: ClosedRange<Date> {
         let base = dashboardState.tokenHistory.last?.timestamp ?? .now
-        // Use chart window setting for upper bound — Date.distantFuture causes chart scale overflow
+        // Use chart window setting for upper bound. Date.distantFuture causes chart scale overflow
         let window = max(SettingsStore.shared.chartWindowSec, 30)
         let lower = base.addingTimeInterval(-Double(window))
         return lower ... base.addingTimeInterval(5)
@@ -505,7 +505,7 @@ private struct InfoBadge: View {
     }
 }
 
-// MARK: - Preview (Xcode only — #Preview requires PreviewsMacros plugin)
+// MARK: - Preview (Xcode only. #Preview requires PreviewsMacros plugin)
 
 // MARK: - P1: Channel color helper
 

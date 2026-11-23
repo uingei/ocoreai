@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// OcoreaiErrorBanner — lightweight inline error banner for all model-related views.
+/// OcoreaiErrorBanner. Lightweight inline error banner for all model-related views.
 ///
 /// Replaces three separate error patterns:
-///   1. ChatView: localError + errorSection() — red warning + dismiss
-///   2. ModelView: downloadError — red alert Button
-///   3. ModelSearchSheetView: ModelSearchState.errorMessage — errorSection
+///   1. ChatView: localError + errorSection(). Red warning + dismiss
+///   2. ModelView: downloadError. Red alert Button
+///   3. ModelSearchSheetView: ModelSearchState.errorMessage. ErrorSection
 ///
 /// Usage within a Form/Section:
 ///   if let error = repositoryState.currentError {

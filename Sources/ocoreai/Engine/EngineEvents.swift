@@ -1,8 +1,8 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// EngineEvents.swift — Inference cancellation token and event stream types
+/// EngineEvents.swift. Inference cancellation token and event stream types
 ///
-/// Extracted from EngineManager.swift — these two types are
+/// Extracted from EngineManager.swift. These two types are
 /// imported across Engine/Models/Handlers as the contract between
 /// the engine pool and the HTTP inference pipeline.
 
@@ -13,7 +13,7 @@ import MLXLMCommon
 
 /// Lightweight cancellation token for propagating cancellation across task boundaries.
 ///
-/// Thread-safe via `NSRecursiveLock` — no `@unchecked Sendable`, no raw pointers,
+/// Thread-safe via `NSRecursiveLock`, no `@unchecked Sendable`, no raw pointers,
 /// no manual lifetime management. Replaced the prior `os_unfair_lock` design.
 final class CancellationFlag: @unchecked Sendable {
     private var _cancelled = false
@@ -42,7 +42,7 @@ struct InferenceCancellation: Sendable {
     /// Non-cancellable handle (used for non-stream endpoints)
     static let none: Self = .init()
 
-    /// Cancellable handle — allocates a fresh flag
+    /// Cancellable handle. Allocates a fresh flag
     static func cancellable() -> Self {
         .init(_flag: CancellationFlag())
     }
@@ -71,19 +71,19 @@ struct InferenceCancellation: Sendable {
 struct InferenceEvent {
     /// Event kind discriminator
     enum Kind {
-        /// Generated token (`Int32` token ID — Core AI path)
+        /// Generated token (`Int32` token ID. Core AI path)
         case token(Int32)
 
         /// Generated reasoning chunk (upstream ReasoningEventEmitter routed)
         case reasoning(String)
 
-        /// Generated text chunk (MLX path — already decoded)
+        /// Generated text chunk (MLX path. Already decoded)
         case text(String)
 
-        /// Generation complete metadata — carries actual token count from upstream
+        /// Generation complete metadata. Carries actual token count from upstream
         /// when available. Essential for accurate token budgeting on MLX backend
         /// where `.chunk` = one-or-more tokens. Both promptTokPerSec and tokPerSec
-        /// sourced from upstream GenerateCompletionInfo — not locally estimated.
+        /// sourced from upstream GenerateCompletionInfo, not locally estimated.
         /// MTP/speculative decoding metrics (proposedDraftTokens, acceptedDraftTokens,
         /// passthroughReason) sourced from GenerateCompletionInfo when MTP iterates are active.
         ///
@@ -91,7 +91,7 @@ struct InferenceEvent {
         /// prefix, upstream `GenerateCompletionInfo.cachedPromptTokenCount`, which ChatSession
         /// attributes from its own cache-reuse decision (it landed in 604fae7;
         // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1669 base.cachedPromptTokenCount = cachedPromptTokenCount
-        /// `0` = whole prompt prefilled (no reuse) — a known value, not
+        /// `0` = whole prompt prefilled (no reuse). A known value, not
         /// "unknown"; nil = path without a GenerateCompletionInfo (guided/FM/CoreAI).
         case done(
             StopReason,
@@ -114,7 +114,7 @@ struct InferenceEvent {
         /// the upstream ``MLXLMCommon/ToolCall`` via `InferenceEvent.mlxToolCall(from:)`.
         case toolCall(ToolCall)
 
-        /// A dispatched tool call **finished** — carries the truthful outcome
+        /// A dispatched tool call **finished**. Carries the truthful outcome
         /// (success/failure) + condensed result summary + **measured** wall duration.
         ///
         /// Baseline: codex protocol surface treats tool output as a first-class event
@@ -135,7 +135,7 @@ struct InferenceEvent {
         case guidedGenDiagnostic(grammarTerminated: Bool, incompleteOutput: Bool)
 
         /// Structured diagnostic: incomplete output signal from FM / MLX path.
-        /// Upstream emitMetadata with "incompleteOutput": true — the model
+        /// Upstream emitMetadata with "incompleteOutput": true. The model
         /// was cut off mid-response (budget exceeded, reasoning interrupted, etc.).
         case incompleteOutput(Bool)
 
@@ -146,7 +146,7 @@ struct InferenceEvent {
         /// - .ane: CoreAI engine path (ANE offload)
         case channel(ComputeChannel)
 
-        /// Prefill progress update — emitted after each prefill chunk.
+        /// Prefill progress update. Emitted after each prefill chunk.
         /// Carries (processed, total) position counts from upstream
         /// PrefillParameters.progress so the HTTP/SSE layer can report
         /// prefill progress to the client in real-time.
@@ -160,7 +160,7 @@ struct InferenceEvent {
 
 /// Truthful outcome of one completed tool dispatch (see `Kind.toolResult`).
 ///
-/// `durationMs` is the **measured** wall time of the execution window — the instant
+/// `durationMs` is the **measured** wall time of the execution window. The instant
 /// `ToolRegistry.call` reports after the approval decision through completion, not an
 /// estimate, and not the human's thinking time at the prompt (codex #57207 attributes the
 /// approval wait apart; a call that never got approval falls back to the dispatch window).
@@ -175,7 +175,7 @@ struct ToolResultMeta: Sendable, Codable {
     /// What the caller actually sent, carried **only when the call failed**.
     ///
     /// A refusal that quotes the file's content but not the arguments that missed it is half a
-    /// diagnosis, and on a native turn the wire echoes no `tool_calls` at all — so without this
+    /// diagnosis, and on a native turn the wire echoes no `tool_calls` at all, so without this
     /// a client (or the eval's trace) cannot tell a wrong path from a wrong `oldString` from a
     /// call that never left the harness. Bounded, because a failed `write_file` can carry
     /// kilobytes the transcript does not need twice.
@@ -190,7 +190,7 @@ struct ToolResultMeta: Sendable, Codable {
     }
 
     /// Renders call arguments for a refusal: keys in stable order, one line, each value capped so
-    /// a truncated value says how much it dropped. Sorted keys are the point — two refusals of
+    /// a truncated value says how much it dropped. Sorted keys are the point. Two refusals of
     /// the same call must read identically, or the string cannot be diffed across runs.
     static func argumentsDigest(_ arguments: [String: Any], valueLimit: Int = 120) -> String {
         arguments.keys.sorted().map { key in
@@ -205,7 +205,7 @@ struct ToolResultMeta: Sendable, Codable {
     private static func renderArgumentValue(_ value: Any?) -> String {
         guard let value else { return "null" }
         // `NSNull` is a non-nil object, and handing it to `withJSONObject` raises an Objective-C
-        // exception — which `try?` cannot catch, so it takes the whole process with it. Ask the
+        // exception, which `try?` cannot catch, so it takes the whole process with it. Ask the
         // API whether the value is a JSON fragment rather than hoping the throw stays in Swift.
         if value is NSNull { return "null" }
         let raw: String
@@ -236,7 +236,7 @@ struct ToolResultMeta: Sendable, Codable {
 
 /// The one home for publishing a dispatched tool's outcome onto the inference stream.
 ///
-/// Both lanes — the std `ChatSession` loop and the MTP iteration loop — publish through here, so
+/// Both lanes. The std `ChatSession` loop and the MTP iteration loop. Publish through here, so
 /// neither can stop publishing quietly (MTP dispatched every call and yielded none of them) and
 /// neither can invent its own duration or its own rule for when `arguments` travels.
 /// Gate: `ToolResultAttributionTests` pins one construction and two call sites.

@@ -3,10 +3,10 @@
 /// 听觉 + 语音反馈轴的 agent 可触面(两个工具),复用 ocoreai 已有、已在 UI/passive 侧
 /// 消费的音频基设,不平行另造:
 ///
-///   transcribe_audio  听觉感知   — 复用 `LocalSTT`(L3, macOS/iOS 26+ 离线 Speech
+///   transcribe_audio  听觉感知。复用 `LocalSTT`(L3, macOS/iOS 26+ 离线 Speech
 ///                                   framework)+ `SFSpeechURLRecognitionRequest`
 ///                                   (10.15+/13+ 云端, <26 及 L3 失败时降级)
-///   speak             语音反馈   — 复用 `AudioIO.speak` + `PersonalVoiceTTS`(L1,
+///   speak             语音反馈。复用 `AudioIO.speak` + `PersonalVoiceTTS`(L1,
 ///                                   用户自己的声音, floor=部署 floor 14/17)
 ///
 /// 形态先例 = `view_screen`(ScreenCaptureTool.swift):同一套「基设已建、补 agent 面」,
@@ -24,7 +24,7 @@ import Speech
 
 /// 规范化识别请求 + 报告构建 = 纯函数(无 I/O, 离线可测)。
 enum TranscribeAudio {
-    /// 识别文本长度边界 — clamp 到有限、诚实的 token 预算。
+    /// 识别文本长度边界。clamp 到有限、诚实的 token 预算。
     static let defaultMaxChars = 2000
     static let minMaxChars = 100
     static let maxMaxChars = 8000
@@ -47,7 +47,7 @@ enum TranscribeAudio {
 
     /// 精确两/三行报告(可离线断言):
     /// ```
-    /// transcribe_audio OK — 123 chars (locale=zh-Hans)
+    /// transcribe_audio OK, 123 chars (locale=zh-Hans)
     /// <text>            （超过 maxChars 时末尾加 …,且只保留前 maxChars 字符）
     /// ```
     static func report(
@@ -61,7 +61,7 @@ enum TranscribeAudio {
     }
 }
 
-/// 识别结果 — 区分「有文字 / 无文字 / 低于 floor / 文件缺失 / 失败」,
+/// 识别结果。区分「有文字 / 无文字 / 低于 floor / 文件缺失 / 失败」,
 /// 让工具诚实地告诉模型发生了什么(对齐 view_screen 的 honest error 先例)。
 enum STTOutcome: Equatable {
     case success(text: String)
@@ -71,7 +71,7 @@ enum STTOutcome: Equatable {
     case failed(String)
 }
 
-/// STT 后端 seam — 唯一的真实 I/O 边界。平台实现包裹 `LocalSTT`(L3 离线);
+/// STT 后端 seam。唯一的真实 I/O 边界。平台实现包裹 `LocalSTT`(L3 离线);
 /// 测试注入 fake,不触 OS Speech 引擎、不下载资产。
 protocol STTTranscriber: Sendable {
     func transcribe(url: URL, locale: Locale) async -> STTOutcome
@@ -113,7 +113,7 @@ struct PlatformSTTTranscriber: STTTranscriber, @unchecked Sendable {
         guard FileManager.default.fileExists(atPath: url.path) else { return .fileMissing }
         if Hearing.tierAvailable {
             // 走 `Hearing` 而非直调 LocalSTT:权限静默读取 + 引擎在子进程探活之后才允许
-            // 进程内调用 —— `SpeechAnalyzer.analyzeSequence` 在部分主机上是 trap(SIGTRAP)
+            // 进程内调用。`SpeechAnalyzer.analyzeSequence` 在部分主机上是 trap(SIGTRAP)
             // 而非 throw,`catch` 拦不住(见 HearingReadiness.swift 的崩溃报告)。
             switch await Hearing.transcribe(file: url, locale: locale) {
             case .success(let transcript):
@@ -133,7 +133,7 @@ struct PlatformSTTTranscriber: STTTranscriber, @unchecked Sendable {
         return await transcribeCloud(url: url, locale: locale)
     }
 
-    /// Cloud 文件识别 — `SFSpeechURLRecognitionRequest`(macOS 10.15+ / iOS 13+)。
+    /// Cloud 文件识别, `SFSpeechURLRecognitionRequest`(macOS 10.15+ / iOS 13+)。
     /// 失败路径均返回 `.failed` 带可诊断 reason(授权缺失/服务不可用/识别失败)。
     nonisolated private func transcribeCloud(url: URL, locale: Locale) async -> STTOutcome {
         let authorized: Bool = await withCheckedContinuation { continuation in
@@ -176,7 +176,7 @@ struct PlatformSTTTranscriber: STTTranscriber, @unchecked Sendable {
 
 /// TTS 入队 = 纯核对(文本清洗、空校验、长度上限)+ 报告。真实播报收口到 seam。
 enum Speak {
-    /// 单次播报长度上限 — 防止把整段长文整句念出(token/时长双失控);默认与上限一致,
+    /// 单次播报长度上限。防止把整段长文整句念出(token/时长双失控);默认与上限一致,
     /// 超长只念前面。
     static let defaultMaxChars = 4000
     static let maxMaxChars = 8000
@@ -202,14 +202,14 @@ enum Speak {
     }
 
     /// 报告(可离线断言): `speak OK — 123 chars enqueued (locale=<tag>)`。
-    /// 不宣称「播完了」—— AVSpeechSynthesizer 是 OS 异步驱动,入队即成功事实。
+    /// 不宣称「播完了」。AVSpeechSynthesizer 是 OS 异步驱动,入队即成功事实。
     static func report(enqueued: Bool, text: String, localeIdentifier: String) -> String {
         guard enqueued else { return "speak: error: speech synthesis unavailable" }
         return "speak OK — \(text.count) chars enqueued (locale=\(localeIdentifier))"
     }
 }
 
-/// TTS 后端 seam — 真实 I/O 边界。平台实现包裹 `AudioIO.speak`(内部已 resolve
+/// TTS 后端 seam。真实 I/O 边界。平台实现包裹 `AudioIO.speak`(内部已 resolve
 /// Personal Voice);测试注入 fake 记录调用,不触发 OS 语音合成。
 protocol TTSBackend: Sendable {
     func speak(_ text: String) async

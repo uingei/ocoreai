@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PlatformHelpers.swift — Runtime platform capability detection
+/// PlatformHelpers.swift. Runtime platform capability detection
 ///
 /// Provides synchronous boolean queries for runtime availability of
 /// platform features that use compile-time conditionals (#if canImport)

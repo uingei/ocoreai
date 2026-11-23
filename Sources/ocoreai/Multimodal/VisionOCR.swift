@@ -1,28 +1,28 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Vision OCR processor — on-device text recognition.
+/// Vision OCR processor. On-device text recognition.
 ///
 /// Tiered engines(均为 Apple 原生,不本地解析版面):
 ///
 ///   26 代 (macOS 26 / iOS 26+): `RecognizeDocumentsRequest`
-///        — 结构化文档识别(标题 / 段落 / 表格行×列 / 带 marker 列表)。
+///。结构化文档识别(标题 / 段落 / 表格行×列 / 带 marker 列表)。
 ///        由 `DocumentOCR` 消费。
 ///   基线 (macOS 10.15 / iOS 13+, 部署 floor): `VNRecognizeTextRequest`
-///        — 扁平文本观察;floor 代引擎,兼作 26 路无结果时的兜底。
+///。扁平文本观察;floor 代引擎,兼作 26 路无结果时的兜底。
 ///
 /// 双路都 ANE 加速。帧内文本 ≥ minCharacters → 返回结构化文本(省 ~97% token),
 /// 否则 nil(走图片通道)。
 ///
-/// `run(from:recog:legacy:)` + `selectFinal(_:)` 为纯函数(无 OS I/O)——
+/// `run(from:recog:legacy:)` + `selectFinal(_:)` 为纯函数(无 OS I/O)。
 /// 用注入的识别器闭包单测「26 代优先 → legacy 兜底 → 阈值裁决」行为。
-/// 基线解码走 ImageIO(`CGImageSourceCreateWithData`)——与 HEAD 提交一致,
+/// 基线解码走 ImageIO(`CGImageSourceCreateWithData`)。与 HEAD 提交一致,
 /// 不依赖 `CGImage(data:)` 扩展。
 
 import CoreGraphics
 import Foundation
 import Vision
 
-/// 基线代识别器(macOS 10.15 / iOS 13)—— 26 代兜底 + OS < 26 的引擎。
+/// 基线代识别器(macOS 10.15 / iOS 13)。26 代兜底 + OS < 26 的引擎。
 /// 解码 + 平文提取,逻辑与 HEAD 提交逐行一致(已实证可编译)。
 struct LegacyOCR {
     static let minCharacters = 10
@@ -53,11 +53,11 @@ struct LegacyOCR {
     }
 }
 
-/// On-device Vision OCR — ANE-accelerated text recognition.
+/// On-device Vision OCR. ANE-accelerated text recognition.
 @MainActor
 struct VisionOCR {
     /// Minimum number of recognized characters to consider the OCR result
-    /// "significant" — frames below this threshold still go as images to VLM.
+    /// "significant". Frames below this threshold still go as images to VLM.
     static let minCharacters = 10
 
     /// 默认引擎:OS ≥ 26 时 26 代文档路优先,否则基线代(recog = nil)。

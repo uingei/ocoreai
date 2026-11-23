@@ -105,7 +105,7 @@ final class TokenizerInfo {
         // (recipe: CHANGELOG 11-02(104)): the classifier is one if / else-if / else chain, so a named
         // id joins `stop_token_ids_` and never joins `sorted_decoded_vocab_`, the alphabet the matcher
         // matches against (xgrammar/cpp/tokenizer_info.cc:281-287). A named stop id therefore *leaves*
-        // the grammar rather than being held back for its end — name a token the schema needs and the
+        // the grammar rather than being held back for its end. Name a token the schema needs and the
         // mask empties at the position that needed it, which
         // `ConstrainedGenerationSession.nextTokenBitmask()` reads as a finished document.
         let created: OpaquePointer?

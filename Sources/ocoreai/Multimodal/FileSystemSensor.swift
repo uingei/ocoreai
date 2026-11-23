@@ -1,6 +1,6 @@
 // Copyright 2026 uingei@163.com.
 // Licensed under MIT.
-/// FileSystemSensor — monitors watched directories for file changes
+/// FileSystemSensor. Monitors watched directories for file changes
 ///
 /// Polls FileManager for file creation/modification in watched paths.
 /// Produces PerceptionFrame(.environment) with change summaries.

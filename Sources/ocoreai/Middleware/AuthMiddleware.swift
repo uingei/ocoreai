@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AuthMiddleware.swift — API Key authentication middleware
+/// AuthMiddleware.swift. API Key authentication middleware
 ///
 /// ### Authentication Strategy:
-/// 1. Bearer token header (``Authorization: Bearer <key>``) — primary
-/// 2. ``x-api-key`` header — what the Anthropic SDK authenticates with
+/// 1. Bearer token header (``Authorization: Bearer <key>``). Primary
+/// 2. ``x-api-key`` header. What the Anthropic SDK authenticates with
 /// 3. ``api-key`` header (Azure/OpenAI-compatible)
-/// 4. Query parameter ``?api_key=`` — debug-only fallback
+/// 4. Query parameter ``?api_key=``. Debug-only fallback
 ///
 /// A mutating request that carries a browser ``Origin`` is refused before any of that:
 /// ``CORSPolicy`` is the one home for the browser-origin decision on this server.
@@ -16,10 +16,10 @@
 /// - ``OCOREAI_ADMIN_KEYS``: Admin-only keys for PATCH/DELETE operations
 ///
 /// ### Route Whitelist:
-/// - ``GET /health`` — public health check (no auth)
-/// - ``GET /v1/models`` — public model listing (no auth)
-/// - All other routes — require valid ``OCOREAI_API_KEYS`` entry
-/// - PATCH/DELETE — require valid ``OCOREAI_ADMIN_KEYS`` entry
+/// - ``GET /health``. Public health check (no auth)
+/// - ``GET /v1/models``. Public model listing (no auth)
+/// - All other routes. Require valid ``OCOREAI_API_KEYS`` entry
+/// - PATCH/DELETE. Require valid ``OCOREAI_ADMIN_KEYS`` entry
 
 import Foundation
 import HTTPTypes
@@ -64,7 +64,7 @@ struct AuthConfig: Equatable {
 
     /// Precompiled prompt injection detection regexes.
     ///
-    /// Raw strings `#"..."#` — single backslashes, no Swift escape processing
+    /// Raw strings `#"..."#`. Single backslashes, no Swift escape processing
     /// (verified end-to-end against NSReg/ICU in prompt-injection contract
     /// tests before commit).
     ///
@@ -81,7 +81,7 @@ struct AuthConfig: Equatable {
     /// - Passes (legit): any `"you are the assistant / reviewer / persona …"`
     ///   role framing without a jailbreak marker.
     ///
-    /// Compiled lazily on first access — no per-request regex compilation overhead.
+    /// Compiled lazily on first access, no per-request regex compilation overhead.
     private static let _defaultPromptInjectionRegexes: [String] = [
         #"\bignore\b.*\b(?:system\s*prompt|hidden\s+instruct\w*)\b"#,
         #"\bignore\b\s+(?:all|every|everything)\s+(?:previous\s+|prior\s+)?instructions?"#,
@@ -138,7 +138,7 @@ struct AuthConfig: Equatable {
 /// (``AuthMiddleware.handle``) and the index published at
 /// `GET /v1/capabilities` (``V1EndpointCatalog``). Before this, the sets were
 /// private instance properties of a generic middleware, so the only way to
-/// publish an `auth` column was to hand-copy them — a second source of truth
+/// publish an `auth` column was to hand-copy them. A second source of truth
 /// that could (and eventually would) call a route public while the middleware
 /// still 401s it.
 enum AuthRoutePolicy {
@@ -157,7 +157,7 @@ enum AuthRoutePolicy {
     /// HTTP methods that require admin-level API keys.
     static let adminMethods: Set<HTTPRequest.Method> = [.patch, .delete]
 
-    /// Whether a method (raw name, any casing) needs an admin key — the string
+    /// Whether a method (raw name, any casing) needs an admin key. The string
     /// form the endpoint index works with.
     static func requiresAdmin(method rawMethod: String) -> Bool {
         adminMethods.contains { $0.rawValue == rawMethod.uppercased() }
@@ -174,7 +174,7 @@ enum AuthRoutePolicy {
 /// Public routes (``/health``, ``/v1/models``) and admin-only operations
 /// (PATCH/DELETE) are handled with separate logic branches.
 struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
-    /// Authentication configuration provider — reads from env on each request
+    /// Authentication configuration provider. Reads from env on each request
     /// to support hot-reloading API keys via environment variable changes.
     private let _makeConfig: @Sendable () -> AuthConfig
 
@@ -184,14 +184,14 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
     /// Who may write from a browser. Held as a value rather than re-read from the
     /// environment here: the same resolution also decides whether a CORS middleware gets
     /// registered, and two reads of `OCOREAI_CORS_ORIGIN` could disagree about one request.
-    /// `.off` is the fail-closed default — forgetting to pass it denies browser writes,
+    /// `.off` is the fail-closed default. Forgetting to pass it denies browser writes,
     /// never widens them.
     private let browserMutation: CORSPolicy.Decision
 
     // Route policy lives in ``AuthRoutePolicy`` (file scope), not here: this type
     // is generic over `Context`, and a generic type cannot hold static stored
     // properties. The point of moving it out rather than copying it is that the
-    // endpoint index published at `GET /v1/capabilities` reads these same sets —
+    // endpoint index published at `GET /v1/capabilities` reads these same sets,
     // a hand-copied second list could call a route public while this middleware
     // still 401s it.
 
@@ -221,7 +221,7 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
         self.logger = logger
     }
 
-    /// Process the request — validate auth, inject key header, pass to next responder.
+    /// Process the request. Validate auth, inject key header, pass to next responder.
     func handle(
         _ request: Request, context: Context,
         next: (Request, Context) async throws -> Response,
@@ -242,11 +242,11 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
             )
             throw AuthError.browserOrigin
         }
-        // 2. Auth bypass — config disabled
+        // 2. Auth bypass. Config disabled
         guard config.enabled else {
             return try await next(request, context)
         }
-        // 2. Public routes — no auth required
+        // 2. Public routes, no auth required
         let path = String(request.uri.path.prefix { $0 != "?" })
         guard !AuthRoutePolicy.publicPaths.contains(path) else {
             return try await next(request, context)
@@ -254,7 +254,7 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
 
         // One chokepoint counts every refusal this middleware raises. A counter wired to one
         // branch would understate the number an operator reads when deciding whether keys are
-        // being guessed — and `ocoreai_auth_failures_total` had no producer at all until now.
+        // being guessed, and `ocoreai_auth_failures_total` had no producer at all until now.
         let apiKey: String
         do {
             // 3. Extract API key from headers/query
@@ -265,7 +265,7 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
                 throw AuthError.unauthorized
             }
 
-            // 5. Admin method check — only after key is validated
+            // 5. Admin method check, only after key is validated
             if AuthRoutePolicy.adminMethods.contains(request.method) {
                 guard config.adminKeys.contains(apiKey) else {
                     throw AuthError.adminKeyRequired
@@ -304,7 +304,7 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
             return trimmed
         }
 
-        // Second: x-api-key — the header the Anthropic SDK authenticates with. Every local
+        // Second: x-api-key. The header the Anthropic SDK authenticates with. Every local
         // comparator reads it beside Bearer (omlx `server.py:412`, splash
         // `http_security.py:22`, mlx-serve `apiKeyAuthorized`, sglang `wasm-guest-auth:49`),
         // and openapi.json publishes `/v1/messages`: without this rung that door is
@@ -328,7 +328,7 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
             }
         }
 
-        // Last: ?api_key= query parameter (debug only — a URL outlives the request that
+        // Last: ?api_key= query parameter (debug only. A URL outlives the request that
         // put the key in it, which is why nothing above it is a query)
         if let queryKey = request.uri.queryParameters["api_key"], !queryKey.isEmpty {
             return String(queryKey)
@@ -347,17 +347,17 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
 /// for structured JSON error responses.
 enum AuthError: Error, LocalizedError, HTTPResponseError {
 
-    /// 401 Unauthorized — provided API key is invalid or expired
+    /// 401 Unauthorized. Provided API key is invalid or expired
     case unauthorized
 
-    /// 403 Forbidden — operation requires admin-level API key
+    /// 403 Forbidden. Operation requires admin-level API key
     case adminKeyRequired
 
-    /// 403 Forbidden — a browser page tried to mutate this server (see
+    /// 403 Forbidden. A browser page tried to mutate this server (see
     /// ``CORSPolicy/admitsMutation(origin:against:)`` for who is admitted)
     case browserOrigin
 
-    /// 401 Unauthorized — no API key found in request headers or query
+    /// 401 Unauthorized, no API key found in request headers or query
     case missingAPIKey
 
     /// ``LocalizedError`` descriptive message for JSON error responses.
@@ -378,7 +378,7 @@ enum AuthError: Error, LocalizedError, HTTPResponseError {
         }
     }
 
-    /// ``HTTPResponseError.status`` — maps each error to its correct HTTP status.
+    /// ``HTTPResponseError.status``. Maps each error to its correct HTTP status.
     var status: HTTPResponse.Status {
         switch self {
         case .unauthorized, .missingAPIKey:
@@ -388,14 +388,14 @@ enum AuthError: Error, LocalizedError, HTTPResponseError {
         }
     }
 
-    /// ``ResponseGenerator.response(from:context:)`` — build a JSON error response.
+    /// ``ResponseGenerator.response(from:context:)``. Build a JSON error response.
     nonisolated func response(
         from request: Request,
         context: some RequestContext
     ) throws -> Response {
         let body = #"{"error":"\#(errorDescription ?? "auth error")"}"#
         var resp = Response(status: status, body: .init(byteBuffer: ByteBuffer(string: body)))
-        // HTTPField.Name for standard keys is guaranteed by Hummingbird — safe to unwrap
+        // HTTPField.Name for standard keys is guaranteed by Hummingbird. Safe to unwrap
         if let ctKey = HTTPField.Name("content-type") {
             resp.headers[ctKey] = "application/json"
         }
@@ -403,7 +403,7 @@ enum AuthError: Error, LocalizedError, HTTPResponseError {
         // resource, and the scheme that applies is the first rung of `extractAPIKey`. The
         // same section is why a 429 here carries `Retry-After` rather than a guess
         // (`EngineBusySignal`); a 403 gets none, because no credential would change the
-        // answer — that is what the refusal says.
+        // answer, that is what the refusal says.
         if status == .unauthorized {
             resp.headers[.wwwAuthenticate] = #"Bearer realm="ocoreai""#
         }

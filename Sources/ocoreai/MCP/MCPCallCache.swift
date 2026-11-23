@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MCPCallCache — LRU cache for tool call results with configurable TTL.
+/// MCPCallCache. LRU cache for tool call results with configurable TTL.
 ///
 /// 线程安全：Actor 隔离，所有访问经 mailbox。
 /// 淘汰策略：LRU（最近最少使用），容量满时淘汰最旧条目。

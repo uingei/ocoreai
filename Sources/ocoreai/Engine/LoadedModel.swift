@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// LoadedModel.swift — Per-model lifecycle (warmup, CAS lock, session count)
+/// LoadedModel.swift. Per-model lifecycle (warmup, CAS lock, session count)
 ///
 /// Extracted from EngineManager.swift. Owns the atomic state for a single
 /// loaded model: prewarm guard, inference contention, and session tracking.
@@ -24,7 +24,7 @@ import FoundationModels
 
 // MARK: - LoadedModel
 
-/// Per-model engine state — immutable metadata with atomic counters.
+/// Per-model engine state. Immutable metadata with atomic counters.
 ///
 /// Manages warmup lifecycle (CAS-guarded), inference contention (CAS lock),
 /// and session counting (atomic). Marked `@unchecked Sendable` because mutable
@@ -42,16 +42,16 @@ final class LoadedModel: @unchecked Sendable {
     let modelConfig: ModelConfig
 
     #if canImport(CoreAI)
-    /// v15: Specialized Core AI model — compiled once at load time, reused across requests.
+    /// v15: Specialized Core AI model. Compiled once at load time, reused across requests.
     /// Stored as Any? to break @available(27.0) transitive leakage into LoadedModel.
     var _preparedModel: Any?
     #endif
 
     /// True when this model holds a specialized CoreAI asset AND has no MLX handle.
-    /// Used by dispatch to force `.ane` channel — such models can only run the ANE lane.
+    /// Used by dispatch to force `.ane` channel. Such models can only run the ANE lane.
     /// (Dual-lane models with both preparedModel AND mlxModelHandle are NOT CoreAI-only.)
     /// Declared OUTSIDE the framework gate: `EnginePool.loadedBackendKind()` answers this on every
-    /// route, and the delivery SDK cannot import CoreAI — a gated declaration deletes the delivery
+    /// route, and the delivery SDK cannot import CoreAI. A gated declaration deletes the delivery
     /// build at its use site (measured: the DMG/appStore route failed an SDK-26 compile here). With
     /// no framework there is no CoreAI asset, so `false` is the measured answer, not a stub standing
     /// in for a component this route cannot have.
@@ -67,7 +67,7 @@ final class LoadedModel: @unchecked Sendable {
     }
 
     #if canImport(CoreAI)
-    /// Cached inference engine — created once per LoadedModel, reused across requests.
+    /// Cached inference engine. Created once per LoadedModel, reused across requests.
     /// CoreAI 34f0db3: engine preserves KV cache across turns; no per-turn reset needed.
     /// Stored as `Any?` to break the `@available(macOS 27.0)` transitive leakage into
     /// `LoadedModel` (same pattern as `_preparedModel` above; `InferenceEngine` is 27-gated).
@@ -77,7 +77,7 @@ final class LoadedModel: @unchecked Sendable {
     /// Engine options (KV cache strategy, etc.)
     let engineOptions: EngineOptions
 
-    /// MLXLLM model handle — loaded once at load time, reused across inference
+    /// MLXLLM model handle. Loaded once at load time, reused across inference
     var mlxModelHandle: (any MLXModelHandle)?
 
     // MARK: - MLX FoundationModels integration (macOS 27+)
@@ -86,7 +86,7 @@ final class LoadedModel: @unchecked Sendable {
     /// download-tracked, error-recorded). Held so capabilities, configurationResolver,
     /// and Executor.Configuration survive loadContainer().
     #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-    // Opaque bridge for MLXLanguageModel — the type is @available(macOS 27.0, iOS 27.0, *)
+    // Opaque bridge for MLXLanguageModel. The type is @available(macOS 27.0, iOS 27.0, *)
     // so we cannot declare it as a stored property directly in this class.
     // Cast to Any? here, cast back via loadMLXLanguageModel() at call time.
     var _mlxLanguageModelRef: Any?
@@ -103,7 +103,7 @@ final class LoadedModel: @unchecked Sendable {
     var kvCacheQuantization: KVCacheQuantizationConfig = .default
     /// Speculative decoding config from backend settings. Set via setSpecDecodingConfig.
     var specDecodingConfig: SpecDecodingConfig = .default
-    /// Draft model for speculative decoding — loaded by EnginePool, reused across sessions.
+    /// Draft model for speculative decoding. Loaded by EnginePool, reused across sessions.
     private var draftModelHandle: (any MLXModelHandle)?
     /// The MTP drafter built from THIS model's own checkpoint, set once by EnginePool at
     /// load. `private(set)` is the point: the routing gate reads it off the model it is
@@ -111,14 +111,14 @@ final class LoadedModel: @unchecked Sendable {
     /// together with the weights it was drafted from.
     private(set) var mtpDrafterContainer: MLXLMCommon.MTPDrafterContainer?
 
-    /// MTP KV cache keyed by conversation — each conversation gets its own cache
+    /// MTP KV cache keyed by conversation. Each conversation gets its own cache
     /// so switching dialogs does not leak stale GPU activations.
     private var _mtpKVCacheMap: [String: [MLXLMCommon.KVCache]] = [:]
     /// Last-access timestamp per conversation (seconds since process boot via uptime).
     private var _mtpKVCacheLastAccess: [String: TimeInterval] = [:]
     private static let mtpKVCacheTTLSeconds: TimeInterval = 600
     /// Hard limit on simultaneous conversation cache entries to prevent GPU OOM.
-    /// 20 sessions × ~1–4 GB each ≈ 80 GB ceiling on 128 GB unified — still safe.
+    /// 20 sessions × ~1–4 GB each ≈ 80 GB ceiling on 128 GB unified. Still safe.
     /// On 16/24 GB machines, per-model cache pressure is lower due to fewer layers cached.
     private static let mtpKVCacheMaxEntries = 20
 
@@ -127,18 +127,18 @@ final class LoadedModel: @unchecked Sendable {
 
     // MARK: - Guided Generation Cache
 
-    /// Cached tokenizer biases for guided generation — mirrors upstream
+    /// Cached tokenizer biases for guided generation. Mirrors upstream
     /// ModelCache.tokenizerBiases. These are pure tokenizer functions:
     /// ClosingTokenBias (~1ms to compute) and WhitespaceTokenBias.
     /// Cached once per model, reused across guided gen requests.
     private var _cachedTokenBias: TokenBiasCache?
 
-    /// Cached GrammarTokenizer for guided generation — built once per model, reused
+    /// Cached GrammarTokenizer for guided generation. Built once per model, reused
     /// across inference requests. Mirrors upstream MLXLanguageModel.swift L163-180
     /// ModelCache.xgTokenizers caching pattern.
     private var _cachedGrammarTokenizer: GrammarTokenizer?
 
-    /// Constraint template cache — mirrors upstream ModelCache.constraintTemplates.
+    /// Constraint template cache. Mirrors upstream ModelCache.constraintTemplates.
     /// Grammar compilation is expensive (~5-20ms); caching + cloning (~0.1ms) lets
     /// Cached compiled constraint templates, keyed "json:\(schema)".
     /// Internal (not private) so the cache property itself is assertable.
@@ -149,10 +149,10 @@ final class LoadedModel: @unchecked Sendable {
     /// Mirrors upstream `ModelCache.makeConstraint` in shape, with one deliberate
     /// difference: upstream clones the template on hit, and `clone()` needs
     /// `GrammarMatcher::Fork()`, which lm's vendored xgrammar v0.1.30 lacks (Fork
-    /// landed in v0.1.33 — the note #732 corrected). A clone here throws on
+    /// landed in v0.1.33. The note #732 corrected). A clone here throws on
     /// every call, so the template was never stored and every request recompiled
     /// the grammar. `freshMatcher()` (upstream #732) builds a new matcher over the
-    /// already-compiled grammar — no Fork, initial state, no inherited state.
+    /// already-compiled grammar, no Fork, initial state, no inherited state.
     func getOrCreateConstraint(
         grammarTokenizer: GrammarTokenizer,
         hostTokenizer: any MLXLMCommon.Tokenizer,
@@ -175,7 +175,7 @@ final class LoadedModel: @unchecked Sendable {
 
     /// Get or build the cached GrammarTokenizer for guided generation.
     /// First call extracts vocab from the model's tokenizer and caches;
-    /// subsequent calls return the cached instance — mirrors upstream
+    /// subsequent calls return the cached instance. Mirrors upstream
     /// MLXLanguageModel.swift L163 `ModelCache.makeXGTokenizer`.
     func getOrCreateGrammarTokenizer(from tokenizer: any MLXLMCommon.Tokenizer) throws
         -> GrammarTokenizer
@@ -235,7 +235,7 @@ final class LoadedModel: @unchecked Sendable {
         logger.info("Speculative decoding enabled — draft model loaded")
     }
 
-    /// Store the drafter loaded from this model's checkpoint — see `mtpDrafterContainer`.
+    /// Store the drafter loaded from this model's checkpoint. See `mtpDrafterContainer`.
     func setMTPDrafter(_ container: MLXLMCommon.MTPDrafterContainer) {
         mtpDrafterContainer = container
     }
@@ -245,9 +245,9 @@ final class LoadedModel: @unchecked Sendable {
     /// Return the MTP KV cache array if within TTL; expire and clear otherwise.
     /// Mirrors SessionPool TTL eviction: cache is invalidated after
     /// ``mtpKVCacheTTLSeconds`` of idle time to prevent unbounded GPU memory growth.
-    /// KVCache objects are reference types — the returned array shares GPU memory
+    /// KVCache objects are reference types. The returned array shares GPU memory
     /// with the stored instances, so no deep copy is made.
-    /// Monotonic clock helper — uses ProcessInfo systemUptime which is always available.
+    /// Monotonic clock helper. Uses ProcessInfo systemUptime which is always available.
     fileprivate static func mtpKVCacheNow() -> TimeInterval {
         ProcessInfo.processInfo.systemUptime
     }
@@ -324,13 +324,13 @@ final class LoadedModel: @unchecked Sendable {
     ///
     /// Returns `nil` when:
     /// - Speculative decoding is disabled in config (`enabled: false`)
-    /// - Mode is "mtp" — MTP uses its own inference path via `generate(...,
+    /// - Mode is "mtp". MTP uses its own inference path via `generate(...,
     ///   mtpDrafer:, blockSize:)`, not ChatSession-based speculative decoding.
     /// - No draft model has been loaded for "traditional" mode
     func createSpeculativeConfig() -> MLXLMCommon.SpeculativeDecodingConfig? {
         guard specDecodingConfig.enabled else { return nil }
 
-        // MTP mode does NOT use ChatSession's speculativeDecoding parameter —
+        // MTP mode does NOT use ChatSession's speculativeDecoding parameter,
         // it has its own inference path via MLXLMCommon.generate(mtpDrafter:,blockSize:)
         // wired in EnginePool._runInferenceWithMessages. Returning nil here
         // is correct: MTP does not go through ChatSession's SDC.
@@ -363,12 +363,12 @@ final class LoadedModel: @unchecked Sendable {
 
     // MARK: - Warmup (CAS-guarded, runs once)
 
-    /// Atomic flag — `true` after prewarm completes
+    /// Atomic flag, `true` after prewarm completes
     private let wasPrewarmed = ManagedAtomic<Bool>(false)
 
     /// Non-fatal warmup failure observed during prewarm. When `true`, the
     /// "first request will be fast" claim in ``EnginePool.prewarmDefaultModel``
-    /// is NOT allowed — the model is still usable cold, but the prewarm trip did
+    /// is NOT allowed. The model is still usable cold, but the prewarm trip did
     /// not complete (e.g. CoreAI specialization skipped due to malformed asset
     /// such as "missing hash file"). Callers should log an honest state and
     /// avoid promising the user a fast first request.
@@ -402,12 +402,12 @@ final class LoadedModel: @unchecked Sendable {
         #if canImport(CoreAI)
         if #available(macOS 27.0, iOS 27.0, *) {
             do {
-                // Track which warmup lane actually ran — a trip with no real
+                // Track which warmup lane actually ran. A trip with no real
                 // warm (stub env / no CoreAI asset) must stay honest:
                 // ``prewarmFullySucceeded`` = false.
                 var completedRealWarmup = false
                 #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-                // Call upstream Executor.prewarm(model:transcript:) — compiles Metal
+                // Call upstream Executor.prewarm(model:transcript:). Compiles Metal
                 // shaders + pre-builds GrammarTokenizer.
                 // upstream: MLXLanguageModel.swift L920: Executor.prewarm(model:transcript:)
                 //         → model.warmUp() L610 (internal, fire-and-forget via detached Task)
@@ -428,7 +428,7 @@ final class LoadedModel: @unchecked Sendable {
                     completedRealWarmup = true
                 }
                 #endif
-                // Also warm CoreAI engine — single engine per model preserves KV cache.
+                // Also warm CoreAI engine. Single engine per model preserves KV cache.
                 // Gate on CoreAI asset presence: a Hub/MLX model (HF safetensors, no
                 // `.aimodel`/`.aimodelc`) has nothing to specialize, and calling
                 // AIModel(contentsOf:) on its dir fails "Missing hash file" (09-15
@@ -464,7 +464,7 @@ final class LoadedModel: @unchecked Sendable {
         } else {
             // SDK-27 编译 + OS-26 运行(shipped DMG on macOS 26, CI macos-26
             // runner, 本机): 整条 CoreAI 热车道存在但不可达, 且 MLX 热车道
-            // 在 #else 分支里根本没被编译 — 没有任何 warm 真跑过。诚实标志
+            // 在 #else 分支里根本没被编译。没有任何 warm 真跑过。诚实标志
             // 必须落 false, 否则 "first request fast" 是谎(2165-run 实锤)。
             if !wasPrewarmDegraded {
                 wasPrewarmDegraded = true
@@ -497,7 +497,7 @@ final class LoadedModel: @unchecked Sendable {
             )
             let genStream: AsyncThrowingStream<MLXLMCommon.Generation, Error> =
                 session.streamDetails(to: mlxMessages)
-            // Drain the full warmup stream — ensures Metal kernels are compiled
+            // Drain the full warmup stream. Ensures Metal kernels are compiled
             // and the pipeline is fully warm before the first real inference.
             // The warmupTokens config limits how many tokens are generated.
             for try await _ in genStream {}
@@ -517,7 +517,7 @@ final class LoadedModel: @unchecked Sendable {
 
     // MARK: - Inference Contention Guard (CAS lock)
 
-    /// Atomic lock — `true` while inference is running on this model
+    /// Atomic lock, `true` while inference is running on this model
     private let inferenceGuard = ManagedAtomic<Bool>(false)
 
     /// Dedicated CAS for engine-cache initialization. Decoupled from ``inferenceGuard``
@@ -537,7 +537,7 @@ final class LoadedModel: @unchecked Sendable {
     ///
     /// Polls one interval, never the deadline (AGENTS.md: sleeping to the deadline inside a
     /// `while <pending>` parks the waiter for the whole window regardless of when the lock
-    /// frees — the same bug `EnginePool.waitForLoading` carried, where the first chat request
+    /// frees. The same bug `EnginePool.waitForLoading` carried, where the first chat request
     /// cost 120 s for a model ready in 8 s). Returns as soon as the lock is free.
     ///
     /// - Returns: `true` when the caller now holds the lock; `false` on timeout or cancel.
@@ -564,7 +564,7 @@ final class LoadedModel: @unchecked Sendable {
 
     // MARK: - Session Counting (atomic)
 
-    /// Session counter — ManagedAtomic for cross-concurrency safety.
+    /// Session counter. ManagedAtomic for cross-concurrency safety.
     private let sessionCount = ManagedAtomic<Int>(0)
 
     /// Current active session count
@@ -577,7 +577,7 @@ final class LoadedModel: @unchecked Sendable {
         sessionCount.wrappingIncrement(ordering: .relaxed)
     }
 
-    /// Decrement session counter — clamped at zero to prevent wrap-around
+    /// Decrement session counter. Clamped at zero to prevent wrap-around
     /// when release is called more than acquire (early exit, error paths, etc.).
     /// wrappingDecrement could wrap to Int.max on underflow, causing
     /// LRU eviction to see "always active" and never evict.
@@ -598,7 +598,7 @@ final class LoadedModel: @unchecked Sendable {
 
     // MARK: - Engine Resolution (CoreAI)
 
-    /// Model availability status — mirrors upstream MLXLanguageModel.availability.
+    /// Model availability status. Mirrors upstream MLXLanguageModel.availability.
     /// On macOS 27+ with FoundationModels, queries MLXLanguageModel.availability
     /// directly. On older SDKs, `mlxLanguageModel` is nil and callers should
     /// fall back to disk checks (e.g. modelExistsOnDisk()).
@@ -620,7 +620,7 @@ final class LoadedModel: @unchecked Sendable {
     #endif
 
     #if canImport(CoreAI)
-    /// Get cached inference engine — create on first call, reuse thereafter.
+    /// Get cached inference engine. Create on first call, reuse thereafter.
     /// CoreAI 34f0db3: engines should be singletons per LoadedModel to preserve KV cache.
     ///
     /// Uses dedicated ``engineCacheGuard`` CAS to protect cache initialization.
@@ -637,7 +637,7 @@ final class LoadedModel: @unchecked Sendable {
             engineCacheGuard.compareExchange(expected: false, desired: true, ordering: .acquiring)
                 .exchanged
         else {
-            // Another caller is creating the engine — wait briefly and retry
+            // Another caller is creating the engine. Wait briefly and retry
             try await Task.sleep(for: .milliseconds(10))
             return try await getCachedEngine()
         }
@@ -670,7 +670,7 @@ final class LoadedModel: @unchecked Sendable {
         // Without this, the cached InferenceFunction + NDArrays + AIModel asset
         // stay resident even after unloadModel() completes, causing Unified Memory
         // accumulation under model-switch workloads.
-        // Only log when CoreAI runtime was actually active — on macOS/iOS < 27
+        // Only log when CoreAI runtime was actually active. On macOS/iOS < 27
         // with canImport(CoreAI) compiled, this block still enters but cachedEngine
         // is always nil, so logging would be misleading.
         let wasActive = cachedEngine != nil || _preparedModel != nil
@@ -688,11 +688,11 @@ final class LoadedModel: @unchecked Sendable {
         // Clear MTP KV cache to release cached GPU tensors
         clearMTPKVCache()
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-        // upstream: MLXLanguageModel.evict() L509 — remove from shared ModelCache
-        // evict() is async — fire-and-forget in cleanup (same as warmUp via prewarm)
+        // upstream: MLXLanguageModel.evict() L509. Remove from shared ModelCache
+        // evict() is async. Fire-and-forget in cleanup (same as warmUp via prewarm)
         if #available(macOS 27.0, iOS 27.0, *) {
             if let lm = _mlxLanguageModelRef as? MLXLanguageModel {
-                // Detach evict to background — ModelCache removes weights, then
+                // Detach evict to background. ModelCache removes weights, then
                 // the strong reference drops. Best-effort, non-blocking.
                 Task.detached {
                     await lm.evict()
@@ -706,7 +706,7 @@ final class LoadedModel: @unchecked Sendable {
     // MARK: - Initialization
 
     /// Set MLX model handle after model loading completes.
-    /// Defined at class level — `mlxModelHandle` is always available regardless of #if config.
+    /// Defined at class level, `mlxModelHandle` is always available regardless of #if config.
     func setMLXHandle(_ handle: any MLXModelHandle) {
         mlxModelHandle = handle
     }

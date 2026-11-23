@@ -1,9 +1,9 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// HeadlessServer.swift — real headless `ocoreai serve` entry.
+/// HeadlessServer.swift. Real headless `ocoreai serve` entry.
 ///
 /// ### Why this exists (proven root cause)
-/// The engine's only cold-boot trigger was `AppState.initialize()` — a
+/// The engine's only cold-boot trigger was `AppState.initialize()`. A
 /// SwiftUI View lifecycle hook. A process launched without a WindowServer
 /// session never instantiates the `WindowGroup`, so `OcoreaiEngine.start()`
 /// never ran and the HTTP bridge never bound `127.0.0.1:8080`. `serve` was
@@ -12,14 +12,14 @@
 /// ### This file
 /// `HeadlessMode` is a pure argument classifier (unit-testable, no I/O).
 /// `HeadlessServer.run()` boots the engine on a windowless AppKit runloop:
-///   • `setActivationPolicy(.prohibited)` — no Dock icon, no menus.
-///   • `registerGlobalCrashHandlers()` — same crash surface as the GUI.
+///   • `setActivationPolicy(.prohibited)`, no Dock icon, no menus.
+///   • `registerGlobalCrashHandlers()`. Same crash surface as the GUI.
 ///   • SIGTERM → graceful shutdown (daemon semantics). SIGINT keeps the
 ///     default terminal ^C behavior deliberately (signal() disposition is
 ///     untouched).
 ///   • stdin EOF → graceful shutdown (agent-harness semantics: the harness
 ///     closes the pipe to stop the server). Stdin monitoring is only
-///     installed for pipes and TTYs — a daemon launched with stdin at
+///     installed for pipes and TTYs. A daemon launched with stdin at
 ///     `/dev/null` (or closed) must NOT die at boot.
 ///   • Shutdown drains via `OcoreaiEngine.shared.stop()` (30s bounded drain)
 ///     then `NSApplication.terminate(nil)`; `NSApp.stop()` is NEVER called
@@ -28,7 +28,7 @@
 ///     stalls, so the drain never hangs a daemon forever.
 ///
 /// The default (no `serve`) branch in `OcoreaiApp.main()` is byte-identical
-/// to the pre-existing GUI path — this file only adds, never re-routes it.
+/// to the pre-existing GUI path. This file only adds, never re-routes it.
 
 import Foundation
 import Logging
@@ -40,13 +40,13 @@ import AppKit
 // MARK: - Entry-point selection (pure)
 
 /// Pure argument classifier for the process entry.
-/// No I/O, no globals — safe to unit-test exhaustively.
+/// No I/O, no globals. Safe to unit-test exhaustively.
 ///
 /// Rules (exhaustively pinned by `HeadlessServeModeTests`):
-///   • `args[0]` is argv[0] (the binary path) — ignored by definition.
+///   • `args[0]` is argv[0] (the binary path). Ignored by definition.
 ///   • The FIRST argument after argv[0] must be exactly `"serve"`; everything else leaves the
 ///     GUI branch untouched (no arguments, a near-miss token like `"server"`, or a leading flag
-///     such as `--help serve` — leading flags are never skipped past, and `CLIMode` has already
+///     such as `--help serve`. Leading flags are never skipped past, and `CLIMode` has already
 ///     answered a leading help flag before this classifier is consulted).
 ///   • `serve` then takes **no arguments**, because the bridge is configured by the environment
 ///     (`CLIMode.usageText` lists the variables it consumes). A token after `serve` is either a
@@ -97,7 +97,7 @@ enum HeadlessServer {
             HeadlessRuntime.run()
         }
         #else
-        // iOS/iPadOS have no headless daemon story — keep GUI behavior.
+        // iOS/iPadOS have no headless daemon story. Keep GUI behavior.
         OcoreaiGUIApp.main()
         #endif
     }
@@ -124,13 +124,13 @@ enum HeadlessRuntime {
     /// AppKit terminate path (triggered by SIGTERM / stdin EOF) returns.
     static func run() {
         NSLog("[ocoreai] headless serve starting (pid \(getpid()))")
-        // No Dock tile, no menu bar, no windows — daemon semantics.
+        // No Dock tile, no menu bar, no windows. Daemon semantics.
         NSApplication.shared.setActivationPolicy(.prohibited)
 
         // Same crash surface as the GUI path (AppDelegate does this).
         registerGlobalCrashHandlers()
 
-        // Mirror the HF Hub environment knobs the GUI delegate sets —
+        // Mirror the HF Hub environment knobs the GUI delegate sets,
         // xet's swallowed exceptions and mirror opt-in apply headless too.
         // Single choke: operator HF_ENDPOINT wins, persisted GUI toggle
         // honoured, identical precedence to the App and Application paths.
@@ -151,7 +151,7 @@ enum HeadlessRuntime {
             // A daemon whose engine never started can never serve, and staying alive while it
             // says so only moves the diagnosis onto whoever is waiting. Measured 10-22:
             // `serve` refused the single-instance lock, printed "lifecycle: error" at t=0, then
-            // sat in the runloop until an outside signal killed it — so `scripts/eval/run.sh`
+            // sat in the runloop until an outside signal killed it, so `scripts/eval/run.sh`
             // burned the full readiness timeout (237 s) on an answer it had already been told.
             // `.error` is reachable only from paths that started nothing (second instance,
             // open circuit breaker, startup failure), so there is nothing to drain here: exit
@@ -163,7 +163,7 @@ enum HeadlessRuntime {
             }
         }
 
-        // Pump the main runloop — MainActor work (engine start, HTTP
+        // Pump the main runloop. MainActor work (engine start, HTTP
         // bridge, gauge tasks) proceeds on this thread. Returns when
         // NSApplication.terminate(_:) completes.
         NSApplication.shared.run()
@@ -183,7 +183,7 @@ enum HeadlessRuntime {
 
         // Hard ceiling: terminate() should land well inside the engine's
         // own 30s bounded drain. If the AppKit termination path ever
-        // stalls, force-exit — a daemon must never hang on shutdown.
+        // stalls, force-exit. A daemon must never hang on shutdown.
         Thread.detachNewThread {
             Thread.sleep(forTimeInterval: shutdownCeilingSeconds)
             NSLog("[ocoreai] shutdown ceiling exceeded — force exit")
@@ -205,7 +205,7 @@ enum HeadlessRuntime {
         signal(SIGTERM, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
         source.setEventHandler {
-            // .main queue ⇒ main thread ⇒ MainActor assumption is sound.
+            //  .main queue ⇒ main thread ⇒ MainActor assumption is sound.
             MainActor.assumeIsolated {
                 beginShutdown(reason: "SIGTERM")
             }

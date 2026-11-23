@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ComplexityAnalyzer — input complexity scorer for adaptive thinking budget.
+/// ComplexityAnalyzer. Input complexity scorer for adaptive thinking budget.
 ///
 /// Three-dimension scoring (signal range 0.0–1.0):
 /// ┌─────────────────────────────────────────────────────────────┐
-/// │ 1. Length score       — token budget relative cost          │
-/// │ 2. Intent score       — query class (fact vs. reasoning)    │
-/// │ 3. History score      — conversation context depth          │
+/// │ 1. Length score. Token budget relative cost          │
+/// │ 2. Intent score. Query class (fact vs. reasoning)    │
+/// │ 3. History score. Conversation context depth          │
 /// └─────────────────────────────────────────────────────────────┘
 
 import Foundation
@@ -21,15 +21,15 @@ import NaturalLanguage
 /// then returns the highest-scoring TaskType above a confidence threshold.
 ///
 /// API reality (macOS 14.0+ verified via SDK headers):
-/// - init?(language:) — failable, no contextLength param
+/// - init?(language:). Failable, no contextLength param
 /// - embeddingResultForString(_:language:error:) → NLContextualEmbeddingResult
 ///   returns per-subword vectors; we mean-pool into a single [Float] per text
 /// - hasAvailableAssets / requestAssets() for model asset downloads
 ///
-/// Owned by the `ComplexityAnalyzer` actor — all state is immutable after init,
+/// Owned by the `ComplexityAnalyzer` actor. All state is immutable after init,
 /// so no cross-actor hops needed.
 class SemanticIntentDetector {
-    /// Anchor texts representative of each TaskType — used to build reference
+    /// Anchor texts representative of each TaskType. Used to build reference
     /// embeddings against which user input is compared via cosine similarity.
     private static let anchors: [(TaskType, String)] = [
         (
@@ -51,7 +51,7 @@ class SemanticIntentDetector {
     ]
 
     /// Minimum cosine similarity to override a .general result.
-    /// 0.50 is conservative — moderate similarity is enough for high-level intent.
+    /// 0.50 is conservative. Moderate similarity is enough for high-level intent.
     private static let confidenceThreshold: Double = 0.50
 
     /// Pre-computed reference embeddings keyed by TaskType.
@@ -174,7 +174,7 @@ actor ComplexityAnalyzer {
     /// Per-session complexity history (used by AdaptiveStrategy).
     private var sessionScores: [String: [Double]] = [:]
 
-    /// Session-key order (insertion order, oldest first) — bounds the per-session
+    /// Session-key order (insertion order, oldest first). Bounds the per-session
     /// key set in a long-lived process. Previously `sessionScores` grew one entry
     /// per distinct session_id with no eviction (per-value arrays were capped at
     /// 50, but the *key set itself* was retained forever) → unbounded growth.
@@ -186,14 +186,14 @@ actor ComplexityAnalyzer {
     /// Assertion surface: current per-session key count (LRU-evicted at cap).
     public var sessionKeyCount: Int { sessionKeyOrder.count }
 
-    /// Global moving average score — stabilizes across cold-start.
+    /// Global moving average score. Stabilizes across cold-start.
     private var globalScore: Double = 0.5
     private var scoreCount: Int = 0
 
     /// Score decay factor (EMA α = 0.3 → recent inputs weighted heavier).
     private let decayAlpha: Double = 0.3
 
-    /// Semantic fallback classifier — initialized lazily on first .general result.
+    /// Semantic fallback classifier. Initialized lazily on first .general result.
     private var _semanticDetector: SemanticIntentDetector?
 }
 
@@ -211,9 +211,9 @@ extension ComplexityAnalyzer {
     /// Score bands:
     /// | Band    | Score Range  | Action                           |
     /// |---------|-------------|----------------------------------|
-    /// | Simple  |  0.0 – 0.33 | Direct answer, no thinking chain |
-    /// | Medium  |  0.34 – 0.66 | Standard reasoning scaffold      |
-    /// | Complex |  0.67 – 1.0 | Deep reasoning + multi-step verify|
+    /// | Simple  |  0.0, 0.33 | Direct answer, no thinking chain |
+    /// | Medium  |  0.34, 0.66 | Standard reasoning scaffold      |
+    /// | Complex |  0.67, 1.0 | Deep reasoning + multi-step verify|
     func analyze(
         input: String,
         messageCount: Int,
@@ -232,7 +232,7 @@ extension ComplexityAnalyzer {
             contextBoost: contextBoost,
         )
 
-        // Update tracking state — key set LRU-bounded (see sessionKeyOrder doc).
+        // Update tracking state. Key set LRU-bounded (see sessionKeyOrder doc).
         let sessionKey = "session_\(sessionId)"
         // Evict the *key set* if it would exceed the cap (insertion-order LRU).
         if sessionKeyOrder.contains(sessionKey) {
@@ -284,10 +284,10 @@ extension ComplexityAnalyzer {
 // MARK: - Dimension Scorers
 
 extension ComplexityAnalyzer {
-    /// Length score — token budget as proxy for input cost.
-    ///  < 30 tokens  → ~0.0 (trivial)
+    /// Length score. Token budget as proxy for input cost.
+    /// < 30 tokens  → ~0.0 (trivial)
     ///   30–150     → ~0.3 (moderate)
-    ///  > 150       → ~0.7+ (detailed)
+    /// > 150       → ~0.7+ (detailed)
     private func scoreLength(_ input: String) -> Double {
         let approxTokens = Double(input.count) / 4.0  // rough char-to-token heuristic
         // Sigmoid: center at 80 tokens, steep=0.05
@@ -296,7 +296,7 @@ extension ComplexityAnalyzer {
         return 1.0 / (1.0 + exp(-(approxTokens - center) * steepness))
     }
 
-    /// Intent score derived from task type — precision tasks get higher scores.
+    /// Intent score derived from task type. Precision tasks get higher scores.
     /// Code/math/json are inherently error-prone → should trigger more reasoning.
     private func scoreIntent(from taskType: TaskType) -> Double {
         switch taskType {
@@ -311,7 +311,7 @@ extension ComplexityAnalyzer {
         }
     }
 
-    /// Context-length boost — long inputs (>2k chars) push score up because
+    /// Context-length boost. Long inputs (>2k chars) push score up because
     /// they indicate documents, PR discussions, or multi-document analysis
     /// that benefit from structured reasoning.
     /// Returns 0.0–0.25 additive boost.
@@ -337,7 +337,7 @@ extension ComplexityAnalyzer {
         let hasCodeFence = lower.contains("```")
         let lineCount = lower.components(separatedBy: "\n").count
 
-        // Code detection — strongest signal
+        // Code detection. Strongest signal
         let codeSignals: [String] = [
             "```.swift", "```.py", "```.js", "```.ts", "```.java", "```.c", "```.cpp",
             "```.kotlin", "```.go", "```.rs", "```.rb", "```.php",
@@ -409,7 +409,7 @@ extension ComplexityAnalyzer {
         }
 
         // ── Phase 2: semantic fallback ──
-        // Keyword matching couldn't resolve a type — try NLContextualEmbedding
+        // Keyword matching couldn't resolve a type. Try NLContextualEmbedding
         // cosine-similarity against task-type anchors.
         if let detector = _semanticDetector {
             if let semanticType = detector.classify(input) {
@@ -426,7 +426,7 @@ extension ComplexityAnalyzer {
         return .general
     }
 
-    /// History score — deeper conversations tend to need more context.
+    /// History score. Deeper conversations tend to need more context.
     /// 0 messages → 0.0 (cold start)
     /// 1–20 → 0.2–0.5
     /// 20+ → 0.6+ (rich context, more reasoning needed)
@@ -464,7 +464,7 @@ extension ComplexityAnalyzer {
 
 // MARK: - Data Types
 
-/// Task type classification — used for scaffold selection and parameter tuning.
+/// Task type classification. Used for scaffold selection and parameter tuning.
 enum TaskType: String, Codable, Sendable {
     /// Code generation, debugging, refactoring
     case code
@@ -497,17 +497,17 @@ struct ComplexityScore: Sendable {
     /// Resolved action band
     let band: ComplexityBand
 
-    /// Detected task type — drives scaffold and parameter selection
+    /// Detected task type. Drives scaffold and parameter selection
     let taskType: TaskType
 }
 
 /// Complexity classification band.
 enum ComplexityBand: String {
-    /// Direct answer — no reasoning scaffold injected.
+    /// Direct answer, no reasoning scaffold injected.
     case simple
-    /// Standard reasoning — moderate thinking scaffold.
+    /// Standard reasoning. Moderate thinking scaffold.
     case medium
-    /// Deep reasoning — full thinking chain + multi-step verification.
+    /// Deep reasoning. Full thinking chain + multi-step verification.
     case complex
 
     static func `for`(score: Double) -> ComplexityBand {

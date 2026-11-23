@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// EnginePool.swift — Orchestration actor for the engine pool
+/// EnginePool.swift. Orchestration actor for the engine pool
 ///
 /// Extracted from EngineManager.swift (was 1424 lines).
 /// This file contains only the actor's state, initialization,
@@ -28,7 +28,7 @@ import FoundationModels
 
 /// A hub repo id the request layer hands to the pool: "hf:org/model",
 /// "mscope:org/model", or bare "org/model". Distinguished from local file
-/// paths (which contain '/' — absolute "/a/b" or relative "a/b/model.safetensors").
+/// paths (which contain '/'. Absolute "/a/b" or relative "a/b/model.safetensors").
 /// Pure shape check, shared by every build so the routing decision is
 /// always unit-testable.
 func isHubModelIdentifier(_ modelId: String) -> Bool {
@@ -40,11 +40,11 @@ func isHubModelIdentifier(_ modelId: String) -> Bool {
 }
 
 /// A model id that is structurally unresolvable: neither a valid hub repo id
-/// (both hubs require org/name — a bare name like "gemma-4e2b" exists on
+/// (both hubs require org/name. A bare name like "gemma-4e2b" exists on
 /// neither) nor a local model (no ready weights dir, no file at the given
 /// path). Used by ``EnginePool.loadModel`` to throw ``AppError.modelNotFound``
 /// (HTTP 404) before spending config+download attempts whose failure used to
-/// surface as 503 "Engine unavailable" — a transient/retry code that made
+/// surface as 503 "Engine unavailable". A transient/retry code that made
 /// clients retry forever on what is a permanent client error.
 func structurallyUnresolvableModelId(_ modelId: String) -> Bool {
     guard !isHubModelIdentifier(modelId) else { return false }
@@ -58,7 +58,7 @@ func structurallyUnresolvableModelId(_ modelId: String) -> Bool {
     return true
 }
 
-/// The on-disk weights directory for a local model id — an absolute or `~/`
+/// The on-disk weights directory for a local model id. An absolute or `~/`
 /// path to an existing directory. A filesystem path is NOT a hub repo id: a
 /// hub config fetch 404s on it, and the macOS-27 FM load route calls
 /// `loadFromHub` directly, so the failure surfaces as 503 "Engine
@@ -79,12 +79,12 @@ func localWeightsDirectory(for modelId: String) -> URL? {
 ///
 /// Mirrors upstream coreai-models `llm-runner` L504-508: `ModelConfig(
 /// vocabSize: bundle.vocabSize, maxContextLength: bundle.maxContextLength)`.
-/// The LLM export's `language` section is the source of truth — a hardcoded
+/// The LLM export's `language` section is the source of truth. A hardcoded
 /// default colliding with the asset's real logit dimension is a hard fault in
 /// CoreAIRuntime (observed: `Shape at dimension 2 of 32768 is not a valid
 /// substitution for source shape 151936`), so these two integers must come
 /// from the bundle.
-/// `nil` when no readable `language` section is found on this platform — the
+/// `nil` when no readable `language` section is found on this platform. The
 /// caller keeps its previous fallback.
 ///
 /// Pure filesystem/JSON: no CoreAI imports, unit-testable on every build.
@@ -96,7 +96,7 @@ func coreAIConfigData(from directory: URL) -> Data? {
     }
     // The bundle ROOT (metadata.json + tokenizer/ + <name>.aimodel/) is the
     // `coreai.llm.export` surface that carries the `language` section; a
-    // direct-asset path (`<name>.aimodel`) may sit one level deeper — check
+    // direct-asset path (`<name>.aimodel`) may sit one level deeper. Check
     // both, first hit wins.
     let candidates: [URL]
     if directory.pathExtension == "aimodel" || directory.pathExtension == "aimodelc" {
@@ -133,12 +133,12 @@ func coreAIConfigData(from directory: URL) -> Data? {
 /// never disagree about whether a model is CoreAI-local).
 ///
 /// Accepted shapes (all must end in a real asset dir; absence ⇒ `nil`):
-///   1) absolute or `~`-relative local path — any depth;
-///   2) root-relative id (`org/model` …) under `ModelStore.root` — the
+///   1) absolute or `~`-relative local path. Any depth;
+///   2) root-relative id (`org/model` …) under `ModelStore.root`. The
 ///      `/v1/models` canonical id, the same `org/model` shape as an MLX id.
 ///
 /// Rejected: `hf:`/`mscope:` hub prefixes (hub routes are downloads, and the
-/// flat hub layout has no `org/name` dirs — a same-named dir under root is how
+/// flat hub layout has no `org/name` dirs. A same-named dir under root is how
 /// the CoreAI model store is laid out), empty ids, and anything without a
 /// resolvable CoreAI asset.
 ///
@@ -208,11 +208,11 @@ actor EnginePool {
     /// happens on this model instead of guessing from per-response usage fields.
     var prefixReuse = PrefixReuseLedger()
 
-    /// Video turns this process has completed, per model — the only basis on which
+    /// Video turns this process has completed, per model. The only basis on which
     /// `/v1/models` may say anything about video input (see ``VideoDeliveryLedger``).
     var videoDeliveries = VideoDeliveryLedger()
 
-    /// Tool-declaring turns this process has completed, per model — the only basis on
+    /// Tool-declaring turns this process has completed, per model. The only basis on
     /// which `/v1/models` may say anything about function calling (see
     /// ``ToolCallDeliveryLedger``). Recorded at the wire edge, where delivered means
     /// the client actually received `tool_calls`.
@@ -254,7 +254,7 @@ actor EnginePool {
         toolCallDeliveries.record(modelId: modelId, outcome: outcome, calledNames: calledNames)
     }
 
-    /// Models currently being loaded — prevents concurrent duplicate loads.
+    /// Models currently being loaded. Prevents concurrent duplicate loads.
     private var loadingModels: Set<String> = []
 
     /// When each load in flight entered the slot: engine id → instant.
@@ -262,11 +262,11 @@ actor EnginePool {
     /// Kept apart from ``loadingModels`` on purpose: that set is also the mutex
     /// ``unloadModel(_:)`` borrows while it drains sessions, so clocking membership in it would
     /// put a progress read behind a teardown and make `/v1/models` promise bytes for a model on
-    /// its way out. A clock here means "a load is being paid for" — precisely what
+    /// its way out. A clock here means "a load is being paid for". Precisely what
     /// ``ModelLoadProgress`` is allowed to say.
     private var loadClocks: [String: ContinuousClock.Instant] = [:]
 
-    /// Models currently being prewarmed at startup — distinct from
+    /// Models currently being prewarmed at startup. Distinct from
     /// `loadingModels` so that `acquire()`'s `waitForLoading` gate (which keys
     /// off `loadingModels` only) never blocks a user request behind a
     /// background prewarm. Prewarm load failures are logged, not thrown.
@@ -275,7 +275,7 @@ actor EnginePool {
     /// Model last-access timestamps for LRU eviction (modelId → Instant)
     private var modelLastAccess: [String: ContinuousClock.Instant] = [:]
 
-    /// Active session registry — sessionId → modelId mapping:
+    /// Active session registry. SessionId → modelId mapping:
     /// markSessionActive needs to find the model by sessionId, and
     /// releaseSession must verify the session actually existed for that model.
     private var sessionRegistry: [String: String] = [:]
@@ -288,20 +288,20 @@ actor EnginePool {
     /// waiting request while keeping the actor mailbox free of busy polling.
     static let loadingPollInterval: Duration = .milliseconds(100)
 
-    /// Memory tracker — reports GPU memory allocations to MemoryTracker.
+    /// Memory tracker. Reports GPU memory allocations to MemoryTracker.
     let memoryTracker: MemoryTracker?
 
     // MARK: - Model Loading
 
     #if canImport(CoreAI)
-    // Type-erased storage — CoreAIModelLoader is @available(macOS 27.0, iOS 27.0, *)
+    // Type-erased storage. CoreAIModelLoader is @available(macOS 27.0, iOS 27.0, *)
     // so it leaks transitively into EnginePool (dep target 26).
     private var _coreAIPreparedModelLoader: Any?
     #endif
 
     let mlxModelLoader: MLXModelLoader
     let sessionPool: MLXSessionPool?
-    /// Shared draft model for speculative decoding — loaded once, reused across all models.
+    /// Shared draft model for speculative decoding. Loaded once, reused across all models.
     private var draftModelHandle: (any MLXModelHandle)?
 
     // MARK: - Runtime Parameter Store (hot-swappable)
@@ -311,18 +311,18 @@ actor EnginePool {
     /// Declared context windows read from each ready model's own `config.json`
     /// (`ModelStore.contextLength`), keyed by BOTH the discovery id (`hf:org/repo`)
     /// and its canonical bare form so a request resolves whichever spelling it
-    /// arrives with. Positive values only — a model that declares nothing stays
+    /// arrives with. Positive values only. A model that declares nothing stays
     /// absent, so the next lookup rescans and a later download is picked up without
     /// needing an invalidation event. Backs `effectiveContextWindow(modelId:)`.
     private var declaredContextWindows: [String: Int] = [:]
 
-    /// Tracked inference tasks — used by ``shutdown()`` to cancel + await all running inferences
+    /// Tracked inference tasks. Used by ``shutdown()`` to cancel + await all running inferences
     private var trackedTasks: [Task<Void, Never>] = []
 
     /// Token for ModelScope Hub API (used by HubConfigFetcher + MLXModelLoader)
     private let modelScopeToken: String?
 
-    /// Runtime hardware-aware routing — nil when HardwareRouter is not available.
+    /// Runtime hardware-aware routing. Nil when HardwareRouter is not available.
     /// When set, every inference request queries the router for recommendedChannel
     /// before dispatching to a backend.
     internal let hardwareRouter: HardwareRouter?
@@ -405,7 +405,7 @@ actor EnginePool {
                         // every process's GPU-wired pages. Measured 10-12: a stray
                         // python/MLX process holding ~79 GB on a 128 GB host read as
                         // level-3 pressure here while this app sat at 3.5 GB of a
-                        // 70 GB budget — flushing the prefix cache for that cost
+                        // 70 GB budget. Flushing the prefix cache for that cost
                         // re-prefill on every following request and freed nothing
                         // that mattered. Only our own utilisation may flush it.
                         let (ours, ownGB, budgetGB) = await self.pressureCorroboration()
@@ -420,7 +420,7 @@ actor EnginePool {
                             trigger: event.trigger
                         )
                         // The badge/toast may only claim a lane change when the
-                        // engine really degraded something — see AppState.
+                        // engine really degraded something. See AppState.
                         await AppState.shared.onThermalPressureEvent(
                             event, actioned: pressureLevel >= 2)
                     }
@@ -440,7 +440,7 @@ actor EnginePool {
         }
 
         // The rewind reserve's non-default bases name themselves: an operator who set the
-        // override — or whose override was refused — sees which number the caches got.
+        // override, or whose override was refused. Sees which number the caches got.
         if kvCacheRewindReserveResolution.basis != "default" {
             logger.info(
                 """
@@ -464,7 +464,7 @@ actor EnginePool {
         }
         // Register MTP drafter types (idempotent, async).
         // Gemma-4: separate assistant checkpoint (gemma4_assistant / gemma4_unified_assistant).
-        // Qwen3.5/3.6: self-spec drafter — the mtp.* weights live in the main model's
+        // Qwen3.5/3.6: self-spec drafter. The mtp.* weights live in the main model's
         // checkpoint; the drafter borrows the target tokenizer. Type strings are `qwen3_5`,
         // `qwen3_5_text`, `qwen3_5_mtp`, `qwen3_5_moe` (upstream #351 registration surface).
         Task {
@@ -499,7 +499,7 @@ actor EnginePool {
         return try await provider.detokenize(tokenIds: tokens)
     }
 
-    /// Content tokens of one raw string, no chat-template framing — the size a persisted
+    /// Content tokens of one raw string, no chat-template framing. The size a persisted
     /// message row should carry.
     ///
     /// `nil` when this model has no tokenizer registered or the encoder refused. The caller
@@ -517,7 +517,7 @@ actor EnginePool {
 
     func acquire(model modelId: String) async throws -> EngineHandle {
         // Scripted lane: a script is the model, so nothing is resident and nothing needs to be.
-        // The handle still carries the id, so log lines and ledger keys keep their usual shape —
+        // The handle still carries the id, so log lines and ledger keys keep their usual shape,
         // `engineBackend: scripted` on /v1/capabilities is what marks the turn as not measured.
         if ScriptedInference.isEnabled {
             return ScriptedInference.handle(modelId: modelId, pool: self)
@@ -535,7 +535,7 @@ actor EnginePool {
     /// two LoRA endpoints: their old accessor only *inspected* `loadedModels` and returned
     /// `nil` for a model that merely was not resident yet, so `/v1/models/train` and
     /// `/v1/models/evaluate` answered
-    /// "Model not found" for the very id `/v1/models` advertises — measured live 10-21 on
+    /// "Model not found" for the very id `/v1/models` advertises. Measured live 10-21 on
     /// a cold process: `/health` reported `loadedModels: 0`, `/v1/chat/completions` on the
     /// same id answered normally, both LoRA endpoints refused it. A model that exists on
     /// disk is not "not found"; it is not resident *yet*, and only a loader can fix that.
@@ -543,15 +543,15 @@ actor EnginePool {
         // Fast path: already loaded and ready.
         if loadedModels[modelId] != nil { return }
 
-        // Another caller is loading this model — wait for it to finish. Waits
+        // Another caller is loading this model. Wait for it to finish. Waits
         // `config.loadWaitSeconds`, then answers 503 with the measurement attached: the wait
         // window is a policy, and 120 s is what it has always been (the fetch it waits out is
-        // 794 s on the shipping default — 11-01(101) — so the answer a waiter gets is designed
+        // 794 s on the shipping default, 11-01(101), so the answer a waiter gets is designed
         // to be pollable, not to cover the load).
         try await waitForLoading(modelId: modelId, timeoutSeconds: config.loadWaitSeconds)
         if loadedModels[modelId] != nil { return }
 
-        // Not loaded — start the load. Double-check after registering (another caller may
+        // Not loaded. Start the load. Double-check after registering (another caller may
         // have finished between the check and the insert).
         beginLoad(modelId)
         defer { endLoad(modelId) }
@@ -632,7 +632,7 @@ actor EnginePool {
             // Late markActive after a completed release is expected under
             // concurrent summarization (SummarizerActor's delayed summary
             // calls markActive after the underlying session already finished).
-            /// demote to debug — a late-signal masquerades as a real "session
+            /// demote to debug. A late-signal masquerades as a real "session
             /// dropped" bug when it is a normal late-signal from a background task.
             logger.debug(
                 "markSessionActive: session \(sessionId) already released (late signal, no-op)")
@@ -645,7 +645,7 @@ actor EnginePool {
     ///
     /// Runs on a background task at startup so the user's first inference
     /// (historically: full weight load + Metal compile) sees a cache hit.
-    /// Errors are logged, never propagated — a failed prewarm simply means the
+    /// Errors are logged, never propagated. A failed prewarm simply means the
     /// first request pays the load cost itself, exactly as before.
     ///
     /// A model under prewarm IS registered in ``loadingModels`` (the slot held
@@ -654,8 +654,8 @@ actor EnginePool {
     /// soon as the slot is free: the prewarm registers the model in
     /// ``loadedModels`` before running its warmup trip, so a request arriving
     /// mid-prewarm pays the load, not the warmup. The warmup trip
-    /// (``prewarmIfNeeded``) is idempotent and session-safe — it never
-    /// registers a session — so the racing paths cannot double-warm or leak a
+    /// (``prewarmIfNeeded``) is idempotent and session-safe. It never
+    /// registers a session, so the racing paths cannot double-warm or leak a
     /// session.
     func prewarmDefaultModel(_ modelId: String) async {
         guard !loadedModels.keys.contains(modelId) else { return }
@@ -691,7 +691,7 @@ actor EnginePool {
             // fast path instead of starting a second heavy load. Warmup is
             // CAS-idempotent (wasPrewarmed), so racing warm passes are no-ops.
             if let existing = loadedModels[modelId] {
-                // A real request won the race first — warm THAT instance.
+                // A real request won the race first. Warm THAT instance.
                 try? await existing.prewarmIfNeeded(config.warmupTokens)
                 let elapsed = start.duration(to: .now)
                 let elapsedSecs =
@@ -712,7 +712,7 @@ actor EnginePool {
             await evictIdleModelsIfNeeded()
             loadedModels[modelId] = model
             // Warmup trip (Metal shader compile + tokenizer + N warmup tokens)
-            // — non-fatal: a model that fails warmup is still usable cold;
+            // Non-fatal: a model that fails warmup is still usable cold;
             // the first real request (via acquire → _acquireSession) retries
             // prewarmIfNeeded once more with identical CAS semantics.
             try? await model.prewarmIfNeeded(config.warmupTokens)
@@ -740,9 +740,9 @@ actor EnginePool {
     ///
     /// Each tick: check cancellation, check the deadline, then sleep
     /// ``loadingPollInterval``. The actor mailbox is NOT blocked during the
-    /// sleep — Swift actors yield at each suspend point.
+    /// sleep. Swift actors yield at each suspend point.
     ///
-    /// A tick sleeps one poll interval, capped at the deadline — never the
+    /// A tick sleeps one poll interval, capped at the deadline. Never the
     /// deadline itself. Sleeping to the deadline (the previous revision) parked
     /// every request that arrived while a load was in flight for the entire
     /// window, so a model ready after 3 s still cost the first chat request the
@@ -758,7 +758,7 @@ actor EnginePool {
             let now = ContinuousClock.now
             guard now < deadline else {
                 // Still loading past the wait window → transient: the load is
-                // in flight, not dead. Tell the client to poll, not to give up — and say what
+                // in flight, not dead. Tell the client to poll, not to give up, and say what
                 // the wait has measured, because "still loading" alone is not an answer a
                 // caller can plan around when the load is a multi-minute fetch (11-01(101)).
                 throw AppError.modelLoading(modelId, measuredLoadProgress(modelId: modelId))
@@ -774,7 +774,7 @@ actor EnginePool {
     /// and ``prewarmDefaultModel(_:)``.
     ///
     /// Entering through the same ``beginLoad(_:)`` the loads use, so a test that drives the wait
-    /// gate drives the disclosure path with it — a seam that set the slot without the clock would
+    /// gate drives the disclosure path with it. A seam that set the slot without the clock would
     /// let the gate pass while `/v1/models` had nothing to say.
     func setLoadingForTesting(_ modelId: String, loading: Bool) {
         if loading {
@@ -784,7 +784,7 @@ actor EnginePool {
         }
     }
 
-    /// Take the load slot for ``modelId`` and start its clock — the only pair that may publish
+    /// Take the load slot for ``modelId`` and start its clock. The only pair that may publish
     /// ``ModelLoadProgress``, so it is the only pair a load should use.
     private func beginLoad(_ modelId: String) {
         loadingModels.insert(modelId)
@@ -800,12 +800,12 @@ actor EnginePool {
         loadingModels.remove(modelId)
         loadClocks.removeValue(forKey: modelId)
         // The weights row closes with the load it belongs to, under the key the reporter opened it
-        // with — otherwise a later read shows a finished load still at 40 % of its weights.
+        // with. Otherwise a later read shows a finished load still at 40 % of its weights.
         OcoreaiDownloadProgress.shared.finishWeights(modelId: ModelStore.normalizeModelId(modelId))
     }
 
     /// What the loads this process owns have measured so far, keyed by BOTH the engine's own id
-    /// and its normalized wire form — `/v1/models` strips the source prefix off the id it
+    /// and its normalized wire form, `/v1/models` strips the source prefix off the id it
     /// publishes, and a lookup that keyed one form only answers `nil` for whichever spelling the
     /// row carries (the same double-keying `declaredContextWindows` does, for the same reason).
     ///
@@ -848,7 +848,7 @@ actor EnginePool {
             }
         }
 
-        // Sort by access time — oldest first
+        // Sort by access time. Oldest first
         idleModels.sort { $0.accessed < $1.accessed }
 
         // Evict the oldest idle model
@@ -876,7 +876,7 @@ actor EnginePool {
     private func loadModel(_ modelId: String) async throws -> LoadedModel {
         logger.info("Loading model: \(modelId)")
 
-        // Resolve repo id — strip hf: / huggingface: / mscope: prefix if present
+        // Resolve repo id. Strip hf: / huggingface: / mscope: prefix if present
         let repoId: String =
             if modelId.hasPrefix("hf:") {
                 String(modelId.dropFirst(3))
@@ -892,15 +892,15 @@ actor EnginePool {
         // valid hub repo id (hubs require org/name) nor a local model when
         // neither a ready dir nor a file exists. Without this, config+download
         // attempts burn and the failure surfaces as 503 "Engine
-        // unavailable" (transient/retry) — callers retry forever.
+        // unavailable" (transient/retry). Callers retry forever.
         if structurallyUnresolvableModelId(modelId) {
             throw AppError.modelNotFound(modelId)
         }
 
-        // Fetch remote config — hf: prefix → HF, otherwise defaultHub (modelscope)
+        // Fetch remote config. Hf: prefix → HF, otherwise defaultHub (modelscope)
         let isHF = modelId.hasPrefix("hf:")
         // Local-directory model (absolute/~/ path to an existing weights dir):
-        // repoId is a filesystem path, NOT a hub repo — a config fetch would
+        // repoId is a filesystem path, NOT a hub repo. A config fetch would
         // 404/timeout and burn network. Defaults apply; weights come from disk
         // (the FM-path load closure and the MLXModelLoader.local branch below).
         let localDir = localWeightsDirectory(for: modelId)
@@ -923,7 +923,7 @@ actor EnginePool {
             prefillChunkSize: 4096,
         )
         // A bare hub id is a RELATIVE path, and URL(fileURLWithPath:)
-        // absolutizes it against the process CWD — yielding a phantom
+        // absolutizes it against the process CWD. Yielding a phantom
         // dir `file:///Users/t/Projects/ocoreai/mlx-community/...`
         // (visible in the CoreAI warmup warning: "Asset at
         // mlx-community/gemma-4-e2b-it-4bit -- file:///Users/t/Projects/ocoreai/
@@ -952,10 +952,10 @@ actor EnginePool {
             // `.aimodelc` asset is resolvable for it. Three shapes (mirrors
             // `PreparedModel.hasCoreAIAsset`, which is exactly why
             // ModelStore.discoverReady enumerates them):
-            //   1) a direct `.aimodel`/`.aimodelc` asset (file or bundle dir);
-            //   2) a bundle ROOT dir (the `coreai.llm.export` surface:
+            //  1) a direct `.aimodel`/`.aimodelc` asset (file or bundle dir);
+            //  2) a bundle ROOT dir (the `coreai.llm.export` surface:
             //      metadata.json + tokenizer/ + <name>.aimodel/ inside);
-            //   3) a `org/model` (or deeper) id relative to ModelStore.root —
+            //  3) a `org/model` (or deeper) id relative to ModelStore.root,
             //      the `/v1/models` canonical shape (source-agnostic, same
             //      shape as MLX `org/model`).
             // The old gate required `localPath.hasPrefix("/")`, which
@@ -972,7 +972,7 @@ actor EnginePool {
                 )
 
                 // Engine config from the bundle's `language` section (upstream
-                // llm-runner parity — never a hardcoded default): the CoreAI
+                // llm-runner parity. Never a hardcoded default): the CoreAI
                 // runtime substitutes `config.vocabSize` into the asset's
                 // dynamic logit dimension, so a wrong value is a hard fault
                 // ("32768 is not a valid substitution for source shape 151936").
@@ -990,7 +990,7 @@ actor EnginePool {
                 )
 
                 // Register the bundle's chat tokenizer (CoreAI bundles ship a
-                // `tokenizer/` dir with tokenizer.json — same on-disk format the
+                // `tokenizer/` dir with tokenizer.json. Same on-disk format the
                 // MLX branch registers at L928). The ANE inference lane calls
                 // tokenize/detokenize via TokenizerManager, so without this
                 // registration every CoreAI request fails with
@@ -1013,7 +1013,7 @@ actor EnginePool {
                 // `.aimodel` asset), NOT the `?? URL(fileURLWithPath: modelId)`
                 // relative fallback in the hub branch above (L700). That fallback
                 // is a RELATIVE path (e.g. `Qwen2.5-1.5B-CoreAI/qwen2_5_...`
-                // resolved against CWD) that hasCoreAIAsset=false — the dispatch
+                // resolved against CWD) that hasCoreAIAsset=false. The dispatch
                 // ANE gate (EngineInference L1609) and prewarm (LoadedModel L435)
                 // both call PreparedModel.hasCoreAIAsset(at: modelURL) and would
                 // fall back to GPU → "MLX model handle not loaded" for a model
@@ -1049,18 +1049,18 @@ actor EnginePool {
         // configuration/capabilities/configurationResolver drive respond();
         // in the fallback path it stays nil.
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-        // Use Any? to bridge @available(macOS 27.0, iOS 27.0, *) MLXLanguageModel —
+        // Use Any? to bridge @available(macOS 27.0, iOS 27.0, *) MLXLanguageModel,
         // the struct is @available-gated so it cannot be declared outside
         // if #available() when deploying to macOS 15.
         var mlxLM: Any? = nil
 
         if #available(macOS 27.0, iOS 27.0, *) {
-            // Primary hub provider — MLXModelLoader defaults to "modelscope", hf: prefix means HF
+            // Primary hub provider. MLXModelLoader defaults to "modelscope", hf: prefix means HF
             let hubProviderStr: String = isHF ? "huggingface" : "modelscope"
 
             /// MLXLanguageModel capabilities.
             /// Declare `.toolCalling` + `.reasoning` unconditionally. ocoreai is a generic
-            /// runtime — it cannot know a priori whether each loaded model tools or reasons.
+            /// runtime. It cannot know a priori whether each loaded model tools or reasons.
             /// The SDK capability gate (Executor.respond()) rejects a session that carries
             /// tools when `.toolCalling` is not declared: the SDK rejects the
             /// session with "doesn't have the capabilities needed for this
@@ -1069,7 +1069,7 @@ actor EnginePool {
             /// Upstream baseline (mlx-swift-lm MLXLanguageModel.swift:37 example
             /// `capabilities: [.guidedGeneration, .toolCalling]`, :307 default
             /// `[.guidedGeneration]`) declares `.guidedGeneration` for every model that
-            /// exposes tools — capability is a request-shape contract, not a per-model
+            /// exposes tools. Capability is a request-shape contract, not a per-model
             /// knowledge the runtime has in advance.
             /// Same logic for `.reasoning`: the FM path gate (Executor.respond() L1060)
             /// requires both `declaresReasoning` AND `resolved.reasoningConfig`; a model
@@ -1081,18 +1081,18 @@ actor EnginePool {
             /// (community re-uploads, ModelScope mirrors, etc.) on macOS 27/iOS 27 where
             /// the FM path is the exclusive active route.
             let modelConfig = ModelConfiguration(id: modelId)
-            // .vision declared unconditionally, same as .toolCalling / .reasoning
+            //  .vision declared unconditionally, same as .toolCalling / .reasoning
             // above (ocoreai is a generic runtime that cannot know a priori
             // whether each loaded model supports it; cf. the rationale below
             // and the SDK's own example declaring .toolCalling for every model
             // that exposes tools). Upstream MLXLanguageModel.swift:675's
             // `.vision` gate only throws when a request carries images AND the
-            // capability is absent — a no-op for plain-text requests. The
+            // capability is absent. A no-op for plain-text requests. The
             // authoritative model-specific guard is EngineInference:1485
             // (reads post-download model.isVlm after the L726 re-detect), so a
             // text-only model is still blocked there before any routing.
             // The pre-download `isVlmModel` flag (L581) is unreliable on a
-            // first download — the directory is incomplete when it runs — so
+            // first download. The directory is incomplete when it runs, so
             // we no longer condition the capability on it.
             let baseCaps: [LanguageModelCapabilities.Capability] = [
                 .guidedGeneration, .toolCalling, .reasoning, .vision,
@@ -1144,17 +1144,17 @@ actor EnginePool {
             // preload() → loadContainer() single call.
             // upstream: MLXLanguageModel.preload() L585: public func preload() async throws
             //         internally is just `_ = try await loadContainer()` (L587).
-            // ModelCache.load has a guard dedup — second loadContainer() call
+            // ModelCache.load has a guard dedup. Second loadContainer() call
             // (by respond(), here, or warmUp()) returns cached container.
             if let mlLM = mlxLM as? MLXLanguageModel {
                 try await mlLM.preload()
-                // loadContainer() here is a cache hit — preload() already cached it.
+                // loadContainer() here is a cache hit. Preload() already cached it.
                 // We still call it to get the container reference for MLXModelHandleImpl.
                 let container = try await mlLM.loadContainer()
                 mlxHandleToSet = MLXModelHandleImpl(modelContainer: container, modelId: modelId)
                 logger.info("MLX model \(modelId) loaded via ModelCache.preload()")
             } else {
-                // Fallback if cast fails — unlikely but defensive
+                // Fallback if cast fails. Unlikely but defensive
                 mlxHandleToSet = try await mlxModelLoader.load(
                     modelURL: modelURL,
                     modelId: repoId,
@@ -1162,7 +1162,7 @@ actor EnginePool {
                 logger.warning("MLX model \(repoId) loaded via fallback loader (cast failed)")
             }
         } else {
-            // FoundationModelsIntegration trait enabled but macOS < 27 — fall back to direct loader
+            // FoundationModelsIntegration trait enabled but macOS < 27. Fall back to direct loader
             mlxHandleToSet = try await mlxModelLoader.load(
                 modelURL: modelURL,
                 modelId: repoId,
@@ -1211,7 +1211,7 @@ actor EnginePool {
         // directory is incomplete when L581 ran (only .download-* fragments),
         // so the preload-time flag froze to .false while loadContainer()
         // (post-download) correctly detected the VLM container. Re-evaluating
-        // here — directory now complete — keeps model.isVlm aligned with the
+        // here. Directory now complete. Keeps model.isVlm aligned with the
         // real container (guard at EngineInference:1485, perception injection,
         // UI icons, engineSummary). Hot loads see the same value as L581.
         model.isVlm = MLXModelLoader.isVLMModel(at: modelURL)
@@ -1229,7 +1229,7 @@ actor EnginePool {
                 .registerTokenizer(for: modelId, tokenizerPath: modelURL.path)
             // Honest claim only: on builds where `TokenizerManager` is the stub
             // (swift-transformers not linked), registering is a no-op and every
-            // count downstream is a byte heuristic — saying "real token counts"
+            // count downstream is a byte heuristic. Saying "real token counts"
             // there is what let the stubbed tokenizer hide on macOS 26 (10-12).
             logger.info(
                 TokenizerManager.isRealTokenizerBackend
@@ -1244,7 +1244,7 @@ actor EnginePool {
                 "Tokenizer registration failed for \(modelId) (\(error.localizedDescription)) — falling back to heuristic token estimates"
             )
         }
-        // Measure, for this checkpoint, whether its own chat template declares tools — the
+        // Measure, for this checkpoint, whether its own chat template declares tools. The
         // fact that decides whether MessageBuilder's `## Tool:` prose is a declaration or a
         // duplicate (probe 16 measured 116 delivered prompt_tokens for one tool where our
         // prose accounted for 65). Ran after the container exists; the answer belongs to
@@ -1275,16 +1275,16 @@ actor EnginePool {
             model._mlxLanguageModelRef = lm
         }
         #endif
-        // Configure speculative decoding — lazy-load draft model on first model load
+        // Configure speculative decoding. Lazy-load draft model on first model load
         model.setSpecDecodingConfig(config.specDecoding)
         if config.specDecoding.enabled {
             // MTP mode: load drafter via MLXModelLoader.
             // Guard: only families with a known compatible drafter may self-spec:
-            //   - Gemma-4: separate assistant checkpoint (gemma4_assistant / gemma4_unified_assistant)
-            //   - Qwen3.5/3.6/3.8: self-spec drafter — mtp.* weights live in the main model's
+            //  - Gemma-4: separate assistant checkpoint (gemma4_assistant / gemma4_unified_assistant)
+            //  - Qwen3.5/3.6/3.8: self-spec drafter. Mtp.* weights live in the main model's
             //     checkpoint. All three share the upstream `qwen3_5` MTP arch (model_type
             //     "qwen3_5"/"qwen3_5_text" with mtp_num_hidden_layers), so the same registered
-            //     drafter (Qwen35TextMTPRegistration / Qwen35VLMMTPRegistration) serves them —
+            //     drafter (Qwen35TextMTPRegistration / Qwen35VLMMTPRegistration) serves them,
             //     upstream resolves by model_type, not by generation, so 3.8 rides the 3.5 drafter.
             // Unknown families skip loading to prevent token-table mismatch.
             // The container lives on the model that earned it, so this guard is per-model:
@@ -1295,11 +1295,11 @@ actor EnginePool {
                 // seam (pureMTPDrafterSelection) so the generation whitelist can't silently
                 // regress. Only families with a known compatible drafter may self-spec;
                 // unknown families skip to prevent token-table mismatch.
-                //   - Qwen3.5/3.6/3.8: self-spec — the mtp.* weights live in the main model's
+                //  - Qwen3.5/3.6/3.8: self-spec. The mtp.* weights live in the main model's
                 //     own checkpoint and all three share the upstream `qwen3_5` MTP arch
                 //     (model_type "qwen3_5"), so the SAME registered drafter serves them and
                 //     drafterModelId reuses the main model id.
-                //   - Gemma-4: a distinct assistant checkpoint, selected by size marker.
+                //  - Gemma-4: a distinct assistant checkpoint, selected by size marker.
                 let selection = pureMTPDrafterSelection(modelId: modelId)
                 if !selection.admit {
                     logger.warning(
@@ -1322,7 +1322,7 @@ actor EnginePool {
                 let draftId = config.specDecoding.draftModelId
             {
                 // Lazy-load draft model once
-                // Draft models default to HF — no source param needed
+                // Draft models default to HF, no source param needed
                 let draftURL = URL(fileURLWithPath: draftId)
                 do {
                     let draftHandle = try await mlxModelLoader.load(
@@ -1347,11 +1347,11 @@ actor EnginePool {
     // MARK: - Inspection
 
     /// Snapshot model list without holding actor projection on live LoadedModel entries.
-    /// Returns an independent copy — safe to call from @MainActor without risking
+    /// Returns an independent copy. Safe to call from @MainActor without risking
     /// EXC_BAD_ACCESS from concurrent LRU eviction / updateSamplingConfig.
     func listModels() async -> [[String: String]] {
         var result: [[String: String]] = []
-        // Grab stable model IDs first — keys are isolated to this actor, but a Dictionary's key
+        // Grab stable model IDs first. Keys are isolated to this actor, but a Dictionary's key
         // order is randomized per process, so "stable here" is not stable across boots. This list
         // is the `/v1/models` surface: unsorted, a client that falls back to `data[0]` gets a
         // different model every restart. Sorted by id is the honest order for a published list.
@@ -1436,7 +1436,7 @@ actor EnginePool {
     ///
     /// Refuses with the reason it actually hit: `modelNotFound` when the id cannot be
     /// resolved to a model, and a named 400 when the model resolved but has no MLX lane
-    /// (a CoreAI-native model cannot take LoRA adapters). Neither is "not loaded" — the
+    /// (a CoreAI-native model cannot take LoRA adapters). Neither is "not loaded". The
     /// caller never has to guess whether it misspelled the id or merely arrived early.
     func mlxContainer(modelId: String) async throws -> MLXLMCommon.ModelContainer {
         try await ensureModelLoaded(modelId: modelId)
@@ -1459,15 +1459,15 @@ actor EnginePool {
 
     /// The context window this model ACTUALLY gets: a human override if one was
     /// set, otherwise the window the model declares in its own `config.json`,
-    /// otherwise unknown (`nil` — never a fabricated budget).
+    /// otherwise unknown (`nil`. Never a fabricated budget).
     ///
-    /// Before this existed, every budget surface — the chat watermark, the
-    /// `get_context_remaining` tool, auto-compaction, the 400 wall — read
+    /// Before this existed, every budget surface. The chat watermark, the
+    /// `get_context_remaining` tool, auto-compaction, the 400 wall. Read
     /// `getSamplingConfig(modelId:).maxContextWindow`, i.e. `nil` unless a human
     /// sent an HTTP `PATCH` (no UI sets that field). A 131072-token model therefore
     /// behaved as if its capacity were unknowable: meter hidden, agent told
     /// "unknown tokens left", compaction inert, oversized prompts walking into the
-    /// engine — while the truth sat on disk and on `/v1/models`.
+    /// engine. While the truth sat on disk and on `/v1/models`.
     ///
     /// Callers that enforce a cap use THIS rather than the raw override, so the
     /// wire path and the Fast Path budget identically. Provenance travels with the
@@ -1478,7 +1478,7 @@ actor EnginePool {
             declared: declaredContextWindow(for: modelId))
     }
 
-    /// Drop cached declared windows — called when the model set changes on disk
+    /// Drop cached declared windows. Called when the model set changes on disk
     /// (delete / replace) so a re-downloaded model with a different window cannot be
     /// shadowed by a stale cached digit.
     func invalidateDeclaredContextWindows() {
@@ -1496,7 +1496,7 @@ actor EnginePool {
     /// Declared window for a model, taken from the ready-model discovery scan.
     /// Cached on a positive hit; a miss rescans, so a model downloaded after the
     /// first lookup resolves on its next turn without an event. The scan lists
-    /// already-materialized config directories — the same work `resolvableModelIds()`
+    /// already-materialized config directories. The same work `resolvableModelIds()`
     /// performs on every `PATCH`.
     private func declaredContextWindow(for modelId: String) -> Int? {
         let canonical = ModelStore.normalizeModelId(modelId)
@@ -1519,7 +1519,7 @@ actor EnginePool {
         return pureDefaultModelId(defaults: modelSamplingDefaults)
     }
 
-    /// Which engine a served turn would actually come from, derived from what is resident — never
+    /// Which engine a served turn would actually come from, derived from what is resident. Never
     /// asserted from a build trait. `scripted` wins while a script is loaded, because a replayed
     /// turn publishes no measurement; `unloaded` is the honest answer when nothing is resident
     /// (weights on disk are not an engine).
@@ -1533,14 +1533,14 @@ actor EnginePool {
 
     /// Every id a request could resolve to RIGHT NOW (loaded registered +
     /// on-disk ready). The PATCH sampling gate validates against exactly
-    /// this set — writing config for an unresolvable id would pollute the
+    /// this set. Writing config for an unresolvable id would pollute the
     /// default-model slot (a ghost default 404s every model-less request,
     /// live-observed 10-06).
     func resolvableModelIds() async -> Set<String> {
         var ids = Set(loadedModels.keys)
         for r in ModelStore.discoverReady() { ids.insert(r.id) }
         // The fixture id is resolvable exactly while a script is loaded, so the sampling gate and
-        // the chat route validate against the same truth — and it disappears with the env var.
+        // the chat route validate against the same truth, and it disappears with the env var.
         if ScriptedInference.isEnabled { ids.insert(ScriptedInference.modelId) }
         return ids
     }
@@ -1559,7 +1559,7 @@ actor EnginePool {
 
     /// Per-model sampling config override (lazy, single actor mailbox hop).
     /// Default-uniqueness invariant: if `config.defaultModel == true`, every
-    /// OTHER entry's `defaultModel` is cleared here — two defaults would
+    /// OTHER entry's `defaultModel` is cleared here. Two defaults would
     /// tie-break by ascending id and silently pick the wrong one (a stale
     /// ghost default 404s every model-less request; live-observed 10-06).
     func updateSamplingConfig(modelId: String, config: ModelSamplingConfig) {
@@ -1600,7 +1600,7 @@ actor EnginePool {
         logger.info("All sampling configs reset to defaults")
     }
 
-    /// config.yaml `models.default` is the persistent truth — a sampling
+    /// config.yaml `models.default` is the persistent truth. A sampling
     /// reset must drop tuning knobs, never the config-authored default
     /// (a reset that eats the default 400s every model-less request until
     /// reboot, contradicting the restart-seed in init at 43a59c3).
@@ -1630,7 +1630,7 @@ actor EnginePool {
     /// Keeps model in `loadingModels` during the entire drain + cleanup
     /// window so that concurrent `acquire()` calls will wait rather than trigger
     /// a reload of a model being actively cleaned up.
-    /// Respects `Task.isCancelled` throughout the drain loop — cancelling
+    /// Respects `Task.isCancelled` throughout the drain loop. Cancelling
     /// the unload aborts cleanup and puts the model back in `loadedModels`.
     ///
     /// - Parameter modelId: The model to unload
@@ -1652,14 +1652,14 @@ actor EnginePool {
         logger.info("Unloading model: \(modelId)")
 
         // Wait for active sessions to naturally drain (up to 30s)
-        // Responds to Task cancellation — if cancelled, restore model and abort.
+        // Responds to Task cancellation, if cancelled, restore model and abort.
         let deadline = ContinuousClock.now + .seconds(30)
         while model.activeSessions > 0, ContinuousClock.now < deadline {
             do {
                 try Task.checkCancellation()
                 try await Task.sleep(for: .milliseconds(500))
             } catch {
-                // Task was cancelled — restore model to loaded state and abort cleanup
+                // Task was cancelled. Restore model to loaded state and abort cleanup
                 loadedModels[modelId] = model
                 logger.info("Unload cancelled, model restored: \(modelId)")
                 return false
@@ -1687,7 +1687,7 @@ actor EnginePool {
         modelLastAccess.removeValue(forKey: modelId)
 
         // Observations made under this model's previous cache topology no longer describe
-        // it — a reload can land on different quantization/capacity, so the published
+        // it. A reload can land on different quantization/capacity, so the published
         // `prefixReuse` must go back to `not_observed` rather than keep the old claim.
         prefixReuse.forget(modelId: modelId)
         // Same rule for video: the weights that earned the claim are gone, so the
@@ -1771,7 +1771,7 @@ actor EnginePool {
         }
         logger.info("All tracked inference tasks cancelled")
 
-        // upstream: MLXLanguageModel.evictAll() L498 — clear global ModelCache
+        // upstream: MLXLanguageModel.evictAll() L498. Clear global ModelCache
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
         if #available(macOS 27.0, iOS 27.0, *) {
             await MLXLanguageModel.evictAll()
@@ -1804,7 +1804,7 @@ internal func pureDefaultModelId(defaults: [String: ModelSamplingConfig]) -> Str
 /// Pure, exact-value-testable MTP-drafter admission + drafter-model-id selection, factored
 /// out of `EnginePool`'s self-spec path so the generation whitelist is a single source of
 /// truth (and can never silently regress in two places). Mirrors upstream mlx-swift-lm,
-/// which resolves the drafter by `model_type` — so every Qwen generation that ships the
+/// which resolves the drafter by `model_type`, so every Qwen generation that ships the
 /// `qwen3_5` MTP arch routes to the same registered drafter.
 ///
 /// - Returns `(admit: false, drafterModelId: nil)` for families with no known compatible

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! HubRelativePath.swift — the one place a hub-supplied relative path becomes a disk path.
+//! HubRelativePath.swift. The one place a hub-supplied relative path becomes a disk path.
 //!
 //! Two kinds of input reached the filesystem without ever being asked where they live
 //! (measured 10-20, `Models/ModelScopeDownloader.swift`):
@@ -19,7 +19,7 @@
 //!
 //! The rule lives here and nowhere else: **a hub path is a sequence of ordinary relative
 //! components, and it lands under its root or nowhere.** Structural rejection, not
-//! normalize-and-hope — `standardizingPath` collapses `a/../b` to `b`, which is a legal path
+//! normalize-and-hope, `standardizingPath` collapses `a/../b` to `b`, which is a legal path
 //! that no longer means what the manifest said it meant.
 //!
 //! Grounding (all read 10-20): ollama `types/model/name.go:262 IsValid()` rejects exactly this
@@ -42,19 +42,19 @@ enum HubRelativePath {
     /// `field` names the wire location (`model`, `revision`, `files[].path`) and `value` carries
     /// the string as received, because a refusal that does not name what it refused is not
     /// actionable (AGENTS.md: a bounded knob out of domain is a 400 naming field + range + value
-    /// sent — same discipline applies to path domains). Control characters are escaped in the
+    /// sent. Same discipline applies to path domains). Control characters are escaped in the
     /// display form so a refusal can't inject terminal sequences into a log or a client.
     struct Unsafe: Equatable, LocalizedError, CustomStringConvertible {
         /// Why the path was rejected. Raw-valued so the wire message carries it verbatim.
         enum Reason: String, Equatable {
             /// Nothing to resolve.
             case empty
-            /// Leading or trailing whitespace — never part of a legitimate id, and the kind of
+            /// Leading or trailing whitespace. Never part of a legitimate id, and the kind of
             /// thing that survives into a filesystem name and makes it unreachable.
             case surroundingWhitespace
             /// A NUL or C0/C1 control character in the string.
             case controlCharacter
-            /// Backslash — a path separator on Windows hubs, and a legal-but-surprising byte here.
+            /// Backslash. A path separator on Windows hubs, and a legal-but-surprising byte here.
             case backslash
             /// Absolute path.
             case absolutePath
@@ -78,7 +78,7 @@ enum HubRelativePath {
 
         var errorDescription: String? { description }
 
-        /// The value with control characters escaped, quoted — safe to embed in a response body
+        /// The value with control characters escaped, quoted. Safe to embed in a response body
         /// or a log line.
         static func escaped(_ raw: String) -> String {
             var out = "\""
@@ -179,7 +179,7 @@ enum HubRelativePath {
 
 extension AppError {
     /// Wire shape for a rejected hub path: the 400 names the field, the value as sent, and the
-    /// reason — the same three things ``AppError/invalidParameter(param:message:value:)`` exists
+    /// reason. The same three things ``AppError/invalidParameter(param:message:value:)`` exists
     /// to carry for numeric knobs.
     init(hubPathRejected rejection: HubRelativePath.Unsafe) {
         self = .invalidParameter(

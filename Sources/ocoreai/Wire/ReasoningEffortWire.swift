@@ -5,19 +5,19 @@
 //
 // Qwen3.8 (and future hybrid models) read a chat-template kwarg called
 // `reasoning_effort` with a codex-aligned word table
-// (xhigh/medium/low — a subset of codex `ReasoningEffort`). The upstream
+// (xhigh/medium/low. A subset of codex `ReasoningEffort`). The upstream
 // library (mlx-swift-lm) provides no first-class parameter for it, and its
 // `ReasoningPromptStrategy.additionalContext(forThinkingEnabled:)` only
 // carries the binary thinking flag. This helper injects the caller's raw
-// value into the jinja template context — wire-not-brain:
+// value into the jinja template context. Wire-not-brain:
 //
-//   - no local enum, no local word-table mapping, no local default;
-//   - the model chat template is the single source of truth for accepted
+//  - no local enum, no local word-table mapping, no local default;
+//  - the model chat template is the single source of truth for accepted
 //     values (Qwen3.8 validates and raises on anything it does not support,
 //     e.g. `max`/`ultra`/`light`);
-//   - `enable_thinking=false` keeps the template from reading the kwarg at
+//  - `enable_thinking=false` keeps the template from reading the kwarg at
 //     all, so the injection is inert on off-toggle thinking;
-//   - when the model gains first-class support upstream, this injection
+//  - when the model gains first-class support upstream, this injection
 //     point collapses into the upstream parameter (absorb, do not fork).
 
 import Foundation
@@ -60,11 +60,11 @@ enum ReasoningEffortWire {
     ///
     /// Shaped after codex's `unsupported_code_mode_warning` (`core/src/session/
     /// code_mode_warning.rs:6-24`): the config knob the model does not advertise, the
-    /// evidence for that, then what to do — disable the knob or pick a model that advertises
+    /// evidence for that, then what to do. Disable the knob or pick a model that advertises
     /// it. Ours refuses rather than warns because a demanded word that reaches no template is
     /// a turn spent under a belief, not a cosmetic loss.
     ///
-    /// - Returns: the refusal, or nil when there is nothing to refuse — no value asked, or a
+    /// - Returns: the refusal, or nil when there is nothing to refuse, no value asked, or a
     ///   mode that never measured (`notObserved` keeps the pass-through: invariant 2 says an
     ///   unmeasured fact is not a false one).
     static func refusal(
@@ -82,7 +82,7 @@ enum ReasoningEffortWire {
         )
     }
 
-    /// The load-time log line for one measurement — the ledger's own sentence, so the wire
+    /// The load-time log line for one measurement. The ledger's own sentence, so the wire
     /// and the log cannot explain one decision with two different reasons.
     static func logLine(modelId: String, mode: ReasoningEffortMode) -> String {
         "Reasoning effort \(mode.rawValue) for \(modelId) — \(mode.reasonPhrase)"

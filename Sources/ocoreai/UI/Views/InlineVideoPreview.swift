@@ -1,8 +1,8 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// InlineVideoPreview — inline video player for chat transcript rendering.
+/// InlineVideoPreview. Inline video player for chat transcript rendering.
 ///
-/// Mirrors upstream MLXChatExample MediaPreviewView — uses AVKit VideoPlayer
+/// Mirrors upstream MLXChatExample MediaPreviewView. Uses AVKit VideoPlayer
 /// with AVPlayer for video attachments from VLM multimodal input
 /// (Gemma4, Qwen2.5VL video frames, etc.).
 ///
@@ -14,7 +14,7 @@ import SwiftUI
 
 /// Inline video preview view for transcript messages.
 struct InlineVideoPreview: View {
-    /// Video URL string — could be a local file URL or remote HTTP(s) URL.
+    /// Video URL string. Could be a local file URL or remote HTTP(s) URL.
     let videoURL: String
 
     @State private var player: AVPlayer?
@@ -25,7 +25,7 @@ struct InlineVideoPreview: View {
             if url != nil, let player {
                 VideoPlayer(player: player)
             } else {
-                // Fallback placeholder — video not available
+                // Fallback placeholder. Video not available
                 VStack(spacing: 8) {
                     Image(systemName: "film")
                         .font(.ocoreaiText(24))

@@ -1,14 +1,14 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SkillRegistry.swift — Actor-isolated skill registry with dependency resolution
+/// SkillRegistry.swift. Actor-isolated skill registry with dependency resolution
 ///
 /// Manages skill lifecycle: bootstrap → scan → dependency resolve → hot-reload.
 /// Uses Kahn's algorithm for topological sort to detect circular dependencies.
 ///
 /// ### Optimizations (v2):
-/// - 拓扑排序结果缓存 — 只在 skill 集合变化时重算
-/// - mtime 增量扫描 — 只重新解析变更的 skill 文件
-/// - promptContent 预计算 — 注册时缓存，避免 build() 时重复 serialize
+/// - 拓扑排序结果缓存。只在 skill 集合变化时重算
+/// - mtime 增量扫描。只重新解析变更的 skill 文件
+/// - promptContent 预计算。注册时缓存，避免 build() 时重复 serialize
 
 import Foundation
 import Logging
@@ -20,7 +20,7 @@ actor SkillRegistry {
     private var indexByCategory: [String: [String]] = [:]
     private var indexByTag: [String: [String]] = [:]
 
-    // mtime 快照 — 用于增量扫描
+    // mtime 快照。用于增量扫描
     private var fileMtimes: [URL: Date] = [:]
 
     // 拓扑排序 dirty 标记
@@ -110,7 +110,7 @@ actor SkillRegistry {
 
     // MARK: - Dependency Resolution (cached)
 
-    /// Resolve dependency order if dirty — otherwise return cached result.
+    /// Resolve dependency order if dirty. Otherwise return cached result.
     private func resolveIfNeeded() {
         guard resolvedDirty else { return }
 
@@ -128,7 +128,7 @@ actor SkillRegistry {
     ///
     /// Every tie is broken by name, in every place a Swift `Dictionary`/`Set` could hand back a
     /// per-process order. Swift randomizes the hashing seed per launch, so `Array(dict.keys)` is a
-    /// different order in every process — and this order is not cosmetic: it is the order the
+    /// different order in every process, and this order is not cosmetic: it is the order the
     /// skill blocks are written into the system prompt. Measured 10-23 (`OCOREAI_MARGIN_DUMP`):
     /// eight cold boots of one request produced four byte-variants of the same 713-token prompt
     /// (`file,terminal,search,memory`, `terminal,file,memory,search`, …), each landing in its own
@@ -181,12 +181,12 @@ actor SkillRegistry {
     }
 
     /// Deterministic order for anything that reaches the prompt: the sequence the author declared
-    /// the built-in skills in (`BuiltInSkill.allCases` — shell, files, search, memory), then name;
+    /// the built-in skills in (`BuiltInSkill.allCases`. Shell, files, search, memory), then name;
     /// `SKILL.md` skills land after the built-ins, by name.
     ///
     /// Why declaration order and not lexicographic: both are deterministic, but they are not equal
     /// in value, and the difference is measured, not guessed. At the collapse boundary the four
-    /// byte-variants this bug produced split perfectly along one line — every variant with
+    /// byte-variants this bug produced split perfectly along one line. Every variant with
     /// `terminal` first continued (step-2 `'\n'`, margin 0.8533 / 0.2172 over EOS) and every
     /// variant with `file` first answered EOS after one token (margin 0.0000 / 0.6212).
     /// Declaration order is terminal-first, so it picks the side that answers.
@@ -208,7 +208,7 @@ actor SkillRegistry {
 
     // MARK: - Internal
 
-    /// Register a skill — removes old index entries if already registered.
+    /// Register a skill. Removes old index entries if already registered.
     private func register(_ skill: Skill, skipCheck _: Bool = false) {
         guard let existing = skills[skill.name] else {
             skills[skill.name] = skill
@@ -267,7 +267,7 @@ actor SkillRegistry {
         return skill
     }
 
-    /// Load disk skills — incremental only if flag is true.
+    /// Load disk skills. Incremental only if flag is true.
     private func loadDiskSkills(in dir: URL, incremental: Bool) -> Int {
         let discovered = discoverSkills(
             in: dir,
@@ -294,7 +294,7 @@ actor SkillRegistry {
         return newCount
     }
 
-    /// Discover skills — wraps the module-level function.
+    /// Discover skills. Wraps the module-level function.
     private func discoverSkills(in searchDir: URL, mtimes knownMtimes: [URL: Date]) -> [Skill] {
         discoverSkillsIncremental(in: searchDir, mtimes: knownMtimes)
     }

@@ -1,17 +1,17 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ScriptedInference.swift — a deterministic, model-free inference source behind the real wire.
+/// ScriptedInference.swift. A deterministic, model-free inference source behind the real wire.
 ///
 /// Why: a contract claim (SSE framing, tool-call assembly, ledger booking, the fields a client
 /// routes by) used to cost a Metal-backed model load, so every verdict took minutes and none of
 /// them could be decided in the sandbox tier. The field's agent trees judge their loop against a
-/// fake or mock provider instead; this is our version of that seam — the *model* is replaced, the
+/// fake or mock provider instead; this is our version of that seam. The *model* is replaced, the
 /// wire is not. Handlers, the tool-call parsers, the SSE writer, dispatch and the delivery ledgers
 /// all still execute, so a green verdict here means the wire is green, not a mock server's echo.
 ///
 /// Honesty (invariant 2): while this is on, `GET /v1/capabilities` reports `engineBackend:
 /// "scripted"`, and `scripts/eval/run.sh` refuses to score the run. The events carry no timings
-/// and no cache-reuse claim — `cachedPromptTokens` stays nil, because a script did not reuse a
+/// and no cache-reuse claim, `cachedPromptTokens` stays nil, because a script did not reuse a
 /// prefix, it replayed a file.
 
 import Foundation
@@ -33,7 +33,7 @@ enum ScriptedInference {
     /// script (one text segment) legal, and an unknown `finishReason` is an error rather than a
     /// silent fallback to `.eos`.
     struct Script: Decodable {
-        /// Text deltas, in order — the same shape `.text` carries from the MLX lane.
+        /// Text deltas, in order. The same shape `.text` carries from the MLX lane.
         var segments: [String] = []
         /// Reasoning chunks, emitted before any text (upstream routes these separately).
         var reasoning: [String] = []
@@ -98,7 +98,7 @@ enum ScriptedInference {
                 return "scripted engine: \(path) is not readable as a script (\(reason))"
             case .unknownFinishReason(let name, let path):
                 // Every refusal names the file, or an operator running several scripts has to guess
-                // which one to edit — the other two cases already do this.
+                // which one to edit. The other two cases already do this.
                 return "scripted engine: \(path) names finishReason \"\(name)\", which is not a"
                     + " StopReason case (eos | maxTokens | stopSequence | cancelled)"
             }
@@ -201,7 +201,7 @@ enum ScriptedInference {
 
     /// A handle that carries no session: `_acquireSession` needs resident weights, and the point
     /// of this lane is that nothing is resident. `modelId` still flows through every log line and
-    /// ledger key, so the records a turn produces look like any other turn's — the
+    /// ledger key, so the records a turn produces look like any other turn's. The
     /// `engineBackend` field is what tells a reader they are scripted.
     static func handle(modelId: String, pool: EnginePool) -> EngineHandle {
         EngineHandle(modelId: modelId, sessionId: "scripted", pool: pool)

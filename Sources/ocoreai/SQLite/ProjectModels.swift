@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ProjectModel / ProjectFileEntry — the Bionic-parity project container DTOs.
+/// ProjectModel / ProjectFileEntry. The Bionic-parity project container DTOs.
 ///
 /// Bionic IA (observed on the reference app 2026-10-11, landed in 4c1b4ad):
 /// "A project keeps
@@ -11,7 +11,7 @@
 ///
 /// The bound folder is NOT decorative: sessions inside a project inherit it
 /// as their `workspaceDirectory`, which `SessionWorkspace.currentDirectory()`
-/// already feeds into `ExecTools.effectiveCwd` / `FileTools.resolve` — the
+/// already feeds into `ExecTools.effectiveCwd` / `FileTools.resolve`. The
 /// isolation is behavioral (proven chain), not a prompt line.
 import Foundation
 
@@ -19,7 +19,7 @@ struct ProjectModel: Identifiable, Hashable, Sendable {
     let id: Int64
     var name: String
     /// Root folder of the codebase the agent may work in, or nil = no
-    /// coding folder bound (chat/documents only — Bionic's "Allow coding"
+    /// coding folder bound (chat/documents only. Bionic's "Allow coding"
     /// toggle maps directly onto this field).
     var folderPath: String?
     var allowCoding: Bool
@@ -42,7 +42,7 @@ struct ProjectModel: Identifiable, Hashable, Sendable {
 /// One entry of the Bionic "Project Files" sidebar: a file the agent (or the
 /// user) placed inside the project folder. Produced files surface here
 /// because the write/edit tools operate on `SessionWorkspace`'s directory,
-/// which equals the project folder — no extra bookkeeping, no fabricated
+/// which equals the project folder, no extra bookkeeping, no fabricated
 /// metadata. `isOutput` distinguishes "changed recently" (agent's working
 /// set) from the rest of the codebase, so the sidebar never floods.
 struct ProjectFileEntry: Identifiable, Hashable, Sendable {

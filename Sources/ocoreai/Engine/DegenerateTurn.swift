@@ -1,32 +1,32 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// A turn that ends after producing at most one token, under a budget that asked
-/// for more, is not an answer — and it must not leave the process as a plain
+/// for more, is not an answer, and it must not leave the process as a plain
 /// `200 + finish_reason: stop`.
 ///
 /// ### Why (AGENTS.md invariant 2: the surface never claims more than the engine delivered)
 /// Measured 10-22 on one host, one model (`gemma-4-e2b-it-4bit`), identical prompt bytes
 /// sent sequentially at `max_tokens=200` (16 turns, `scripts/probes/30-repeated-prompt-delivery.sh`
 /// reproduces the shape): turns split bimodally.
-///   • healthy — `tokens=200`, `reason=maxTokens`, whole-turn 4.7–7.5 s
-///   • degenerate — `tokens=1`, `reason=eos`, whole-turn 0.12–0.22 s,
+///   • healthy, `tokens=200`, `reason=maxTokens`, whole-turn 4.7–7.5 s
+///   • degenerate, `tokens=1`, `reason=eos`, whole-turn 0.12–0.22 s,
 ///     yet `GenerateCompletionInfo.promptTokenCount` still reported 713
 /// Read those seconds as whole-turn latency, not as time-to-first-token: `firstTokenMs` is
 /// stamped at the first output chunk and the standard non-stream path emits that chunk when the
 /// generation completes (`EngineInference.swift:4635`; a 200-token turn reported
-/// `firstTokenMs=4671.26` with `overallMs=4672.66`). Two points at one 713-token prompt — 1 token
-/// at ≈147 ms and 200 tokens at ≈4672 ms — put fixed cost at ≈124 ms and decode at ≈44 tok/s, so
+/// `firstTokenMs=4671.26` with `overallMs=4672.66`). Two points at one 713-token prompt, 1 token
+/// at ≈147 ms and 200 tokens at ≈4672 ms. Put fixed cost at ≈124 ms and decode at ≈44 tok/s, so
 /// the 30x spread is 200 tokens against 1 and says nothing about prefill (corrected 10-23; the
 /// clause that used to label those numbers "(a real 713-token prefill)" was an unmeasured reading
 /// of a field that cannot support it).
 /// 8 of those 16 turns collapsed: 4 of 8 sharing one anonymous conversation key and
 /// 4 of 8 under fresh `session_id`s, so conversation identity is not the trigger.
-/// The inference that used to sit here — "the collapsed turn never forwarded its prompt
-/// to the model" — is retracted, by measurement and same day: a 713-token prefill costs
+/// The inference that used to sit here. "the collapsed turn never forwarded its prompt
+/// to the model". Is retracted, by measurement and same day: a 713-token prefill costs
 /// ~180 ms once the process is warm (`max_tokens=1`: turn 1 = 7404 ms cold, then
 /// 176/230 ms), so 130…257 ms is consistent with a prefill that genuinely ran. What is
 /// measured instead: 15 boots × identical greedy turns (84 turns) came back unanimous
-/// inside every boot, and seven single-variable experiments moved nothing — session pool
+/// inside every boot, and seven single-variable experiments moved nothing. Session pool
 /// off, KV quantization off, wired memory off, temperature 0, boot order, 680 MB of stale
 /// disk KV snapshots, and `MLX_DISABLE_COMPILE` (`scripts/probes/30-repeated-prompt-delivery.sh`
 /// carries the numbers and the two mechanism stories that died there).
@@ -40,7 +40,7 @@
 /// conservative about what it claims: it flags the shape and hands over the numbers it actually
 /// has (`tokens`, `reason`, the requested budget, `promptTokens`), rather than the engine
 /// asserting a verdict it has no measurement for. `firstTokenMs` travels with the line but is not
-/// one of those numbers — see the latency note above. What the detector cannot see is *why* the
+/// one of those numbers. See the latency note above. What the detector cannot see is *why* the
 /// model stopped, and that is measured one level down, per step, by `DegenerateMarginProbe`.
 /// A per-model "prefill actually happened" signal from upstream is still the missing instrument,
 /// and asking for it is recorded as an open item in `CHANGELOG.md`.
@@ -94,7 +94,7 @@ enum DegenerateTurn {
 
     /// The steer the recovery turn carries. It must not ask for a blank, must leave a genuinely
     /// short correct answer standing (so a legitimate `OK` is not punished twice), and must name the
-    /// two exits — emit the tool call, or answer in full — so the next turn's bytes differ from the
+    /// two exits. Emit the tool call, or answer in full, so the next turn's bytes differ from the
     /// collapsed turn's and break the per-process greedy tie that produced the early EOS.
     static let recoveryText =
         "Your previous turn produced no usable output — it ended immediately. Do not emit a blank. "

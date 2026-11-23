@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! VideoDeliveryLedger.swift — what this process has *seen* a model do with video.
+//! VideoDeliveryLedger.swift. What this process has *seen* a model do with video.
 //!
 //! `ModelObject` published nothing about video, and probe 08 measured why that is a
 //! defect rather than a virtue: on `mlx-community/gemma-4-e2b-it-4bit` a clip posted as
 //! a data: URL was answered correctly (`Red`/`Blue`, prompt 712 → 856 = +144 real video
 //! tokens), yet `/v1/models` said nothing. Not overclaiming is necessary but not
-//! sufficient — a client choosing between two local models cannot learn from the discovery
+//! sufficient. A client choosing between two local models cannot learn from the discovery
 //! surface that this one sees video at all (AGENTS.md invariant 2: the surface states what
 //! the engine delivered, in both directions).
 //!
@@ -23,7 +23,7 @@
 //! code rather than inferred from the shape of the pipeline):
 //!
 //!   • The lane matters. This used to record *inside* the pooled release, which is a
-//!     no-op when there is no pool — the degraded CPU lane and a pool-disabled engine
+//!     no-op when there is no pool. The degraded CPU lane and a pool-disabled engine
 //!     both run without one, and both still hand every frame to the processor. An answered
 //!     video turn there published `not_observed`; probe 17 now boots a server on that lane
 //!     and fails if the disclosure goes missing again.
@@ -34,8 +34,8 @@
 //!
 //! What stays deliberately unrecorded: a turn that carried frames but produced no
 //! assistant text at all. `delivered` means a turn that both took frames and answered, and
-//! a turn with no answer is the honest direction to under-claim. The inverse — claiming
-//! more than the engine delivered — is the defect this file exists to kill.
+//! a turn with no answer is the honest direction to under-claim. The inverse. Claiming
+//! more than the engine delivered. Is the defect this file exists to kill.
 
 /// One model's measured video history in this process.
 struct VideoDeliveryRecord: Encodable, Equatable, Sendable {
@@ -43,7 +43,7 @@ struct VideoDeliveryRecord: Encodable, Equatable, Sendable {
     var turns: Int = 0
     /// Total video parts across those turns (a turn may carry several clips).
     var items: Int = 0
-    /// Prompt tokens of the most recent such turn, when the engine reported usage —
+    /// Prompt tokens of the most recent such turn, when the engine reported usage,
     /// the number a client can compare against its own media-free baseline.
     var lastTurnPromptTokens: Int?
 
@@ -64,7 +64,7 @@ struct VideoDeliveryRecord: Encodable, Equatable, Sendable {
 /// Deliberately a value type held in `EnginePool`'s actor isolation (like
 /// ``PrefixReuseLedger``): no globals, and an unload drops the claim with the weights.
 struct VideoDeliveryLedger: Sendable {
-    /// Closed vocabulary — the wire must never invent a fourth value.
+    /// Closed vocabulary. The wire must never invent a fourth value.
     static let statusDelivered = "delivered"
     static let statusNotObserved = "not_observed"
 
@@ -86,7 +86,7 @@ struct VideoDeliveryLedger: Sendable {
     }
 
     /// What the surface may say about this model. `delivered` is a measured fact;
-    /// `not_observed` means only that no video turn has completed here yet — it is not
+    /// `not_observed` means only that no video turn has completed here yet. It is not
     /// a statement that the model cannot see video.
     func status(modelId: String) -> String {
         (deliveries[modelId]?.turns ?? 0) > 0 ? Self.statusDelivered : Self.statusNotObserved
@@ -106,7 +106,7 @@ struct VideoDeliveryLedger: Sendable {
         deliveries.removeAll()
     }
 
-    /// Server-wide summary across every model this process has seen deliver video — the
+    /// Server-wide summary across every model this process has seen deliver video. The
     /// shape a surface that is not per-model (`GET /v1/capabilities`) has to publish.
     ///
     /// The wording lives here, on the ledger, for the same reason `evidence(modelId:)`
@@ -140,7 +140,7 @@ struct VideoDeliveryAggregate: Equatable, Sendable {
     /// Video parts across those turns.
     var items: Int = 0
 
-    /// Nothing observed yet — the honest negative, not a claim of inability.
+    /// Nothing observed yet. The honest negative, not a claim of inability.
     var isEmpty: Bool { models == 0 }
 
     /// The sentence the aggregate publishes beside a `delivered` claim.

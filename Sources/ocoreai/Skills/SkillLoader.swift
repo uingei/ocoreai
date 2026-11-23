@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SkillLoader.swift — SKILL.md parser and filesystem discovery
+/// SkillLoader.swift. SKILL.md parser and filesystem discovery
 ///
 /// Parses SKILL.md format: YAML frontmatter (--- ... ---) + markdown body.
 /// Discovers skills from directory scan, supports polling-based hot-reload.
 ///
 /// ### Optimizations (v2):
-/// - mtime 增量扫描 — 只重新解析变更的 skill 文件
-/// - Yams 解析结果缓存 — 未变更的文件用旧 snapshot 直接复用
+/// - mtime 增量扫描。只重新解析变更的 skill 文件
+/// - Yams 解析结果缓存。未变更的文件用旧 snapshot 直接复用
 
 import Foundation
 import Logging
@@ -85,7 +85,7 @@ func parseFrontmatterYAML(_ yaml: String) throws -> SkillMetadata {
 
 // MARK: - Discovery (增量扫描)
 
-/// Discover skills from a directory — incrementally compares against known mtimes.
+/// Discover skills from a directory. Incrementally compares against known mtimes.
 func discoverSkillsIncremental(
     in searchDir: URL,
     mtimes knownMtimes: [URL: Date],

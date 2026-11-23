@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// CoreAI bridge — Shared types used by CoreAIModelLoader and CoreAIEngine.
+// CoreAI bridge. Shared types used by CoreAIModelLoader and CoreAIEngine.
 // Compiled only when 'coreai' trait is active.
 #if canImport(CoreAI)
 

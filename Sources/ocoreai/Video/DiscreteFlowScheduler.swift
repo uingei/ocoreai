@@ -14,11 +14,11 @@ import Foundation
 /// upstream `CoreAIDiffusionPipeline/Schedulers/DiscreteFlowScheduler.swift`
 /// plus `SchedulerMath.linspace` from the same module.
 ///
-/// Pure Foundation + Accelerate — no CoreAI framework, no `.aimodel` weights,
+/// Pure Foundation + Accelerate, no CoreAI framework, no `.aimodel` weights,
 /// no platform floor. That is exactly the class of "deterministic numerics"
 /// the ocoreai product rule treats as upstream-committed → must-absorb.
 /// The runtime (WanPipeline denoise loop that *consumes* this scheduler) is
-/// deferred to a later batch — this file closes the declaration-only gap of
+/// deferred to a later batch. This file closes the declaration-only gap of
 /// the current `Wan21VideoContract.swift` which already exposes
 /// `QualityPreset`/`VideoConfiguration`/`WanError`/`Wan21` but had no working
 /// sigma math for a consumer to call.
@@ -27,7 +27,7 @@ public final class DiscreteFlowScheduler {
     public let trainStepCount: Int
     public let inferenceStepCount: Int
     public let timeSteps: [Int]
-    /// The first scheduled sigma after all shifts are applied — use this for img2img noise addition.
+    /// The first scheduled sigma after all shifts are applied. Use this for img2img noise addition.
     public var startSigma: Float { sigmas.first ?? 1.0 }
 
     let trainSteps: Float

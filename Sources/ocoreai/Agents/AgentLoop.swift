@@ -2,7 +2,7 @@
 // Licensed under MIT.
 /// Agent loop result types.
 ///
-/// The agent-loop runner (enum AgentLoop + AgentLoopConfig) has been removed —
+/// The agent-loop runner (enum AgentLoop + AgentLoopConfig) has been removed,
 /// it had zero callers after the engine's iteration loop moved into
 /// DirectInferenceClient. Only the result value types remain, consumed by
 /// ThinkingTelemetry (quality-signal extraction) and observed by tests.

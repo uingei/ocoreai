@@ -1,15 +1,15 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ProjectStore — the Bionic-parity project container store.
+/// ProjectStore. The Bionic-parity project container store.
 ///
 /// Bionic IA (observed on the reference app 2026-10-11, landed in 4c1b4ad):
 /// "A project keeps
-/// related sessions and files together" — projects own an opt-in coding
+/// related sessions and files together". Projects own an opt-in coding
 /// folder; sessions inherit it as their working directory (the verified
 /// `SessionWorkspace.currentDirectory()` → `ExecTools.effectiveCwd` /
 /// `FileTools.resolve` chain), and produced files surface in a Project Files
 /// sidebar straight from the folder listing (no parallel bookkeeping to
-/// drift — the folder IS the truth).
+/// drift. The folder IS the truth).
 ///
 /// Wiring mirrors `PlanTaskStore` (App boot → `attach(store:)`, MainActor
 /// observable UI read surface, static SQLite helpers for offline testing).
@@ -62,7 +62,7 @@ final class ProjectStore {
         errorMessage = nil
     }
 
-    /// Sessions belonging to a project (project_id equality — the container
+    /// Sessions belonging to a project (project_id equality. The container
     /// JOIN; unfiled sessions keep project_id NULL and never leak in).
     func sessions(in project: ProjectModel) async throws -> [SessionModel] {
         guard let backing else { return [] }
@@ -71,7 +71,7 @@ final class ProjectStore {
 
     // MARK: - Mutations
 
-    /// Create a project. `allowCoding` is only honored with a folder bound —
+    /// Create a project. `allowCoding` is only honored with a folder bound,
     /// Bionic's flow exactly: the toggle precedes the folder pick, a coding
     /// project without a folder would promise work with no place to work.
     @discardableResult
@@ -101,7 +101,7 @@ final class ProjectStore {
     }
 
     /// Delete a project container. Its sessions are NOT deleted (they revert
-    /// to unfiled — deleting a folder never silently destroys chat history);
+    /// to unfiled. Deleting a folder never silently destroys chat history);
     /// the bound folder on disk is never touched.
     func delete(_ project: ProjectModel) async {
         guard let backing else { return }
@@ -130,7 +130,7 @@ final class ProjectStore {
 
     /// Project Files sidebar listing (Bionic: "Files Bionic creates appear in
     /// the right sidebar under Project Files"). Directory enumeration runs
-    /// detached — never on the main actor — with bounded depth/count so a
+    /// detached. Never on the main actor, with bounded depth/count so a
     /// huge checkout cannot flood the UI or the main thread.
     func files(in project: ProjectModel) async -> [ProjectFileEntry] {
         guard let folder = project.folderPath else { return [] }
@@ -223,7 +223,7 @@ final class ProjectStore {
 
     nonisolated static func session(from row: [String: SendableValue]) -> SessionModel? {
         // MUST match SessionModel.init(from:) (SessionCompressor.swift:1121):
-        // sessions timestamps are written as INTEGER microseconds — a .float
+        // sessions timestamps are written as INTEGER microseconds. A .float
         // guard here silently drops every row (verified by raw probe).
         guard
             let id = row["id"]?.asInt64,
@@ -243,7 +243,7 @@ final class ProjectStore {
     }
 
     nonisolated static func deleteRow(store: SQLiteStore, projectID: Int64) async throws {
-        // Unfile the sessions first, then drop the container row — sessions
+        // Unfile the sessions first, then drop the container row. Sessions
         // survive as ordinary (unfiled) sessions, never silently deleted.
         try await store.execute(
             sql: "UPDATE sessions SET project_id = NULL WHERE project_id = ?;",
@@ -257,7 +257,7 @@ final class ProjectStore {
         store: SQLiteStore, sessionID: Int64, projectID: Int64, folderPath: String?
     ) async throws {
         // Optional-free bindings (PlanTaskStore idiom): the [AnyHashable]
-        // bind surface has no nil semantics — NULL goes through literal SQL.
+        // bind surface has no nil semantics. NULL goes through literal SQL.
         if let folderPath {
             try await store.execute(
                 sql:
@@ -276,7 +276,7 @@ final class ProjectStore {
     // MARK: - File listing (background queue, bounded)
 
     /// Bounded one-level-below-root listing: skip dotfiles, cap depth/entries,
-    /// sort by modified desc. The folder listing IS the Project Files truth —
+    /// sort by modified desc. The folder listing IS the Project Files truth,
     /// anything the agent wrote shows up here because it wrote into this folder.
     nonisolated static func listFiles(
         root: String, maxDepth: Int = 3, maxEntries: Int = 300
@@ -294,7 +294,7 @@ final class ProjectStore {
                 options: [.skipsHiddenFiles])
         else { return [] }
         // Canonicalize BOTH sides: the enumerator returns /private/var/… while
-        // the caller's root is /var/… — resolving symlinks on both makes the
+        // the caller's root is /var/…. Resolving symlinks on both makes the
         // prefix math exact (root-cause probe: raw hasPrefix was false for
         // every entry, which silently disabled the noise filter below).
         let rootPath = rootURL.standardizedFileURL.resolvingSymlinksInPath().path

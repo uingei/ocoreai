@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// EngineBusySignal — one home for "the engine is at capacity".
+/// EngineBusySignal. One home for "the engine is at capacity".
 ///
 /// Why this exists as a type and not a string at two call sites (measured 10-22, live):
 /// the MLX path emitted the literal `"Engine busy"` on the error channel, the handler
 /// turned any error-channel string into `AppError.generationError`, and the wire answered
-/// **500 `app_error`** — while `AppError.engineBusy` already existed two files away and
+/// **500 `app_error`**. While `AppError.engineBusy` already existed two files away and
 /// already mapped to 429. So the same condition had two homes and the one actually taken
 /// was the wrong one: a client that backs off on 429 retried forever against a 500.
 ///

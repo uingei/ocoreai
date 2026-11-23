@@ -1,28 +1,28 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ModelLoadProgress — what this process has measured about a model load in flight.
+/// ModelLoadProgress. What this process has measured about a model load in flight.
 ///
 /// ### Why this exists
-/// A cold first run fetches the shipping default checkpoint — 3 550 670 554 B of
-/// `model.safetensors` — in **794 s at 4.5 MB/s**, and a `curl` of the same object at the same
+/// A cold first run fetches the shipping default checkpoint, 3 550 670 554 B of
+/// `model.safetensors`, in **794 s at 4.5 MB/s**, and a `curl` of the same object at the same
 /// instant got 4.37 MB/s, so the wait is the hub's, not ours (CHANGELOG 11-01(101)). None of
 /// that reached the client: a waiter was released at the wait window with a 503 saying only
-/// "still loading — retry", while the request that owned the load kept waiting out the fetch.
-/// The bytes were already measured — `OcoreaiDownloadProgress` holds them per id, because the
-/// GUI draws a progress bar from them — they simply never crossed the wire. This is the shape
+/// "still loading. Retry", while the request that owned the load kept waiting out the fetch.
+/// The bytes were already measured, `OcoreaiDownloadProgress` holds them per id, because the
+/// GUI draws a progress bar from them. They simply never crossed the wire. This is the shape
 /// that measurement takes on `/v1/models` and in the 503 body.
 ///
 /// ### What is NOT here
 /// No phase machine, no percent, no ETA without the two numbers that earn it. `bytesTotal` is
 /// absent rather than zero when nothing declared a size (a `Progress` that reports bytes but no
 /// total is common on the HF lane, where progress is polled off the cache directory), and
-/// `secondsRemainingEstimate` is absent unless bytes/sec AND a total are both measured — an ETA
+/// `secondsRemainingEstimate` is absent unless bytes/sec AND a total are both measured. An ETA
 /// off a single sample is a guess wearing a number, and § *The surface never claims more than
 /// the engine delivered* is the whole reason this type exists.
 ///
 /// ### One home
 /// Downloaded bytes and weights-read bytes live in ``OcoreaiDownloadProgress`` (two axes, one row
-/// per id) and nowhere else; this type reads it and adds only what only ``EnginePool`` can know —
+/// per id) and nowhere else; this type reads it and adds only what only ``EnginePool`` can know,
 /// when the load started (§ `elapsedSeconds`).
 
 import Foundation
@@ -33,12 +33,12 @@ struct ModelLoadProgress: Sendable, Codable {
     /// reported byte: a load whose weights are already on disk never enters it at all, and one
     /// that spends time resolving config before it fetches under-reports by exactly that time.
     var elapsedSeconds: Int
-    /// Whether a hub transfer is in flight for this id — read off the store's own active entry,
+    /// Whether a hub transfer is in flight for this id. Read off the store's own active entry,
     /// which the downloader opens at `start` and closes at `finish`. `false` means the load is
     /// reading what is already on disk (map / specialize / warm), NOT that it is stuck.
     var downloading: Bool
     /// Bytes landed for this id. Present whenever the store tracks the id at all, including a
-    /// measured `0` — a fetch that has landed nothing yet is a fact, not a missing field.
+    /// measured `0`. A fetch that has landed nothing yet is a fact, not a missing field.
     var bytesDownload: Int64?
     /// Bytes this load is expected to land, when the transport declared a size. Absent = unknown,
     /// never 0.
@@ -46,7 +46,7 @@ struct ModelLoadProgress: Sendable, Codable {
     /// Rolling throughput over the store's own ~5 s window (bytes/s), once two samples span a
     /// meaningful interval.
     var bytesPerSecond: Int?
-    /// `(bytesTotal − bytesDownload) / bytesPerSecond`, rounded up — extrapolated from the two
+    /// `(bytesTotal − bytesDownload) / bytesPerSecond`, rounded up. Extrapolated from the two
     /// measured numbers above and named as an estimate. Absent when either is unknown.
     var secondsRemainingEstimate: Int?
     /// Bytes of checkpoint weights the loader has read, present once the loader reports. This is
@@ -54,12 +54,12 @@ struct ModelLoadProgress: Sendable, Codable {
     /// upstream now measures how much of them has been mapped, so the wait says that instead.
     var weightsBytes: Int64?
     /// Denominator measured from the checkpoint's own `*.safetensors` files. Absent when the
-    /// loader could not measure it — and a sample with no denominator never reaches this type.
+    /// loader could not measure it, and a sample with no denominator never reaches this type.
     var weightsBytesTotal: Int64?
 
     /// One sentence naming exactly what has been measured, so no surface can word the wait
     /// differently from any other (the pattern ``VideoDeliveryRecord/evidenceLine`` sets).
-    /// Numbers only — a load that has reported nothing says so rather than reading as stalled.
+    /// Numbers only. A load that has reported nothing says so rather than reading as stalled.
     var disclosureLine: String {
         var parts: [String] = ["\(elapsedSeconds)s elapsed"]
         if downloading, let done = bytesDownload {
@@ -73,7 +73,7 @@ struct ModelLoadProgress: Sendable, Codable {
             }
         } else if !downloading {
             // Measured beats negation: say what has been read, and keep the old sentence only for
-            // the load whose loader reported nothing. No weights ETA — mapping is not linear, so
+            // the load whose loader reported nothing. No weights ETA. Mapping is not linear, so
             // the two numbers that earn one do not exist here.
             if let read = weightsBytes, let of = weightsBytesTotal {
                 parts.append("weights \(read) of \(of) B read")

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ToolHookRunner.swift — Lifecycle hooks aligned with codex-rs `HookEventName`.
+/// ToolHookRunner.swift. Lifecycle hooks aligned with codex-rs `HookEventName`.
 ///
 /// Baseline: codex `codex-rs/protocol/src/protocol.rs:1576` defines 12 hook events
 /// (`HookEventName`: PreToolUse/PermissionRequest/PostToolUse/PreCompact/
@@ -10,7 +10,7 @@
 ///   PreToolUse / PostToolUse / PreCompact / PostCompact / Stop
 ///
 /// Four of the five carry fire/evaluate methods (Stop is declared but
-/// intentionally NOT wired — see the Stop note below):
+/// intentionally NOT wired. See the Stop note below):
 ///   - PreToolUse / PostToolUse fire at `ToolRegistry.call` (tool chokepoint).
 ///   - PreCompact / PostCompact fire at `ChatHandler` Phase 3.5 (compact chokepoint),
 ///     scoped to compact-specific hooks (`matcher == nil` or `"*"`) so existing
@@ -34,7 +34,7 @@
 ///   `JSONValue` type (would collide with `MLXLMCommon.JSONValue` in files that
 ///   import both modules).
 /// - Verdict is a simple enum: `.allow` / `.deny(reason)` / `.ask(reason)`.
-/// - Handlers are `@Sendable (HookContext) async -> HookVerdict` closures — flat,
+/// - Handlers are `@Sendable (HookContext) async -> HookVerdict` closures. Flat,
 ///   no external command execution, no MCP-server dependency, exactly testable.
 ///
 /// `.ask` semantics: the caller (`ToolRegistry`) routes it to the
@@ -47,7 +47,7 @@ import Foundation
 
 // MARK: - Event
 
-/// Hook events — subset of codex `HookEventName` relevant to ocoreai's real chokepoints.
+/// Hook events. Subset of codex `HookEventName` relevant to ocoreai's real chokepoints.
 public enum HookEvent: String, Sendable, CaseIterable, Codable, Hashable {
     case preToolUse = "PreToolUse"
     case postToolUse = "PostToolUse"
@@ -112,9 +112,9 @@ public enum HookVerdict: Sendable, Equatable {
 ///
 /// Grammar (mirrors codex `MatcherGroup`, simplified since ocoreai has no MCP/plugin
 /// manifest system and matches by tool name only):
-/// - `nil` / `""` / `"*"`     — match every tool
-/// - `"a,b,c"`               — comma-separated exact names
-/// - `"read_file"`, `"*write"` — `*` as wildcard glob
+/// - `nil` / `""` / `"*"`. Match every tool
+/// - `"a,b,c"`. Comma-separated exact names
+/// - `"read_file"`, `"*write"`, `*` as wildcard glob
 ///
 /// Case-sensitive (ocoreai tool names are canonical camelCase).
 public struct ToolMatcher: Sendable, Equatable, Codable {
@@ -182,7 +182,7 @@ public struct Hook: Sendable {
     /// Compact-specific applicability: fires on compact events only when the
     /// hook has no tool-scope restriction (nil matcher) or a global matcher
     /// (`"*"`). Pre/post-tool-scoped hooks (e.g. `.matching("write_file")`) do
-    /// NOT fire on compact — aligned with codex's separation of tool hooks and
+    /// NOT fire on compact. Aligned with codex's separation of tool hooks and
     /// compact hooks (different request types, different matcher surface).
     internal func compactApplies() -> Bool {
         guard let matcher else { return true }
@@ -205,7 +205,7 @@ public struct Hook: Sendable {
         .init(matcher: nil, handler: handler)
     }
 
-    /// `PreToolUse`-only hook — fires only during the veto pass.
+    /// `PreToolUse`-only hook. Fires only during the veto pass.
     public static func pre(
         matcher: ToolMatcher? = nil,
         handler: @Sendable @escaping (HookContext) async -> HookVerdict
@@ -213,7 +213,7 @@ public struct Hook: Sendable {
         .init(events: [.preToolUse], matcher: matcher, handler: handler)
     }
 
-    /// `PostToolUse`-only hook — fires only during observation.
+    /// `PostToolUse`-only hook. Fires only during observation.
     public static func post(
         matcher: ToolMatcher? = nil,
         handler: @Sendable @escaping (HookContext) async -> HookVerdict
@@ -237,7 +237,7 @@ public struct Hook: Sendable {
 /// Matcher application is uniform everywhere: a hook fires only if its matcher
 /// (when present) matches the target tool name.
 ///
-/// **Scope** — five codex hook events with a real ocoreai chokepoint are fired:
+/// **Scope**. Five codex hook events with a real ocoreai chokepoint are fired:
 ///   - ``HookEvent/preToolUse`` → veto at `ToolRegistry.call` (the single
 ///     chokepoint every LLM tool call routes through)
 ///   - ``HookEvent/postToolUse`` → observation on both success/failure paths
@@ -320,7 +320,7 @@ public struct ToolHookRunner: Sendable {
 
     /// Evaluation of a compact event. Returns `.allow` unless a
     /// compact-scoped hook (matcher == nil or `"*"`) returns `.deny`
-    /// (short-circuits) — `.ask` is treated as `.deny` on compact events
+    /// (short-circuits), `.ask` is treated as `.deny` on compact events
     /// since there is no approval UI surface at the compact chokepoint
     /// (mirrors the PreToolUse `.ask`-no-UI semantics already documented).
     public func evaluatePreCompact(
@@ -346,7 +346,7 @@ public struct ToolHookRunner: Sendable {
         return pendingAsk ?? .allow
     }
 
-    /// Post-compact observation. Verdicts are ignored (observation-only) —
+    /// Post-compact observation. Verdicts are ignored (observation-only),
     /// codex `PostCompactHookOutcome::Stopped` has no clean ocoreai mapping
     /// (would require unwinding the already-built transcript); treated as
     /// observation.

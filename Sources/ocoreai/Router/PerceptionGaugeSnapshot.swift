@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PerceptionGaugeSnapshot.swift — machine-readable honesty gauge behind
+/// PerceptionGaugeSnapshot.swift. Machine-readable honesty gauge behind
 /// ``GET /v1/perception``.
 ///
 /// Why this exists: every honest-lever fix so far was provable only through
 /// a model round-trip (observe_state) or by reading source. A user, a
 /// monitor, or the verify-installed-release script deserves a direct,
-/// assertion-grade surface: for each channel — persisted vote, live engine
+/// assertion-grade surface: for each channel. Persisted vote, live engine
 /// flag, and whether frames actually flow. Content never leaves this
 /// endpoint; only booleans and ages.
 
@@ -16,9 +16,9 @@ import Foundation
 enum PerceptionGaugeSnapshot {
 
     /// Channel → persisted vote, via the store's own Key raw values and
-    /// public getters. camera/screen have no owner toggle in the UX today —
+    /// public getters. camera/screen have no owner toggle in the UX today,
     /// reported as nil vote, never silently false. Never-voted stays nil
-    /// for network (its store default is TRUE — conflating absent with
+    /// for network (its store default is TRUE. Conflating absent with
     /// voted-true would hide exactly the ghost-lever class of bug).
     /// (internal: locked by PerceptionGaugeEndpointTests)
     static func vote(
@@ -35,7 +35,7 @@ enum PerceptionGaugeSnapshot {
         case .system: return hasVote(.perceptionSystemEnabled) ? store.perceptionSystemEnabled : nil
         case .environment:
             // environment folds filesystem + internet. liveFlag is OR, so
-            // the vote folds with OR too — comparing vote-AND against
+            // the vote folds with OR too. Comparing vote-AND against
             // live-OR would cry wolf (fs=off, inet=on votes; live on via
             // inet => falsely "dishonest"). nil votes don't contribute;
             // all-nil => no vote at all.

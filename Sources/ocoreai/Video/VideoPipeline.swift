@@ -41,7 +41,7 @@ public struct VideoProgress: Sendable {
 
 /// Protocol for video generation pipelines.
 ///
-/// This is the upstream `VideoPipeline` protocol — copied verbatim so the
+/// This is the upstream `VideoPipeline` protocol. Copied verbatim so the
 /// future `WanPipeline` runtime (Batch 2, requires CoreAI.framework +
 /// `.aimodel` weights + floor macOS 27) can conform with zero signature
 /// drift from coreai-models. Declaring it now (rather than together with its

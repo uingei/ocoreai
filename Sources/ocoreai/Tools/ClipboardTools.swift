@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Clip — 「自主操作计算机」的跨应用数据通道。
+/// Clip。「自主操作计算机」的跨应用数据通道。
 ///
 /// 第一性: 文本是跨 app 的通用货币。桌面 6 原语 + app 生命周期让 agent 能「切到某个
 /// app」, 但「把 A 里的文本搬到 B」此前只能逐字 type_text (慢、Unicode 脆、长文本
@@ -8,11 +8,11 @@
 /// read + 一次 write 就把 A→B 闭合: 读 A 产生的文本(或用户选中的) → 写到剪贴板 →
 /// 切到 B 粘贴。这是"自主操作计算机"动作链里最常用的一根管道。
 ///
-/// 深度 + 各平台(非 macOS-only): 剪贴板是 iOS 17 与 macOS 14 各自的一等公民——
+/// 深度 + 各平台(非 macOS-only): 剪贴板是 iOS 17 与 macOS 14 各自的一等公民。
 ///   macOS 14  NSPasteboard.general  string(forType:) / setString(_:forType:) / clearContents()
 ///   iOS 17    UIPasteboard.general  .string
 /// 两个都是 14/17 基线内的非弃用 API, 且与本仓 UI 层已用的同一表面
-/// (ChatView.swift:1123 macOS 分支 / :1138 iOS 分支) 完全一致 — 不另造桥, 消费平台面。
+/// (ChatView.swift:1123 macOS 分支 / :1138 iOS 分支) 完全一致。不另造桥, 消费平台面。
 /// 故本工具跨平台注册(不 #if 到 macOS), 与桌面控制/AX/App 生命周期(那些是 macOS 专属
 /// 语义)不同轴。
 ///
@@ -33,7 +33,7 @@ import AppKit
 import UIKit
 #endif
 
-// MARK: - Pure(双平台离线可测 — 不触 NSPasteboard/UIPasteboard 运行时)
+// MARK: - Pure(双平台离线可测。不触 NSPasteboard/UIPasteboard 运行时)
 
 enum Clipboard {
     /// 空态: nil 或零长即空(纯空白不视为数据, 保留原样展示)。纯, 精确可测。
@@ -68,7 +68,7 @@ enum Clipboard {
     }
 }
 
-// MARK: - Driver(平台, 主线程 — 剪贴板是 GUI 态, 收口 MainActor)
+// MARK: - Driver(平台, 主线程。剪贴板是 GUI 态, 收口 MainActor)
 
 enum ClipboardDriver {
     static func readText() async -> String? {

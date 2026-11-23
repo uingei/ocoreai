@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// TokenizerManager.swift — Rust-backed tokenizer via swift-transformers (v1.3.3)
+// TokenizerManager.swift. Rust-backed tokenizer via swift-transformers (v1.3.3)
 //
 /// Multi-tokenizer registry (per-model) managed as an actor for thread-safe access.
 ///
-/// Wraps swift-transformers ``AutoTokenizer`` — the same Rust-backed tokenizer
+/// Wraps swift-transformers ``AutoTokenizer``. The same Rust-backed tokenizer
 /// engine that powers the entire HuggingFace ecosystem.
 ///
 /// ### API:
@@ -17,7 +17,7 @@
 /// - ``StreamingDetokenizer``: streaming detokenization with prefix preservation
 
 // GATE: this file needs swift-transformers (`Tokenizers` + `Hub`) and nothing
-// else, so the gate is `canImport(Tokenizers)` — the dependency it actually has.
+// else, so the gate is `canImport(Tokenizers)`. The dependency it actually has.
 // It used to be `canImport(CoreAI)`, which is a DIFFERENT axis (Apple CoreAI,
 // macOS 27 SDK only). `Tokenizers` is an unconditional SPM product of this
 // target (Package.swift:97) while `CoreAI` is absent on the macOS 26 delivery
@@ -29,7 +29,7 @@
 // exact id `GET /v1/models` lists as ready; chat fell back to the bytes/3-4
 // heuristic, so `usage.prompt_tokens` and the context-window wall ran on
 // estimated counts; and EnginePool still logged "Tokenizer registered ...
-// context wall on real token counts" after the no-op register — a success claim
+// context wall on real token counts" after the no-op register. A success claim
 // with no substrate. 20 test files are `#if canImport(CoreAI)`-gated, which is
 // why the CLT gate never caught it: two gates that mean different things were
 // conflated.
@@ -41,7 +41,7 @@ import Tokenizers
 
 // MARK: - StreamingDetokenizer Wrapper
 
-/// Manual streaming detokenizer — swift-transformers v1.3 dropped
+/// Manual streaming detokenizer. Swift-transformers v1.3 dropped
 /// ``streamingDetokenizer()`` so we build it ourselves: incremental decode
 /// on each new token, returning only the delta (new text) since last call.
 ///
@@ -61,7 +61,7 @@ final class StreamingDetokenizer: @unchecked Sendable {
         let id = Int(token)
         _ids.append(id)
 
-        // Full decode is the only reliable way — we diff the result.
+        // Full decode is the only reliable way. We diff the result.
         let fullText = _tokenizer.decode(tokens: _ids)
 
         // DIFF by common prefix, not character count.
@@ -79,7 +79,7 @@ final class StreamingDetokenizer: @unchecked Sendable {
         // combining accent (`e` then U+0301). Compared as `Character`s the
         // old text's last cluster no longer equals the merged cluster, so a
         // cluster-level prefix stops one cluster early and the whole merged
-        // cluster is emitted a second time — the consumer receives `🏳🏳️`,
+        // cluster is emitted a second time. The consumer receives `🏳🏳️`,
         // `eé`. Scalars compare exactly (no canonical equivalence), and the
         // emitted tail is precisely the scalars the new token added.
         //

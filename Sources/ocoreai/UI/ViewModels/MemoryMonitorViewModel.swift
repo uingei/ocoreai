@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MemoryMonitorViewModel.swift — Real-time memory monitoring for SwiftUI
+/// MemoryMonitorViewModel.swift. Real-time memory monitoring for SwiftUI
 
 import Foundation
 import Observation

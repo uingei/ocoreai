@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// completions_handler.swift — OpenAI-compatible text completion handler
+/// completions_handler.swift. OpenAI-compatible text completion handler
 ///
 /// Thin handler over the shared inference pipeline (POST /v1/completions).
 /// Reuses the SAME stages as ``chatCompletionsHandler`` (model resolve, content
@@ -9,17 +9,17 @@
 /// message-builder system prompt, persistence, self-correction).
 ///
 /// Prompt semantics (A1 / P1): each prompt is wrapped as a single user message
-/// and generated through ``handle/generateFromMessages(_:sampling:options:conversationId:cancellation:)`` —
+/// and generated through ``handle/generateFromMessages(_:sampling:options:conversationId:cancellation:)``,
 /// the exact same pipeline the green chat endpoint already uses. That is the
 /// "thin handler reusing the pipeline" path (不造轮子). The true raw-text /
 /// no-chat-template MLX entry (vllm /v1/completions semantics;
-/// mlx-swift-lm `UserInput(.text)`) is the post-monolith-split batch — it
+/// mlx-swift-lm `UserInput(.text)`) is the post-monolith-split batch. It
 /// touches the 1,857-line `runInferenceBody`, which is deliberately NOT modified
 /// here.
 ///
 /// P1 boundary (documented, no expansion):
 /// - `n > 1`: accepted, generated sequentially (one pass per choice).
-/// - `logprobs`: the true value is A2 — coreai-models loglikelihood; answered by that path
+/// - `logprobs`: the true value is A2. Coreai-models loglikelihood; answered by that path
 ///   where it exists, and 501 `logitsUnsupported` where it does not.
 /// - `echo` / `suffix` / `logprob_token_ids` / `include_stop_str_in_output` / `min_tokens` /
 ///   `skip_special_tokens: false`: **refused by name** (`CompletionRequest/unkeptPromise()`),
@@ -60,7 +60,7 @@ func completionsHandler(
     metrics: MetricsRegistry,
     logger: Logger,
 ) async throws -> Response {
-    /// Numeric domain gate, first line — the completions sibling of the ones in
+    /// Numeric domain gate, first line. The completions sibling of the ones in
     /// ``chatCompletionsHandler`` and ``anthropicMessagesHandler``. `max_tokens` becomes
     /// ``SchedulingRequest/tokenBudget`` below, and a negative there used to trap the
     /// scheduler and take the process with it (measured 10-17).
@@ -78,7 +78,7 @@ func completionsHandler(
     }
     let n = max(1, request.n)
 
-    /// Resolve model (per-model default, else 400 — parity with chat).
+    /// Resolve model (per-model default, else 400. Parity with chat).
     let fallbackModel = await enginePool.defaultModelId()
     guard let modelId = resolveModel(requested: request.model, defaultModelId: fallbackModel) else {
         throw AppError.invalidRequest(
@@ -114,7 +114,7 @@ func completionsHandler(
         }
     }
 
-    /// A2 loglikelihood — `logprobs` requests score per-token log probabilities
+    /// A2 loglikelihood, `logprobs` requests score per-token log probabilities
     /// (coreai-models CompletionHandler contract) rather than generate.
     /// `#if canImport(CoreAI)` guards the engine-side path: outside CoreAI the
     /// wire still accepts the field (parity) and 501s via `AppError.logitsUnsupported`.
@@ -136,7 +136,7 @@ func completionsHandler(
     }
 
     /// A parameter whose promise this route cannot keep is refused with the field named, at the
-    /// seat where `logprobs` was just decided — so an `echo` the CoreAI scoring path *can* serve
+    /// seat where `logprobs` was just decided, so an `echo` the CoreAI scoring path *can* serve
     /// has already returned, and this only refuses what nothing reads.
     if let refusal = request.unkeptPromise() {
         logger.warning(
@@ -191,7 +191,7 @@ func completionsHandler(
     let effectiveRepetitionPenaltyWindow =
         request.repetitionPenaltyWindow ?? runtimeDefaults.repetitionPenaltyWindow
     // `repetition_context_size` is the spelling `/v1/chat/completions` takes (ChatHandler.swift:635)
-    // and a distinct sampler knob from the window above, not an alias for it — so it threads to its
+    // and a distinct sampler knob from the window above, not an alias for it, so it threads to its
     // own slot. It used to be dropped twice: never decoded, and this line took the runtime default.
     let effectiveRepetitionContextSize =
         request.repetitionContextSize ?? runtimeDefaults.repetitionContextSize
@@ -230,20 +230,20 @@ func completionsHandler(
         useGuidedGeneration: false,
         grammarSchema: nil,
         // `/v1/completions` (legacy text API) has no reasoning wire field on
-        // this request — `nil` = no preference → model template default.
+        // this request, `nil` = no preference → model template default.
         // An explicit `false` here would fabricate user intent (forced OFF),
         // which is what the old non-optional `enableReasoning: Bool = false`
         // did silently; `nil` preserves the pre-change engine outcome exactly.
         enableReasoning: nil,
         reasoningLevel: nil,
         reasoningEffort: nil,
-        // Wire HTTP consumer — `.interactive` cannot be asked of an external
+        // Wire HTTP consumer, `.interactive` cannot be asked of an external
         // process: gate `.ask` verdicts fail-closed instead of parking on the
         // broker (codex `codex-rs/exec/src/lib.rs:566` headless → Never).
         headless: true
     )
 
-    /// Prompt token count (metrics) — tokenize or CJK-heuristic (chat Phase 3).
+    /// Prompt token count (metrics). Tokenize or CJK-heuristic (chat Phase 3).
     var promptTokenCount: Int
     do {
         let first = prompts.map { Message(role: "user", content: $0) }
@@ -457,7 +457,7 @@ private func completionsStream(
     /// ran all 200 tokens and the next caller queued +4158ms behind it. `onTermination`
     /// fires on our own `finish()` and on consumer-task cancellation, and Hummingbird
     /// (pinned 55bc9025) cancels neither for a socket whose kernel buffer still accepts
-    /// the frames — its public RequestContext exposes no channel/liveness handle
+    /// the frames. Its public RequestContext exposes no channel/liveness handle
     /// (CoreRequestContextStorage holds only logger, endpointPath, parameters). So this
     /// bridge covers explicit cancellation, not disconnect. Fix options and the measured
     /// numbers: CHANGELOG 10-22(9); probe 31 keeps the legs xfail-open until they close.
@@ -490,7 +490,7 @@ private func completionsStream(
                         logger: logger,
                         cancellation: canceller,
                         onText: { chunk in
-                            /// Output safety check per chunk — block → notify + stop GPU work.
+                            /// Output safety check per chunk. Block → notify + stop GPU work.
                             if let guardRef = streamGuard {
                                 let checkResult = await guardRef.checkOutput(chunk)
                                 if !checkResult.passed {
@@ -507,7 +507,7 @@ private func completionsStream(
                             }
                             // Protocol filter: the completions wire has no
                             // second channel, so settled thinking text is
-                            // dropped here — the answer is released on the
+                            // dropped here. The answer is released on the
                             // stop chunk below as OutputSanitizer.strip of
                             // the full stream.
                             let settled = textFilter.feed(chunk)
@@ -515,9 +515,9 @@ private func completionsStream(
                         },
                     )
 
-                    /// Stop chunk — finish_reason (and usage when requested).
-                    /// `textFilter.finish()` releases the settled answer —
-                    /// byte-identical to OutputSanitizer.strip(full stream) —
+                    /// Stop chunk. Finish_reason (and usage when requested).
+                    /// `textFilter.finish()` releases the settled answer,
+                    /// byte-identical to OutputSanitizer.strip(full stream),
                     /// so the wire carries the clean text here, matching the
                     /// non-stream endpoint (which strips the same way).
                     let settledFinal = textFilter.finish()
@@ -556,10 +556,10 @@ private func completionsStream(
 // MARK: - A2 loglikelihood (coreai-models CompletionHandler contract)
 
 /// Engine-side gate: `EnginePool.collectLogits` (and its result type) exist
-/// only inside `#if canImport(CoreAI)` (EngineLogprobs.swift) — so does this.
+/// only inside `#if canImport(CoreAI)` (EngineLogprobs.swift), so does this.
 #if canImport(CoreAI)
 
-/// Score per-token log probabilities for each prompt — the A2 wire form of
+/// Score per-token log probabilities for each prompt. The A2 wire form of
 /// `logprobs` on `POST /v1/completions` (upstream coreai-models b11ac19,
 /// `handleLoglikelihood` L66-111: topN clamp, sequential per-prompt scoring,
 /// `object="text_completion"`, `finish_reason="stop"`).

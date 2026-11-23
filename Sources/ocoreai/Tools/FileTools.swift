@@ -1,14 +1,14 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// FileTools — real file operations for the agent tool surface.
+/// FileTools. Real file operations for the agent tool surface.
 ///
 /// Closes the P0 tool-surface gap (codex borrow points): the registry whitelist
 /// already reserved read_file / search_files and the destructive blacklist
-/// reserved write_file, but none were implemented — the surface was
+/// reserved write_file, but none were implemented. The surface was
 /// placeholder-only (info/skills_*/echo).
 ///
 /// Apply-before-verify (codex apply-patch discipline): write_file compares
-/// the bytes it writes against what it re-reads from disk — a successful
+/// the bytes it writes against what it re-reads from disk. A successful
 /// write call is corroborated, not assumed.
 import Foundation
 
@@ -17,7 +17,7 @@ import PDFKit
 #endif
 
 enum FileTools {
-    // Bounds — every traversal is resource-bounded.
+    // Bounds. Every traversal is resource-bounded.
     static let maxReadBytes = 2_097_152  // 2MB per read
     static let maxWriteBytes = 1_048_576  // 1MB per write
     static let defaultReadLimit = 2000  // lines
@@ -53,7 +53,7 @@ enum FileTools {
             throw ToolError.invalidParameter(
                 "read_file: file too large (\(data.count) bytes, max \(maxReadBytes)): \(path)")
         }
-        // PDF — extract the text layer (system framework, no third-party dep → 开箱即用).
+        // PDF. Extract the text layer (system framework, no third-party dep → 开箱即用).
         // Runs before the plain-text decode: a PDF is not a NUL-byte UTF-8 file, and
         // PDFKit's `page.string` is the honest source of its text.
         #if canImport(PDFKit)
@@ -75,8 +75,8 @@ enum FileTools {
         }
         // Window from `start` inclusive holds `total - start + 1` lines.
         // Clamp limit into [1, holdable] so that:
-        //   1. `end = start + safeLimit - 1` can never overflow (safeLimit ≤ holdable ≤ total)
-        //   2. `end ≥ start` always, so `start...end` satisfies its range precondition (no limit=0 crash)
+        //  1. `end = start + safeLimit - 1` can never overflow (safeLimit ≤ holdable ≤ total)
+        //  2. `end ≥ start` always, so `start...end` satisfies its range precondition (no limit=0 crash)
         let holdable = total - start + 1
         let safeLimit = min(max(1, limit ?? defaultReadLimit), holdable)
         let end = start + safeLimit - 1  // ≤ total, overflow-proof
@@ -90,13 +90,13 @@ enum FileTools {
 
     // MARK: - read_file PDF branch
 
-    /// Extract a PDF's text layer via PDFKit (system framework — no third-party
+    /// Extract a PDF's text layer via PDFKit (system framework, no third-party
     /// dep, works on macOS 14+ floor). Output format matches plain-file reads:
     /// `N|line` numbered lines + footer.
     ///
     /// Honesty contract: if the PDF has NO extractable text (scanned / image-only),
     /// throw a clear error with an actionable hint (attach the file for the VLM / use
-    /// `view_image`) — do NOT fabricate "0 lines" or silently return an empty window.
+    /// `view_image`). Do NOT fabricate "0 lines" or silently return an empty window.
     static func readPDF(
         data: Data,
         path: String,
@@ -201,7 +201,7 @@ enum FileTools {
     ///   - oldString: Exact text to find. Must occur exactly `occurrences` times.
     ///   - newString: Replacement text (may be empty to delete).
     ///   - occurrences: Expected count of `oldString` in the file (default 1).
-    ///     Any other count throws before writing — no partial edits.
+    ///     Any other count throws before writing, no partial edits.
     ///   - replaceAll: Replace every occurrence, whatever the count. Measured 10-22 the
     ///     scoreboard's `edit-replace-all` stayed 0/3 with `occurrences` alone: the model read
     ///     "pass occurrences: 3" and answered the *user* ("please specify how many") instead of
@@ -227,7 +227,7 @@ enum FileTools {
             // The 5-word refusal could not tell the caller which of two opposite truths it faced,
             // and the retry spun on both: 3 strikes inside 12 s in one task window, the same
             // shape on four consecutive boards, halved to 2 by this split's rerun. The decision
-            // is edit_lines' OK-no-change — name the state, give the next step, never claim a
+            // is edit_lines' OK-no-change. Name the state, give the next step, never claim a
             // write (never a pass either: an OK here would book a change nobody made).
             let places = original.components(separatedBy: oldString).count - 1
             if places > 0 {
@@ -262,7 +262,7 @@ enum FileTools {
         // against a partial edit (oldString appearing 5 times when the caller saw 1).
         // Zero matches stay a refusal under `replace_all` too: expected = 0 would let the
         // guard pass and return an OK for a file nobody touched (measured 10-22, caught by
-        // `replaceAllNeedsNoCount`) — invariant 2, the surface may not claim more than the
+        // `replaceAllNeedsNoCount`). Invariant 2, the surface may not claim more than the
         // engine did.
         var expected = replaceAll == true ? max(1, count) : max(1, occurrences ?? 1)
         // A caller quotes what the only read surface it has shows: `read_file` answers with `N|`
@@ -270,12 +270,12 @@ enum FileTools {
         // counts zero against the raw file. Measured on the scoreboard's `fix-*` tasks, that
         // refusal ("found 0") was the last thing the model tried. Stripping is decided, not
         // guessed: it runs only after the raw count already failed, and is accepted only when the
-        // stripped text matches `expected` exactly — then the verdict says it happened.
+        // stripped text matches `expected` exactly. Then the verdict says it happened.
         var located = oldString
         var chromeNote = ""
         // A byte test, deliberately: `contains("\r")` compares graphemes, and `"\r\n"` is its own
         // grapheme, so the Character question is false for every CRLF file in the tree (measured
-        // 11-10 — it made this gate never open and the view rung dead code).
+        // 11-10. It made this gate never open and the view rung dead code).
         let endings = original.utf8.contains(0x0D) ? Endings(original) : nil
         var matchedInView = false
         var repairedText: String?
@@ -300,7 +300,7 @@ enum FileTools {
         // The next rung down is the view the caller was shown: a CRLF file cannot be matched by LF
         // text at all, so a correct quote answered `found 0` and the refusal quoted back the same
         // stripped text it had just asked for (`LineEndingFidelityTests`). Decided like the rung
-        // above, never guessed — it runs only after the raw count already failed, is accepted only
+        // above, never guessed. It runs only after the raw count already failed, is accepted only
         // when the view count equals `expected` exactly, and the verdict says it happened.
         if count != expected, let e = endings {
             for candidate in [located, repairedText.map { $0 }].compactMap({ $0 }) {
@@ -329,7 +329,7 @@ enum FileTools {
             // The refusal stays strict (a whitespace-tolerant apply would be a location guess),
             // but strictness without a next step is a dead end: measured 10-22 the scoreboard's
             // `edit-replace-all` scored 0/3 because the model wanted exactly the operation the
-            // tool supports — replace every occurrence — met `found 3 — refusing partial edit`,
+            // tool supports. Replace every occurrence. Met `found 3 — refusing partial edit`,
             // which names the count but never says that `occurrences` is the knob for it.
             let hint =
                 count == 0
@@ -337,8 +337,8 @@ enum FileTools {
             if hint.quotedWholeFile {
                 // A refusal that orders a round trip it already completed is how a recoverable
                 // miss ends the turn: measured on the scoreboard, `fix-boundary-comparison` got
-                // the file quoted whole in this very message — with the caller's own newString
-                // already correct — and answered "I need to read the file first", task unmade.
+                // the file quoted whole in this very message, with the caller's own newString
+                // already correct, and answered "I need to read the file first", task unmade.
                 // When every line is in hand the only next step is the retry, so the message
                 // names it and closes the other exit (the shape that took `edit-replace-all`
                 // from 0/3 to a pass: name the knob, then forbid stopping).
@@ -346,7 +346,7 @@ enum FileTools {
                 // above cannot finish that job: edit_file can empty a file, and no file tool
                 // deletes one. Measured on the scoreboard, `delete-only-what-was-asked` met this
                 // refusal, had no route to a removal, and asked the user for the line quoted in
-                // the same message. So name the route that does exist — and only where the
+                // the same message. So name the route that does exist, and only where the
                 // caller's own argument proves removal intent, because an `rm` suggestion in an
                 // ordinary mismatch would nudge a mistyped edit into an unrecoverable delete.
                 let removal =
@@ -428,14 +428,14 @@ enum FileTools {
     /// The one line-numbering this toolset shows a caller: `N|text` over content lines, so a file
     /// ending in a newline has no phantom last line. `read_file` renders this list and names its
     /// length `total_lines:`, `edit_file` quotes it on a mismatch, and `edit_lines` accepts it as
-    /// input — one number, one meaning (AGENTS.md: one home per decision).
+    /// input. One number, one meaning (AGENTS.md: one home per decision).
     static func numberedContentLines(_ text: String) -> [String] {
         var lines = text.components(separatedBy: "\n")
         if lines.last == "" { lines.removeLast() }
         return lines.map { $0.replacingOccurrences(of: "\r", with: "") }
     }
 
-    /// The LF view of a file and the endings it was written with — what both write seams need to
+    /// The LF view of a file and the endings it was written with. What both write seams need to
     /// agree with what `read_file` showed.
     ///
     /// `numberedContentLines` renders every line with `\r` stripped, so LF is the only text a caller
@@ -463,12 +463,12 @@ enum FileTools {
         /// Whether each line is terminated; `false` only for a last line that has none. `edit_lines`
         /// asks, because the file keeps its own trailing state whichever line ends up last.
         let terminated: [Bool]
-        /// Each line's text, terminator excluded — for a CRLF line that excludes its `\r` too, which
+        /// Each line's text, terminator excluded, for a CRLF line that excludes its `\r` too, which
         /// `carriage` records rather than folding into the text.
         private let texts: [Substring]
         /// Whether the line ends CRLF. A `\r` anywhere else is inside `texts`: data, not a terminator.
         private let carriage: [Bool]
-        /// `\r\n` when the file's first terminated line carries a CR, `\n` otherwise — the style text
+        /// `\r\n` when the file's first terminated line carries a CR, `\n` otherwise. The style text
         /// joins when the region it replaces holds no terminator of its own.
         private let first: String
         /// Where each line starts in `source` and in `view`, index-for-index with `texts`.
@@ -531,7 +531,7 @@ enum FileTools {
             self.viewStarts = viewStarts
         }
 
-        /// The line's own bytes, terminator included — what an untouched line has to be written back
+        /// The line's own bytes, terminator included. What an untouched line has to be written back
         /// as, and the reason `carriage` and `terminated` are separate facts.
         func bytes(atLine line: Int) -> String {
             guard texts.indices.contains(line) else { return "" }
@@ -550,7 +550,7 @@ enum FileTools {
         /// A hit is kept only when its bytes equal the needle's: `range(of:)` answers for
         /// canonically-equal text too, and a splice that replaces more occurrences than the guard
         /// counted would claim a change it did not make (invariant 2). Bytes are the only literal
-        /// comparison here, which is also what `components(separatedBy:)` — the counter — does.
+        /// comparison here, which is also what `components(separatedBy:)`. The counter. Does.
         static func ranges(of needle: String, in haystack: String) -> [Range<String.Index>] {
             guard !needle.isEmpty else { return [] }
             let want = Array(needle.utf8)
@@ -587,7 +587,7 @@ enum FileTools {
         }
 
         /// The file's bytes with each region replaced, the replacement's line breaks taking the
-        /// ending of the region it replaces — the file's first ending when that region holds none.
+        /// ending of the region it replaces. The file's first ending when that region holds none.
         /// Everything outside the regions is copied, never re-rendered.
         /// - Returns: the new bytes, and the endings actually written where they differ from the bytes
         ///   the caller supplied (a caller who sent CRLF into a CRLF file was not converted, so has
@@ -638,7 +638,7 @@ enum FileTools {
 
     /// Durability was proven by the caller's read-back; this is the other half of the report.
     /// Syntax is judged over the whole file, presentation-echo only over the text this call
-    /// supplied — otherwise a file that already holds a numbered dump would condemn every
+    /// supplied. Otherwise a file that already holds a numbered dump would condemn every
     /// unrelated edit made in it.
     private static func writeVerdict(
         path: String,
@@ -658,7 +658,7 @@ enum FileTools {
     /// Replace, insert, or delete a numbered line range, verified by read-back.
     ///
     /// `edit_file` asks the caller to reproduce bytes; the measured failure mode on the repair tasks
-    /// is `found 0` — the model knows which lines to change and not their exact indentation. Every
+    /// is `found 0`. The model knows which lines to change and not their exact indentation. Every
     /// surface here already prints the file with `N|` numbers, so this seam takes the numbers back
     /// instead of the bytes. A range means exactly what `read_file` printed.
     /// - Parameters:
@@ -666,7 +666,7 @@ enum FileTools {
     ///   - startLine: First line to replace, 1-based; `total + 1` appends at end of file, and
     ///     anything past the end clamps onto it, stated in the result.
     ///   - endLine: Last line to replace, inclusive; `endLine == startLine - 1` inserts without
-    ///     deleting, so append and insert are the same mode — no third one exists.
+    ///     deleting, so append and insert are the same mode, no third one exists.
     ///   - newText: Replacement text; empty deletes the range.
     /// - Returns: Verification summary (range, line counts, byte delta, read-back state).
     static func editLines(path: String, startLine: Int, endLine: Int, newText: String) throws
@@ -684,7 +684,7 @@ enum FileTools {
         }
         // A line number past the end has exactly one legal reading: the text belongs after the
         // last line; below 1 can only mean at the top. The strict version was measured as a trap
-        // — `make-third-test-pass` re-sent `start_line: 14` into a 10-line file six times, each
+        //, `make-third-test-pass` re-sent `start_line: 14` into a 10-line file six times, each
         // refusal printing the bound and commanding a retry, none of them landing (scoreboard
         // FAIL, zero writes). The clamp performs the one thing that can be meant and reports the
         // deviation in the same result (`clampedNote` below), so the caller gets a file to verify
@@ -703,7 +703,7 @@ enum FileTools {
         // reported the deleted CRs as a byte delta under an `OK` (`Endings`, measured 11-10:
         // `edit_lines: OK — replaced lines 2-2 … -4 bytes` on a 3-line CRLF file). A line the caller
         // did not name keeps the bytes it had; a line it supplied joins the ending of the region it
-        // replaces — pi #11751, opencode `withRegionEndings`, codex's `preferred_ending`.
+        // replaces. Pi #11751, opencode `withRegionEndings`, codex's `preferred_ending`.
         let eol = Endings(original)
         // The style a new line joins: the replaced line's own ending, and for a pure insertion the
         // line it goes above (or, appending, the line above it).
@@ -790,7 +790,7 @@ enum FileTools {
     /// Find files by filename pattern or search file contents.
     /// - Parameters:
     ///   - path: Directory to search (or single file for a direct name check).
-    ///   - pattern: Filename mode — `*` glob on the basename. Content mode — substring.
+    ///   - pattern: Filename mode, `*` glob on the basename. Content mode. Substring.
     ///   - target: "files" (default) or "content".
     ///   - limit: Max results (default 50).
     static func search(
@@ -839,7 +839,7 @@ enum FileTools {
                 guard let data = try? Data(contentsOf: candidate, options: .uncached),
                     data.count <= maxSearchFileBytes
                 else { continue }
-                // PDF — extract the text layer (reuse the same extractor as `read`);
+                // PDF. Extract the text layer (reuse the same extractor as `read`);
                 // skip anything that can't be opened as a PDF (binary / invalid).
                 #if canImport(PDFKit)
                 if candidate.pathExtension.lowercased() == "pdf"
@@ -860,7 +860,7 @@ enum FileTools {
                 matches.append(candidate.path)
             }
             if matches.isEmpty {
-                // Zero over a partial scan is not "the pattern is absent" — the same claim the
+                // Zero over a partial scan is not "the pattern is absent". The same claim the
                 // blocked root refuses to make, in the other direction.
                 let budgetNote =
                     scanBudgetHit
@@ -876,7 +876,7 @@ enum FileTools {
                 + partialNote
         }
 
-        // Filename mode costs no I/O, so the whole set is counted and only the window is shown —
+        // Filename mode costs no I/O, so the whole set is counted and only the window is shown,
         // the total travels with it rather than being guessed at. The window is the
         // lexicographically-first N, which is also the first deterministic answer this face has had:
         // before, the shown set was walk-order and only the display was sorted.
@@ -910,14 +910,14 @@ enum FileTools {
         case capped(knownTotal: Int?)
     }
 
-    /// How a result set states its own completeness — one home, because "total" is the one word this
+    /// How a result set states its own completeness. One home, because "total" is the one word this
     /// tool may not spend on a number it stopped counting.
     ///
     /// A caller reads `─── total: 50 ───` as *the search is finished* and stops refining; when the
     /// loop broke at the cap, that line was not a total but a returned count wearing the word. Three
     /// trees settled the same rule independently: codex's preview carries the whole length beside the
     /// flag (`PostPreview`, `codex-rs/message-board/src/types.rs:23-30`) and its paged read carries
-    /// `next_offset_chars` (`PostContent`, same file `:33-39`) — the way out, not just the bound;
+    /// `next_offset_chars` (`PostContent`, same file `:33-39`). The way out, not just the bound;
     /// deepseek-harness pins `truncated`/`total` on every capped view "so a UI never presents a
     /// partial result as complete" (`docs/subsystems/tools.md:623`); pi's exec result carries
     /// `truncated: boolean` beside the text and `fullOutputPath` where the whole output went
@@ -953,7 +953,7 @@ enum FileTools {
     /// path. Measured 10-22 (`scripts/eval/`): a fix-syntax-error turn repeated the same
     /// failed `edit_file` and gave up, and the scoreboard called it 4/9. Naming the
     /// resolved path (and who anchored it) turns an unrecoverable refusal into a
-    /// correctable one — the cheapest reliability win in the execution chain.
+    /// correctable one. The cheapest reliability win in the execution chain.
     static func pathContext(_ url: URL) -> String {
         let session = SessionWorkspace.currentDirectory()
         let configured = WorkspaceContext.configuredDirectory()
@@ -976,8 +976,8 @@ enum FileTools {
     static func currentLinesNote(lines: [String], start: Int, end: Int) -> String {
         let lo = max(1, min(start, lines.count))
         // lo <= hi always holds here: the file is non-empty (guarded above) and both bounds are
-        // clamped into 1...count, so a range of any shape — including the append position and an
-        // insert-before range — still names at least the line it sits against.
+        // clamped into 1...count, so a range of any shape. Including the append position and an
+        // insert-before range. Still names at least the line it sits against.
         let hi = min(max(end, lo), lines.count)
         var quoted: [String] = []
         for index in lo ... hi {
@@ -993,7 +993,7 @@ enum FileTools {
         return note
     }
     /// What a mismatch hint handed the caller: quotable text, and whether that text is the
-    /// whole file. The refusal's next step depends on the second answer — everything quoted
+    /// whole file. The refusal's next step depends on the second answer. Everything quoted
     /// means the retry needs nothing else, a window means the needed line may be out of view.
     struct MismatchHint {
         var text: String = ""
@@ -1003,8 +1003,8 @@ enum FileTools {
     /// When `oldString` misses, quote the file's own lines back so the caller can correct
     /// instead of re-sending the same guess.
     ///
-    /// The refusal itself is right — matching loosely is how a partial edit lands somewhere
-    /// unintended — but `found 0` alone is unanswerable: measured 10-22 (`scripts/eval/`),
+    /// The refusal itself is right. Matching loosely is how a partial edit lands somewhere
+    /// unintended, but `found 0` alone is unanswerable: measured 10-22 (`scripts/eval/`),
     /// one turn retried `edit_file` on `sum100.py` five times and gave up, because the model
     /// had edited from an assumption instead of a read and nothing told it what the file
     /// actually says. So the edit stays refused, and the message becomes correctable.
@@ -1044,7 +1044,7 @@ enum FileTools {
         func quoted(_ range: Range<Int>) -> String {
             range.map { lines[$0] }.joined(separator: "\n")
         }
-        // A small file is quoted whole: scoring the nearest window was a false economy —
+        // A small file is quoted whole: scoring the nearest window was a false economy,
         // measured 10-22 it pointed at line 5 (`return s`) when the line the caller needed
         // was line 3 (`for i in range(1, n):`), which is a hint that misleads.
         let whole = quoted(0 ..< lines.count)
@@ -1061,7 +1061,7 @@ enum FileTools {
         let window = quoted(bestIndex ..< end)
         // Showing part of a file while naming only the part is how a hint misleads: the line
         // the caller needs may be the one that got clipped. Codex does the same for exec
-        // output — `Total output lines` appears exactly when fewer lines are shown than exist
+        // output, `Total output lines` appears exactly when fewer lines are shown than exist
         // (codex-rs/core/src/tools/mod.rs:90-109).
         let shown: String
         let clipNote: String
@@ -1100,7 +1100,7 @@ enum FileTools {
     ///
     /// `blockedRoot`/`skipped` are not decoration: a walk that dropped unreadable
     /// directories on the floor let `search_files` answer "0 files matching" about a
-    /// tree it never opened — the surface claiming more than the engine measured.
+    /// tree it never opened. The surface claiming more than the engine measured.
     struct DirectoryWalk: Sendable {
         var urls: [URL] = []
         /// The OS reason when the root itself could not be opened (nothing was scanned).

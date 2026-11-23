@@ -1,6 +1,6 @@
 // Copyright 2026 uingei@163.com.
 // Licensed under MIT.
-/// PerceptionEngine — unified scheduler for all perception channels.
+/// PerceptionEngine. Unified scheduler for all perception channels.
 ///
 /// Architecture:
 ///   Channels (camera/screen/network/filesystem/internet)
@@ -104,7 +104,7 @@ public struct ChannelFlags: Codable, Sendable, Equatable {
     var system: Bool = true
     var speaker: Bool = false
     /// Continuous ambient-audio perception (STT transcript stream).
-    /// Off by default — the single-instance mic is shared with press-to-talk,
+    /// Off by default. The single-instance mic is shared with press-to-talk,
     /// and continuous capture is an explicit privacy choice.
     var audio: Bool = false
 
@@ -173,7 +173,7 @@ final class PerceptionEngine: Sendable {
 
         // Sync camera/screen with MultimodalState (live permission truth).
         // network/system/speaker/filesystem/internet/audio stay EXACTLY as
-        // the user's persisted levers set them — the old unconditional
+        // the user's persisted levers set them. The old unconditional
         // `channels.network = true` here silently overwrote the user's
         // choice on every restart (a lie: the toggle existed, the flag did
         // not survive). setChannels is the sole authority for these six.
@@ -237,7 +237,7 @@ final class PerceptionEngine: Sendable {
 
         // Continuous ambient-audio channel (STT transcript stream).
         // Reuses the shared AudioIO speech pipeline, mirroring the .speaker
-        // text-context pattern — no new audio primitives. Guarded against
+        // text-context pattern, no new audio primitives. Guarded against
         // press-to-talk: the loop skips a tick when the mic is already
         // actively used (recognizing/recording).
         if channels.audio, config.audioInterval > 0 {
@@ -246,7 +246,7 @@ final class PerceptionEngine: Sendable {
             }
         }
 
-        // Start external monitors — each gated by its own honest lever.
+        // Start external monitors. Each gated by its own honest lever.
         // NetworkSensor feeds sampleNetwork AND sampleInternet's reachability
         // probe, so it starts when either lever is on.
         if channels.network || channels.internet {
@@ -470,8 +470,8 @@ final class PerceptionEngine: Sendable {
 
     /// Continuous ambient-audio perception producer (the `.audio` channel's
     /// one missing loop). Mirrors `sampleSpeaker`'s shape: bounded VAD + STT
-    /// per tick, transcript delivered as `textContext` — the live
-    /// `contextText()` injection path — rather than raw audio bytes.
+    /// per tick, transcript delivered as `textContext`. The live
+    /// `contextText()` injection path. Rather than raw audio bytes.
     ///
     /// Mic-sharing safety with press-to-talk: `AudioIO.audioEngine` is a
     /// single instance, so a tick is skipped whenever an explicit STT or
@@ -562,7 +562,7 @@ final class PerceptionEngine: Sendable {
                     )
                 )
             } else if let audio = frame.audioURL {
-                // Deliver the actual audio bytes — the engine consumes this via
+                // Deliver the actual audio bytes. The engine consumes this via
                 // makeMLXAudio()/UserInput.Audio. Text-only placeholder here was
                 // silently discarding the recording (behavior fork: vision/image
                 // frames carry bytes, audio did not).
@@ -584,7 +584,7 @@ final class PerceptionEngine: Sendable {
     ///
     /// Production injection point: `_runInferenceWithMessages` attaches these
     /// to the last user message (b2). Text/OCR frames are excluded on purpose:
-    /// `contextText()` already carries them on the system path — including
+    /// `contextText()` already carries them on the system path. Including
     /// them here would double-deliver the same text and double-count tokens
     /// against the budget.
     @MainActor
@@ -600,7 +600,7 @@ final class PerceptionEngine: Sendable {
     /// Empty string when no channel delivered a frame: an unpopulated header is not
     /// context, and the `!isEmpty` guards on the injection side depend on it being empty.
     ///
-    /// nonisolated instance method — underlying PerceptionBuffer is
+    /// nonisolated instance method. Underlying PerceptionBuffer is
     /// @unchecked Sendable (mutex-protected), so reads are safe off MainActor.
     ///
     /// IMPORTANT: To call from @Sendable closures (toolDispatch, MTP loop),
@@ -608,7 +608,7 @@ final class PerceptionEngine: Sendable {
     /// (`let pe = PerceptionEngine.shared`) then call `pe.contextText()` inside.
     /// This avoids the MainActor static property isolation trap.
     nonisolated func contextText() -> String {
-        // Snapshot latest frames from all channels — safe off MainActor.
+        // Snapshot latest frames from all channels. Safe off MainActor.
         // self.buffer is @unchecked Sendable (mutex-protected), so direct
         // access from nonisolated context is safe.
         let snaps = self.buffer.snapshot(budget: PerceptionBudget.default)
@@ -642,7 +642,7 @@ final class PerceptionEngine: Sendable {
 
     /// The one rendering of channel entries into injected text: empty in, empty out. A header
     /// with nothing behind it claims perception the engine never delivered, and while it was
-    /// unconditional it reached every prompt *and* every tool result on a perception-free box —
+    /// unconditional it reached every prompt *and* every tool result on a perception-free box,
     /// models then copied `[System Perception]` into the files they wrote.
     nonisolated static func renderContext(_ entries: [(label: String, value: String)]) -> String {
         guard !entries.isEmpty else { return "" }

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// TimingHooks.swift — Per-request performance metrics tracking
+/// TimingHooks.swift. Per-request performance metrics tracking
 ///
 /// ### Purpose:
 /// Signpost-style timing hooks aligned with Apple Instruments profiler conventions.
@@ -8,7 +8,7 @@
 ///
 /// ### Design:
 /// - Pure Swift, no Instruments dependency
-/// - Thread-unsafe — intended for single-request lifecycle on ``@MainActor``
+/// - Thread-unsafe. Intended for single-request lifecycle on ``@MainActor``
 /// - Metrics aggregated via Swift Logging metadata
 
 import Foundation
@@ -23,7 +23,7 @@ import Foundation
 /// ### Sendable Safety:
 /// Marked ``@unchecked Sendable`` because:
 /// - Each instance lives within a single ``Task`` (_runInference background task)
-/// - Never shared between concurrent executors — passed by-value through actor mailbox
+/// - Never shared between concurrent executors. Passed by-value through actor mailbox
 /// - All mutable state (`var` fields) is written/read on the same executor
 /// - `ContinuousClock.Instant` is inherently Sendable
 /// - No reference to external shared mutable state

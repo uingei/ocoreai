@@ -1,9 +1,9 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// IntegrityDigest.swift — streaming SHA-256 over a file on disk.
+// IntegrityDigest.swift. Streaming SHA-256 over a file on disk.
 //
 // One pass, 64 KiB at a time: a 5.3 GB shard costs about 3.6 s (1.4 GB/s here). Which callers pay
-// that price is a fact about them, not about this file — grep the symbol; a comment here once
+// that price is a fact about them, not about this file. Grep the symbol; a comment here once
 // claimed a lane that never called it.
 
 import CryptoKit

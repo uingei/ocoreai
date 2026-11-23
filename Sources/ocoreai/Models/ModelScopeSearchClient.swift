@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ModelScopeSearchClient.swift - Search and browse models on ModelScope Hub
+/// ModelScopeSearchClient.swift. Search and browse models on ModelScope Hub
 ///
 /// Reverse-engineered from the Python SDK (modelscope 1.x):
 ///   PUT /api/v1/models/          - list/search models by keyword
 ///   GET /api/v1/models/{owner}/{name} - model detail
-///   GET /api/v1/models/{owner}/{name}/repo - file download
+///   GET /api/v1/models/{owner}/{name}/repo. File download
 ///
-/// No official Swift SDK exists - this is a thin HTTP client built from
+/// No official Swift SDK exists. This is a thin HTTP client built from
 /// the Python SDK behavior as reference.
 
 import Foundation
@@ -64,18 +64,18 @@ struct MSHubModel: Identifiable, Hashable {
 
 /// Lightweight HTTP client for ModelScope model search.
 ///
-/// Uses only Foundation HTTP - no external dependency needed.
+/// Uses only Foundation HTTP, no external dependency needed.
 /// Endpoint is configurable via MODELSCOPE_ENDPOINT env var (mirror/proxy support).
 final actor ModelScopeSearchClient {
     // MARK: - Configuration
 
-    /// Base URL - follows the same pattern as the Python SDK.
+    /// Base URL. Follows the same pattern as the Python SDK.
     private let baseURL: URL
     /// What this client may offer the hub. Classified at init so every request either carries a
     /// complete `Bearer <token>` or says nothing about credentials (HubCredential.swift).
     private let credential: HubCredentialResolution
 
-    /// Default base URL — reads MODELSCOPE_ENDPOINT env var when set,
+    /// Default base URL. Reads MODELSCOPE_ENDPOINT env var when set,
     /// otherwise falls back to the canonical root domain (single source:
     /// `ModelStore.modelScopeDefaultBaseURL`).
     nonisolated private static func defaultBaseURL() -> URL {
@@ -105,7 +105,7 @@ final actor ModelScopeSearchClient {
     /// Search models by keyword.
     ///
     /// - Parameters:
-    ///   - keyword: Search term. Supports full paths like "org/model" — the
+    ///   - keyword: Search term. Supports full paths like "org/model". The
     ///              model name part will be extracted for the API call.
     ///   - page: Page number (1-based).
     ///   - pageSize: Number of results per page (default 20, max 100).
@@ -114,12 +114,12 @@ final actor ModelScopeSearchClient {
         page: Int = 1,
         pageSize: Int = 20,
     ) async throws -> (models: [MSHubModel], totalCount: Int) {
-        // Python SDK (modelscope 1.x) uses PUT for list_models — unusual but real.
+        // Python SDK (modelscope 1.x) uses PUT for list_models. Unusual but real.
         // Search parameter is "Name" (model name substring), NOT "Path" (org path field).
         // Reference: references/omlx/omlx/admin/ms_downloader.py::_fetch_ms_models_rest
         //
         // When the user types a full path like "org/model", the API can only filter
-        // by the model name — "Path" is an org-level field, not searchable by name.
+        // by the model name. "Path" is an org-level field, not searchable by name.
         let searchName: String =
             if keyword.contains("/") {
                 keyword.components(separatedBy: "/").last ?? keyword
@@ -235,7 +235,7 @@ final actor ModelScopeSearchClient {
 enum MSError: LocalizedError {
     /// A hub answer that is not 2xx, with the credential state that produced it. Carrying the
     /// status (not the whole `URLResponse`) is what lets the GUI say 401 rather than
-    /// `Optional<NSHTTPURLResponse>` — and the advice is the measured "was a token offered",
+    /// `Optional<NSHTTPURLResponse>`, and the advice is the measured "was a token offered",
     /// which is the difference between "re-paste your token" and "set one".
     case refused(statusCode: Int, advice: String?)
     case invalidJSON

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// DirectWebSearch — model-free web retrieval over HTML search engines.
+/// DirectWebSearch. Model-free web retrieval over HTML search engines.
 ///
 /// First-principles (user's correction, live-proven 2026-10-11): the search
 /// *engine* does not need a local model. Evidence on this machine:
@@ -12,13 +12,13 @@
 ///     to the ollama account) and costs 74–96s of local generation per call.
 /// So the default `web_search` path is: plain HTTP GET to a search engine,
 /// parse results, hand them to the local model to answer. Zero model tokens
-/// spent finding information; the model only reads it. Zero API keys — the
+/// spent finding information; the model only reads it. Zero API keys. The
 /// user never pastes a token.
 ///
 /// Honesty rules:
 ///   • A blocked engine is reported with its failure reason (host + why),
 ///     never hidden behind a fake success.
-///   • "no organic results" is surfaced as an honest empty list — the page
+///   • "no organic results" is surfaced as an honest empty list. The page
 ///     loaded but the query matched nothing indexable (soft-block shape).
 ///   • Every attempt lands in the report trail; the last error is what the
 ///     model sees on total failure.
@@ -28,7 +28,7 @@
 ///   set OCRE_SEARCH_MODE=backend to route via ollama `/v1/responses`
 ///   (WebSearchClient), OCRE_SEARCH_MODE=auto for native-then-backend.
 ///
-/// Parsing lives in DirectWebSearchParser as pure functions over HTML text —
+/// Parsing lives in DirectWebSearchParser as pure functions over HTML text,
 /// locked by offline tests; no network needed to prove the contract.
 import Foundation
 
@@ -48,7 +48,7 @@ struct DirectSearchOutcome: Sendable, Equatable {
     let query: String
     let hits: [DirectSearchHit]
     /// Organic results the parser saw before the `maxHits` cut. Equal to `hits.count` when the cap
-    /// never bound; greater when it did — which is the only case the report's tally line appears in.
+    /// never bound; greater when it did, which is the only case the report's tally line appears in.
     /// Same decision as `FileTools.resultTally`, in this report's grep-stable idiom: a window that
     /// stops somewhere says where it stopped, because a caller reads a bare list as "that was all".
     let foundTotal: Int
@@ -133,7 +133,7 @@ struct DirectSearchEngine: Sendable, Equatable {
 enum DirectSearchParser {
     /// Parse organic hits from a SERP HTML string. Engine-specific block
     /// shapes, generic-enough fallback. Returns [] on unparseable/blocked
-    /// shapes — caller distinguishes "loaded-but-empty" from HTTP failures.
+    /// shapes. Caller distinguishes "loaded-but-empty" from HTTP failures.
     static func hits(html: String, engine: String) -> [DirectSearchHit] {
         switch engine {
         case "bing": return bing(html: html)
@@ -222,7 +222,7 @@ enum DirectSearchParser {
         return hits
     }
 
-    /// Mojeek fallback: `<a class="ob" href>` titles (snippet omitted —
+    /// Mojeek fallback: `<a class="ob" href>` titles (snippet omitted,
     /// best-effort engine, rarely reached from CN networks).
     static func mojeek(html: String) -> [DirectSearchHit] {
         organicLinks(html, link: "<a class=\"ob\" href=\"(http[^\"]*)\"[^>]*>(.*?)</a>")
@@ -321,7 +321,7 @@ enum DirectSearchParser {
 // MARK: - Direct fetcher (async)
 
 enum DirectWebSearch {
-    /// Chrome UA — cn.bing serves bare curl a dictionary-jacked SERP; a
+    /// Chrome UA. Cn.bing serves bare curl a dictionary-jacked SERP; a
     /// browser UA + cookie session returns organic results (live-proven).
     static let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -345,12 +345,12 @@ enum DirectWebSearch {
     ///      SERPs;
     ///   2. even mid-sentence, a word that is also a common dictionary headword
     ///      ('current international gold price in USD') → the SERP fills with
-    ///      百度百科/剑桥词典 entries for 'current'/'international' — cn.bing
+    ///      百度百科/剑桥词典 entries for 'current'/'international'. Cn.bing
     ///      aggressively word-lookup-hijacks.
     /// Rule: strip every hijack-prone token (time adverbs + dictionary-bait
     /// adjectives), wherever it sits. Content words survive, so intent
     /// ('X 今天比分' → 'X 比分') and topical queries ('gold price USD')
-    /// are untouched; stripping is recorded in the report trail — never
+    /// are untouched; stripping is recorded in the report trail. Never
     /// silent. Live-verified: stripped forms 'gold price in USD' / '国际现货
     /// 黄金价格 今日' return 9-10 finance hits (livegold, GoldPrice.org,
     /// World Gold Council, 东方财富).
@@ -380,7 +380,7 @@ enum DirectWebSearch {
         let effective = tokens.joined(separator: " ").trimmingCharacters(
             in: .whitespacesAndNewlines)
         guard !effective.isEmpty else {
-            // The query was nothing but filler — searching it would be noise
+            // The query was nothing but filler. Searching it would be noise
             // anyway; keep the original and let the engine decide.
             return (q, nil)
         }
@@ -431,7 +431,7 @@ enum DirectWebSearch {
     }
 
     /// The `maxHits` cut, in one place: the window is what a caller sees, `foundTotal` is what the
-    /// parser saw. Kept as a pure function so the pair is asserted off-box — `fetch` itself needs a
+    /// parser saw. Kept as a pure function so the pair is asserted off-box, `fetch` itself needs a
     /// live SERP, and a report that claimed "showing 2 of 5" off a mis-plumbed count would be exactly
     /// the invented total this family exists to forbid.
     static func cap(_ hits: [DirectSearchHit], maxHits: Int) -> FetchOutcome {
@@ -449,7 +449,7 @@ enum DirectWebSearch {
         let session = URLSession(configuration: config)
         // Cookie warmup (cn.bing gates organic SERP behind a session cookie;
         // cookie-less requests get the degraded dictionary-jacked page).
-        // Awaited inline — no semaphore, no cooperative-thread blocking.
+        // Awaited inline, no semaphore, no cooperative-thread blocking.
         if let warmup = engine.warmupURL, let warmURL = URL(string: warmup) {
             var w = URLRequest(url: warmURL)
             w.httpMethod = "GET"

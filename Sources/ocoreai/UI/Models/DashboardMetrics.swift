@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Prometheus metrics bridge — polls /metrics endpoint, feeds Dashboard.
+/// Prometheus metrics bridge. Polls /metrics endpoint, feeds Dashboard.
 ///
 /// @Observable: property-level change tracking.
 
@@ -9,20 +9,20 @@ import Foundation
 /// Flat DTO from Prometheus text format
 struct MetricsSnapshot: Equatable {
     let timestamp: Date
-    // — Throughput —
+    // Throughput,
     let tokensPerSecond: Double
     let ttftMs: Double
     let ttfbMs: Double
-    // — Memory —
+    // Memory,
     let gpuMemoryUsage: Double
     let kvCacheBytes: Int64
     let kvCacheEvictions: Int64
-    // — Scheduler —
+    // Scheduler,
     let activeSessions: Int
     let loadedModels: Int
     let inferenceDurationMs: Double
     let inferenceCount: Int64
-    // — Rate limit —
+    // Rate limit,
     let rateLimitRejections: Int64
 
     static var empty: MetricsSnapshot {

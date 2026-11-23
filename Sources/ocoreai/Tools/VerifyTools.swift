@@ -1,18 +1,18 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// verify namespace — Verify 段的 agent 自查询面（审计 trace 的**第一个非 UI 消费者**）:
+/// verify namespace. Verify 段的 agent 自查询面（审计 trace 的**第一个非 UI 消费者**）:
 ///
-///   check_tools   报告审计窗口内工具执行结果 — success/error/cancelled/timeout 计数
+///   check_tools   报告审计窗口内工具执行结果。success/error/cancelled/timeout 计数
 ///                 + 逐条明细（工具名/状态/时长/结果摘要 160 字符硬截断）。
 ///
-/// 定位: 六段环 Verify 段此前零消费者——`AuditTrail` 写入完整（ToolRegistry 每次
+/// 定位: 六段环 Verify 段此前零消费者。`AuditTrail` 写入完整（ToolRegistry 每次
 /// 执行 beginCall/completeToken 双写内存环+SQLite audit_traces, commit 7676ac5
 /// 落盘 durable），但全库唯一读方 = UI 展示（SystemViewModel.loadAudit, UI 面非
-/// agent 面）。模型无法回答"我刚才那批工具调用，哪些失败、为什么"——只有自身
+/// agent 面）。模型无法回答"我刚才那批工具调用，哪些失败、为什么"。只有自身
 /// 可不信的复述。本工具把既有审计真值源暴露给 agent，闭合
 /// 写入→落盘→查询→消费 四段。
 ///
-/// 真值源 = OcoreaiEngine.shared.activeAuditTrail —— 与 UI 读面同一 actor 实例:
+/// 真值源 = OcoreaiEngine.shared.activeAuditTrail。与 UI 读面同一 actor 实例:
 /// 内存环（recent）∪ SQLite 持久面（recentPersisted, commit 7676ac5），按 id
 /// 去重（AuditTrail.merge 先例, in-memory 优先）。窗口默认 300s（clamp 5...3600）。
 /// 只读, 对审计环与 SQLite 零副作用。
@@ -22,7 +22,7 @@ import Foundation
 // MARK: - 纯计算(离线可测, 不触 AuditTrail / OcoreaiEngine)
 
 enum AuditVerify {
-    /// 结果摘要截断上限（160 字符 ≈ ~40 token — N 条明细 × 40 仍在注入预算内;
+    /// 结果摘要截断上限（160 字符 ≈ ~40 token. N 条明细 × 40 仍在注入预算内;
     /// 完整结果 UI 面仍可从 audit_traces 查）。
     static let maxResultChars = 160
     /// 默认窗口 300s ≈ "本轮任务"常用跨度; clamp 5...3600（防无限全量扫）。
@@ -130,7 +130,7 @@ enum AuditVerify {
         }
         // The gap this report would otherwise hide: every row above says the call ran, and
         // nothing says whether the artifact was ever run. Naming the count is the honest
-        // half of Verify — it does not demand a write, it points at the missing evidence.
+        // half of Verify. It does not demand a write, it points at the missing evidence.
         let pending = writesAwaitingRun(in: inWindow)
         if pending.writes > 0 {
             let since =
@@ -155,7 +155,7 @@ enum CheckToolsClient {
     }
 
     /// seam 注入(离线可测真 handler): nil = 无审计源(诚实报告);非 nil = 真 handler 跑。
-    /// 生产闭包不传参(走 OcoreaiEngine 单例全局)——seam 仅面向 handler 真跑测试。
+    /// 生产闭包不传参(走 OcoreaiEngine 单例全局)。seam 仅面向 handler 真跑测试。
     static func entry(store: AuditTrail?) -> ToolEntry {
         ToolEntry.typed(
             name: toolName,
@@ -205,7 +205,7 @@ enum CheckToolsClient {
     /// 同一语义, 独立纯函数 reduce 不耦合 actor）。
     ///
     /// `store: AuditTrail? = nil` 是 seam 注入口(离线可测真 handler);生产闭包不传参
-    /// 即走 OcoreaiEngine 单例全局——行为与 seam 前完全一致(seam 仅服务测试隔离)。
+    /// 即走 OcoreaiEngine 单例全局。行为与 seam 前完全一致(seam 仅服务测试隔离)。
     static func runForTool(
         tool: String? = nil, status: String? = nil,
         windowSeconds: Int? = nil, limit: Int? = nil,

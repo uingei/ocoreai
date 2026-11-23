@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// HearingSelfProbe.swift — the child side of the hearing probe.
+/// HearingSelfProbe.swift. The child side of the hearing probe.
 ///
 /// `ocoreai --probe-hearing <audio-file>` runs one Speech analysis pass, prints one JSON line
 /// and exits. The parent (`HearingEngineProbe`) treats a signal here as a measured
@@ -9,7 +9,7 @@
 /// ### Why the protocol constants live here, not in `HearingEngineProbe`
 /// `HearingEngineProbe` is `#if os(macOS)` because `Process` is the macOS half of the pair.
 /// But `UI/Application.swift` dispatches to this file's `isRequested` on every launch, on
-/// every platform — so if the flag lived on the macOS-only type, the iOS leg (`build-ios`)
+/// every platform, so if the flag lived on the macOS-only type, the iOS leg (`build-ios`)
 /// would not compile. The protocol between the two copies of the binary therefore belongs on
 /// the side both platforms can see: this one.
 
@@ -99,7 +99,7 @@ enum HearingSelfProbe {
     ///
     /// Two lines, not one: the stage is announced **before** the framework is touched, because
     /// on the host this ships from the analysis pass dies with SIGTRAP and nothing after it
-    /// ever runs (measured 10-15 — exit 133, stdout empty). So a `pre-analysis` line with no
+    /// ever runs (measured 10-15. Exit 133, stdout empty). So a `pre-analysis` line with no
     /// `final` line tells the parent the trap was inside the analysis, which an exit status
     /// cannot say, and the parent can log where it died instead of only that it died.
     static func run(arguments: [String]) -> Never {

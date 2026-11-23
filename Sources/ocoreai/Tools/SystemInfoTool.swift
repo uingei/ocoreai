@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SystemInfo — 「自主操作计算机 / 设计复杂系统」前的机型身份 + 资源容量查询面。
+/// SystemInfo。「自主操作计算机 / 设计复杂系统」前的机型身份 + 资源容量查询面。
 ///
 /// 第一性: 模型要「设计复杂系统」(如选一个多大参数量/多少张量并行的本地模型、能否同时
 /// 起推理+训练), 动作链之前需要一个**主动、即时、无前置状态**的「这台机器是谁 + 有多少
 /// 资源」查询面。既有 observe_state 是被动流(需 PerceptionEngine 已开 channel + TTL 窗口
-/// 内有过采样), 且 SystemContextData 只到 thermal/内存压力/cpu/uptime — **不含磁盘容量、
+/// 内有过采样), 且 SystemContextData 只到 thermal/内存压力/cpu/uptime. **不含磁盘容量、
 /// CPU 架构、OS 版本**。这是"深度适配各平台 framework"的落点: ProcessInfo + 编译期 arch
 /// + FileManager resourceValues 是 iOS17/macOS14 双平台一等面, 跨平台注册。
 ///
@@ -36,7 +36,7 @@ enum SystemInfoPure {
         "cpu: \(active) active / \(physical) cores"
     }
 
-    /// 架构(编译期 #if, 非运行时 sysctl — 双平台最稳)。
+    /// 架构(编译期 #if, 非运行时 sysctl。双平台最稳)。
     static var archName: String {
         #if arch(arm64)
         return "arm64"

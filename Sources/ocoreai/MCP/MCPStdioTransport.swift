@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MCP stdio transport — bidirectional JSON-RPC over stdin/stdout。
+/// MCP stdio transport. Bidirectional JSON-RPC over stdin/stdout。
 ///
 /// 传输方式：每行一条 JSON 消息（line-delimited JSON）。
 /// 隐私：本地 stdio 通信，无网络暴露。
@@ -178,7 +178,7 @@ actor MCPStdioTransport {
         return batch
     }
 
-    /// 管道是否已结束（EOF/close）——客户端死进程路径参考。
+    /// 管道是否已结束（EOF/close）。客户端死进程路径参考。
     func isEnded() -> Bool {
         transportClosed
     }

@@ -1,27 +1,27 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// MLXBridge.swift — MLX inference bridge
+// MLXBridge.swift. MLX inference bridge
 //
 // Compiled only when 'mlx' trait is active. Implements:
-//   - MLXModelLoader (actor) — loads models via ModelScope, HF, or local path
-//   - Sampling parameter bridge — MLXSamplingConfig → GenerateParameters
-//   - Message conversion — ocoreai Message → mlx-swift-lm Chat.Message
+//  - MLXModelLoader (actor). Loads models via ModelScope, HF, or local path
+//  - Sampling parameter bridge. MLXSamplingConfig → GenerateParameters
+//  - Message conversion. Ocoreai Message → mlx-swift-lm Chat.Message
 //
 // ### Architecture:
 // - Models can be loaded from:
-//   1. Local path: `/path/to/model/` or `~/path/to/model/`
-//   2. ModelScope Hub: `mscope:Qwen/Qwen2.5-7B-Instruct`
-//   3. HuggingFace Hub: `hf:mlx-community/Qwen3.5-4B`
+//  1. Local path: `/path/to/model/` or `~/path/to/model/`
+//  2. ModelScope Hub: `mscope:Qwen/Qwen2.5-7B-Instruct`
+//  3. HuggingFace Hub: `hf:mlx-community/Qwen3.5-4B`
 //
 // ### MLX Stack (mlx-swift-lm):
-//   Auto-detect VLM via the processor config the checkpoint ships
-//   (`preprocessor_config.json` or `processor_config.json` — see
-//   `ModelStore.hasVisionProcessor`, the canonical predicate):
-//    - VLM → VLMModelFactory.loadContainer(...) — supports images/video/audio
-//    - LLM → LLMModelFactory.loadContainer(...) — text only
+//  Auto-detect VLM via the processor config the checkpoint ships
+//  (`preprocessor_config.json` or `processor_config.json`. See
+//  `ModelStore.hasVisionProcessor`, the canonical predicate):
+//    - VLM → VLMModelFactory.loadContainer(...). Supports images/video/audio
+//    - LLM → LLMModelFactory.loadContainer(...). Text only
 //
 // Reference: MLXChatExample/Services/MLXService.swift (ml-explore upstream)
-//   — gold standard for native MLX loading pattern.
+// Gold standard for native MLX loading pattern.
 
 // MARK: - Imports
 
@@ -38,7 +38,7 @@ import MLXLMCommon
 import MLXVLM
 import Tokenizers
 
-// MARK: - MLX Core (MLXArray, stacked — needed by EmbeddingService)
+// MARK: - MLX Core (MLXArray, stacked. Needed by EmbeddingService)
 
 // MARK: - MLXEmbedders Integration
 
@@ -46,7 +46,7 @@ import Tokenizers
 
 // MARK: - MLXFoundationModels (gated: trait)
 // SamplingModeMapper (MLXSamplingMode, resolveSamplingParameters) has only
-// #if FoundationModelsIntegration — no _version guard — so it compiles on
+// #if FoundationModelsIntegration, no _version guard, so it compiles on
 // macOS 26 SDK too. MLXLanguageModel and other types use _version: 2 +
 // @available(macOS 27.0, iOS 27.0, *) which gate them to macOS 27+.
 
@@ -56,7 +56,7 @@ import MLXFoundationModels
 
 // MARK: - MLX Model Handle
 
-/// Protocol for an MLX-loaded model handle — hides MLX-specific types
+/// Protocol for an MLX-loaded model handle. Hides MLX-specific types
 /// so EngineManager can talk to it without directly importing MLXLLM.
 protocol MLXModelHandle: Sendable {
     var modelContainer: MLXLMCommon.ModelContainer { get }
@@ -86,7 +86,7 @@ extension MLXModelHandle {
     /// longer with the tool than without it; a template that ignores `tools` renders the
     /// same text twice.
     ///
-    /// `nil` means the probe could not run — a template that throws on a toolless feed, or
+    /// `nil` means the probe could not run. A template that throws on a toolless feed, or
     /// on any feed at all. That is *not* "does not render": the caller keeps the existing
     /// behaviour and says it never measured (AGENTS.md invariant 2).
     ///
@@ -120,13 +120,13 @@ extension MLXModelHandle {
     ///
     /// Same evidence shape as ``chatTemplateRendersTools``: render one probe feed twice and
     /// compare, rather than reading a config key or grepping the jinja. The value handed in is
-    /// ``ReasoningEffortWire.probeValue`` — a string no effort table contains — so a template
+    /// ``ReasoningEffortWire.probeValue``. A string no effort table contains, so a template
     /// that reads the kwarg must either interpolate it (render differs) or reject it
     /// (validation raises); both count as "read it". A template that never names the variable
     /// renders the same bytes twice.
     ///
     /// Ambiguity fails OPEN: a render that cannot run at all, or that fails on the probe for
-    /// a reason unrelated to the kwarg, returns nil — the caller keeps passing the caller's
+    /// a reason unrelated to the kwarg, returns nil. The caller keeps passing the caller's
     /// word through and says it never measured. Refusing a turn on an inference is the worse
     /// error (`ReasoningEffortLedger` header).
     ///
@@ -178,7 +178,7 @@ actor MLXModelLoader {
         // Single owner of MLX's recyclable buffer-cache limit for the whole process.
         //
         // App boot used to write its scheduler budget here too (70 GB on a 128 GB
-        // host) and this line silently overwrote it — see App.swift. The value is
+        // host) and this line silently overwrote it. See App.swift. The value is
         // measured, not guessed: on M5 Max / 128 GB with
         // mlx-community/gemma-4-e2b-it-4bit, greedy 160-token completions ran
         // 42-46 tok/s at 256 MB versus 23.7 tok/s at 4 GB, because a larger cache
@@ -192,12 +192,12 @@ actor MLXModelLoader {
         self.logger = logger
         self.defaultHub = defaultHub
         self.modelScopeToken = modelScopeToken
-        // hfToken is auto-detected by HubClient from HF_TOKEN env var — kept for API compat
+        // hfToken is auto-detected by HubClient from HF_TOKEN env var. Kept for API compat
     }
 
     // MARK: - VLM Detection
 
-    /// VLM detection for the loader — delegates to ``ModelStore/hasVisionProcessor(at:fileManager:)``,
+    /// VLM detection for the loader. Delegates to ``ModelStore/hasVisionProcessor(at:fileManager:)``,
     /// the app's single canonical predicate.
     ///
     /// It used to test `processor_config.json` ALONE, while discovery
@@ -215,7 +215,7 @@ actor MLXModelLoader {
     }
 
     /// The measured weights-read handler, booking into the store the wait face and `/v1/models`
-    /// already read. Installed whenever the loader can name the id — upstream creates no reporter
+    /// already read. Installed whenever the loader can name the id. Upstream creates no reporter
     /// at all when the handler is nil, so a route that leaves it out is not "less chatty", it is
     /// unmeasured. The store drops a sample whose denominator was never measured, so no synthetic
     /// completion can publish a byte count the loader did not read.
@@ -272,7 +272,7 @@ actor MLXModelLoader {
         if modelId.hasPrefix("mscope:") {
             return ModelStore.msReadyDir(String(modelId.dropFirst(7)))
         }
-        // Bare repo id — legacy convention defaulted org/repo to HF.
+        // Bare repo id. Legacy convention defaulted org/repo to HF.
         if let hub = ModelStore.hubReadyDir(modelId) { return hub }
         return ModelStore.msReadyDir(modelId)
     }
@@ -294,18 +294,18 @@ actor MLXModelLoader {
                 }
             }
         } catch {
-            // Directory may have changed — return what we got so far
+            // Directory may have changed. Return what we got so far
         }
         return total
     }
 
     /// Start polling HF cache directory to estimate download progress.
-    /// Returns a cancellable Task — cancel it when download completes.
+    /// Returns a cancellable Task. Cancel it when download completes.
     /// Reports real disk bytes via `updateBytes` so UI shows honest progress.
     ///
     /// **mtime stall detection**: In addition to byte-count, track the
     /// modification date of the newest file. If byte count is flat AND
-    /// newest file hasn't changed for `stallTimeout`, abort — prevents
+    /// newest file hasn't changed for `stallTimeout`, abort. Prevents
     /// false-positive stall warnings during multi-file sequential downloads
     /// where one file finishes before the next starts.
     private static func startHFProgressPolling(
@@ -338,7 +338,7 @@ actor MLXModelLoader {
                 let currentBytes = directoryByteCount(cacheDir)
 
                 if currentBytes > lastBytes {
-                    // Directory growing — update expected based on observed growth curve
+                    // Directory growing. Update expected based on observed growth curve
                     peakBytes = max(peakBytes, currentBytes)
                     // Refine expected size from growth rate; cap at 4x current to avoid wild overestimates
                     expectedBytes = min(max(expectedBytes, peakBytes * 2), currentBytes * 4)
@@ -363,7 +363,7 @@ actor MLXModelLoader {
                             "HF download stalled — mtime unchanged for ~\(Int(mtimeStallTimeout))s")
                         break
                     }
-                    // Byte-count timeout — catches empty cache edge case
+                    // Byte-count timeout. Catches empty cache edge case
                     if idleCount > 15 {
                         logger.warning("HF download polling stopped — no growth for ~30s")
                         break
@@ -405,7 +405,7 @@ actor MLXModelLoader {
 
     // MARK: - Public Load
 
-    /// Primary load entry point — called by ``EnginePool``.
+    /// Primary load entry point. Called by ``EnginePool``.
     /// Hub routing is handled by the loader's `defaultHub` configuration property,
     /// except for explicit "hf:" prefix override.
     func load(
@@ -424,9 +424,9 @@ actor MLXModelLoader {
             return MLXModelHandleImpl(modelContainer: container, modelId: modelId)
         }
 
-        // Ready-model shortcut — 就绪模型目录(M7):weights already on disk under the
+        // Ready-model shortcut。就绪模型目录(M7):weights already on disk under the
         // ready root (or a legacy location) load directly from disk, no download. M7:
-        // omlx 对齐——就绪模型 = 目录里能直接 load. "no download" never meant "no
+        // omlx 对齐。就绪模型 = 目录里能直接 load. "no download" never meant "no
         // measurement": this is the route the shipping default takes on every warm start,
         // so it books the weights axis like every other one.
         if let readyDir = Self.readyWeightsDir(for: modelId) {
@@ -436,7 +436,7 @@ actor MLXModelLoader {
             return MLXModelHandleImpl(modelContainer: container, modelId: modelId)
         }
 
-        // Determine hub provider — defaultHub property decides, hf: prefix overrides
+        // Determine hub provider. DefaultHub property decides, hf: prefix overrides
         let provider: HubProvider
         let repoId: String
 
@@ -537,7 +537,7 @@ actor MLXModelLoader {
     ) async throws -> MLXLMCommon.ModelContainer {
         let start = ContinuousClock.now
 
-        // Strip prefix for progress tracking — UI components query by the plain repo id
+        // Strip prefix for progress tracking. UI components query by the plain repo id
         let progressKey =
             modelId.hasPrefix("mscope:")
             ? String(modelId.dropFirst(7))
@@ -550,7 +550,7 @@ actor MLXModelLoader {
         switch provider {
         case .modelScope:
             logger.info("Fetching from ModelScope (local-cache hit possible): \(repoId)")
-            // Notify UI that download started — store is thread-safe & synchronous;
+            // Notify UI that download started. Store is thread-safe & synchronous;
             // no MainActor hop on the hot path (see DownloadProgressStore doc).
             OcoreaiDownloadProgress.shared.start(modelId: progressKey)
             let msDownloader = ModelScopeDownloader(token: modelScopeToken)
@@ -560,7 +560,7 @@ actor MLXModelLoader {
                 progressHandler: { [progressKey] progress in
                     // Forward to upstream progressHandler (e.g. MLXDownloadProgress on macOS 27)
                     progressHandler?(progress)
-                    // Synchronous, thread-safe — no Task spawn on the progress tick.
+                    // Synchronous, thread-safe, no Task spawn on the progress tick.
                     OcoreaiDownloadProgress.shared.update(progress, for: progressKey)
                 },
             )
@@ -576,19 +576,19 @@ actor MLXModelLoader {
             }
 
         case .huggingFace:
-            // M7: 就绪模型目录 —— HubCache(cacheDirectory:) pins snapshots to
+            // M7: 就绪模型目录。HubCache(cacheDirectory:) pins snapshots to
             // ModelStore.hubRoot (native blobs/snapshots layout, resume intact).
-            // Same semantics as the #hubDownloader() macro, but addressable —
+            // Same semantics as the #hubDownloader() macro, but addressable,
             // progress polling, discovery, and deletion all key off the same tree.
             // Auth auto-detected by HubClient from HF_TOKEN / keychain.
             // Equivalent to MLXChatExample: factory.loadContainer(from: downloader, ...)
             // VLM: try LLMModelFactory first, fall back to VLMModelFactory on error.
             logger.info("Fetching from HuggingFace (local-cache hit possible): \(repoId)")
-            // Notify UI — thread-safe store, no MainActor hop.
+            // Notify UI. Thread-safe store, no MainActor hop.
             OcoreaiDownloadProgress.shared.start(modelId: progressKey)
 
             // Progress poller watches the SAME directory the downloader writes
-            // into (M8 flat layout, root/<org>/<name>) — watching the old
+            // into (M8 flat layout, root/<org>/<name>). Watching the old
             // HubCache-blobs dir would never grow and trip the 90s stall
             // timeout on a real download.
             var hfPollDir = ModelStore.root
@@ -605,7 +605,7 @@ actor MLXModelLoader {
             let readyDownloader = ReadyHubDownloader(
                 hub: ModelStore.readyHubClient(), flatRoot: ModelStore.root)
             // The download axis on this route is the poller above, so only the weights axis is
-            // handed to the factory — two owners of one axis would book the same wait twice.
+            // handed to the factory. Two owners of one axis would book the same wait twice.
             var hubProgress = LoadProgressHandlers()
             hubProgress.weights = Self.storeWeights(for: repoId)
 
@@ -620,7 +620,7 @@ actor MLXModelLoader {
                 OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
                 return container
             } catch {
-                // LLM load failed — try VLM factory (model may declare a processor config)
+                // LLM load failed. Try VLM factory (model may declare a processor config)
                 logger.info(
                     "LLM load failed for \(repoId), trying VLM: \(error.localizedDescription)")
                 do {
@@ -696,15 +696,15 @@ actor MLXModelLoader {
     }
 }
 
-/// M8: addressable HuggingFace Downloader — same contract as the `#hubDownloader()`
+/// M8: addressable HuggingFace Downloader. Same contract as the `#hubDownloader()`
 /// macro's generated `HubBridge`, but with two upgrades over HubCache:
 ///
-/// 1. **Flat layout** — weights land in `flatRoot/<org>/<name>/` (single root,
+/// 1. **Flat layout**. Weights land in `flatRoot/<org>/<name>/` (single root,
 ///    provider-agnostic identity, omlx `ms_downloader`/`HF_downloader` `target_dir = model_dir / repo_id`).
 ///    swift-huggingface `downloadSnapshot(to:)` (HubClient+Files.swift:1152) is the
 ///    exact API that omlx uses on the Python side (`local_dir=...` in
 ///    omlx/admin/hf_downloader.py:1772), so this is not a local invention.
-/// 2. **Local-first** — before any network is touched, check whether a ready
+/// 2. **Local-first**. Before any network is touched, check whether a ready
 ///    snapshot already exists at `flatRoot/<org>/<name>/` (non-empty `.safetensors`);
 ///    when present and `useLatest == false`, return it directly. Mirrors
 ///    `ModelScopeDownloader.download()` L121-125.
@@ -727,13 +727,13 @@ struct ReadyHubDownloader: MLXLMCommon.Downloader, @unchecked Sendable {
     /// root is configured (legacy HubCache path) or id isn't in `org/name` shape.
     ///
     /// Internal (not private) so `@testable` tests can pin the containment rule on the real
-    /// predicate — the same reasoning as `ChatViewModel`'s internal helpers.
+    /// predicate. The same reasoning as `ChatViewModel`'s internal helpers.
     func flatTarget(for repoId: String) -> URL? {
         guard let root = flatRoot else { return nil }
         // Same rule as the ModelScope lane, from the same home (Core/HubRelativePath.swift):
         // the id is a relative path *under* the hub root, or there is no flat target and the
         // caller falls back to the SDK's own cache. The old form trimmed leading/trailing
-        // slashes and skipped empty parts, but never looked for `..` — and upstream
+        // slashes and skipped empty parts, but never looked for `..`, and upstream
         // `Repo.ID(rawValue:)` (swift-huggingface Repo.swift:200-207) accepts any two
         // slash-split components, so `../../x` sailed through it as namespace="..".
         guard let parts = try? HubRelativePath.components(repoId, field: "model"),
@@ -788,8 +788,8 @@ struct ReadyHubDownloader: MLXLMCommon.Downloader, @unchecked Sendable {
         }
         // Local-first: if every requested glob already matches a non-empty file
         // in the flat destination, skip the network entirely (ModelScopeDownloader
-        // parity — same semantics as firstMissingPattern, L121-125/664).
-        // `useLatest == true` forces refresh semantics — do not short-circuit.
+        // parity. Same semantics as firstMissingPattern, L121-125/664).
+        // `useLatest == true` forces refresh semantics. Do not short-circuit.
         if !useLatest, let target = flatTarget(for: id),
             allPatternsSatisfied(patterns, in: target)
         {
@@ -818,7 +818,7 @@ struct ReadyHubDownloader: MLXLMCommon.Downloader, @unchecked Sendable {
                 }
             )
         }
-        // Legacy HubCache layout (flatRoot unset — tests / pre-M8 callers).
+        // Legacy HubCache layout (flatRoot unset. Tests / pre-M8 callers).
         return try await hub.downloadSnapshot(
             of: repoID,
             revision: rev,
@@ -829,7 +829,7 @@ struct ReadyHubDownloader: MLXLMCommon.Downloader, @unchecked Sendable {
         )
     }
 
-    /// Per-pattern presence check — same contract as
+    /// Per-pattern presence check. Same contract as
     /// `ModelScopeDownloader.firstMissingPattern` / `matchesGlob` (L660-676):
     /// every glob in `patterns` must match at least one regular file directly
     /// under `dir`.
@@ -899,7 +899,7 @@ nonisolated func extractKVQuantizationParams(
 /// land on rows that are still resident.
 ///
 /// Why this exists at all (measured 10-21, probe 27's repro): forking a session onto the
-/// shared prefix is not enough on a checkpoint with sliding-window layers — its rotating
+/// shared prefix is not enough on a checkpoint with sliding-window layers. Its rotating
 /// caches report `maxTrimCount == 0` once the window has turned, so upstream's own
 /// verify-and-downgrade turns the rewind into a rebuild and `cached_tokens` stays 0. The
 /// reserve is what extends that limit (`CacheConfiguration.swift:299` hands
@@ -908,12 +908,12 @@ nonisolated func extractKVQuantizationParams(
 ///
 /// 1024 tokens is the distance an edit may sit from the current turn and still rewind
 /// exactly; past it the engine rebuilds, which is the pre-#700 behaviour, not a failure.
-/// The cost is storage only — it widens no attention window (`KVCacheConfiguration.Rewind`
+/// The cost is storage only. It widens no attention window (`KVCacheConfiguration.Rewind`
 /// is documented as adding rows "beyond each attention window without widening attention").
 ///
 /// The number ships visible (`rewindReserve` on `GET /v1/models/:model/kv-cache`) and
 /// overridable once at boot (`OCOREAI_KV_REWIND_RESERVE_TOKENS`); tuning it per model or
-/// memory pressure stays the open item — a constant nobody can see is not a tunable.
+/// memory pressure stays the open item. A constant nobody can see is not a tunable.
 enum KVCacheRewindReservePolicy {
     static let environmentVariable = "OCOREAI_KV_REWIND_RESERVE_TOKENS"
     static let defaultTokens = 1024
@@ -921,7 +921,7 @@ enum KVCacheRewindReservePolicy {
     /// `tokens > 0` requests the reserve; 0 is an explicit off (`makeKVCacheRewind`
     /// already degrades off to "no reserve requested"). `basis` names where the number
     /// came from and `rawEnvironment` quotes the operator's text whenever the env was in
-    /// play — including when it was refused — so a refused override is never silence.
+    /// play. Including when it was refused, so a refused override is never silence.
     struct Resolution: Sendable, Equatable {
         let tokens: Int
         let basis: String
@@ -945,7 +945,7 @@ enum KVCacheRewindReservePolicy {
             }
         }
         // Negative or unparseable: leave the engine's behaviour at what it was before
-        // the knob existed, and let `basis` say so — a typo must not silently retune.
+        // the knob existed, and let `basis` say so. A typo must not silently retune.
         return Resolution(
             tokens: defaultTokens, basis: "invalid_environment", rawEnvironment: raw)
     }
@@ -1116,7 +1116,7 @@ private func parseSchemeBits(_ scheme: String) -> Int? {
 /// The processor at the pin applies each penalty when it is merely non-zero
 /// (mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:345/:355/:365) and *subtracts* it
 /// from the selected logits (Evaluate.swift:618), so a NEGATIVE presence/frequency penalty
-/// means "encourage what is already there" — a legal OpenAI value in [-2, 2] that some
+/// means "encourage what is already there". A legal OpenAI value in [-2, 2] that some
 /// clients (and one whole family of anti-repetition tuning guides) use on purpose.
 ///
 /// Until 10-18 this file gated all three on `> 0`, which accepted those requests and
@@ -1125,7 +1125,7 @@ private func parseSchemeBits(_ scheme: String) -> Int? {
 /// decision lives here rather than inline in three `if let`s so the sign cannot be dropped
 /// again by editing one of them. Gate: `PenaltySignDeliveryTests` pins the mapping and the
 /// context sizes upstream requires; probe 10 records what a ±2.0 penalty measurably did (or
-/// did not) change on a real model, which is a fact, not proof — a uniform penalty on tokens
+/// did not) change on a real model, which is a fact, not proof. A uniform penalty on tokens
 /// that all appear in the context leaves their relative order, and so greedy output, alone.
 nonisolated func upstreamPenalty(_ value: Double?) -> Float? {
     guard let value, value != 0 else { return nil }
@@ -1140,10 +1140,10 @@ nonisolated func makeGenerateParameters(
     progressHandler: (@Sendable (Int, Int) -> Void)? = nil,
 ) -> MLXLMCommon.GenerateParameters {
     var params = MLXLMCommon.GenerateParameters()
-    // Pass maxTokens through directly — upstream default is nil (no limit).
+    // Pass maxTokens through directly. Upstream default is nil (no limit).
     // Hard-coding 1024 truncated all requests without explicit maxTokens config.
     params.maxTokens = maxTokens
-    // Typed KV cache configuration — avoids legacy kvBits/kvScheme/kvGroupSize
+    // Typed KV cache configuration. Avoids legacy kvBits/kvScheme/kvGroupSize
     // which conflict with upstream KVCacheConfiguration (Evaluate.swift L74-79:
     // "Set either GenerateParameters.kvCache or the legacy KV-cache fields, not both")
     // Upstream applies typed config via KVCachePlan internally.
@@ -1168,7 +1168,7 @@ nonisolated func makeGenerateParameters(
         clampedTemperature: sampling.temperature.map(Float.init)
     )
     resolved.apply(to: &params)
-    // minP — upstream doesn't handle it, same explicit-zero-wins semantics.
+    // minP. Upstream doesn't handle it, same explicit-zero-wins semantics.
     if params.temperature != 0, let minP = sampling.minP, minP > 0 {
         params.minP = Float(minP)
     }
@@ -1225,7 +1225,7 @@ nonisolated func makeGenerateParameters(
     if let s = sampling.seed {
         params.seed = UInt64(s)
     }
-    // Prefill parameters — structured PrefillConfig → upstream PrefillParameters
+    // Prefill parameters. Structured PrefillConfig → upstream PrefillParameters
     // Upstream: GenerateParameters.prefill (Evaluate.swift L58, PrefillParameters.swift)
     // stepSize: ceiling per forward; chunking: division strategy
     params.prefill.progress = { processed, total in
@@ -1234,13 +1234,13 @@ nonisolated func makeGenerateParameters(
     if let stepSize = sampling.prefill.stepSize {
         params.prefill.stepSize = stepSize
     }
-    // Map chunking strategy — string match with upstream Chunking enum (balanced/remainder/unchunked)
+    // Map chunking strategy. String match with upstream Chunking enum (balanced/remainder/unchunked)
     switch sampling.prefill.chunking.rawValue {
     case "remainder": params.prefill.chunking = .remainder
     case "unchunked": params.prefill.chunking = .unchunked
     default: break  // .balanced is both our and upstream default
     }
-    // Max KV cache size — enables RotatingKVCache when set
+    // Max KV cache size. Enables RotatingKVCache when set
     if let maxKVSize = sampling.maxKVSize {
         params.maxKVSize = maxKVSize
     }
@@ -1281,7 +1281,7 @@ enum MLXLoadError: LocalizedError {
 actor EmbeddingService {
     static let logger = Logger(label: "ocoreai.embedding")
 
-    /// Lazy singleton — loads model on first `embed(_:)` call.
+    /// Lazy singleton. Loads model on first `embed(_:)` call.
     private var container: EmbedderModelContainer?
 
     /// Circuit breaker: first total-load failure time (all candidates failed).
@@ -1292,7 +1292,7 @@ actor EmbeddingService {
     /// hours while huggingface.co was unreachable, burning ~6s of network
     /// wait per message + unbounded log spam). "Natively local" means a
     /// transient network failure must degrade to fail-fast, never to retry
-    /// storms. Cooldown auto-probes again after the window — self-healing.
+    /// storms. Cooldown auto-probes again after the window. Self-healing.
     private var loadFailedAt: Date?
 
     /// Retry window after a total load failure. 5 min: long enough to damp a
@@ -1327,7 +1327,7 @@ actor EmbeddingService {
     }
 
     /// Batch-embed with honest token accounting (for the OpenAI-compatible
-    /// `/v1/embeddings` wire `usage` field — real tokenizer counts from the
+    /// `/v1/embeddings` wire `usage` field. Real tokenizer counts from the
     /// embedding tokenizer, never a chat-model echo).
     func embedTextsDetailed(
         _ texts: [String]
@@ -1380,7 +1380,7 @@ actor EmbeddingService {
     // Cosine similarity is deliberately NOT a member of this service. A `Data`-typed version here
     // walked the `Data` struct's own bytes instead of its elements (`withUnsafeBytes(of:)`, not
     // `a.withUnsafeBytes`), so an isolated repro scored identical and orthogonal vectors alike at
-    // 4.000001 and returned NaN for a 1024-dim input — kilobytes read past a 16-byte struct. No
+    // 4.000001 and returned NaN for a 1024-dim input. Kilobytes read past a 16-byte struct. No
     // caller existed in `Sources/` or `Tests/`; the ranking that ships has its home in `SemanticSearch`.
 
     // MARK: - Model loading
@@ -1442,7 +1442,7 @@ actor EmbeddingService {
             }
         }
 
-        // All candidates failed — open the breaker until the cooldown passes.
+        // All candidates failed. Open the breaker until the cooldown passes.
         loadFailedAt = Date()
         throw EmbeddingError.modelLoadFailed(
             "All embedding model candidates failed to load"
@@ -1452,11 +1452,11 @@ actor EmbeddingService {
     // MARK: - Errors
 
     /// Canonical embedder identity reported on the wire (`/v1/embeddings`
-    /// response.model) — the FIRST candidate of `configs`, i.e. what
+    /// response.model). The FIRST candidate of `configs`, i.e. what
     /// actually runs when HF/cache is healthy.
     static let canonicalModelId = "mlx-community/LFM2.5-Embedding-350M-4bit"
 
-    /// The canonical embedder's vector width — the one home for the number the
+    /// The canonical embedder's vector width. The one home for the number the
     /// SQLite `embed_vector` BLOB stores and the number `/v1/embeddings` prices a
     /// requested `dimensions` against (the embedder cannot truncate: the spec
     /// supports `dimensions` only on text-embedding-3+, and cutting the measured
@@ -1485,7 +1485,7 @@ actor EmbeddingService {
 
     /// The misrouting refusal for the other direction, asked at the `/v1/embeddings` seat.
     /// A request that NAMES a model this server does not serve as an embedder used to be
-    /// answered 200 with the canonical embedder's vectors — embedding-space coordinates for a
+    /// answered 200 with the canonical embedder's vectors. Embedding-space coordinates for a
     /// request naming a different model, with only the response's `model` field as the
     /// evidence, and any caller that persists vectors by request-name would mix two spaces
     /// blind. An absent `model` means no preference (the canonical run); a named one is
@@ -1520,7 +1520,7 @@ actor EmbeddingService {
     /// the revision over the network even when every blob is on disk
     /// (live-observed: ~60s of HF timeouts before serving from cache on a
     /// GFW-pattern partial outage). Rewriting the id to `.directory()`
-    /// skips the resolution round-trip entirely — the snapshot dir IS the
+    /// skips the resolution round-trip entirely. The snapshot dir IS the
     /// content (content-addressed by revision sha).
     static func cachedSnapshotDir(for config: ModelConfiguration) -> URL? {
         guard let repoDir = hubRepoDir(for: config.name) else { return nil }
@@ -1546,7 +1546,7 @@ actor EmbeddingService {
 
     /// Canonical embedder's fully-materialized local snapshot dir, or nil
     /// when nothing complete is cached. Single source for `isLocallyCached`
-    /// and the exposed `contextLength` — both read the SAME config blob, so
+    /// and the exposed `contextLength`. Both read the SAME config blob, so
     /// "ready" and the reported capacity can never disagree (unknown ≠
     /// unreported when the file exists on disk).
     static var canonicalSnapshotDir: URL? {
@@ -1566,14 +1566,14 @@ actor EmbeddingService {
 
     /// Served context window of the canonical embedder, parsed from the same
     /// snapshot config that gates `isLocallyCached` (LFM2.5: 128000). nil
-    /// only when no complete snapshot exists — never a fabricated default.
+    /// only when no complete snapshot exists. Never a fabricated default.
     static var canonicalContextLength: Int? {
         guard let dir = canonicalSnapshotDir else { return nil }
         return ModelStore.contextLength(weightsDir: dir)
     }
 
     /// True when the canonical embedder is resolvable from the local hub
-    /// cache WITHOUT any network — the honest `state` source for its
+    /// cache WITHOUT any network. The honest `state` source for its
     /// `/v1/models` entry ("ready" vs "download_required"). Symlink
     /// resolution = blob actually downloaded (incomplete files never
     /// produce a resolved pointer).
@@ -1589,7 +1589,7 @@ actor EmbeddingService {
         }
         let config = repoDir.appending(path: "snapshots/\(revision)/config.json")
         // HF snapshot pointers are symlinks RELATIVE to the snapshot dir
-        // (e.g. `../../blobs/<sha>`) — resolve against the symlink's parent;
+        // (e.g. `../../blobs/<sha>`). Resolve against the symlink's parent;
         // a dangling link (blob deleted/incomplete) resolves to nothing.
         if (try? fm.destinationOfSymbolicLink(atPath: config.path)) != nil {
             let resolved = config.deletingLastPathComponent()

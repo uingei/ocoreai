@@ -5,7 +5,7 @@
 /// A minimal, dependency-free LCS line diff: turns `edit_file`
 /// old/new strings (and created/deleted files) into line-level
 /// additions/removals the SwiftUI layer renders as +/- rows.
-/// Capped on purpose — a review surface for model edits, not git.
+/// Capped on purpose. A review surface for model edits, not git.
 public struct FileDiff: Codable, Hashable, Sendable {
     public enum Line: Codable, Hashable, Sendable {
         case context(String)

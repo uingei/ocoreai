@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// WebSearchTool — 获取信息 / web search,一等工具。
+/// WebSearchTool。获取信息 / web search,一等工具。
 ///
 /// 对齐基准: codex 把 `web_search` 做成一等工具(codex-rs/tools/src/tool_spec.rs
 /// `ToolSpec::WebSearch`,Responses API server-side 搜索,provider 代其检索)。
@@ -9,9 +9,9 @@
 /// `tools: [{"type":"web_search"}]`(协议与已实跑验证的 ollama-search.py 逐字段一致)。
 ///
 /// 后端配置(env,运行期可注入便于测试):
-///   OCRE_SEARCH_BASE_URL — 默认 `http://127.0.0.1:11434/v1`(可省略 /v1,自动补)
-///   OCRE_SEARCH_MODEL    — 默认 `qwen3.8:27b-mtp`
-///   OCRE_SEARCH_TIMEOUT  — 默认 180 (秒)
+///   OCRE_SEARCH_BASE_URL。默认 `http://127.0.0.1:11434/v1`(可省略 /v1,自动补)
+///   OCRE_SEARCH_MODEL。默认 `qwen3.8:27b-mtp`
+///   OCRE_SEARCH_TIMEOUT。默认 180 (秒)
 ///
 /// 失败诚实:后端不可达/协议错误 → 返回 `error: ...` 文本(不造假、不吞),
 /// 让模型自行降级(如改用 `exec_command curl` 或如实告知用户)。
@@ -28,7 +28,7 @@ struct WebSearchResult: Sendable, Equatable {
     /// Non-nil when the configured backend model was missing and the client
     /// self-healed by substituting an installed one. Disclosed in `report`
     /// so the model (and the audit trail) know the answer came from a
-    /// different model than voted for — never silent.
+    /// different model than voted for. Never silent.
     var modelSubstituted: String? = nil
 
     struct WebSearchUsage: Sendable, Equatable {
@@ -140,7 +140,7 @@ enum WebSearchRequest {
 // MARK: - Model Discovery (self-heal on model-not-found)
 
 enum WebSearchModelDiscovery {
-    /// Parse ollama `/api/tags` into model id list. Pure — offline-testable.
+    /// Parse ollama `/api/tags` into model id list. Pure. Offline-testable.
     /// ollama shape: `{"models":[{"name":"...","model":"...",...}, ...]}`.
     static func parseTags(_ data: Data) -> [String] {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -166,7 +166,7 @@ enum WebSearchModelDiscovery {
 
     /// Fallback attempt order after `preferred` 404s: every other installed
     /// model, sorted (deterministic), capped by `max` so a machine with many
-    /// models can't burn unbounded time. NOT capability-filtered here — the
+    /// models can't burn unbounded time. NOT capability-filtered here. The
     /// caller probes each one for real (acceptance = non-empty answer).
     static func candidates(preferred: String, installed: [String], max: Int = 3) -> [String] {
         let rest = installed.filter { $0 != preferred }.sorted()
@@ -175,7 +175,7 @@ enum WebSearchModelDiscovery {
     }
 
     /// Honest substitution disclosure for the LLM-facing report + audit.
-    /// Pure — testable. Keeps the no-attempts wording byte-identical to the
+    /// Pure. Testable. Keeps the no-attempts wording byte-identical to the
     /// single-shot contract; appends the failed-attempt trail when present.
     static func disclosure(
         original: String, used: String, failedAttempts: [(model: String, why: String)]
@@ -382,12 +382,12 @@ enum WebSearchClient {
         if let http = response as? HTTPURLResponse, !(200 ..< 300).contains(http.statusCode) {
             // Self-heal on "model not found": the packaged default model id is
             // host-dependent (developer tag ≠ user tag). Ask the backend what IS
-            // installed, then probe candidates in deterministic order — a
+            // installed, then probe candidates in deterministic order. A
             // candidate only counts when it returns HTTP 2xx AND a non-empty
             // parsed answer (200-with-empty is "installed but can't web-search",
             // proven live: glm-4.7-flash accepts /v1/responses+web_search and
             // answers nothing). Every attempt + failure reason is disclosed in
-            // the report — never silent.
+            // the report. Never silent.
             if http.statusCode == 404 {
                 let installed = await WebSearchModelDiscovery.listModels(baseUrl: base)
                 var attempts: [(model: String, why: String)] = []
@@ -447,7 +447,7 @@ enum WebSearchClient {
         do {
             let parsed = try WebSearchParser.parse(data)
             // Acceptance gate: a 200 that produced no answer text means the
-            // model accepted web_search but didn't actually search — not a
+            // model accepted web_search but didn't actually search, not a
             // usable fallback for THIS query. Fail the candidate honestly.
             guard !parsed.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 return .failed("no answer text")
@@ -482,7 +482,7 @@ enum WebSearchClient {
 // MARK: - Tool 注册
 
 extension WebSearchClient {
-    /// `web_search` ToolEntry——信息获取一等工具(对齐 codex ToolSpec::WebSearch)。
+    /// `web_search` ToolEntry。信息获取一等工具(对齐 codex ToolSpec::WebSearch)。
     static func toolEntry() -> ToolEntry {
         struct WebSearchArgs: Codable {
             let query: String

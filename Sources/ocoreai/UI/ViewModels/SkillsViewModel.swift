@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Skills ViewModel — bridges SkillRegistry with SwiftUI
+/// Skills ViewModel. Bridges SkillRegistry with SwiftUI
 
 import Foundation
 import Observation

@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// DownloadSemaphore.swift — Global download concurrency limiter.
+// DownloadSemaphore.swift. Global download concurrency limiter.
 //
 // Shared between UI path (ModelManager) and API path (SSE modelDownloadHandler).
 // Prevents both:
-//   1. Too many parallel downloads saturating disk I/O and network bandwidth
-//   2. Duplicate downloads of the same model from different callers simultaneously
+//  1. Too many parallel downloads saturating disk I/O and network bandwidth
+//  2. Duplicate downloads of the same model from different callers simultaneously
 //
-// Deliberately NOT an Actor — Swift 6 `defer` cannot `await`, so releasing in
+// Deliberately NOT an Actor. Swift 6 `defer` cannot `await`, so releasing in
 // a `defer` block on `throw`/`return` would require fire-and-forget `Task`
 // (race condition risk). Uses NSLock for synchronous, safe state mutation.
 
@@ -15,7 +15,7 @@ import Foundation
 
 /// Rate-limits download operations across both UI and API paths.
 ///
-/// `@unchecked Sendable` — all mutable state (`_inFlight`, `_activeDownloads`)
+/// `@unchecked Sendable`. All mutable state (`_inFlight`, `_activeDownloads`)
 /// is protected by `_lock`. No concurrent access is possible without the lock.
 final class DownloadSemaphore: @unchecked Sendable {
     static let shared = DownloadSemaphore()
@@ -36,7 +36,7 @@ final class DownloadSemaphore: @unchecked Sendable {
     /// Result of a try-acquire attempt.
     enum Result: Sendable {
         case ok
-        /// Slot acquired — caller must call `release(for:)` when done
+        /// Slot acquired. Caller must call `release(for:)` when done
         case duplicate
         /// Same model already downloading
         case busy/// All slots full
@@ -90,7 +90,7 @@ final class DownloadSemaphore: @unchecked Sendable {
         }
     }
 
-    /// Force-reset all state — for testing only.
+    /// Force-reset all state, for testing only.
     /// Atomically clears inFlight count and active set under the lock so there
     /// is no race window for parallel tests.
     #if DEBUG

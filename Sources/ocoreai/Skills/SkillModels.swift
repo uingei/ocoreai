@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SkillModels.swift — Skill data types for the skill system
+/// SkillModels.swift. Skill data types for the skill system
 ///
 /// Represents a SKILL.md file: YAML frontmatter metadata + markdown body content.
 /// Supports dependency tracking and built-in skill enumeration.
 
 import Foundation
 
-/// Skill loading status — tracks lifecycle of each registered skill.
+/// Skill loading status. Tracks lifecycle of each registered skill.
 enum SkillStatus: String, Codable {
     case loaded
     case failed
@@ -24,7 +24,7 @@ enum SkillError: Error {
     case invalidFrontmatter(path: String)
 }
 
-/// Built-in skills shipped with ocoreai — always available regardless of disk skills.
+/// Built-in skills shipped with ocoreai. Always available regardless of disk skills.
 enum BuiltInSkill: String, CaseIterable {
     case terminal
     case file
@@ -89,7 +89,7 @@ struct SkillMetadata: Codable {
     }
 }
 
-/// A skill loaded from a SKILL.md file — metadata + markdown body content.
+/// A skill loaded from a SKILL.md file. Metadata + markdown body content.
 struct Skill {
     let metadata: SkillMetadata
     let body: String
@@ -118,7 +118,7 @@ struct Skill {
         "---\n" + metadata.serialize() + "---\n\n" + body
     }
 
-    /// Hash for change detection — covers metadata + body
+    /// Hash for change detection. Covers metadata + body
     var contentHash: String {
         let combined = name + category + body
         var hasher = Hasher()

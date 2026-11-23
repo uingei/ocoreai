@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// desktop control axis — 「Computer = AI 的可操作环境」的 action 半(input 轴)。
+/// desktop control axis。「Computer = AI 的可操作环境」的 action 半(input 轴)。
 ///
 /// 与感知轴(view_screen / observe_state / view_image / generate_video)对称:
 ///   感知 = 观察(读半): ScreenCaptureKit + Vision(既有);
 ///   action = 驱动(写半): CGEvent 键鼠注入(本文件)。
 /// 本文件落地前, action 面全库为零(实证: CGEvent / CGWarpMouseCursorPosition /
-/// AXUIElement / NSPasteboard 非 UI 执行面 = 0)—— computer use 只读屏、不能动,
+/// AXUIElement / NSPasteboard 非 UI 执行面 = 0)。computer use 只读屏、不能动,
 /// 是主轴(Apple 软硬件)下最明显的架构债。
 ///
 /// 6 原语(指针 + 键盘 + 滚轮全覆盖):
@@ -22,14 +22,14 @@
 ///   3. headless 通道 → 既有 securityGate fail-closed 拒绝(无 GUI 裁决者)
 ///
 /// 基线: codex `computer_use` 一等轴(`codex-rs/features/src/lib.rs:1468`,
-/// Stage::Stable, default_enabled: true)—— ocoreai 同向: 默认可达, 每次驱动用户裁决。
+/// Stage::Stable, default_enabled: true)。ocoreai 同向: 默认可达, 每次驱动用户裁决。
 ///
 /// 平台: Pure 段全平台(纯计算, 离线可测); Driver/Clients 段 `#if os(macOS)`
-/// 门控 —— CGEvent/虚拟键码是 macOS 语义(与感知轴 ScreenCaptureKit 门控一致,
+/// 门控。CGEvent/虚拟键码是 macOS 语义(与感知轴 ScreenCaptureKit 门控一致,
 /// macOS 14+ 目标系统覆盖 macOS 15/26/27 全档)。
 import Foundation
 
-// MARK: - Pure(离线可测 — 不发 CGEvent、不查系统态, 全平台)
+// MARK: - Pure(离线可测。不发 CGEvent、不查系统态, 全平台)
 
 enum DesktopControl {
     enum MouseButton: String, Codable, CaseIterable, Sendable {
@@ -137,7 +137,7 @@ enum DesktopControl {
 import AppKit
 import CoreGraphics
 
-// MARK: - Driver(真 CGEvent — macOS-only; 测试只调 Pure, 不触系统态)
+// MARK: - Driver(真 CGEvent. MacOS-only; 测试只调 Pure, 不触系统态)
 
 enum DesktopControlDriver {
     static let maxScrollLines = 20
@@ -194,7 +194,7 @@ enum DesktopControlDriver {
     }
 
     static func typeText(_ s: String) {
-        // UTF-16 逐 unit 直传 — 任意 Unicode(含 CJK)无需键码表。
+        // UTF-16 逐 unit 直传。任意 Unicode(含 CJK)无需键码表。
         // 非 ASCII 走 keyboardSetUnicodeString(C 自由函数, CJK 可靠)。
         for unit in s.utf16 {
             let vk: CGKeyCode = (unit == 32) ? 49 : 0
@@ -289,13 +289,13 @@ enum DesktopControlDriver {
         e.post(tap: .cghidEventTap)
     }
 
-    /// CGEvent post 要求主线程上下文 — 从 async 调用的唯一收口.
+    /// CGEvent post 要求主线程上下文。从 async 调用的唯一收口.
     static func runOnMain(_ body: @escaping @MainActor () -> Void) async {
         await MainActor.run { body() }
     }
 }
 
-// MARK: - Clients(工具面 — 6 原语, 全 destructive, 逐次审批)
+// MARK: - Clients(工具面。6 原语, 全 destructive, 逐次审批)
 
 enum MoveMouseClient {
     static let toolName = "move_mouse"
@@ -459,9 +459,9 @@ enum TypeTextClient {
 enum KeyPressClient {
     static let toolName = "key_press"
     struct Args: Codable, Sendable {
-        /// 键名(见 DesktopControl.keyCodes 面) — "return" / "escape" / "a" / "f5" 等。
+        /// 键名(见 DesktopControl.keyCodes 面). "return" / "escape" / "a" / "f5" 等。
         let key: String
-        /// 修饰键名数组 — shift / control / option / command(别名可, 内部归一)。
+        /// 修饰键名数组。shift / control / option / command(别名可, 内部归一)。
         let modifiers: [String]?
     }
 

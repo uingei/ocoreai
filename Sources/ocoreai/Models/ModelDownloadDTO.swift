@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ModelDownloadDTO.swift â€” DTO types for model download API
+/// ModelDownloadDTO.swift â€" DTO types for model download API
 ///
 /// Request/response types for ``POST /v1/models/download`` endpoint.
 
@@ -38,8 +38,8 @@ struct DownloadModelRequest: Codable {
     /// `model` is the only key the wire requires; the rest carry defaults.
     ///
     /// Measured 10-20 (probe `scripts/probes/20-download-path-traversal.sh`, before the fix):
-    /// every body that omitted `useLatest` — which is every body, since it is a refresh override
-    /// — answered `400 Coding key \`useLatest\` not found.`, so the endpoint never reached
+    /// every body that omitted `useLatest`, which is every body, since it is a refresh override
+    /// Answered `400 Coding key \`useLatest\` not found.`, so the endpoint never reached
     /// `validate()` and never streamed. `useLatest: Bool = false` in `init` is Swift-side
     /// convenience; the synthesized decoder still asks for the key (Handlers/AGENTS.md § Wire DTOs: an
     /// optional field must be Optional in the DTO or hand-decoded with `decodeIfPresent`).
@@ -61,7 +61,7 @@ struct DownloadModelRequest: Codable {
             throw AppError.invalidRequest("Provider must be hf or mscope, got \(p)")
         }
         // Both values below end up inside a filesystem path or a URL path, so both are checked
-        // as relative paths here — before the handler opens the SSE stream. A client that names
+        // as relative paths here. Before the handler opens the SSE stream. A client that names
         // `../../anything` gets a 400 naming the field, not a 200 stream of error events.
         // The rule itself lives in Core/HubRelativePath.swift (one home).
         do {

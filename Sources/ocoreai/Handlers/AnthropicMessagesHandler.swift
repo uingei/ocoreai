@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AnthropicMessagesHandler.swift — Anthropic Messages API handler
+/// AnthropicMessagesHandler.swift. Anthropic Messages API handler
 ///
 /// Handles ``POST /v1/messages`` by converting Anthropic format → internal
 /// ``ChatCompletionRequest`` → inference pipeline → Anthropic response envelope.
@@ -54,7 +54,7 @@ func anthropicMessagesHandler(
     logger: Logger,
     toolsSurfaceEnforced: Bool = false,
 ) async throws -> Response {
-    /// Numeric domain gate, first line — the Anthropic sibling of the one in
+    /// Numeric domain gate, first line. The Anthropic sibling of the one in
     /// ``chatCompletionsHandler``. Before this, a negative `max_tokens` on this wire reached
     /// the scheduler and trapped the process (measured 10-17); a spec-invalid value now comes
     /// back 400 naming the field and Anthropic's own range (`temperature` is [0, 1] here).
@@ -90,7 +90,7 @@ func anthropicMessagesHandler(
     // The pairing walk runs on the RAW request blocks, before any conversion: by the
     // time `toInternalMessages` has run, an unattachable `tool_result` has already
     // folded to text and the break is invisible to a scanner. The fold stays for what
-    // it renders honestly; what it must not do is spare the caller a named refusal —
+    // it renders honestly; what it must not do is spare the caller a named refusal,
     // sglang's walker (`serving_chat.py:300-330`) rejects this history on the OpenAI
     // face too, and a silently reinterpreted tool loop is the same 200-over-lost-
     // content shape refused 11-16. Cheapest check here: DTO only, before any guard,
@@ -117,13 +117,13 @@ func anthropicMessagesHandler(
             value: pair.toolCallID)
     }
 
-    // Capture content guard early — used for both input and output safety
+    // Capture content guard early. Used for both input and output safety
     let streamGuard: ContentGuard? = await OcoreaiEngine.shared.activeContentGuard
 
     // Safety check: filter harmful input before scheduling
     if let contentGuard = streamGuard {
         // One reader of "what text did the client send", shared with the prompt the model
-        // gets (`AnthropicMessage.plainText`) — the guard and the prompt must not disagree.
+        // gets (`AnthropicMessage.plainText`). The guard and the prompt must not disagree.
         let messageText: String = request.messages.first?.plainText ?? ""
         if !messageText.isEmpty {
             let result = await contentGuard.checkInput(messageText)
@@ -135,7 +135,7 @@ func anthropicMessagesHandler(
         }
     }
 
-    // Prompt injection detection — uses precompiled regex from AuthConfig
+    // Prompt injection detection. Uses precompiled regex from AuthConfig
     if AuthConfig.default.promptInjectionEnabled {
         // Convert Anthropic messages to internal Message for detection
         let chatReq = try toChatCompletionRequest(request)
@@ -154,7 +154,7 @@ func anthropicMessagesHandler(
 
     /// `tool_choice` with no `tools` is refused by the same rule the OpenAI face applies
     /// (`ToolCallWire.toolChoiceWithoutToolsError`; vllm
-    /// `chat_completion/protocol.py:976-981`) — checked on the mapped request, so the two
+    /// `chat_completion/protocol.py:976-981`). Checked on the mapped request, so the two
     /// faces cannot drift into different answers for the same contradiction.
     if let error = ToolCallWire.toolChoiceWithoutToolsError(
         toolChoice: chatRequest.toolChoice, toolCount: chatRequest.tools?.count,
@@ -216,13 +216,13 @@ func anthropicMessagesHandler(
     let assembledMessages = try await buildAnthropicMessageList(
         request: request, messageBuilder: messageBuilder)
 
-    /// Steering for this conversation enters at the head of the turn — the same seam and
+    /// Steering for this conversation enters at the head of the turn. The same seam and
     /// the same rule as `ChatHandler`, because `/v1/steer` promises that a steer no live
     /// turn drained "survives and merges into the NEXT request" carrying the session, and
     /// this face names its session (`metadata.session_id`). It had no drain site.
     /// Measured 10-19: `/v1/steer {"session_id":"r21sess2","text":"…codeword is FINCH."}`
     /// then `/v1/messages` on that session answered "Please provide more context"
-    /// (19 input tokens — the steer was never read), while the identical sequence on
+    /// (19 input tokens. The steer was never read), while the identical sequence on
     /// `/v1/chat/completions` answered "The secret codeword is ORIOLE."
     let steeringKey: String? = chatRequest.sessionID
     var pendingSteers: [SteerMessage] = []
@@ -237,10 +237,10 @@ func anthropicMessagesHandler(
         }
     }
 
-    /// Input token count (metrics) — tokenize or CJK-heuristic (chat Phase 3).
+    /// Input token count (metrics). Tokenize or CJK-heuristic (chat Phase 3).
     /// On the MLX axis the tokenizer registry is empty (real tokenizer lives in
     /// the engine), so we gracefully fall back to a character-based estimate
-    /// instead of blocking the request — same discipline as Chat/Completions.
+    /// instead of blocking the request. Same discipline as Chat/Completions.
     var inputTokenCount: Int
     do {
         let tok = try await handle.tokenize(messages: fullMessages)
@@ -278,12 +278,12 @@ func anthropicMessagesHandler(
     let sampling = rawSampling.normalized()
 
     // ═══════════════════════════════════════════════════════
-    // Phase 3b: Tool surface — assembled from the same helpers as the OpenAI face
+    // Phase 3b: Tool surface. Assembled from the same helpers as the OpenAI face
     // (`ChatHandler` Phase 3), so "this request declared tools" means one thing on
     // both wires. Before this, `tools[]` on `/v1/messages` reached the model only as
     // system-prompt text (no `declaredToolNames`, no specs, no grammar): the engine's
     // tool path never ran, so a call the model made had nothing to be recognised by and
-    // nothing to be constrained by — and the `.toolCall` event was dropped at both consuming sites.
+    // nothing to be constrained by, and the `.toolCall` event was dropped at both consuming sites.
     // ═══════════════════════════════════════════════════════
     let declaredTools: [ToolDef]? = chatRequest.tools
     /// Anthropic's demand, translated once (`any`→required, `tool`→function:<name>).
@@ -294,7 +294,7 @@ func anthropicMessagesHandler(
         if toolChoice == "none" { return [] }
         return declaredTools?.map { $0.function.name }
     }()
-    /// Forcing follows the DEMAND, never the presence of a declaration — one rule for
+    /// Forcing follows the DEMAND, never the presence of a declaration. One rule for
     /// every face of the product (`shouldConstrainOutput`, Models/OpenAIModels.swift).
     let useGuidedGeneration = shouldConstrainOutput(
         declaredTools: declaredTools,
@@ -323,12 +323,12 @@ func anthropicMessagesHandler(
         useGuidedGeneration: useGuidedGeneration,
         grammarSchema: grammarSchema,
         // Native calls run the ChatSession toolDispatch loop, not the one-shot guided
-        // path — same routing decision as the OpenAI face, keyed on the declaration.
+        // path. Same routing decision as the OpenAI face, keyed on the declaration.
         hasNativeTools: declaredTools?.isEmpty == false,
         // `thinking` opens the reasoning channel, which is the one thing that field
         // exists to do. This is the line that connects it: `toChatCompletionRequest`
         // already resolved `thinking.type` to a three-state preference, and until 10-19
-        // nothing here read it — so `/v1/messages` accepted `thinking` and the engine ran
+        // nothing here read it, so `/v1/messages` accepted `thinking` and the engine ran
         // the request without thinking (38 output tokens against 335 for the same model
         // and prompt with `/v1/chat/completions` `reasoning:true`).
         enableReasoning: chatRequest.reasoning,
@@ -338,7 +338,7 @@ func anthropicMessagesHandler(
         // The caller's own parameter schemas, so a tool this server does not register is
         // still declarable (and its call still deliverable to the caller).
         declaredToolSpecsJSON: openAIToolSpecsJSON(from: declaredTools),
-        // Wire HTTP consumer — `.interactive` cannot be asked of an external
+        // Wire HTTP consumer, `.interactive` cannot be asked of an external
         // process: gate `.ask` verdicts fail-closed instead of parking on the
         // broker (codex `codex-rs/exec/src/lib.rs:566` headless → Never).
         headless: true
@@ -413,18 +413,18 @@ func anthropicMessagesHandler(
 /// `tools[]` deliberately does NOT appear here. It travels as a structured surface
 /// (`InferenceOptions.declaredToolNames`/`declaredToolSpecsJSON` → `resolveToolSurface`
 /// → the chat template's tool block), which is the only place the engine reads tools
-/// from — the same route that makes a tool-declaring `/v1/chat/completions` turn call
+/// from. The same route that makes a tool-declaring `/v1/chat/completions` turn call
 /// at all. Rendering them into system text as well was a second, schema-less copy of
 /// the same declaration: the model saw the tool name twice and its parameters never.
 ///
-/// The same assembly, both entrances: this is `MessageBuilder.buildMessages` — the one
-/// the OpenAI face (`ChatHandler` Phase 2) and the GUI Fast Path run — fed the Anthropic
+/// The same assembly, both entrances: this is `MessageBuilder.buildMessages`. The one
+/// the OpenAI face (`ChatHandler` Phase 2) and the GUI Fast Path run. Fed the Anthropic
 /// message list, so what the model learns about this product does not depend on which
 /// wire the client speaks.
 ///
 /// Until now this face built its own list (client messages + the `system` field) and never
-/// called the shared builder, so the agent context the shared builder injects — the skills
-/// catalogue, the workspace section, recalled memory, the reasoning scaffold — was absent
+/// called the shared builder, so the agent context the shared builder injects. The skills
+/// catalogue, the workspace section, recalled memory, the reasoning scaffold. Was absent
 /// here. Measured 10-19, same host, same model, temperature 0:
 ///   • identical one-turn request → 774 `prompt_tokens` on `/v1/chat/completions`,
 ///     24 `input_tokens` on `/v1/messages`;
@@ -438,14 +438,14 @@ func anthropicMessagesHandler(
 ///
 /// `internal`, not `private`: `POST /v1/messages/count_tokens` counts *this* list, so the
 /// pre-flight answer is the message half of what `/v1/messages` feeds the model, from one
-/// builder — one truth for both routes.
+/// builder. One truth for both routes.
 /// The Anthropic half of that assembly on its own: every turn mapped by
 /// ``AnthropicMessage/toInternalMessages()``, with no agent context added.
 ///
 /// Split out because `MessageBuilder` is an actor over three more actors, and the block
 /// mapping (carried / refused by name / mapped onto the tool channel) is an exact-value
 /// contract that must be testable without an engine. The `system` field is deliberately
-/// absent here — it is the caller's system prompt, which the shared assembly composes with
+/// absent here. It is the caller's system prompt, which the shared assembly composes with
 /// the agent's own (user instructions first, then skills/workspace/memory), exactly as it
 /// does for `userSystemPrompt` on `/v1/chat/completions`.
 func anthropicConversationMessages(request: AnthropicMessageRequest) throws -> [Message] {
@@ -491,7 +491,7 @@ private func nonStreamAnthropicResponse(
     let requestId = "msg-\(UUID().uuidString.prefix(8))"
     let startTime = ContinuousClock.now
 
-    /// Baseline for the claim/audit cross-check at this face's finalize site — the same rule
+    /// Baseline for the claim/audit cross-check at this face's finalize site. The same rule
     /// as `ChatHandler`, one home for the verdict (`Models/ClaimVsAudit.swift`).
     let mutationBaseline = await ToolMutationLedger.shared.snapshot()
     /// The failure half of the same record: only `ToolAttemptLedger` knows a handler was
@@ -522,20 +522,20 @@ private func nonStreamAnthropicResponse(
     var finishReason = "end_turn"
     /// The engine's reason in OpenAI's vocabulary, kept beside ``finishReason`` so the
     /// terminal word is resolved by the one rule (``ToolCallWire.resolveFinishReason``)
-    /// before it is translated — the resolution must not be a per-face folk variant.
+    /// before it is translated. The resolution must not be a per-face folk variant.
     var openAIFinishReason = "stop"
     var detectedToolCalls: [ToolCall]? = nil
     /// Measured outcome of every tool dispatched this turn, published on the response.
     var toolResults: [ToolResultMeta] = []
     /// The engine's own measurement of the prompt it prefilled, when it reports one.
     /// Preferred over the handler's tokenize-ahead estimate for `usage.input_tokens`,
-    /// because that is what `ChatHandler` reports as `prompt_tokens` — two faces of one
+    /// because that is what `ChatHandler` reports as `prompt_tokens`. Two faces of one
     /// engine must not hand a client two different numbers for the same prompt (measured
     /// 10-19: 774 measured against 769 estimated, on identical assembled messages).
     var observedPromptTokens: Int? = nil
     /// Prompt tokens the engine's KV cache kept from a previous turn
     /// (`GenerateCompletionInfo.cachedPromptTokenCount`). `input_tokens` means the whole
-    /// rendered prompt, so this is added back rather than dropped — see
+    /// rendered prompt, so this is added back rather than dropped. See
     /// ``PromptTokenAccounting``.
     var observedCachedPromptTokens: Int? = nil
 
@@ -561,7 +561,7 @@ private func nonStreamAnthropicResponse(
                 observedCachedPromptTokens = doneCachedPromptTokenCount
                 finishReason = openAIToAnthropicStopReason(openaiReason)
                 openAIFinishReason = openaiReason
-                // Authoritative token count from the engine — overwrite the
+                // Authoritative token count from the engine. Overwrite the
                 // per-event estimate (fallback when the engine reports none).
                 if let doneTokenCount {
                     totalOutputTokens = doneTokenCount
@@ -573,7 +573,7 @@ private func nonStreamAnthropicResponse(
                 logger.error("Generation error: \(errorMsg)")
             case .toolCall(let tc):
                 // The engine already recognised this call. Collect every one (a turn may
-                // emit several) — dropping them here is what made the Anthropic face
+                // emit several). Dropping them here is what made the Anthropic face
                 // answer `end_turn` to a request whose model had called.
                 detectedToolCalls = (detectedToolCalls ?? []) + [tc]
             case .toolResult(let meta):
@@ -594,7 +594,7 @@ private func nonStreamAnthropicResponse(
             case .guidedGenDiagnostic:
                 break
             case .prefillProgress:
-                // Prefill progress — silent in Anthropic handler.
+                // Prefill progress. Silent in Anthropic handler.
                 break
             case .incompleteOutput(let incomplete):
                 if incomplete {
@@ -623,7 +623,7 @@ private func nonStreamAnthropicResponse(
     }
 
     // Reasoning is user-visible output on this face (a `thinking` block), so it goes
-    // through the output guard too — the same rule `ChatHandler` applies to
+    // through the output guard too. The same rule `ChatHandler` applies to
     // `reasoning_content` at end-of-stream. Checking only the answer would let a
     // violating chain of thought out while refusing the answer.
     if let contentGuard, !accumulatedReasoning.isEmpty {
@@ -648,7 +648,7 @@ private func nonStreamAnthropicResponse(
     // Record metrics
     let dur = startTime.duration(to: ContinuousClock.now)
     let elapsed = Double(dur.components.seconds) * 1000 + Double(dur.components.attoseconds) / 1e15
-    /// One number for one prompt at every hop this turn reports it — the
+    /// One number for one prompt at every hop this turn reports it. The
     /// `usage.input_tokens` the client reads and the counter `/metrics` publishes. They could
     /// differ for the same turn: the wire carried the engine-measured prompt, the counter the
     /// pre-flight estimate (`inputTokenCount`), and the two are not the same number on this
@@ -664,7 +664,7 @@ private func nonStreamAnthropicResponse(
 
     /// The calls this turn produced: the structured ones the engine emitted, and only
     /// as a fallback a dialect parsed out of the answer text (same precedence as
-    /// ChatHandler L1141 — upstream consumes the native dialect and strips it from the
+    /// ChatHandler L1141. Upstream consumes the native dialect and strips it from the
     /// text, so text alone sees nothing).
     let emittedToolCalls: [ToolCall]? =
         if let detected = detectedToolCalls, !detected.isEmpty {
@@ -676,7 +676,7 @@ private func nonStreamAnthropicResponse(
         }
     /// `tool_choice.disable_parallel_tool_use:true` means one call, not a list;
     /// ``toChatCompletionRequest`` carries that flag onto the internal request, and the
-    /// limit itself is the one the OpenAI face applies — so "one at a time" lands the
+    /// limit itself is the one the OpenAI face applies, so "one at a time" lands the
     /// same single `tool_use` block on both wires.
     let toolCalls: [ToolCall]? = ToolCallWire.limitedToolCalls(
         emittedToolCalls, parallelToolCalls: request.parallelToolCalls)
@@ -717,13 +717,13 @@ private func nonStreamAnthropicResponse(
         deliveredCalls.append(call)
     }
     /// Anthropic's canonical empty completion is a single empty text block, not `[]`
-    /// — strict clients index `content[0]` (same reasoning as vllm serving.py:879-883).
+    /// Strict clients index `content[0]` (same reasoning as vllm serving.py:879-883).
     if contentBlocks.isEmpty {
         contentBlocks.append(AnthropicAssistantContent(text: ""))
     }
     /// Invariant 2 at the end of the turn: the sentence a client reads as "done" (or as
     /// "failed") has to match what this turn's tools actually did. One rule, one home
-    /// (`ClaimVsAudit.notice`) shared with `/v1/chat/completions` — measured 10-22 that a
+    /// (`ClaimVsAudit.notice`) shared with `/v1/chat/completions`. Measured 10-22 that a
     /// zero-tool turn answered "File created." with the file absent, and that a turn whose
     /// `edit_file` succeeded answered "I failed to fix the code". A `tool_use` turn is not
     /// an answer yet, so it is not judged.
@@ -760,7 +760,7 @@ private func nonStreamAnthropicResponse(
         )
     }
 
-    // Build Anthropic response — the measured prompt count where the engine has one,
+    // Build Anthropic response. The measured prompt count where the engine has one,
     // split the way Anthropic accounts for it: uncached input plus cache read.
     let usage = AnthropicUsage.split(
         totalPromptTokens: observedInputTokens,
@@ -849,7 +849,7 @@ private func streamAnthropicResponse(
     /// The failure half of the same record: only `ToolAttemptLedger` knows a handler was
     /// reached and missed, which the mutation ledger alone cannot see (`Models/ClaimVsAudit.swift`).
     let attemptBaseline = await ToolAttemptLedger.shared.snapshot()
-    /// One key for this request's audit — see the non-stream face above (`Models/ClaimVsAudit.swift`).
+    /// One key for this request's audit. See the non-stream face above (`Models/ClaimVsAudit.swift`).
     let turnKey = UUID().uuidString
 
     let (stream, continuation) = AsyncStream<ByteBuffer>.makeStream()
@@ -863,7 +863,7 @@ private func streamAnthropicResponse(
     // ran all 200 tokens and the next caller queued +4158ms behind it. `onTermination`
     // fires on our own `finish()` and on consumer-task cancellation, and Hummingbird
     // (pinned 55bc9025) cancels neither for a socket whose kernel buffer still accepts
-    // the frames — its public RequestContext exposes no channel/liveness handle
+    // the frames. Its public RequestContext exposes no channel/liveness handle
     // (CoreRequestContextStorage holds only logger, endpointPath, parameters). So this
     // bridge covers explicit cancellation, not disconnect. Fix options and the measured
     // numbers: CHANGELOG 10-22(9); probe 31 keeps the legs xfail-open until they close.
@@ -871,14 +871,14 @@ private func streamAnthropicResponse(
         canceller.cancel()
     }
 
-    // Safety guard for streaming — captured early for inline safety checks
+    // Safety guard for streaming. Captured early for inline safety checks
     let streamGuard = contentGuard
 
     _ = Task {
         /// Hoisted out of the `do` because the catch exit below also reaches them: a stream
         /// that threw after `message_start` still owes the client a closed content block and
         /// a readable `error` event (sglang's `_flush_on_error`, serving.py:967-982, gives
-        /// the same guarantee — close open blocks, emit the spec error, end with
+        /// the same guarantee. Close open blocks, emit the spec error, end with
         /// `message_stop`; a strict client rejects a block that never stopped).
         let requestId = "msg-\(UUID().uuidString.prefix(8))"
         let messageStart = AnthropicStreamEvent.messageStart(
@@ -888,7 +888,7 @@ private func streamAnthropicResponse(
                 model: modelId,
                 stopReason: nil,
                 // Nothing has been prefilled at this event, so there is no cache measurement
-                // to report yet — the terminal event carries the engine's number.
+                // to report yet. The terminal event carries the engine's number.
                 usage: AnthropicUsage.split(
                     totalPromptTokens: inputTokenCount, cacheRead: nil, outputTokens: 0),
             ))
@@ -1042,7 +1042,7 @@ private func streamAnthropicResponse(
                         observedPromptTokens = donePromptTokenCount
                         observedCachedPromptTokens = doneCachedPromptTokenCount
 
-                        // Authoritative token count from the engine — overwrite the
+                        // Authoritative token count from the engine. Overwrite the
                         // per-event estimate (a `.text`/`.reasoning` case is a text
                         // segment/chunk, not a token). Same pattern as the ChatHandler
                         // stream `.done` branch and the non-streaming path.
@@ -1081,7 +1081,7 @@ private func streamAnthropicResponse(
                         // Reasoning gets its own `thinking` block, streamed live as
                         // `thinking_delta` (vllm serving.py:1061-1083). The comment here
                         // used to read "flows into Anthropic text delta as normal content"
-                        // while the line under it dropped the text on the floor — so a turn
+                        // while the line under it dropped the text on the floor, so a turn
                         // that thought said nothing about it on this wire.
                         try Task.checkCancellation()
                         totalOutputTokens += 1
@@ -1111,7 +1111,7 @@ private func streamAnthropicResponse(
                     case .guidedGenDiagnostic:
                         break
                     case .prefillProgress:
-                        // Prefill progress — silent in Anthropic SSE handler.
+                        // Prefill progress. Silent in Anthropic SSE handler.
                         break
                     case .incompleteOutput(let incomplete):
                         if incomplete {
@@ -1134,14 +1134,14 @@ private func streamAnthropicResponse(
             if let engineFailure {
                 /// The turn leaves through the spec's failure exit: closed blocks, `error`
                 /// with `{type,message}`, `message_stop`. No `message_delta`, so no terminal
-                /// `stop_reason` — and no tool-call parse of a partial answer, which could
+                /// `stop_reason`, and no tool-call parse of a partial answer, which could
                 /// fabricate a block from bytes the engine never finished writing.
                 emitFailure(message: "engine error: \(engineFailure)")
             } else {
                 /// The calls this stream delivers: the ones the engine emitted as events, and
                 /// as a fallback the dialect parsed out of the settled answer. The fallback is
                 /// not optional on this face: a calls-only grammar makes the model *write* the
-                /// call in plain JSON (measured 10-19 — 35 text deltas spelling
+                /// call in plain JSON (measured 10-19, 35 text deltas spelling
                 /// `"name": "get_weather"`, then `end_turn`, and no `.toolCall` at all), and
                 /// `/v1/chat/completions` already recovers exactly this with the same
                 /// `parseToolCalls` at its own stream end (ChatHandler L1727).
@@ -1154,7 +1154,7 @@ private func streamAnthropicResponse(
                         []
                     }
                 if !streamToolCalls.isEmpty {
-                    /// The held-back text IS the payload — ship it as blocks, not as prose
+                    /// The held-back text IS the payload. Ship it as blocks, not as prose
                     /// sitting next to the structured call the client will execute.
                     emitter.discardPendingText()
                 }
@@ -1193,7 +1193,7 @@ private func streamAnthropicResponse(
                     )
                 }
 
-                // Emit message_delta — Anthropic carries stop_reason here, and SDKs key
+                // Emit message_delta. Anthropic carries stop_reason here, and SDKs key
                 // on it; message_stop alone leaves the turn without a terminal reason.
                 // Same rule as the non-stream path on this face and both faces of the OpenAI
                 // wire: `tool_calls`→`tool_use` only for a turn that called and stopped on its
@@ -1280,7 +1280,7 @@ private func streamAnthropicResponse(
             )
 
         } catch {
-            // A cancellation is the caller walking away — the stream ends silently rather
+            // A cancellation is the caller walking away. The stream ends silently rather
             // than reporting an `api_error` for a turn the client itself abandoned. Anything
             // else gets the same failure sequence the in-loop exits use.
             if Task.isCancelled {
@@ -1311,7 +1311,7 @@ private func streamAnthropicResponse(
 /// client accumulating two calls cannot tell them apart (sglang serves this with the same
 /// ensure/close pair, serving.py:880-935). And a call must not arrive as prose: our
 /// calls-only grammar makes the model *write* `[{…}]`, so text whose first character is
-/// `[`/`{` is undecided until the answer settles — shipping it live would show the
+/// `[`/`{` is undecided until the answer settles. Shipping it live would show the
 /// client a JSON blob and then, or instead, the structured block. Prose releases at the
 /// first character that cannot begin a call object; `parseToolCalls` at stream end
 /// applies the same all-or-nothing rule the non-stream path and `ChatHandler` use.
@@ -1322,16 +1322,16 @@ struct AnthropicStreamEmitter {
     private var openKind: String? = nil
     private var pending = ""
     private var isStreamingText = false
-    /// Whether any block was ever opened — the "nothing to show" fallback's premise.
+    /// Whether any block was ever opened. The "nothing to show" fallback's premise.
     private(set) var hasEmittedAnyBlock = false
     /// The open thinking block's opaque id, emitted as `signature_delta` when the block
-    /// closes. Generated, not cryptographic — see ``AnthropicAssistantContent/signature``.
+    /// closes. Generated, not cryptographic. See ``AnthropicAssistantContent/signature``.
     private var thinkingSignature: String? = nil
 
     /// The open block's index; every call site opens on the line above.
     var currentIndex: Int { index }
 
-    /// One piece of reasoning as the engine produced it — its own `thinking` block, opened
+    /// One piece of reasoning as the engine produced it. Its own `thinking` block, opened
     /// on first use. Reasoning never enters the text block: `text` is the answer.
     mutating func feedReasoning(_ piece: String) -> [AnthropicStreamEvent] {
         guard !piece.isEmpty else { return [] }
@@ -1348,7 +1348,7 @@ struct AnthropicStreamEmitter {
     }
 
     /// One piece of answer text as the engine produced it. Empty when the piece is still
-    /// undecided (held) — the content then leaves through ``flushText()``.
+    /// undecided (held). The content then leaves through ``flushText()``.
     mutating func feedText(_ piece: String) -> [AnthropicStreamEvent] {
         guard !piece.isEmpty else { return [] }
         if isStreamingText {
@@ -1391,7 +1391,7 @@ struct AnthropicStreamEmitter {
         pending = ""
     }
 
-    /// Closes the open block, if any. A `thinking` block gets its `signature_delta` first —
+    /// Closes the open block, if any. A `thinking` block gets its `signature_delta` first,
     /// the spec orders the signature inside the block, before `content_block_stop`
     /// (vllm serving.py:945-961), and a client accumulating a thinking block expects the
     /// field to be there before the block ends.

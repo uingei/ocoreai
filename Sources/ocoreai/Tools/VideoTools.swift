@@ -1,6 +1,6 @@
 // Copyright 2026 uingei@163.com.
 // Licensed under MIT.
-/// 视频生成轴的 agent 可触面 — 一个工具 `generate_video`。
+/// 视频生成轴的 agent 可触面。一个工具 `generate_video`。
 /// 形态先例 = SpeechTools(transcribe_audio/speak) + view_screen「基设已建、
 /// 补 agent 面」: 纯核对(规范化/clamp/报告)= 离线可测; 真实 I/O 收口一个
 /// seam, 测试注入 fake,不触 CoreAI、不需要 .aimodel。
@@ -101,7 +101,7 @@ enum GenerateVideo {
         }
     }
 
-    /// 成功报告 — 两行形态(对齐 transcribe_audio OK 报告): 摘要 + 输出路径。
+    /// 成功报告。两行形态(对齐 transcribe_audio OK 报告): 摘要 + 输出路径。
     static func report(outcome: VideoGenOutcome) -> String {
         guard case .ok(let outputURL, let frameCount) = outcome else {
             return "generate_video: error: unexpected result"
@@ -109,7 +109,7 @@ enum GenerateVideo {
         return "generate_video OK — \(frameCount) frames written\n\(outputURL)"
     }
 
-    /// 失败报告 — 统一前缀。
+    /// 失败报告。统一前缀。
     static func errorReport(_ reason: String) -> String {
         return "generate_video: error: \(reason)"
     }
@@ -117,7 +117,7 @@ enum GenerateVideo {
 
 // MARK: - outcome + seam
 
-/// 生成结果 — 区分「成功+落盘 / 低于 floor / 无 CoreAI / 权重缺 / 失败」，
+/// 生成结果。区分「成功+落盘 / 低于 floor / 无 CoreAI / 权重缺 / 失败」，
 /// 让工具诚实告诉模型发生了什么（对齐 transcribe_audio 的 honest outcome 先例）。
 enum VideoGenOutcome: Equatable {
     case ok(outputURL: String, frameCount: Int)
@@ -127,7 +127,7 @@ enum VideoGenOutcome: Equatable {
     case failed(String)
 }
 
-/// 视频生成后端 seam — 唯一的真实 I/O 边界。平台实现包裹
+/// 视频生成后端 seam。唯一的真实 I/O 边界。平台实现包裹
 /// `WanPipeline.generateVideo` → `VideoWriter.write`；测试注入 fake，
 /// 不触 CoreAI、不需要 .aimodel 权重、不下载资产。
 protocol VideoGenerationBackend: Sendable {

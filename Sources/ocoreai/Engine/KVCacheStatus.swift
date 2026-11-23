@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// KV cache inspection endpoint — GET /v1/models/:model/kv-cache
+// KV cache inspection endpoint. GET /v1/models/:model/kv-cache
 //
 // Surfaces the model's planned KV/SSM cache topology and capacity disposition
 // by consuming upstream `ModelContainer.cacheStatus(parameters:)`
@@ -8,7 +8,7 @@
 // per-model sampling defaults + the model's live kvCacheQuantization.
 //
 // Upstream types are `Sendable, Hashable` only (no Codable), and
-// `KVCacheLayerStatus.init` is package-visible — so the wire surface is a
+// `KVCacheLayerStatus.init` is package-visible, so the wire surface is a
 // local struct with an explicit, exhaustive mapping below.
 
 import Foundation
@@ -57,17 +57,17 @@ struct KVCacheStatusResponse: Encodable {
 
     /// What the engine has *measured* about KV prefix reuse on this model, from
     /// upstream's own `cachedPromptTokenCount` on completed turns. `not_observed`
-    /// before any warm turn completes — never a guessed "supported".
+    /// before any warm turn completes. Never a guessed "supported".
     let prefixReuse: PrefixReuseObservation
 
     /// What the engine has *measured* about this checkpoint's own chat template: whether it
     /// declares tools itself, which decides whether this server writes a second copy.
-    /// `injected_unmeasured` when this process never probed it — never a claimed capability.
+    /// `injected_unmeasured` when this process never probed it. Never a claimed capability.
     let toolProse: ToolProseObservation
 
     /// Which reuse rule turned a warm session away, counted per refusal, plus how many cold
     /// turns arrived while another session for the same model already held part of their feed
-    /// (ReuseRefusalLedger.swift). Counted where the pool already decided — it publishes the
+    /// (ReuseRefusalLedger.swift). Counted where the pool already decided. It publishes the
     /// cost of the rules, never a claim that loosening them would save anything.
     let reuseRefusals: ReuseRefusalObservation
 
@@ -76,7 +76,7 @@ struct KVCacheStatusResponse: Encodable {
     /// until the first cache update, so `residency` is where the byte answer lives.
     let residency: KVCacheResidencyObservation
 
-    /// The rewind reserve this process requested — a plan truth (what the caches were
+    /// The rewind reserve this process requested. A plan truth (what the caches were
     /// asked to hold beyond each window), not a measurement of reuse. `basis` names where
     /// the number came from; `rawEnvironment` quotes the operator's text whenever the env
     /// var was in play, refused overrides included.
@@ -136,7 +136,7 @@ struct KVCacheStatusResponse: Encodable {
     }
 }
 
-// MARK: - Layer mapping (exhaustive — upstream renames fail compilation here)
+// MARK: - Layer mapping (exhaustive. Upstream renames fail compilation here)
 
 private func kvLayerAttributes(_ kind: CacheLayerKind)
     -> (
@@ -230,7 +230,7 @@ extension KVCacheStatusResponse {
 
 // MARK: - Pure mapping entry (test seam)
 
-/// Pure mapping — upstream ``KVCacheStatus`` → wire encodable.
+/// Pure mapping. Upstream ``KVCacheStatus`` → wire encodable.
 ///
 /// `prefixReuse` is carried through unchanged: it is measured by the engine elsewhere,
 /// never derived from this plan, so the two sources cannot disagree about a capability.

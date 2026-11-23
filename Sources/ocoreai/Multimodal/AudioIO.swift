@@ -1,9 +1,9 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Audio I/O service — microphone capture + TTS playback + STT transcription + VAD
+/// Audio I/O service. Microphone capture + TTS playback + STT transcription + VAD
 ///
 /// Cross-platform: AVFoundation available on macOS, iOS, iPadOS.
-/// Recording via AVAudioRecorder (16kHz mono — STT sufficient),
+/// Recording via AVAudioRecorder (16kHz mono. STT sufficient),
 /// TTS via AVSpeechSynthesizer, STT via SFSpeechRecognizer.
 ///
 /// Voice Activity Detection (VAD): Practical energy-based VAD using
@@ -25,7 +25,7 @@ import os.log
 
 private let audioLogger = Logger(subsystem: "ocoreai", category: "audioio")
 
-/// Audio feedback — start/stop beeps via AudioToolbox
+/// Audio feedback. Start/stop beeps via AudioToolbox
 private enum AudioFeedback {
     /// Play a short system sound
     static func play(_ soundID: UInt32 = 1108) {
@@ -88,7 +88,7 @@ final class AudioIO: NSObject {
     var isSpeechDetected: Bool = false
 
     /// VAD: power-level tracking via tap buffer RMS.
-    /// macOS AVAudioInputNode has no metering API — compute from tap buffers.
+    /// macOS AVAudioInputNode has no metering API. Compute from tap buffers.
     private var _vadRMS: Float = 0
     private var _vadTapCount: Int = 0
 
@@ -118,7 +118,7 @@ final class AudioIO: NSObject {
     @MainActor
     override init() {
         super.init()
-        // Wire delegate so didFinish/didCancel reset `isSpeaking` — without
+        // Wire delegate so didFinish/didCancel reset `isSpeaking`. Without
         // this the flag stays true forever once speak() is called, corrupting
         // the SpeakerFeedbackSensor perception channel and the UI state pill.
         synthesizer.delegate = self
@@ -129,7 +129,7 @@ final class AudioIO: NSObject {
         }
     }
 
-    /// Start recording audio — 16kHz mono (STT only needs 16kHz)
+    /// Start recording audio, 16kHz mono (STT only needs 16kHz)
     func startRecording(maxDuration _: TimeInterval = 30) async -> Bool {
         guard !isRecording else { return false }
         _ = await hasMicPermission()
@@ -184,7 +184,7 @@ final class AudioIO: NSObject {
     /// Transcribe the LAST recorded file on the ladder's local engine (L3).
     ///
     /// macOS 26 / iOS 26+: `LocalSTT` runs the stored .caf OFFLINE via the
-    /// Speech framework — no network, no cloud dictation. Below the floor
+    /// Speech framework, no network, no cloud dictation. Below the floor
     /// (macOS 14/15, iOS 17/18) it falls back to the live-mic
     /// `SFSpeechRecognizer` + VAD path so press-to-talk never regresses.
     ///
@@ -212,7 +212,7 @@ final class AudioIO: NSObject {
             // Every ASR attempt goes through `Hearing`, not the framework directly: it reads
             // Speech recognition permission without prompting and keeps the analysis behind an
             // out-of-process probe, because `SpeechAnalyzer.analyzeSequence` traps (SIGTRAP)
-            // rather than throws on some hosts — a `catch` here would not have caught it.
+            // rather than throws on some hosts. A `catch` here would not have caught it.
             switch await Hearing.transcribe(
                 file: url, locale: Locale(identifier: OCALocale.userSelected().bcp47Tag))
             {
@@ -239,7 +239,7 @@ final class AudioIO: NSObject {
                 try? FileManager.default.removeItem(at: url)
             }
         } else if ladderLocal, let url = recordedURL {
-            // Auto ladder is local but the file is gone/other guard miss —
+            // Auto ladder is local but the file is gone/other guard miss,
             // still clean up defensively.
             if FileManager.default.fileExists(atPath: url.path) {
                 try? FileManager.default.removeItem(at: url)
@@ -285,8 +285,8 @@ extension AudioIO {
         let utterance = AVSpeechUtterance(string: text)
         // Match TTS voice to current app locale (BCP 47 tag: "zh-Hans", "ja", "en", ...).
         // L1 of the adaptive audio ladder (see AudioStack): the user's Personal
-        // Voice has a floor of macOS 14 / iOS 17 — exactly ocoreai's deployment
-        // floor — so it is eligible on all eight target versions with no
+        // Voice has a floor of macOS 14 / iOS 17. Exactly ocoreai's deployment
+        // floor, so it is eligible on all eight target versions with no
         // #available. Selection is opt-in (Settings ▸ Voice Feedback); off, or
         // not yet authorized in System Settings, keeps the regular locale
         // voice. resolveVoice() never returns a failing voice.
@@ -315,7 +315,7 @@ extension AudioIO {
         return granted
     }
 
-    /// Check microphone permission — macOS uses AVCaptureDevice.requestAccess
+    /// Check microphone permission. MacOS uses AVCaptureDevice.requestAccess
     func hasMicPermission() async -> Bool {
         await AVCaptureDevice.requestAccess(for: .audio)
     }
@@ -324,13 +324,13 @@ extension AudioIO {
     ///
     /// Voice Activity Detection: Monitors audio power level via metering.
     /// When consecutive samples fall below threshold, transcription ends automatically
-    /// — no need to wait for the full timeout on silent segments.
+    ///, no need to wait for the full timeout on silent segments.
     ///
     /// - Parameters:
     ///   - timeout: Maximum recognition duration in seconds
     ///   - useVAD: Enable voice activity detection (default: true)
     ///   - feedback: Play start/end system feedback sounds (default: true).
-    ///     Continuous perception loops pass false — beeping every cycle is not
+    ///     Continuous perception loops pass false. Beeping every cycle is not
     ///     feedback, it's noise.
     /// - Returns: Final transcribed text, or nil on cancel/error.
     ///   Partial results streamed to `partialText` property.
@@ -382,7 +382,7 @@ extension AudioIO {
         }
 
         // VAD: power-level tracking via tap buffer RMS.
-        // AVAudioInputNode has no metering API on macOS — compute from audio buffers.
+        // AVAudioInputNode has no metering API on macOS. Compute from audio buffers.
         if useVAD {
             audioLogger.info("[AudioIO] VAD enabled — RMS-based silence detection")
         }
@@ -406,7 +406,7 @@ extension AudioIO {
                 }
             }
 
-            // VAD monitoring loop — runs concurrently with transcription
+            // VAD monitoring loop. Runs concurrently with transcription
             var vadConsecutiveSilence: Int = 0
 
             let deadline = Date().addingTimeInterval(timeout)
@@ -434,7 +434,7 @@ extension AudioIO {
                     }
                 }
 
-                // Yield to let recognition process — check cancellation per concurrency §28
+                // Yield to let recognition process. Check cancellation per concurrency §28
                 try Task.checkCancellation()
                 try await Task.sleep(nanoseconds: 100_000_000)  // 100ms
             }

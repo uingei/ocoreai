@@ -1,14 +1,14 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// inspect_ui — 「自主操作计算机」的结构化 UI 语义层。
+/// inspect_ui。「自主操作计算机」的结构化 UI 语义层。
 ///
 /// 第一性: "自主操作" = 感知(知道现在是什么)→ 决策(模型)→ 动作(改变)→ 感知(确认变成什么)。
-/// 此前 ocoreai 的"感知"是像素层(view_screen/OCR), "动作"是盲坐标 CGEvent —— 两半都过不了
+/// 此前 ocoreai 的"感知"是像素层(view_screen/OCR), "动作"是盲坐标 CGEvent。两半都过不了
 /// "这是不是一个控件? 现在 value 是什么?" 这道坎, 所以是开环盲打。
 ///
 /// Apple 为"让程序理解并操作 UI"设计的官方接口 = Accessibility API(AX 元素树)。
 /// inspect_ui 读 live AX 树的**语义面**: role / title / description / value + 父子层级,
-/// 每个控件行尾附 ` at:(x,y)` —— 屏幕坐标中心的 click/type 可直接消费的命中点。
+/// 每个控件行尾附 ` at:(x,y)`。屏幕坐标中心的 click/type 可直接消费的命中点。
 /// 一次闭合"语义理解 + 动作后验证 + 精准定位"三块, "看到按钮 → 点中按钮" 回路闭合。
 ///
 /// 安全: 只读(零副作用), isDestructive: false, 免审批(同一范式于 observe_state)。
@@ -29,10 +29,10 @@ import CoreGraphics
 import CoreFoundation
 #endif
 
-// MARK: - Pure(离线可测 — 不触 AX、全平台)
+// MARK: - Pure(离线可测。不触 AX、全平台)
 
 enum UIInspect {
-    /// role 归一(大小写/首尾空白) — 过滤比较与展示稳定统一。纯, 可测。
+    /// role 归一(大小写/首尾空白)。过滤比较与展示稳定统一。纯, 可测。
     static func normalizeRole(_ s: String) -> String {
         s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
@@ -66,13 +66,13 @@ enum UIInspect {
         (Int((x + w / 2).rounded()), Int((y + h / 2).rounded()))
     }
 
-    /// 行尾坐标后缀 —— "看到 → 点到" 回路里喂给 click 的 (x,y)。纯, 精确可测。
+    /// 行尾坐标后缀。"看到 → 点到" 回路里喂给 click 的 (x,y)。纯, 精确可测。
     static func coord(_ c: (x: Int, y: Int)) -> String {
         " at:(\(c.x),\(c.y))"
     }
 }
 
-// MARK: - Driver + Client(macOS 门 — AX API, 全 Safe)
+// MARK: - Driver + Client(macOS 门。AX API, 全 Safe)
 
 #if os(macOS)
 

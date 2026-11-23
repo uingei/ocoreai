@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AnthropicModels.swift — Anthropic Messages API compatible DTOs
+/// AnthropicModels.swift. Anthropic Messages API compatible DTOs
 ///
 /// Anthropic API format differs from OpenAI:
 /// - ``system`` is a top-level field, not a message role
@@ -24,19 +24,19 @@ import Foundation
 
 // MARK: - Request Models
 
-/// Anthropic Messages API request — ``POST /v1/messages``
+/// Anthropic Messages API request, ``POST /v1/messages``
 struct AnthropicMessageRequest: Decodable {
     /// Model identifier
     let model: String
 
-    /// System prompt (separate from messages — Anthropic convention)
+    /// System prompt (separate from messages. Anthropic convention)
     ///
     /// Spec-legal as a plain string OR an array of text blocks (the block form
     /// is what SDKs emit when a system block carries `cache_control`), so the
     /// field carries both: see ``AnthropicSystemContent``.
     let system: AnthropicSystemContent?
 
-    /// Message array (no system role — system goes in top-level field)
+    /// Message array (no system role. System goes in top-level field)
     let messages: [AnthropicMessage]
 
     /// Temperature (0.0–1.0, Anthropic default 1.0)
@@ -60,7 +60,7 @@ struct AnthropicMessageRequest: Decodable {
     /// Tool choice strategy
     var toolChoice: AnthropicToolChoice? = nil
 
-    /// Enable streaming — optional per the Anthropic Messages spec (absent means
+    /// Enable streaming. Optional per the Anthropic Messages spec (absent means
     /// false), so it is `Bool?` here. The synthesized decoder in this target
     /// requires every non-Optional key, which rejected spec-legal clients: live
     /// 10-13 `POST /v1/messages` with `{model, max_tokens, messages}` answered
@@ -70,7 +70,7 @@ struct AnthropicMessageRequest: Decodable {
     var stream: Bool? = nil
 
     /// `output_config`: the shape the client wants back. This replaces a
-    /// `response_format` field that used to sit here — the OpenAI spelling on an
+    /// `response_format` field that used to sit here. The OpenAI spelling on an
     /// Anthropic wire, decoded into a property that three sites then overrode with a
     /// literal `nil`, so a client asking for structured output got prose and a 200
     /// (measured 10-31: a body byte-identical to the same request without the field).
@@ -95,7 +95,7 @@ struct AnthropicMessageRequest: Decodable {
     }
 
     /// The first numeric spec violation on this wire, or nil. The Anthropic sibling of
-    /// ``ChatCompletionRequest/numericDomainError()`` — rules in ``SamplingDomain``, this
+    /// ``ChatCompletionRequest/numericDomainError()``. Rules in ``SamplingDomain``, this
     /// forwarder carries only Anthropic's own bounds: `temperature` is [0, 1] here (not
     /// OpenAI's [0, 2]) and `top_k = 0` means "disabled" rather than being out of domain.
     ///
@@ -122,7 +122,7 @@ struct AnthropicMessageRequest: Decodable {
                 param: violation.param, message: violation.message, value: violation.value)
         }
         // Anthropic's own pairing rule: the budget is part of the output, so it must be
-        // smaller than `max_tokens`. Refusing beats the silent alternative — a budget that
+        // smaller than `max_tokens`. Refusing beats the silent alternative. A budget that
         // eats the ceiling either starves the answer (what `min(max_tokens, budget)` used to
         // do here) or is quietly ignored, and neither is a number the client can trust.
         if thinking?.reasoningEnabled == true,
@@ -140,7 +140,7 @@ struct AnthropicMessageRequest: Decodable {
     }
 }
 
-/// Anthropic message — no `system` role, system prompt is top-level.
+/// Anthropic message, no `system` role, system prompt is top-level.
 struct AnthropicMessage: Decodable {
     /// Role: "user" | "assistant"
     let role: String
@@ -153,7 +153,7 @@ struct AnthropicMessage: Decodable {
     }
 }
 
-/// Anthropic content — a plain string, or an array of blocks.
+/// Anthropic content. A plain string, or an array of blocks.
 ///
 /// The array branch decodes *every* block type (see ``AnthropicContentBlock``): the closed
 /// element enum it used to have made one unrecognised block fail the whole array, and the
@@ -177,10 +177,10 @@ enum AnthropicContent: Decodable {
     }
 }
 
-/// Anthropic `system` field — string | array of text blocks.
+/// Anthropic `system` field. String | array of text blocks.
 ///
 /// The synthesized decoder for `let system: String?` accepted only the string
-/// form, so a spec-legal block array (`[{"type":"text","text":"…"}]` — what the
+/// form, so a spec-legal block array (`[{"type":"text","text":"…"}]`. What the
 /// SDKs emit when a system block carries `cache_control`) made the whole
 /// `/v1/messages` body fail to decode. Same family as this repo's `stream` and
 /// `max_frames` findings: a field the spec calls polymorphic must decode both
@@ -219,15 +219,15 @@ enum AnthropicSystemContent: Decodable {
 /// One content block inside a message's `content` array.
 ///
 /// `type` is deliberately a raw `String`, not a closed enum. With `type` typed as
-/// `enum BlockType { case text, toolUse }`, any other spec-legal block — `image`,
-/// `document`, `tool_result`, or a type invented after this build — failed to decode, and
+/// `enum BlockType { case text, toolUse }`, any other spec-legal block, `image`,
+/// `document`, `tool_result`, or a type invented after this build. Failed to decode, and
 /// array decoding is all-or-nothing, so ``AnthropicContent``'s fallback turned the WHOLE
 /// message into `.text("")`. Measured 10-15 (`scripts/probes/07-anthropic-blocks.sh`): a
-/// `[text, image]` message reached the model as an empty turn — HTTP 200,
+/// `[text, image]` message reached the model as an empty turn. HTTP 200,
 /// `usage.input_tokens` 10 against 22 for the same instruction sent as a plain string, and
 /// the answer "Please provide the input you would like me to process." A client cannot
-/// distinguish that from a model with nothing to say, and `tool_result` — the shape
-/// Anthropic's own SDK requires to continue a tool loop — went down the same path.
+/// distinguish that from a model with nothing to say, and `tool_result`. The shape
+/// Anthropic's own SDK requires to continue a tool loop. Went down the same path.
 ///
 /// So every block decodes, and the decision lives in exactly one place
 /// (``AnthropicMessage/toInternalMessages()``): carry what the engine can carry, refuse by
@@ -266,7 +266,7 @@ struct AnthropicContentBlock: Decodable {
     /// `image` / `document` source.
     let source: AnthropicBlockSource?
 
-    /// `tool_reference.tool_name` — a tool-search result naming the tool it found.
+    /// `tool_reference.tool_name`. A tool-search result naming the tool it found.
     let toolName: String?
 
     enum CodingKeys: String, CodingKey {
@@ -276,7 +276,7 @@ struct AnthropicContentBlock: Decodable {
         case isError = "is_error"
     }
 
-    /// The text this block contributes when it has to travel as TEXT — the ONE rendering
+    /// The text this block contributes when it has to travel as TEXT. The ONE rendering
     /// rule, shared by the content guard's read (``AnthropicMessage/plainText``) and by
     /// every fallback in ``AnthropicMessage/toInternalMessages()``. Two renderings of the
     /// same message is how a guard and a prompt start disagreeing about what the client sent.
@@ -284,7 +284,7 @@ struct AnthropicContentBlock: Decodable {
     /// This is the FALLBACK medium, not the primary one: a `tool_use` block with an id and a
     /// `tool_result` block with a `tool_use_id` travel on the engine's structured tool
     /// channel instead (see ``toInternalMessages()``), which is where the chat template
-    /// renders them. Text is what is left when the correlation id is missing — a result
+    /// renders them. Text is what is left when the correlation id is missing. A result
     /// that cannot be tied to a call is still content the model should see.
     ///
     /// Nil means "no text": media (carried as its own part) or a type this route refuses.
@@ -302,7 +302,7 @@ struct AnthropicContentBlock: Decodable {
             return "[tool_call · \(name ?? "unknown")\(idTag)] \(Self.jsonText(input) ?? "{}")"
         case "thinking", "redacted_thinking":
             // No extended-thinking support here, so an opaque echo of a prior chain of
-            // thought is not replayed — but the turn says so, rather than leaving the model
+            // thought is not replayed, but the turn says so, rather than leaving the model
             // (or a reader of the transcript) to guess why the assistant skipped a step.
             return "[prior thinking omitted by this server]"
         default:
@@ -318,13 +318,13 @@ struct AnthropicContentBlock: Decodable {
     }
 }
 
-/// `tool_result.content` — the spec allows a bare string or an array of blocks, so both
+/// `tool_result.content`. The spec allows a bare string or an array of blocks, so both
 /// decode; a value that is neither yields empty text and the mapper decides what that means.
 enum AnthropicToolResultContent: Decodable {
     case text(String)
     case blocks([AnthropicContentBlock])
 
-    /// Text the result contributes. `tool_reference` blocks — a tool search's result —
+    /// Text the result contributes. `tool_reference` blocks. A tool search's result,
     /// contribute the name they reference: a search that came back with a name and the
     /// model was never shown it was measured 11-11 (probe 07: 200 at the floor's token
     /// count, the answer "I did not find a tool named …" beside the same name as TEXT
@@ -385,7 +385,7 @@ struct AnthropicBlockSource: Decodable {
 }
 
 extension AnthropicMessage {
-    /// Best-effort text of this message — the content-safety guard, prompt-injection
+    /// Best-effort text of this message. The content-safety guard, prompt-injection
     /// detection and the metrics token count read this. A block the route cannot carry
     /// contributes nothing here, which is not a silent drop: the same request is refused by
     /// name at ``toInternalMessages()`` before any token is produced.
@@ -399,7 +399,7 @@ extension AnthropicMessage {
         }
     }
 
-    /// The engine ``Message``(s) this Anthropic message becomes — one Anthropic turn can be
+    /// The engine ``Message``(s) this Anthropic message becomes. One Anthropic turn can be
     /// several engine turns, because the two dialects type a tool exchange differently:
     /// Anthropic puts N `tool_result` blocks in ONE user message, the engine's channel
     /// (and OpenAI's) gives each result its own `role:"tool"` turn with one `tool_call_id`
@@ -410,23 +410,23 @@ extension AnthropicMessage {
     /// not as prose inside a user turn. That the answer still looked right when it was prose
     /// (measured 10-19: `[tool_result · call_F3F831A7] 17C, light rain` → "The weather in
     /// Paris is 17C with light rain.") says this checkpoint reads tool output out of text;
-    /// it does not say the channel is unnecessary — a checkpoint that renders tool output
+    /// it does not say the channel is unnecessary. A checkpoint that renders tool output
     /// only from its template's tool role saw nothing. Text remains the fallback whenever a
     /// correlation id is missing: an unattachable result is still content (`is_error` rides
     /// as text too, because the engine's tool turn has no error bit).
     ///
     /// This does not re-run anything: the engine dispatches calls it parses out of
     /// *generation*, never from history, which is why the OpenAI face has always been able
-    /// to carry `tool_calls` history safely — and probe 13 §7 asserts it here too.
+    /// to carry `tool_calls` history safely, and probe 13 §7 asserts it here too.
     ///
     /// - Throws: `AppError.invalidRequest` naming a block type the engine cannot carry
     ///   (`document`, `search_result`, or any type this build does not know), an `image`
     ///   block with no source, or a turn whose array holds nothing readable. Naming the
     ///   shape is the alternative to a 200 that answered a turn the client believes it
-    ///   sent — the rule `AudioTranscription.unsupportedField` applies to fields.
+    ///   sent. The rule `AudioTranscription.unsupportedField` applies to fields.
     /// - Parameter attachableResultIDs: the `tool_use` ids the surrounding conversation
     ///   declares. A `tool_result` whose id is absent folds to its text form instead of
-    ///   emitting a tool turn no template will render — see ``anthropicMappedConversation``.
+    ///   emitting a tool turn no template will render. See ``anthropicMappedConversation``.
     ///   `nil` (a lone message, as unit-mapped) treats every present id as attachable.
     func toInternalMessages(attachableResultIDs declared: Set<String>? = nil) throws -> [Message] {
         switch content {
@@ -525,7 +525,7 @@ extension AnthropicMessage {
                 return [Message(role: role, content: nil)]
             }
             // The turn's own message exists only if it has something to say: prose, media,
-            // or calls. A `[tool_result]`-only user message is that message — appending an
+            // or calls. A `[tool_result]`-only user message is that message. Appending an
             // empty user turn after it would put a blank segment in the prompt, which is
             // the same class of damage as the blanked block this whole mapper exists to
             // prevent, just one block shorter.
@@ -542,7 +542,7 @@ extension AnthropicMessage {
 
 // MARK: - Response Models
 
-/// Anthropic Messages API response — ``POST /v1/messages``
+/// Anthropic Messages API response, ``POST /v1/messages``
 struct AnthropicMessageResponse: Encodable {
     let id: String
     let type: String = "message"
@@ -553,7 +553,7 @@ struct AnthropicMessageResponse: Encodable {
     let usage: AnthropicUsage
 
     /// Namespaced extension shared with the OpenAI face: what this server's own tool loop
-    /// measured. Absent when no tool ran. Not Anthropic spec — `ocoreai` owns the key.
+    /// measured. Absent when no tool ran. Not Anthropic spec, `ocoreai` owns the key.
     var ocoreai: OcoreaiTurn? = nil
 
     enum CodingKeys: String, CodingKey {
@@ -564,7 +564,7 @@ struct AnthropicMessageResponse: Encodable {
     }
 }
 
-/// Assistant message content block — `text`, `tool_use`, or `thinking`.
+/// Assistant message content block, `text`, `tool_use`, or `thinking`.
 ///
 /// Anthropic types a call as a content block (`{"type":"tool_use","id","name","input"}`)
 /// where OpenAI types it as a sibling `tool_calls` array, and `input` is a JSON *object*
@@ -581,14 +581,14 @@ struct AnthropicAssistantContent: Encodable {
     let id: String?
     let name: String?
     let input: [String: AnyCodable]?
-    /// `thinking` payload — the reasoning text this turn produced.
+    /// `thinking` payload. The reasoning text this turn produced.
     let thinking: String?
     /// Anthropic's integrity token for a thinking block.
     ///
     /// Read the field for what it is here: an **opaque per-block id**, generated by this
-    /// server (same stand-in vllm's adapter emits — `signature=uuid.uuid4().hex`,
+    /// server (same stand-in vllm's adapter emits, `signature=uuid.uuid4().hex`,
     /// `entrypoints/anthropic/serving.py:855-862`). It round-trips through this server,
-    /// which never verifies it — we have no signing key and no verification path, so a
+    /// which never verifies it. We have no signing key and no verification path, so a
     /// client must not read integrity from it. The field exists because the spec's
     /// `ThinkingBlock` requires it and SDKs decode it as a non-optional string; omitting
     /// it would break those clients on a turn that genuinely thought.
@@ -643,7 +643,7 @@ func anthropicThinkingSignature() -> String {
 
 /// Anthropic's `input` object from the engine's argument payload (a JSON string).
 ///
-/// Returns nil when the payload is not a JSON object — the caller must not turn a
+/// Returns nil when the payload is not a JSON object. The caller must not turn a
 /// malformed blob into `input:{}`, because a client would execute a call with arguments
 /// the model never asked for. Nil means "no call delivered", and the caller logs it.
 func anthropicToolInput(fromJSON raw: String) -> [String: AnyCodable]? {
@@ -659,9 +659,9 @@ struct AnthropicUsage: Encodable {
     /// Prompt tokens the KV cache served this turn, present only when the engine measured
     /// it (`GenerateCompletionInfo.cachedPromptTokenCount`). Anthropic's own identity is
     /// `total == input + cache_read + cache_creation`, so ``inputTokens`` carries the
-    /// uncached part — vllm `entrypoints/anthropic/serving.py:80-110`, ollama
+    /// uncached part. Vllm `entrypoints/anthropic/serving.py:80-110`, ollama
     /// `anthropic/anthropic.go:226-238`, splash `server/dialects/anthropic.py:686-690` (the tree split
-    /// its `server/api_shapes.py` into `server/dialects/` — re-anchored 11-07, same arithmetic). The
+    /// its `server/api_shapes.py` into `server/dialects/`. Re-anchored 11-07, same arithmetic). The
     /// OpenAI face already publishes the measurement as
     /// `usage.prompt_tokens_details.cached_tokens`; omitting it here hid prefix reuse
     /// from a client that costs cache hits, and left `input_tokens` claiming a prompt the
@@ -670,7 +670,7 @@ struct AnthropicUsage: Encodable {
     /// `AnthropicCacheUsageTests` goes red on a construction site that bypasses it.
     let cacheReadInputTokens: Int?
 
-    /// Never claimed: this engine measures no cache *write*, so the key stays absent —
+    /// Never claimed: this engine measures no cache *write*, so the key stays absent,
     /// the same omission vllm applies when `created_cache_tokens` is absent.
     let cacheCreationInputTokens: Int?
 
@@ -728,7 +728,7 @@ enum AnthropicCacheUsage {
     }
 }
 
-/// Response for ``POST /v1/messages/count_tokens`` — Anthropic's budget
+/// Response for ``POST /v1/messages/count_tokens``. Anthropic's budget
 /// pre-flight.
 ///
 /// `tokenizer_backend` is an ocoreai extension (`real` | `heuristic`): SDKs
@@ -801,7 +801,7 @@ struct AnthropicStreamEvent: Encodable {
     }
 
     /// Content block start for a `tool_use` block: id + name + empty input, with the
-    /// arguments following as `input_json_delta` — the shape Anthropic clients and
+    /// arguments following as `input_json_delta`. The shape Anthropic clients and
     /// vllm's adapter emit.
     static func toolUseBlockStart(index: Int, id: String, name: String) -> AnthropicStreamEvent {
         AnthropicStreamEvent(
@@ -809,7 +809,7 @@ struct AnthropicStreamEvent: Encodable {
             contentBlock: AnthropicAssistantContent(toolUseId: id, name: name, input: [:]))
     }
 
-    /// `input_json_delta` — Anthropic's carrier for tool arguments (OpenAI uses
+    /// `input_json_delta`. Anthropic's carrier for tool arguments (OpenAI uses
     /// `function.arguments` for the same bytes).
     static func inputJsonDelta(index: Int, partialJson: String) -> AnthropicStreamEvent {
         AnthropicStreamEvent(
@@ -829,7 +829,7 @@ struct AnthropicStreamEvent: Encodable {
             contentBlock: AnthropicAssistantContent(thinking: ""))
     }
 
-    /// `thinking_delta` — Anthropic's carrier for incremental reasoning.
+    /// `thinking_delta`. Anthropic's carrier for incremental reasoning.
     static func thinkingDelta(index: Int, thinking: String) -> AnthropicStreamEvent {
         AnthropicStreamEvent(
             type: "content_block_delta", index: index, message: nil,
@@ -837,7 +837,7 @@ struct AnthropicStreamEvent: Encodable {
             usage: nil)
     }
 
-    /// `signature_delta` — closes a thinking block's payload, as the spec orders it
+    /// `signature_delta`. Closes a thinking block's payload, as the spec orders it
     /// (signature first, then `content_block_stop`; vllm serving.py:945-961).
     static func signatureDelta(index: Int, signature: String) -> AnthropicStreamEvent {
         AnthropicStreamEvent(
@@ -852,8 +852,8 @@ struct AnthropicStreamEvent: Encodable {
     /// by its own `type`, whose text member is `text_delta` (`AnthropicContentDelta` is
     /// a union keyed on `type`: `text_delta`/`input_json_delta`/`thinking_delta`/
     /// `signature_delta`, sglang `srt/entrypoints/anthropic/protocol.py:402-426`).
-    /// This one said `content_block_delta` in both slots — measured 10-19, the wire came
-    /// back `{"delta":{"type":"content_block_delta","text":"4"}}` — which is outside
+    /// This one said `content_block_delta` in both slots. Measured 10-19, the wire came
+    /// back `{"delta":{"type":"content_block_delta","text":"4"}}`, which is outside
     /// that union, so a client that dispatches on `delta.type` (as the SDKs do) sees no
     /// text at all on a turn that answered fine.
     static func textDelta(index: Int, text: String) -> AnthropicStreamEvent {
@@ -871,7 +871,7 @@ struct AnthropicStreamEvent: Encodable {
             type: "content_block_stop", index: index, message: nil, delta: nil, usage: nil)
     }
 
-    /// Message delta event — the only place the Anthropic protocol carries the
+    /// Message delta event. The only place the Anthropic protocol carries the
     /// terminal `stop_reason`. Live 10-13: the SSE path went
     /// `content_block_stop → message_stop`, so clients read no stop_reason at all
     /// (`stream()` ends without the field the SDKs key on).
@@ -900,7 +900,7 @@ struct AnthropicStreamEvent: Encodable {
     }
 }
 
-/// Incremental delta inside SSE stream — the union Anthropic discriminates by `type`
+/// Incremental delta inside SSE stream. The union Anthropic discriminates by `type`
 /// (`text_delta` / `input_json_delta` / `thinking_delta` / `signature_delta`, sglang
 /// `srt/entrypoints/anthropic/protocol.py:402-426`), so each member carries only its own
 /// payload key and the synthesized encoder omits the rest.
@@ -910,7 +910,7 @@ struct AnthropicStreamDelta: Encodable {
     let text: String?
     /// `thinking_delta` payload.
     let thinking: String?
-    /// `signature_delta` payload — the opaque block id, see
+    /// `signature_delta` payload. The opaque block id, see
     /// ``AnthropicAssistantContent/signature`` for what it is and is not.
     let signature: String?
     /// Terminal reason, present only on `message_delta`.
@@ -952,7 +952,7 @@ struct AnthropicStreamUsage: Encodable {
     let outputTokens: Int
     /// Optional: Anthropic's `message_delta` carries output_tokens only.
     let inputTokens: Int?
-    /// The cache-served part of this turn's prompt — see ``AnthropicUsage/cacheReadInputTokens``.
+    /// The cache-served part of this turn's prompt. See ``AnthropicUsage/cacheReadInputTokens``.
     let cacheReadInputTokens: Int?
 
     enum CodingKeys: String, CodingKey {
@@ -1020,7 +1020,7 @@ struct AnthropicToolInputSchema: Decodable {
             let dict = try container.decode([String: AnyCodable].self)
             type = dict["type"]?.value as? String ?? "object"
             properties = (dict["properties"]?.value as? [String: AnyCodable])
-            // `required` arrives as `[AnyCodable]` — AnyCodable decodes an array of
+            // `required` arrives as `[AnyCodable]`. AnyCodable decodes an array of
             // strings into an array of boxes, so `as? [String]` fails and the key
             // vanished here even before `toOpenAIParameters()` dropped it. A schema
             // that lost its required list tells the grammar no key is mandatory, and
@@ -1041,7 +1041,7 @@ struct AnthropicToolInputSchema: Decodable {
 
     /// The caller's declared JSON Schema, whole: `type`, `properties`, `required`.
     ///
-    /// Bare `properties` is not a schema — it names no object and requires nothing, so
+    /// Bare `properties` is not a schema. It names no object and requires nothing, so
     /// the engine's constrained path had nothing to fill and a `tool_choice:"any"`
     /// request could not be satisfied. vllm and sglang forward `input_schema` verbatim
     /// for exactly this reason (`vllm/entrypoints/anthropic/serving.py:779`,
@@ -1068,7 +1068,7 @@ struct AnthropicToolChoice: Decodable {
     /// Pinned tool name for `{"type":"tool","name":…}`; absent on the other variants.
     var name: String? = nil
 
-    /// `{"disable_parallel_tool_use":true}` — Anthropic's way of saying "one call at a
+    /// `{"disable_parallel_tool_use":true}`. Anthropic's way of saying "one call at a
     /// time". It was decoded into nothing at all (this face mapped `parallelToolCalls` to
     /// the constant `true`), so a client that asked for one call got two: measured 10-19,
     /// `tool_choice:{"type":"auto","disable_parallel_tool_use":true}` → two `tool_use`
@@ -1092,7 +1092,7 @@ struct AnthropicToolChoice: Decodable {
 
     /// OpenAI's top-level `parallel_tool_calls`, read off Anthropic's flag. One
     /// translation, here, so both faces hand ``ToolCallWire`` the same three-state value
-    /// (vllm `entrypoints/anthropic/serving.py:698-700` — `not disable_parallel_tool_use`).
+    /// (vllm `entrypoints/anthropic/serving.py:698-700`, `not disable_parallel_tool_use`).
     var parallelToolCalls: Bool { !(disableParallelToolUse ?? false) }
 
     enum CodingKeys: String, CodingKey {
@@ -1103,7 +1103,7 @@ struct AnthropicToolChoice: Decodable {
 
 // MARK: - Output Config
 
-/// Anthropic's `output_config`, of which only `format` is declared — because only `format`
+/// Anthropic's `output_config`, of which only `format` is declared, because only `format`
 /// is read. `effort` is how vllm reaches `reasoning_effort`
 /// (`vllm/entrypoints/anthropic/serving.py:762-763`) and this engine has no per-request
 /// depth knob shown to work, so declaring it here would hand a client a key it can set
@@ -1114,7 +1114,7 @@ struct AnthropicOutputConfig: Decodable {
 
 /// `output_config.format` = `{"type":"json_schema","schema":{…}}`.
 ///
-/// `schema` is the wire key because that is what the comparator's protocol declares —
+/// `schema` is the wire key because that is what the comparator's protocol declares,
 /// `json_schema` is the Python field, aliased to `schema`
 /// (`vllm/entrypoints/anthropic/protocol.py:202-207`). A `type` nothing here constrains
 /// asks for nothing: as with `thinking.type`, an unrecognised value is not guessed at.
@@ -1168,7 +1168,7 @@ struct AnthropicMetadata: Decodable {
 
 /// The conversation as the engine sees it: one mapping for every caller and one correlation
 /// pass. A `tool_result` may attach only to a `tool_use` the conversation actually declares,
-/// because the chat template renders a tool turn only after the call it answers — measured
+/// because the chat template renders a tool turn only after the call it answers. Measured
 /// 11-09 against a live serve, a dangling result's ~1 500 bytes moved `input_tokens` by 0
 /// while the same bytes as a text block moved it by 1 562, and the content guard had already
 /// counted them: the two-rendering split ``AnthropicContentBlock/promptTextContribution``
@@ -1200,21 +1200,21 @@ func toChatCompletionRequest(_ req: AnthropicMessageRequest) throws -> ChatCompl
     /// `thinking` decides whether the engine thinks, from the field that says so.
     ///
     /// Two defects lived here. (1) The value that opens the reasoning channel
-    /// (`InferenceOptions.enableReasoning`) was never set on this face — `toChatCompletion
+    /// (`InferenceOptions.enableReasoning`) was never set on this face, `toChatCompletion
     /// Request` put a preference on `ChatCompletionRequest.reasoning` and the handler built
     /// its `InferenceOptions` without reading it, so declaring `thinking` changed nothing.
     /// Measured 10-19 (gemma-4-e2b-it-4bit, temperature 0, the same riddle):
     /// `thinking:{"type":"enabled","budget_tokens":400}` → 38 output tokens, no thinking
     /// block; `/v1/chat/completions` `{"reasoning":true}` on the same model and prompt →
-    /// 335 tokens. (2) The check was `thinking != nil`, so `{"type":"disabled"}` — the
-    /// request to switch thinking OFF — asked for it ON. `type` now decides
+    /// 335 tokens. (2) The check was `thinking != nil`, so `{"type":"disabled"}`. The
+    /// request to switch thinking OFF. Asked for it ON. `type` now decides
     /// (`enabled`→true, `disabled`→false, absent→no preference, model default applies).
     let reasoningEnabled: Bool? = req.thinking?.reasoningEnabled
 
     /// `budget_tokens` is the thinking *half* of the output, not a ceiling on the answer.
     /// Capping `max_tokens` at the budget left the answer no room on exactly the requests
     /// that asked to think, and enforced nothing: this server does not stop a thinking run
-    /// at N tokens (how long one runs is the model template's decision — the honest
+    /// at N tokens (how long one runs is the model template's decision. The honest
     /// statement is that the budget is a *request*, and `thinking.type` is the part with
     /// binding effect). The pair is validated instead: see ``numericDomainError()``.
     let effectiveMaxTokens: Int? = req.maxTokens
@@ -1224,7 +1224,7 @@ func toChatCompletionRequest(_ req: AnthropicMessageRequest) throws -> ChatCompl
     /// `response_format` whose grammar path is already built, with the schema named after the
     /// format type (`vllm/entrypoints/anthropic/serving.py:745-761`, `_handle_output_config`).
     /// Absent config, absent `format`, a `type` nothing here constrains, and a schema with
-    /// nothing in it are one answer — no constraint — which is also vllm's guard: it maps only
+    /// nothing in it are one answer, no constraint, which is also vllm's guard: it maps only
     /// when the schema is there.
     let responseFormat: ResponseFormat? = {
         guard let format = req.outputConfig?.format,
@@ -1248,7 +1248,7 @@ func toChatCompletionRequest(_ req: AnthropicMessageRequest) throws -> ChatCompl
         stream: req.stream ?? false,
         stop: req.stopSequences,
         frequencyPenalty: 0,
-        // #176 alignment — Anthropic API has no repetition-penalty param; default
+        // #176 alignment. Anthropic API has no repetition-penalty param; default
         // nil = runtime-default cascade (ChatHandler) still applies.
         repetitionPenalty: nil,
         repetitionPenaltyWindow: nil,

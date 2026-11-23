@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Application entry point — macOS 14+ / iOS 17+ / iPadOS 17+
+/// Application entry point. MacOS 14+ / iOS 17+ / iPadOS 17+
 ///
 /// HIG-compliant structure:
 ///   • macOS: single-instance Window (not WindowGroup), standard title bar
@@ -15,22 +15,22 @@ import Foundation
 import Logging
 import SwiftUI
 
-/// Real process entry — branches once, then delegates:
+/// Real process entry. Branches once, then delegates:
 ///   • `ocoreai serve` → `HeadlessServer.run()` (windowless AppKit runloop,
 ///     engine + HTTP bridge, SIGTERM/stdin-EOF shutdown). This is the fix
 ///     for the headless-boot gap: previously the engine only booted via
 ///     SwiftUI View instantiation, which never happens without WindowServer.
 ///   • `ocoreai --version` / `-v` → print the bundle version, exit 0.
 ///   • `ocoreai --help` / `-h` / `help` → usage, exit 0.
-///   • `ocoreai connect …` → `HarnessConnect` (see its header) — exits with its own code.
+///   • `ocoreai connect …` → `HarnessConnect` (see its header). Exits with its own code.
 ///   • `ocoreai serve --help` → the same usage, exit 0; any other argument after `serve` →
 ///     usage on stderr and exit 64 (`EX_USAGE`), booting nothing.
-///   • anything else → `OcoreaiGUIApp.main()` — the untouched SwiftUI path,
+///   • anything else → `OcoreaiGUIApp.main()`. The untouched SwiftUI path,
 ///     byte-identical to the previous `@main struct OcoreaiApp: App`.
 @main
 struct OcoreaiApp {
     static func main() {
-        // Hearing engine self-probe (internal transport — see HearingReadiness): the parent
+        // Hearing engine self-probe (internal transport. See HearingReadiness): the parent
         // re-execs this binary in probe mode so a SIGTRAP inside Apple's Speech framework
         // kills a throwaway child instead of the app. Checked before every other branch, so
         // probe mode can never boot the GUI or bind a port.
@@ -39,7 +39,7 @@ struct OcoreaiApp {
         }
         if let report = CLIMode.informationalReport(for: CommandLine.arguments) {
             // The report owns its trailing newline. `print` would append a second one to the
-            // OpenAPI document, whose canonical text already ends in `\n` — and stdout is how
+            // OpenAPI document, whose canonical text already ends in `\n`, and stdout is how
             // `make openapi` writes the committed artefact, so a stray byte there is a stale
             // contract in git rather than a cosmetic one.
             FileHandle.standardOutput.write(
@@ -103,7 +103,7 @@ struct OcoreaiApp {
 }
 
 /// SwiftUI scene graph (formerly `@main struct OcoreaiApp: App`). `@main`
-/// moved to the branching entry above — exactly one process entry allowed.
+/// moved to the branching entry above. Exactly one process entry allowed.
 struct OcoreaiGUIApp: App {
     #if os(macOS)
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -111,14 +111,14 @@ struct OcoreaiGUIApp: App {
 
     var body: some Scene {
         #if os(macOS)
-        // macOS: single-instance window — HIG compliant
+        // macOS: single-instance window. HIG compliant
         Window("ocoreai", id: "main") {
             OcoreaiShellView()
         }
-        // .windowResizability(.default) is the macOS standard — .contentSize
+        //  .windowResizability(.default) is the macOS standard. .contentSize
         // can cause window activation issues with TextField focus (radar 91608726)
         .windowStyle(.titleBar)
-        // Settings via Cmd+, — macOS standard
+        // Settings via Cmd+,. MacOS standard
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandGroup(replacing: .undoRedo) {
@@ -134,7 +134,7 @@ struct OcoreaiGUIApp: App {
                 // carry has to be declared here or the Settings key is gone.
                 .keyboardShortcut(",", modifiers: .command)
             }
-            // Edit ▸ Paste Image or Files — the guaranteed route for a clipboard
+            // Edit ▸ Paste Image or Files. The guaranteed route for a clipboard
             // screenshot or Finder copy, because the text field's own field editor
             // claims plain-text ⌘V. ⇧⌘V never collides with it.
             CommandGroup(after: .pasteboard) {
@@ -189,12 +189,12 @@ struct OcoreaiGUIApp: App {
     }
 }
 
-/// Root Shell View — two-column: sidebar + detail, HIG compliant
+/// Root Shell View. Two-column: sidebar + detail, HIG compliant
 
 struct OcoreaiShellView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
-    // derive theme directly from colorScheme — eliminates one-frame white flash
+    // derive theme directly from colorScheme. Eliminates one-frame white flash
     // where @State initialized from hardcoded .light
     private var theme: OcoreaiTheme {
         OcoreaiTheme.theme(from: colorScheme)
@@ -211,7 +211,7 @@ struct OcoreaiShellView: View {
         .navigationSplitViewStyle(.balanced)
         .environment(\.ocoreaiTheme, theme)
         // ScenePhase .inactive (command-tab, alert popup) should not throttle
-        // polling — only background truly means the user isn't looking.
+        // polling, only background truly means the user isn't looking.
         .onChange(of: scenePhase) { _, phase in
             appState.isForeground = (phase != .background)
         }
@@ -272,7 +272,7 @@ private struct SidebarView: View {
         }
     }
     #else
-    // iOS: `List(selection:)` is unavailable — rows drive `selectedTab`
+    // iOS: `List(selection:)` is unavailable. Rows drive `selectedTab`
     // via their Button action instead (macOS keeps binding selection).
     private var sidebarBody: some View {
         List {
@@ -325,7 +325,7 @@ private struct SidebarRow: View {
         }
         .accessibilityLabel(tab.title)
         // List(selection:) already provides selection state, accent highlighting,
-        // and VoiceOver traits — no need to duplicate those responsibilities.
+        // and VoiceOver traits, no need to duplicate those responsibilities.
     }
 }
 
@@ -353,7 +353,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_: Notification) {
         // Single-instance gate BEFORE any UI boots (native double-click
         // semantics): if another live instance owns the flock, bring ITS
-        // window forward and exit immediately — the user's second click is
+        // window forward and exit immediately. The user's second click is
         // a summon, not a spawn. Same lock object as OcoreaiEngine.start()
         // uses (flock is per-fd; one holder object shared across both
         // paths keeps acquisition idempotent). Crash-safe: kernel releases.
@@ -371,7 +371,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             break  // acquired / skipped / unavailable — proceed normally
         }
 
-        // Register global crash handlers early — captures inference OOM, segfault, etc.
+        // Register global crash handlers early. Captures inference OOM, segfault, etc.
         registerGlobalCrashHandlers()
 
         // MARK: - HF Hub Environment Configuration
@@ -381,23 +381,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Disable xet backend to avoid HuggingFace cache corruption on macOS (MLX upstream pattern).
         setenv("HF_HUB_DISABLE_XET", "1", 1)
 
-        // HF_ENDPOINT: single choke with the App/HeadlessServer rules —
+        // HF_ENDPOINT: single choke with the App/HeadlessServer rules,
         // operator explicit HF_ENDPOINT is never clobbered (the old
         // unconditional `if let mirror … setenv(_, 1)` overwrote it), and the
         // persisted GUI toggle survives relaunch.
         HFMirrorPolicy.apply()
 
         // Startup hub-reachability probe (10-06 live evidence: huggingface.co
-        // unreachable for hours while api.github.com was fine — GFW-style
+        // unreachable for hours while api.github.com was fine. GFW-style
         // partial blocking). The embedding circuit breaker absorbs the storm
         // but says nothing ACTIONABLE; a local-first app must tell the user
         // which network face is down and what the lever is. Deliberately
         // does NOT auto-switch to a mirror: model provenance trust is a
         // user decision (hf-mirror.com serves identical blobs but is a
-        // third-party relay — the user opts in via HF_ENDPOINT_MIRROR).
+        // third-party relay. The user opts in via HF_ENDPOINT_MIRROR).
         Task.detached(priority: .utility) {
             // When a mirror endpoint is already configured, huggingface.co
-            // unreachability is expected AND irrelevant — don't warn.
+            // unreachability is expected AND irrelevant. Don't warn.
             let endpoint = ProcessInfo.processInfo.environment["HF_ENDPOINT"] ?? ""
             if !endpoint.isEmpty && !endpoint.contains("huggingface.co") { return }
             var req = URLRequest(url: URL(string: "https://huggingface.co/api/models")!)
@@ -423,7 +423,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.activate(ignoringOtherApps: true)
 
         // Explicit SIGTERM ownership (macOS GUI apps: default disposition
-        // demonstrably did NOT terminate — live repro 2026-10-09: two
+        // demonstrably did NOT terminate. Live repro 2026-10-09: two
         // SIGTERMs survived, the port closed but the process lingered,
         // poisoning the next launch's port + single-instance checks).
         // Install the SAME source headless uses: beginShutdown drains the

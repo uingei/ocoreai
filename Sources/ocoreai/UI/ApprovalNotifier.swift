@@ -6,23 +6,23 @@
 // First-principles gap: the approval banner lives in the Chat tab
 // (ChatView ApprovalBanner). If the user navigates to Models/Settings while
 // the agent waits on a `.interactive` approval, the request is INVISIBLE and
-// the agent hangs until timeout or session-end — a silent deadlock.
+// the agent hangs until timeout or session-end. A silent deadlock.
 //
 // Apple's answer (Human Interface Guidelines → Notifications): "Notifications
 // draw attention to time-sensitive information when your app is in the
 // background." This module posts a system notification for every pending
 // approval and routes the click back to the Chat tab, where the banner holds
-// the ONLY adjudication surface — deliberately: two decision surfaces
+// the ONLY adjudication surface. Deliberately: two decision surfaces
 // (notification action + banner) would need a second sync protocol and drift.
 //
 // Honesty constraints:
-// • Authorization errors are logged, never fatal — a denied notification
-//   permission must not break the in-app banner path.
+// • Authorization errors are logged, never fatal. A denied notification
+//  permission must not break the in-app banner path.
 // • Unsigned/dev binaries: UNUserNotificationCenter.requestAuthorization can
-//   error (no bundle identity). That is environment physics — log once,
-//   degrade to banner-only, keep working.
+//  error (no bundle identity). That is environment physics. Log once,
+//  degrade to banner-only, keep working.
 // • Headless/`serve` mode has no GUI: callers must skip this module entirely
-//   (fail-closed denial path stays, per ToolRegistry contract).
+//  (fail-closed denial path stays, per ToolRegistry contract).
 
 import Foundation
 import UserNotifications
@@ -40,7 +40,7 @@ enum ApprovalNotifier {
     private static var delegateInstalled = false
 
     /// Notification category identifier (single category: one "Open ocoreai"
-    /// dismiss action — the banner adjudicates).
+    /// dismiss action. The banner adjudicates).
     static let categoryIdentifier = "ocoreai.approval"
 
     /// Install the tap handler (idempotent). Call once at GUI startup.
@@ -61,7 +61,7 @@ enum ApprovalNotifier {
 
     /// Request authorization lazily on the FIRST pending approval (not at
     /// launch: the prompt belongs to the moment the user can connect "I need
-    /// to be told" — HIG timing; and headless never asks).
+    /// to be told". HIG timing; and headless never asks).
     static func notifyPendingApproval(toolName: String, snippet: String) {
         install()
         let center = UNUserNotificationCenter.current()
@@ -97,7 +97,7 @@ enum ApprovalNotifier {
         snippet: String
     ) {
         let content = UNMutableNotificationContent()
-        // The snippet is the REVIEW surface — same 80-grapheme truncation the banner
+        // The snippet is the REVIEW surface. Same 80-grapheme truncation the banner
         // shows (ApprovalCore.snippet), so notification and banner never disagree about
         // what is being approved; copy comes from the table, so it speaks the user's language.
         content.title = StringKey.approvalNotificationTitle.l
@@ -124,7 +124,7 @@ final class ApprovalTapHandler: NSObject, UNUserNotificationCenterDelegate, @unc
 
     // Foreground presentation: the banner already covers in-chat; the system
     // notification only needs to appear when the app is backgrounded OR the
-    // chat tab is not visible — presenting as banner+list keeps it simple and
+    // chat tab is not visible. Presenting as banner+list keeps it simple and
     // never blocks; the badge is the point.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,

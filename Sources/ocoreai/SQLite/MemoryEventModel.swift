@@ -1,15 +1,15 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MemoryEventModel.swift — Six-element structured memory events
+/// MemoryEventModel.swift. Six-element structured memory events
 ///
 /// Each event captures: 时间(timestamp), 地点(context), 人物(entities),
-/// 起因(cause), 经过(process), 结果(result) — forming a causal knowledge record.
+/// 起因(cause), 经过(process), 结果(result). Forming a causal knowledge record.
 ///
 /// Memory types (方案 B 单层架构):
-///  - transient : session-scoped, short-lived
-///  - pattern   : recurring behavior, survives session ttl
-///  - fact      : verified knowledge, cross-session recall
-///  - preference: user preference, long-lived
+/// - transient. Session-scoped, short-lived
+/// - pattern   : recurring behavior, survives session ttl
+/// - fact      : verified knowledge, cross-session recall
+/// - preference: user preference, long-lived
 
 import Foundation
 
@@ -19,7 +19,7 @@ import Foundation
 /// (`SelfCorrectionPipeline.toMemoryEvent`) and later injected back into
 /// future inference turns as system context
 /// (`ChatHandler` "Learned patterns from past sessions"). Treating recalled
-/// memory as data — not as instructions to execute — closes the prompt-
+/// memory as data, not as instructions to execute. Closes the prompt-
 /// injection path at the source: user text that reads like a command to the
 /// summarizer or the next-inference model is neutralized before persistence.
 ///
@@ -36,7 +36,7 @@ enum MemoryRecallSanitizer {
     ///   instruction block when re-injected next turn.
     /// - Strips control characters that have no display purpose.
     ///
-    /// Deterministic and pure — exact-value testable.
+    /// Deterministic and pure. Exact-value testable.
     static func sanitize(_ text: String) -> String {
         var out = text
         // Newlines are the primary "fresh instruction block" boundary when
@@ -47,7 +47,7 @@ enum MemoryRecallSanitizer {
         out = out.replacingOccurrences(of: "\r", with: " ⏎ ")
         // Strip C0/C1 control characters that have no display purpose and
         // could form tokenizer/renderer boundaries the user did not intend.
-        // Explicit set (tab is NOT stripped — legitimate code indentation
+        // Explicit set (tab is NOT stripped. Legitimate code indentation
         // survives; \n \r already handled above).
         var strip = CharacterSet()
         strip.insert(charactersIn: UnicodeScalar(0) ... UnicodeScalar(8))
@@ -65,13 +65,13 @@ public enum MemoryEventResolution: String, Codable, Sendable {
     case resolved, workaround, unresolved
 }
 
-/// Memory type — distinguishes lifetime and recall scope.
+/// Memory type. Distinguishes lifetime and recall scope.
 /// Single-table design: all memory lives in one table, type drives retention.
 public enum MemoryEventType: String, Codable, Sendable {
     case transient, pattern, fact, preference
 }
 
-/// Structured memory event — six-element knowledge model.
+/// Structured memory event. Six-element knowledge model.
 ///
 /// Unlike flat message storage, each event encodes the causal chain:
 /// what happened (context), who/what was involved (entities),
@@ -82,23 +82,23 @@ public struct MemoryEvent: Codable, Sendable {
     public var id: Int64 = 0
     /// Which session this event belongs to (nullable after session delete)
     public var sessionId: Int64
-    /// 时间 — Unix timestamp in milliseconds
+    /// 时间。Unix timestamp in milliseconds
     public var timestamp: Int64
-    /// 地点 — the domain/context scope
+    /// 地点。the domain/context scope
     public var context: String
-    /// 人物 — entities involved (module names, API endpoints, user roles)
+    /// 人物。entities involved (module names, API endpoints, user roles)
     public var entities: [String]
-    /// 起因 — root cause / trigger
+    /// 起因。root cause / trigger
     public var cause: String
-    /// 经过 — process / how it was handled
+    /// 经过。process / how it was handled
     public var process: String
-    /// 结果 — outcome / conclusion
+    /// 结果。outcome / conclusion
     public var result: String
     /// Resolution state
     public var resolution: MemoryEventResolution = .unresolved
-    /// Memory type — drives retention policy
+    /// Memory type. Drives retention policy
     public var memoryType: MemoryEventType = .transient
-    /// Dedup key — hash of (context+cause+entities) for deduplication
+    /// Dedup key. Hash of (context+cause+entities) for deduplication
     public var dedupKey: String
     /// Confidence score 0.0–1.0
     public var confidence: Double = 0.8
@@ -173,7 +173,7 @@ public struct MemoryEvent: Codable, Sendable {
 
     /// Compute a deterministic dedup key from context + cause + entities.
     ///
-    /// MUST NOT use `String.hashValue` — Swift's hashing seed is
+    /// MUST NOT use `String.hashValue`. Swift's hashing seed is
     /// randomized per process for HashDoS protection, so a hashValue-derived
     /// key differs on every launch and the DB `UNIQUE(dedup_key)` upsert
     /// (`ON CONFLICT(DO UPDATE)`) never fires across process restarts: the

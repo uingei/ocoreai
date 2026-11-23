@@ -1,15 +1,15 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SchedulerActor — priority-based request scheduling with interrupt support.
+/// SchedulerActor. Priority-based request scheduling with interrupt support.
 ///
 /// P95 dispatch: < 1ms. Queue: max-heap O(log n), n ≤ 128.
 /// Memory: ~5KB for 128 entries.
 /// Privacy: request prompts logged as redacted, only metadata persisted.
 ///
 /// Admission pipeline:
-/// 1. OOMGuard.shouldAcceptRequest() — system-wide OOM guard
-/// 2. AdmissionGate.check() — per-request headroom estimation
-/// 3. dispatch() — pop from priority queue, reserve memory
+/// 1. OOMGuard.shouldAcceptRequest(). System-wide OOM guard
+/// 2. AdmissionGate.check(). Per-request headroom estimation
+/// 3. dispatch(). Pop from priority queue, reserve memory
 import Foundation
 import Logging
 
@@ -85,7 +85,7 @@ private struct PriorityQueue<Element: Comparable> {
 
 // MARK: - Comparable Request wrapper
 
-/// Comparable wrapper for scheduling — compares by priority then creation time.
+/// Comparable wrapper for scheduling. Compares by priority then creation time.
 private struct ComparableRequest: Comparable, Equatable {
     static func == (lhs: ComparableRequest, rhs: ComparableRequest) -> Bool {
         lhs.request.id == rhs.request.id
@@ -112,11 +112,11 @@ private struct ComparableRequest: Comparable, Equatable {
 
 // MARK: - Scheduler Actor
 
-/// Central scheduler — actor-isolated priority queue with interrupt, OOM guard,
+/// Central scheduler. Actor-isolated priority queue with interrupt, OOM guard,
 /// and admission control. Triple-layer defense:
-/// 1. OOMGuard — system-wide quantization downgrade chain
-/// 2. AdmissionGate — per-request headroom estimation
-/// 3. MemoryTracker — system-level memory pressure monitoring
+/// 1. OOMGuard. System-wide quantization downgrade chain
+/// 2. AdmissionGate. Per-request headroom estimation
+/// 3. MemoryTracker. System-level memory pressure monitoring
 actor SchedulerActor {
     private var queue: PriorityQueue<ComparableRequest> = PriorityQueue()
     private var activeRequests: [String: SchedulingRequest] = [:]
@@ -125,7 +125,7 @@ actor SchedulerActor {
     private var oomGuard: OOMGuard?
     private var admissionGate: AdmissionGate?
 
-    // The token→byte baseline lives in ``KVCacheBudget`` — the admission gate used to carry
+    // The token→byte baseline lives in ``KVCacheBudget``. The admission gate used to carry
     // its own copy "aligned by comment", and its `UInt64(tokenCount)` conversion trapped on a
     // negative budget (measured 10-17: `{"max_tokens":-5}` took the process down with a
     // SIGTRAP from `dispatch()`). One home, and a floor that cannot trap.
@@ -133,7 +133,7 @@ actor SchedulerActor {
     /// Per-request estimated memory for accurate deallocation tracking.
     private var requestMemoryMap: [String: UInt64] = [:]
 
-    /// Max queue size — reject when exceeded.
+    /// Max queue size. Reject when exceeded.
     let maxQueueSize: Int
 
     /// Initialize the scheduler.
@@ -164,7 +164,7 @@ actor SchedulerActor {
     /// - Returns: Request ID for tracking.
     @discardableResult
     func submit(_ request: SchedulingRequest) async throws -> String {
-        // 1. OOMGuard check — system-wide OOM protection
+        // 1. OOMGuard check. System-wide OOM protection
         if let oomg = oomGuard {
             guard await oomg.shouldAcceptRequest() else {
                 let snap = await oomg.budgetSnapshot()
@@ -214,7 +214,7 @@ actor SchedulerActor {
     // MARK: - Dispatch
 
     /// Dispatch the next request from the queue (highest priority).
-    /// Pre-fills are admitted through the admission gate — if headroom is
+    /// Pre-fills are admitted through the admission gate, if headroom is
     /// insufficient, the request is held and dispatch continues to lower
     /// priority requests. Only when ALL requests are rejected does dispatch
     /// return nil, allowing the caller to wait for memory.
@@ -227,13 +227,13 @@ actor SchedulerActor {
     /// every other candidate is put back untouched (its owner's own call will reach it).
     /// `owner == nil` is the standalone drain and keeps the "next best" semantics.
     ///
-    /// Anything set aside this pass — rejected for headroom, or held for ownership — is
+    /// Anything set aside this pass. Rejected for headroom, or held for ownership. Is
     /// restored before returning. The old guard for that (`rejected.count >= initialCount`)
     /// was checked at the top of an iteration the loop never reaches again, so a rejected
     /// request left the queue and was never seen again: "wait for memory" never happened.
     func dispatch(ownedBy owner: String?) async -> SchedulingRequest? {
         let initialCount = queue.count
-        // Collect rejected requests separately — we must try every request
+        // Collect rejected requests separately. We must try every request
         // in priority order. A rejected high-priority request must not block
         // lower-priority requests with smaller budgets that could fit.
         var rejected: [ComparableRequest] = []
@@ -259,7 +259,7 @@ actor SchedulerActor {
             var kvBytesPerToken = KVCacheBudget.bytesPerToken
             var kvPricingBasis = AdmissionResult.unpricedBasis
 
-            // Check admission — does this request fit in available headroom?
+            // Check admission. Does this request fit in available headroom?
             if let gate = admissionGate {
                 let result = await gate.check(
                     requestId: requestId,
@@ -273,7 +273,7 @@ actor SchedulerActor {
                         "Admission failed for \(requestId): \(result.reason ?? "budget") — (\(rejected.count)/\(initialCount) rejected this pass)"
                     )
                     // Every candidate this pass was rejected or held: nothing to dispatch,
-                    // so all of them wait for memory — checked after the append, which is
+                    // so all of them wait for memory. Checked after the append, which is
                     // the only point where "all" is decidable.
                     if rejected.count + held.count >= initialCount {
                         logger.info(
@@ -292,7 +292,7 @@ actor SchedulerActor {
             // re-sorts by priority and arrival, so their order survives.
             restoreSetAside(&rejected, &held)
 
-            // Admit — reserve memory for this request
+            // Admit. Reserve memory for this request
             if let gate = admissionGate {
                 await gate.admit(
                     requestId,
@@ -305,7 +305,7 @@ actor SchedulerActor {
             // Mark active
             activeRequests[requestId] = request
 
-            // Estimate and allocate memory for KV cache — at the price the gate just decided,
+            // Estimate and allocate memory for KV cache. At the price the gate just decided,
             // so the tracker's view of this turn and the gate's reservation are the same number.
             let estBytes = KVCacheBudget.bytes(
                 request.tokenBudget, bytesPerToken: kvBytesPerToken)
@@ -352,7 +352,7 @@ actor SchedulerActor {
     /// Interrupt a running request.
     /// No caller today: the GUI stops a turn by cancelling its `Task`, and that path reaches
     /// `complete`/`fail`. This stays as the one seam that frees a reservation mid-flight without
-    /// pretending the turn finished — the interrupt-with-no-tool-call gap is an open item.
+    /// pretending the turn finished. The interrupt-with-no-tool-call gap is an open item.
     /// - Parameter requestId: The request to interrupt.
     /// - Returns: The interrupted request, or nil if not found.
     @discardableResult
@@ -408,7 +408,7 @@ actor SchedulerActor {
 
     // MARK: - Query
 
-    /// Queue depth and active count have no production reader — every call site uses
+    /// Queue depth and active count have no production reader. Every call site uses
     /// `submitAndDispatch`/`complete`/`fail` and queries nothing. They exist so the drain and
     /// release invariants have a gate. Gate: `SchedulerConsumedSurfaceTests`.
     var pendingCount: Int {

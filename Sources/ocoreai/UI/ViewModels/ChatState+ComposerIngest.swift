@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ChatState+ComposerIngest.swift — the composer's ingest funnel.
+/// ChatState+ComposerIngest.swift. The composer's ingest funnel.
 ///
 /// One funnel, three doors: drag-and-drop, ⌘V, and the file picker all arrive
 /// here as `[URL]`, so routing is written once (`ComposerIngest`) and cannot
@@ -30,7 +30,7 @@ import UIKit
 
 extension ChatState {
 
-    /// What one composer ingest actually did — exact counts, because "it worked"
+    /// What one composer ingest actually did. Exact counts, because "it worked"
     /// without a number is not reviewable, and the door it replaces could drop a
     /// file into an empty `catch {}` and still look successful.
     struct IngestReport: Equatable {
@@ -48,11 +48,11 @@ extension ChatState {
     ///
     /// Routing is `ComposerIngest`'s, not this method's:
     ///   • image → the existing attachment pipeline (bytes → `compressImage` →
-    ///     `ContentPart.image_url`) — same wire, same token budget as the picker.
+    ///     `ContentPart.image_url`). Same wire, same token budget as the picker.
     ///   • document / code / PDF / folder → an absolute-path token in the text
     ///     field, which the agent opens with `read_file`. The UI never re-slurps
     ///     bytes into context: the engine windows them, once, on its own terms.
-    /// Refusals name the file in `errorMessage` — never silent, never invented.
+    /// Refusals name the file in `errorMessage`. Never silent, never invented.
     @discardableResult
     func ingestFileURLs(_ urls: [URL]) -> IngestReport {
         var report = IngestReport()
@@ -118,11 +118,11 @@ extension ChatState {
 
     // MARK: - Clipboard → composer
 
-    /// Consume the system clipboard into the composer — ⌘V on a screenshot or a
+    /// Consume the system clipboard into the composer. ⌘V on a screenshot or a
     /// Finder copy, the way every chat app behaves. Precedence is
     /// `ComposerIngest.route`: URLs beat bitmaps, because a Finder copy carries
     /// both and taking the bitmap would hand the model a picture of the file's
-    /// own icon. Plain text routes back to the caller untouched — the text field
+    /// own icon. Plain text routes back to the caller untouched. The text field
     /// pastes that natively and must not be intercepted.
     func ingestPasteboard() -> ComposerIngest.PasteRoute {
         #if os(macOS)
@@ -186,7 +186,7 @@ extension ChatState {
     // MARK: - NSItemProvider bridges
     //
     // `NSItemProvider` on this deployment target only exposes completion-handler
-    // loading, so each bridge resumes exactly once on every path — including the
+    // loading, so each bridge resumes exactly once on every path. Including the
     // error path, which resumes `nil` rather than leaving the composer hanging.
 
     private static func pastedFileURL(_ provider: NSItemProvider) async -> URL? {

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// InferenceStubs.swift — Shared inference types & fallback stubs
+/// InferenceStubs.swift. Shared inference types & fallback stubs
 ///
 /// Shared types (SamplingConfiguration, InferenceOptions etc.) serve as the
 /// intermediate representation between handler layer and backend implementation.
@@ -27,7 +27,7 @@ public struct PrefillConfig: Sendable, Codable, Equatable {
     /// Chunking strategy for dividing the prompt.
     /// - balanced: fewest equal chunks that respect step-size ceiling (default, aligns
     ///   with upstream PrefillParameters.Chunking.balanced)
-    /// - remainder: legacy stride — chunks of exactly the step size
+    /// - remainder: legacy stride. Chunks of exactly the step size
     /// - unchunked: whole prompt in one forward (validation only)
     public var chunking: Chunking = .balanced
 
@@ -47,7 +47,7 @@ public struct PrefillConfig: Sendable, Codable, Equatable {
         self.chunking = chunking
     }
 
-    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
+    // MARK: Codable. Lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -59,13 +59,13 @@ public struct PrefillConfig: Sendable, Codable, Equatable {
         case stepSize, chunking
     }
 
-    /// Map to upstream chunking. Use string equivalence — InferenceStubs has no
+    /// Map to upstream chunking. Use string equivalence. InferenceStubs has no
     /// backend dependency so we cannot import MLXLMCommon here. Map at the bridge.
 }
 
 // MARK: - Sampling Configuration
 
-/// Intermediate sampling configuration — used by both CoreAI and MLX backends.
+/// Intermediate sampling configuration. Used by both CoreAI and MLX backends.
 /// `mode` field mirrors upstream MLXSamplingMode (greedy/nucleus/topK) for mode-driven
 /// sampling parameter resolution (explicit-zero-wins semantics).
 struct SamplingConfiguration: Codable, Equatable {
@@ -84,7 +84,7 @@ struct SamplingConfiguration: Codable, Equatable {
     var stopSequences: [String]?
     var combined: Bool = true
 
-    // Prefill configuration — structured to match upstream PrefillParameters
+    // Prefill configuration. Structured to match upstream PrefillParameters
     var prefill: PrefillConfig = .default
     // GenerateParameters fields that control KV cache/windowing
     var maxKVSize: Int? = nil
@@ -142,7 +142,7 @@ struct SamplingConfiguration: Codable, Equatable {
         self.frequencyContextSize = frequencyContextSize
     }
 
-    /// Apply normalization — drops topK/topP when temperature == 0 (greedy).
+    /// Apply normalization. Drops topK/topP when temperature == 0 (greedy).
     func normalized() -> SamplingConfiguration {
         var config = self
         if config.temperature == nil || config.temperature == 0 {
@@ -157,7 +157,7 @@ struct SamplingConfiguration: Codable, Equatable {
     ///
     /// This is the single cascade used by the Fast Path (native UI stream/
     /// complete) whose `InferenceRequest` surface carries only
-    /// temperature/topP/topK/maxTokens/stopSequences — the remaining per-model
+    /// temperature/topP/topK/maxTokens/stopSequences. The remaining per-model
     /// parameters live solely on `ModelSamplingConfig`. Presence/frequency
     /// penalties follow the wire path's `0` = "not set" sentinel: a zero
     /// runtime value is mapped to `nil` so the engine treats it as unset.
@@ -193,7 +193,7 @@ struct SamplingConfiguration: Codable, Equatable {
 }
 
 /// Reasoning-level → `enable_thinking` resolution (shared by the FM and MTP
-/// engine paths — a single source of truth so the two cannot diverge).
+/// engine paths. A single source of truth so the two cannot diverge).
 /// Aligned with upstream mlx-swift-lm `thinkingEnabled: Bool?` (nil = no
 /// preference → model template default; true = force on; false = force off).
 enum ReasoningResolution {
@@ -203,8 +203,8 @@ enum ReasoningResolution {
     /// - `reasoningLevel` set (FM path): "light"/"moderate"/"deep" → `true`
     ///   (explicit ON, case-insensitive); any other non-empty level
     ///   (e.g. "no_think", unknown or blank words) is a **disabling**
-    ///   signal → `enableReasoning ?? false` — the old
-    ///   `enableReasoning ? true : false` semantics: an explicit `reasoning:`
+    ///   signal → `enableReasoning ?? false`. The old
+    ///   `enableReasoning ? true. False` semantics: an explicit `reasoning:`
     ///   bool can override it, absent → `false` (OFF), never the model default.
     /// - `reasoningLevel` absent (`nil` or empty): an explicit `reasoning`
     ///   bool wins (`true` → on, `false` → off); no signal at all → `nil`
@@ -231,7 +231,7 @@ enum ReasoningResolution {
     }
 }
 
-/// Intermediate inference options — used by both CoreAI and MLX backends.
+/// Intermediate inference options. Used by both CoreAI and MLX backends.
 struct InferenceOptions: Codable {
     /// Tool-routing contract shared by every native (non-HTTP) client.
     ///
@@ -246,7 +246,7 @@ struct InferenceOptions: Codable {
     ///
     /// Before this helper the two Fast Path sites (doStreamInference /
     /// doCompleteInference) set only `useGuidedGeneration` from `tools`,
-    /// leaving `hasNativeTools = false` — the exact divergence that left
+    /// leaving `hasNativeTools = false`. The exact divergence that left
     /// the desktop UI unable to close a tool loop while the HTTP path
     /// could close it.
     static func toolRouting(
@@ -267,15 +267,15 @@ struct InferenceOptions: Codable {
     /// Used by tools (tool call schema) or response_format.json_schema.
     var grammarSchema: String? = nil
     /// When true the request carries a native `tools` array (function-calling)
-    /// — as opposed to a `response_format.json_schema` structured-output
+    ///, as opposed to a `response_format.json_schema` structured-output
     /// request. Native tool calls run the SDK's **loop** (emit call →
     /// dispatch → feed result back → continue answering) via the
     /// ChatSession `toolDispatch` agent loop (MLXLMCommon
     /// `ChatSession.swift` L1003 "loop can restart on tool calls"), NOT the
-    /// one-shot FM `streamResponse(to:schema:).collect()` guided path —
+    /// one-shot FM `streamResponse(to:schema:).collect()` guided path,
     /// which only records the tool call but does not feed the result back
     /// for continuation. Distinct from `useGuidedGeneration`, which covers BOTH
-    /// tools and json_schema — this field lets the engine route tools to
+    /// tools and json_schema. This field lets the engine route tools to
     /// the loop while keeping json_schema on guided.
     var hasNativeTools: Bool = false
     /// Mid-turn steering (upstream #608/#798): the std lane submits queued SteerQueue
@@ -291,7 +291,7 @@ struct InferenceOptions: Codable {
     /// `reasoningLevel` (FM backend; light/moderate/deep) and `reasoningEffort`
     /// (model-template words) take precedence when explicitly set.
     var enableReasoning: Bool?
-    /// Reasoning level for FM backend — aligns with SDK ContextOptions.ReasoningLevel
+    /// Reasoning level for FM backend. Aligns with SDK ContextOptions.ReasoningLevel
     /// ("light", "moderate", "deep", or nil for default). ChatSession path uses
     /// enableReasoning only; this field exists for FM path granularity.
     var reasoningLevel: String? = nil
@@ -301,35 +301,35 @@ struct InferenceOptions: Codable {
     /// rejected by the model template itself (Qwen3.8 raise_exception).
     /// Wire-not-brain: raw value pass-through, no local mapping.
     var reasoningEffort: String? = nil
-    /// Tool calling mode — controls whether the model is allowed, required,
+    /// Tool calling mode. Controls whether the model is allowed, required,
     /// or disallowed from calling tools. Aligns with upstream
     /// ToolCallingModeResolution (.allowed / .required / .disallowed).
     /// - `.allowed`: Model may or may not call tools based on context.
     /// - `.required`: Model must call at least one tool before responding.
     ///   Enables think-then-call (reasoning phase followed by guided tool gen).
     /// - `.disallowed`: Tool calling is disabled even if tools are available.
-    /// Default is `.auto` — ocoreai uses presence of tools to infer mode
+    /// Default is `.auto`. Ocoreai uses presence of tools to infer mode
     /// (same as current behavior).
     var toolCallingMode: String? = nil
-    /// Tool-calling whitelist — the *names* the client declared in its
+    /// Tool-calling whitelist. The *names* the client declared in its
     /// `tools[]`, in declaration order.
     /// - nil or empty = ZERO tools injected. OpenAI wire semantics
     ///   (10-06 flip): omitting `tools[]` means "no tools this turn".
     ///   The pre-flip "full registry convenience" was falsified by live
-    ///   evidence — an implicit full surface makes small models hallucinate
+    ///   evidence. An implicit full surface makes small models hallucinate
     ///   tool calls on plain-text requests (rejected → corrective echo →
     ///   assistant content became the corrective text). Agentic clients
     ///   (native UI included) declare their surface explicitly.
     /// - non-empty = OpenAI wire semantics: `tools[]` IS the whitelist →
     ///   engines inject exactly these names. A name this server also registers
     ///   uses the registry schema; a name it does not is still declared to the
-    ///   model from the caller's own spec (see `declaredToolSpecsJSON`) — the
+    ///   model from the caller's own spec (see `declaredToolSpecsJSON`). The
     ///   caller executes what the caller declared.
     /// Resolution is ONE choke: `resolveToolSurface` (Tools/ToolRegistry.swift).
     /// Fills the P0-3 gap the wire-contract audit flagged: `request.tools`
     /// previously only drove the `hasNativeTools` routing boolean while the
     /// advertised surface stayed the full registry (declared whitelist
-    /// ignored — double source of truth).
+    /// ignored. Double source of truth).
     var declaredToolNames: [String]? = nil
     /// The caller's own `tools[]` entries, flattened into the `ToolSpec`
     /// dictionary shape (`{"type":"function","function":{…}}`) that chat
@@ -365,7 +365,7 @@ struct InferenceOptions: Codable {
     var forcedContinuation: [Int32]? = nil
     /// Headless / wire-surface flag (external HTTP caller, not GUI / in-process
     /// client). codex alignment (codex-rs/exec/src/lib.rs:566): headless
-    /// consumers cannot be asked for approval — the `.ask` (`interactive`)
+    /// consumers cannot be asked for approval. The `.ask` (`interactive`)
     /// verdict is coerced to a fail-closed denial instead of parking on the
     /// broker (who would approve for a foreign process?). GUI and
     /// DirectInferenceClient keep the park-and-wait broker path unchanged.
@@ -404,7 +404,7 @@ struct InferenceOptions: Codable {
 
 // MARK: - Shared types (both CoreAI and MLX backends)
 
-/// Inference stop reason — used by `InferenceEvent.done` across all backends
+/// Inference stop reason. Used by `InferenceEvent.done` across all backends
 /// (MLX and CoreAI). Defined unconditionally since the CoreAI beta SDK
 /// does not export this type.
 enum StopReason: Int, Codable, Error {
@@ -425,7 +425,7 @@ enum StopReason: Int, Codable, Error {
 
 // GATE NOTE (2026-10-12): this block used to share the `!canImport(CoreAI)` gate
 // that hides the real `Tokenizer/TokenizerManager.swift`. That conflated two
-// different axes — the real registry depends on swift-transformers, not on Apple
+// different axes. The real registry depends on swift-transformers, not on Apple
 // CoreAI. On the macOS 26 delivery build CoreAI is absent while `Tokenizers` is
 // present, so this stub silently replaced the real registry: `registerTokenizer`
 // became a no-op and `getTokenizer` returned nil for every model, which made
@@ -434,9 +434,9 @@ enum StopReason: Int, Codable, Error {
 // it actually substitutes.
 #if !canImport(Tokenizers)
 
-/// Empty StreamingDetokenizer for MLX-only builds — MLXLLM containers have
+/// Empty StreamingDetokenizer for MLX-only builds. MLXLLM containers have
 /// built-in tokenizers.
-/// ``@unchecked Sendable``: this is a stub class with no properties — trivially
+/// ``@unchecked Sendable``: this is a stub class with no properties. Trivially
 /// Sendable, but the compiler cannot infer it because classes default to non-Sendable.
 final class StreamingDetokenizer: @unchecked Sendable {}
 
@@ -446,7 +446,7 @@ protocol TokenizerProvider: Sendable {
     func detokenize(tokenIds: [Int32]) async throws -> String
     func streamingDetokenizer() -> StreamingDetokenizer
     func countTokens(messages: [[String: String]]) async throws -> Int
-    /// Content-only token count for one raw string — see `DirectTokenizer.countContentTokens`.
+    /// Content-only token count for one raw string. See `DirectTokenizer.countContentTokens`.
     /// Kept on the stub protocol so the pool's call site compiles on both sides of the gate.
     func countContentTokens(text: String) async throws -> Int
     func prewarm() async throws

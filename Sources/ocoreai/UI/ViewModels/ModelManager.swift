@@ -1,14 +1,14 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// ModelManager.swift — Single source of truth for all model management.
+// ModelManager.swift. Single source of truth for all model management.
 //
 // Replaces ModelRepositoryState + ModelsState with one @Observable class.
 //
 // Responsibilities:
-//   1. Hub search (HF / ModelScope) — via dedicated SearchClients
-//   2. Model load/download via EnginePool — unified progress tracking
-//   3. Local model list — single [ModelID] array, always fresh
-//   4. Error state — typed RepositoryError
+//  1. Hub search (HF / ModelScope). Via dedicated SearchClients
+//  2. Model load/download via EnginePool. Unified progress tracking
+//  3. Local model list. Single [ModelID] array, always fresh
+//  4. Error state. Typed RepositoryError
 //
 // Uses ModelIdentity for prefix-free model identifiers.
 
@@ -20,14 +20,14 @@ import Observation
 enum RepositoryError: LocalizedError {
     case engineUnavailable
     /// A hub search failed. `hub` names WHICH hub, `reason` carries the
-    /// underlying error verbatim — codex TUI shape: the user reads what
+    /// underlying error verbatim. Codex TUI shape: the user reads what
     /// actually broke, not "An error occurred" (the previous dead-end).
     case hubSearchFailed(hub: HubSource, reason: String)
     case loadFailed(String)
     case deleteFailed(String)
     case errorOccurred
     /// Search completed fine; the query just matched nothing. Deliberately
-    /// distinct from .hubSearchFailed — "nothing found" and "couldn't
+    /// distinct from .hubSearchFailed. "nothing found" and "couldn't
     /// search" are different states with different remedies (HIG).
     case noResults
 
@@ -63,22 +63,22 @@ enum RepositoryError: LocalizedError {
 // MARK: - Wait Face
 
 /// What the Models page owes the user for one model id, decided from the progress store and
-/// this window's task — never from `downloadingModelId` alone. A boot prewarm or a
+/// this window's task. Never from `downloadingModelId` alone. A boot prewarm or a
 /// wire-triggered load lands gigabytes for minutes while `downloadingModelId` stays empty, and a
 /// page gated on it rendered no wait at all to exactly the user the failure banner routes here.
 /// `stoppable` stays with the window that owns the task: observing an engine-initiated fetch
 /// honestly includes saying you cannot stop it from here (the pool's prewarm task has no cancel
-/// affordance — that half stays open in `docs/agent/open-items.md`).
+/// affordance, that half stays open in `docs/agent/open-items.md`).
 enum ModelWaitFace: Equatable {
-    /// Nothing is landing for this id and no window is waiting on it — show the action.
+    /// Nothing is landing for this id and no window is waiting on it. Show the action.
     case idle
     /// Bytes are in flight, measured by the store, whoever began the fetch.
     case downloading(progress: OcoreaiDownloadProgressState, stoppable: Bool)
-    /// This window waits on a load that has reported no bytes yet — a local read, or the hub
+    /// This window waits on a load that has reported no bytes yet. A local read, or the hub
     /// resolving config before it fetches. The spinner claims no size it has not measured.
     case loadingWithoutBytes(stoppable: Bool)
 
-    /// Whether a wait is live for this id — what the resumable badge and the row's `.task(id:)`
+    /// Whether a wait is live for this id. What the resumable badge and the row's `.task(id:)`
     /// ask. Not the face itself: a face carries moving bytes, and keying `.task(id:)` on it would
     /// re-fire the row's disk walk on every tick.
     var isLive: Bool {
@@ -115,7 +115,7 @@ enum ModelWaitFace: Equatable {
 final class ModelManager {
     // MARK: - Shared instance
 
-    /// Singleton shared across all views — ensures model list, progress
+    /// Singleton shared across all views. Ensures model list, progress
     /// and download state are consistent no matter which tab is active.
     static let shared = ModelManager()
 
@@ -131,7 +131,7 @@ final class ModelManager {
         let hub: HubSource
     }
 
-    /// Returns recommended models — ordered from lightest to heaviest.
+    /// Returns recommended models. Ordered from lightest to heaviest.
     static var recommendedModels: [RecommendedQuickModel] {
         [
             // Qwen 系列 → ModelScope 为主
@@ -197,23 +197,23 @@ final class ModelManager {
 
     var isDownloading: Bool = false
     var downloadingModelId: String = ""
-    /// Live download task — the GUI's Stop button cancels exactly this task.
+    /// Live download task. The GUI's Stop button cancels exactly this task.
     /// Cancellation propagates through EnginePool.acquire into the downloader,
     /// which KEEPS the temp bytes: next attempt resumes from offset, no
     /// re-download (user intent is "pause", not "delete").
     private var downloadTask: Task<Bool, Never>?
-    /// Identity token for downloadTask (Task is a struct — no ===).
+    /// Identity token for downloadTask (Task is a struct, no ===).
     private var downloadTaskID: UInt?
 
     /// Bumped by ``runWaitTicker`` while any wait is live. `OcoreaiDownloadProgress` is
-    /// deliberately not `@Observable` (its writers are downloader threads — see its header), so a
+    /// deliberately not `@Observable` (its writers are downloader threads. See its header), so a
     /// row that renders live bytes must be re-rendered by someone; this is that someone, and the
     /// only reason a view reads it. Without it the ring sat at the 0%/0 B sampled when the fetch
     /// began for the whole 794 s of a cold default-model download.
     var waitTick: Int = 0
 
     /// The face this page renders for `modelId` right now. Reads ``waitTick`` inside so every
-    /// caller re-renders as bytes move — the Observation tracker records reads made inside a
+    /// caller re-renders as bytes move. The Observation tracker records reads made inside a
     /// method of the observed object. `store` is injectable for tests, mirroring
     /// `ModelLoadProgress.measure`.
     func waitFace(
@@ -230,12 +230,12 @@ final class ModelManager {
     }
 
     /// One loop for the whole Models page: fast while a wait is live (this window's task OR the
-    /// store's own rows — the prewarm lands bytes with neither flag set here), a presence check
+    /// store's own rows. The prewarm lands bytes with neither flag set here), a presence check
     /// when nothing moves. The idle branch costs one lock and a `contains` per 2 s.
     ///
     /// It also ends the waits honestly: disk and pool facts (the resumable badge, a pool
     /// "loading" card) only move on a refresh, so the loop re-reads them once when a transfer
-    /// ends, and re-reads on the slow tick ONLY while a pool "loading" card is on screen — a
+    /// ends, and re-reads on the slow tick ONLY while a pool "loading" card is on screen. A
     /// disk-backed load shows no store row and no window task, and this bounds how long its
     /// "启动中" can outlive the load it names. The condition is self-limiting: the refresh that
     /// reports ready clears the flag it polls.
@@ -287,7 +287,7 @@ final class ModelManager {
             return
         }
 
-        // Guard against concurrent searches — skip if one is already running
+        // Guard against concurrent searches. Skip if one is already running
         guard !isSearching else { return }
 
         isSearching = true
@@ -298,7 +298,7 @@ final class ModelManager {
             let results = await _searchHF(query)
             hfResults = results
             // Honest split: a failed search already set .hubSearchFailed in
-            // the catch — empty-results-overwrite would bury "couldn't
+            // the catch. Empty-results-overwrite would bury "couldn't
             // search" under "nothing found" (two different remedies).
             if results.isEmpty && currentError == nil {
                 currentError = .noResults
@@ -343,7 +343,7 @@ final class ModelManager {
     /// Acquire a model from the EnginePool (triggers download if needed), then release.
     /// Refreshes the local model list afterwards.
     ///
-    /// Uses `selectedSource` to determine the Hub source — prevents ModelScope results
+    /// Uses `selectedSource` to determine the Hub source. Prevents ModelScope results
     /// from being routed to HuggingFace due to bare "org/repo" string ambiguity.
     @discardableResult
     func load(_ modelId: String) async -> Bool {
@@ -402,7 +402,7 @@ final class ModelManager {
         }
         let normalizedId = identity.prefixedId
 
-        // Progress key = repoId (no prefix) — aligns UI with MLXBridge callbacks
+        // Progress key = repoId (no prefix). Aligns UI with MLXBridge callbacks
         let progressKey = identity.repoId
 
         // EnginePool.acquire handles the cache check internally, so we route everything
@@ -416,7 +416,7 @@ final class ModelManager {
         progressKey: String,
         pool: EnginePool
     ) async -> Bool {
-        // Acquire a download slot — prevents concurrent downloads from
+        // Acquire a download slot. Prevents concurrent downloads from
         // saturating disk I/O and rejects duplicate downloads of the same model.
         guard await DownloadSemaphore.shared.acquireOrWait(for: progressKey) else {
             currentError = .loadFailed("Model is already being downloaded")
@@ -427,14 +427,14 @@ final class ModelManager {
         isDownloading = true
         downloadingModelId = progressKey
         currentError = nil
-        // No progress-store write here — the transfer lane (`MLXBridge.loadFromHub`) opens and
+        // No progress-store write here. The transfer lane (`MLXBridge.loadFromHub`) opens and
         // closes the row for this id. This caller is frequently just WAITING behind a load
         // someone else began (a boot prewarm holds the pool slot); its `finish` evicted a row
         // whose bytes the ring and `/v1/models`' `loadProgress` both still had to show.
 
         do {
             let handle = try await pool.acquire(model: normalizedId)
-            // Use handle.release() — real UUID sessionId from acquire()
+            // Use handle.release(). Real UUID sessionId from acquire()
             // (same fix as P0-2 above)
             await handle.release()
 
@@ -444,7 +444,7 @@ final class ModelManager {
             downloadingModelId = ""
             return true
         } catch {
-            // User-initiated cancel is NOT an error to report — no banner.
+            // User-initiated cancel is NOT an error to report, no banner.
             // Temp bytes are kept by the downloader; next tap resumes.
             if !(error is CancellationError) {
                 currentError = .loadFailed(error.localizedDescription)
@@ -464,7 +464,7 @@ final class ModelManager {
 
         // The model set on disk may have changed since the last refresh (download
         // completed, model deleted/replaced), so the pool's cache of windows parsed
-        // from each model's config.json must not survive it — a stale digit would
+        // from each model's config.json must not survive it. A stale digit would
         // silently budget a re-downloaded model at its predecessor's capacity.
         await pool.invalidateDeclaredContextWindows()
 
@@ -491,9 +491,9 @@ final class ModelManager {
         }
 
         // M7 (omlx 对齐): merge "ready but not loaded" models from the ready-model
-        // directory. **Canonical dedup** — loaded id is the EnginePool key (bare
+        // directory. **Canonical dedup**. Loaded id is the EnginePool key (bare
         // `org/repo`, e.g. `mlx-community/Qwen3.5-4B-MLX-4bit`); discoverReady id
-        // may carry `mscope:`/`hf:` prefix — dedup on the canonical (prefix-stripped)
+        // may carry `mscope:`/`hf:` prefix. Dedup on the canonical (prefix-stripped)
         // id or the same physical model shows twice and unload/delete no-op.
         let merged = Self.mergeLocalModels(
             loaded: models,
@@ -510,7 +510,7 @@ final class ModelManager {
 
     /// Pure merge of loaded models + disk-ready models, dedup by canonical id
     /// (prefix-stripped). Extracted from `refreshLocalModels` for unit test
-    /// without EnginePool. `nonisolated` — no MainActor state touched, keeps it
+    /// without EnginePool. `nonisolated`, no MainActor state touched, keeps it
     /// callable from synchronous unit tests.
     nonisolated static func mergeLocalModels(
         loaded: [ModelID],
@@ -526,13 +526,13 @@ final class ModelManager {
         var out: [ModelID] = []
         var configs: [String: ModelSamplingConfig] = [:]
         var seen = Set<String>()
-        // Loaded entries first — they carry real metadata (max_context/vocab).
+        // Loaded entries first. They carry real metadata (max_context/vocab).
         for m in loaded {
             let key = canonical(m.id)
             guard seen.insert(key).inserted else { continue }
             out.append(m)
         }
-        // Ready — fill the roster; display id = canonical bare repo path
+        // Ready. Fill the roster; display id = canonical bare repo path
         // (same key space EnginePool.acquire/loadModel/sampling configs use).
         for r in ready {
             let key = canonical(r.id)
@@ -549,18 +549,18 @@ final class ModelManager {
         return (out, configs)
     }
 
-    /// Load models on view appearance — thin wrapper for .task{} usage.
+    /// Load models on view appearance. Thin wrapper for .task{} usage.
     func loadModels() async {
         await refreshLocalModels()
     }
 
-    /// Effective context window for a model — override, else the window the model
+    /// Effective context window for a model. Override, else the window the model
     /// declares, else unknown.
     ///
     /// Forwarded to `EnginePool.effectiveContextWindow` rather than re-resolved
     /// here: the GUI and the engine must read ONE number, or the watermark shows a
     /// budget the engine is not enforcing. Without a pool (engine not up) the
-    /// answer is unknown, which the callers render as "no number" — never a guess.
+    /// answer is unknown, which the callers render as "no number". Never a guess.
     func resolvedContextWindow(for modelId: String) async -> ResolvedContextWindow {
         guard let pool = _enginePool, !modelId.isEmpty else {
             return ResolvedContextWindow(tokens: nil, source: .unknown)
@@ -568,7 +568,7 @@ final class ModelManager {
         return await pool.effectiveContextWindow(modelId: modelId)
     }
 
-    /// Get model IDs as plain strings — for ChatView toolbar picker.
+    /// Get model IDs as plain strings, for ChatView toolbar picker.
     func modelIdStrings() -> [String] {
         localModels.map { $0.id }
     }
@@ -599,7 +599,7 @@ final class ModelManager {
             return false
         }
 
-        // 1. Unload from memory (best-effort — continue even if not loaded)
+        // 1. Unload from memory (best-effort. Continue even if not loaded)
         _ = await pool.unloadModel(modelId)
 
         // 2. Remove cached files from disk
@@ -623,7 +623,7 @@ final class ModelManager {
     }
 
     private func deleteCachedFiles(for identity: ModelIdentity) async throws {
-        // M7: single source of truth — ModelStore.removeReady covers new root
+        // M7: single source of truth. ModelStore.removeReady covers new root
         // + legacy Caches locations (discovery/clean only, never moved).
         switch identity.source {
         case .huggingFace(let repoId):

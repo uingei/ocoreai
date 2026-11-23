@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ProjectsView — Bionic-parity project container (CHANGELOG 4c1b4ad).
+/// ProjectsView. Bionic-parity project container (CHANGELOG 4c1b4ad).
 ///
 /// Mirrors the reference flow 1:1: name → "Allow coding" toggle → choose a
 /// folder → Create; the open project shows its sessions (left) and a
-/// Project Files listing that reads straight from the bound folder — the
+/// Project Files listing that reads straight from the bound folder. The
 /// folder IS the truth, there is no parallel file bookkeeping to drift.
 /// Keyboard shortcuts + VoiceOver labels per Apple HIG; folder enumeration is
 /// offloaded off the main actor (ProjectStore.files).
@@ -148,7 +148,7 @@ struct ProjectsView: View {
     }
     #else
     /// `HSplitView` is AppKit-only, and this view is already the detail column of
-    /// the root `NavigationSplitView` — nesting a second split view is not an
+    /// the root `NavigationSplitView`. Nesting a second split view is not an
     /// option on iOS, so stack the project list above the open project.
     private var columns: some View {
         VStack(spacing: 0) {
@@ -255,7 +255,7 @@ struct ProjectsView: View {
             return
         }
         // Read both surfaces independently: a failed session query must never
-        // empty the files listing (and vice versa) — no fabricated blanks.
+        // empty the files listing (and vice versa), no fabricated blanks.
         projectFiles = await store.files(in: project)
         projectSessions = (try? await store.sessions(in: project)) ?? []
     }

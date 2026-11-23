@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// HubConfigFetcher.swift — Fetch remote model config.json with TTL cache
+/// HubConfigFetcher.swift. Fetch remote model config.json with TTL cache
 ///
 /// HuggingFace: https://huggingface.co/{repo}/resolve/main/config.json
 /// ModelScope:  https://www.modelscope.cn/api/v1/models/{repo}/revision/master
@@ -113,7 +113,7 @@ enum HubConfigFetcher {
 
     /// Fetch config.json from ModelScope Hub and parse vocab_size + max_context_length.
     ///
-    /// Uses `/api/v1/models/{id}/repo?FilePath=config.json` — same as omlx's
+    /// Uses `/api/v1/models/{id}/repo?FilePath=config.json`. Same as omlx's
     /// `_fetch_model_config()`, which returns raw JSON directly.
     /// Endpoint is configurable via MODELSCOPE_ENDPOINT env var.
     /// Checks TTL cache before fetching.
@@ -158,7 +158,7 @@ enum HubConfigFetcher {
         let vocabSize = entry.vocabSize
         // Rough dense param count: 2 * d_model * d_ff * n_layers (attn+ffn)
         // + 2 * d_model * vocab_size (lm_head + embedding)
-        // + ropeScaling / expert-based models multiply further — we note ~ for estimation
+        // + ropeScaling / expert-based models multiply further. We note ~ for estimation
         var total: Double = Double(h) * Double(i) * 2 * Double(l)
         total += Double(h) * Double(vocabSize) * 2
         return formatParamCount(Int64(total + 0.5))

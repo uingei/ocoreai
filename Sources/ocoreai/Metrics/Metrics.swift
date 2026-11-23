@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Metrics.swift — Prometheus-compatible metrics registry and exporter
+/// Metrics.swift. Prometheus-compatible metrics registry and exporter
 ///
 /// ### Design:
 /// - Thread-safe metric collectors via `ManagedAtomic` / `actor` isolation
@@ -17,7 +17,7 @@
 /// - `ocoreai_kv_cache_evictions_total` (Counter)
 /// - `ocoreai_model_loads_total` / `ocoreai_model_load_failures_total` (Counters)
 /// - `ocoreai_auth_failures_total` / `ocoreai_rate_limit_rejections_total` (Counters)
-/// - `ocoreai_ttfb_seconds` (Histogram — time to first byte)
+/// - `ocoreai_ttfb_seconds` (Histogram. Time to first byte)
 
 import Atomics
 import Foundation
@@ -48,8 +48,8 @@ struct ServerStatsSnapshot: Equatable {
 actor MetricsRegistry {
     /// The registry the process counts into, and the one ``GET /metrics`` exports.
     ///
-    /// Producers live where the event happens — an auth middleware, a model loader, a pooled
-    /// session, the first byte of a stream — and none of them sits on the dependency path to the
+    /// Producers live where the event happens. An auth middleware, a model loader, a pooled
+    /// session, the first byte of a stream, and none of them sits on the dependency path to the
     /// app container that owns the exporter. A registry instance passed only to handlers therefore
     /// orphaned every other series at zero: the exporter read one object while the events happened
     /// to another. One instance, published by `App` at startup, is the only shape where "the
@@ -154,7 +154,7 @@ actor MetricsRegistry {
         tokenCounts[kind, default: 0] &+= UInt64(count)
     }
 
-    /// Count KV cache eviction events — one per cache discarded while its model stays loaded.
+    /// Count KV cache eviction events. One per cache discarded while its model stays loaded.
     /// A sweep removes many caches at once, so the count is an argument, not a loop of calls.
     func incrementKVEvictions(_ count: Int = 1) {
         guard count > 0 else { return }
@@ -235,7 +235,7 @@ actor MetricsRegistry {
     ///   - outputTokens: Number of generated (output) tokens
     ///   - ttfbMs: Time-to-first-byte in milliseconds. This is the histogram's only producer: a real
     ///     value is recorded here as one sample, so a caller that also calls `observeTTFB` itself
-    ///     double-counts its turn. `"0"` (no first byte — a non-streaming turn, or a stream that
+    ///     double-counts its turn. `"0"` (no first byte. A non-streaming turn, or a stream that
     ///     emitted nothing) records nothing. It is not "for logging".
     ///   - modelId: Model identifier for labeling
     func observeInferenceDuration(
@@ -279,7 +279,7 @@ actor MetricsRegistry {
 
     /// Snapshot of inference counters/gauges for the ``GET /v1/stats`` JSON endpoint.
     ///
-    /// Returns an immutable value type safe to send across actor boundaries —
+    /// Returns an immutable value type safe to send across actor boundaries,
     /// unlike ``export()`` (Prometheus text), this is for structured JSON consumers.
     func snapshot() -> ServerStatsSnapshot {
         ServerStatsSnapshot(
@@ -303,7 +303,7 @@ actor MetricsRegistry {
         lines.append("# TYPE ocoreai_build gauge")
         // Single truth: the bundle version injected by the git-tag pipeline
         // (build-app.sh:72). A hardcoded literal reported "1.0.0" while the
-        // app shipped v0.1.6 — the metric lied to every dashboard.
+        // app shipped v0.1.6. The metric lied to every dashboard.
         lines.append("ocoreai_build{version=\"\(AppInfo.shortVersion)\"} 1")
         lines.append("")
 
@@ -420,7 +420,7 @@ actor MetricsRegistry {
         // tokens_per_second = generated tokens / total inference seconds.
         // The old formula was count/sum = REQUESTS per second mislabeled
         // as tok/s (live proof 10-07: gauge said 0.12 while the same
-        // registry held 17 tokens / 8.458 s ≈ 2.0 tok/s) — the dashboard's
+        // registry held 17 tokens / 8.458 s ≈ 2.0 tok/s). The dashboard's
         // headline number was fabricated by definition. Honest throughput
         // derives from the token counters that already exist.
         let generated = tokenCounts["generated"] ?? 0

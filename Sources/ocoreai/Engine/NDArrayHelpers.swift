@@ -1,4 +1,4 @@
-// Copyright 2026 Apple Inc. (BSD-3-Clause) — resolvedStrides helper from CoreAIShared
+// Copyright 2026 Apple Inc. (BSD-3-Clause). ResolvedStrides helper from CoreAIShared
 // Copied for use within CoreAIPipelinedEngine's @available scope.
 
 #if canImport(CoreAI)
@@ -11,7 +11,7 @@ func resolvedStrides(descriptor: NDArrayDescriptor, shape: [Int]) throws -> [Int
     return resolved.preferredStrides
 }
 
-/// Product of the elements of a `Span<Int>` — used to compute the flat capacity
+/// Product of the elements of a `Span<Int>`. Used to compute the flat capacity
 /// from an `NDArray` shape. `Span` doesn't conform to `Sequence` (non-escapable
 /// by design), so `.reduce` isn't available.
 ///

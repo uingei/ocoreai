@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ThinkingTelemetry — post-inference quality signal emitter for ThinkingBudget calibration.
+/// ThinkingTelemetry. Post-inference quality signal emitter for ThinkingBudget calibration.
 ///
 /// Call sites: ChatHandler:1307, ChatHandler:2097, DirectInferenceClient:664.
 /// The quality signal feeds into ThinkingBudget.recordQuality() for adaptive calibration.
@@ -97,13 +97,13 @@ enum ThinkingTelemetry {
         let engagementScore: Double
 
         if complexity > 0.67 {
-            // Complex task — output should be substantial
+            // Complex task. Output should be substantial
             engagementScore = max(0.3, outputLength)
         } else if complexity > 0.33 {
-            // Medium task — moderate output expected
+            // Medium task. Moderate output expected
             engagementScore = min(1.0, max(0.3, outputLength * 1.2))
         } else {
-            // Simple task — even brief output is acceptable
+            // Simple task. Even brief output is acceptable
             engagementScore = min(1.0, max(0.5, outputLength + 0.2))
         }
 
@@ -111,10 +111,10 @@ enum ThinkingTelemetry {
         // Tool calls on complex tasks indicate productive multi-turn behavior
         let toolScore: Double
         if input.toolCallCount > 0 && input.iterationCount > 1 {
-            // Multi-turn with tools — good signal (cap at 5 tools to avoid bonus farming)
+            // Multi-turn with tools. Good signal (cap at 5 tools to avoid bonus farming)
             toolScore = min(1.0, Double(min(input.toolCallCount, 5)) / 5.0)
         } else if input.iterationCount > 5 {
-            // Many iterations without tools — possible divergence
+            // Many iterations without tools. Possible divergence
             toolScore = 0.3
         } else {
             // Normal single-shot or low iteration
@@ -138,7 +138,7 @@ private let logger = Logger(label: "ThinkingTelemetry")
 extension ThinkingTelemetry {
     /// Convenience: signal from a MessageBuilder context + inference completion signals.
     ///
-    /// This is the preferred integration point — it extracts complexity from
+    /// This is the preferred integration point. It extracts complexity from
     /// ``MessageBuilder`` and requires only the signals available at runtime.
     ///
     /// - Parameters:

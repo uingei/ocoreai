@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PlanPersistence — `update_plan` 任务态 checkpoint + 重启恢复（Recover 环片 1）
+/// PlanPersistence, `update_plan` 任务态 checkpoint + 重启恢复（Recover 环片 1）
 ///
 /// 第一性：会话/记忆已持久化（消息落盘 + memory_events），**唯独任务态（plan）是纯内存**
 /// （`PlanStateRecorder` 仅测试面，生产 publish→nil 静默丢弃）。长任务跨重启存活 = AGI
@@ -39,7 +39,7 @@ extension PlanPersistenceError: LocalizedError {
     }
 }
 
-/// 事件面第二消费者的注入缝隙 — 在工具 `@Sendable` 执行上下文（跨 actor）调用，
+/// 事件面第二消费者的注入缝隙。在工具 `@Sendable` 执行上下文（跨 actor）调用，
 /// 故要求 `async`：消费侧（`@MainActor` store）跨 actor 合法跳转；落盘在消费侧自行
 /// `Task` 化。工具面 `await chk?.planUpdated(...)` fire-and-forget 完成等待不阻塞输出。
 protocol PlanRecoverySeam: Sendable {
@@ -60,7 +60,7 @@ protocol PlanRecoverySeam: Sendable {
 final class PlanTaskStore {
     /// 进程级单例（UI 与工具面共享同一任务态）。
     /// 全局唯一实例、主线程创建+主线程消费（工具事件经
-    /// `@MainActor` 工具闭包投递、UI 读面在 MainActor）——无跨线程竞争面。
+    /// `@MainActor` 工具闭包投递、UI 读面在 MainActor）。无跨线程竞争面。
     static let shared = PlanTaskStore()
     /// 当前会话的 plan 快照（任务面板渲染源）。
     var current: PlanSnapshot?
@@ -71,7 +71,7 @@ final class PlanTaskStore {
     @ObservationIgnored private let logger = Logger(label: "ocoreai.plan")
 
     /// 实例 init（生产 = `shared` 单例；隔离实例供单测使用）。
-    /// `nonisolated`：纯存储初始化、无 actor 状态触碰——`static let shared` 的
+    /// `nonisolated`：纯存储初始化、无 actor 状态触碰。`static let shared` 的
     /// 非隔离上下文构造合法。
     nonisolated init() {}
 

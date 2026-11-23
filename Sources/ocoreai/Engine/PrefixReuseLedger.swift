@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// Prefix reuse accounting — what the KV prefix cache actually saved, per model.
+// Prefix reuse accounting. What the KV prefix cache actually saved, per model.
 //
 // ### Why this exists
 // AGENTS.md invariant 2: a capability statement a client can read must be *measured*, and
@@ -12,7 +12,7 @@
 //
 // Measured 10-14 (scripts/probes/01-prefix-accounting.sh, default gemma model): every warm
 // turn reported `cached=0`, the whole prompt re-prefilled. The reason recorded here at the
-// time — `canRewind` requiring `cache.isTrimmable` — was read off the wrong rule, and the
+// time, `canRewind` requiring `cache.isTrimmable`. Was read off the wrong rule, and the
 // correction is the lesson: a transcript that only *grows* is decided by
 // `ExtendCachedPrefixRule`, which never consults trimmability and was bailing on
 // `carriesAttentionMask` (Gemma 4's processor paired every text prompt with an all-ones
@@ -25,7 +25,7 @@
 // reported, and nothing else.
 //
 // ### What this deliberately is NOT
-// Not a prediction. ocoreai does not re-derive trimmability from cache kinds here — that
+// Not a prediction. ocoreai does not re-derive trimmability from cache kinds here, that
 // would be a second source of routing/capability truth maintained by hand, the exact
 // anti-pattern this repo keeps naming. The status is *retroactive*: it summarizes what
 // upstream reported on completed turns. Before any warm turn completes the answer is
@@ -40,11 +40,11 @@ import Foundation
 struct PrefixReuseObservation: Encodable, Equatable, Sendable {
     /// `not_observed` | `no_reuse_observed` | `reuse_observed`.
     ///
-    /// Derived from the counters below, never set independently — so the wire cannot
+    /// Derived from the counters below, never set independently, so the wire cannot
     /// advertise a capability the counters do not show.
     let status: String
     /// Completed turns where the session pool withheld messages the pooled session already
-    /// held — the only turns where reuse is even possible. Cold turns are excluded: they
+    /// held. The only turns where reuse is even possible. Cold turns are excluded: they
     /// report `cached=0` legitimately and must not be misread as a broken cache.
     let warmTurns: Int
     /// How many of those warm turns came back with cached tokens > 0.
@@ -92,7 +92,7 @@ struct PrefixReuseEntry: Equatable, Sendable {
     }
 }
 
-/// Pure per-model accumulator — no actor, no I/O, so the state machine is pinnable
+/// Pure per-model accumulator, no actor, no I/O, so the state machine is pinnable
 /// without Metal or a loaded model.
 struct PrefixReuseLedger: Sendable {
     private(set) var entries: [String: PrefixReuseEntry] = [:]
@@ -127,7 +127,7 @@ struct PrefixReuseLedger: Sendable {
         entries[modelId]?.observation ?? .notObserved
     }
 
-    /// Drop a model's history — called when its session state is invalidated, because
+    /// Drop a model's history. Called when its session state is invalidated, because
     /// observations made under the old cache topology no longer describe it.
     mutating func forget(modelId: String) {
         entries[modelId] = nil
@@ -141,7 +141,7 @@ struct PrefixReuseLedger: Sendable {
 /// The pool's `Session pool HIT` line says history was withheld; only upstream knows whether
 /// the KV cache actually kept the prefix. Both outcomes need saying: a warm turn that quietly
 /// paid the whole prefill is the defect this repo already named (invariant 2), and a warm turn
-/// that quietly *saved* hundreds of tokens is equally invisible — silence cannot distinguish
+/// that quietly *saved* hundreds of tokens is equally invisible. Silence cannot distinguish
 /// "nothing happened" from "nobody looked", which is why the live probe counts these lines
 /// per turn and demands they add up.
 ///
@@ -154,12 +154,12 @@ enum PrefixReuseStatement: Equatable, Sendable {
     /// Nothing was withheld from the feed, so there is nothing to account for.
     case nothing
 
-    /// Decide from upstream's own numbers — never from a cache kind, and never a guess.
+    /// Decide from upstream's own numbers. Never from a cache kind, and never a guess.
     ///
     /// - Parameters:
     ///   - withheld: messages the pool withheld from this feed (`divergenceIndex`).
-    ///   - prefilled: upstream `GenerateCompletionInfo.promptTokenCount` — what this turn paid.
-    ///   - cached: upstream `GenerateCompletionInfo.cachedPromptTokenCount` — what it kept.
+    ///   - prefilled: upstream `GenerateCompletionInfo.promptTokenCount`. What this turn paid.
+    ///   - cached: upstream `GenerateCompletionInfo.cachedPromptTokenCount`. What it kept.
     ///   - promptMs: upstream `promptTime`, already in whole milliseconds.
     static func decide(
         convKey: String,

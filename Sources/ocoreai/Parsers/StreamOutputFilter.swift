@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// `StreamOutputFilter` — the streaming counterpart of `OutputSanitizer` for
+// `StreamOutputFilter`. The streaming counterpart of `OutputSanitizer` for
 // the SSE text channels (`/v1/chat/completions?stream=true`,
 // `/v1/completions?stream=true`).
 //
-// **The golden invariant (strict — for EVERY input, not just well-formed
+// **The golden invariant (strict, for EVERY input, not just well-formed
 // ones):**
 //
 // >   concat(all `content` deltas at stream end)
@@ -17,22 +17,22 @@
 //
 // **Semantics it mirrors (verified against `OutputSanitizer`):**
 //
-//   * Gemma spans: `open…close` — first open pairs with the FIRST close
+//  * Gemma spans: `open…close`. First open pairs with the FIRST close
 //     after it (a second open inside the span is literal interior text,
 //     exactly like `removeGemmaSpans`); an open with no close cuts the
 //     tail (content = text before the open; the interior is thinking).
 //     Span interiors are thinking → routed to `reasoning_content`.
-//   * Stray `close` with no open: the non-stream wire just removes the
+//  * Stray `close` with no open: the non-stream wire just removes the
 //     literal; surrounding text is unaffected. (So are stray `open`s that
-//     a later close consumes as literal after span removal — the filter
+//     a later close consumes as literal after span removal. The filter
 //     consumes them the same way: a close only acts while a span is open.)
-//   * Qwen closer: a closer that survives span removal demotes all
+//  * Qwen closer: a closer that survives span removal demotes all
 //     outside-span text accumulated before it to thinking (non-stream
 //     keeps only the text after the LAST closer). A closer INSIDE a span
 //     is removed with the span and must NOT demote (phase order!).
 //
 // **Routing:** everything `strip()` would drop is routed to the
-// `reasoning_content` channel instead of evaporating — the wire field
+// `reasoning_content` channel instead of evaporating. The wire field
 // already exists upstream (coreai-models `reasoning_content` on delta and
 // message) and in-tree (the `.reasoning` engine event emits it).
 //
@@ -40,7 +40,7 @@
 // rule, a text region's fate is only knowable when the next closer (or
 // EOS) arrives. Emitting content live would allow later demotion to
 // break the invariant (already-sent bytes can't be recalled). Thinking
-// text, by contrast, is provably thinking the moment it is demoted —
+// text, by contrast, is provably thinking the moment it is demoted,
 // so it streams live on the reasoning channel.
 //
 // **Cross-delta safety:** a marker may be split across engine deltas
@@ -48,13 +48,13 @@
 // trailing chars are never settled while the stream is open, so a marker
 // completing exactly at a feed boundary is still found.
 //
-// **Byte-faithful:** no whitespace normalization anywhere — legitimate
+// **Byte-faithful:** no whitespace normalization anywhere. Legitimate
 // code indentation passes byte-exact (the space-compression bug class is
 // forbidden here).
 //
 // **Thread safety:** not thread-safe by contract; drive it from the single
 // SSE producer task. `@unchecked Sendable`: all state is touched
-// exclusively by that one task — `feed`/`finish` are awaited sequentially
+// exclusively by that one task, `feed`/`finish` are awaited sequentially
 // inside a single `onText`/stream loop (no cross-task sharing).
 final class StreamOutputFilter: @unchecked Sendable {
 
@@ -65,7 +65,7 @@ final class StreamOutputFilter: @unchecked Sendable {
 
     /// Index into `OutputSanitizer.thoughtFamilies` of the currently
     /// open span (nil = outside spans). A span closes only on its OWN
-    /// family's closer — the same leftmost-open / first-own-closer
+    /// family's closer. The same leftmost-open / first-own-closer
     /// pairing as the non-stream scan, across ALL families.
     private var spanFamily: Int? = nil
     private var spanInterior = ""  // settled interior text (thinking)
@@ -114,7 +114,7 @@ final class StreamOutputFilter: @unchecked Sendable {
         settlePrefix(pendingTail)
         pendingTail = ""
 
-        // Span still open at EOS: non-stream cuts the tail at the open —
+        // Span still open at EOS: non-stream cuts the tail at the open,
         // the answer is only the pre-open text; the interior is thinking.
         if spanFamily != nil {
             reasoningAccum += spanInterior
@@ -141,10 +141,10 @@ final class StreamOutputFilter: @unchecked Sendable {
     }
 
     /// Apply a settled marker event. Contract (unchanged from the
-    /// pre-convergence filter — `chunkingInvariance` exact values lock
+    /// pre-convergence filter, `chunkingInvariance` exact values lock
     /// it): a marker that is NOT the open of a fresh span / the paired
     /// closer of the open span / the qwen demotion boundary is CONSUMED
-    /// as an event — it never re-enters either channel. (`scanThoughts`
+    /// as an event. It never re-enters either channel. (`scanThoughts`
     /// keeps such literals verbatim inside thinking pieces instead;
     /// that is a reasoning-channel-only divergence, pre-existing, and
     /// the filter form is the cleaner consumer output.)
@@ -155,7 +155,7 @@ final class StreamOutputFilter: @unchecked Sendable {
                 spanFamily = i
                 spanInterior = ""
             }
-        // else: nested opener — consumed (clean reasoning stream).
+        // else: nested opener. Consumed (clean reasoning stream).
 
         case .close(let i):
             if spanFamily == i {
@@ -170,7 +170,7 @@ final class StreamOutputFilter: @unchecked Sendable {
                 preCloser = ""
             }
         // Else: inside a span (other family's closer) or stray
-        // non-qwen closer outside — consumed.
+        // non-qwen closer outside. Consumed.
         }
     }
 
@@ -186,7 +186,7 @@ final class StreamOutputFilter: @unchecked Sendable {
     }
 
     /// Final answer hygiene: identical to the non-stream exit
-    /// (tool-array removal + trim, nothing else — byte-faithful).
+    /// (tool-array removal + trim, nothing else. Byte-faithful).
     private func cleanAnswer(_ text: String) -> String {
         guard !text.isEmpty else { return "" }
         return OutputSanitizer.removeToolCallArrays(text)
@@ -214,7 +214,7 @@ final class StreamOutputFilter: @unchecked Sendable {
 
     /// Earliest marker occurrence in `s` (any family, open or close).
     /// Markers come from `OutputSanitizer.thoughtFamilies` (code-point
-    /// assembled) — single source of truth with `scanThoughts`.
+    /// assembled). Single source of truth with `scanThoughts`.
     private func earliestTag(in s: String) -> Found? {
         var best: Found? = nil
         func consider(_ range: Range<String.Index>, _ kind: TagKind) {

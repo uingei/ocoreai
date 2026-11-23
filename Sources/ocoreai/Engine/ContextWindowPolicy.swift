@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ContextWindowPolicy — the single honest source for "how many tokens does this
+/// ContextWindowPolicy. The single honest source for "how many tokens does this
 /// model's window hold", and where that number came from.
 ///
 /// ### Why this exists (proven gap, 2026-10-12)
@@ -11,14 +11,14 @@
 /// `~/.ocoreai/models/mlx-community/gemma-4-e2b-it-4bit/config.json`:
 /// `text_config.max_position_embeddings = 131072`.
 ///
-/// What ocoreai never did was USE that number. Every budget consumer — the chat
+/// What ocoreai never did was USE that number. Every budget consumer. The chat
 /// watermark (`ChatView.contextWatermark`), the model-facing `get_context_remaining`
 /// tool (`ContextStatusStore`), auto-compaction and the 400 wall
-/// (`ChatHandler` Phase 3.5 / `DirectInferenceClient.enforceContextWindow`) — gates
+/// (`ChatHandler` Phase 3.5 / `DirectInferenceClient.enforceContextWindow`). Gates
 /// on ONE value: `EnginePool.getSamplingConfig(modelId:).maxContextWindow`, which is
 /// `nil` until a human issues an HTTP `PATCH {"max_context_window": N}`.
 /// There was no UI that set it (grep `maxContextWindow` in `Sources/ocoreai/UI/` was
-/// 0 hits before the Params-sheet card landed — see "Where this is surfaced" below).
+/// 0 hits before the Params-sheet card landed. See "Where this is surfaced" below).
 /// So out of the box, on a 131072-token model, the truthful answers were
 /// "unknown": the meter stayed hidden, the agent was told it had
 /// "unknown tokens left", compaction never fired, and an oversized prompt walked
@@ -28,7 +28,7 @@
 /// 1. The context window is a PROPERTY OF THE MODEL, not a user preference. The app
 ///    must default to the truth it already read, and only deviate on an explicit
 ///    human override. (LM Studio / Bionic behave this way: the window is inherited
-///    from the model card and shown, not requested — observed product behaviour,
+///    from the model card and shown, not requested. Observed product behaviour,
 ///    not re-verified against their documentation in this session.)
 /// 2. Provenance must survive the resolution. A number the user set and a number the
 ///    model declared are different claims, so provenance travels with the value on
@@ -41,31 +41,31 @@
 ///    the chat watermark carries the same label (`ChatView.swift:690`).
 ///    STILL open: `/v1/models` publishes only the bare declared number
 ///    (`contextLength`, `ChatCompletionsRouter.swift:177`), so an HTTP client
-///    cannot tell auto-detected from hand-configured — stated as open rather than
+///    cannot tell auto-detected from hand-configured. Stated as open rather than
 ///    claimed as done.
 /// 3. Unknown stays unknown. A model with no parsable window reports `nil`, never a
 ///    fabricated default (codex `unknown` path; the existing honesty contract).
 ///
-/// ### Decision status — partially taken; the RAM clamp is still OWNER'S CALL
+/// ### Decision status. Partially taken; the RAM clamp is still OWNER'S CALL
 /// CHANGELOG (09-28 session-watermark entry) explicitly reserved this behaviour:
 /// "从本地 config.json `max_position_embeddings` 自动解窗口 = 独立产品决策（连带
 /// 默认 400 墙 + 规则压缩 blast radius），未静默做, 留拍板." Inheriting the
 /// declared window ARMS two surfaces that were inert while the cap was `nil`:
 /// rule compaction and the HTTP 400 wall at `ChatHandler.swift:452`. There is no
 /// memory-based clamp between the model's declared window and what this machine can
-/// actually hold (`Scheduler/` budgets admissions in MB — `AdmissionGate.swift:131`
-/// — and never sizes the window), so a 131072-token prompt is now reachable where
+/// actually hold (`Scheduler/` budgets admissions in MB, `AdmissionGate.swift:131`
+///, and never sizes the window), so a 131072-token prompt is now reachable where
 /// it previously was not. The resolution itself IS wired into the request path in
 /// this tree and is now visible and adjustable by a human (Params sheet + watermark),
 /// so a user can lower the cap before an oversized prompt ever reaches the engine.
 /// What remains the OWNER'S CALL is the sizing policy on top of it: whether the app
 /// should ALSO clamp an inherited window to what this machine can hold. That number
-/// is deliberately not invented here — see CHANGELOG 10-12 (有效上下文窗口).
+/// is deliberately not invented here. See CHANGELOG 10-12 (有效上下文窗口).
 ///
 /// ### Upstream reference
 /// Mirrors `mlx-swift-lm` `KVCacheLayerStatus.CapacitySource`
 /// (`.modelDefined` = architecture declares the bound, `.requested` = caller asked
-/// for it, `.unbounded` = no bound) — the same provenance axis, applied one level up
+/// for it, `.unbounded` = no bound). The same provenance axis, applied one level up
 /// to the session window instead of the per-layer cache bound. Vocabulary reused
 /// deliberately: `modelDefined` / `requested`.
 import Foundation
@@ -78,7 +78,7 @@ enum ContextWindowSource: String, Sendable, Hashable {
     case requested
     /// The model declared it (`config.json`, via `ModelStore.contextLength`).
     case modelDefined
-    /// Nothing declares a window — report no number rather than invent one.
+    /// Nothing declares a window. Report no number rather than invent one.
     case unknown
 }
 
@@ -104,7 +104,7 @@ struct ResolvedContextWindow: Sendable, Hashable {
         self.declared = declared
     }
 
-    /// Tokens as an `Int` when known, `0` when unknown — for consumers that need a
+    /// Tokens as an `Int` when known, `0` when unknown, for consumers that need a
     /// single numeric surface (e.g. `ModelID.maxContext`, whose `contextString`
     /// already renders 0 as "no badge").
     var tokensOrZero: Int { tokens ?? 0 }
@@ -120,7 +120,7 @@ enum ContextWindowPolicy {
     ///
     /// Non-positive values are treated as absent: `0`/negative cannot come from a
     /// real `config.json` (`ModelStore.contextLength` filters `> 0`) and a
-    /// `PATCH {"max_context_window": 0}` is a client bug, not a zero-token model —
+    /// `PATCH {"max_context_window": 0}` is a client bug, not a zero-token model,
     /// honouring it would silently disable every budget surface.
     ///
     /// - Parameters:
@@ -141,7 +141,7 @@ enum ContextWindowPolicy {
     /// BOTH id spellings: the Params sheet and `PATCH` may address a model by its
     /// bare canonical id (`org/repo`) while the pool key carries an `hf:`/`mscope:`
     /// prefix, or the reverse. Matching only one spelling turns one override into
-    /// two silently different configs — the same id-space tearing that
+    /// two silently different configs. The same id-space tearing that
     /// `ModelManager.mergeLocalModels` fixes for the models list.
     ///
     /// Lookup order is deterministic and documented: the id exactly as given, then
@@ -164,7 +164,7 @@ enum ContextWindowPolicy {
     /// The prefix vocabulary mirrors what `ModelStore.normalizeModelId` strips
     /// (`ModelStore.swift:96-101`: `hf:` / `huggingface:` / `mscope:`;
     /// `ModelIdentity.swift:6` records that this set is duplicated across the
-    /// repo). Used here for LOOKUP only — never to mint an id, which stays the
+    /// repo). Used here for LOOKUP only. Never to mint an id, which stays the
     /// job of `ModelIdentity.prefixedId`.
     static func candidateKeys(for modelId: String) -> [String] {
         let canonical = ModelStore.normalizeModelId(modelId)
@@ -187,7 +187,7 @@ enum ContextWindowPolicy {
     }
 
     /// Where the displayed number came from, in words a human can read. `nil` when
-    /// the window is unknown — the surfaces that hide the number hide the caption
+    /// the window is unknown. The surfaces that hide the number hide the caption
     /// too, rather than captioning a budget that does not exist.
     static func provenanceLabel(for resolved: ResolvedContextWindow) -> String? {
         switch resolved.source {
@@ -201,16 +201,16 @@ enum ContextWindowPolicy {
     /// (case-insensitive), thousands separators tolerated.
     ///
     /// Empty, unparseable, and non-positive input all return `nil`, which means
-    /// *inherit from the model* — never "zero tokens". Honouring `0` would turn
+    /// *inherit from the model*. Never "zero tokens". Honouring `0` would turn
     /// every budget surface off while looking like a configured cap.
     ///
-    /// Overflowing input returns `nil` — a window that cannot be represented cannot
+    /// Overflowing input returns `nil`. A window that cannot be represented cannot
     /// be honoured, and trapping here would be a crash. The boundary is exactly
     /// Int64: `999999999999m` (≈1.05e18) still fits and is honoured as typed,
     /// while `9999999999999m` (≈1.05e19) does not fit and is refused. Whether a
     /// huge-but-representable window should additionally be clamped to what this
     /// machine can hold is a separate, undecided sizing question (see this file's
-    /// decision status) — it is NOT silently decided here.
+    /// decision status). It is NOT silently decided here.
     static func parseOverride(_ text: String) -> Int? {
         let cleaned =
             text

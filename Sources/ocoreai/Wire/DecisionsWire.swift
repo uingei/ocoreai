@@ -1,16 +1,16 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// DecisionsWire.swift — the Jev / System 1 decision contract, in one home.
+/// DecisionsWire.swift. The Jev / System 1 decision contract, in one home.
 ///
 /// ### Which published shape, and why that one
 /// The axis exists twice. `POST /v1/decisions` answers typed choice / score / yes-no questions
 /// by scoring single-token answer labels at the answer position and needs **no special
-/// checkpoint** — any generation model with a chat template can answer
+/// checkpoint**. Any generation model with a chat template can answer
 /// (`sglang/docs/docs/supported-models/decision_models.mdx:5`), which is our
 /// situation exactly: open checkpoints on MLX. `POST /v1/systemone` is diffusion-native and needs
 /// a served canvas plus a diffusion checkpoint
 /// (`vllm/examples/features/structured_diffusion/README.md:10-13,47`); our registry
-/// has no diffusion architecture, so that route is not registered — a route row is a promise,
+/// has no diffusion architecture, so that route is not registered. A route row is a promise,
 /// since it renders onto `/v1/capabilities` and `/openapi.json`.
 ///
 /// ### What consistency is pinned to
@@ -20,12 +20,12 @@
 /// `http_server.py:2048`; each rule below cites its line. The **status** is part of the contract:
 /// sglang overrides FastAPI's default 422 to 400 on this route and keeps 422 only for
 /// `/v1/systemone` (`http_server.py:636-660`), so a schema failure here is a 400 and never a 500.
-/// Reason *wording* is ours — pydantic's text carries Python internals, and sglang scrubs the
+/// Reason *wording* is ours. Pydantic's text carries Python internals, and sglang scrubs the
 /// same class of leak on `/v1/messages` for exactly that reason (`http_server.py:637-639`).
 ///
 /// ### What is deliberately absent
 /// Response DTOs. A probability requires logits published at the answer position, and only the
-/// CoreAI route publishes logits (`Engine/EngineLogprobs.swift:22` — `#if canImport(CoreAI)`,
+/// CoreAI route publishes logits (`Engine/EngineLogprobs.swift:22`, `#if canImport(CoreAI)`,
 /// `@available(macOS 27.0, *)`), which is why `POST /v1/completions` with `logprobs` answers 501 on
 /// the delivery platform. `DecisionsHandler` therefore refuses every scoring request naming that
 /// prerequisite; inventing a number is the one failure mode this axis cannot afford
@@ -227,7 +227,7 @@ struct DecisionsRequest: Sendable, Equatable {
     let images: [DecisionJSON]
 
     /// Decode and validate in one pass, collecting every reason. Throws
-    /// ``DecisionsValidationError`` — which the handler turns into a 400 naming each reason.
+    /// ``DecisionsValidationError``, which the handler turns into a 400 naming each reason.
     static func decode(_ body: Data) throws -> DecisionsRequest {
         let tree: DecisionJSON
         do {

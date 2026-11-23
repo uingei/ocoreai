@@ -1,17 +1,17 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! PipelineGate.swift — a counting gate that bounds in-flight Metal encodes.
+//! PipelineGate.swift. A counting gate that bounds in-flight Metal encodes.
 //!
 //! Why this type lives in its own file, and not inside `CoreAIPipelinedEngine.swift`:
-//! it is a self-contained piece of concurrency accounting — an integer, a waiter queue and
-//! `OSAllocatedUnfairLock` (`os`, macOS 13 / iOS 16 — below this package's floor of macOS 14 /
+//! it is a self-contained piece of concurrency accounting. An integer, a waiter queue and
+//! `OSAllocatedUnfairLock` (`os`, macOS 13 / iOS 16. Below this package's floor of macOS 14 /
 //! iOS 17, so the type needs no `@available` at all). It references no CoreAI and no Metal
 //! symbol. Sitting inside that file's single file-level `#if canImport(CoreAI)` deleted it
 //! on the macOS 26 delivery SDK anyway (AGENTS.md § Compile-time gates: a `#if canImport(X)`
-//! must name the dependency the code inside actually uses), and — the part that mattered — it made
+//! must name the dependency the code inside actually uses), and. The part that mattered. It made
 //! the class unreachable by any test on any runner this project has, while its comment claimed
 //! "exercised by `PipelineGateTests`". That suite now exists and runs on the CLT route, so the
-//! availability is whatever the *body* requires — here, nothing beyond the declared platforms.
+//! availability is whatever the *body* requires. Here, nothing beyond the declared platforms.
 //!
 //! The invariant the suite pins is the one codex #55581 (`e8aa7c1678`, 10-20) fixes on the Rust
 //! side: **a one-shot waiter must leave the state before it is consumed, and must never be
@@ -24,16 +24,16 @@ import Foundation
 import os
 
 /// Bounds in-flight encode calls so MPSGraph's per-encode scratch
-/// (sized by the graph's max shape — multiple GB on large models) can't accumulate.
+/// (sized by the graph's max shape. Multiple GB on large models) can't accumulate.
 ///
 /// Without this, the decode loop submits encodes (~220/s) faster than the sampler callback drains
 /// them (~70/s); depth grows until `MPSCommandBufferImageCache` fails to allocate another private
 /// MTLBuffer.
 ///
-/// Capacity matches `pipelineDepth` — covers {logits encode + sampler commit + optional KV-cache
+/// Capacity matches `pipelineDepth`. Covers {logits encode + sampler commit + optional KV-cache
 /// grow}; deeper queues only cost memory.
 ///
-/// Class, not actor: `release()` runs synchronously from the Metal callback — an actor would force
+/// Class, not actor: `release()` runs synchronously from the Metal callback. An actor would force
 /// `Task { await release() }` with ordering ambiguity.
 /// `internal` (not `private`) so `PipelineGateTests` can reach it.
 
@@ -84,14 +84,14 @@ final class PipelineGate: Sendable {
     func release() {
         let waiter = state.withLock { state -> CheckedContinuation<Void, Never>? in
             if !state.waiters.isEmpty {
-                // Slot transferred to the woken waiter — inFlight count unchanged. The waiter is
+                // Slot transferred to the woken waiter. InFlight count unchanged. The waiter is
                 // out of `state` before anyone resumes it: exactly-once by construction, not by
                 // luck in the caller.
                 return state.waiters.removeFirst()
             }
             // Clamp at zero. An unbalanced release is a caller bug, but a gate that goes negative
             // hands out more permits than `capacity` and the encode backlog this type exists to
-            // bound comes back — so the bug costs a dropped permit, never the box.
+            // bound comes back, so the bug costs a dropped permit, never the box.
             if state.inFlight > 0 { state.inFlight -= 1 }
             return nil
         }

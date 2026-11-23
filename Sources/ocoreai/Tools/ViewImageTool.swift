@@ -1,22 +1,22 @@
 import CoreGraphics
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ViewImage — agent-side "inspect an on-disk image file" tool.
+/// ViewImage. Agent-side "inspect an on-disk image file" tool.
 ///
 /// Baseline: codex `view_image` (`core/src/tools/handlers/view_image_spec.rs:16`,
-/// `VIEW_IMAGE_TOOL_NAME` = `"view_image"`) — "View a local image file from the
+/// `VIEW_IMAGE_TOOL_NAME` = `"view_image"`). "View a local image file from the
 /// filesystem when visual inspection is needed. Use this for images already
 /// available on disk." One required `path` (string); optional `detail`
 /// (`"high"` | `"original"`, `view_image_spec.rs:22-31`); output schema
 /// `{ image_url, detail }` (`view_image_spec.rs:53-74`).
 ///
 /// Positioning in ocoreai (empirically bounded, NOT self-declared):
-/// - The MLX tool-result channel is text-only — `ChatSession.toolDispatch`
+/// - The MLX tool-result channel is text-only, `ChatSession.toolDispatch`
 ///   returns `String` (`MLXLMCommon/ChatSession.swift:387`) and a
 // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:447 public var toolDispatch
 ///   `Chat.Message.tool` carries no image part. So a tool result CANNOT feed a
 ///   real image into the VLM's next pass. Inlining base64 would be 1.3M+ tokens
-///   of dead noise (no consumer) — deliberately NOT done here.
+///   of dead noise (no consumer). Deliberately NOT done here.
 /// - The genuine vision route is the user-attachment path
 ///   (`EngineInference.makeMLXImage` → `images.append(image)`, ~L1647), already
 ///   wired. `view_image` occupies the codex tool's *pre-flight* half: confirm
@@ -25,7 +25,7 @@ import CoreGraphics
 ///   `stat`: it rejects mis-tagged payloads (a .txt named .png fails to decode)
 ///   and gives the agent the layout facts ("2560x1440 vs 1x1") to act on.
 /// - `detail` mirrors the codex spec vocabulary; ocoreai does not resize
-///   (MLX resolves detail at inference, not in the tool) — the value is a
+///   (MLX resolves detail at inference, not in the tool). The value is a
 ///   transparent echo.
 ///
 /// LLM-fed input discipline (same class as `ExecTools`): `path` is
@@ -96,10 +96,10 @@ enum ViewImage {
     ///
     /// - Parameters:
     ///   - path: Absolute, `~`-expanded, or cwd-relative path to an image file.
-    ///   - detail: `"high"` (default) or `"original"` — codex spec vocabulary,
+    ///   - detail: `"high"` (default) or `"original"`. Codex spec vocabulary,
     ///     echoed transparently; ocoreai does not resize.
     static func run(path rawPath: String, detail: String? = nil) throws -> Report {
-        // LLM-fed input guardrails — reject `data:` URLs up-front.
+        // LLM-fed input guardrails. Reject `data:` URLs up-front.
         guard !rawPath.hasPrefix("data:") else {
             throw Error.unreadable("`data:` URLs are not a file path")
         }
@@ -114,14 +114,14 @@ enum ViewImage {
             throw Error.notAFile
         }
 
-        // Extension gate — refuse mis-tagged payloads up-front.
+        // Extension gate. Refuse mis-tagged payloads up-front.
         let url = URL(fileURLWithPath: expanded)
         let ext = url.pathExtension.lowercased()
         guard let mime = mimeByExtension[ext] else {
             throw Error.unsupportedExtension(ext: ext.isEmpty ? "<none>" : ext)
         }
 
-        // Size gate — read metadata BEFORE mapping into memory.
+        // Size gate. Read metadata BEFORE mapping into memory.
         guard
             let size =
                 (try? FileManager.default
@@ -133,7 +133,7 @@ enum ViewImage {
         guard size <= maxBytes else { throw Error.tooLarge(bytes: size, cap: maxBytes) }
 
         // Real-image gate: ImageIO must yield decodable dimensions.
-        // `#if canImport` is COMPILE-time — it guards the platform feature,
+        // `#if canImport` is COMPILE-time. It guards the platform feature,
         // unlike `#available` which is a runtime OS-version check (kept out).
         let w: Int
         let h: Int
@@ -170,7 +170,7 @@ enum ViewImage {
     /// Compact, greppable single-line report for tool-result consumption.
     /// Exact shape (testable):
     /// ```
-    /// view_image OK — path=<abs> ext=<ext> mime=<mime> bytes=<n>
+    /// view_image OK. Path=<abs> ext=<ext> mime=<mime> bytes=<n>
     ///   <W>x<H>px detail=<high|original> | note=<...>
     /// ```
     static func reportString(_ r: Report) -> String {

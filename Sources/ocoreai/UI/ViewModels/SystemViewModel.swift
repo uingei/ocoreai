@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// System ViewModel — bridges MCP, Tools, and Audit with SwiftUI
+/// System ViewModel. Bridges MCP, Tools, and Audit with SwiftUI
 
 import Foundation
 import Observation

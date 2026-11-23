@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// NaturalLanguageClassifier.swift — Lightweight ticket/classification engine
+/// NaturalLanguageClassifier.swift. Lightweight ticket/classification engine
 ///
 /// Classifies user messages into categories: support, complaint, inquiry, refund, feedback.
 /// Uses keyword matching + confidence scoring. Falls back to LLM when confidence < 0.7.
@@ -30,7 +30,7 @@ struct ClassificationResult: Codable {
     }
 }
 
-/// Lightweight NLP classifier — rule-based, no ML model dependency.
+/// Lightweight NLP classifier. Rule-based, no ML model dependency.
 struct NaturalLanguageClassifier {
     private let categoryKeywords: [TicketCategory: [String]]
 

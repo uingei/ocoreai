@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// HearingReadiness.swift — the one gate in front of every on-device ASR call.
+/// HearingReadiness.swift. The one gate in front of every on-device ASR call.
 ///
 /// ### Why a gate, and why out-of-process
 /// The host this project ships from (macOS 26.6.2, Mac17,6) is a live counter-example for
@@ -10,12 +10,12 @@
 ///   * `SpeechTranscriber.supportedLocale(equivalentTo:)` → **zh_CN / en_US** (non-nil)
 ///   * the crash report alongside it says `appleIntelligenceStatus:
 ///     {"state":"unavailable","reasons":["regionIneligible"]}`
-///   * and `SpeechAnalyzer.analyzeSequence(from:)` does not throw — it **traps**
+///   * and `SpeechAnalyzer.analyzeSequence(from:)` does not throw. It **traps**
 ///     (`EXC_BREAKPOINT`/SIGTRAP, faulting frame `specialized SpeechAnalyzer.analyzeSequence`)
 ///
 /// Both availability APIs answer "yes" on a box where the analysis pass dies, and the death
 /// is not catchable: the `try` at `AudioIO.swift:213` handles a *thrown* error, while a
-/// SIGTRAP inside the framework takes the whole process — GUI, engine pool, sessions — with
+/// SIGTRAP inside the framework takes the whole process. GUI, engine pool, sessions, with
 /// it. This is invariant 1 with an audio hat: a premise inferred from an API instead of run
 /// is a premise that rots, and here it rots into a crash rather than a wrong boolean.
 ///
@@ -28,13 +28,13 @@
 ///    A trap there costs one refused request and a measured verdict; a trap in the parent
 ///    costs the app. The outcome is cached per process and a fault opens the circuit.
 /// 3. **Claim exactly what was measured.** `EngineProbeOutcome.ok` means "a synthetic
-///    analysis pass completed in a child without trapping or erroring" — not that words come
+///    analysis pass completed in a child without trapping or erroring", not that words come
 ///    out. That stronger claim belongs to `scripts/probes/05-hearing.sh`, which posts a real
 ///    utterance and reads the transcript back.
 ///
 /// ### Reuses, does not re-author
 /// `DevicePermission`, `ChannelReadiness`, `CaptureAttempt` and `privacyPane(forChannel:)`
-/// come from ``MultimodalDeviceFacts`` on purpose — one closed vocabulary per axis, so the
+/// come from ``MultimodalDeviceFacts`` on purpose. One closed vocabulary per axis, so the
 /// mic-capture path and the transcription path cannot publish two meanings of `blocked`.
 /// The transcription itself is ``LocalSTT`` (Speech framework, macOS/iOS 26+).
 
@@ -47,7 +47,7 @@ import AVFoundation
 import Speech
 #endif
 
-/// Why a transcript did not happen — closed vocabulary, so clients branch on `error_code`
+/// Why a transcript did not happen. Closed vocabulary, so clients branch on `error_code`
 /// instead of string-parsing a sentence.
 enum TranscriptFailure: String, Codable, CaseIterable, Error, Sendable {
     /// The Speech engine this seam needs does not exist on this OS tier.
@@ -74,7 +74,7 @@ enum TranscriptFailure: String, Codable, CaseIterable, Error, Sendable {
     case emptyTranscript
 
     /// Machine-readable code for the JSON error envelope (`speech_not_determined`,
-    /// `engine_fault`, …) — derived from the closed vocabulary so the two can never drift.
+    /// `engine_fault`, …). Derived from the closed vocabulary so the two can never drift.
     var errorCode: String {
         var out = ""
         for character in rawValue {
@@ -91,7 +91,7 @@ enum TranscriptFailure: String, Codable, CaseIterable, Error, Sendable {
     /// What the OS speech detector reported, for the two outcomes where listening actually
     /// happened: `false` when it never fired, `true` when it fired and no words came out.
     ///
-    /// `nil` for every refusal, where nothing was listened to — absence keeps "not measured"
+    /// `nil` for every refusal, where nothing was listened to. Absence keeps "not measured"
     /// distinct from a measured no, the same rule that omits an unmeasurable device count on
     /// `POST /v1/multimodal/status` instead of publishing `0`.
     var detectedSpeech: Bool? {
@@ -143,13 +143,13 @@ enum TranscriptFailure: String, Codable, CaseIterable, Error, Sendable {
 ///
 /// `ok` is deliberately weak and precisely worded: a synthetic analysis pass completed in a
 /// child process without trapping or erroring. It is *not* a claim that the engine produced
-/// correct words — that claim is `scripts/probes/05-hearing.sh`'s job, with a real utterance.
+/// correct words, that claim is `scripts/probes/05-hearing.sh`'s job, with a real utterance.
 enum EngineProbeOutcome: String, Codable, CaseIterable, Sendable {
     /// No probe has run in this process (nothing measured either way).
     case notRun
     /// A child completed a synthetic analysis pass without trapping or erroring.
     case ok
-    /// The child was killed by a signal — the SIGTRAP class that would have killed the parent.
+    /// The child was killed by a signal. The SIGTRAP class that would have killed the parent.
     case fault
     /// The child ran and the framework threw (non-zero exit).
     case refused
@@ -180,7 +180,7 @@ enum EngineProbeOutcome: String, Codable, CaseIterable, Sendable {
 /// and consulted by `POST /v1/audio/transcriptions` before it touches the framework.
 ///
 /// `Codable`, not just `Encodable`: `StatusResponse` is `Codable`, so a nested type that only
-/// encoded broke the build; and round-tripping is the useful property anyway — a probe can
+/// encoded broke the build; and round-tripping is the useful property anyway. A probe can
 /// decode the payload it just read and assert against the same type the server built.
 struct HearingReadiness: Codable, Equatable, Sendable {
     /// Which engine this seam drives. Constant today; named so that a second engine (an MLX
@@ -193,7 +193,7 @@ struct HearingReadiness: Codable, Equatable, Sendable {
     /// Locale the caller asked for.
     let requestedLocale: String
     /// What the OS resolved it to; nil when nothing resolved **or** when it was not queried.
-    /// `localeMeasured` keeps those two apart — conflating them is how "unknown" turns into
+    /// `localeMeasured` keeps those two apart. Conflating them is how "unknown" turns into
     /// a false verdict.
     let resolvedLocale: String?
     /// Whether the locale axis was actually queried.
@@ -223,12 +223,12 @@ struct HearingReadiness: Codable, Equatable, Sendable {
 
     static let engineName = "apple-speech-analyzer"
 
-    /// Derive the verdict from the measured axes. Pure — every row is asserted in tests.
+    /// Derive the verdict from the measured axes. Pure. Every row is asserted in tests.
     ///
     /// Order matters: an axis absent from the target is `unsupported`; a measured no is
     /// `blocked`; an unreadable axis is `unknown`; a fault measured out-of-process outranks a
     /// grant, because a grant on a trapping engine is not evidence of delivery; and anything
-    /// left unmeasured is `unknown` — never `ready`, never a zero dressed as a verdict.
+    /// left unmeasured is `unknown`. Never `ready`, never a zero dressed as a verdict.
     static func verdict(
         tierSupported: Bool,
         authorization: DevicePermission,
@@ -281,7 +281,7 @@ struct HearingReadiness: Codable, Equatable, Sendable {
 /// A transcript plus the facts a client needs to judge it.
 struct HearingTranscript: Sendable, Equatable {
     let text: String
-    /// Which engine produced this — measured, not configured.
+    /// Which engine produced this. Measured, not configured.
     let engine: String
     /// OS speech-detector truth: was there speech in the sample at all.
     let detected: Bool
@@ -348,8 +348,8 @@ actor HearingProbeState {
 
 // MARK: - Seam
 
-/// The single entry point for on-device transcription. Every caller — HTTP handler, GUI
-/// press-to-talk, agent tool — goes through here, so "call the OS and hope" cannot return
+/// The single entry point for on-device transcription. Every caller. HTTP handler, GUI
+/// press-to-talk, agent tool. Goes through here, so "call the OS and hope" cannot return
 /// by way of a new call site.
 enum Hearing {
     /// The tier floor: file-based offline transcription needs `SpeechAnalyzer` (26+).
@@ -362,7 +362,7 @@ enum Hearing {
         #endif
     }
 
-    /// Read the permission axis only — no prompt, no engine, no locale query. Cheap enough
+    /// Read the permission axis only, no prompt, no engine, no locale query. Cheap enough
     /// for a status endpoint's fast path, and safe on any thread.
     static func permissionsOnly(locale: Locale = .current) -> HearingReadiness {
         let tier = tierAvailable
@@ -378,7 +378,7 @@ enum Hearing {
     }
 
     /// Measure every axis, including the out-of-process engine probe (cached per process, and
-    /// only ever run when a grant exists — see ``HearingEngineProbe``).
+    /// only ever run when a grant exists. See ``HearingEngineProbe``).
     /// - Parameter probeEngine: run the out-of-process probe if none is cached. Pass `false`
     ///   on read-only paths (a status endpoint must not pay a 20 s probe for a snapshot);
     ///   the cached outcome is still reported, so the difference is "not measured yet"
@@ -492,7 +492,7 @@ enum Hearing {
 
     /// Whether a transcription may be attempted at all, and why not when it may not.
     ///
-    /// `.unknown` authorization still attempts — refusing on an unreadable value would block
+    /// `.unknown` authorization still attempts. Refusing on an unreadable value would block
     /// paths that work, and the honest direction to err is the loud refusal, not the quiet
     /// one (same rule as `captureAttempt`). A measured fault never attempts.
     static func attempt(readiness: HearingReadiness) -> CaptureAttempt {
@@ -527,7 +527,7 @@ enum Hearing {
         return .attempt
     }
 
-    /// Transcribe a local audio file — the only place a wire path reaches ``LocalSTT``.
+    /// Transcribe a local audio file. The only place a wire path reaches ``LocalSTT``.
     static func transcribe(
         file url: URL, locale: Locale, timeout: TimeInterval = 30
     ) async -> Result<HearingTranscript, TranscriptFailure> {

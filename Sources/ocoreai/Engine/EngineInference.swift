@@ -1,8 +1,8 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// EngineInference.swift — Inference execution as EnginePool extension
+/// EngineInference.swift. Inference execution as EnginePool extension
 ///
-/// Contains ``doInference`` and ``_runInference`` — the heavy inference
+/// Contains ``doInference`` and ``_runInference``. The heavy inference
 /// runners that execute off-actor in background Tasks. Split from
 /// EnginePool.swift so the actor's core orchestration stays lean.
 
@@ -23,7 +23,7 @@ import CoreAI
 
 /// One-shot box carrying the execution-window start `ToolRegistry.call` reports after the
 /// approval decision, so a tool card's duration is the tool's time, not the human's.
-/// Written once inside the awaited `call` and read only after it returns — the `await` is
+/// Written once inside the awaited `call` and read only after it returns. The `await` is
 /// the happens-before edge, which is the whole Sendable justification for this unchecked box.
 private final class ExecStartBox: @unchecked Sendable {
     var instant: ContinuousClock.Instant?
@@ -42,15 +42,15 @@ import FoundationModels
 
 /// The prompt a lane builds for itself, with this turn's instructions in front of it.
 ///
-/// Upstream `ChatSession` keeps its `instructions` out of the message feed — they ride the
-/// template render as a separate input — and these lanes filter every `system` role out of the
+/// Upstream `ChatSession` keeps its `instructions` out of the message feed. They ride the
+/// template render as a separate input, and these lanes filter every `system` role out of the
 /// feed they build (`nonSystemMessages`) so the text can be handed to ChatSession on its
 /// own. A lane that prepares its own `LMInput` around ChatSession and skips this prepend
 /// feeds the conversation and drops the instructions: measured 11-01 on a resident
 /// checkpoint, a plain turn whose assembled prompt was 814 tokens reported 24 and answered
 /// as if no instructions had been sent, while the identical instruction placed in the user
 /// turn moved the answer from `4` to `"7"`. The guided lane dropped them too while its
-/// reported count still included them — the lie probe 15 §1 exists to catch. One home for
+/// reported count still included them. The lie probe 15 §1 exists to catch. One home for
 /// the rule, and `DegenerateMarginProbe` calls it as well: a reconstruction of the live
 /// prompt that prepends differently cannot report `fidelity` honestly.
 func promptMessagesCarryingInstructions(
@@ -63,7 +63,7 @@ func promptMessagesCarryingInstructions(
     return [Chat.Message(role: .system, content: instructions)] + messages
 }
 
-// Phase-probe arithmetic: Duration to milliseconds — both components are required, and the
+// Phase-probe arithmetic: Duration to milliseconds. Both components are required, and the
 // remainder must be scaled to milliseconds; dividing it by 10^9 (as this line first did)
 // reports nanoseconds beside a seconds term, which is how the 10-13 probe printed values
 // like "421375ms" for what took 0.42 ms. Matches TimingHooks.overallMs (Profiling).
@@ -73,7 +73,7 @@ nonisolated func elapsedMs(_ d: Duration) -> Int {
 }
 
 // P-S2: Fetch perception context via MainActor to bridge @MainActor PerceptionEngine into
-// the nonisolated inference body. String result is trivially Sendable — safe to capture in
+// the nonisolated inference body. String result is trivially Sendable. Safe to capture in
 // @Sendable closures. Zero captures, so it lives at file scope, not nested in the host.
 func fetchPerceptionContext() async -> String {
     await MainActor.run {
@@ -96,7 +96,7 @@ nonisolated func toolResultNamesByID(in messages: [Message]) -> [String: String]
 }
 
 /// Convert ocoreai ``ToolCall`` to upstream MLXLMCommon ``ToolCall``.
-/// Top-level free function so it doesn't capture EnginePool self — avoids
+/// Top-level free function so it doesn't capture EnginePool self. Avoids
 /// Sendable taint in the inference body closure for WiredMemoryTicket.
 nonisolated func mLXToolCall(from tc: ToolCall) -> MLXLMCommon.ToolCall {
     func parseArgs(_ args: String) -> [String: any Sendable] {
@@ -188,7 +188,7 @@ nonisolated struct MTPMessagePair: Sendable {
 }
 
 /// The wire history enters the MTP lane as pairs. Index pairing is sound because
-/// `rendered` is a pure map over `wire` — the only mutation between them,
+/// `rendered` is a pure map over `wire`. The only mutation between them,
 /// `attachPerceptionMedia`, adds media to an existing message, never a message.
 /// Metadata reads from the wire DTO because upstream's `Chat.Message.Tool` is
 /// write-only outside its module.
@@ -230,7 +230,7 @@ nonisolated func mtpToolBoundaryHistory(
 }
 
 /// Every tool result must answer a call an earlier assistant turn of the same history
-/// made. Returns the first orphaned `tool_call_id`, nil when sound — the shape the loop
+/// made. Returns the first orphaned `tool_call_id`, nil when sound. The shape the loop
 /// records so a lost calling turn cannot ride into a template silently.
 nonisolated func mtpHistoryOrphan(_ pairs: [MTPMessagePair]) -> String? {
     var answered: Set<String> = []
@@ -251,13 +251,13 @@ extension EnginePool {
     // MARK: - Denial honesty (tool-result contract)
 
     /// The text a failed/denied tool call returns to the model. A denial
-    /// means the operation NEVER happened — small models read the
+    /// means the operation NEVER happened. Small models read the
     /// tool-result block as their only memory of the call and have been
     /// observed claiming completion over an empty filesystem (observed
     /// 10-08, gemma-1.5B headless: "已创建文件…遇到 hook denial"). The
     /// wording is an explicit negative instruction in both languages the
     /// model may answer in, so recovery narrates reality instead of
-    /// inventing one. Prefix stays `[tool_error:` on every branch — wire
+    /// inventing one. Prefix stays `[tool_error:` on every branch. Wire
     /// contract pinned by FMToolErrorRecoveryTests (FM path mirrors it).
     /// The one place that decides whether a tool verdict ends the turn.
     ///
@@ -334,7 +334,7 @@ extension EnginePool {
                     group.addTask {
                         // Single-shot watchdog: sleep until deadline once, then cancel.
                         // Replaces the previous 500ms polling loop which woke up 600+ times
-                        // per 300s request — pure CPU waste for a single deadline check.
+                        // per 300s request. Pure CPU waste for a single deadline check.
                         do { try await Task.sleep(until: deadline, clock: .continuous) } catch {}
                         cancellation.cancel()
                     }
@@ -344,7 +344,7 @@ extension EnginePool {
         }
     }
 
-    /// MLX-specific inference entry — accepts messages directly.
+    /// MLX-specific inference entry. Accepts messages directly.
     func doInferenceMLX(
         modelId: String,
         messages: [Message],
@@ -381,7 +381,7 @@ extension EnginePool {
                     group.addTask {
                         // Single-shot watchdog: sleep until deadline once, then cancel.
                         // Replaces the previous 500ms polling loop which woke up 600+ times
-                        // per 300s request — pure CPU waste for a single deadline check.
+                        // per 300s request. Pure CPU waste for a single deadline check.
                         do { try await Task.sleep(until: deadline, clock: .continuous) } catch {}
                         cancellation.cancel()
                     }
@@ -444,22 +444,22 @@ extension EnginePool {
 
         #if canImport(CoreAI)
         if #available(macOS 27.0, iOS 27.0, *) {
-            // CoreAI constrained decoding — grammar requests stay on CoreAI path.
-            // CoreAI is CoreAI, MLX is MLX — no cross-framework fallback.
+            // CoreAI constrained decoding. Grammar requests stay on CoreAI path.
+            // CoreAI is CoreAI, MLX is MLX, no cross-framework fallback.
             do {
                 let engine = try await loaded.getCachedEngine()
                 // Grammar request → route to the constrained path by ENGINE
                 // CAPABILITY, aligned with upstream coreai-models
                 // `CoreAILanguageModel.respondConstrained`:
-                //   ConstrainedGenerationCapable (GPU pipelined, #170)
+                //  ConstrainedGenerationCapable (GPU pipelined, #170)
                 //     → PipelinedConstrainedDecodingStrategy
                 //       (xgrammar bitmask applied inside the MPSGraph sampler
-                //        on GPU — no ~296KB logits CPU round-trip per token)
-                //   otherwise
+                //        on GPU, no ~296KB logits CPU round-trip per token)
+                //  otherwise
                 //     → sequential _runConstrainedDecoding (CPU bitmask loop)
                 if options.grammarSchema != nil || options.useGuidedGeneration {
                     if let pipeline = engine as? any ConstrainedGenerationCapable {
-                        // GPU pipelined constrained decoding (#170) — dispatched
+                        // GPU pipelined constrained decoding (#170). Dispatched
                         // by capability so dynamic-structure models (auto →
                         // pipelined) keep their grammar constraints.
                         await _runPipelinedConstrainedDecoding(
@@ -475,7 +475,7 @@ extension EnginePool {
                         )
                         return
                     }
-                    // Capability unavailable — sequential constrained loop
+                    // Capability unavailable. Sequential constrained loop
                     // (unchanged pre-#170 behavior for non-GPU engines).
                     if let sequential = engine as? CoreAISequentialEngine {
                         await _runConstrainedDecoding(
@@ -491,7 +491,7 @@ extension EnginePool {
                         )
                         return
                     }
-                    // #248 (coreai-models 3e172fb) — supportsLogits engines
+                    // #248 (coreai-models 3e172fb). SupportsLogits engines
                     // (static-shape etc.) that are neither GPU-capable nor
                     // Sequential get the engine-agnostic strategy:
                     // `generate(includeLogits:true) → output.logits` per step,
@@ -499,7 +499,7 @@ extension EnginePool {
                     // `ConstrainedDecodingStrategy` (derived from coreai-models
                     // `GuidedGeneration/ConstrainedDecodingStrategy.swift`, the
                     // exact component #248 added) fulfils this on any
-                    // InferenceEngine whose `generate` prefix-reuses KV state —
+                    // InferenceEngine whose `generate` prefix-reuses KV state,
                     // StaticShape's `history.resolve` contract.
                     if engine.supportsLogits {
                         await _runLegacyConstrainedDecoding(
@@ -515,7 +515,7 @@ extension EnginePool {
                         )
                         return
                     }
-                    // Engine exposes no per-step logits — neither the GPU-
+                    // Engine exposes no per-step logits. Neither the GPU-
                     // bitmask path nor the CPU-logit fallback is possible.
                     // Loud refusal only: never silently drop the grammar and
                     // present unconstrained output as constrained.
@@ -536,8 +536,8 @@ extension EnginePool {
                 }
 
                 // upstream CoreAILanguageModel.Executor.respondVanilla() pipeline:
-                //   token stream → detokenize deltas → ThinkTagParser → ToolCallParser
-                //   → .text / .reasoning / .toolCall events
+                //  token stream → detokenize deltas → ThinkTagParser → ToolCallParser
+                //  → .text / .reasoning / .toolCall events
                 // We replicate that segmentation here so CoreAI path no longer
                 // bypasses reasoning segmentation and tool-call detection.
                 // Upstream: ThinkTagParser defaults to ``; open/close
@@ -577,15 +577,15 @@ extension EnginePool {
                 // Track reasoning characters for accurate reasoningTokenCount reporting
                 // (CoreAI path doesn't provide per-token reasoning boundaries.)
                 var accumulatedReasoningChars = 0
-                // Decode in batches to reduce detokenize overhead — mirrors MLX path
+                // Decode in batches to reduce detokenize overhead. Mirrors MLX path
                 // batch detokenize strategy (`decodeBatchSize` in `ChatHandler`).
                 let decodeBatchSize = 8
-                // Native stop sequence detection — no MLX fallback needed.
+                // Native stop sequence detection, no MLX fallback needed.
                 // upstream CoreAIExecutor.respondVanilla() does the same text-level check
                 // after each detokenize step (StopSequences.matches on decoded span).
                 let stopSequences = sampling.stopSequences ?? []
 
-                // Generate token stream — store in genSequence to avoid shadowing stdlib `sequence`
+                // Generate token stream. Store in genSequence to avoid shadowing stdlib `sequence`
                 let genSequence = try await engine.generate(
                     with: input,
                     samplingConfiguration: sampling,
@@ -619,7 +619,7 @@ extension EnginePool {
                                     tokens: accumulatedTokens
                                 )
 
-                                // Stop sequence detection — check decoded text before feeding parsers
+                                // Stop sequence detection. Check decoded text before feeding parsers
                                 // (aligned with upstream StopSequences text-level check after each detokenize)
                                 if let hit = Self.firstMatchStopSequence(
                                     in: decoded, sequences: stopSequences)
@@ -700,7 +700,7 @@ extension EnginePool {
                         accumulatedTokens = []
                     }
 
-                    // Flush parsers — emit held-back buffers
+                    // Flush parsers. Emit held-back buffers
                     for thinkEvent in thinkParser.flush() {
                         switch thinkEvent {
                         case .reasoning(let segText):
@@ -728,7 +728,7 @@ extension EnginePool {
                             }
                         }
                     }
-                    // Handle residual toolCallParser events from flush — unclosed tool call
+                    // Handle residual toolCallParser events from flush. Unclosed tool call
                     // blocks at EOS are dropped (malformed JSON is not useful to surface),
                     // but plain text held back for marker matching must still be emitted.
                     for toolFlushEvent in toolParser.flush() {
@@ -772,7 +772,7 @@ extension EnginePool {
                     }
                     // Estimate prompt throughput from inference start overhead
                     // (tokenization + warmup share the prefix of overallMs with inference;
-                    //  using overallMs as denominator yields a conservative lower bound)
+                    // using overallMs as denominator yields a conservative lower bound)
                     let promptTokPerSec: Double? =
                         metrics.promptTokenCount > 0 && Double(metrics.overallMs) > 0
                         ? Double(metrics.promptTokenCount) / (Double(metrics.overallMs) / 1000.0)
@@ -860,7 +860,7 @@ extension EnginePool {
         // Check for reasoning control tokens that will be lost in
         // detokenize→retokenize roundtrip. Qwen3: 151645/151646; other families
         // (DeepSeek, Gemma) use different IDs. Text-level fallback catches all.
-        // removed universal ASCII control chars (newline=198, ESC=27) —
+        // removed universal ASCII control chars (newline=198, ESC=27),
         // they fire on every request and flood the log.
         let hasReasoningMarkers =
             promptText.contains("< thinking>") || promptText.contains("</ thinking>")
@@ -893,7 +893,7 @@ extension EnginePool {
     /// GPU pipelined grammar-constrained decoding (#170).
     ///
     /// Dispatch companion to `_runConstrainedDecoding`: same request context,
-    /// but the decode loop runs on the GPU pipelined engine — the xgrammar
+    /// but the decode loop runs on the GPU pipelined engine. The xgrammar
     /// bitmask is applied inside the MPSGraph sampler (no ~296KB logits CPU
     /// round-trip per token). Aligned with upstream coreai-models
     /// `CoreAILanguageModel.respondConstrained`, which routes to
@@ -917,7 +917,7 @@ extension EnginePool {
         _ = messages
         defer { continuation.finish() }
 
-        // Tokenizer — CoreAI-native path: swift-transformers tokenizer
+        // Tokenizer. CoreAI-native path: swift-transformers tokenizer
         // registered via TokenizerManager (same provider the sequential loop uses).
         guard let provider = await tokenizerManager.getTokenizer(for: modelId) else {
             continuation.yield(
@@ -970,7 +970,7 @@ extension EnginePool {
         var accumulatedReasoningChars = 0
 
         do {
-            // Strategy: capability-selected per upstream respondConstrained —
+            // Strategy: capability-selected per upstream respondConstrained,
             // the engine conforms to ConstrainedGenerationCapable, so the
             // decoded sequence is a GPU pipelined one.
             let sequence: PipelinedConstrainedSequence =
@@ -1057,7 +1057,7 @@ extension EnginePool {
     /// CPU-feed loop: a `supportsLogits` engine that is neither
     /// `ConstrainedGenerationCapable` nor a `CoreAISequentialEngine` (e.g. a
     /// static-shape engine whose `generate` prefix-reuses KV state) drives the
-    /// in-tree `ConstrainedDecodingStrategy` — `generate(includeLogits:true)`
+    /// in-tree `ConstrainedDecodingStrategy`, `generate(includeLogits:true)`
     /// per token, xgrammar bitmask applied on the CPU logits, greedy/sample,
     /// accept. Aligned with upstream coreai-models `3e172fb` (#248), which
     /// added exactly this `ConstrainedDecodingStrategy` (in-tree derived) to
@@ -1130,7 +1130,7 @@ extension EnginePool {
 
         do {
             // Engine-agnostic: any InferenceEngine exposing per-step logits
-            // (StaticShape's `generate` prefix-reuses KV via history.resolve —
+            // (StaticShape's `generate` prefix-reuses KV via history.resolve,
             // the `generate(includeLogits:true)` contract the strategy needs).
             let sequence: ConstrainedDecodingStrategy.ConstrainedDecodedSequence =
                 try await ConstrainedDecodingStrategy(
@@ -1206,7 +1206,7 @@ extension EnginePool {
 
     /// CoreAI-native grammar constrained decoding loop.
     ///
-    /// Architecture: CoreAI is CoreAI, MLX is MLX — no cross-framework fallback.
+    /// Architecture: CoreAI is CoreAI, MLX is MLX, no cross-framework fallback.
     /// This loop runs entirely within the CoreAI engine's inference context.
     ///
     /// Pipeline: prefill → [logits → grammar bitmask mask → CompositeSampler.sample
@@ -1236,7 +1236,7 @@ extension EnginePool {
         let stopSequences = sampling.stopSequences ?? []
         let maxTokens = options.maxTokens ?? loaded.modelConfig.maxContextLength
 
-        // ThinkTagParser + ToolCallParser — same as standard CoreAI path
+        // ThinkTagParser + ToolCallParser. Same as standard CoreAI path
         // Upstream coreai-models + Qwen3.5 chat template use the short
         // `think`/`think` markers (byte-verified: 3c 74 68 69 6e 6b 3e).
         let openMarker = "<think" + ">"
@@ -1259,12 +1259,12 @@ extension EnginePool {
             open: openMarker, close: closeMarker, primedInside: primedInside)
         var toolParser = ToolCallParser()
 
-        // — Grammar constraint setup —
+        // Grammar constraint setup,
         // CoreAI-native tokenizer path: CoreAI models have no `mlxModelHandle`,
         // so the constraint is built from the CoreAI-side swift-transformers
         // tokenizer (registered via TokenizerManager), bridged through
         // `TokenizersMLXTokenizerAdapter`. `GrammarTokenizer`/`GrammarConstraint`
-        // are xgrammar-backed (MLXCXGrammar C++ shim) — no MLX tensor
+        // are xgrammar-backed (MLXCXGrammar C++ shim), no MLX tensor
         // dependencies. fastForward is disabled because the adapter's
         // applyChatTemplate is conformance-only.
         do {
@@ -1288,14 +1288,14 @@ extension EnginePool {
                 fastForward: false
             )
 
-            // — Constrained decode loop —
+            // Constrained decode loop,
             var accumulatedTokens: [Int32] = []
             var accumulatedReasoningChars = 0
             var grammarTerminated = false
             var effectiveStopReason: StopReason? = nil
             let decodeBatchSize = 8
 
-            // Phase 1: Prefill — let engine process all input tokens
+            // Phase 1: Prefill. Let engine process all input tokens
             // startConstrainedDecoding returns DecodeStepLogits on first call
             // (logits for position 0 post-prefill) or nil if prefill complete.
             let initLogits = try await engine.startConstrainedDecoding(
@@ -1344,7 +1344,7 @@ extension EnginePool {
                     return
                 }
 
-                // Clone logits — grammar constraint mutates in-place
+                // Clone logits. Grammar constraint mutates in-place
                 var logits: [LogitsScalarType] = logitsBundle.logits
                 nextLogits = nil
 
@@ -1373,7 +1373,7 @@ extension EnginePool {
                     }
                 }
 
-                // Sample token from masked logits (routed through `seed` when set — #265)
+                // Sample token from masked logits (routed through `seed` when set. #265)
                 let tokenId = sampling.sampleToken(from: &logits, step: step)
 
                 // Commit token to grammar state (may fast-forward)
@@ -1504,7 +1504,7 @@ extension EnginePool {
 
     #endif  // canImport(CoreAI)
 
-    /// Apply xgrammar bitmask to logits — disallowed tokens → -inf.
+    /// Apply xgrammar bitmask to logits. Disallowed tokens → -inf.
     /// LSB-first int32 bitmask: bit `i` of word `w` covers token `w*32+i`.
     private static func _applyBitmask(
         _ logits: inout [Float],
@@ -1654,14 +1654,14 @@ extension EnginePool {
     ) async {
         // Query HardwareRouter for runtime compute channel decision.
         // Channel drives session pool + speculative decoding for .cpu.
-        // Note: per-request device switching (GPU→CPU) is not possible — device
+        // Note: per-request device switching (GPU→CPU) is not possible. Device
         // is bound at ModelContainer load time. True CPU inference requires
         // architectural change (separate ModelContainer with CPU device).
         var computeChannel: ComputeChannel
         if let router = hardwareRouter, let tracker = memoryTracker {
             // queryWithState: the log must name the TRIGGER tier. A CPU shift
             // with an idle GPU (gpu: 0.0/x) comes from Tier-1 memory pressure
-            // or Tier-2 thermal, NOT GPU saturation — printing only the GPU
+            // or Tier-2 thermal, NOT GPU saturation. Printing only the GPU
             // fraction misattributed the cause (observed: cost hours of
             // chasing a non-existent router bug on a 119/128GB box).
             let (channel, hwState) = router.queryWithState(
@@ -1679,7 +1679,7 @@ extension EnginePool {
             case .gpu:
                 logger.debug("HardwareRouter → GPU for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB)")
             case .cpu:
-                // Honest label: the compute device does not change here — the Metal
+                // Honest label: the compute device does not change here. The Metal
                 // device is bound when the ModelContainer loads (note above this
                 // switch). What this lane actually costs is prefix-cache reuse and
                 // speculation, so say that instead of naming a device.
@@ -1723,7 +1723,7 @@ extension EnginePool {
         #endif
 
         // Vision capability guard: reject multimodal input for LLM-only models.
-        // Aligns with the `.vision` capability guard in upstream `MLXLanguageModel` respond — the adapter
+        // Aligns with the `.vision` capability guard in upstream `MLXLanguageModel` respond. The adapter
         // is the only place that can enforce .vision before loading any weights.
         if !loaded.isVlm, messages.contains(where: \.hasMediaPart) {
             continuation.yield(
@@ -1737,26 +1737,26 @@ extension EnginePool {
 
         // Validate ANE runtime availability and content compatibility
         // before emitting channel event. On macOS/iOS < 27 with canImport(CoreAI) compiled,
-        // _runInference falls back to MLX GPU via the #available guard below —
+        // _runInference falls back to MLX GPU via the #available guard below,
         // without this check, downstream (UI/SSE) receives .ane event while actual
         // inference runs on GPU.
-        // X6-fix: Also check multimodal content — the ANE branch below
+        // X6-fix: Also check multimodal content. The ANE branch below
         // (tokenize → text-only `generate(with: [Int32])`) still has NO
         // multimodal-message consumption: `contentToString()` in
         // EnginePool.tokenize() silently drops images/videos/audio, producing
         // text-only output for VLM requests.
         //
-        // 09-17 status: the pure assembly layer now EXISTS —
+        // 09-17 status: the pure assembly layer now EXISTS,
         // `VLMTokenAssembly.assembleVLMPrompt`(placeholder expansion +
         // fallback prompt, upstream llm-runner `buildVLMPromptFromChatTemplate`
-        // 1:1, 8 precise-value tests live and green) — but it is NOT yet wired
+        // 1:1, 8 precise-value tests live and green), but it is NOT yet wired
         // into the ANE branch. Wiring would require a live VLM
         // `.aimodelc` bundle to verify `encodeImage` → `scatterMerge` end-to-end
         // (placeholder count must match the vision encoder's per-image token
         // count; no live VLM asset on this host). So with any media present we
         // still fall back to GPU (the MLX lane does consume media correctly)
         // rather than risk silently text-only ANE output.
-        // b3: perception media — same consumer gap.
+        // b3: perception media. Same consumer gap.
         // Gate both BEFORE badge emit so the badge reflects the actual accelerator.
         #if canImport(CoreAI)
         if computeChannel == .ane {
@@ -1765,7 +1765,7 @@ extension EnginePool {
             let hasMedia = messages.contains(where: \.hasMediaPart) || perceptionMediaPresent
 
             // 09-17: the ANE branch below is text-only (tokenize →
-            // generate(with: [Int32])). It does NOT yet consume media — the
+            // generate(with: [Int32])). It does NOT yet consume media. The
             // pure assembly layer (`VLMTokenAssembly.assembleVLMPrompt`, 8
             // precise-value tests green) exists but is not wired into the ANE
             // branch, and wiring it needs a live VLM `.aimodelc` bundle to
@@ -1806,7 +1806,7 @@ extension EnginePool {
         }
         #endif
 
-        // Emit channel identification event — tells downstream (UI, diagnostics)
+        // Emit channel identification event. Tells downstream (UI, diagnostics)
         // which inference pipeline produced the response: FM/Metal GPU, CPU, or CoreAI ANE.
         continuation.yield(.init(kind: .channel(computeChannel)))
 
@@ -1898,12 +1898,12 @@ extension EnginePool {
         }
 
         // Convert messages to MLX format, collecting the media-spool files this turn hands
-        // to the model — audio and video that arrived as `data:` URLs.
+        // to the model. Audio and video that arrived as `data:` URLs.
         //
         // These are deliberately NOT deleted when the request ends. Upstream ChatSession
         // keeps the message it was given, with the resolved media URL inside it, and
         // re-feeds that whole transcript to `processor.prepare` on every later turn of the
-        // conversation — `templateMessages = leadingMessages +
+        // conversation, `templateMessages = leadingMessages +
         // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1336 templateMessages = leadingMessages
         // currentConversation.messages` (the anchor carries the number). Bytes deleted here therefore cost the
         // conversation its own history: measured 10-16, a clip posted as a data URL was
@@ -1918,14 +1918,14 @@ extension EnginePool {
         // `/v1/models` is allowed to publish (see VideoDeliveryLedger).
         var videoInputCount = 0
         // Nothing may collect these bytes while this request is handing them to the
-        // model — an eviction or sweep on another request's thread that deleted one would
+        // model. An eviction or sweep on another request's thread that deleted one would
         // kill this turn over a file it wrote itself. The defer reads `spooledMedia` when
         // the scope exits, so parts appended below are covered too.
         defer { MediaSpool.unpin(spooledMedia) }
 
         // Extract system prompt for ChatSession's instructions: channel.
         // Upstream prepends instructions itself (`leadingMessages.append(.system(instructions))`)
-        // — passing the same text via `messages:` too puts it in the rendered prompt twice.
+        // Passing the same text via `messages:` too puts it in the rendered prompt twice.
         //
         // P-S1 fix: Append perception context to system instructions so
         // multimodal environment awareness flows through the correct path
@@ -1956,7 +1956,7 @@ extension EnginePool {
                 default: .user
                 }
 
-            // Assistant with tool calls — use factory with toolCalls param. The caller's
+            // Assistant with tool calls. Use factory with toolCalls param. The caller's
             // visible content rides with the calls (an OpenAI turn may carry both);
             // upstream drops only an EMPTY text part for a tool-call assistant.
             if let tcs = msg.toolCalls, !tcs.isEmpty {
@@ -1964,7 +1964,7 @@ extension EnginePool {
                 return Chat.Message.assistant(contentToString(msg.content).0, toolCalls: mlxTCs)
             }
 
-            // Tool result — id correlates the call; name tells the model WHICH tool
+            // Tool result. Id correlates the call; name tells the model WHICH tool
             // answered (upstream `Chat.Message.tool` carries it into the rendered
             // message, and an unlabelled result reads as noise on multi-call turns).
             if msg.role == "tool", let tid = msg.toolCallID {
@@ -1989,8 +1989,8 @@ extension EnginePool {
                         images.append(image)
                     }
                     if let video = part.videoUrl {
-                        // Video URL into VLM — upstream processes frames via Gemma4Processor.
-                        // data: URLs must hit makeMLXVideo (temp file) — a raw .url(dataURL)
+                        // Video URL into VLM. Upstream processes frames via Gemma4Processor.
+                        // data: URLs must hit makeMLXVideo (temp file). A raw .url(dataURL)
                         // is unreadable by AVAsset (the video is dropped, zero video tokens).
                         let result = makeMLXVideo(from: video.url)
                         if let videoInput = result.video {
@@ -2026,11 +2026,11 @@ extension EnginePool {
             }
         }
 
-        // Delivery of perception media (image bytes/audio) — attach to the last user
+        // Delivery of perception media (image bytes/audio). Attach to the last user
         // message so VLMs receive actual pixels/audio. `hasMultimodalContent` already
         // refuses LLM-only turns, and perception media is injected only for VLMs
         // (loaded.isVlm), so the same guarantee holds here. Text/OCR frames stay on the system
-        // path via contextText() — see mediaContentParts() doc.
+        // path via contextText(). See mediaContentParts() doc.
         if loaded.isVlm {
             let perceptionMedia = await MainActor.run {
                 PerceptionEngine.shared.mediaContentParts()
@@ -2064,7 +2064,7 @@ extension EnginePool {
         // The other half of the `max_tokens` audit: the handler line says what the client
         // asked (`wireMaxTokens=`), this one says what generation was actually handed. When
         // the two disagree, the drop is between them; when they agree and the response still
-        // overshoots, the budget came in beside the call — on the pooled session this turn
+        // overshoots, the budget came in beside the call. On the pooled session this turn
         // reused. Measured 10-19 exactly that way (asked 8, spent 64, both lines said 8);
         // `MLXSessionPool.acquire` now refreshes the reused session's parameters and logs the
         // override, and probe 14 §7 fails the run if a turn spends more than it asked for.
@@ -2084,7 +2084,7 @@ extension EnginePool {
             specConfig = loaded.createSpeculativeConfig()
         }
 
-        // Request-level stop sequences — pull out before inference body to avoid self-capture
+        // Request-level stop sequences. Pull out before inference body to avoid self-capture
         let requestStopSequences = (sampling.stopSequences ?? []).filter { !$0.isEmpty }
 
         // Hoist sessionPool, mlxHandle, logger before creating inference closure.
@@ -2122,7 +2122,7 @@ extension EnginePool {
             // must not collapse onto one shared session: a ChatSession carries its KV
             // and transcript, so a single "ephemeral" key made independent requests
             // answer from each other's context. Derive the identity from the
-            // conversation's own leading user message instead — stable across the
+            // conversation's own leading user message instead. Stable across the
             // turns a stateless client resends (prefix reuse keeps working) and
             // distinct across conversations (no shared session, no shared snapshot).
             let convKey: String =
@@ -2138,7 +2138,7 @@ extension EnginePool {
             let turnToken = callerTurnToken ?? UUID().uuidString
             // Say out loud who owns the bytes this turn cited. If this turn never reaches
             // the pool (CPU channel, guided/MTP paths that close their own session), the
-            // idle sweep is what eventually collects them — a fact worth naming in the log
+            // idle sweep is what eventually collects them. A fact worth naming in the log
             // rather than leaving to a disk walk.
             if !spooledMedia.isEmpty {
                 log.info(
@@ -2179,7 +2179,7 @@ extension EnginePool {
             }
             // P0-3 + 10-06 flip: the surface is resolved by ONE choke
             // (`resolveToolSurface`). nil (client declared nothing) is no
-            // longer "full registry convenience" — it is ZERO tools
+            // longer "full registry convenience". It is ZERO tools
             // (OpenAI wire semantics). Live evidence for the flip: a
             // no-tools "count to ten" request got the full 39-tool
             // surface, hallucinated a truncated tool call, and the
@@ -2213,21 +2213,21 @@ extension EnginePool {
             // TranscriptConverter, whose only image route is
             // Segment.attachment(Transcript.ImageAttachment); the macOS 27 SDK
             // exposes NO public init for Transcript.ImageAttachment (interface
-            // surface: `==`, `url`, `cgImage`, `ciImage` — getters only), so
+            // surface: `==`, `url`, `cgImage`, `ciImage`. Getters only), so
             // FMTranscriptHelpers drops every image on entry (documented at the
             // drop site) and generation runs blind. Live evidence: 64×64 red
             // square → gemma-4-e2b (VLM, VLMModelFactory) answered "I need an
             // image… provide a file path", 200 OK, prompt_tokens=187 (zero
-            // vision tokens) — silent drop, confident wrong answer.
+            // vision tokens). Silent drop, confident wrong answer.
             // The else path feeds ChatSession the Chat.Message array directly
-            // (images intact) — the upstream MLX-VLM input surface — so a vision
+            // (images intact). The upstream MLX-VLM input surface, so a vision
             // request there keeps pixels reaching the model. Intentional
             // trade-off: a vision request yields the FM tools/reasoning
             // pipeline in exchange for vision actually working. The silent
             // blind-fallback is the regression being fixed.
             //
             // Audio parity (same structural blind spot as image): the check
-            // above covered images only — an audio request (audios non-empty,
+            // above covered images only. An audio request (audios non-empty,
             // images empty) still enters the FM text path where its audio_url
             // bytes are silently dropped. Widen the gate to ALL media kinds:
             // any message with images/videos/audios routes to the else-path
@@ -2241,10 +2241,10 @@ extension EnginePool {
             // toolDispatch agent loop. The FM path's
             // `streamResponse(to:schema:).collect()` executes the tool and
             // records the result in the transcript but does
-            // NOT continue — the final model answer stays empty and
+            // NOT continue. The final model answer stays empty and
             // `full.content` is a THROWing
             // init. The ChatSession path (`chatSession.toolDispatch = toolDispatchClosure`)
-            // IS the loop that restarts on tool calls — MLXLMCommon owns it.
+            // IS the loop that restarts on tool calls. MLXLMCommon owns it.
             // json_schema (no tools) stays on FM guided: schema-constrained
             // single-shot output is guided's real job.
             let hasNativeTools = options.hasNativeTools
@@ -2265,11 +2265,11 @@ extension EnginePool {
                 )
 
                 // --- Build FM Tool array from ToolRegistry ---
-                // tools: [] is the #1 degradation vector — it short-circuits
+                // tools: [] is the #1 degradation vector. It short-circuits
                 // Executor.respond()'s entire tool-calling pipeline.
                 var fmTools: [any FoundationModels.Tool]? = nil
                 if let registry = toolRegistry {
-                    // P0-3 + 10-06 flip: same single choke as the MLX path —
+                    // P0-3 + 10-06 flip: same single choke as the MLX path,
                     // nil (client declared nothing) = ZERO tools, never the
                     // implicit full surface. Agentic callers declare explicitly.
                     let specs = await registry.toToolSpecs()
@@ -2339,7 +2339,7 @@ extension EnginePool {
                 // --- Guided generation: when grammarSchema is present,
                 // use FM's schema-constrained streamResponse overload.
                 // ResponseStream<GeneratedContent> yields GeneratedContent which
-                // conforms to ConvertibleFromGeneratedContent — use String.init
+                // conforms to ConvertibleFromGeneratedContent. Use String.init
                 // to extract text from the schema-validated output.
                 // GenerationSchema 的 Codable 是 canonical 形状
                 // （必须带 x-order/title），grammarSchema 是标准 JSON Schema →
@@ -2380,10 +2380,10 @@ extension EnginePool {
                     // enable_thinking 默认 ON）→ thinking-only 输出时 SDK 的 String 投影
                     // content 合法地为空，token 全在 reasoning。上游 MLXLanguageModel
                     // 把 thinking/response 作为独立 channel 事件（destination .reasoning /
-                    // .response），SDK 对应产出
+                    //  .response），SDK 对应产出
                     // Transcript.Entry.reasoning（macOS 27）+ usage.output.reasoningTokenCount。
                     // 三仓（coreai-models / mlx-swift-lm / codex）消费面共识：thinking 是
-                    // 独立事件流，不丢弃、不默认关。ocoreai 非 FM 路也 emit .reasoning ——
+                    // 独立事件流，不丢弃、不默认关。ocoreai 非 FM 路也 emit .reasoning。
                     // FM 路按同一语义补齐。
                     var fmUsageTotal: Int?
                     var fmUsageReasoning: Int?
@@ -2398,8 +2398,8 @@ extension EnginePool {
                     // 返回 true 表示命中 stop 序列（checkStopSequence 已 yield .done）。
                     //
                     // 参数语义（与 checkStopSequence 对齐）：
-                    //   fullText   — 当前累计 response 文本（`accumulated` 面：用于 hasSuffix 检 stop）
-                    //   deltaText  — 本次新增片段（`segment`   面：emit 给客户端/送 emitter 的增量）
+                    //  fullText。当前累计 response 文本（`accumulated` 面：用于 hasSuffix 检 stop）
+                    //  deltaText。本次新增片段（`segment`   面：emit 给客户端/送 emitter 的增量）
                     // ReasoningEventEmitter 是有状态扫描器（pendingPrefix / inside /
                     // hasClosedReasoning，见 mlx-swift-lm ReasoningEventEmitter.swift 头注释
                     // "feed it each decoded chunk via process(_:)"）；必须喂 delta，重喂 fullText
@@ -2411,7 +2411,7 @@ extension EnginePool {
                         entries: some Sequence<FoundationModels.Transcript.Entry>
                     ) -> Bool {
                         var hit = false
-                        // Enclosing scope (L2396) already guarantees macOS 27 / iOS 27 —
+                        // Enclosing scope (L2396) already guarantees macOS 27 / iOS 27,
                         // the inner `#available(macOS 27.0, *)` was a redundant check.
                         for entry in entries {
                             guard case .reasoning(let r) = entry else { continue }
@@ -2570,7 +2570,7 @@ extension EnginePool {
                         return
                     }
                 } catch {
-                    // Typed surface for context exhaustion — parity with the
+                    // Typed surface for context exhaustion. Parity with the
                     // non-FM path (AppError.contextWindowExhausted, "start a
                     // fresh conversation"). The SDK payload carries the real
                     // `tokenCount` + `contextSize`; surface both instead of a
@@ -2594,7 +2594,7 @@ extension EnginePool {
             }
             #endif
 
-            // Unified processing config for VLM resize — consistent across all
+            // Unified processing config for VLM resize. Consistent across all
             // inference paths (ChatSession, Guided gen, MTP). Value read from config
             // so users can tune per-image token overhead.
             let sessionProcessing = MLXLMCommon.UserInput.Processing(
@@ -2602,15 +2602,15 @@ extension EnginePool {
             )
 
             // ChatSession path: acquire or create session
-            // Always create chatSession — guided path (grammarSchema) and MTP/standard path
+            // Always create chatSession. Guided path (grammarSchema) and MTP/standard path
             // all consume the shared chatSession variable below. Even when useGuidedGeneration
             // is true, the guided path may fall through (e.g., multimodal + grammar conflict)
             // and still need a valid session.
-            // Hoist registry ref before closure — ToolRegistry is an actor, capture is safe
+            // Hoist registry ref before closure. ToolRegistry is an actor, capture is safe
             // Tool dispatch via ChatSession's built-in restart loop (ChatSession.swift L1208).
             // When toolDispatch != nil, ChatSession collects .toolCall events internally,
             // executes them, and appends tool results as pending messages that trigger
-            // another generation pass — all inside ChatSession.streamMap().
+            // another generation pass. All inside ChatSession.streamMap().
             //
             // Real-time .toolCall events:
             // - MTP path (L2437): direct event yield per iteration
@@ -2618,7 +2618,7 @@ extension EnginePool {
             // - Std reasoning path: No tool calls (tools → mayRunReasoning == false)
             //
             // Double-serialization fix: removed tracker.post-hoc record + JSON roundtrip.
-            // ChatSession.toolDispatch closure now calls registry directly — no intermediate
+            // ChatSession.toolDispatch closure now calls registry directly, no intermediate
             // actor, no JSON encode/decode of MLXLMCommon.JSONValue.
             var toolDispatchClosure: (@Sendable (MLXLMCommon.ToolCall) async throws -> String)? =
                 nil
@@ -2626,7 +2626,7 @@ extension EnginePool {
             /// cannot cross that boundary).
             let executableHere = locallyExecutableToolNames
             /// Installing a dispatcher tells upstream "execute every call and keep
-            /// generating" — true only for names this server owns. When the whole
+            /// generating". True only for names this server owns. When the whole
             /// declared surface is caller-owned, no dispatcher is installed, so
             /// upstream hands each call back to us (`ChatSession.swift`: "if no
             /// toolDispatch the caller handles them via the transform") and the wire
@@ -2668,11 +2668,11 @@ extension EnginePool {
                         toolCall.function.arguments
                         .mapValues { $0.anyValue } as? [String: Any] ?? [:]
                     // Truthful completion event (codex `function_call_output` baseline): duration,
-                    // failure and — on failure — the arguments that missed are decided in one home,
+                    // failure and. On failure. The arguments that missed are decided in one home,
                     // `ToolResultPublisher.emit`, so the std and MTP lanes cannot diverge.
                     // The duration opens at the registry's post-approval instant when it reports
                     // one (the approval prompt is the human's time); a call refused before that
-                    // report keeps the dispatch window — denial was the whole event.
+                    // report keeps the dispatch window. Denial was the whole event.
                     let emitToolResult: (String, String?) -> Void = {
                         summary, failure in
                         ToolResultPublisher.emit(
@@ -2706,7 +2706,7 @@ extension EnginePool {
 
                     // Tool-failure recovery (codex semantics): a handler-level failure
                     // (bad path, oversized read, ...) is returned to the model AS a
-                    // tool-result error string so it can self-correct and retry —
+                    // tool-result error string so it can self-correct and retry,
                     // instead of propagating `try` and hard-aborting the whole
                     // ChatSession loop (upstream ChatSession L1411/1434: toolDispatch
                     // throw → stream terminates → 500, zero recovery path for the
@@ -2728,7 +2728,7 @@ extension EnginePool {
                             "Tool call failed — surfacing to model for recovery: \(error)")
                         // Denial honesty: a denied tool NEVER executed. Small
                         // models otherwise hallucinate completion ("已创建文件"
-                        // over an empty directory — observed live 10-08 on
+                        // over an empty directory. Observed live 10-08 on
                         // gemma-1.5B headless). The tool-result text is the
                         // model's only memory of this call; make the non-event
                         // unambiguous in it, not just in our logs.
@@ -2752,7 +2752,7 @@ extension EnginePool {
                     let freshContext = await fetchPerceptionContext()
                     // Mid-turn steering (non-MTP / native ChatSession path): the
                     // upstream loop owns generation internally and exposes no message
-                    // seam, so steers ride the tool-result tail — the same proven
+                    // seam, so steers ride the tool-result tail. The same proven
                     // injection channel P-S2 uses for perception context. The model
                     // reads it as part of this tool's outcome and course-corrects
                     // on the next iteration. Un-drained steers still reach the model
@@ -2784,17 +2784,17 @@ extension EnginePool {
             // whether the caller's thinking preference may reach the template at all, and
             // tools were never the reason it could not: since lm #563 the decoder that parses
             // tool calls on the ChatSession lane splits reasoning too, and upstream's own
-            // respond() injects the thinking key for tool-bearing turns — the MTP lane already
+            // respond() injects the thinking key for tool-bearing turns. The MTP lane already
             // follows it (`mtpToolAwareContext`). Gating both on tools
             // silently ignored `reasoning:true` on every tool-bearing turn: probe 44 §2 measured
             // `reasoning_content` empty there. A grammar IS the pair that cannot compose with
-            // thinking — the constrained loop truncates thinking tokens (the `.alwaysOn` guard
-            // below) — so a schema still suppresses the flag.
+            // thinking. The constrained loop truncates thinking tokens (the `.alwaysOn` guard
+            // below), so a schema still suppresses the flag.
             // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1666 reasoning: modelConfiguration.reasoningConfig.map
             // A history carrying tool metadata cannot ride the reasoning lane: that lane
             // snapshots `(role, content)` pairs (below), which erases `tool_calls` and the
             // result pairing, and the template renders results only through the assistant's
-            // forward-scan — probe 57 measured a ~2 500-token result billing 5 tokens.
+            // forward-scan. Probe 57 measured a ~2 500-token result billing 5 tokens.
             // Same exclusion as media above: refuse the flat lane, render through ChatSession.
             let historyCarriesToolMetadata =
                 messages.contains { $0.role == "tool" || ($0.toolCalls?.isEmpty == false) }
@@ -2809,8 +2809,8 @@ extension EnginePool {
             // Mirror upstream thinkingEnabled(for:) reasoning-level resolution (single
             // source of truth: ReasoningResolution.thinkingEnabled, shared with the MTP
             // path so the two cannot diverge):
-            //   level set → on/off per level (disabling levels → enableReasoning ?? false)
-            //   level nil → explicit `reasoning` bool, else nil (template default)
+            //  level set → on/off per level (disabling levels → enableReasoning ?? false)
+            //  level nil → explicit `reasoning` bool, else nil (template default)
             // Upstream L1329-1349 (FM path) does the same for chat session.
             let thinkingEnabled = ReasoningResolution.thinkingEnabled(
                 reasoningLevel: options.reasoningLevel,
@@ -2847,13 +2847,13 @@ extension EnginePool {
             // Wire-not-brain reasoning effort: inject the caller's raw
             // value into the jinja chat-template context. The model template
             // reads it only with thinking enabled and validates it itself
-            // (Qwen3.8 raise_exception). No local mapping — the word table is
+            // (Qwen3.8 raise_exception). No local mapping. The word table is
             // codex-aligned; unsupported values are the model's to reject.
             let reasoningContext: [String: any Sendable]? =
                 ReasoningEffortWire.context(baseReasoningContext, rawValue: options.reasoningEffort)
 
             // Track which messages to feed to ChatSession. ChatSession accumulates
-            // KV cache internally — on pool hits we only feed the suffix starting at
+            // KV cache internally. On pool hits we only feed the suffix starting at
             // divergenceIndex, on pool miss / no pool we feed the full history.
             var newMessages: [Chat.Message]
             var divergenceIndex: Int = 0
@@ -2901,7 +2901,7 @@ extension EnginePool {
             /// Guided gen and MTP already answer no here. The std-reasoning lane must too:
             /// it renders its own `LMInput` and calls `generateTokensTask` with `cache:`
             /// unset (upstream defaults that parameter to nil), so its prompt starts from an empty cache and
-            /// anything withheld from it is simply not in the model's context — measured
+            /// anything withheld from it is simply not in the model's context. Measured
             /// 11-01, where a warm plain turn forgot a fact its cold twin answered. The same
             /// conversation on the `ChatSession` route reused 768 of 789 tokens and answered
             /// correctly, so the lane, not the pool, is what cannot skip the prefill.
@@ -2938,7 +2938,7 @@ extension EnginePool {
                 let totalMs = elapsedMs(preAcquireStart.duration(to: readyAt))
                 // ``TimingHooks.overallMs`` starts at request entry, so the difference
                 // between it and totalMs is queueing plus handler work that ran before
-                // this body — the stretch no existing log covered, and where the
+                // this body. The stretch no existing log covered, and where the
                 // measured ~120s first-request stall actually lands.
                 let sinceRequestMs = Int(metrics.overallMs)
                 if totalMs > 1_000 || sinceRequestMs > 1_000 {
@@ -2958,15 +2958,15 @@ extension EnginePool {
                     // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2098 func fork(history
                     // holds *this* transcript and keeps only the KV rows its prompt starts
                     // with, so an edited resend stops costing a full re-prefill. The pool
-                    // could not do this itself — `[Chat.Message]` is not `Sendable`, so the
-                    // transcript cannot cross into the pool actor — hence the split: the pool
+                    // could not do this itself, `[Chat.Message]` is not `Sendable`, so the
+                    // transcript cannot cross into the pool actor. Hence the split: the pool
                     // decided soundness, this site owns the messages.
                     let forked = await rewind.source.session.fork(
                         history: Array(mlxMessages[0 ..< rewind.historyEnd]))
                     // A fork inherits the parent's configuration, and sampling lives on the
                     // session rather than the call (the anchor names `generateParameters`), so a fork that
                     // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:431 public var generateParameters
-                    // keeps last turn's knobs answers this turn under them — the same drift
+                    // keeps last turn's knobs answers this turn under them. The same drift
                     // `staleSamplingFields` names on the pool-hit path.
                     let overriddenFields = MLXSessionPool.staleSamplingFields(
                         before: forked.generateParameters,
@@ -3000,7 +3000,7 @@ extension EnginePool {
                 {
                     // A turn that still has something to answer is never allowed to feed its
                     // session nothing: an empty feed makes the model emit end-of-turn at once,
-                    // and the request goes out as a success carrying one token (measured 10-22 —
+                    // and the request goes out as a success carrying one token (measured 10-22,
                     // the same prompt asked twice). The pool refuses this shape at the source
                     // (`canReusePooledSession`'s coverage premise); this is the backstop for
                     // every other producer of a divergence index, and it says so in the log
@@ -3029,18 +3029,18 @@ extension EnginePool {
                 chatSession?.tools = registeredToolSpecs
                 chatSession?.toolDispatch = toolDispatchClosure
             } else {
-                // No pool — always cold start
+                // No pool. Always cold start
                 newMessages = mlxMessages
                 let spec: MLXLMCommon.SpeculativeDecodingConfig? = specConfig
                 let gp: MLXLMCommon.GenerateParameters = genParams
-                /// ChatSession creation — reasoning context injected via
+                /// ChatSession creation. Reasoning context injected via
                 /// reasoningConfig.promptStrategy.additionalContext().
                 /// Upstream reasoningConfig already has the prompt strategy baked in via
                 /// LLMModelFactory._load. The ReasoningEventEmitter below parses
                 /// model-rendered thinking tags (ReasoningConfig.swift:160-124).
                 ///
                 /// components: custom logitProcessorFactory for grammar-constrained
-                /// decoding (unused here — guided path uses GuidedGenerationLoop).
+                /// decoding (unused here. Guided path uses GuidedGenerationLoop).
                 /// Penalty enforcement is automatic via
                 /// GenerateParameters.processor(), independent of components.
                 chatSession = ChatSession(
@@ -3062,7 +3062,7 @@ extension EnginePool {
             var lanePricedTokens: Int?
 
             // releasePoolSlot: RAII helper to release the pooled ChatSession
-            // and nil it out. Safe to call multiple times — pooledSession == nil
+            // and nil it out. Safe to call multiple times. PooledSession == nil
             // on subsequent calls (no-op). Used by all inference paths including
             // the catch handler to guarantee pool slot is never leaked.
             // Swift 6 strict concurrency: clear locals BEFORE await to avoid
@@ -3115,7 +3115,7 @@ extension EnginePool {
             /// The one place this process may claim that a model saw video.
             ///
             /// Deliberately NOT inside ``releasePoolSlotWithAssistant``: that helper is a
-            /// no-op whenever there is no pooled session — the CPU lane sets `poolRef = nil`
+            /// no-op whenever there is no pooled session. The CPU lane sets `poolRef = nil`
             /// when the HardwareRouter degrades a turn, and a pool-disabled engine has no
             /// pool at all (EnginePool.swift). Both lanes still hand every frame to the
             /// processor, so keying the claim on the pool published `not_observed` for a
@@ -3131,18 +3131,18 @@ extension EnginePool {
             }
 
             do {
-                // State for Guided/MTP branches — standard ChatSession manages its own
+                // State for Guided/MTP branches. Standard ChatSession manages its own
                 var actualTokenCount: Int?
                 var generationTokPerSec: Double?
                 var promptTokPerSec: Double?
                 var lastStopReason: StopReason?
-                // MTP speculative decoding metrics — thread from MTPResult to .done
+                // MTP speculative decoding metrics. Thread from MTPResult to .done
                 var mtpProposedDraftTokens: Int?
                 var mtpAcceptedDraftTokens: Int?
                 var mtpPassthroughReason: String?
 
                 // MARK: - Guided Generation Path (grammar-constrained)
-                // NOTE: Guided path uses pure-text messagePairs — cannot carry images/videos/audios.
+                // NOTE: Guided path uses pure-text messagePairs. Cannot carry images/videos/audios.
                 // Multimodal messages with grammar schema fall through to ChatSession (full round-trip).
                 // Reasoning models fall through to ChatSession (Guided lacks ReasoningEventEmitter).
                 // This mirrors upstream MTP path at L925 and aligns with MLXChatExample pattern
@@ -3205,13 +3205,13 @@ extension EnginePool {
                     // standard ChatSession path below, whose pooled session had been
                     // released at the top of this branch, so it logged
                     // "Standard ChatSession path entered with nil chatSession" and
-                    // emitted a spurious `.error` — turning every successful
+                    // emitted a spurious `.error`. Turning every successful
                     // grammar-constrained turn (`response_format: json_schema`, and
                     // tool-declared turns with grammar) into HTTP 500.
                     // Live-proven 2026-10-12 on macOS 26 before this change.
                     return
                 } else if options.grammarSchema != nil {
-                    // Grammar requested but multimodal content present — guided path cannot handle it.
+                    // Grammar requested but multimodal content present. Guided path cannot handle it.
                     // Fall through to ChatSession below; grammar will be best-effort ignored.
                     log.warning(
                         "Dropping grammar constraint for multimodal message on model \(modelId)")
@@ -3226,7 +3226,7 @@ extension EnginePool {
                         $0.images.isEmpty && $0.audios.isEmpty && $0.videos.isEmpty
                     })
                 {
-                    // MTP creates its own TokenIterator scope — can't reuse ChatSession's cache.
+                    // MTP creates its own TokenIterator scope. Can't reuse ChatSession's cache.
                     // Same pattern as guided gen: return the pooled slot.
                     if chatSession != nil {
                         log.debug(
@@ -3252,7 +3252,7 @@ extension EnginePool {
                         names: toolNamesByID)
 
                     // SAFETY: an unload on another task can release the container across the
-                    // await boundary since the gate above — hoist to a local, bail gracefully.
+                    // await boundary since the gate above. Hoist to a local, bail gracefully.
                     guard let drafterContainer = loaded.mtpDrafterContainer else {
                         log.warning(
                             "MTP drafter released during inference — falling back to ChatSession")
@@ -3274,12 +3274,12 @@ extension EnginePool {
                     // modelContainer.perform { } only wraps prepare() + generate() per iteration;
                     // the for-await stream consumption runs outside the lock (L1055).
                     // TokenIterator inside generate() accesses context.model,
-                    // context.tokenizer, context.configuration — all immutable.
+                    // context.tokenizer, context.configuration. All immutable.
                     // thread wiredMemoryTicket through generate().
 
                     // Build initial messages outside lock
                     var mtpMessages: [MTPMessagePair] = messagePairs
-                    // Strip trailing empty assistant message — mirrors upstream MLXChatExample
+                    // Strip trailing empty assistant message. Mirrors upstream MLXChatExample
                     if let last = mtpMessages.last,
                         last.role == Chat.Message.Role.assistant.rawValue,
                         last.content.isEmpty
@@ -3287,7 +3287,7 @@ extension EnginePool {
                         mtpMessages.removeLast()
                     }
 
-                    // MTP local state — scoped outside lock
+                    // MTP local state. Scoped outside lock
                     var localAccumulatedText = ""
                     var localFirstToken = false
                     var localTokenCount: Int?
@@ -3304,10 +3304,10 @@ extension EnginePool {
                     var localPassthroughReason: String?
                     var localStoppedBySeq = false
 
-                    // P1-3: Think-then-call Phase 1 — upstream MLXLanguageModel.respond().
+                    // P1-3: Think-then-call Phase 1. Upstream MLXLanguageModel.respond().
                     // Think-then-call is gated to the enable_thinking family (Qwen3/QwQ):
                     // their template renders the tool block AND honors `enable_thinking`.
-                    // R1-style `.alwaysOn` models are tool-blind — they skip Phase 1.
+                    // R1-style `.alwaysOn` models are tool-blind. They skip Phase 1.
                     let mtpReasoningConfig = await handleRef.modelContainer.configuration
                         .reasoningConfig
                     // Upstream: toolAwareContext ensures thinking key matches how
@@ -3315,9 +3315,9 @@ extension EnginePool {
                     // this injects enable_thinking key: true into the prompt
                     // (mirrors upstream MLXLanguageModel.respond() L1178-1199).
                     // Without this, .templateFlag models in tool path would generate
-                    // without thinking context — degenerate decode on first tokens.
+                    // without thinking context. Degenerate decode on first tokens.
                     // Upstream L1153-1154: think-then-call gated on thinkingEnabled != false.
-                    // Upstream L1184-1188: enabled = declaresReasoning ? thinkingEnabled(for:level) ?? defaultOn : false
+                    // Upstream L1184-1188: enabled = declaresReasoning ? thinkingEnabled(for:level) ?? defaultOn. False
                     // MTP path: all models declare .reasoning (L444), so declaresReasoning ≡ true.
                     // Compute thinkingEnabled by honoring reasoningLevel (like FM path L1329-1349)
                     // and falling back to defaultOn when user provides no explicit signal.
@@ -3331,7 +3331,7 @@ extension EnginePool {
                         mtpToolAwareContext = ReasoningEffortWire.context(
                             [key: enabled], rawValue: options.reasoningEffort)
                     } else {
-                        // Non-templateFlag model (alwaysOn or none) — same as upstream L1191-1193
+                        // Non-templateFlag model (alwaysOn or none). Same as upstream L1191-1193
                         // `enableReasoning` is now Bool?; a nil (no preference) maps to the old
                         // `false` default, which L3282 renders as `forThinkingEnabled: nil` (no
                         // explicit injection). Only an explicit `true` forces injection on.
@@ -3339,13 +3339,13 @@ extension EnginePool {
                         mtpToolAwareContext = nil
                     }
                     /// Upstream L1149-1157: thinkThenCallConfig is computed for ALL tool paths
-                    /// (.allowed AND .required) — no .required mode gate. Phase 1 thinking happens
+                    /// (.allowed AND .required), no .required mode gate. Phase 1 thinking happens
                     /// whenever the model declares reasoning, has a templateFlag prompt strategy,
                     /// and thinking is not explicitly disabled. In .allowed mode the model freely
                     /// decides whether to reason during Phase 2 tool iterations.
                     // FIX B: Phase 1 thinking enabled for .allowed mode too (upstream alignment)
                     // Phase 1: think-then-call reasoning phase. Upstream does not require
-                    // .required mode for this — it's gated on thinkThenCallConfig availability,
+                    // .required mode for this. It's gated on thinkThenCallConfig availability,
                     // which depends on mtpReasoningConfig + templateFlag + mtpThinkingEnabled.
                     var phase1ThinkingText: String?
                     var phase1ReasoningTokenCount: Int = 0  // Phase 1 reasoning token count
@@ -3357,7 +3357,7 @@ extension EnginePool {
                     {
                         // Phase 1: all work inside perform{} to avoid Sendable boundary issues
                         do {
-                            // Snapshot for the @Sendable closure below — pairs are Sendable
+                            // Snapshot for the @Sendable closure below. Pairs are Sendable
                             // as they stand, so the snapshot keeps their metadata. This
                             // lane prepares its own LMInput, so its prompt owes the
                             // instructions prepend.
@@ -3421,7 +3421,7 @@ extension EnginePool {
                                                 case .reasoning(let text):
                                                     phase1ThinkingAccumulated += text
                                                 case .response:
-                                                    // Response tokens in Phase 1 — ignore, they're noise
+                                                    // Response tokens in Phase 1. Ignore, they're noise
                                                     break
                                                 }
                                             }
@@ -3429,7 +3429,7 @@ extension EnginePool {
                                                 break
                                             }
                                         }
-                                        // Drain task — Phase 1 done, Phase 2 will use fresh generation
+                                        // Drain task. Phase 1 done, Phase 2 will use fresh generation
                                         phase1Task.cancel()
                                         _ = await phase1Task.value
                                         Stream.gpu.synchronize()
@@ -3481,7 +3481,7 @@ extension EnginePool {
                     mtpToolLoop: while mtpToolLoopCount < maxMtpToolLoop {
                         mtpToolLoopCount += 1
                         if Task.isCancelled || cancellation.isCancelled {
-                            // Emit cancelled .done event — same as ChatSession path (L2528-2538).
+                            // Emit cancelled .done event. Same as ChatSession path (L2528-2538).
                             // Without this, the caller never receives a terminal event.
                             let cancelTokPerSec =
                                 (actualTokenCount ?? 0) > 0
@@ -3513,7 +3513,7 @@ extension EnginePool {
 
                         // Mid-turn steering (Hermes-style): drain user interjections
                         // queued while this turn was streaming and append them as
-                        // user-role turns BEFORE the next generation — the model
+                        // user-role turns BEFORE the next generation. The model
                         // sees the course-correction at the next tool boundary
                         // without the stream being killed. convKey is the same
                         // session identity the engine uses everywhere above.
@@ -3535,10 +3535,10 @@ extension EnginePool {
                         var toolCallDetected = false
                         var iterationAnswerText = ""
 
-                        // Per-iteration streaming inside a fresh perform { } — this is the
+                        // Per-iteration streaming inside a fresh perform { }. This is the
                         // short-lived lock equivalent to upstream ChatSession.respond() pattern.
                         let iterStream: AsyncStream<MLXLMCommon.Generation>
-                        // Snapshot for the @Sendable closure below — the var can't be
+                        // Snapshot for the @Sendable closure below. The var can't be
                         // captured, but MTPMessagePair is Sendable, so the snapshot is a
                         // plain copy that keeps every pair's metadata.
                         let iterationPairs = mtpMessages
@@ -3547,7 +3547,7 @@ extension EnginePool {
                         let snapMtpToolAwareContext = mtpToolAwareContext
                         // N1-fix: completionReserve floor on MTP phase2 per-iteration budget.
                         // Upstream MLXLanguageModel.respond() L1372-1376:
-                        //   phase2MaxTokens = max(maxT - reasoningTokenIDs.count, completionReserve)
+                        //  phase2MaxTokens = max(maxT. ReasoningTokenIDs.count, completionReserve)
                         // where completionReserve = maxTokens / 4 (minimum floor).
                         // Without this, long reasoning spans can consume all tokens in early
                         // iterations, leaving zero budget for tool dispatch on later iterations.
@@ -3555,7 +3555,7 @@ extension EnginePool {
                             phase1ReasoningTokenCount + phase2ReasoningTokenCount
                         let mtpRemainingBudget = (options.maxTokens ?? .max) - mtpReasoningTotal
                         let mtpCompletionReserve = (options.maxTokens ?? .max) / 4
-                        // Snapshot as let to satisfy Sendable closure capture rules —
+                        // Snapshot as let to satisfy Sendable closure capture rules,
                         // GenerateParameters is a struct, so a copy is cheap.
                         let iterGenParams: GenerateParameters = {
                             var params = genParams
@@ -3594,14 +3594,14 @@ extension EnginePool {
                                 // Upstream: generate(input:cache:parameters:context:mtpDrafter:blockSize:components:wiredMemoryTicket:)
                                 // Evaluate.swift L2025
                                 // thread cached MTP KV cache to avoid cold-start on each
-                                // generation. KVCache objects are reference types — they hold
+                                // generation. KVCache objects are reference types. They hold
                                 // pointers to GPU memory, so the array is cheap to pass and the
                                 // objects are updated in-place by upstream during generation.
                                 let mtpKVCache = loaded.mtpKVCache(conversationId: convKey)
                                 // The same split as the std reasoning lane, sized to this iteration's
                                 // remaining budget (the reserve floor above already shrank it), and
                                 // only on a turn that declared no tools: this loop dispatches tool
-                                // calls too, and the ceiling there starves the payload —
+                                // calls too, and the ceiling there starves the payload,
                                 // `ThinkingBudgetPolicy.components` carries the measurement.
                                 let mtpGenComponents = ThinkingBudgetPolicy.components(
                                     reasoning: mtpReasoningConfig,
@@ -3646,7 +3646,7 @@ extension EnginePool {
                         // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2657 reasoning: context.configuration.reasoningConfig.map
                         mtpGenerationLoop: for try await generation in iterStream {
                             if Task.isCancelled || cancellation.isCancelled {
-                                // Inline emit .done(.cancelled) — same as std cancel path (L2379).
+                                // Inline emit .done(.cancelled). Same as std cancel path (L2379).
                                 // Outer .done (L2234) is blocked by localStoppedBySeq=true,
                                 // so we must emit here or the caller never gets a terminal event.
                                 let mtpCancelTokPerSec =
@@ -3737,8 +3737,8 @@ extension EnginePool {
                             case .info(let completionInfo):
                                 localTokenCount = completionInfo.generationTokenCount
                                 // True input-token count (upstream Evaluate.swift GenerateCompletionInfo.promptTokenCount,
-                                // `inputText.tokens.size`) — the wire-accurate `usage.input` value on the MLX axis.
-                                // Handlers currently use a bytes/3|4 heuristic (tokenize throws on MLX — no real
+                                // `inputText.tokens.size`). The wire-accurate `usage.input` value on the MLX axis.
+                                // Handlers currently use a bytes/3|4 heuristic (tokenize throws on MLX, no real
                                 // tokenizer registered); override with this when present (`.done.promptTokenCount`).
                                 localPromptTokenCount = completionInfo.promptTokenCount
                                 localCachedPromptTokenCount =
@@ -3763,11 +3763,11 @@ extension EnginePool {
                                     case .interrupted:
                                         // Upstream #798: `ChatSession.interrupt()` is the only emitter and
                                         // this lane bypasses ChatSession, so a user stop here keeps the
-                                        // consumer-cancel rollback — permanent shape, not unwired.
+                                        // consumer-cancel rollback. Permanent shape, not unwired.
                                         .cancelled
                                     case .steered:
                                         // Upstream #608: the step yielded to steering and continues, so the
-                                        // turn has not ended — the prior reason stands (same arm, std lane).
+                                        // turn has not ended. The prior reason stands (same arm, std lane).
                                         localStopReason
                                     }
                                 // Capture MTP speculative decoding metrics from upstream
@@ -3779,7 +3779,7 @@ extension EnginePool {
                                 // Phase 2 reasoning tokens: upstream counts them per token
                                 // (MTPSpeculativeTokenIterator.reasoningTokenCount -> GenerateCompletionInfo),
                                 // which replaces attributing the whole iteration to thinking when the
-                                // span happened to be open at the end — the answer tokens of that
+                                // span happened to be open at the end. The answer tokens of that
                                 // iteration were being billed to reasoning.
                                 phase2ReasoningTokenCount += completionInfo.reasoningTokenCount ?? 0
                             case .toolCall(let mlxTC):
@@ -3791,7 +3791,7 @@ extension EnginePool {
                             case .rejectedToolCall(let rejection):
                                 // Upstream #512/#538 (mlx-swift-lm 7871b09): model produced
                                 // tool-call-shaped output that could not be parsed/authorized.
-                                // Intentionally NOT treated as a detected tool call —
+                                // Intentionally NOT treated as a detected tool call,
                                 // toolCallDetected stays false so the MTP loop does not
                                 // exit to dispatch a non-executable call; the loop
                                 // continues on the next iteration (model gets another
@@ -3811,14 +3811,14 @@ extension EnginePool {
                         }
 
                         // If no tool calls were detected, or we hit a stop condition, exit the loop
-                        // .required mode: tools are mandatory — if model produces no tool call,
+                        //  .required mode: tools are mandatory, if model produces no tool call,
                         // this is a contract violation (upstream L1270-1272: ".required enables
                         // think-then-call reasoning phase before tool dispatch").
                         guard toolCallDetected && !localStoppedBySeq else {
                             let isRequiredMode = options.toolCallingMode?.lowercased() == "required"
                             // G4 fix: only warn on .required when the model stopped for non-normal
                             // reasons (cancelled/error) AND produced no tool call.
-                            // EOS/maxTokens/stopSequence are legitimate termination — not a violation.
+                            // EOS/maxTokens/stopSequence are legitimate termination, not a violation.
                             let abnormalStop =
                                 localStopReason == .cancelled
                                 || localStopReason == .error
@@ -3938,7 +3938,7 @@ extension EnginePool {
                                                 .mapValues { $0.anyValue } as? [String: Any] ?? [:])
                                 )
                             }
-                            // Append tool result message for next iteration — the name is
+                            // Append tool result message for next iteration. The name is
                             // in scope here, so this lane never guesses. It rides in the
                             // pair, so the next snapshot keeps it and the model sees which
                             // tool answered.
@@ -4007,7 +4007,7 @@ extension EnginePool {
                                     passthroughReason: mtpPassthroughReason)))
                     }
                 }
-                // MARK: - Standard Path — reasoning branch via generateTokens()
+                // MARK: - Standard Path. Reasoning branch via generateTokens()
                 /// Upstream: MLXLanguageModel.runReasoning uses generateTokens() → raw .token IDs
                 /// → NaiveStreamingDetokenizer → ReasoningTokenCollector → segments.
                 /// This gives true token-level reasoning count (1 .token == 1 real token).
@@ -4035,13 +4035,13 @@ extension EnginePool {
                     // GenerateCompletionInfo.cachedPromptTokenCount, landed in 604fae7).
                     // nil = no .info before termination (e.g. early cancel).
                     let cachedPromptTokenCount: Int?
-                    // The lane's cache priced before it was freed — the only measured
+                    // The lane's cache priced before it was freed. The only measured
                     // price this traffic will ever have. nil without `.info`: no claim.
                     let laneCacheBytes: Int?
                     let laneCacheTokens: Int?
                 }
 
-                // SAFETY: [Chat.Message] is non-Sendable — snapshot as Sendable
+                // SAFETY: [Chat.Message] is non-Sendable. Snapshot as Sendable
                 // message pairs before entering @Sendable closure, exactly like
                 // the MTP path (:3835) and guided gen (:2024).
                 var stdMsgPairs: [(role: String, content: String)] = newMessages.map {
@@ -4062,13 +4062,13 @@ extension EnginePool {
                     // never with media: the snapshot below is `(role, content)` pairs, so a
                     // media turn rebuilt here answers without the frames it accepted
                     // (measured 11-11, probes 08/17). Media reaches the processor only through
-                    // ChatSession — the fact `bypassesPooledChatSession` already states.
+                    // ChatSession. The fact `bypassesPooledChatSession` already states.
                     // Upstream Executor.respond() gates reasoning behind mayRunReasoningPath:
-                    //   mayRunReasoningPath = enabledToolDefinitions.isEmpty && request.schema == nil
+                    //  mayRunReasoningPath = enabledToolDefinitions.isEmpty && request.schema == nil
                     // When tools or grammar schema are present, the constrained/tool path handles
-                    // thinking internally — entering std reasoning here would double-inject
+                    // thinking internally. Entering std reasoning here would double-inject
                     // thinking kwargs and bypass the tool-aware prompt rendering.
-                    // removed early pool release — reasoning needs token-level segmentation
+                    // removed early pool release. Reasoning needs token-level segmentation
                     // that ChatSession doesn't provide, but the pooled session should be returned
                     // normally downstream so subsequent std requests can reuse the KV cache.
                     log.info("Routing through reasoning path — upstream generateTokens() alignment")
@@ -4147,7 +4147,7 @@ extension EnginePool {
                             // Std reasoning: generateTokensTask() returns (AsyncStream, Task)
                             // This lane runs only on a turn that declared no tools and no
                             // grammar (`mayRunReasoning`), so its whole limit belongs to the
-                            // thinking + answer pair — which is what makes a hard ceiling on
+                            // thinking + answer pair, which is what makes a hard ceiling on
                             // thinking sound here (`answerOnly`).
                             let thinkingComponents = ThinkingBudgetPolicy.components(
                                 reasoning: rc,
@@ -4157,7 +4157,7 @@ extension EnginePool {
                                 answerOnly: true
                             )
                             // The identical array the iterator builds when `cache:` is nil
-                            // (Evaluate.swift:995) — holding the handle makes this turn's
+                            // (Evaluate.swift:995). Holding the handle makes this turn's
                             // bytes readable before the cache is freed.
                             let laneCache = try context.model.newCache(parameters: genParams)
                             let (stdTokenStream, stdTokenTask) = try MLXLMCommon.generateTokensTask(
@@ -4194,7 +4194,7 @@ extension EnginePool {
                                 }
                                 switch generation {
                                 case .token(let token):
-                                    // True token-level processing — one .token == one real token.
+                                    // True token-level processing. One .token == one real token.
                                     if !localStdFirstToken {
                                         metrics.firstTokenMs = metrics.overallMs
                                         localStdFirstToken = true
@@ -4268,11 +4268,11 @@ extension EnginePool {
                                         case .interrupted:
                                             // Upstream #798: `ChatSession.interrupt()` is the only emitter
                                             // and this flat token route builds its own cache outside a
-                                            // ChatSession response — permanent shape, not unwired.
+                                            // ChatSession response. Permanent shape, not unwired.
                                             .cancelled
                                         case .steered:
                                             // Upstream #608: a step handed off to mid-turn steering, so the
-                                            // turn has not ended — the prior reason stands. This route calls
+                                            // turn has not ended. The prior reason stands. This route calls
                                             // no `session.steer`; no wire word is invented for it.
                                             localStdStopReason
                                         }
@@ -4401,14 +4401,14 @@ extension EnginePool {
                     /// for text + multimodal generation with tool dispatch support.
                 } else {
                     var localStdAccumulated = ""
-                    // MTP speculative decoding telemetry — populated when ChatSession
+                    // MTP speculative decoding telemetry. Populated when ChatSession
                     // internal iterator is SpeculativeTokenIterator (non-reasoning MTP path).
-                    // Same fields as MTP bypass path — .done carries them regardless of path.
+                    // Same fields as MTP bypass path. .done carries them regardless of path.
                     var localStdProposedDraftTokens: Int?
                     var localStdAcceptedDraftTokens: Int?
                     var localStdPassthroughReason: String?
                     // Thinking tokens on this lane, read from GenerateCompletionInfo. nil until a
-                    // .info arrives — the wire omits the field rather than claiming 0 unmeasured.
+                    // .info arrives. The wire omits the field rather than claiming 0 unmeasured.
                     // Named apart from the reasoning lane's per-token counter above: same meaning,
                     // different authority (that one counts tokens, this one is upstream's number).
                     var streamedReasoningTokenCount: Int?
@@ -4422,26 +4422,26 @@ extension EnginePool {
 
                     // ChatSession's KV cache already holds context from previous rounds.
                     // newMessages (set above) contains only what's not yet cached:
-                    //   - pool hit  → new user message only
-                    //   - pool miss → full history including system instructions
+                    //  - pool hit  → new user message only
+                    //  - pool miss → full history including system instructions
                     // `chatSession` was acquired before the reasoning/fm branches; if it
-                    // is nil here the FM path already consumed it — report, don't crash.
-                    // Rejected-tool-call recovery — codex-aligned semantics (codex-rs
+                    // is nil here the FM path already consumed it. Report, don't crash.
+                    // Rejected-tool-call recovery. Codex-aligned semantics (codex-rs
                     // mcp_tool_call.rs: malformed tool JSON -> surface the error and let
                     // the model retry, never hard-abort the loop). Pinned upstream
                     // (mlx-swift-lm e3d4a20, ChatSession L1390-1404): once
                     // toolDispatch != nil, a rejected tool call rolls back ONLY the
                     // failed assistant turn, persists the rolled-back cache "so the
                     // next request cannot reuse rejected output", then throws
-                    // RejectedToolCallError — the caller owns recovery. ocoreai is that
+                    // RejectedToolCallError. The caller owns recovery. ocoreai is that
                     // caller: it re-enters the SAME chatSession with a fresh corrective
                     // turn (committed user turn + any already-executed tool results are
                     // preserved upstream, so re-entry does not double-feed). Bounded at
                     // 3 attempts; on exhaustion the original error propagates to the
-                    // outer `.error` handling (legacy 500 wire behavior) - unchanged.
+                    // outer `.error` handling (legacy 500 wire behavior). Unchanged.
                     //
                     // Boundary + prompt values come from `StdToolCallRecovery`
-                    // (file scope) — pinned by StdToolCallRecoveryTests exact values.
+                    // (file scope). Pinned by StdToolCallRecoveryTests exact values.
                     var stdRetryMessages: [MLXLMCommon.Chat.Message] = newMessages
                     let maxStdRejectedAttempts = StdToolCallRecovery.maxAttempts
                     var interruptSubmitted = false
@@ -4547,8 +4547,8 @@ extension EnginePool {
                                     }
                                 case .reasoning(let text):
                                     // Upstream #563 frames reasoning on the ChatSession lane too, so a
-                                    // tools-or-schema turn on a reasoning model — the case that skips the
-                                    // token-level reasoning branch below — used to deliver its thinking
+                                    // tools-or-schema turn on a reasoning model. The case that skips the
+                                    // token-level reasoning branch below. Used to deliver its thinking
                                     // nowhere. It is a separate channel, never content: `localStdAccumulated`
                                     // becomes the pooled assistant message (L4824), so the thought is scanned
                                     // for the caller's stop sequences without being written into it.
@@ -4585,7 +4585,7 @@ extension EnginePool {
                                     // upstream is the only party that knows whether the KV cache
                                     // kept the prefix. One line per warm turn either way, and the
                                     // same pair folded into the per-model ledger behind
-                                    // GET /v1/models/:model/kv-cache. Upstream's numbers only —
+                                    // GET /v1/models/:model/kv-cache. Upstream's numbers only,
                                     // never inferred here.
                                     accountPrefixReuse(
                                         convKey: convKey,
@@ -4609,11 +4609,11 @@ extension EnginePool {
                                             .cancelled
                                         case .steered:
                                             // Upstream #608: the step yielded to steering and a successor
-                                            // continues the turn, so this is not the turn's end — the prior
+                                            // continues the turn, so this is not the turn's end. The prior
                                             // reason stands. See the same arm in the std `.info` site above.
                                             lastStopReason
                                         }
-                                    // MTP speculative decoding metrics — present when ChatSession
+                                    // MTP speculative decoding metrics. Present when ChatSession
                                     // uses SpeculativeTokenIterator internally. Nil on standard path.
                                     localStdProposedDraftTokens = completionInfo.proposedDraftTokens
                                     localStdAcceptedDraftTokens = completionInfo.acceptedDraftTokens
@@ -4624,7 +4624,7 @@ extension EnginePool {
                                     continuation.yield(.init(kind: .toolCall(tc)))
                                 case .rejectedToolCall(let rejection):
                                     // Upstream #512/#538 (mlx-swift-lm 7871b09): no-tools
-                                    // standard ChatSession path — a rejection here is a
+                                    // standard ChatSession path. A rejection here is a
                                     // protocol anomaly, not a dispatchable event. Matches
                                     // upstream own convention (MLXLanguageModel logs it on
                                     // the non-throwing decoder path). Deliberately does not
@@ -4666,7 +4666,7 @@ extension EnginePool {
                                 attemptsRemain: stdRejectedAttempt < maxStdRejectedAttempts
                             )
                             // Emit final .done event with prompt throughput + MTP telemetry. Suppressed
-                            // on the steer iteration so the wire never sees two .done — the recovery
+                            // on the steer iteration so the wire never sees two .done. The recovery
                             // re-entry below emits the single authoritative one.
                             if !Task.isCancelled, !willSteerDegenerate {
                                 continuation.yield(
@@ -4693,11 +4693,11 @@ extension EnginePool {
                                 // plain success. The cost story that used to live here is retired twice over:
                                 // "the turn never forwarded its prompt" died to a measured prefill cost
                                 // (CHANGELOG 10-22(11)), and the numbers that buried it were themselves
-                                // mislabelled — `firstTokenMs` is stamped at the first output chunk
+                                // mislabelled, `firstTokenMs` is stamped at the first output chunk
                                 // (`EngineInference.swift:4635`), and this path emits that chunk when the
                                 // generation completes (a healthy 200-token turn reported
                                 // firstTokenMs=4671.26 at overallMs=4672.66), so it is whole-turn latency.
-                                // Two points at one 713-token prompt — 1 token ≈147 ms, 200 tokens ≈4672 ms —
+                                // Two points at one 713-token prompt, 1 token ≈147 ms, 200 tokens ≈4672 ms,
                                 // give fixed ≈124 ms and ≈44 tok/s, which is why the line now reports
                                 // `wholeTurnMs` and stops reporting a first-token time it cannot mean, and
                                 // why it names the instrument that *does* answer "why" instead of
@@ -4708,7 +4708,7 @@ extension EnginePool {
                             }
                             // The shape is detected above; the number that says *why* is
                             // measured here. Opt-in because it costs one extra short generation
-                            // on a turn that already failed — healthy turns stay untouched, and
+                            // on a turn that already failed. Healthy turns stay untouched, and
                             // the chat face cannot carry logprobabilities at all (ChatSession has no
                             // probability path; see DegenerateMarginProbe.swift header).
                             // The caller owns the gate: collapse-only by default (healthy turns pay
@@ -4741,7 +4741,7 @@ extension EnginePool {
                                 // authoritative answer, not concatenated onto the one-token stop, and
                                 // its suppressed .done is emitted by this re-entry. Mirror of the
                                 // rejected-tool-call corrective (`stdRetryMessages = [corrective]`,
-                                // pinned by StdToolCallRecoveryTests) — the session already holds the
+                                // pinned by StdToolCallRecoveryTests). The session already holds the
                                 // committed user turn, so re-entering with only the steer does not
                                 // double-feed.
                                 degenerateSteerUsed = true
@@ -4762,7 +4762,7 @@ extension EnginePool {
                             if !localStdAccumulated.isEmpty {
                                 stdAccumulated = localStdAccumulated
                             }
-                            // Generation completed without rejection — exit the bounded
+                            // Generation completed without rejection. Exit the bounded
                             // recovery loop; the rejected path re-enters from catch below.
                             break
                         } catch let rejection as MLXLMCommon.RejectedToolCallError {
@@ -4780,7 +4780,7 @@ extension EnginePool {
                             localStdAccumulated = ""
                             lastStopReason = nil
                             // Reason-aware corrective (09-21 live-evidence: the pinned
-                            // prompt says "malformed" — blind to undeclared-tool rejections
+                            // prompt says "malformed". Blind to undeclared-tool rejections
                             // where naming the real surface is what converges recovery).
                             stdRetryMessages = [
                                 StdToolCallRecovery.correctiveMessage(
@@ -4809,7 +4809,7 @@ extension EnginePool {
             // Set lastAssistantMessage for pooled session history extension:
             // - Standard reasoning path: localStdAccumulated (from reasoning TokenCollector)
             // - Standard ChatSession path: localStdAccumulated (from streamDetails)
-            // FM path accumulates in fmAccumulated, MTP in mtpAccumulated — both are local
+            // FM path accumulates in fmAccumulated, MTP in mtpAccumulated. Both are local
             // to their respective blocks and released before this point via early-release.
             // At this scope, localStdAccumulated holds the assistant response text.
             if let acc = stdAccumulated {
@@ -4828,13 +4828,13 @@ extension EnginePool {
                     // hold makes the *next* pooled turn skip a prefill for text that was never
                     // cached, which is this round's defect deferred one turn. `release` only
                     // extends history when both keys arrive, so releasing without the
-                    // assistant key claims nothing — the guided-gen and MTP lanes already end
+                    // assistant key claims nothing. The guided-gen and MTP lanes already end
                     // the same way.
                     await releasePoolSlot()
                 }
                 // The answer came out, so this turn completed: whatever lane it ran on,
                 // whatever the pool decided, every frame it carried went into the model.
-                // The else branch (no assistant text at all) deliberately records nothing —
+                // The else branch (no assistant text at all) deliberately records nothing,
                 // "delivered" on the discovery surface means a turn that both took frames
                 // and answered, and a turn with no answer is the honest direction to
                 // under-claim, not a fact to publish.
@@ -4850,13 +4850,13 @@ extension EnginePool {
         let logRef = self.logger
         if config.wiredMemory.enabled {
             // Estimate ticket size: per-request GPU memory delta (KV cache + activations).
-            // Weights are already resident in the LoadedModel's GPU memory — they are NOT
+            // Weights are already resident in the LoadedModel's GPU memory. They are NOT
             // per-request overhead and must not be counted here: prev formula included
             // vocabSize*8 which double-counted resident weights, causing admission gate to
             // under-estimate per-request headroom and over-accept requests that could OOM).
             //
             // KV cache per-token estimate for 4bit quantized models:
-            //   ~2 KiB/token (covers K+V across all layers at 4-bit quantization).
+            //  ~2 KiB/token (covers K+V across all layers at 4-bit quantization).
             // For context lengths L: ticket ≈ L * 2048 bytes.
             // bytesOverride from config takes priority when set.
             let ticketSize: Int
@@ -4868,9 +4868,9 @@ extension EnginePool {
 
             // FIXED: Hashable policies derive stable identity from their value (cap), not UUID.
             // Custom ID broke WiredMemoryManager's grouping/hysteresis logic.
-            // Aligns with upstream WiredMemoryPolicies.swift — 4 policies supported:
-            //   sum → WiredSumPolicy, max → WiredMaxPolicy,
-            //   budget → WiredBudgetPolicy, fixed → WiredFixedPolicy.
+            // Aligns with upstream WiredMemoryPolicies.swift, 4 policies supported:
+            //  sum → WiredSumPolicy, max → WiredMaxPolicy,
+            //  budget → WiredBudgetPolicy, fixed → WiredFixedPolicy.
             let wmPolicy: any WiredMemoryPolicy =
                 switch config.wiredMemory.policy {
                 case "sum":
@@ -4918,7 +4918,7 @@ extension EnginePool {
                 "GPU post-inference delta [\(modelId)] active: \(gpuDelta.activeMemory / 1_048_576)MB, cache: \(gpuDelta.cacheMemory / 1_048_576)MB"
             )
 
-            // Propagate error if caught — preserve the underlying cause (aligned
+            // Propagate error if caught. Preserve the underlying cause (aligned
             // with the catch in `_runPipelinedConstrainedDecoding`: a generic "inference failed" loses
             // the GuidedGenerationError/OOM/timeout distinction clients need).
             if let caughtError {
@@ -5013,7 +5013,7 @@ extension EnginePool {
     /// (measured 10-18, live) missed those and also dropped a whole chunk when the match
     /// landed at offset 0: `stop:["2"]` returned the full count 1…20, and
     /// `stop:["banana"]` returned four bananas where the same prompt with no stop returned
-    /// five — the surface delivered text the client had asked to be cut, and lost a token it
+    /// five. The surface delivered text the client had asked to be cut, and lost a token it
     /// should have kept. Gate: `StopSequenceDeliveryTests`.
     nonisolated static func firstStopOccurrence(
         in text: String, sequences: [String]
@@ -5146,17 +5146,17 @@ extension EnginePool {
     ///
     /// Upstream MLXLanguageModel.respond() (L1060-L1072) prevents models whose
     /// promptStrategy is .alwaysOn from being routed through grammar-constrained
-    /// paths — the grammar would truncate thinking tokens, producing broken output.
+    /// paths. The grammar would truncate thinking tokens, producing broken output.
     ///
     /// Returns true when safe to use guided gen / MTP (reasoning absent or suppressible).
     /// Returns false when the model has an .alwaysOn reasoning config that cannot
-    /// be disabled — in which case the request must fall through to ChatSession
+    /// be disabled, in which case the request must fall through to ChatSession
     /// where ReasoningEventEmitter handles thinking segmentation correctly.
     /// Whether this turn generates *around* the pooled `ChatSession`.
     ///
     /// Both lanes below build their own KV cache (`GuidedGenerationLoop`, and
     /// `loaded.mtpKVCache(conversationId:)` for MTP) and release the pooled slot before
-    /// generating, so a session rewind applied for them is work nobody spends — and a log
+    /// generating, so a session rewind applied for them is work nobody spends, and a log
     /// line claiming one is the surface stating more than the engine delivered (AGENTS.md
     /// invariant 2). Media puts the turn back on `ChatSession` (neither lane carries media),
     /// which is why `carriesMedia` outranks both, and an unsafe grammar pairing falls through
@@ -5180,7 +5180,7 @@ extension EnginePool {
         _ configuration: ModelConfiguration
     ) -> Bool {
         guard let rc = configuration.reasoningConfig else { return true }
-        // .alwaysOn models cannot disable thinking — grammar would truncate reasoning
+        //  .alwaysOn models cannot disable thinking. Grammar would truncate reasoning
         do {
             _ = try rc.promptStrategy.additionalContext(forThinkingEnabled: false)
             return true

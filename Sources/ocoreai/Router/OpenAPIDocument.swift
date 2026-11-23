@@ -1,15 +1,15 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! OpenAPIDocument.swift — the HTTP surface as an OpenAPI 3.1 contract, **rendered from
+//! OpenAPIDocument.swift. The HTTP surface as an OpenAPI 3.1 contract, **rendered from
 //! ``V1EndpointCatalog`` instead of written beside it**.
 //!
-//! Why it exists: the trees this repo studies publish a machine-readable contract — ollama ships
-//! `docs/openapi.yaml`, and the harness trees ship generated clients — while our discovery story
+//! Why it exists: the trees this repo studies publish a machine-readable contract. Ollama ships
+//! `docs/openapi.yaml`, and the harness trees ship generated clients. While our discovery story
 //! was `/v1/capabilities` plus prose. Hand-writing a second description of the same routes is a
 //! second home for one decision, and this repo's recurring failure is exactly that copy drifting.
 //! So paths, methods, summaries and auth scope are *derived* from the catalog, whose own test
-//! (`V1EndpointCatalogTests`) pins it to the router's registrations. What the catalog cannot say —
-//! media types, the error envelope, the `%2F` rule for model ids — is stated once here and gated
+//! (`V1EndpointCatalogTests`) pins it to the router's registrations. What the catalog cannot say,
+//! media types, the error envelope, the `%2F` rule for model ids. Is stated once here and gated
 //! against the code that serves it (`OpenAPIContractTests` + probe 42).
 //!
 //! Byte-stable by construction: keys keep insertion order, because a `JSONSerialization` dictionary
@@ -84,7 +84,7 @@ enum OpenAPIDocument {
     /// The document body.
     ///
     /// `servers` is relative on purpose. The four `OCOREAI_PORT ?? "8080"` reads are the bind
-    /// truth and none of them is a constant I am allowed to re-type — a fifth copy is exactly
+    /// truth and none of them is a constant I am allowed to re-type. A fifth copy is exactly
     /// the second home this repo forbids, and a pinned 8080 would describe a deployment that
     /// may not exist. `url: "/"` means "the origin that served this document", which is the
     /// one server this route can actually vouch for.
@@ -472,7 +472,7 @@ enum OpenAPIDocument {
                                             ("additionalProperties", .bool(true)),
                                             // `type` is the documented table, keyed by status, not one
                                             // constant: `AppError.openAIErrorTypeName` produces these
-                                            // five names and nothing else emits a sixth — the catch-all
+                                            // five names and nothing else emits a sixth. The catch-all
                                             // `app_error` used to be listed because the trie-miss 404
                                             // hand-built it in `NotFoundEnvelopeMiddleware`; that site
                                             // now throws the same `AppError` every other refusal does,

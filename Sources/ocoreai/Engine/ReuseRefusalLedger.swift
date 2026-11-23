@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! ReuseRefusalLedger.swift — which rule turned a warm session away, counted per model.
+//! ReuseRefusalLedger.swift, which rule turned a warm session away, counted per model.
 //!
 //! ### Why this exists
 //! The pool already *decides* reuse refusal with named rules: ``SnapshotRefusal`` for the disk
@@ -9,21 +9,21 @@
 //! the verdict was write one `logger.info` line per refusal and forget it. So the two open
 //! decisions in this area have no numbers attached to them:
 //!
-//! 1. **Refresh vs refuse** — whether a session whose instructions changed should be updated
+//! 1. **Refresh vs refuse**. Whether a session whose instructions changed should be updated
 //!    in place (upstream codex #53872 tracks identity and instructions separately and appends
 //!    a message instead of losing the prefix) or keep being refused. Probe 19 priced one
 //!    instruction change at a full re-prefill (`prompt=1438 cached=0`); what it could not
 //!    price was *how often* that happens.
-//! 2. **Cross-conversation prefix reuse** — the pool keys sessions by
+//! 2. **Cross-conversation prefix reuse**. The pool keys sessions by
 //!    `(modelId, conversationId)` (`SessionPool.swift` `poolKey`), so two conversations that
 //!    open with the same instructions and the same first messages never share a prefix.
 //!    codex #55587 (`ab6095dde0`) decouples the prompt-cache key from the session id for
 //!    exactly this reason, though its axis is provider-side caching, not local KV. Whether
 //!    loosening the key would save anything here depends on how often a *live* session for the
-//!    same model already holds a prefix of the arriving conversation — a number nobody has.
+//!    same model already holds a prefix of the arriving conversation. A number nobody has.
 //!
 //! This ledger is that number. It changes no decision: every count here is taken at the site
-//! where the existing rule already said no (AGENTS.md invariant 1 — an owner question gets an
+//! where the existing rule already said no (AGENTS.md invariant 1. An owner question gets an
 //! instrument, not a guess), and `make audit` Class-J will not let the suites named below go
 //! stale.
 //!
@@ -35,7 +35,7 @@
 //! (Divergence *within* one conversation is a different case and is no longer hypothetical:
 //! a rewound turn reuses from the common prefix, measured 10-21 at 718 of 758 prompt tokens
 //! on gemma-4-e2b-it-4bit, gate = probe 27. `historyDiverged` counts only refusals that
-//! stayed refusals — an offer made is not recorded as a refusal, so a rewound turn cannot
+//! stayed refusals. An offer made is not recorded as a refusal, so a rewound turn cannot
 //! inflate the opportunity count either.)
 //! Before any turn has been refused the answer is an empty set, never a predicted `would_save`.
 
@@ -46,7 +46,7 @@ import Foundation
 /// Why a warm session or snapshot was not handed back. One name per refusal, in the same
 /// precedence the disk path already applies (`reuseDecision` reports
 /// ``SnapshotRefusal/instructionsChanged`` ahead of ``SnapshotRefusal/notAPrefix``, and the
-/// in-memory path names both — here the first mismatch wins, and it wins in one place).
+/// in-memory path names both. Here the first mismatch wins, and it wins in one place).
 enum ReuseRefusalReason: String, Codable, Equatable, Sendable, CaseIterable {
     /// The instruction set differs from the one the cache was built under: its tokens encode
     /// text this request never sent.
@@ -62,16 +62,16 @@ enum ReuseRefusalReason: String, Codable, Equatable, Sendable, CaseIterable {
     /// The ledger claims the cache already covers this turn's *entire* feed, and the feed's
     /// newest message is one that still needs an answer (a user/tool turn). A cache is only
     /// ever written after a completed answer, so a cache holding that message has already
-    /// answered it — the answer is in the cache's past, not ahead of the prefix. Handing it
+    /// answered it. The answer is in the cache's past, not ahead of the prefix. Handing it
     /// back would feed the session nothing, and a session fed nothing emits end-of-turn
     /// immediately (measured 10-22: the same prompt asked twice answered `200 + 1 token +
     /// finish_reason=stop`, and once both halves of a concurrent identical pair did it).
     ///
-    /// A feed whose newest message is from the assistant is a different request — "continue
-    /// this draft" — and a cache holding exactly that transcript is the right answer to it,
+    /// A feed whose newest message is from the assistant is a different request. "continue
+    /// this draft", and a cache holding exactly that transcript is the right answer to it,
     /// so that shape stays reusable (`SessionIsolationTests` pins both sides).
     case cacheCoversWholeFeed
-    /// The cache was built for another model — its KV encodes other embeddings.
+    /// The cache was built for another model. Its KV encodes other embeddings.
     case modelMismatch
     /// No sidecar, unreadable, or written by a build whose hashes came from the per-process
     /// seed: nothing states where the cache came from.
@@ -82,7 +82,7 @@ enum ReuseRefusalReason: String, Codable, Equatable, Sendable, CaseIterable {
 
     /// The in-memory rule's verdict as a name, with `nil` meaning reusable.
     ///
-    /// Same premises, same order as ``SnapshotRefusal``: identity first, then divergence —
+    /// Same premises, same order as ``SnapshotRefusal``: identity first, then divergence,
     /// so the two paths cannot grow two spellings of one refusal.
     static func decide(
         instructionsMatch: Bool,
@@ -122,7 +122,7 @@ extension SnapshotRefusal {
 struct PrefixOverlap: Equatable, Sendable {
     /// Leading messages the two transcripts agree on.
     let messagesInCommon: Int
-    /// Messages in this turn's feed — the denominator a reader needs to judge the overlap.
+    /// Messages in this turn's feed. The denominator a reader needs to judge the overlap.
     let feedMessages: Int
 }
 
@@ -136,7 +136,7 @@ enum CrossConversationPrefix {
 
     /// The deepest prefix of `feed` already resident in one of `candidates`, or `nil`.
     ///
-    /// Callers pass only candidates for the same model — the pool key carries the model, so a
+    /// Callers pass only candidates for the same model. The pool key carries the model, so a
     /// candidate from another model is not an opportunity but a different model's bytes.
     ///
     /// The premises mirror the rules that already refuse reuse, so the count does not
@@ -178,7 +178,7 @@ struct ReuseRefusalObservation: Encodable, Equatable, Sendable {
     /// Same total, split by ``ReuseRefusalReason`` raw value; absent keys mean "never".
     let byReason: [String: Int]
     /// Turns that paid a cold prefill while a resident session for the same model already
-    /// held part of this feed. An opportunity count — see the file header, not a saving.
+    /// held part of this feed. An opportunity count. See the file header, not a saving.
     let crossConversationTurns: Int
     /// Deepest such overlap seen, and this-turn feed length at that moment.
     let bestMessagesInCommon: Int?
@@ -213,7 +213,7 @@ struct ModelReuseRefusals: Equatable, Sendable {
     }
 }
 
-/// Pure per-model accumulator — no actor, no I/O, so the accounting is pinnable without
+/// Pure per-model accumulator, no actor, no I/O, so the accounting is pinnable without
 /// Metal or a loaded model (the same shape as ``PrefixReuseLedger``, for the same reason).
 struct ReuseRefusalLedger: Sendable {
     private(set) var entries: [String: ModelReuseRefusals] = [:]

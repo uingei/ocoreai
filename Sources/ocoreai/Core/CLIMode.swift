@@ -1,24 +1,24 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// CLIMode.swift — pure classification of informational CLI invocations.
+/// CLIMode.swift. Pure classification of informational CLI invocations.
 ///
 /// ### Why this exists (proven gap, live-tested 2026-10-11)
 /// `ocoreai --version` booted the FULL engine (crash handlers, SQLite,
-/// memory tracker) and never answered — the process only died because the
+/// memory tracker) and never answered. The process only died because the
 /// harness killed it. Every other CLI tool answers `--version`/`--help`
 /// instantly with exit 0; on the harness/terminal surface that IS the
 /// product. This is the same first-principles fix as HeadlessServer:
-/// arguments were parsed nowhere — one exact-token classifier closes it.
+/// arguments were parsed nowhere. One exact-token classifier closes it.
 ///
 /// ### Rules (fail-safe, mirrors HeadlessMode)
-///   • `args[0]` is argv[0] — ignored by definition.
+///   • `args[0]` is argv[0]. Ignored by definition.
 ///   • Only the FIRST token after argv[0] is inspected; leading flags are
-///     never skipped past (`--version serve` is answered as version — the flag
+///     never skipped past (`--version serve` is answered as version. The flag
 ///     is the first token). A flag *after* `serve` is not this classifier's to
 ///     answer: `HeadlessMode` refuses it, because `serve` consumes no arguments.
 ///   • Nothing matched → nil → caller's GUI/serve routing is untouched.
 /// The report strings are assembled from AppInfo (the single version truth)
-/// and the env-var names actually consumed by the bridge — never a
+/// and the env-var names actually consumed by the bridge. Never a
 /// hardcoded release number, never a flag that does nothing.
 import Foundation
 
@@ -33,7 +33,7 @@ enum CLIMode {
     /// binary that serves the routes, not typed beside them.
     static let openAPITokens: Set<String> = ["--openapi", "--print-openapi"]
 
-    /// The exact usage text — every line describes real behavior:
+    /// The exact usage text. Every line describes real behavior:
     /// `serve` is the only subcommand; port/host/API keys are env-configured
     /// (verified against BridgeConfig consumption, not aspirations).
     static func usageText(version: String = AppInfo.shortVersion) -> String {
@@ -67,7 +67,7 @@ enum CLIMode {
 
     /// Informational report to print-and-exit, or nil (fall through to
     /// GUI/serve routing unchanged). The OpenAPI branch exists so the artefact has an exit
-    /// that boots nothing — one print site is also the ceiling this surface agrees to.
+    /// that boots nothing. One print site is also the ceiling this surface agrees to.
     static func informationalReport(
         for args: [String],
         shortVersion: String = AppInfo.shortVersion

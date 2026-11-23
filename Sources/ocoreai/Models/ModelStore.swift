@@ -1,19 +1,19 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ModelStore.swift — 就绪模型目录(ready-model directory)单一事实源
+/// ModelStore.swift。就绪模型目录(ready-model directory)单一事实源
 ///
-/// M7: omlx 对齐的"就绪模型目录"层——所有 hub 下载与本地模型的统一登记簿。
+/// M7: omlx 对齐的"就绪模型目录"层。所有 hub 下载与本地模型的统一登记簿。
 /// omlx 对应物: `~/.omlx/models`(`settings.py:44` DEFAULT_BASE_PATH;
 /// `settings.py:232` get_model_dirs;`admin/routes.py:297` HF 直接落盘 model_dir)。
 ///
 /// 布局(全部在 root 下,omlx `~/.omlx/models` 同构):
 /// ```
-/// <root>/huggingface/models--<ns>--<name>/   HubCache 原生布局(blobs/ + snapshots/<rev>/…) —
+/// <root>/huggingface/models--<ns>--<name>/   HubCache 原生布局(blobs/ + snapshots/<rev>/…),
 ///                                             swift-huggingface 库形态硬约束(HubCache 仅
 ///                                             .environment / .cacheDirectory 两 init,
 ///                                             .build/checkouts/swift-huggingface HubCache.swift:85,93),
 ///                                             断点续传 ✓、与 Python huggingface 家缓存互通 ✓
-/// <root>/<ns>/<name>/                         ModelScope 平铺 — omlx 对齐(无 /{revision} 三级,
+/// <root>/<ns>/<name>/                         ModelScope 平铺。omlx 对齐(无 /{revision} 三级,
 ///                                             对齐 omlx/admin/ms_downloader.py: "Preserve {owner}/{model}
 ///                                             layout to match other tools (LMStudio, huggingface-cli)")
 /// <root>/local/<name>/                        用户自行放置的模型
@@ -25,7 +25,7 @@
 /// 旧 `modelscope/<ns>/<name>/<rev>/` 三级、HF 家缓存 `~/.cache/huggingface/hub`、
 /// `Caches/org.ml-explore.mlx-swift-lm`、`Caches/ocoreai/modelscope`。
 ///
-/// 本文件是"哪个目录算就绪模型"的唯一事实源——下载侧(MS/HF)、
+/// 本文件是"哪个目录算就绪模型"的唯一事实源。下载侧(MS/HF)、
 /// 加载侧(`MLXBridge.readyWeightsDir`)、UI 侧(列表/删除)都从本文件取路径,禁止各自拼 Caches 路径。
 
 import Foundation
@@ -85,7 +85,7 @@ enum ModelStore {
         #endif
     }
 
-    /// HF hub 根(root/huggingface)——`HubCache(cacheDirectory:)` 的入参。
+    /// HF hub 根(root/huggingface)。`HubCache(cacheDirectory:)` 的入参。
     static var hubRoot: URL { root.appendingPathComponent(hubSubRoot) }
 
     /// Strip the store/source prefix from a wire id (`hf:org/name` /
@@ -110,7 +110,7 @@ enum ModelStore {
     static let modelDownloadPatterns = ["*.safetensors", "*.json", "*.jinja"]
 
     /// 就绪目录锚定的 `HubClient`(认证走 `.environment`,与旧宏路径一致;
-    /// 缓存固定到 `hubRoot`)。host 由 SDK `detectHost()` 读取 HF_ENDPOINT —
+    /// 缓存固定到 `hubRoot`)。host 由 SDK `detectHost()` 读取 HF_ENDPOINT,
     /// SettingsStore.useHFMirror 的 setenv 即活开关（每次构造生效，默认
     /// 官方；镜像为第三方中继，用户显 opt-in）。
     static func readyHubClient() -> HuggingFace.HubClient {
@@ -126,7 +126,7 @@ enum ModelStore {
 
     // MARK: - ModelScope 布局(omlx 对齐)
 
-    /// MS 就绪仓库目录(规范写入位,omlx 平铺):`root/<ns>/<name>/` —
+    /// MS 就绪仓库目录(规范写入位,omlx 平铺):`root/<ns>/<name>/`,
     /// 无 /{revision} 三级;omlx/admin/ms_downloader.py:885
     /// `target_dir = self._model_dir / task.repo_id`,注释 "Preserve {owner}/{model}
     /// layout to match other tools (LMStudio, huggingface-cli)"。
@@ -173,7 +173,7 @@ enum ModelStore {
     /// omlx 对齐(`~/.omlx/models` 单根,无 provider 子目录):模型一律落
     /// `root/<org>/<name>/`,下载来源(HF/MS)不落盘隔离。
     /// hubRoot/msRoot/localRoot 仅供各自发现/遗留兜底惰性读取,不再由布局层
-    /// 预建 —— 否则每次启动都会把 `models/{huggingface,modelscope,local}`
+    /// 预建。否则每次启动都会把 `models/{huggingface,modelscope,local}`
     /// 三个空目录重新拉回来(用户明确:这些不应存在)。
     @discardableResult
     static func ensureLayout() -> URL {
@@ -224,10 +224,10 @@ enum ModelStore {
     }
 
     /// Readiness gate for "ready model dirs": a non-empty `safetensors` (MLX/Hub weights)
-    /// OR — on a platform that can run Core AI — a Core AI asset (`.aimodel` / `.aimodelc`).
+    /// OR. On a platform that can run Core AI. A Core AI asset (`.aimodel` / `.aimodelc`).
     ///
     /// A dir with neither stays invisible (e.g. the orphan 09-14 812MB partial download
-    /// of Qwen2.5-0.5B — metadata only, no weights, no asset). On platforms without Core
+    /// of Qwen2.5-0.5B. Metadata only, no weights, no asset). On platforms without Core
     /// AI (< macOS 27 / iOS 27) an asset-only dir is loadable by nobody, so it is invisible.
     private static func isReadyModelDir(_ dir: URL) -> Bool {
         if hasValidSafetensors(in: dir) { return true }
@@ -237,11 +237,11 @@ enum ModelStore {
         return false
     }
 
-    /// Core AI asset extension probe — the single source of truth for "is this a Core AI
+    /// Core AI asset extension probe. The single source of truth for "is this a Core AI
     /// asset (a file or bundle root directory holding `.aimodel` / `.aimodelc`)".
     ///
     /// Mirrors upstream coreai-models `ModelStructure.assetExtensions` +
-    /// `ModelBundle.resolveAssetURL` (asset check). Pure `FileManager` — no CoreAI import,
+    /// `ModelBundle.resolveAssetURL` (asset check). Pure `FileManager`, no CoreAI import,
     /// compiled on every platform, so UI-layer readiness checks can call it from un-gated
     /// code. `PreparedModel.hasCoreAIAsset` (CoreAIEngine, gated file) delegates here.
     static func hasCoreAIAsset(at url: URL) -> Bool {
@@ -261,7 +261,7 @@ enum ModelStore {
         return entries.contains { extensions.contains($0.pathExtension) }
     }
 
-    /// HF 仓库就绪目录 — 按序解析,返回第一个含非空 safetensors 的候选:
+    /// HF 仓库就绪目录。按序解析,返回第一个含非空 safetensors 的候选:
     /// 1) 新根 `root/huggingface/models--<ns>--<name>/snapshots/<rev>/`(HubCache 形态,写入锚点)
     /// 2) 旧默认根同形态(历史 `Application Support/ocoreai/models/huggingface/…`)
     /// 3) HF 家缓存 `~/.cache/huggingface/hub/…`(Python 客户端共享)
@@ -300,7 +300,7 @@ enum ModelStore {
         return nil
     }
 
-    /// MS 就绪目录 — ① 规范平铺 `root/<ns>/<name>/`(omlx 对齐)→
+    /// MS 就绪目录。① 规范平铺 `root/<ns>/<name>/`(omlx 对齐)→
     /// ② 遗留三级 `msBases()/<ns>/<name>/<rev>/`(rev 序 master → main → 任意已存)。
     static func msReadyDir(_ repoId: String) -> URL? {
         let fm = FileManager.default
@@ -358,7 +358,7 @@ enum ModelStore {
     /// (gemma-4-e2b-it-4bit, which ships `processor_config.json` and NOT
     /// `preprocessor_config.json`): the engine loaded a real VLM container and
     /// answered an image correctly ("Red"), while `GET /v1/models` published
-    /// `vlm:false` and the GUI hid the vision badge — a capability the product
+    /// `vlm:false` and the GUI hid the vision badge. A capability the product
     /// has but denies on the wire, so standard clients refuse to attach images.
     /// The inverse also held: an older checkpoint shipping only
     /// `preprocessor_config.json` was advertised as a VLM but loaded as a plain
@@ -367,7 +367,7 @@ enum ModelStore {
     /// Accepted set mirrors upstream mlx-swift-lm `VLMModelFactory.loadProcessorConfig`
     /// (Libraries/MLXVLM/VLMModelFactory.swift:549-556), which reads
     /// `preprocessor_config.json` first and falls back to `processor_config.json`
-    /// — same two filenames, applied one level up (discovery instead of loading).
+    /// Same two filenames, applied one level up (discovery instead of loading).
     static func hasVisionProcessor(
         at dir: URL, fileManager fm: FileManager = .default
     ) -> Bool {
@@ -406,7 +406,7 @@ enum ModelStore {
             if seen.insert(key).inserted { out.append(m) }
         }
 
-        // 1) HF — 新 root + 旧 home cache(models-- 编码目录)
+        // 1) HF。新 root + 旧 home cache(models-- 编码目录)
         let hubBases = [
             hubRoot,
             URL(fileURLWithPath: NSHomeDirectory())
@@ -449,7 +449,7 @@ enum ModelStore {
             }
         }
 
-        // 2) ModelScope — 新平铺 root/<ns>/<name>/ 直扫(omlx 对齐;排除 provider 保留目录)
+        // 2) ModelScope。新平铺 root/<ns>/<name>/ 直扫(omlx 对齐;排除 provider 保留目录)
         let reserved = Set([hubSubRoot, localSubRoot, msSubRoot])
         if let orgEntries = try? fm.contentsOfDirectory(
             at: root, includingPropertiesForKeys: nil)
@@ -473,7 +473,7 @@ enum ModelStore {
                 }
             }
         }
-        // 2b) MS 遗留三级 <base>/<ns>/<name>/<rev>/ — 旧默认根/旧规范根/旧 Caches
+        // 2b) MS 遗留三级 <base>/<ns>/<name>/<rev>/。旧默认根/旧规范根/旧 Caches
         for base in msBases() where fm.fileExists(atPath: base.path) {
             guard
                 let nsList = try? fm.contentsOfDirectory(
@@ -501,7 +501,7 @@ enum ModelStore {
             }
         }
 
-        // 3) Local — <root>/local/<name>/
+        // 3) Local. <root>/local/<name>/
         if fm.fileExists(atPath: localRoot.path),
             let names = try? fm.contentsOfDirectory(at: localRoot, includingPropertiesForKeys: nil)
         {

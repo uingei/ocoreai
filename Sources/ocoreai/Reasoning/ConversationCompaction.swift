@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ConversationCompaction.swift — Rule-based context-window compaction.
+/// ConversationCompaction.swift. Rule-based context-window compaction.
 ///
 /// When a chat request's estimated prompt size exceeds the model's per-model
 /// `max_context_window` (omlx convention), ChatHandler Phase 3.5 previously
 /// failed with a hard 400. This module adds a LLM-free compaction pass in
 /// front of that wall: it removes the OLDEST fully-removable conversation
-/// units first — while protecting the leading system instructions and the
-/// most recent turns — and never orphans a tool result from the assistant
+/// units first. While protecting the leading system instructions and the
+/// most recent turns, and never orphans a tool result from the assistant
 /// turn that issued its matching tool call.
 ///
 /// Design notes:

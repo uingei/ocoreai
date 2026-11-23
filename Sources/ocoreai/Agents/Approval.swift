@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Approval.swift — 审批参照形状（codex 基准，语义对齐非逐行抄）。
+/// Approval.swift。审批参照形状（codex 基准，语义对齐非逐行抄）。
 ///
 /// 上游锚点：
 /// - `codex-rs/protocol/src/protocol.rs:984` `AskForApproval`
@@ -151,7 +151,7 @@ public actor ApprovalBroker {
             return .approved
         case .interactive:
             // codex #41159：审查面是 `snippet`（80 grapheme）。无法在审查面完整
-            // 呈现的 arguments 必须 fail-closed 拒绝——绝不"审截断版、执行全量
+            // 呈现的 arguments 必须 fail-closed 拒绝。绝不"审截断版、执行全量
             // 载荷"（未审查的尾部字节到达终端）。先于 session 缓存：缓存的批准
             // 不覆盖从未被完整审查过的载荷。
             guard ApprovalCore.isReviewable(arguments) else {
@@ -170,10 +170,10 @@ public actor ApprovalBroker {
             if let observer = onPending {
                 Task { await observer(row) }
             }
-            // 2) 登记并挂起，直到 resolve —— 但发起它的任务可能先结束：`stopStreaming()`
+            // 2) 登记并挂起，直到 resolve。但发起它的任务可能先结束：`stopStreaming()`
             // (ChatView.swift:1024) 在 `cancelInference()` 之后还打 `activeTask?.cancel()`，撤的正是
             // 跑 `chat(...)` 的这个任务，而 continuation 对取消无感。`cancelAll()` 只清*那一刻已
-            // 登记*的行；行若在其之后才登记，bulk clear 结构上救不到 —— banner 长留、任务永挂，事后
+            // 登记*的行；行若在其之后才登记，bulk clear 结构上救不到。banner 长留、任务永挂，事后
             // 一次点击就能复活 owner 已死的破坏性 call。codex #58350（Resolve approval prompts when
             // their requests end）定的就是这条归属关系。（HTTP 断连不是动机：probe 31 实测它不撤销
             // 上游任务。）
@@ -231,7 +231,7 @@ public actor ApprovalBroker {
     }
 
     /// 清场（App 关闭 / 会话重置）。所有挂起 call 收到 `.denied(reason: "session-ended")`，
-    /// 且清空会话级放行（codex 语义：批准是 **session-scoped**，会话终结即失效——
+    /// 且清空会话级放行（codex 语义：批准是 **session-scoped**，会话终结即失效。
     /// 若不清，`resetConversation()` 后同一 tool+arguments 仍永久免审批，跨会话泄漏）。
     public func cancelAll() async {
         let rows = Array(pendingByID.keys)
@@ -245,7 +245,7 @@ public actor ApprovalBroker {
 // MARK: - 纯函数层（无 actor，测试直连）
 
 enum ApprovalCore {
-    /// 审查面呈现预算（grapheme）——`snippet` 的单一真源。
+    /// 审查面呈现预算（grapheme）。`snippet` 的单一真源。
     /// codex #41159 把「可审查性」绑定到审查面本身；ocoreai 的审查面 = 审批卡的
     /// snippet 呈现（`ChatView` 审批卡），故预算钉在此处，门与呈现不得各自硬编码。
     static let reviewSurfaceGraphemes = 80
@@ -265,11 +265,11 @@ enum ApprovalCore {
     }
 
     /// codex #41159 "Reject oversized reviewed terminal input" 对齐（语义，非逐行）：
-    /// 审查面无法**完整呈现**的动作必须 fail-closed 拒绝——绝不"审截断版、执行全量
+    /// 审查面无法**完整呈现**的动作必须 fail-closed 拒绝。绝不"审截断版、执行全量
     /// 载荷"（未审查的尾部字节不得到达终端）。
     static func isReviewable(_ text: String) -> Bool { snippet(text) == text }
 
-    /// 会话级放行缓存键 — codex `ApprovedForSession` 按 **action 身份**缓存
+    /// 会话级放行缓存键。codex `ApprovedForSession` 按 **action 身份**缓存
     /// （`UnifiedExecApprovalKey{executable, canonicalized command, cwd}`，
     /// `approvals.rs::cache_keys`；tool name 在 codex 只用于 metrics）：
     /// 放行「这条命令」≠ 放行「该工具的所有命令」。

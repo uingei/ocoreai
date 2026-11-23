@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Skills View — skill list, categories, and detail
+/// Skills View. Skill list, categories, and detail
 /// Accessibility: VoiceOver labels, hints, groups
 
 import SwiftUI

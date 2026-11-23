@@ -1,17 +1,17 @@
 import CoreGraphics
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `view_screen` — agent-side "see the current screen" tool (视觉感知轴的可触面).
+/// `view_screen`. Agent-side "see the current screen" tool (视觉感知轴的可触面).
 ///
 /// Positioning (empirically bounded, not self-declared):
-/// - ocoreai already owns the screen pipeline — `ScreenshotService`
+/// - ocoreai already owns the screen pipeline, `ScreenshotService`
 ///   (ScreenCaptureKit one-shot, macOS) and `VisionOCR` (Vision text
-///   recognition, macOS/iOS) — and `PerceptionEngine` already consumes both on
+///   recognition, macOS/iOS), and `PerceptionEngine` already consumes both on
 ///   the *passive/UI* side. This tool is the *agent-callable* half: the same
 ///   verified capture + OCR path, wired into the tool surface the model dispatches.
 /// - The MLX tool channel is text-only (same binding as `view_image` /
 ///   `web_fetch`): a tool result cannot ship pixels to a VLM. So the value
-///   is the screen's **textual state** (Vision OCR) plus true WxH geometry —
+///   is the screen's **textual state** (Vision OCR) plus true WxH geometry,
 ///   the same ~97% token-saving image→text bridge PerceptionEngine relies on,
 ///   delivered where the model can actually reach it.
 /// - Baseline axis: Apple-native (ScreenCaptureKit + Vision). `view_image`'s
@@ -27,12 +27,12 @@ import ImageIO
 // MARK: - Request
 
 enum ScreenCapture {
-    /// OCR text length bounds — clamped to a bounded, honest token budget.
+    /// OCR text length bounds. Clamped to a bounded, honest token budget.
     static let defaultMaxOCRChars = 4000
     static let minMaxOCRChars = 200
     static let maxMaxOCRChars = 8000
 
-    /// Normalized capture request. Pure — unit-testable, no I/O.
+    /// Normalized capture request. Pure. Unit-testable, no I/O.
     struct Built: Equatable {
         let includeOCR: Bool
         let maxOCRChars: Int
@@ -58,7 +58,7 @@ enum ScreenCapture {
 
 // MARK: - Capture backend seam (offline-testable)
 
-/// Capture seam — the one real I/O boundary. Platform impl wraps
+/// Capture seam. The one real I/O boundary. Platform impl wraps
 /// `ScreenshotService`; tests inject a fake without touching the OS.
 protocol ScreenCaptureBackend: Sendable {
     func captureScreen() async -> String?
@@ -111,7 +111,7 @@ enum ScreenCapturePure {
 
     /// Exact two-line report (testable shape):
     /// ```
-    /// view_screen OK — 1512x982px jpeg
+    /// view_screen OK, 1512x982px jpeg
     /// text=…OCR…            (or `text= (no significant on-screen text; attach a screenshot in chat for pixels)`)
     /// ```
     static func report(

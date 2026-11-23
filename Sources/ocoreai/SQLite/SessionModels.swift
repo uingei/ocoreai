@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SessionModels.swift — ORM data models for session persistence
+/// SessionModels.swift. ORM data models for session persistence
 ///
 /// Maps to SQLite tables: sessions, messages, session_summaries.
 
@@ -44,7 +44,7 @@ struct MessageModel: Codable {
     let createdAt: Date
     var tokenCount: Int
     var toolCalls: [ToolCallRecord]?
-    /// Reasoning trace (codex `#46711` parity) — persists the assistant's
+    /// Reasoning trace (codex `#46711` parity). Persists the assistant's
     /// thinking so a re-opened session shows the SAME reasoning the live
     /// stream rendered. `nil` for pre-migration rows and non-reasoning turns.
     var reasoning: String?

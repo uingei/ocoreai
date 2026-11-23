@@ -1,19 +1,19 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Multimodal Server Handler — camera/audio/screen I/O and multimodal chat integration
+/// Multimodal Server Handler. Camera/audio/screen I/O and multimodal chat integration
 ///
-/// Honesty contract for the three routes below (AGENTS.md invariant 2 — the surface never
+/// Honesty contract for the three routes below (AGENTS.md invariant 2. The surface never
 /// claims more than the engine delivered):
 ///
 ///   - A capture response's `success` is *derived* from whether bytes came back. Before
 ///     this file had `CaptureResponse.init(dataType:dataURL:message:)`, the microphone
-///     "recording started" leg returned `success: true` with `dataURL: null` — a client
+///     "recording started" leg returned `success: true` with `dataURL: null`. A client
 ///     that trusted `success` wrote an empty sample and never learned why.
 ///   - `POST /v1/multimodal/status` publishes `MultimodalDeviceFacts.gather()` next to the
 ///     toggles: a toggle is intent, permission and device presence are facts, and this host
 ///     is a live counter-example (camera/mic denied, 0 devices visible, 180 voices).
 ///   - `/v1/multimodal/speak` reports success only once it knows the text is non-empty and
-///     at least one voice is installed — `AudioIO.speak` silently returns on empty text.
+///     at least one voice is installed, `AudioIO.speak` silently returns on empty text.
 
 import Foundation
 /// Cross-platform: HTTPTypes + Hummingbird available on macOS, iOS, iPadOS
@@ -21,7 +21,7 @@ import HTTPTypes
 import Hummingbird
 import Logging
 
-/// Request: POST /v1/multimodal/capture — capture camera frame, audio sample, or screen
+/// Request: POST /v1/multimodal/capture. Capture camera frame, audio sample, or screen
 struct CaptureRequest: Codable {
     enum CaptureType: String, Codable {
         case camera, microphone, screen
@@ -51,12 +51,12 @@ struct CaptureResponse: Codable {
     }
 }
 
-/// Request: POST /v1/multimodal/speak — TTS output
+/// Request: POST /v1/multimodal/speak. TTS output
 struct SpeakRequest: Codable {
     let text: String
 }
 
-/// Request: POST /v1/multimodal/status — get/set multimodal toggles
+/// Request: POST /v1/multimodal/status. Get/set multimodal toggles
 struct StatusRequest: Codable {
     var cameraEnabled: Bool?
     var microphoneEnabled: Bool?
@@ -100,7 +100,7 @@ struct StatusResponse: Codable {
     /// nothing measured failed, not that nothing could.
     let screenDelivery: ScreenDelivery
     /// What ScreenCaptureKit said on the attempt that produced no frame. Omitted unless
-    /// `screenDelivery == failed` — the convention is to omit, never to null.
+    /// `screenDelivery == failed`. The convention is to omit, never to null.
     let screenDeliveryError: String?
     /// Duration of that last attempt in ms: a 190 ms refusal and a timeout are different
     /// failures, and the number is what tells them apart.
@@ -108,15 +108,15 @@ struct StatusResponse: Codable {
 
     /// The measured hearing axis (`HearingReadiness`): permission + locale resolution +
     /// out-of-process engine probe, with the verdict derived from those. Omitted when the
-    /// caller asked before it was measured — absence is "not measured", never "fine".
+    /// caller asked before it was measured. Absence is "not measured", never "fine".
     let hearing: HearingReadiness?
 
-    /// One line per channel that is not `ready`. Empty means every channel measured ready —
+    /// One line per channel that is not `ready`. Empty means every channel measured ready,
     /// never "empty because nothing was checked".
     let limitations: [String]
 }
 
-/// Pure composition of the status payload — no MainActor, no AVFoundation, so the exact
+/// Pure composition of the status payload, no MainActor, no AVFoundation, so the exact
 /// wire content is assertable without hardware (`MultimodalStatusHonestyTests`).
 func makeMultimodalStatusResponse(
     toggles: (camera: Bool, microphone: Bool, speaker: Bool, screen: Bool),
@@ -224,7 +224,7 @@ func multimodalCaptureHandler(
                 ))
         }
         // Two-phase surface: this call started a recording rather than returning one.
-        // That is progress, not a delivered sample, so `success` stays false — and if the
+        // That is progress, not a delivered sample, so `success` stays false, and if the
         // recorder never started (denied / no device) say so instead of implying a
         // recording is running.
         if await audioIO.isRecording {
@@ -284,7 +284,7 @@ func multimodalCaptureHandler(
 /// other end of a socket can answer (measured 10-14: the camera leg parked for ≥45s behind
 /// `AVCaptureDevice.requestAccess`). `nil` means the channel may be touched.
 ///
-/// A channel already streaming skips the gate — it could only have started with a grant,
+/// A channel already streaming skips the gate. It could only have started with a grant,
 /// and refusing it now would break a working capture.
 private func captureGate(
     channel: String,
@@ -310,7 +310,7 @@ private func captureGate(
 
 /// The measured reason a channel produced nothing, appended to a capture failure message.
 ///
-/// Precedence: what the capture service observed (the specific failure — throttle, stalled
+/// Precedence: what the capture service observed (the specific failure. Throttle, stalled
 /// sensor, no photo output) beats what the OS facts say (permission / no device), which
 /// beats the bare fallback. Silent: no TCC prompt, and a `serviceReason` costs nothing.
 private func captureFailureNote(
@@ -404,7 +404,7 @@ func multimodalStatusHandler(
                 MultimodalDeviceFacts.gather(),
             )
         }
-    // `probeEngine: false` — a status query answers from the cached probe outcome. The probe
+    // `probeEngine: false`. A status query answers from the cached probe outcome. The probe
     // runs in front of the first real transcription attempt instead, where the wait is
     // already expected and the answer is about to matter.
     let hearing = await Hearing.measure(probeEngine: false)

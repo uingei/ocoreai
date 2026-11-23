@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MetalShaderLibrary.swift — make MLX reach its shader library in a SwiftPM layout.
+/// MetalShaderLibrary.swift. Make MLX reach its shader library in a SwiftPM layout.
 ///
 /// MLX loads its kernels from a `.metallib`, and `load_default_library`
 /// (`mlx/backend/metal/device.cpp`) searches by PATH SHAPE:
@@ -17,10 +17,10 @@
 /// `mlx-swift_Cmlx.bundle` next to the binary and `Bundle.main` resolves to that
 /// directory. It is also why the *test* run does not: SwiftPM 6.4 puts the test
 /// executable at `…/Debug/ocoreaiTests.xctest/Contents/MacOS/ocoreaiTests` while the
-/// Cmlx bundle stays at `…/Debug/mlx-swift_Cmlx.bundle` — three levels up, with nothing
+/// Cmlx bundle stays at `…/Debug/mlx-swift_Cmlx.bundle`. Three levels up, with nothing
 /// having loaded it. All five lookups miss, and the first Metal-touching suite aborts
 /// the whole test process with `Failed to load the default metallib` (measured 10-14:
-/// 352 tests in, no skip, no cause named — `make test-clt` died there for a day).
+/// 352 tests in, no skip, no cause named, `make test-clt` died there for a day).
 ///
 /// Copying the payload into the bundle is NOT an option: the build signs the bundle, and
 /// a `.metallib` under `Contents/MacOS` counts as a nested code object, so the sign step
@@ -29,7 +29,7 @@
 ///
 /// `OCOREAI_METALLIB` names the payload explicitly (the test gate and a `serve` run from
 /// a scratch tree use it). When nothing is found the override stays unset so MLX's own
-/// search still runs, and the log says which file won — a kernel source the process
+/// search still runs, and the log says which file won. A kernel source the process
 /// cannot name is the defect family this repo keeps tripping on.
 ///
 /// The gates do not each guess where the payload is: `scripts/resolve-metallib.sh` is the one
@@ -38,7 +38,7 @@
 ///
 /// ### Gate
 /// `MetalShaderLibraryTests` pins the candidate order against a synthetic SwiftPM 6.4
-/// layout — it goes red when the layout changes under us, which is what bit this host —
+/// layout. It goes red when the layout changes under us, which is what bit this host,
 /// and the `$OCOREAI_METALLIB` precedence. `make test-clt` fails outright if there is no
 /// payload to stage.
 import Foundation
@@ -59,7 +59,7 @@ enum MetalShaderLibrary {
     /// first, then the executable's own directory, then its ancestors (the SwiftPM
     /// products directory sits above the `.xctest` bundle).
     ///
-    /// Pure on purpose — the caller decides what exists, so the order is testable with no
+    /// Pure on purpose. The caller decides what exists, so the order is testable with no
     /// GPU and no filesystem writes.
     static func candidatePaths(
         executablePath: String,

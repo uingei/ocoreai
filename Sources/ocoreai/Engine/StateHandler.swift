@@ -1,5 +1,5 @@
 // Copyright 2026 Apple Inc. (BSD-3-clause upstream)
-// Adapted for ocoreai — aligned with coreai-models StateHandler.swift
+// Adapted for ocoreai. Aligned with coreai-models StateHandler.swift
 // + StateHandler+NDArray.swift + StateHandler+Run.swift
 //
 // State management abstraction: each ``SyncStateHandler`` owns allocation,
@@ -96,17 +96,17 @@ class GrowingNDArrayState: SyncStateHandler, @unchecked Sendable {
     /// Maximum tokens after which growth stops.
     private let maxCapacity: Int
 
-    /// Key cache tensor — grows as needed.
+    /// Key cache tensor. Grows as needed.
     private var keyCache: NDArray
 
-    /// Value cache tensor — grows as needed.
+    /// Value cache tensor. Grows as needed.
     private var valueCache: NDArray
 
     /// Descriptors for state (contain shape + dtype info).
     private let keyDescriptor: NDArrayDescriptor
     private let valueDescriptor: NDArrayDescriptor
 
-    /// Index of the dynamic (sequence-length) axis — the negative axis in the
+    /// Index of the dynamic (sequence-length) axis. The negative axis in the
     /// descriptor's shape. This is the axis that `resolvingDynamicDimensions`
     /// expands, and the axis along which `copyStateCache` preserves data on
     /// growth. Derived from the descriptor (upstream `sequenceDimIndex`)
@@ -405,7 +405,7 @@ func runWithStates(
     )
 }
 
-/// Run a step with combined states but no output binding — for functions whose
+/// Run a step with combined states but no output binding, for functions whose
 /// descriptor declares no outputs (the `prefill` graph). Mirrors `runWithStates`
 /// minus the output views.
 @available(macOS 27.0, iOS 27.0, *)
@@ -464,7 +464,7 @@ enum KVCacheError: Error, LocalizedError {
 /// (old capacity) and the destination (new capacity). Ocoreai's canonical
 /// layout is `[B, H, S, D]` / `[L, B, H, S, D]` (see
 /// `KVCacheFactory.detectSequenceDim`), where `S` grows and `D` (head_dim) is
-/// the fixed trailing axis — but this helper is written for the general case
+/// the fixed trailing axis, but this helper is written for the general case
 /// (any fixed axes after `S`) so the exact layout does not matter, only that
 /// `sequenceDim` points at the growing axis.
 ///
@@ -472,11 +472,11 @@ enum KVCacheError: Error, LocalizedError {
 /// position, the fixed per-position run (the product of the axes after `S`) is
 /// copied to the front of the block's new, larger sequence run. This preserves
 /// exactly the `oldSeqLen × run` elements that were already encoded, in the
-/// same relative order — no more, no less (no out-of-bounds read).
+/// same relative order, no more, no less (no out-of-bounds read).
 ///
 /// Scalar-type-aware, mirroring upstream coreai-models `StateHandler+NDArray`
 /// (copyCache, #268): 16-bit types (Float16 *and* BFloat16) are copied as raw
-/// bytes — both are 16 bits, values move verbatim, and a typed
+/// bytes. Both are 16 bits, values move verbatim, and a typed
 /// `view(as: Float16.self)` would trap on a BFloat16 array. Float32 uses the
 /// typed `Float` view.
 ///
@@ -539,7 +539,7 @@ func copyStateCache(from source: NDArray, to destination: inout NDArray, sequenc
             }
         }
     default:
-        // Unsupported scalar type for a KV state — surface rather than silently
+        // Unsupported scalar type for a KV state. Surface rather than silently
         // corrupt the cache (preconditionFailure would trap in production).
         assertionFailure("Unsupported scalar type for state copy: \(source.scalarType)")
         return

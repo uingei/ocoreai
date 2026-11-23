@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ServerAuthGate.swift — refuse network exposure without authentication.
+/// ServerAuthGate.swift. Refuse network exposure without authentication.
 ///
 /// ### Why this exists (upstream pattern, omlx `09a7c43`):
 /// `OCOREAI_HOST` may name a LAN interface or `0.0.0.0`. Without this gate,
 /// an unset `OCOREAI_API_KEYS` degrades ``AuthMiddleware`` to pass-through
-/// and the entire inference API would be served open — no 401 on any route.
+/// and the entire inference API would be served open, no 401 on any route.
 /// omlx added the identical rule: *"refuses to start on any non-loopback
 /// address without an API key, and API key verification can only be skipped
 /// for loopback-only binds."*
@@ -29,8 +29,8 @@ import Logging
 ///
 /// Loopback names are matched case-insensitively after trimming; IPv4 is
 /// matched by numeric prefix (any `127.0.0.0/8`), IPv6 by `::1` and the
-/// mapped-IPv4 form `::ffff:127.x.x.x`. Anything else — hostnames, `0.0.0.0`,
-/// `::`, or any non-127 IPv4/IPv6 — is **conservatively non-loopback** and
+/// mapped-IPv4 form `::ffff:127.x.x.x`. Anything else. Hostnames, `0.0.0.0`,
+/// `::`, or any non-127 IPv4/IPv6. Is **conservatively non-loopback** and
 /// therefore requires auth when binding fails open.
 enum LoopbackBinding {
     case loopback
@@ -90,12 +90,12 @@ enum ServerAuthGate {
     ///
     /// - Parameters:
     ///   - host: Bind address string (`OCOREAI_HOST`, default `127.0.0.1`).
-    ///   - authEnabled: ``AuthConfig.enabled`` — true when `OCOREAI_API_KEYS`
+    ///   - authEnabled: ``AuthConfig.enabled``. True when `OCOREAI_API_KEYS`
     ///     names at least one key.
     ///   - logger: Optional; when present the refusal is logged at `.error`
     ///     (the thrown error carries the user-facing message).
     /// - Throws: ``RefusedToServeError`` in the non-loopback / auth-off cell
-    ///   of the table above — the ONLY cell that fails.
+    ///   of the table above. The ONLY cell that fails.
     static func checkHost(
         _ host: String,
         authEnabled: Bool,

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// SessionPool.swift — ChatSession pooling for KV cache reuse across turns
+// SessionPool.swift. ChatSession pooling for KV cache reuse across turns
 //
 // Provides per-conversation ChatSession pooling with LRU eviction and TTL-based expiry.
 // On-disk KV cache persistence enables session resume across pool evictions.
@@ -8,9 +8,9 @@
 // ### Architecture:
 // - **SessionPoolConfig**: Pool configuration (always compiled, trait-agnostic)
 // - **MLXSessionPool** (actor): Owns the session pool map, handles eviction,
-//   acquire/create, on-disk cache save/restore, and hit-rate metrics.
+//  acquire/create, on-disk cache save/restore, and hit-rate metrics.
 // - **PooledChatSession** (struct): Metadata wrapper around a ChatSession
-//   with last-access timestamp for LRU tracking.
+//  with last-access timestamp for LRU tracking.
 //
 // ### Integration:
 // - EnginePool delegates to SessionPool via acquire/release
@@ -27,7 +27,7 @@ import MLXLMCommon
 
 // MARK: - Configuration (trait-agnostic)
 
-/// Session pool configuration — per-pool limits and TTL.
+/// Session pool configuration. Per-pool limits and TTL.
 struct SessionPoolConfig {
     /// Whether conversation pooling is enabled.
     var enabled: Bool = true
@@ -77,7 +77,7 @@ struct SessionPoolConfig {
     /// EngineInference always provides processing so this path is unreachable in practice).
     static let defaultResize: CGSize = .init(width: 1024, height: 1024)
 
-    /// VLM image resize dimensions — fallback for callers that pass nil
+    /// VLM image resize dimensions. Fallback for callers that pass nil
     /// for the `processing` parameter.
     var vlmImageResize: CGSize = .init(width: 1024, height: 1024)
 
@@ -93,7 +93,7 @@ struct SessionPoolConfig {
 /// (also `false` / `off` / `no`) forces pooling off for one run, and it exists so the
 /// unpooled lane is reachable *on demand*: the other way into it is the HardwareRouter
 /// degrading a turn under memory pressure, which nobody can schedule. That lane matters
-/// because every pooled release path is a no-op without a pool — and until 10-20 the
+/// because every pooled release path is a no-op without a pool, and until 10-20 the
 /// video ledger recorded only inside one of them, so an answered video turn on this lane
 /// left `/v1/models` publishing `not_observed` for a model that had just named the
 /// colour of a clip (AGENTS.md invariant 2 runs both ways). Live gate: probe 17.
@@ -101,7 +101,7 @@ enum SessionPoolPolicy {
     /// Escape hatch naming this switch on the wire of the process environment.
     static let environmentVariable = "OCOREAI_SESSION_POOL"
 
-    /// Values that mean "off". Anything else (including garbage) leaves pooling alone —
+    /// Values that mean "off". Anything else (including garbage) leaves pooling alone,
     /// a typo in an escape hatch must not silently change engine behaviour beyond what
     /// it asked for, and the boot log prints the raw value either way.
     private static let offValues: Set<String> = ["0", "false", "off", "no"]
@@ -133,7 +133,7 @@ enum SessionPoolPolicy {
 ///
 /// Anything that identifies cached work *across process launches* has to use this,
 /// not `String.hashValue`: Swift seeds hashing per process, so a `hashValue` written
-/// to disk is meaningless at the next launch — two runs of the same text disagree.
+/// to disk is meaningless at the next launch. Two runs of the same text disagree.
 /// One algorithm here keeps the conversation seed, the message keys and the on-disk
 /// manifest comparable with each other and with older files.
 enum DurableHash {
@@ -156,7 +156,7 @@ enum DurableHash {
 /// Lightweight message identity for prefix match without carrying full text.
 struct MessageHistoryKey: Hashable, Sendable, Codable {
     let role: String
-    /// Durable fingerprint of the content (see ``DurableHash``) — enough to detect
+    /// Durable fingerprint of the content (see ``DurableHash``). Enough to detect
     /// content changes without storing full text, and stable across launches so it
     /// can travel with a persisted snapshot.
     let contentHash: Int
@@ -185,7 +185,7 @@ enum ConversationIdentity {
     /// FNV-1a-64 (hex) over the leading user message.
     ///
     /// Deterministic on purpose: the pool names its on-disk KV snapshots after the
-    /// key, so the identity has to resolve to the same name after a restart —
+    /// key, so the identity has to resolve to the same name after a restart,
     /// Swift's `hashValue` is seeded per process and would orphan those files.
     static func seed(messages: [Chat.Message]) -> String {
         let leading = messages.first { $0.role == .user }.map { "\($0.content)" } ?? ""
@@ -197,20 +197,20 @@ enum ConversationIdentity {
 ///
 /// Upstream persists raw KV state only and says the caller owns the transcript:
 /// "A restored raw cache therefore uses fragment-based continuation"
-/// (`ChatSession.swift:1804-1790`) — the session continues from whatever tokens the
+/// (`ChatSession.swift:1804-1790`). The session continues from whatever tokens the
 // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2162 A restored raw cache therefore uses
 /// file happens to hold and cannot check them against a chat template. Accepting one
 /// without proof re-attaches a previous conversation's context to a new request, so
 /// this manifest is the proof, and no manifest means no reuse.
 struct KVCacheManifest: Codable, Sendable {
-    /// 2 — the manifest now names the KV-cache plan the snapshot was written under.
+    /// 2. The manifest now names the KV-cache plan the snapshot was written under.
     ///
     /// A v1 file cannot state its reserve, and upstream will not realize a cache whose plan
     /// differs from the live generation parameters: `requirePlan` throws
     /// `kvCacheConfigurationChanged` (`ChatSession.swift:312`), which would surface as a
     // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:365 throw ChatSessionError.kvCacheConfigurationChanged
     /// failed turn for every conversation that persisted before a plan change. Refusing the
-    /// snapshot here turns that into what it actually is — one cold turn — and says so on
+    /// snapshot here turns that into what it actually is. One cold turn, and says so on
     /// the ledger instead of the error path.
     static let currentVersion = 2
 
@@ -248,7 +248,7 @@ struct KVCacheManifest: Codable, Sendable {
 
     /// Whether this snapshot may serve the given request, and why not.
     ///
-    /// Pure - no filesystem, no MLX - so the whole refusal matrix is pinned by
+    /// Pure, no filesystem, no MLX, so the whole refusal matrix is pinned by
     /// `SessionIsolationTests` instead of being inferred from a live run.
     /// A refusal is not "try later": the caller deletes the snapshot.
     func reuseDecision(
@@ -268,7 +268,7 @@ struct KVCacheManifest: Codable, Sendable {
             return .rewindReserveChanged(
                 snapshot: rewindReserve, requested: requestedRewindReserve)
         }
-        // Recorded here, decided once — by ``MLXSessionPool/canReusePooledSession(cachedMessageCount:commonPrefixCount:instructionsMatch:incomingMessageCount:newestIncomingFromAssistant:)``
+        // Recorded here, decided once, by ``MLXSessionPool/canReusePooledSession(cachedMessageCount:commonPrefixCount:instructionsMatch:incomingMessageCount:newestIncomingFromAssistant:)``
         // below, the same gate the in-memory pool consults. Two copies of the rule is how
         // one of them drifts.
         let instructionsMatch = instructionsHash == requestedInstructionsHash
@@ -308,7 +308,7 @@ struct KVCacheManifest: Codable, Sendable {
 /// names something a caller cannot repair by waiting.
 enum SnapshotRefusal: Equatable, Sendable {
     /// No sidecar, unreadable, or written by a build whose hashes came from the
-    /// per-process seed - nothing identifies where the cache came from.
+    /// per-process seed. Nothing identifies where the cache came from.
     case unusableManifest
     /// The cache was built for a different model: its KV encodes another model's
     /// embeddings and positions.
@@ -319,10 +319,10 @@ enum SnapshotRefusal: Equatable, Sendable {
     /// Image/video/audio turns are not described by the manifest, so the tokens the
     /// cache actually holds cannot be checked against it.
     case mediaTurn
-    /// The cache holds turns the caller never sent - a fork (edit & resend), a
+    /// The cache holds turns the caller never sent. A fork (edit & resend), a
     /// compacted history, or an identity collision.
     case notAPrefix(cached: Int, commonPrefix: Int)
-    /// The manifest covers the caller's whole feed including its newest message — a cache is
+    /// The manifest covers the caller's whole feed including its newest message. A cache is
     /// only written after an answer, so it has already answered that message. See
     /// ``ReuseRefusalReason/cacheCoversWholeFeed``.
     case cacheCoversWholeFeed(cached: Int)
@@ -371,11 +371,11 @@ extension MessageHistoryKey {
 /// for prompt prefix-level cache reuse decisions.
 ///
 /// ``@unchecked Sendable``: this struct lives exclusively inside
-/// ``MLXSessionPool`` actor — all reads and mutations are actor-isolated,
+/// ``MLXSessionPool`` actor. All reads and mutations are actor-isolated,
 /// so cross-thread access never occurs. The `ChatSession` itself is not
 /// formally Sendable but is only accessed via the actor.
 ///
-/// KV cache state is managed entirely by ChatSession internally —
+/// KV cache state is managed entirely by ChatSession internally,
 /// we only track access time for TTL/LRU eviction.
 struct PooledChatSession: @unchecked Sendable {
     /// The underlying MLX chat session (holds KV cache)
@@ -425,7 +425,7 @@ struct AcquireResult {
     let pooled: PooledChatSession
 
     /// Whether a prefixed cache was found (partial or full match).
-    /// When false, this is a cold start — caller must pass full history.
+    /// When false, this is a cold start. Caller must pass full history.
     let isHit: Bool
 
     /// Number of messages that already match the cached prefix.
@@ -466,7 +466,7 @@ struct PooledRewind {
     /// returned: taking this offer means forking this one and preferring the fork.
     let source: PooledChatSession
 
-    /// How many leading messages the fork should hold — the longest prefix this turn and
+    /// How many leading messages the fork should hold. The longest prefix this turn and
     /// that cache agree on. The caller then feeds `messages[historyEnd...]`.
     let historyEnd: Int
 }
@@ -508,7 +508,7 @@ actor MLXSessionPool {
         self.config = config
         self.logger = logger
 
-        // Derive cache directory from config or default — cross-platform
+        // Derive cache directory from config or default. Cross-platform
         cacheDirectory =
             argCacheDir ?? config.cacheDirectory
             ?? {
@@ -558,7 +558,7 @@ actor MLXSessionPool {
     /// Prompt prefix match (`prefixMessages`) is checked against the session's
     /// ``PooledChatSession/messageHistory`` to find the longest common message
     /// prefix.  The caller should only ``prefixMessages[divergenceIndex...]``
-    /// to ``ChatSession`` — the cached KV context already represents the
+    /// to ``ChatSession``. The cached KV context already represents the
     /// matched portion, and only a turn that generates through that session may
     /// leave the matched portion out of its feed (``feedIndex``).
     ///
@@ -576,7 +576,7 @@ actor MLXSessionPool {
     ///     Convert `[Chat.Message]` to `[MessageHistoryKey]` before calling across actor boundary.
     ///   - laneRunsOnPooledSession: this turn generates through the session handed back.
     ///     A lane that renders its own `LMInput` and prefills a fresh cache still gets the
-    ///     session, but with `divergenceIndex` 0 — see ``feedIndex``.
+    ///     session, but with `divergenceIndex` 0. See ``feedIndex``.
     func acquire(
         from modelContainer: MLXLMCommon.ModelContainer,
         modelId: String,
@@ -614,7 +614,7 @@ actor MLXSessionPool {
         // same rule.
         let instructionsFP = DurableHash.fingerprint(instructions ?? "")
 
-        // 3. Try hit — with prefix match
+        // 3. Try hit, with prefix match
         // A refusal that has a resumable cache behind it survives to the miss return below,
         // where the caller can still take it (see ``AcquireResult/rewind``).
         var pendingRewind: PooledRewind?
@@ -629,14 +629,14 @@ actor MLXSessionPool {
                 divergence = 0
             }
 
-            // A pooled ChatSession is stateful — its KV already contains
+            // A pooled ChatSession is stateful. Its KV already contains
             // `messageHistory`. Reuse is sound ONLY while the incoming conversation
             // still extends that exact history. When the common prefix is shorter,
             // the session holds turns this caller never sent, and answering from it
             // leaks another conversation's context: observed 10-12, three
             // independent one-message /v1/chat/completions calls, where the third
             // quoted the first question verbatim. Same rule covers an edited
-            // resend — the old KV describes the pre-edit conversation.
+            // resend. The old KV describes the pre-edit conversation.
             // So this session may not answer the turn. Whether its cache is
             // nevertheless worth keeping is a second question, answered below
             // (``rewindHistoryEnd``): when it is, the caller gets the offer and this turn
@@ -656,8 +656,8 @@ actor MLXSessionPool {
                 // and the two questions have different answers. The rule above says no,
                 // correctly: these KV rows describe the conversation before this caller
                 // replaced part of it. Upstream's `fork(history:)`
-                // (ChatSession.swift:1741 at pin 991266ad3) answers the other question — may
-                // the cache be rewound onto the conversation the caller did send? — with a
+                // (ChatSession.swift:1741 at pin 991266ad3) answers the other question. May
+                // the cache be rewound onto the conversation the caller did send?, with a
                 // session that holds that transcript and "keeps only the part of the cache
                 // that its prompt starts with, and prefills the rest". Its boundary is the
                 // token-level common prefix, and upstream verifies the trim landed before
@@ -669,7 +669,7 @@ actor MLXSessionPool {
                 // appended turn reused 734 of 758 tokens while the edited resend reused 0.
                 //
                 // The fork cannot be performed here: `Chat.Message` is not `Sendable`
-                // (Chat.swift:14 — it carries `UserInput.Image`, UserInput.swift:131), so a
+                // (Chat.swift:14. It carries `UserInput.Image`, UserInput.swift:131), so a
                 // transcript cannot cross into this actor. That is also why this file matches
                 // conversations on `MessageHistoryKey` rather than on messages. So the pool
                 // hands the caller the resumable session plus the boundary, and the caller
@@ -679,7 +679,7 @@ actor MLXSessionPool {
                 // session, so a caller that ignores the offer behaves exactly as before.
                 // No offer when this turn cannot spend one: the guided-gen and MTP lanes build
                 // their own KV cache and hand the slot back before generating, so an offer
-                // here would be declined by the only caller that could take it — while this
+                // here would be declined by the only caller that could take it. While this
                 // site had already dropped the entry, deleted the snapshot and skipped the
                 // `reuseRefusals` booking for a refusal the turn did in fact pay. The caller
                 // decides the lane (`EnginePool.bypassesPooledChatSession`) and says so here,
@@ -708,12 +708,12 @@ actor MLXSessionPool {
                 // stale context.
                 deleteCachedSession(key: key)
                 // Counted at the site that already decided, from the same two premises, in
-                // the same precedence (`ReuseRefusalReason.decide`) - so the log line, the wire
+                // the same precedence (`ReuseRefusalReason.decide`), so the log line, the wire
                 // counter and the gate cannot drift into three spellings of one refusal.
                 //
                 // Not counted when a rewind was offered: a turn whose cache survives is not a
                 // refusal, and publishing one for it would report a full rebuild the engine
-                // did not perform (AGENTS.md invariant 2 — the surface may not state more
+                // did not perform (AGENTS.md invariant 2. The surface may not state more
                 // than the engine delivered). That holds only because an offer is made when
                 // the turn can spend it: `laneRunsOnPooledSession` comes from the caller's
                 // lane, and `SessionRewindOnDivergenceTests` pins both that the offer is
@@ -763,7 +763,7 @@ actor MLXSessionPool {
                 // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:431 public var generateParameters
                 // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1153 generateParameters = parameters
                 // session that keeps turn 1's parameters answers turn 2 under turn 1's
-                // `max_tokens`/`temperature`/`seed` — measured, and named in
+                // `max_tokens`/`temperature`/`seed`. Measured, and named in
                 // ``staleSamplingFields``. Cache-affecting changes stay upstream's job
                 // (`ChatSession.swift:1244-1248` rebuilds from its retained transcript).
                 // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1232 rebuild the cache from it
@@ -786,14 +786,14 @@ actor MLXSessionPool {
                     // What this line can honestly claim is about the *feed*: the caller
                     // withholds `feed` messages this session's transcript already holds.
                     // Whether the KV cache skipped a prefill is not
-                    // knowable here — upstream decides it and reports it on
+                    // knowable here. Upstream decides it and reports it on
                     // GenerateCompletionInfo.cachedPromptTokenCount, and this call site
                     // deliberately does not restate that verdict: a second hand-written
                     // copy of the number is exactly the drift this repo keeps naming.
                     // EngineInference.accountPrefixReuse logs it per turn and
                     // PrefixReuseLedger publishes it per model. Measured 10-16 at pin
                     // 6e338e5 (gemma-4-e2b-it-4bit, 3-turn same-session, probe 01):
-                    // 710/730 and 733/749 tokens reused — but that is upstream's answer
+                    // 710/730 and 733/749 tokens reused, but that is upstream's answer
                     // for that day's revision, read from the wire, not a promise this
                     // line may make.
                     if feed > 0 {
@@ -816,7 +816,7 @@ actor MLXSessionPool {
             }
         }
 
-        // 4. Pool miss — try restore from disk, but only for the conversation the
+        // 4. Pool miss. Try restore from disk, but only for the conversation the
         // snapshot provably belongs to. `restoreValidatedSession` refuses (and
         // deletes) anything it cannot account for.
         let cacheURL = cacheFileURL(key: key)
@@ -859,7 +859,7 @@ actor MLXSessionPool {
             )
         }
 
-        // 5. Cold miss — create fresh session with instructions + processing
+        // 5. Cold miss. Create fresh session with instructions + processing
         // components: custom logitProcessorFactory for grammar-constrained decoding.
         // Penalty enforcement is automatic via GenerateParameters.processor().
         let freshSession = ChatSession(
@@ -882,7 +882,7 @@ actor MLXSessionPool {
         // Opportunity accounting, nothing more. The sessions this scans are other
         // conversations' (this key's own entry was either handed back above or dropped as
         // unreusable), and no decision about which session answers this turn reads the
-        // result - the pool still keys sessions by conversation.
+        // result. The pool still keys sessions by conversation.
         if let feed = prefixMessages {
             let candidates = pool.values.compactMap { entry -> CrossConversationPrefix.Candidate? in
                 guard entry.modelId == modelId else { return nil }
@@ -946,7 +946,7 @@ actor MLXSessionPool {
     ///     Convert the assistant `Chat.Message` to `MessageHistoryKey` before calling across actor boundary.
     ///     Pass nil for guided gen / tool paths or when generation was cancelled.
     ///   - laneRunsOnPooledSession: false when the lane generated around this session
-    ///     (`bypassesPooledChatSession`) — a planned zero read off a never-fed session
+    ///     (`bypassesPooledChatSession`). A planned zero read off a never-fed session
     ///     would read like an empty cache.
     ///   - lanePricedBytes / lanePricedTokens: the bypassing lane's measured price,
     ///     recorded, never published as residency (the lane holds nothing between turns).
@@ -968,13 +968,13 @@ actor MLXSessionPool {
         pooled.session.tools = nil
         pooled.session.toolDispatch = nil
         pooled.session.additionalContext = nil
-        // synchronize KV cache before returning to pool — ensures any async GPU
+        // synchronize KV cache before returning to pool. Ensures any async GPU
         // cache operations from the last stream are flushed. Without this, a
         // reused pooled session could serve stale cache state.
         await pooled.session.synchronize()
 
         // Two price sources that never overlap: a turn that ran here pays from its
-        // realized cache (allocated bytes off the cache's own arrays — the only per-model
+        // realized cache (allocated bytes off the cache's own arrays. The only per-model
         // KV price that is not a guess); a bypassing lane never fed this session, so it
         // pays with the number read off its own freed cache. A failed read claims nothing:
         // the entry keeps 0, which reads as `not_observed` rather than as a zero-byte cache.
@@ -1021,7 +1021,7 @@ actor MLXSessionPool {
         } else if let laneBytes = lanePricedBytes, let laneTokens = lanePricedTokens,
             laneBytes > 0, laneTokens > 0
         {
-            // The price joins the ledger — it is a property of the weights — but residency
+            // The price joins the ledger. It is a property of the weights, but residency
             // stays 0, because the lane frees its cache: calling these bytes resident
             // would be the same over-report from the other side.
             priceBytes = laneBytes
@@ -1050,8 +1050,8 @@ actor MLXSessionPool {
             processedTokens: priceTokens)
 
         // The ledger records what the KV cache provably represents after this turn.
-        // Before this, nothing ever wrote the prompt side into it — only the assistant
-        // key was appended — so a legitimate second turn compared as "cached 1 message
+        // Before this, nothing ever wrote the prompt side into it, only the assistant
+        // key was appended, so a legitimate second turn compared as "cached 1 message
         // vs common prefix 0", failed the reuse gate, and re-prefilled the whole
         // conversation (measured 10-13: 4505-token prompt = 1.219s, then 1.247s and
         // 1.178s on the following turns instead of a warm continuation).
@@ -1059,17 +1059,17 @@ actor MLXSessionPool {
         // Trust it only when the turn completed with an answer and the prompt was
         // plain text. A tool round-trip renders control text into the prompt that this
         // list cannot name, and a ledger longer than the cache would make the next turn
-        // skip prefill for tokens that were never cached — silent context loss.
+        // skip prefill for tokens that were never cached. Silent context loss.
         //
-        // An unprovable turn claims nothing — and a session that filled its ChatSession
+        // An unprovable turn claims nothing, and a session that filled its ChatSession
         // under such a turn may not sit in the pool claiming an empty ledger: an empty
         // ledger is a vacuous hit for every later same-key conversation, and upstream
         // ChatSession appends the new transcript after the old conversation rather than
-        // reconciling it (measured 11-16: a forked resend billed 3 092 tokens — the
-        // previous conversation's 2 500-token tool result plus its own 736 — against a
+        // reconciling it (measured 11-16: a forked resend billed 3 092 tokens. The
+        // previous conversation's 2 500-token tool result plus its own 736. Against a
         // true prompt of 736). The claim "ChatSession reconciles it against its own
         // transcript" is what this site believed until that measurement; it is false.
-        // The session is discarded, so the next turn starts clean — the cost every
+        // The session is discarded, so the next turn starts clean. The cost every
         // tool-history turn already paid on the bypassing lane.
         var entryToPool = pooled
         entryToPool.residentKVBytes = residentBytes
@@ -1094,7 +1094,7 @@ actor MLXSessionPool {
 
         // This turn's inline media joins what the conversation cites, and every cited
         // file is re-touched: the conversation is alive, so everything its transcript
-        // reads must stay. Idle-ness is therefore session activity, not upload time —
+        // reads must stay. Idle-ness is therefore session activity, not upload time,
         // which is what keeps the sweep's TTL honest (see MediaSpool).
         if !mediaFiles.isEmpty {
             var owned = entryToPool.mediaFiles
@@ -1145,7 +1145,7 @@ actor MLXSessionPool {
                 }
             }
         } else {
-            // Serious (level 2): aggressive TTL — evict anything older than 60s
+            // Serious (level 2): aggressive TTL. Evict anything older than 60s
             let aggressiveTTL = Duration.seconds(60)
             let entriesToRemove: [(key: String, entry: PooledChatSession)] = pool.compactMap {
                 key, entry in
@@ -1206,7 +1206,7 @@ actor MLXSessionPool {
     /// Remove the least-recently-used session when pool exceeds max capacity,
     /// persisting its KV cache to disk before eviction.
     private func evictLRU() async {
-        // Pinned models are exempt — find the oldest among non-pinned only.
+        // Pinned models are exempt. Find the oldest among non-pinned only.
         let candidates = pool.filter { key, _ in
             !isPinnedExempt(poolKey: key, pinnedIDs: pinnedModelIds)
         }
@@ -1229,7 +1229,7 @@ actor MLXSessionPool {
         await noteKVCacheEvictions(1)
     }
 
-    /// One home for "this pool discarded N KV caches while their model stayed loaded" — the
+    /// One home for "this pool discarded N KV caches while their model stayed loaded". The
     /// only shape of eviction a caller could have avoided, and therefore the only one
     /// `ocoreai_kv_cache_evictions_total` may claim. `clear()` and `clear(modelId:)` are not
     /// here on purpose: teardown discards caches whose weights are leaving too, and counting
@@ -1262,7 +1262,7 @@ actor MLXSessionPool {
                     try? self.writeManifest(manifest, for: cacheURL)
                     log.debug("Saved KV cache (\(reason)): \(cacheURL.lastPathComponent)")
                 } else {
-                    // Nothing to identify it by — save nothing rather than a snapshot
+                    // Nothing to identify it by. Save nothing rather than a snapshot
                     // a later turn could pick up without proof of where it came from.
                     try? FileManager.default.removeItem(at: cacheURL)
                     log.debug("Skipped KV cache (\(reason)): unattributed conversation")
@@ -1284,7 +1284,7 @@ actor MLXSessionPool {
     // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2162 A restored raw cache therefore uses
     /// tokens the file happens to hold, with no chat template to reconcile against.
     /// Accepting one without proof grafts a previous conversation's context onto a
-    /// new request, so every refusal here is also a deletion — a snapshot this build
+    /// new request, so every refusal here is also a deletion. A snapshot this build
     /// cannot vouch for never comes back.
     ///
     /// Refuses (and removes the files) when the snapshot is absent, unreadable,
@@ -1399,7 +1399,7 @@ actor MLXSessionPool {
         let safeKey = key.replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: ":", with: "_")
         // MLX dispatches its loader on the file extension (`MLX/IO.swift`) and only
-        // recognises `safetensors` here — upstream documents the snapshot as a
+        // recognises `safetensors` here. Upstream documents the snapshot as a
         // `.safetensors` file (`KVCache.swift:2229`). With a `.mlx` suffix every save
         // anchor:mlx-swift-lm Libraries/MLXLMCommon/KVCache.swift:2229 The URL to the
         // failed "Unknown extension mlx", so this persistence never wrote a byte.
@@ -1518,7 +1518,7 @@ actor MLXSessionPool {
         reuseRefusals.forget(modelId: modelId)
     }
 
-    /// What this pool has counted about reuse refusals for one model - counts taken at
+    /// What this pool has counted about reuse refusals for one model. Counts taken at
     /// the sites where the existing rules already said no (ReuseRefusalLedger.swift).
     /// Published on `GET /v1/models/:model/kv-cache`; before any refusal it is an empty
     /// set, never a prediction that reuse would fail.
@@ -1545,7 +1545,7 @@ actor MLXSessionPool {
             processedTokens: tokens)
     }
 
-    /// KV bytes held by every resident session across every model — the process-wide figure
+    /// KV bytes held by every resident session across every model. The process-wide figure
     /// `/metrics` publishes. Zero honestly means "no priced cache is resident".
     var residentKVBytesTotal: Int {
         pool.values.reduce(0) { $0 + $1.residentKVBytes }
@@ -1577,7 +1577,7 @@ actor MLXSessionPool {
     /// This is not a perf heuristic that can be loosened for a faster hit: the caller
     /// acts on the returned index by *withholding* `messages[0..<divergenceIndex]`
     /// from the model (`EngineInference.swift:3148`), so a cache credited with turns
-    /// it was never asked about costs the user their real context — and when the
+    /// it was never asked about costs the user their real context, and when the
     /// credit exceeds the incoming message count, the slice `messages[n...]` traps.
     /// A bypass here was briefly tried on 10-13 to observe upstream's own transcript
     /// reconciliation; it turned `SessionIsolationTests.forkRefused` red and is closed.
@@ -1595,12 +1595,12 @@ actor MLXSessionPool {
     /// The second clause is the part that was missing (measured 10-22): a ledger whose length
     /// equals the feed claims the cache already holds the caller's newest message. If that
     /// message is one to answer (user/tool), the cache must have answered it already, so the
-    /// turn gets fed nothing — and a session fed nothing emits end-of-turn at once while the
+    /// turn gets fed nothing, and a session fed nothing emits end-of-turn at once while the
     /// request leaves as a success (`200 + completion_tokens=1 + finish_reason=stop`,
     /// reproduced by asking the same prompt twice). Refuse that shape: no skip, full prefill.
     ///
     /// When the feed's newest message is from the assistant the request is "continue this
-    /// draft", and a cache holding exactly that transcript is the answer to it — feeding
+    /// draft", and a cache holding exactly that transcript is the answer to it. Feeding
     /// nothing is correct there, so a trailing-assistant feed keeps its warm session.
     nonisolated static func canReusePooledSession(
         cachedMessageCount: Int,
@@ -1617,9 +1617,9 @@ actor MLXSessionPool {
     /// Rewind boundary for a diverged conversation, or nil when it must be discarded.
     ///
     /// The pair to ``canReusePooledSession``, and it answers a different question. That rule
-    /// asks "may this turn be answered from the cache as it stands?" — still no, and it must
+    /// asks "may this turn be answered from the cache as it stands?". Still no, and it must
     /// stay no: the cache holds turns this caller replaced. This asks "may the cache be
-    /// rewound onto the conversation the caller *did* send, before answering?" — the question
+    /// rewound onto the conversation the caller *did* send, before answering?". The question
     /// upstream's `ChatSession.fork(history:)` exists to take (ChatSession.swift:1741 at pin
     /// 991266ad3), whose trim boundary is the token-level common prefix and which verifies
     /// the trim landed before trusting it. Kept pure and off the MLX path so the whole table
@@ -1634,12 +1634,12 @@ actor MLXSessionPool {
     ///   turn no new message and the caller no answer, so it keeps the discard path.
     /// - `!carriesMedia`: a media placeholder is the same tokens for different pixels, so
     ///   shared tokens cannot prove a shared prefix, and upstream refuses to reconcile those
-    ///   (ChatSession.swift:340-347) — the fork would start cold while this line claimed a
+    ///   (ChatSession.swift:340-347). The fork would start cold while this line claimed a
     // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:415 return .history(history)
     ///   rewind.
     /// - `laneCanSpend`: this turn generates through the pooled `ChatSession`. Guided gen and
     ///   MTP build their own KV cache and release the slot before generating, so a rewind
-    ///   handed to those turns is never spent — and the refusal this site skips when it
+    ///   handed to those turns is never spent, and the refusal this site skips when it
     ///   offers would then be a refusal the turn did pay (measured 10-22: an edited resend
     ///   carrying `response_format: json_object` logged a rewind and re-prefilled all 753
     ///   tokens). The caller decides the lane; this axis keeps the offer and the ledger one
@@ -1678,14 +1678,14 @@ actor MLXSessionPool {
     /// previous turn's knobs. Measured 10-19 on this host
     /// (`mlx-community/gemma-4-e2b-it-4bit`, temp 0, two turns on one session): a
     /// `response_format: json_object` turn at `max_tokens=64` left 64 behind, and the next
-    /// turn asked for 8 and spent 64 with `finish_reason=length` — 370 characters of text
-    /// cut mid-sentence — against `Assembled prompt … wireMaxTokens=8` and
+    /// turn asked for 8 and spent 64 with `finish_reason=length`, 370 characters of text
+    /// cut mid-sentence. Against `Assembled prompt … wireMaxTokens=8` and
     /// `Generation budget: maxTokens=8` in the same log. A `tools[]` turn at 64 leaked the
     /// same way; a session whose first turn was plain text honoured 8. The asymmetry is
     /// the giveaway: plain turns update the pool's transcript, so the next turn fails
     /// ``canReusePooledSession`` and gets a clean session, while a guided/tool turn
     /// releases with `assistantMessage: nil` (EngineInference's guided/MTP early release),
-    /// which parks the session with an empty transcript — and an empty transcript reuses
+    /// which parks the session with an empty transcript, and an empty transcript reuses
     /// against anything.
     ///
     /// The cache-affecting fields (`maxKVSize`, `kvBits`, `kvGroupSize`,
@@ -1759,7 +1759,7 @@ actor MLXSessionPool {
 
 /// Check whether a pool key's model is pinned (exempt from TTL/LRU eviction).
 ///
-/// Pure key-string comparison — no ChatSession or actor dependency, so it is
+/// Pure key-string comparison, no ChatSession or actor dependency, so it is
 /// directly unit-testable. Returns `false` for malformed keys or empty pin sets
 /// (conservative: an unmatched key is treated as evictable).
 package func isPinnedExempt(poolKey key: String, pinnedIDs: Set<String>) -> Bool {

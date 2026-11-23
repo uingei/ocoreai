@@ -6,7 +6,7 @@ import Foundation
 ///
 /// Non-stream final `message.content` only (the agent E2E wire mode is
 /// non-stream). Every marker below was verified by hex-dumping the decoded
-/// E2E fixtures (gemma-4 2B, Qwen3.5 4B) — not by visual reading:
+/// E2E fixtures (gemma-4 2B, Qwen3.5 4B), not by visual reading:
 ///
 ///   * Both models emit a fake top-level `[{ "name", "arguments" }]`
 ///     tool-plan array as prose (a tool call "planned" in text instead of via
@@ -14,7 +14,7 @@ import Foundation
 ///   * gemma thinking spans: open 3C 7C "channel" 3E  (pipe 0x7C)
 ///                           close 3C "channel" 7C 3E (pipe 0x7C)
 ///   * Qwen thinking is delimited by a closer 3C 2F "think" 3E (FORWARD SLASH
-///     0x2F — not a backslash); the user-facing answer is the content AFTER
+///     0x2F, not a backslash); the user-facing answer is the content AFTER
 ///     the last such closer (captured fixtures carry no opener).
 ///
 /// Real newlines and all legitimate prose are preserved verbatim.
@@ -36,20 +36,20 @@ enum OutputSanitizer {
     static let gemmaOpen = String([lt, pipeC]) + "channel" + String([gt])
     /// gemma close: <channel|>
     static let gemmaClose = String([lt]) + "channel" + String([pipeC, gt])
-    /// qwen closer tag: 3C 2F 74 68 69 6E 6B 3E — also the close of the
+    /// qwen closer tag: 3C 2F 74 68 69 6E 6B 3E. Also the close of the
     /// ` think/think` span (Qwen3.5; open marker verified 3C 74 68 69 6E 6B 3E).
     static let qwenClose = String([lt, slashC]) + "think" + String([gt])
-    /// ` think/think` span opener — Qwen3.5 / Qwen3 short-marker family.
+    /// ` think/think` span opener. Qwen3.5 / Qwen3 short-marker family.
     static let thinkOpen = String([lt]) + "think" + String([gt])
-    /// ` thinking/thinking` — OpenAI/ChatML-style legacy family.
+    /// ` thinking/thinking`. OpenAI/ChatML-style legacy family.
     static let thinkingOpen = String([lt]) + "thinking" + String([gt])
     static let thinkingClose = String([lt, slashC]) + "thinking" + String([gt])
-    /// `|begin_of_thought|>…<|end_of_thought|>` / `…<|eot_id|>` — Qwen3 legacy.
+    /// `|begin_of_thought|>…<|end_of_thought|>` / `…<|eot_id|>`. Qwen3 legacy.
     /// One opener, TWO possible closers → earliest closer wins.
     static let qwen3Open = String([lt, pipeC]) + "begin_of_thought" + String([pipeC, gt])
     /// Qwen3 legacy closer #1 (primary).
     static let qwen3End = String([lt, pipeC]) + "end_of_thought" + String([pipeC, gt])
-    /// Qwen3 legacy closer #2 — some checkpoints end the thought run with
+    /// Qwen3 legacy closer #2. Some checkpoints end the thought run with
     /// `|eot_id|>` instead of the end-of-thought marker.
     static let qwen3Eot = String([lt, pipeC]) + "eot_id" + String([gt])
 
@@ -65,7 +65,7 @@ enum OutputSanitizer {
         return m
     }
 
-    /// Thought-span family table — the single source of truth for ALL
+    /// Thought-span family table. The single source of truth for ALL
     /// thinking markup. `altCloser` = a second acceptable close for the
     /// same opener (earliest close wins, scan order is family order and
     /// then scan position, so a closer from one family never pairs across
@@ -86,18 +86,18 @@ enum OutputSanitizer {
         var out = stripThinking(content)
         // A tool-plan array may sit anywhere (thinking or answer region).
         out = removeToolCallArrays(out)
-        // NOTE: no whitespace/indent normalization anywhere — legitimate code
+        // NOTE: no whitespace/indent normalization anywhere. Legitimate code
         // blocks (real indentation) must pass through byte-exact.
         return out.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Shared span scan — the single implementation behind `stripThinking`
+    /// Shared span scan. The single implementation behind `stripThinking`
     /// and `splitThoughts`. Returns surviving prose plus the thought
     /// interiors in stream order (the wire's `reasoning_content`).
     /// Pairing is leftmost-open / first-closer, exactly like the old
     /// `removeGemmaSpans` (first open pairs with the FIRST close after it;
     /// a second open inside the span is literal interior text). An open
-    /// with no close after it cuts the tail — a stream cut mid-thought:
+    /// with no close after it cuts the tail. A stream cut mid-thought:
     /// the interior is unfinished reasoning, not answer prose.
     private static func scanThoughts(
         _ input: String
@@ -142,13 +142,13 @@ enum OutputSanitizer {
     }
 
     /// Remove all thinking markup across every family and return the
-    /// surviving prose (no tool-array removal, no trim — compose as needed).
+    /// surviving prose (no tool-array removal, no trim. Compose as needed).
     static func stripThinking(_ input: String) -> String {
         let (prose, _) = scanThoughts(input)
         return stripStrayClosers(prose)
     }
 
-    /// (thinking, prose) — the `reasoning_content` split for handlers and
+    /// (thinking, prose). The `reasoning_content` split for handlers and
     /// the UI fallback path. Thinking pieces are whitespace-trimmed;
     /// empty interior pieces are dropped.
     static func splitThoughts(_ input: String) -> (thinking: String?, prose: String) {
@@ -163,10 +163,10 @@ enum OutputSanitizer {
         )
     }
 
-    /// Stray CLOSE tokens that survived span removal — they are literal
+    /// Stray CLOSE tokens that survived span removal. They are literal
     /// marker garbage (a model echoing its own delimiter), not prose.
     /// Openers can never survive: the span phase pairs or cuts at every
-    /// one. Qwen's closer tag is excluded — the closer-only rule already
+    /// one. Qwen's closer tag is excluded. The closer-only rule already
     /// consumed the last one, and an earlier one is the demotion boundary.
     private static func stripStrayClosers(_ input: String) -> String {
         var out = input
@@ -245,7 +245,7 @@ enum OutputSanitizer {
     }
 
     /// Remove a LEADING tool-call scaffold array whose interior is pure
-    /// whitespace (`[]`, `[\n]`, `[\n\n]`) — the grammar fast-forward tokens
+    /// whitespace (`[]`, `[\n]`, `[\n\n]`). The grammar fast-forward tokens
     /// a constrained decode emits when the tool-call array closes empty
     /// (live-evidence 10-05, gemma-4-e2b: wire content began `[\n\n]本地…`).
     /// Callers gate this to the tools path: mid-prose arrays, prose-leading

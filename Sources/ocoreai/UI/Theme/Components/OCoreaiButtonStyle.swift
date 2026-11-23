@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// OCoreaiButtonStyle — unified button styling system.
+/// OCoreaiButtonStyle. Unified button styling system.
 /// 3 kinds: primary, normal, destructive. 2 sizes: regular, small.
 ///
 /// IMPORTANT: ButtonStyle cannot use @Environment directly. Environment is
@@ -22,7 +22,7 @@ extension View {
 
 // MARK: - Modifier (reads theme from view environment)
 
-// Button modifiers — read theme from view environment
+// Button modifiers. Read theme from view environment
 struct OCoreaiButtonModifier: ViewModifier {
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.ocoreaiTheme) private var theme

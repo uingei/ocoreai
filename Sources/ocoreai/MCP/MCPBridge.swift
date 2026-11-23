@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MCP Bridge — 双向 MCP client + server 组合。
+/// MCP Bridge。双向 MCP client + server 组合。
 ///
 /// 职责：
 /// - 本地 ToolRegistry 是工具调用的第一优先级（零跳数）
@@ -89,7 +89,7 @@ private struct EndpointHandle {
     var connectedAt: Date?
 
     /// 引擎**实际装配**的预算（连接成功后从 client 取回）。ledger 公布这个数，而不是
-    /// 请求里填的那个数——门面只能宣称引擎交付的那一份（invariant 2）。未连成 = nil。
+    /// 请求里填的那个数。门面只能宣称引擎交付的那一份（invariant 2）。未连成 = nil。
     var appliedBudget: MCPRPCBudgets?
 
     init(endpoint: MCPEndpoint, status: MCPEndpoint.Status = .disconnected) {
@@ -122,7 +122,7 @@ public struct MCPBridgeConfig: Sendable {
     /// 头注释里做来历；本文件由 `MCPTimeoutDeliveryTests` 扫着，它一回来就红。
     public var startupTimeoutSeconds: TimeInterval
 
-    /// 外部 server 的 tools/call 响应超时（秒）—— 同上，已交付。
+    /// 外部 server 的 tools/call 响应超时（秒）。同上，已交付。
     /// 与 startup 分开，因为一次工具调用就是任务本身：写死 15 s 会让一个真正在干活
     /// 的 MCP 工具被掐死，而本机自己的 shell 工具允许 300 s（`ExecTools`）。
     public var toolTimeoutSeconds: TimeInterval
@@ -164,11 +164,11 @@ extension MCPEndpoint {
 
 // MARK: - MCPBridge Actor
 
-/// MCP Bridge actor — 管理本地 + 外部 server 的工具路由。
+/// MCP Bridge actor。管理本地 + 外部 server 的工具路由。
 actor MCPBridge {
     // MARK: - 状态
 
-    /// 工具注册表引用 — 用于将外部 MCP 工具注册到全局 ToolRegistry
+    /// 工具注册表引用。用于将外部 MCP 工具注册到全局 ToolRegistry
     private let toolRegistry: ToolRegistry
 
     /// 本地工具服务器
@@ -235,7 +235,7 @@ actor MCPBridge {
         // 本函数唯一的调用面是 HTTP `POST /mcp`，而 wire 消费者答不了审批：`.ask` 若在这里
         // park 到 broker，等的是本机 GUI 的一张审批卡，请求方只会一直沉默。实测（10-31，
         // 默认 interactive 策略）：`tools/call write_file` 十二秒无响应（curl -m 12 → 000），
-        // 文件也没写 —— 三条 chat/completions/anthropic 线都传 `headless: true` 并 fail-closed
+        // 文件也没写。三条 chat/completions/anthropic 线都传 `headless: true` 并 fail-closed
         // 拒绝，只有这条线没报自己的通道。codex `codex-rs/exec/src/lib.rs:566` 同一语义。
         return await server.dispatch(trimmed, headless: true)
     }
@@ -325,7 +325,7 @@ actor MCPBridge {
             }
         }
 
-        // 2. 本地 ToolRegistry — 通过 dispatch 发送 tools/call 请求
+        // 2. 本地 ToolRegistry。通过 dispatch 发送 tools/call 请求
         do {
             let result = try await callLocalTool(toolName, arguments: arguments)
             if config.callCacheEnabled {
@@ -339,11 +339,11 @@ actor MCPBridge {
 
         // 3. Fan-out 到外部 MCP servers.
         // Security gate FIRST (codex #41094 parity: MCP calls are first-class
-        // approval objects — not hook-enumerated). `securityGate(forExternalTool:)`
+        // approval objects, not hook-enumerated). `securityGate(forExternalTool:)`
         // routes through `ToolRegistry.securityPrecheckExternal`: a deny/ask
         // matching hook short-circuits here (deny → throw, ask → broker); a
         // call NO hook claims still raises the approval surface
-        // (codex `OnRequest` default) — never silently forwarded. A broker-less
+        // (codex `OnRequest` default). Never silently forwarded. A broker-less
         // `.ask` throws `ToolError.denied`; with a broker the call suspends
         // for a user decision (approve-once / approve-for-session / deny).
         do {
@@ -361,7 +361,7 @@ actor MCPBridge {
     }
 
     /// Security gate before forwarding a call to an external MCP server.
-    /// Wraps `ToolRegistry.securityPrecheckExternal` — external tool names are
+    /// Wraps `ToolRegistry.securityPrecheckExternal`. External tool names are
     /// unbounded (server-manifest driven), so a call no hook claims still
     /// routes through the broker where the approval policy decides
     /// (codex `ApprovalAction::McpToolCall` first-class approval). Exposed for tests:
@@ -414,7 +414,7 @@ actor MCPBridge {
         // 协议级失败(本地未注册该工具 → result 无 content/structuredContent)必须
         // throw 回 local-miss → 外部路径 + 安全门；`decodeToolCallResult` 的兜底块
         // 是"解码失败提示"而非"调用成功"，不得让它在此冒充成功返回（回归:
-        // .never 门因此被绕过, elicit 入站链全断)。
+        //  .never 门因此被绕过, elicit 入站链全断)。
         let hasContent = (result["content"] as? [[String: Any]]) != nil
         let hasStructured =
             result["structuredContent"] != nil && !(result["structuredContent"] is NSNull)
@@ -561,13 +561,13 @@ actor MCPBridge {
     /// Text blocks are joined verbatim. Media blocks (image/audio) are valid
     /// MCP `tools/call` results but this tool-result channel is text-only
     /// (`ChatSession.toolDispatch` returns `String`,
-    /// `MLXLMCommon/ChatSession.swift:387` — upstream API surface, not ocoreai
+    /// `MLXLMCommon/ChatSession.swift:387`. Upstream API surface, not ocoreai
     // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:447 public var toolDispatch
     /// choice), so they render as an explicit `[<type>]` placeholder: the agent
     /// learns content existed and of what kind instead of the call failing or
     /// the content vanishing (old local/handler paths both did).
     /// Baseline: codex `75cb7c903d` "Preserve MCP tool output as content items"
-    /// — non-text content must survive the tool-result channel.
+    /// Non-text content must survive the tool-result channel.
     // MARK: - tools/call 响应解码（structuredContent 单一真源）
 
     /// 解码 JSON-RPC tools/call **完整响应**（含 `result` 外层）。
@@ -609,11 +609,11 @@ actor MCPBridge {
 
     /// 序列化 structuredContent 为紧凑 JSON 字符串。
     ///
-    /// structuredContent 是 MCP spec（2025-06-18）的 **任意 JSON Value** —
+    /// structuredContent 是 MCP spec（2025-06-18）的 **任意 JSON Value**,
     /// object / array / string / number / boolean 全合法。`JSONSerialization`
     /// 拒收 top-level scalar/array（`isValidJSONObject` 只许 NSDictionary/NSArray），
     /// 故统一走 `JSONEncoder` + `JSONValue`（Codable），四种形态全覆盖。
-    // 注: JSONValue / toJSONValue 为 internal — 测试 target 走 @testable import（仓库既有惯例）。
+    // 注: JSONValue / toJSONValue 为 internal。测试 target 走 @testable import（仓库既有惯例）。
     internal static func serializeStructuredContent(_ value: Any) -> String {
         let encoder = JSONEncoder()
         guard let jv = Self.toJSONValue(value), let data = try? encoder.encode(jv)
@@ -626,7 +626,7 @@ actor MCPBridge {
 
     private static func toJSONValue(_ v: Any) -> JSONValue? {
         if v is NSNull { return .null }
-        // NSNumber/Bool 桥接歧义: `1 as? Bool` 与 `true as? Int` 都成功 — 任何固定
+        // NSNumber/Bool 桥接歧义: `1 as? Bool` 与 `true as? Int` 都成功。任何固定
         // 先/后顺序都会失真其中一个。按底层类型身份判别: JSONSerialization 的
         // JSON true/false 是 CFBoolean(@?)；其余 NSNumber 一律数值。
         if let num = v as? NSNumber {
@@ -778,7 +778,7 @@ actor MCPBridge {
         for toolInfo in tools {
             let toolName = (toolInfo["name"] as? String) ?? ""
             guard !toolName.isEmpty else { continue }
-            // MCP 工具级 description 必须透传——外部工具模型同样要看到"这工具干嘛"。
+            // MCP 工具级 description 必须透传。外部工具模型同样要看到"这工具干嘛"。
             let mcpDescription = (toolInfo["description"] as? String) ?? ""
 
             // Build schema from MCP inputSchema
@@ -1152,12 +1152,12 @@ actor MCPBridge {
 
     /// 优雅关闭所有资源。
     ///
-    /// Contract: every connected external endpoint is fully torn down —
-    /// `client.disconnect()` → `cleanup()` → `cleanupProcess()` → `proc.terminate()` —
+    /// Contract: every connected external endpoint is fully torn down,
+    /// `client.disconnect()` → `cleanup()` → `cleanupProcess()` → `proc.terminate()`,
     /// before the dictionaries are dropped. (Mirror of codex rmcp-client
     /// `stdio_server_launcher` teardown: the transport process is terminated at
     /// scope end. Dropping the reference alone leaves the spawned child running
-    /// as an orphan — `npx`/`uvx`/`python` MCP servers outlive the app.)
+    /// as an orphan, `npx`/`uvx`/`python` MCP servers outlive the app.)
     func shutdown() async {
         for epName in Array(endpointHandles.keys) where externalClients[epName] != nil {
             log.info("Tearing down external endpoint: \(epName)")
@@ -1194,7 +1194,7 @@ actor MCPBridge {
         switch method {
         // MCP spec 2025-06-18（client/elicitation）wire method 名 = `elicitation/create`
         // （codex 权威常量 `MCP_ELICITATION_CREATE_METHOD = "elicitation/create"`；
-        //  旧实现写 `"elicit"`——规范 server 发的请求会落 default 分支被丢弃）。
+        // 旧实现写 `"elicit"`。规范 server 发的请求会落 default 分支被丢弃）。
         case "elicitation/create":
             let params = obj["params"] as? [String: Any]
             if let message = params?["message"] as? String {
@@ -1209,7 +1209,7 @@ actor MCPBridge {
                     return Self.inboundResponseJSON(decline)
                 }
             }
-            // accepted：form-mode 的 content 承载表单数据——本 client 无交互式表单面，
+            // accepted：form-mode 的 content 承载表单数据。本 client 无交互式表单面，
             // gate 语义下以空 content 应答（schema default 由 server 侧兜底）；
             // 与 spec "action: accept + content 匹配请求 schema" 相容（content 可省略于
             // 无数据可提交的场景，如 URL-mode 即显式省略 content）。
@@ -1229,7 +1229,7 @@ actor MCPBridge {
         }
     }
 
-    /// 序列化入站请求应答行（JSON 键序无意义；失败回退固定安全形状——宁可错形也不返回 nil 让 server 挂等）。
+    /// 序列化入站请求应答行（JSON 键序无意义；失败回退固定安全形状。宁可错形也不返回 nil 让 server 挂等）。
     private static func inboundResponseJSON(_ dict: [String: Any]) -> String {
         guard let data = try? JSONSerialization.data(withJSONObject: dict)
         else {

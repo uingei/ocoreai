@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SummarizerActor.swift — LLM-powered summarization delegate
+/// SummarizerActor.swift. LLM-powered summarization delegate
 ///
 /// Sits between SessionCompressor and EnginePool:
 ///   SessionCompressor (actor) → SummarizerActor (actor) → EnginePool (actor)
@@ -78,7 +78,7 @@ actor SummarizerActor {
         // Acquire handle
         let handle = try await enginePool.acquire(model: modelId)
 
-        // Use a nested function — release is handled inside generateSummary explicitly
+        // Use a nested function. Release is handled inside generateSummary explicitly
         return try await self.generateSummary(
             handle: handle,
             modelId: modelId,
@@ -136,10 +136,10 @@ actor SummarizerActor {
                 case .toolCall:
                     break
                 case .toolResult:
-                    // Tool finished — summarization only needs the final text
+                    // Tool finished. Summarization only needs the final text
                     break
                 case .reasoning(let r):
-                    // Reasoning text from ReasoningEventEmitter — include in summary
+                    // Reasoning text from ReasoningEventEmitter. Include in summary
                     summary += r
                 case .guidedGenDiagnostic(
                     grammarTerminated: _,

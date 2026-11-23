@@ -1,18 +1,18 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ThinkingBudget — adaptive token budget allocator for "三思而后行" behavior.
+/// ThinkingBudget. Adaptive token budget allocator for "三思而后行" behavior.
 ///
 /// Bridges ComplexityAnalyzer scores → system prompt scaffolding injection.
 /// Zero overhead path: simple queries skip scaffolding entirely.
 
 import Foundation
 
-/// Thinking budget manager — actor-isolated for Swift 6 Sendable compliance.
+/// Thinking budget manager. Actor-isolated for Swift 6 Sendable compliance.
 actor ThinkingBudget {
     // MARK: - Configuration
 
     /// Budget multiplier based on consecutive high-quality outputs (adaptive).
-    /// Range: 0.5 (conservative) – 2.0 (aggressive)
+    /// Range: 0.5 (conservative), 2.0 (aggressive)
     private var multiplier: [String: Double] = [:]
 
     /// Default multiplier for new sessions.
@@ -62,14 +62,14 @@ extension ThinkingBudget {
         let m = currentMultiplier(for: sessionId)
         let adjustedBand: ComplexityBand
         if m >= 1.5 {
-            // Adaptive upgrade — session has consistently high quality
+            // Adaptive upgrade. Session has consistently high quality
             switch score.band {
             case .simple: adjustedBand = .medium
             case .medium: adjustedBand = .complex
             case .complex: adjustedBand = .complex
             }
         } else if m <= 0.7 {
-            // Adaptive downgrade — session has consistently low quality
+            // Adaptive downgrade. Session has consistently low quality
             switch score.band {
             case .simple: adjustedBand = .simple
             case .medium: adjustedBand = .simple
@@ -103,7 +103,7 @@ extension ThinkingBudget {
 
     /// Record feedback quality for adaptive calibration.
     ///
-    /// - Parameter quality: 0.0 (poor) – 1.0 (excellent) for this session
+    /// - Parameter quality: 0.0 (poor), 1.0 (excellent) for this session
     /// Call after user feedback, task completion, or self-correction trigger.
     func recordQuality(_ quality: Double, for sessionId: String) {
         // LRU touch: keeps the per-session *key set* bounded in a long-lived process.
@@ -151,7 +151,7 @@ extension ThinkingBudget {
 // MARK: - Scaffold Content (Task-aware)
 
 extension ThinkingBudget {
-    /// Medium-complexity scaffold — selects domain-specific protocol.
+    /// Medium-complexity scaffold. Selects domain-specific protocol.
     private func mediumScaffold(for taskType: TaskType) -> String {
         switch taskType {
         case .code:
@@ -169,7 +169,7 @@ extension ThinkingBudget {
         }
     }
 
-    /// Complex-complexity scaffold — selects domain-specific deep protocol.
+    /// Complex-complexity scaffold. Selects domain-specific deep protocol.
     private func complexScaffold(for taskType: TaskType) -> String {
         switch taskType {
         case .code:

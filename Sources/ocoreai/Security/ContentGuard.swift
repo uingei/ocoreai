@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ContentGuard.swift — Pre-inference content safety filter
+/// ContentGuard.swift. Pre-inference content safety filter
 ///
 /// Lightweight rule-based NSFW/safety gate. Zero ML dependency.
 /// Inserts between request entry and scheduler submission.
@@ -77,12 +77,12 @@ public struct GuardResult: Sendable, Codable {
 
     /// The refusal this verdict owes.
     ///
-    /// There used to be a `blockResponseData()` here building the JSON body — production never
+    /// There used to be a `blockResponseData()` here building the JSON body. Production never
     /// called it, and each of the five handler sites re-copied the same dictionary by hand, which
     /// is how a block on `/v1/messages` answered in OpenAI's envelope. One typed refusal now,
     /// rendered by `AppError.response` off the path the caller arrived on.
     /// Internal on purpose: `AppError` is this module's type, and the refusal is rendered
-    /// in-module — the public surface of the guard stays the verdict, not the wire.
+    /// in-module. The public surface of the guard stays the verdict, not the wire.
     var appError: AppError {
         AppError.contentPolicyViolation(
             reason: rejectionReason,
@@ -236,7 +236,7 @@ public actor ContentGuard {
     // Compiled regex patterns per category
     private let regexPatterns: [SafetyCategory: [NSRegularExpression]]
 
-    // Audit counter (for metrics) — actor-isolated, safe for concurrent access
+    // Audit counter (for metrics). Actor-isolated, safe for concurrent access
     private var checksRun: Int64 = 0
     private var blocksTriggered: Int64 = 0
 
@@ -311,10 +311,10 @@ public actor ContentGuard {
         // 1. Keyword scan (same categories as input)
         let keywordHits = scanKeywords(lowerText)
 
-        // 2. Regex scan (jailbreak patterns, prompt injection) — symmetric with checkInput
+        // 2. Regex scan (jailbreak patterns, prompt injection). Symmetric with checkInput
         let regexHits = scanRegex(lowerText, text: text)
 
-        // 3. Evaluate — output filtering mirrors input scanning
+        // 3. Evaluate. Output filtering mirrors input scanning
         let result = evaluateHits(keywordHits, regexHits: regexHits, text: lowerText)
         if result.isBlocked { blocksTriggered += 1 }
 
@@ -448,7 +448,7 @@ public actor ContentGuard {
                 }
 
             case .warnOnly:
-                // Log but don't block — just record for metrics
+                // Log but don't block. Just record for metrics
                 if totalMatches > 0 {
                     // Still track the category for audit trail
                     categories.append(category)
@@ -488,7 +488,7 @@ public actor ContentGuard {
     /// Built-in keyword database. Extensible but defaults cover the primary
     /// safety categories for English and Chinese.
     ///
-    /// NOTE: These are *content* keywords — not slurs. The goal is to detect
+    /// NOTE: These are *content* keywords, not slurs. The goal is to detect
     /// the TOPIC of harmful content, not to match every possible word that could
     /// appear in a safe context. High-severity categories use more specific
     /// patterns to reduce false positives.
@@ -586,7 +586,7 @@ public actor ContentGuard {
     // MARK: - Built-in Regex Patterns
 
     /// Compiled regex patterns for jailbreak and prompt injection detection.
-    /// Pre-compiled for performance — patterns are expensive to compile
+    /// Pre-compiled for performance. Patterns are expensive to compile
     /// per-request.
     private static func compileRegexPatterns() -> [SafetyCategory: [NSRegularExpression]] {
         var patterns: [SafetyCategory: [NSRegularExpression]] = [:]

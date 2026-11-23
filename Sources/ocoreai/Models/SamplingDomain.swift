@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! SamplingDomain.swift — every wire's bounded numeric knobs, checked in one place.
+//! SamplingDomain.swift. Every wire's bounded numeric knobs, checked in one place.
 //!
 //! Why this exists (measured 10-17): `{"max_tokens":-5}` on `/v1/chat/completions` was
 //! accepted, sailed into ``SchedulerActor/dispatch()``, and `UInt64(tokenBudget)` trapped
-//! there — `EXC_BREAKPOINT (SIGTRAP)`. The process died, the client got an empty reply, and
+//! there, `EXC_BREAKPOINT (SIGTRAP)`. The process died, the client got an empty reply, and
 //! every other conversation on the box died with it. A trap is not a refusal: no status, no
 //! `error_code`, no remediation, and nothing left running to serve the next request.
 //!
@@ -22,13 +22,13 @@
 //!
 //! One checker, three forwarders (`ChatCompletionRequest`, `CompletionRequest`,
 //! `AnthropicMessageRequest`): the wires differ in their *ranges*, not in the shape of the
-//! check, so ranges are parameters and the rule is stated once — three copies of a bounds
+//! check, so ranges are parameters and the rule is stated once. Three copies of a bounds
 //! list is a second and third truth waiting to drift.
 import Foundation
 
 /// One request's bounded numeric knobs, normalized so every wire shares ``SamplingDomain``.
 ///
-/// Absent (`nil`) means "not sent", which is always in domain — the engine applies its own
+/// Absent (`nil`) means "not sent", which is always in domain. The engine applies its own
 /// default. Values are widened to `Double` because the DTOs mix `Float` and `Double` for
 /// the same conceptual knob; comparing at the wider type keeps one rule.
 struct SamplingKnobs: Sendable {
@@ -40,20 +40,20 @@ struct SamplingKnobs: Sendable {
 
     /// Output-token ceiling, if sent.
     var maxTokens: Int?
-    /// Wire name to blame when ``maxTokens`` is out of domain — OpenAI has two spellings
+    /// Wire name to blame when ``maxTokens`` is out of domain. OpenAI has two spellings
     /// (`max_completion_tokens` wins where both are sent) and the message must name the one
     /// the client actually used.
     var maxTokensField: String = "max_tokens"
 
     /// `n`, if sent. ``nMaximum`` is nil when the endpoint honours any `n >= 1`
     /// (`/v1/completions` generates `n` passes sequentially) and 1 where one request returns
-    /// exactly one choice (chat) — refusing beats accepting and under-delivering
+    /// exactly one choice (chat). Refusing beats accepting and under-delivering
     /// (AGENTS.md invariant 2).
     var n: Int?
     var nMaximum: Int? = nil
 
     var temperature: Double?
-    /// The range this wire's spec publishes for `temperature` — OpenAI `0...2`, Anthropic `0...1`.
+    /// The range this wire's spec publishes for `temperature`. OpenAI `0...2`, Anthropic `0...1`.
     var temperatureRange: ClosedRange<Double> = 0 ... 2
 
     var topP: Double?

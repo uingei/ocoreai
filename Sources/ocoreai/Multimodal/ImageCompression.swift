@@ -3,7 +3,7 @@
 /// Platform-independent image compression using CoreGraphics + ImageIO.
 ///
 /// Resize to max 1280px and encode to JPEG at 0.6 quality.
-/// Used by both camera frames and file-picked images — consistent
+/// Used by both camera frames and file-picked images. Consistent
 /// token budget for VLM input (~800 tokens vs ~2800 for full-res).
 
 import CoreGraphics

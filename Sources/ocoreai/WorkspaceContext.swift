@@ -1,28 +1,28 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// WorkspaceContext — working-directory + project-instruction (AGENTS.md) discovery.
+/// WorkspaceContext. Working-directory + project-instruction (AGENTS.md) discovery.
 ///
-/// Policy, not a port (owner, 11-03): the rules below are ocoreai's own — this is what we deliver, and
+/// Policy, not a port (owner, 11-03): the rules below are ocoreai's own. This is what we deliver, and
 /// `WorkspaceContextTests` pins each one. A codex-style loader (`core/src/agents_md.rs`) accepts the same
 /// shape, which is why the shape looks familiar; it is not the source of any rule, and its line numbers are
-/// not quoted here — nothing re-verifies them (`anchor:codex` markers: 0), so do not quote them as current.
+/// not quoted here. Nothing re-verifies them (`anchor:codex` markers: 0), so do not quote them as current.
 /// - Root markers: `.git`, walking up from the cwd; with no marker only the cwd itself is considered.
 /// - Collect `AGENTS.override.md` / `AGENTS.md` from the project root DOWN to the cwd (inclusive),
 ///   concatenated in that order (root first); the override wins per level, one doc per level at most.
-/// - Budget: 32 KiB for the whole chain — the last doc that exceeds what is left is truncated, and the
+/// - Budget: 32 KiB for the whole chain. The last doc that exceeds what is left is truncated, and the
 ///   cut is disclosed.
 /// - Discovered docs are model-visible instructions.
 ///
 /// ocoreai alignment: the same discovery/order/budget semantics as a pure,
 /// sendable value layer under `UserDefaults.standard` key
 /// `settings.agent.workspaceDirectory` (written by the Settings UI, read by
-/// the server) — no actor seam, callable from nonisolated injection sites.
+/// the server), no actor seam, callable from nonisolated injection sites.
 
 import Foundation
 
 enum WorkspaceContext {
-    /// Our cap on the injected chain: 32 KiB, in two homes — here and the budget sentence at the top of
-    /// `AGENTS.md` — kept equal by `InstructionBudgetSingleSourceTests` (the docs contract's third pin left
+    /// Our cap on the injected chain: 32 KiB, in two homes. Here and the budget sentence at the top of
+    /// `AGENTS.md`. Kept equal by `InstructionBudgetSingleSourceTests` (the docs contract's third pin left
     /// with the bespoke docs gates, 11-16). It is a policy we chose, not a host's loan.
     static let maxDocBytes = 32 * 1024
 
@@ -35,10 +35,10 @@ enum WorkspaceContext {
 
     /// Headless anchor: `OCOREAI_WORKSPACE`. A `serve` process has no Settings UI to
     /// write `UserDefaults`, and `SessionWorkspace.setDirectory` is called only from the
-    /// UI (`ChatViewModel`, `SessionManager`) — so before this, every relative path a wire
+    /// UI (`ChatViewModel`, `SessionManager`), so before this, every relative path a wire
     /// client sent anchored to the *process* cwd, and the model was never told which.
     /// Measured 10-22 (`scripts/eval/`): 5 of 9 task failures were
-    /// `edit_file: cannot read (missing or non-UTF8): calc.py` — the natural relative path
+    /// `edit_file: cannot read (missing or non-UTF8): calc.py`. The natural relative path
     /// a coding prompt produces, resolved somewhere the file was not. Env precedes the
     /// stored setting because a headless operator states it per run.
     static let workspaceEnvironmentKey = "OCOREAI_WORKSPACE"
@@ -150,12 +150,12 @@ enum WorkspaceContext {
         return files
     }
 
-    /// One discovered doc's fate under the byte budget — the single measurement behind
+    /// One discovered doc's fate under the byte budget. The single measurement behind
     /// BOTH disclosures (the line the model reads and the row `/v1/capabilities`
     /// publishes), because two homes for one verdict is how a surface ends up claiming
     /// more than the injector did (AGENTS.md invariant 2).
     struct InstructionDoc: Encodable, Equatable, Sendable {
-        /// Path exactly as the model sees it — every doc is already headed by it.
+        /// Path exactly as the model sees it. Every doc is already headed by it.
         let path: String
         /// Wire label: the same path below the project root, that root written as
         /// `<root>`. `/v1/capabilities` is public (it bypasses `AuthMiddleware`), and an
@@ -218,7 +218,7 @@ enum WorkspaceContext {
         for path in instructionFiles(cwd: trimmed, fm: fm) {
             // Size first: a doc that never fits the budget is named as dropped without
             // paying to read it. A stat failure skips the doc, exactly as the pre-
-            // disclosure code skipped an unreadable one — no new state for a case nobody
+            // disclosure code skipped an unreadable one, no new state for a case nobody
             // observed.
             guard let total = fileSize(path, fm) else { continue }
             if remaining <= 0 {
@@ -267,7 +267,7 @@ enum WorkspaceContext {
         return "<root>/" + path.dropFirst(prefix.count)
     }
 
-    /// The line the model reads when something fell off — nil when every doc went in
+    /// The line the model reads when something fell off. Nil when every doc went in
     /// whole, because a notice that fires on nothing trains a reader to ignore it.
     /// Wording follows the deepseek-harness fixture ("…budget 700 bytes: truncated …
     /// from 1900 to 292 bytes"): the cut is stated in the same text it happens to, so a
@@ -289,7 +289,7 @@ enum WorkspaceContext {
     /// discovered project instruction doc (root → cwd), byte-budgeted to
     /// `maxBytes` across all docs (the last doc that fits what is left is truncated).
     /// The `working_directory` line is
-    /// always present when `cwd` is set — it tells the model where relative paths
+    /// always present when `cwd` is set. It tells the model where relative paths
     /// and exec_commands land, even when no AGENTS.md exists. Empty string only
     /// for an empty `cwd`.
     static func buildSection(

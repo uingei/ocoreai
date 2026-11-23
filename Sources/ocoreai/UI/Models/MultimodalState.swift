@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Multimodal state — camera, microphone, speaker, screen toggles with persistence
+/// Multimodal state. Camera, microphone, speaker, screen toggles with persistence
 ///
 /// Toggle changes automatically start/stop the corresponding service via didSet.
 /// This is the bridge between UI toggles and the actual I/O services.
@@ -12,7 +12,7 @@ import os.log
 
 private let mmLogger = Logger(subsystem: "ocoreai", category: "multimodal_state")
 
-// Forward declarations to avoid circular import — imported via Multimodule later
+// Forward declarations to avoid circular import. Imported via Multimodule later
 typealias MMCaptureService = CaptureService
 typealias MMScreenshotService = ScreenshotService
 typealias MMAudioIO = AudioIO
@@ -38,7 +38,7 @@ final class MultimodalState {
 
     // MARK: - Service Toggles (with auto-wiring)
 
-    /// Camera enabled — starts/stops CaptureService automatically
+    /// Camera enabled. Starts/stops CaptureService automatically
     var cameraEnabled: Bool = false {
         didSet {
             guard !_restoring, oldValue != self.cameraEnabled else { return }
@@ -47,7 +47,7 @@ final class MultimodalState {
         }
     }
 
-    /// Microphone enabled — starts/stops AudioIO automatically
+    /// Microphone enabled. Starts/stops AudioIO automatically
     var microphoneEnabled: Bool = false {
         didSet {
             guard !_restoring, oldValue != self.microphoneEnabled else { return }
@@ -56,18 +56,18 @@ final class MultimodalState {
         }
     }
 
-    /// Speaker (TTS) enabled — does NOT auto-wire AudioIO like camera/mic/screen.
+    /// Speaker (TTS) enabled. Does NOT auto-wire AudioIO like camera/mic/screen.
     /// TTS is lazy-triggered: `speakIfEnabled(_:)` checks this flag at call time
     /// (per-response) rather than maintaining a persistent background service.
     var speakerEnabled: Bool = false {
         didSet {
             guard !_restoring, oldValue != self.speakerEnabled else { return }
             save()
-            // Note: no wireSpeaker() call — TTS is lazy-activated on demand
+            // Note: no wireSpeaker() call. TTS is lazy-activated on demand
         }
     }
 
-    /// Screen capture enabled — starts/stops ScreenshotService automatically
+    /// Screen capture enabled. Starts/stops ScreenshotService automatically
     var screenCaptureEnabled: Bool = false {
         didSet {
             guard !_restoring, oldValue != self.screenCaptureEnabled else { return }
@@ -90,7 +90,7 @@ final class MultimodalState {
     /// Last audio recording data URL
     var lastRecordingDataURL: String?
 
-    /// Last completed STT transcript — displayed in MultimodalControls
+    /// Last completed STT transcript. Displayed in MultimodalControls
     var lastTranscript: String?
 
     /// One-shot voice transcript → auto-send to ChatView.
@@ -98,13 +98,13 @@ final class MultimodalState {
     /// Replaces NotificationCenter (avoids cross-module @Observable coupling).
     var pendingVoiceTranscript: String?
 
-    /// Flag to guard didSet during restore — prevents services starting on cold boot.
+    /// Flag to guard didSet during restore. Prevents services starting on cold boot.
     private var _restoring = false
 
-    /// Debounce timer for async save — coalesces rapid toggle changes.
+    /// Debounce timer for async save. Coalesces rapid toggle changes.
     private var _saveDebounceTask: Task<Void, Never>?
 
-    /// Wire tasks — cancel previous on rapid toggle to prevent concurrent start/stop race.
+    /// Wire tasks. Cancel previous on rapid toggle to prevent concurrent start/stop race.
     private var _wireCameraTask: Task<Void, Never>?
     private var _wireMicTask: Task<Void, Never>?
     private var _wireScreenTask: Task<Void, Never>?
@@ -116,7 +116,7 @@ final class MultimodalState {
     /// Restore persisted toggles from disk without firing didSet side-effects.
     private func _restoreFromDisk() {
         _restoring = true
-        // Read persisted values directly into properties — didSet will see _restoring=true
+        // Read persisted values directly into properties. DidSet will see _restoring=true
         if let data = try? Data(contentsOf: storageKey),
             let snapshot = try? decoder.decode(Snapshot.self, from: data)
         {
@@ -179,7 +179,7 @@ final class MultimodalState {
 
     // MARK: - Multimodal Context Capture
 
-    /// Multimodal context entry — image frame, optional OCR text, and source name.
+    /// Multimodal context entry. Image frame, optional OCR text, and source name.
     /// If ocrText is non-nil and ≥ minCharacters, the frame contains significant
     /// on-screen text and can be sent as structured text (~20 tokens) instead of
     /// an image (~800 tokens), saving ~97% VLM token consumption.
@@ -205,14 +205,14 @@ final class MultimodalState {
     /// Routes through the canonical ``TTSCleaning.speakable`` so the chat
     /// speaker and the agent `speak` tool apply the exact same
     /// thinking+code cleaning; the speaker then truncates to the 500-char UX
-    /// cap (vs. the agent `speak` tool's 8000 cap — different UX intents).
+    /// cap (vs. the agent `speak` tool's 8000 cap. Different UX intents).
     @MainActor
     func speakIfEnabled(_ text: String) {
         guard self.speakerEnabled, !text.isEmpty else { return }
         let content = TTSCleaning.speakable(text, TTSCleaning.speakerDefaultCap)
         guard !content.isEmpty else { return }
         mmLogger.info("[MultimodalState] Speaker active — TTS: \(content.prefix(50))...")
-        // speak() is non-throwing — no TTS crash propagation risk
+        // speak() is non-throwing, no TTS crash propagation risk
         MMAudioIO.shared.speak(content)
     }
 
@@ -227,7 +227,7 @@ final class MultimodalState {
     }
 
     private func save() {
-        // Cancel any pending save — debounce coalesces rapid toggle changes
+        // Cancel any pending save. Debounce coalesces rapid toggle changes
         _saveDebounceTask?.cancel()
         _saveDebounceTask = Task.detached {
             [

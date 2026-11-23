@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ScreenshotService — macOS screen capture via ScreenCaptureKit
+/// ScreenshotService. MacOS screen capture via ScreenCaptureKit
 ///
 /// Real-time capture powered by SCStream (delegate callbacks, no polling).
 /// One-shot fallback via SCScreenshotManager.captureImage() for backwards compatibility.
@@ -21,7 +21,7 @@ import Vision
 
 private let screenshotLogger = Logger(subsystem: "ocoreai", category: "screenshot")
 
-// Rate limit constant — not tied to MainActor so FrameOutput can read it directly.
+// Rate limit constant, not tied to MainActor so FrameOutput can read it directly.
 private let frameRateLimitSeconds: TimeInterval = 1.0
 
 extension Notification.Name {
@@ -54,7 +54,7 @@ final class ScreenshotService {
     // MARK: - One-shot capture
 
     /// Why the last capture failed, in one line, taken from the ScreenCaptureKit error
-    /// itself. `os.log` output lands in the unified log, which an HTTP client — or a probe —
+    /// itself. `os.log` output lands in the unified log, which an HTTP client, or a probe,
     /// cannot read, so the reason has to travel with the response or the refusal stays
     /// unexplained (measured 10-14: `screen` refused in 194ms with only
     /// "No screen frame captured" while `screenPermission` said authorized).
@@ -90,7 +90,7 @@ final class ScreenshotService {
 
     // MARK: - Internal capture implementation
 
-    /// The frame, plus — when there is no frame — the reason, so it can reach the wire.
+    /// The frame, plus, when there is no frame. The reason, so it can reach the wire.
     nonisolated static func captureOnce() async -> (frame: String?, failure: String?) {
         let content: SCShareableContent
         do {
@@ -245,7 +245,7 @@ final class ScreenshotService {
                     Self.shared.isCapturing = true
                 }
 
-                // 6. Start capture — callback-driven, no polling
+                // 6. Start capture. Callback-driven, no polling
                 do {
                     try await newStream.startCapture()
                     screenshotLogger.info("[ScreenshotService] SCStream capture started")
@@ -265,7 +265,7 @@ final class ScreenshotService {
 
     /// Stop continuous screen capture
     func stopCapture() {
-        // stopCapture is async — we await it, then immediately nil out references.
+        // stopCapture is async. We await it, then immediately nil out references.
         Task {
             let s = self.stream
             do { try await s?.stopCapture() } catch {
@@ -289,7 +289,7 @@ final class ScreenshotService {
     /// Update latest frame data URL on MainActor for @Observable reactivity.
     private func updateFrameURL(_ url: String) {
         self.latestFrameDataURL = url
-        // A frame off the SCStream is delivery evidence too — and the only kind the
+        // A frame off the SCStream is delivery evidence too, and the only kind the
         // continuous path produces, so the verdict does not stay stuck on the one-shot
         // result after streaming started working.
         ScreenDeliveryRecord.captured(latencyMs: nil)
@@ -317,7 +317,7 @@ final class ScreenshotService {
             super.init()
         }
 
-        // — SCStreamDelegate —
+        // SCStreamDelegate,
 
         func stream(_ stream: SCStream, didStopWithError error: Error) {
             screenshotLogger.error(
@@ -329,7 +329,7 @@ final class ScreenshotService {
             }
         }
 
-        // — SCStreamOutput —
+        // SCStreamOutput,
 
         func stream(
             _ stream: SCStream, didOutput sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType
@@ -359,14 +359,14 @@ final class ScreenshotService {
                 return
             }
 
-            // Dispatch frame update to MainActor — capture service reference first
+            // Dispatch frame update to MainActor. Capture service reference first
             // so `self` is not held across the closure boundary.
             let service = self.service
             Task { @MainActor in
                 service?.updateFrameURL(url)
             }
 
-            // Run Vision OCR in background — updates latestOCRText for downstream
+            // Run Vision OCR in background. Updates latestOCRText for downstream
             // Screen frames often contain more text than camera frames (terminal, IDE, docs),
             // so OCR bridge saves even more tokens here (~97% reduction).
             Task {

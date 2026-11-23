@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// CoreAI model loader — two-phase load with specialization and caching
+// CoreAI model loader. Two-phase load with specialization and caching
 // Compiled only when 'coreai' trait is active
 #if canImport(CoreAI)
 
@@ -169,7 +169,7 @@ actor CoreAIModelLoader {
         let start = ContinuousClock.now
 
         do {
-            // Load and specialize in one step — this is how coreai-models does it
+            // Load and specialize in one step. This is how coreai-models does it
             let options = SpecializationOptions(
                 preferredComputeUnitKind: config.computeTarget.computeUnitKind,
             )

@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// BuiltInTools — registers essential tools into ToolRegistry on boot.
+/// BuiltInTools. Registers essential tools into ToolRegistry on boot.
 ///
 /// Each tool corresponds to a real capability (info, skill lookup, audit query).
 ///
 /// Typed tools: use ``ToolEntry.typed(name:toolset:argsType:handler:)`` for
-/// compile-safe argument decoding — mirrors Foundation Models ``Tool<Arguments, Output>``
+/// compile-safe argument decoding. Mirrors Foundation Models ``Tool<Arguments, Output>``
 /// pattern without requiring the framework.
 import Foundation
 
@@ -161,7 +161,7 @@ func bootstrapBuiltInTools(
             ) { [sr] args in
                 guard !args.name.isEmpty else { return "error: name required" }
                 if let file = args.file {
-                    // Delegated to skill system — return path for later resolve
+                    // Delegated to skill system. Return path for later resolve
                     return "resolve: \(args.name)/\(file)"
                 }
                 guard let skill = await sr.lookup(args.name) else {
@@ -240,7 +240,7 @@ func bootstrapBuiltInTools(
         // every mainstream agent tool calls this knob, so it is the spelling a model has
         // already seen (measured 10-22: with `occurrences` alone the model read the count and
         // asked the user instead of retrying). AGENTS.md: a knob the wire accepts must reach
-        // the engine — `EditMismatchRecoveryTests.wireKnobReachesTheEngine` decodes this exact JSON
+        // the engine, `EditMismatchRecoveryTests.wireKnobReachesTheEngine` decodes this exact JSON
         enum CodingKeys: String, CodingKey {
             case path
             case oldString
@@ -384,7 +384,7 @@ func bootstrapBuiltInTools(
     )
 
     // ── exec_command ────────────────────────────────────────────────────────
-    // Baseline: codex unified exec — `ToolName::plain("exec_command")`
+    // Baseline: codex unified exec, `ToolName::plain("exec_command")`
     // (`core/src/unified_exec/process_manager.rs:1308`), zsh (`core/src/shell.rs`),
     // `ExecApprovalRequest` gating before execution (approval = user-side).
     struct ExecCommandArgs: Codable {
@@ -422,18 +422,18 @@ func bootstrapBuiltInTools(
         }
     )
 
-    // ── exec_shell / write_stdin / exec_poll — session exec surface ────────
+    // ── exec_shell / write_stdin / exec_poll. Session exec surface ────────
     // Baseline: codex `unified_exec` (references/codex, HEAD):
-    //   - `exec_command` yield form (`tools/handlers/unified_exec/exec_command.rs`,
+    //  - `exec_command` yield form (`tools/handlers/unified_exec/exec_command.rs`,
     //     `core/src/unified_exec/mod.rs` `clamp_yield_time` 250–30_000ms
     //     default 10_000) → ocoreai `exec_shell`: spawn, yield ≤ yieldMs,
     //     return a session the model keeps polling.
-    //   - `write_stdin` (`tools/handlers/unified_exec/write_stdin.rs`,
+    //  - `write_stdin` (`tools/handlers/unified_exec/write_stdin.rs`,
     //     `process_manager.rs:824-832` dual regime): non-empty write clamps
     //     to 250–30_000 (default 250); **empty poll clamps to 5_000–300_000
     //     (default 5_000**, `DEFAULT_MAX_BACKGROUND_TERMINAL_TIMEOUT_MS`) →
     //     ocoreai `write_stdin` mirrors both forms + both clamp branches.
-    //   - `exec_poll`: poll-only alias of the same drain (empty regime).
+    //  - `exec_poll`: poll-only alias of the same drain (empty regime).
     // Additive to `exec_command` (pinned blocking contract, 9-test gate in
     // `ExecCommandToolTests.swift`): `exec_command` stays for short
     // block-and-report; the session trio serves long-running / interactive
@@ -564,7 +564,7 @@ func bootstrapBuiltInTools(
 
     // ── view_image ──────────────────────────────────────────────────────────
     // Baseline: codex `view_image` (`core/src/tools/handlers/view_image_spec.rs`,
-    // `VIEW_IMAGE_TOOL_NAME` = "view_image") — "View a local image file from the
+    // `VIEW_IMAGE_TOOL_NAME` = "view_image"). "View a local image file from the
     // filesystem when visual inspection is needed." One required `path`;
     // optional `detail` ("high" | "original"). ocoreai's pre-flight half:
     // verify the file is a real decodable image + report true WxH (ImageIO).
@@ -626,26 +626,26 @@ func bootstrapBuiltInTools(
 
     // ── get_context_remaining ────────────────────────────────────────────────
     // codex `get_context_remaining`(06d2c64, 逐行对齐): 无参, 报告当前上下文窗口剩余 token。
-    //   真值 = turn 入口(ChatHandler)每轮已算的 promptTokenCount(used) + 模型窗口(limit)
-    //   → 写进 ContextStatusStore;本工具读时算 `max(0, limit - used)`,无窗口/无活跃会话→unknown。
-    //   基准: codex core/src/session/context_window.rs(tokens_remaining) +
+    //  真值 = turn 入口(ChatHandler)每轮已算的 promptTokenCount(used) + 模型窗口(limit)
+    //  → 写进 ContextStatusStore;本工具读时算 `max(0, limit - used)`,无窗口/无活跃会话→unknown。
+    //  基准: codex core/src/session/context_window.rs(tokens_remaining) +
     //        core/src/context/token_budget_context.rs:170-172(report 逐字)。
     let contextStore = ContextStatusStore.shared
     try? await registry.register(GetContextRemainingClient.toolEntry(store: contextStore))
     // 获取信息一等工具。基准: codex ToolSpec::WebSearch (tool_spec.rs:39)。
-    // 第一性: 检索本体不需要模型 —— 默认走直搜(HTML SERP, 无密钥无模型,
-    //   cn.bing 实跑验证); OCRE_SEARCH_MODE=backend/auto 回退 ollama 代搜。
+    // 第一性: 检索本体不需要模型。默认走直搜(HTML SERP, 无密钥无模型,
+    //  cn.bing 实跑验证); OCRE_SEARCH_MODE=backend/auto 回退 ollama 代搜。
     try? await registry.register(DirectWebSearch.toolEntry())
 
     // ── web_fetch ──────────────────────────────────────────────────────────
     // 读取已知 URL 的渲染内容(WebKit 后端)。与 web_search 正交:
-    //   web_search=找答案, web_fetch=读具体页面(JS 渲染站纯 HTTP 拿不到,WebKit 能)。
+    //  web_search=找答案, web_fetch=读具体页面(JS 渲染站纯 HTTP 拿不到,WebKit 能)。
     try? await registry.register(WebFetchClient.toolEntry())
 
     // ── view_screen ────────────────────────────────────────────────────────
     // 视觉感知轴的 agent 可触面: 截当前屏幕 + Vision OCR 出屏幕文字(文本通道,
     // 不吐像素)。基础设施复用已验证的 ScreenshotService(ScreenCaptureKit) +
-    // VisionOCR —— PerceptionEngine 已在 UI 侧消费同一管线;本工具补 agent 面。
+    // VisionOCR。PerceptionEngine 已在 UI 侧消费同一管线;本工具补 agent 面。
     try? await registry.register(ScreenCaptureClient.toolEntry())
 
     // ── observe_state ──────────────────────────────────────────────────────
@@ -655,8 +655,8 @@ func bootstrapBuiltInTools(
 
     // ── system_info ────────────────────────────────────────────────────────
     // 机型身份 + 资源容量主动查询面(与 observe_state 同属"系统状态", 分轴不抢活):
-    //   observe_state(.system 流) → thermal/mem-pressure/low-power(被动流, 需开 channel)
-    //   system_info              → platform/arch/os/cpu/ram/disk(主动查询, 即时, 无前置态)
+    //  observe_state(.system 流) → thermal/mem-pressure/low-power(被动流, 需开 channel)
+    //  system_info              → platform/arch/os/cpu/ram/disk(主动查询, 即时, 无前置态)
     // ProcessInfo + 编译期 arch + resourceValues 是 iOS17/macOS14 双平台一等面 →
     // 跨平台注册(不 #if 到 macOS), 深度适配「各平台」。
     // 只读快照 → isDestructive=false(同 observe_state, 免审批), 不捏造缺失字段。
@@ -665,7 +665,7 @@ func bootstrapBuiltInTools(
     #if os(macOS)
     // ── desktop control axis ────────────────────────────────────────────────
     // action 半(input 轴): computer use 的驱动面。感知轴(看)既有, 动作轴
-    // (点/键/拖/滚/打字)此前全库为零 —— 本段补齐, 与 codex `computer_use`
+    // (点/键/拖/滚/打字)此前全库为零。本段补齐, 与 codex `computer_use`
     // (codex-rs/features/src/lib.rs:1468, Stage::Stable, default_enabled: true)
     // 对齐: 一等轴, 默认可达。
     // 安全: 6 个全 isDestructive → 逐次审批 ask(注册声明即闸门, 见
@@ -680,14 +680,14 @@ func bootstrapBuiltInTools(
 
     // ── inspect_ui ────────────────────────────────────────────────────────
     // "自主操作计算机" 的结构化 UI 语义层(感知/动作都缺的那块):
-    //   感知轴既有 = 像素(view_screen) + OCR; 动作轴既有 = 盲坐标 CGEvent。
-    //   两半都过不了 "这是按钮? 中心点在哪? 动作后 value 变没变?" 这道坎 → 开环盲打。
-    //   AX(AXUIElement 元素树) = Apple 为"让程序理解并操作 UI"设计的官方接口,
-    //   给 AI 读语义 role/label/value + 可点击中心点, 一次补三块:
-    //     1. 精确定位 — 元素中心点供 click, 替代盲坐标
-    //     2. 动作后验证 — 读 value/state, 闭合 "动作→验证" 环
-    //     3. 语义理解 — role/title 比像素 OCR 高一个维度
-    //   只读(零副作用), isDestructive: false, 免审批(同 observe_state 范式)。
+    //  感知轴既有 = 像素(view_screen) + OCR; 动作轴既有 = 盲坐标 CGEvent。
+    //  两半都过不了 "这是按钮? 中心点在哪? 动作后 value 变没变?" 这道坎 → 开环盲打。
+    //  AX(AXUIElement 元素树) = Apple 为"让程序理解并操作 UI"设计的官方接口,
+    //  给 AI 读语义 role/label/value + 可点击中心点, 一次补三块:
+    //     1. 精确定位。元素中心点供 click, 替代盲坐标
+    //     2. 动作后验证。读 value/state, 闭合 "动作→验证" 环
+    //     3. 语义理解。role/title 比像素 OCR 高一个维度
+    //  只读(零副作用), isDestructive: false, 免审批(同 observe_state 范式)。
     try? await registry.register(InspectUIClient.toolEntry())
 
     // ── app lifecycle: open_app / activate_app / list_apps ──────────────
@@ -695,7 +695,7 @@ func bootstrapBuiltInTools(
     // shell open 的间接路: 无幂等语义(重复拉起)、无 bundle id 精确寻址、无诚实失败原因。
     // NSWorkspace(非弃用面): urlForApplication(withBundleIdentifier:) +
     // openApplication(at:configuration:) (10.15+, launchApplication* 全弃用) +
-    // activate(from:options:) (macOS 14 新签名) — 深度 Apple 平台面, 与 AX(感知)/
+    // activate(from:options:) (macOS 14 新签名)。深度 Apple 平台面, 与 AX(感知)/
     // CGEvent(动作)/AppKit(生命周期) 三层同域。open/activate 有副作用 → 审批门;
     // list_apps 只读 → 免审批(同一范式于 inspect_ui)。
     try? await registry.register(OpenAppClient.toolEntry())
@@ -705,13 +705,13 @@ func bootstrapBuiltInTools(
 
     // ── check_tools ────────────────────────────────────────────────────────
     // Verify 段的 agent 自查询面: 读 durable 审计 trace(commit 7676ac5)的工具
-    // 执行结果真值 — success/error/timeout 计数 + 失败明细。此前 AuditTrail 全库
+    // 执行结果真值。success/error/timeout 计数 + 失败明细。此前 AuditTrail 全库
     // 零非 UI 消费者(唯一读方 = SystemViewModel 展示); 本工具闭合 写→落盘→读 链路,
     // 让模型在宣告任务完成前用审计真值替代自述。只读, 零副作用。
     try? await registry.register(CheckToolsClient.toolEntry())
 
     // ── clipboard: read_clipboard / write_clipboard ──────────────────────
-    // 跨应用数据通道 — 剪贴板是 iOS 17(UIPasteboard)与 macOS 14(NSPasteboard)
+    // 跨应用数据通道。剪贴板是 iOS 17(UIPasteboard)与 macOS 14(NSPasteboard)
     // 各自的一等公民, 且本仓 UI 层已消费同一表面(ChatView.swift:1123/:1138)。
     // 故不 #if 到 macOS(与桌面控制/AX/App 生命周期那些 macOS 专属语义不同轴),
     // 跨平台注册, 深度适配「各平台」。读只读免审批; 写改全局态 → 审批门。
@@ -719,24 +719,24 @@ func bootstrapBuiltInTools(
     try? await registry.register(WriteClipboardClient.toolEntry())
 
     // ── open_url: 按 URL 路由到 system handler app ─────────────────────────
-    // 「自主操作计算机」的 URL 路由面 — 与 open_app("按 App 名启动")不同轴:
-    //   open_app = 按名启本地 GUI app (macOS NSWorkspace)
-    //   open_url = 按 URL scheme 路由: http→浏览器, mailto→Mail, tel→Phone,
+    // 「自主操作计算机」的 URL 路由面。与 open_app("按 App 名启动")不同轴:
+    //  open_app = 按名启本地 GUI app (macOS NSWorkspace)
+    //  open_url = 按 URL scheme 路由: http→浏览器, mailto→Mail, tel→Phone,
     //              custom→已注册 handler app, universal link→handler
     // iOS 上这是 agent→外部 App 的 **唯一主动通道**(无 NSWorkspace/CGEvent);
     // macOS 上与 shell `open -a X` 不等价(shell 仅启 app, 不传 URL payload)。
     // 跨平台 gate 判据(同 clipboard/system_info):
-    //   macOS 14: NSWorkspace.shared.open(url)→Bool (非弃用, 10.15+)
-    //   iOS 17:   UIApplication.shared.open(url) async→Bool (非弃用)
+    //  macOS 14: NSWorkspace.shared.open(url)→Bool (非弃用, 10.15+)
+    //  iOS 17:   UIApplication.shared.open(url) async→Bool (非弃用)
     // 双平台一等→跨平台注册。有副作用(启外部 app)→isDestructive:true→审批门。
     try? await registry.register(OpenURLClient.toolEntry())
 
     // ── transcribe_audio ───────────────────────────────────────────────────
-    // 听觉感知轴的 agent 可触面: 复用已建的音频基设(而非另造)——
-    //   LocalSTT(L3, macOS 26 / iOS 26+ 离线 Speech framework 文件识别)
-    //   + AudioIO 的 live-mic 兜底阶梯。返回识别文字(文本通道,非音频)。
+    // 听觉感知轴的 agent 可触面: 复用已建的音频基设(而非另造)。
+    //  LocalSTT(L3, macOS 26 / iOS 26+ 离线 Speech framework 文件识别)
+    //  + AudioIO 的 live-mic 兜底阶梯。返回识别文字(文本通道,非音频)。
     // 基设已在 UI press-to-talk / MultimodalHandler(HTTP /v1/multimodal)侧消费;
-    // 本工具补 agent 面 —— 与 view_screen 同一「基设已建、补 agent 面」形态。
+    // 本工具补 agent 面。与 view_screen 同一「基设已建、补 agent 面」形态。
     try? await registry.register(TranscribeAudioClient.toolEntry())
 
     // ── speak ──────────────────────────────────────────────────────────────
@@ -747,22 +747,22 @@ func bootstrapBuiltInTools(
 
     // ── generate_video ─────────────────────────────────────────────────────
     // 视频生成轴的 agent 可触面: 复用已 absorb 的视频基设
-    //   WanPipeline(coreai-models conformer, 27 门控面)→ [CGImage]
-    //   + VideoWriter(coreai-models Output, 纯 AVFoundation)→ mp4/gif/apng/webp。
+    //  WanPipeline(coreai-models conformer, 27 门控面)→ [CGImage]
+    //  + VideoWriter(coreai-models Output, 纯 AVFoundation)→ mp4/gif/apng/webp。
     // 低于 floor / 无 CoreAI / 权重未部署 → 诚实上报, 不静默失败。
     try? await registry.register(GenerateVideoClient.toolEntry())
 
     // ── clock ──────────────────────────────────────────────────────────────
     // codex `clock` namespace 两个 agent-loop 原语(0.150.1 HEAD): 读时间 + 受控等待。
-    //   curr_time  无参, UTC `YYYY-MM-DD HH:MM:SS UTC`(codex current_time.rs)
-    //   sleep      `duration_ms` 1..43,200,000(12h) 报墙钟经过秒(codex sleep.rs)
+    //  curr_time  无参, UTC `YYYY-MM-DD HH:MM:SS UTC`(codex current_time.rs)
+    //  sleep      `duration_ms` 1..43,200,000(12h) 报墙钟经过秒(codex sleep.rs)
     // ocoreai 此前 0 注册(agent 想读时间只能靠 info.uptime 间接推;想等只能靠
     // exec sleep 走子进程)→ 本批补一等原语。命名/取值/报告形态逐行对齐 codex。
-    // update_plan — 工具面上对齐 codex（#41630：工具名/参数面/输出版式与上游原值一致）；
+    // update_plan。工具面上对齐 codex（#41630：工具名/参数面/输出版式与上游原值一致）；
     // 默认值对齐 codex `#41744`：`tools.update_plan.enabled` 默认 **false**（opt-in，
     // 显式开启才注册；off-path 无指引，与上游一致）。ocoreai 侧的"开"= Settings
     // `settings.updatePlan.enabled`（见 `Bootstrap/updatePlanEnabled` 参数注入）。
-    // get_plan — `update_plan` 的模型侧读面（Recover 片 1 agent 侧闭环）：读回本会话 durable
+    // get_plan, `update_plan` 的模型侧读面（Recover 片 1 agent 侧闭环）：读回本会话 durable
     // 快照（`PlanTaskStore.shared.current`, 与 UI 面板同源）, 断点续跑时模型自问"做到哪步了"。
     // **同门控**：plan 命名空间 off-path 则读写面一起消失（避免"读面开着写面关着"的不一致）。
     if updatePlanEnabled {
@@ -771,7 +771,7 @@ func bootstrapBuiltInTools(
         try? await registry.register(GetPlanClient.toolEntry())
     }
 
-    // clock — codex 0.150.1 基线对齐（curr_time / sleep 原值命名）。
+    // clock. Codex 0.150.1 基线对齐（curr_time / sleep 原值命名）。
     try? await registry.register(CurrTimeClient.toolEntry())
     try? await registry.register(SleepClient.toolEntry())
 }

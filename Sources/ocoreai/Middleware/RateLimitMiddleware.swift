@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// RateLimitMiddleware — Token bucket rate limiter
+/// RateLimitMiddleware. Token bucket rate limiter
 ///
 /// ### Purpose:
 /// Prevent per-IP or per-model burst traffic from overwhelming the engine pool.
@@ -23,7 +23,7 @@ import Logging
 ///
 /// Tokens refill at a steady rate up to a maximum capacity.
 /// Requests consume tokens; when depleted, requests are rejected.
-/// Thread safety via `actor` mailbox serialization (no @MainActor — server-side pattern).
+/// Thread safety via `actor` mailbox serialization (no @MainActor. Server-side pattern).
 actor TokenBucket {
     /// Current available tokens
     private var available: Double
@@ -132,7 +132,7 @@ actor RateLimitProvider {
     /// Global token bucket for all requests
     private let globalBucket: TokenBucket
 
-    /// Timestamped bucket wrapper — enables time-based eviction
+    /// Timestamped bucket wrapper. Enables time-based eviction
     private struct BucketEntry {
         let bucket: TokenBucket
         var lastUsed: ContinuousClock.Instant
@@ -219,8 +219,8 @@ actor RateLimitProvider {
     /// Extract client IP address from request headers.
     ///
     /// Tries in order:
-    /// 1. ``X-Forwarded-For`` header (first entry) — for reverse proxy / load balancer
-    /// 2. ``X-Real-IP`` header — for nginx-style frontends
+    /// 1. ``X-Forwarded-For`` header (first entry), for reverse proxy / load balancer
+    /// 2. ``X-Real-IP`` header, for nginx-style frontends
     /// 3. ``uri.host`` as last fallback (only reliable when directly connected)
     ///
     /// - Parameter request: Incoming HTTP request
@@ -279,7 +279,7 @@ actor RateLimitProvider {
             }
         }
 
-        // 3. Per-IP check — use proper client IP extraction, not uri.host
+        // 3. Per-IP check. Use proper client IP extraction, not uri.host
         let ip = extractClientIP(from: request)
         let bucket = getOrCreateIPBucket(
             key: ip,
@@ -431,13 +431,13 @@ struct RateLimitMiddleware<Context: RequestContext>: RouterMiddleware {
 
         // The refusal renders through `AppError.response`, the one home that decides which
         // envelope the caller parses: this body used to be a literal here, which is how a
-        // capacity refusal reached a `POST /v1/messages` client in OpenAI's shape — the shape an
+        // capacity refusal reached a `POST /v1/messages` client in OpenAI's shape. The shape an
         // Anthropic SDK has no parser for. `rate_limit_error` stays the `error.type` (the status
         // table's name, same as `engineBusy`: one fact, one spelling); the measured wait leaves as
         // `Retry-After` plus `retry_after_seconds`, both off one number.
         //
         // `X-RateLimit-Limit: exceeded` is gone rather than ported: a header named for a number
-        // whose value is a word claims a measurement the bucket never made — which dimension
+        // whose value is a word claims a measurement the bucket never made, which dimension
         // refused is not in what `check` returns, so there is no honest limit to put there today.
         return try AppError.rateLimited(retryAfter: result.retryAfter)
             .response(from: request, context: context)
