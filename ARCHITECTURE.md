@@ -1,4 +1,4 @@
-# ocoreai Architecture — the live map
+# ocoreai Architecture. The live map
 
 > What this file is: the current shape of the engine, stated only where a file in this repo carries
 > it. The 2026-07-26 "Architecture Review" body that used to live here (20.8 KB of dated ✅/❌
@@ -14,12 +14,12 @@
 
 ## Who owns what
 
-- **HTTP API** — `Handlers/` (openai + anthropic faces share `MessageBuilder.buildMessages`,
+- **HTTP API**, `Handlers/` (openai + anthropic faces share `MessageBuilder.buildMessages`,
   `mergingSteeredTurn` and `persistConversation`), `Router/ChatCompletionsRouter.swift` for routes
   (route truth is `V1EndpointCatalog` + its set-equality test), `Middleware/` for auth + 404 shape.
-- **Engine** — `Engine/EnginePool.swift` (orchestrator: model pool, LRU, HardwareRouter pressure
+- **Engine**, `Engine/EnginePool.swift` (orchestrator: model pool, LRU, HardwareRouter pressure
   eviction), `Engine/EngineInference.swift` (dispatch; MLX and CoreAI branches inline under the
-  single `#if canImport(CoreAI)` gate — there is no `BackendProtocol`),
+  single `#if canImport(CoreAI)` gate. There is no `BackendProtocol`),
   `Engine/EngineInferenceGuided.swift` (the grammar-constrained lane, a real `EnginePool` method
   whose parameters name every input), `Engine/SessionPool.swift`
   (message-level feed dedupe; whether a prefill was skipped is upstream's decision, surfaced as
@@ -27,12 +27,12 @@
   on both paths), `Engine/CoreAIPipelinedEngine.swift` (GPU constrained decoding, MPS samplers),
   `Engine/MetalShaderLibrary.swift` (resolves `default.metallib` down an ordered ladder; never
   staged into a signed bundle).
-- **Scheduler** — `Scheduler/SchedulerActor.swift`, `AdmissionGate.swift`, `OOMGuard.swift`,
+- **Scheduler**, `Scheduler/SchedulerActor.swift`, `AdmissionGate.swift`, `OOMGuard.swift`,
   `MemoryTracker.swift`, `HardwareRouter.swift`, `KVCacheBudget.swift` (floors the token→byte math).
-- **Agent/tool surface** — `Tools/ToolRegistry.swift` is the single chokepoint every tool call
+- **Agent/tool surface**, `Tools/ToolRegistry.swift` is the single chokepoint every tool call
   passes; the mutation ledger and the claim-vs-audit check hang there. `Agents/` holds the approval
   cache (`approvalCacheKey`) and hooks; `Reasoning/ThinkingBudget.swift` calibrates thinking.
-- **UI** — `UI/` (SwiftUI, `@MainActor`), sessions in SQLite + FTS5; `Multimodal/` for capture,
+- **UI**, `UI/` (SwiftUI, `@MainActor`), sessions in SQLite + FTS5; `Multimodal/` for capture,
   hearing (`StreamingConfig` window geometry) and speech.
 
 ## Invariants that shape the code, and where each lives
@@ -53,9 +53,9 @@
 ## What deliberately does not live here
 
 - **Per-file line counts and ungated `file:NNN` cites.** They rotted twice and no gate read them.
-  Line numbers in this repo are conventions, not gates (the anchor machinery retired 11-16 — the
+  Line numbers in this repo are conventions, not gates (the anchor machinery retired 11-16. The
   consumed trees verify docs by compiling them): living prose cites symbols. A type named in this
-  file must exist — audit Class-K checks that, and it is the doc claim still enforced.
+  file must exist. Audit Class-K checks that, and it is the doc claim still enforced.
 - **Dated findings, fix narratives and round verdicts** → `CHANGELOG.md`.
 - **Capability statements a user can read** → `/v1/capabilities` and the dashboard, backed by
   measurement; `AGENTS.md` invariant 2 governs their wording.

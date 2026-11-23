@@ -1,4 +1,4 @@
-# ocoreai — project context for AI agents
+# ocoreai. Project context for AI agents
 
 > Injected into every session, so it carries **rules and pointers only**: a root rule is ≤3 lines
 > (what + the one-line evidence + the gate). Dated incidents and measurements live in
@@ -10,15 +10,15 @@
 > (`WorkspaceContext.maxDocBytes`; `InstructionBudgetSingleSourceTests` binds this sentence to it);
 > past the cap a rule is not deferred, it is never read.
 
-## How we work — pstack (owner ruling 11-17)
+## How we work. Pstack (owner ruling 11-17)
 - Engineering discipline is the pstack plugin: the operator starts rigorous tasks with
   `/pstack:poteto-mode` (install `pstack@cursor-plugins`; model budget via `/pstack:setup-pstack`).
-  Its principles live in its own skill leaves and are deliberately **not re-typed here** — a rule
+  Its principles live in its own skill leaves and are deliberately **not re-typed here**. A rule
   with two homes drifts through one.
 - The same ruling retires the old default "one-pass in this thread, no sub-agent": delegates run as
   `poteto-agent`s under pstack's routing, and the owner still reviews every commit.
 - Replies, commits and prose follow pstack's unslop / technical-writing; a comment says the *why*
-  the code cannot, ≤3 lines, no dates and no bug history — that is the commit message.
+  the code cannot, ≤3 lines, no dates and no bug history, that is the commit message.
 - What pstack cannot own and this file must: the two invariants, the repo rules below, and every
   gate named here.
 
@@ -39,8 +39,8 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
    field, the dashboard, a tool result) must be measured, and must degrade honestly where the backend is absent. A file tool's `OK` is durability, not validity: the
    verdict travels in one result (`OK-but-invalid`). When authority is unclear: run it and read the answer.
 
-## Three readers — UX · DX · AX (owner ruling 11-16: a principle, not a feature)
-Every significant decision — design, architecture, docs, tests, release — prices its real effect on
+## Three readers. UX · DX · AX (owner ruling 11-16: a principle, not a feature)
+Every significant decision. Design, architecture, docs, tests, release. Prices its real effect on
 user, developer and agent experience; gains must be joint, never one bought by another, and are
 judged by measured use, not checklist completeness; full text: the matrix § 17.
 
@@ -69,12 +69,12 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   `scripts/audit.swift_patterns.sh` Class-I; composition: `docs/agent/third-party-notices.md`.
 
 ## Code Conventions
-- Concurrency: strict, `Sendable` enforced — UI is `@MainActor`, engine state is actor-isolated,
+- Concurrency: strict, `Sendable` enforced. UI is `@MainActor`, engine state is actor-isolated,
   cross-actor calls `await`; every `@unchecked Sendable` declaration carries a justification comment.
   A continuation wrapped around an SDK callback needs a deadline **and the caller owns the callback
   object's lifetime**; a polling loop sleeps one poll interval, never the deadline.
 - Compile-time gates: `#if canImport(X)` must name the dependency the block actually uses, and never
-  gates a capability surface on a backend axis — `canImport(CoreAI)` says nothing about Metal, vision,
+  gates a capability surface on a backend axis, `canImport(CoreAI)` says nothing about Metal, vision,
   tokenizers or the ANE. A stub that replaces a real component exposes its flag and is assertable at
   runtime (`tokenizerBackend` on `/v1/capabilities`).
 - Errors: `precondition` is for structural invariants only, new code adds none; zero `try!`, `as!`,
@@ -88,7 +88,7 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   lease never spans live I/O (`ProcessGlobalLeaseDisciplineTests`).
 - One home per decision, and a side effect is gated where it is declared: `ToolEntry.isDestructive` is
   the only destructive truth and `securityPrecheck` asks from it (∪ blacklist for names nothing
-  registers) — a hand-copied matcher list leaves mutating tools unasked (`DestructiveApprovalGateTests`).
+  registers). A hand-copied matcher list leaves mutating tools unasked (`DestructiveApprovalGateTests`).
   Name a destructive route only where the caller's own argument asks for it: `edit_file` offers `rm`
   solely when `newString` is empty (`EditMismatchRecoveryTests`).
 - A file's lifetime is the lifetime of the thing that cites it: bytes outliving their request need an
@@ -105,63 +105,63 @@ Scheduler: SchedulerActor, AdmissionGate, MemoryTracker, OOMGuard · SwiftUI: Ch
 - The two lanes reach the wire by different routes (MLX through upstream `ChatSession`, MTP around it);
   where each line lives is `Sources/ocoreai/Engine/AGENTS.md`.
 
-## Adoption — the surface a stranger ranks
+## Adoption. The surface a stranger ranks
 - **A release is a cadence, not a green suite or one tag:** cadence is the open item; the re-measurable
   field ceiling lives at `long-horizon-goal.md` § Rung zero (audit-facts.sh is its instrument). The tag
   *is* the version (`scripts/version.sh` prints it), so no doc re-types one; `Core/UpdateCheck.swift`
-  only *notifies* — build/publish must split.
+  only *notifies*. Build/publish must split.
 - **Agents are a channel they cannot find:** `/v1/capabilities` serves `endpoints[]`, `skills/ocoreai/`
   is published (probe 39 runs its markers), `GET /openapi.json` renders the contract off that index;
-  no client ships yet — the canonical SDK consumes the wire itself, gated (probe 56).
+  no client ships yet. The canonical SDK consumes the wire itself, gated (probe 56).
 - **Intake is a surface:** duplicate-work check before any outbound issue or PR, answer latency, a
-  verifiable first-screen privacy contract; **#1 is bounded by distribution, not arithmetic** — never
+  verifiable first-screen privacy contract; **#1 is bounded by distribution, not arithmetic**. Never
   call the headline unreachable by math, never chase it: spend on a tag per merge and on a harness
   consuming us (mechanics + stars/day table: `docs/agent/adoption-runbook.md`).
 
 ## Upstream Audit Dependencies
 Five empirical sources plus comparators; round verdicts: `CHANGELOG.md`.
-1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract; the number lives in the
+1. **`mlx-swift-lm`**. The `revision:` pin in `Package.swift` is the contract; the number lives in the
    manifest, never re-typed here, and `DependencyPinStatementTests` binds the manifest's prose and pins
    to `Package.resolved`. Bump protocol: audit the consumption surface → bump `.revision` →
    `make audit` (both lockfiles) → `swift build` + `make test-ci` green → `CHANGELOG.md`. Upstream
    sources live under `Libraries/`, not `Sources/`; clone-vs-pin is `git merge-base --is-ancestor`, and
    the built checkout's cleanliness is asserted by `scripts/probes/_lib.sh`.
-2. **`coreai-models`** — Apple's reference tree, consumed as header-stamped forks (BSD-3; types
-   redefined locally — upstream demands macOS 27). Each file's header carries its upstream baseline;
+2. **`coreai-models`**. Apple's reference tree, consumed as header-stamped forks (BSD-3; types
+   redefined locally. Upstream demands macOS 27). Each file's header carries its upstream baseline;
    `make drift` reports the un-adjudicated window.
-3. **Apple Developer Documentation** — DocC for intent, the SDK's `.swiftinterface` for exact
+3. **Apple Developer Documentation**. DocC for intent, the SDK's `.swiftinterface` for exact
    signatures and `@available` gates, live execution for behaviour.
-4. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: on
+4. **Human Interface Guidelines**. <https://developer.apple.com/design/human-interface-guidelines>: on
    anything user-visible it is the authority; no topic covers agents ⇒
    `docs/agent/agent-interface-guidelines.md`.
-5. **Comparators** — the trees in `docs/agent/comparator-repos.md` (+ diffusion/comparator docs):
+5. **Comparators**. The trees in `docs/agent/comparator-repos.md` (+ diffusion/comparator docs):
    nothing linked or redistributed; a borrowed verdict without a `file:line` stays inference. The
    standard is `~/references`' **shipped practice**, not this tree's habit: where those trees (read at
    HEAD, cited `file:line`) conflict with in-tree precedent, references win; deviation needs an owner
    reason, never implementation-legacy. `~/wiki/*`, `.hermes/` stay colour.
 - **OpenAI / Anthropic compatibility** is judged as vllm and sglang judge it: the spec, their
-  implementation, real requests, observed behaviour — not our convenience.
+  implementation, real requests, observed behaviour, not our convenience.
 - **A mirror proves content, never HEAD.** `api.github.com` is authoritative for HEAD and compare windows.
 
-## Open — measured, unresolved
-Root owes the address only — area, instrument, whose call it waits on; full evidence: `docs/agent/open-items.md`.
-- Loop stall stops hard, and the std lane only by consent — owner call: the terminal word (`LoopStallTerminationTests`).
-- A no-tool turn steers and stops flag-staged (both #608/#798 halves on the std lane) — owner call: the default flip; bypass lanes keep rollback.
-- The tool surface is ungated against the loaded model — owner call; `reasoning_effort`'s gate
+## Open. Measured, unresolved
+Root owes the address only. Area, instrument, whose call it waits on; full evidence: `docs/agent/open-items.md`.
+- Loop stall stops hard, and the std lane only by consent. Owner call: the terminal word (`LoopStallTerminationTests`).
+- A no-tool turn steers and stops flag-staged (both #608/#798 halves on the std lane). Owner call: the default flip; bypass lanes keep rollback.
+- The tool surface is ungated against the loaded model. Owner call; `reasoning_effort`'s gate
   (`ReasoningEffortHonestyTests` + probe 38) is the pattern to extend.
-- The surviving release is ad-hoc signed; Gatekeeper's download path stays unjudged — owner call (probe 41).
-- CoreAI / macOS 27 items unverifiable on this host — `PlatformPremise.hasMacOS27`.
+- The surviving release is ad-hoc signed; Gatekeeper's download path stays unjudged. Owner call (probe 41).
+- CoreAI / macOS 27 items unverifiable on this host, `PlatformPremise.hasMacOS27`.
 
-## Documentation Map — Agent-facing vs Human-facing
+## Documentation Map. Agent-facing vs Human-facing
 Text *injected into the model's context at runtime* is **Agent-facing**: a change alters model
-behaviour, so it owes a behaviour verdict (priced by the board — `scripts/eval/README.md`). Text read
+behaviour, so it owes a behaviour verdict (priced by the board, `scripts/eval/README.md`). Text read
 by people or future agents is **Human-facing** (map: `docs/agent/docs-map.md`). The three
 runtime-injected surfaces, where a word is a behaviour change: `Skills/SystemPromptBuilder.swift`
 (structure gated, behaviour not), `ToolEntry.swift` + `Tool*.swift` (`description`/schema are
-function-calling contracts — test with a live model), `Parsers/*` (marker literals are contracts;
+function-calling contracts. Test with a live model), `Parsers/*` (marker literals are contracts;
 pair against upstream first).
 
-## Routing table — working in X → read this first
+## Routing table. Working in X → read this first
 Read-on-demand topics: `docs/agent/instruction-channel.md` (who delivers `system`/`developer` text and
 its cache cost), `systemone-decisions.md` (upstream's decision API), `long-horizon-goal.md` (the ladder
 and what kills it), `adoption-runbook.md`, `references-conformance-matrix.md` (the full `~/references` audit).
@@ -181,24 +181,24 @@ plus the code.
 
 ## Working here
 - **Direct commits to `main`**; CI on macos-26 (`make test-ci`) is the authority. Stage explicit paths
-  and commit only this session's files — never `git add -A`/`git add .`: several sessions share this
+  and commit only this session's files. Never `git add -A`/`git add .`: several sessions share this
   cwd. One logical change per commit; `CHANGELOG.md` records every user-visible change.
 - **Every claim answers the three questions** (what improved · what same-session output proves it ·
-  which gate goes red if it regresses) — the contract lives in `CONTRIBUTING.md`; missing the third
+  which gate goes red if it regresses). The contract lives in `CONTRIBUTING.md`; missing the third
   makes it a claim. Where upstream already has the answer, consume it or cite `file:line`; do not
   author a local variant.
 - Verification is three layers: grep → compile → read the matched lines. `swift build` exit 0 before
   any completion claim; findings cite `file:line`; living prose cites symbols; label inference as inference.
-- Before writing a symbol, grep for the mechanism that already exists. **Footprint ladder — take the
+- Before writing a symbol, grep for the mechanism that already exists. **Footprint ladder. Take the
   highest rung that solves it:** consume upstream → extend an existing seam → opt-in flag/trait → tool
   or skill → new module → new core/agent-facing surface. A new surface needs a consumer that exists today.
 - **Respect the person using it.** Never navigate, refocus, open a pane or announce because something
-  *happened* in the background — offer, don't hijack. HIG is authority on anything user-visible; the
+  *happened* in the background. Offer, don't hijack. HIG is authority on anything user-visible; the
   five non-happy states owe honest copy and a way out (`Sources/ocoreai/UI/AGENTS.md`).
 - **A lock lives at the cheapest rung that bites:** hook → `make` → CI, priced in runner-seconds. A gate
   blocks only when a red means someone acted on something false, and a new one names the red it was
   sampled against and the reader whose action it changes (`CONTRIBUTING.md`). **Gate count is never the
-  deliverable, and no gate is installable** — see § Adoption.
+  deliverable, and no gate is installable**. See § Adoption.
 - **No defensive clutter:** validate once at the boundary that owns the value; quote the failure (a
   probe line, a red test, a scoreboard row) before writing its guard. For a speculative race or
   security edge: name mode, likelihood and cost and get the owner's buy-in.

@@ -33,7 +33,7 @@ coding agent. It is not a multi-tenant, untrusted-input service.
   are in scope.
 - **Out of scope (by design):** rate-limit tuning on a single-operator
   LAN, and any model-behaviour issue (bad output, tool misuse,
-  hallucination) — these are product-quality issues, not
+  hallucination). These are product-quality issues, not
   vulnerabilities, unless they enable one of the in-scope bypasses.
 - **Out of scope:** the upstream MLX / CoreAI SDK surfaces it consumes.
   Report those to their own channels.
