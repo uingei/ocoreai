@@ -42,8 +42,9 @@ else
   n=$(printf '%s\n' "$dirty" | wc -l | tr -d ' ')
   bad "$n path(s) uncommitted — the round is neither reviewable nor pushed:"
   printf '%s\n' "$dirty" | head -12 | sed 's/^/        /'
-  say "remedy: commit the slice (one logical change per commit), or stash it deliberately — "
-  say "an invisible heap is how 2 days of work escaped CI"
+  say "remedy: commit the slice (one logical change per commit). Never clear this red with"
+  say "`git stash` in a shared checkout — a later pop lands another session's work on a newer"
+  say "HEAD (measured here); an invisible heap is how 2 days of work escaped CI."
 fi
 
 # H2. Nothing unpushed.
