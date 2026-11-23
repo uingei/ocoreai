@@ -35,26 +35,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The intake half is what this step guards: a stranger's bug report is the cheapest
-      # contribution there is, and a form that GitHub refuses to render (empty description,
-      # malformed body) silently costs every one of them. The review half — PR template,
-      # CODEOWNERS, the two-axis docs — was deleted 11-07: it guarded a process the repo's own
-      # culture bypasses (direct commits), with zero PRs, zero inbound references and zero reds
-      # in 200 commits; if PRs ever exist, the template costs five minutes then, not 27 KB now.
-      - name: Intake governance check
-        run: |
-          set -euo pipefail
-          FAIL=0
-          for f in CONTRIBUTING.md \
-                   .github/ISSUE_TEMPLATE/config.yml .github/ISSUE_TEMPLATE/bug_report.yml \
-                   .github/ISSUE_TEMPLATE/capability_honesty.yml .github/ISSUE_TEMPLATE/feature_request.yml; do
-            if [ ! -f "$f" ]; then
-              echo "❌ Missing: $f — review infrastructure incomplete"
-              FAIL=1
-            fi
-          done
-          [ "$FAIL" -eq 1 ] && exit 1
-          echo "✅ Intake governance: contribution + intake files present"
+      # The intake file-presence step was deleted 11-24 in the owner's gate review: the files it
+      # listed cannot go missing by accident (only by a deliberate one-line delete that any reader
+      # sees in `git show`), the step had never gone red, and the failure its comment named — a
+      # form GitHub refuses to render — was judged by check-yaml in the hook step below, never by
+      # this one. The review half went the same way 11-07 (zero reds in 200 commits).
 
       # Text gates belong on the free runner: the macos-26 audit leg costs 715 s a push, and
       # neither of these needs a Swift toolchain. codespell's pin lives in the script (one home),
@@ -104,8 +89,10 @@ jobs:
       # only, and no tree greps its own prose. The injection cap is enforced at runtime by
       # WorkspaceContext, which names every cut.
 
-      # Zero try!/as!/fatalError/assert, print() only on a CLI surface, and the Class-I licence
-      # patterns that travel with the binary (AGENTS.md § Build / Test / Lint).
+      # One class per recurring failure shape, each self-tested against its own known-bad line
+      # before it may print Clean (force unwraps, empty catches, frozen version literals, the
+      # Class-I licence patterns that travel with the binary). The scan set, not this comment, is
+      # the contract: `bash scripts/audit.swift_patterns.sh` prints every class and its premise.
       - name: Code-pattern audit
         run: |
           bash scripts/audit.swift_patterns.sh \
