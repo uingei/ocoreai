@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Composer-draft placement invariant — codex `#46750` ("Preserve startup
+/// Composer-draft placement invariant. Codex `#46750` ("Preserve startup
 /// drafts and submit them when the session is ready") applied to the GUI axis.
 ///
 /// The typed draft + staged attachments MUST live on the shared `ChatState`
@@ -9,7 +9,7 @@
 /// any view-local @State is discarded with the view and the user's draft is
 /// lost. This test is a COMPILE-PLACEMENT guard: it references the fields
 /// through `ChatState.shared`, so deleting/moving them off the singleton
-/// (back into `@State`) fails to compile — the regression is caught statically.
+/// (back into `@State`) fails to compile. The regression is caught statically.
 ///
 /// It also asserts the runtime semantics that are observable without a view:
 /// draft is settable, readable back byte-identical, and attachments round-trip
@@ -45,7 +45,7 @@ struct ComposerDraftPlacementTests {
         await withCleanDraft {
             let draft = "检查 /tmp/autonomy 下三个仓库目录的文件数和总字节数…"
             ChatState.shared.inputText = draft
-            // Byte-identical round-trip through the @Observable reference —
+            // Byte-identical round-trip through the @Observable reference,
             // the same instance the view binds to, so what is stored is what
             // renders. No view in between = no view-recreation window where it
             // could be dropped.

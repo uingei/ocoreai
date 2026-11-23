@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// ChildProcessEnvTests — both launcher-environment policies to exact values. The scrub
+// ChildProcessEnvTests. Both launcher-environment policies to exact values. The scrub
 // mechanism shipped before any gate read it; this suite is the red it owed.
 import Foundation
 import Testing

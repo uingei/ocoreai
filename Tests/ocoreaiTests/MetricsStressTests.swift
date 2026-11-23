@@ -1,4 +1,4 @@
-// MetricsStressTests.swift — MetricsRegistry concurrent correctness & leak detection
+// MetricsStressTests.swift. MetricsRegistry concurrent correctness & leak detection
 //
 // Exposes: race conditions in actor mailbox, histogram bucket overflow,
 // Prometheus export format compliance, memory leak in counter growth.

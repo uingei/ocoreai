@@ -1,7 +1,7 @@
-// ToolSpecFullRegistryTests.swift — 全量真实工具集 × 两条推理路 wire 形状验证
+// ToolSpecFullRegistryTests.swift。全量真实工具集 × 两条推理路 wire 形状验证
 //
 // "21 工具 schema decode failed"（实为 25/27 口径）后的全面性门。纪律:
-//   1. 不用手写样例 JSON 断言"全过" — 用真实 bootstrapBuiltInTools registry（生产同路）。
+//   1. 不用手写样例 JSON 断言"全过"。用真实 bootstrapBuiltInTools registry（生产同路）。
 //   2. 两条推理路都验: MLX 路 (toToolSpecs wire 形状) + FM 路 (makeDynamicSchema →
 //      GenerationSchema 构建, macOS 27 gate 内)。
 //   3. 精确值断言（#expect == N），禁 count > 0 弱断言。
@@ -39,7 +39,7 @@ struct ToolSpecFullRegistryTests {
         let names = Set(await registry.listTools())
         // 真值（BuiltInTools.swift 注册点逐点数：bootstrap 共 42 处 registry.register,
         // 其中 10 处落在唯一一段 #if os(macOS)(:661-700) ⇒ 两平台基础 32,macOS 42）：
-        //   无条件 27（含 clipboard×2 / system_info×1 / open_url×1 —— 源码层无条件注册,
+        //   无条件 27（含 clipboard×2 / system_info×1 / open_url×1。源码层无条件注册,
         //     它们是 iOS17/macOS14 各平台一等面(非 macOS-only):
         //     open_url=按 URL 路由到 handler app(macOS NSWorkspace.open(url)/iOS UIApplication.open(url))。
         //   + skills×3（skillRegistry 非 nil）+ plan×2（updatePlanEnabled）= 32 基础口径;
@@ -119,7 +119,7 @@ struct ToolSpecFullRegistryTests {
             }
             return nil
         }
-        // 生产真值: read_file 仅 path 必填 —— offset/limit 带 handler 缺省(1/2000)。
+        // 生产真值: read_file 仅 path 必填。offset/limit 带 handler 缺省(1/2000)。
         // wire 强制必填曾逼 grammar 小模型发 limit:1 → read_file 静默读 1 行(10-07 live)。
         #expect(Set(requiredOf("read_file") ?? []) == Set(["path"]))
         #expect(Set(requiredOf("search_files") ?? []) == Set(["path", "pattern"]))
@@ -138,7 +138,7 @@ struct ToolSpecFullRegistryTests {
         #expect(Set(requiredOf("web_fetch") ?? []) == Set(["url"]))
         #expect(Set(requiredOf("transcribe_audio") ?? []) == Set(["path"]))
         #expect(Set(requiredOf("generate_video") ?? []) == Set(["prompt"]))
-        // 全量不变式: required 里任何键的 description 不得以 "Optional" 开头 ——
+        // 全量不变式: required 里任何键的 description 不得以 "Optional" 开头。
         // wire 上"必填却自称可选"= 谎, 从此 CI 红。
         for s in specs {
             guard let f = s["function"] as? [String: any Sendable] else { continue }
@@ -192,7 +192,7 @@ struct ToolSpecFullRegistryTests {
     func supplementedToolDescriptionsSurviveToWire() async {
         let registry = await Self.fullRegistry()
         let specs = await registry.toToolSpecs()
-        // 钉死补过的 7 个工具(逐点核 BuiltInTools.swift) — 任一回退到
+        // 钉死补过的 7 个工具(逐点核 BuiltInTools.swift)。任一回退到
         // 薄 fallback("Tool: <name> [<toolset>]")即失败: 模型丢失用途信号。
         let supplemented = [
             "info", "echo", "read_file", "search_files",
@@ -304,7 +304,7 @@ struct ToolSpecFullRegistryTests {
     func writeFilePathDescribesNesting() async {
         // Measured 2026-10-22 (`scripts/eval/run.sh`, gemma-4-e2b-it-4bit): asked for
         // build/report.txt the turn wrote ./report.txt five runs in a row and answered
-        // "File created." — the tool was fine (intermediate dirs + atomic write + read-back),
+        // "File created.". The tool was fine (intermediate dirs + atomic write + read-back),
         // the argument description never said to keep the folder the user named. Stating it in
         // the slot the model fills took that task from 0/5 to 4/4, so this wording is a
         // function-calling contract, not prose: a reword that drops it goes red here.

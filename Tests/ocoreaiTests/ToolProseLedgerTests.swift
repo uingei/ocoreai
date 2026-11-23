@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ToolProseLedgerTests.swift — one declaration per turn, decided by a measurement of the
+/// ToolProseLedgerTests.swift. One declaration per turn, decided by a measurement of the
 /// checkpoint rather than by which family its config key names.
 ///
 /// Live evidence (probe 16, `mlx-community/gemma-4-e2b-it-4bit`, temp 0): one declared tool
 /// grew the delivered `usage.prompt_tokens` 707 → 823 (+116) while this server's own tokenizer
 /// attributed +65 to the `## Tool:` prose it wrote (systemChars +302); a second declared tool
-/// took the residue to +103, i.e. +52 again — per-entry duplication, not one-off template
+/// took the residue to +103, i.e. +52 again. Per-entry duplication, not one-off template
 /// overhead. The checkpoint's `chat_template.jinja` renders every `ChatSession.tools` entry as
 /// `<|tool>declaration<tool|>` (:196-203), and that is the copy the model was trained on.
 ///
@@ -100,7 +100,7 @@ struct ToolProseLedgerTests {
         #expect(await ledger.mode(modelId: "never-loaded") == .injectedUnmeasured)
     }
 
-    /// The claim must not outlive the weights it was read from — the same rule the video and
+    /// The claim must not outlive the weights it was read from. The same rule the video and
     /// tool-call ledgers follow at unload.
     @Test("forget sends a model back to unmeasured")
     func forgetDropsTheClaim() async {
@@ -111,7 +111,7 @@ struct ToolProseLedgerTests {
         #expect(await ledger.modes.keys.contains("m") == false)
     }
 
-    // MARK: — the wiring, scanned with its own floor
+    // MARK:. The wiring, scanned with its own floor
 
     private static func source(_ relative: String) throws -> String {
         var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
@@ -155,7 +155,7 @@ struct ToolProseLedgerTests {
         #expect(try Self.count(#"chatTemplateRendersTools\("#, in: pool) == 1)
     }
 
-    /// The prose must stay behind the decision — an unconditional append is the shape that
+    /// The prose must stay behind the decision. An unconditional append is the shape that
     /// wrote the same tool twice.
     @Test("the injection is guarded by the ledger, not unconditional")
     func injectionIsGuarded() throws {
@@ -166,7 +166,7 @@ struct ToolProseLedgerTests {
             "the prose block must exist exactly once, inside the guard")
     }
 
-    // MARK: — the published row (GET /v1/models/:model/kv-cache → toolProse)
+    // MARK:. The published row (GET /v1/models/:model/kv-cache → toolProse)
 
     /// Closed vocabulary on the wire, not just in the log: a fourth spelling is how a
     /// publisher starts inventing capability.

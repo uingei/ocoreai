@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ConversationCompactionTests.swift — Exact-value tests for rule-based
+/// ConversationCompactionTests.swift. Exact-value tests for rule-based
 /// context-window compaction (codex compact.rs paradigm, deterministic core).
 ///
 /// Every expected number is derived from the Phase 3 formula
 /// (UTF-8 bytes/4 for Latin-heavy, /3 for CJK-heavy, avg bytes/char > 1.5)
-/// and asserted with exact equality — no `>=`, no approximate bounds.
+/// and asserted with exact equality, no `>=`, no approximate bounds.
 
 import Foundation
 import Testing
@@ -233,7 +233,7 @@ struct ConversationCompactionTests {
             msg("assistant", String(repeating: "B", count: 60)),  // 15
         ]
         // Budget 40, reserve 20 => target 20. S(0)+note(34)+B(15) still > 20, so
-        // A is dropped (10) — but the note pushes the total over; assert the
+        // A is dropped (10), but the note pushes the total over; assert the
         // exact dropped count and survivors.
         let r = ConversationCompaction.compact(
             messages,

@@ -1,16 +1,16 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! VideoDeliveryPathTests.swift — where the video claim may be made, and where it may not.
+//! VideoDeliveryPathTests.swift, where the video claim may be made, and where it may not.
 //!
 //! `VideoDeliveryDisclosureTests` pins what the ledger says once it is fed. This file pins
 //! *who feeds it*, because that placement was the defect: the record sat inside
-//! `releasePoolSlotWithAssistant`, which is a no-op whenever there is no pooled session —
+//! `releasePoolSlotWithAssistant`, which is a no-op whenever there is no pooled session,
 //! the degraded CPU lane (`poolRef = nil`) and a pool-disabled engine (`sessionPool = nil`)
 //! both run without one, and both still hand every frame to the processor. So an answered
 //! video turn there published `not_observed`: invariant 2 violated in the direction of
 //! silence, invisible to every test that only exercised the pooled path.
 //!
-//! The comments in this file's own subject used to claim the leak was elsewhere — on the
+//! The comments in this file's own subject used to claim the leak was elsewhere. On the
 //! guided-gen / MTP early releases. Reading those branches instead of inferring them says
 //! otherwise: their guards require every message to carry no video, so media cannot enter
 //! them. That verdict is pinned here too, so if media ever is admitted to either path,
@@ -153,7 +153,7 @@ struct VideoDeliveryPathTests {
         // The premise is a call site, not a line: a literal written across a wrap reads "the
         // seam moved" when all that moved is a newline (measured 11-01, when the formatter
         // wrapped this call and the gate reported a moved completion path). Floored at one
-        // match — the `func` takes the key as `_ historyKey`, so only a call can match.
+        // match. The `func` takes the key as `_ historyKey`, so only a call can match.
         let releaseCalls = inference.matches(
             of: #/releasePoolSlotWithAssistant\(\s*assistantKey\b/#)
         #expect(

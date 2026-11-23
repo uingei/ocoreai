@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SessionIsolationTests — 没有 conversationId 的请求不得共用同一个会话。
+/// SessionIsolationTests。没有 conversationId 的请求不得共用同一个会话。
 ///
 /// 实机起因（10-12，`/v1/chat/completions`，gemma-4-e2b-it-4bit）：三条**互不相关**
 /// 的单消息请求跑完后，第三条「我第一个问题是什么？」原样引用了第一条的问题；
@@ -124,7 +124,7 @@ struct SessionIsolationTests {
 
     @Test("empty cached history is always safe to serve")
     func emptyHistoryReusable() {
-        // Nothing is skipped, so nothing can be stale — the feed still brings its own turn.
+        // Nothing is skipped, so nothing can be stale. The feed still brings its own turn.
         #expect(
             MLXSessionPool.canReusePooledSession(
                 cachedMessageCount: 0, commonPrefixCount: 0, instructionsMatch: true,
@@ -133,7 +133,7 @@ struct SessionIsolationTests {
     }
 
     /// Measured 10-22 (probe 30): a verbatim repeat of a prompt left a ledger covering the
-    /// whole feed, the turn was fed nothing, and the model answered end-of-turn at once —
+    /// whole feed, the turn was fed nothing, and the model answered end-of-turn at once,
     /// `200 + completion_tokens=1 + finish_reason=stop` for a request that asked for 150
     /// lines. A cache may be a *strict* prefix of the feed and nothing less.
     @Test("verbatim repeat: cache covers the whole feed ⇒ refuse, never feed nothing")
@@ -164,7 +164,7 @@ struct SessionIsolationTests {
     @Test("different instructions ⇒ refuse, even with an empty transcript")
     func changedInstructionsRefused() {
         // The shape a guided/tool turn leaves behind: it parks the session with an empty
-        // transcript, so the prefix premise passes for anything — the identity of the
+        // transcript, so the prefix premise passes for anything. The identity of the
         // instruction set is the only thing standing between this turn and the previous
         // turn's system prompt.
         #expect(
@@ -383,7 +383,7 @@ struct SessionIsolationTests {
     /// The KV-cache plan is part of the snapshot's identity: a sidecar that states another
     /// reserve describes rows this build cannot realize, and upstream says so at first token
     /// (`requirePlan` throws `kvCacheConfigurationChanged`, `ChatSession.swift:307`). Deciding
-    /// that here turns a failed turn into what it is — one cold turn — and names it on the
+    /// that here turns a failed turn into what it is. One cold turn, and names it on the
     /// ledger instead of the error path.
     @Test("refuses a snapshot built under another KV-cache plan")
     func rewindReserveChangedRefused() {

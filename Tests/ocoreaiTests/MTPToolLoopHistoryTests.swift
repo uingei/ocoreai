@@ -1,9 +1,9 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! MTPToolLoopHistoryTests.swift — the MTP tool loop must enter the calling assistant
+//! MTPToolLoopHistoryTests.swift. The MTP tool loop must enter the calling assistant
 //! turn into the history before any result answers it (upstream ChatSession.swift:1959).
 //! Missing it, the next iteration's template renders orphan tool blocks and the loop
-//! conditions on a history that erased its own actions — the class the 11-16 std-lane
+//! conditions on a history that erased its own actions. The class the 11-16 std-lane
 //! flattening fix convicted; this suite is the MTP lane's gate for the same shape.
 
 import Foundation

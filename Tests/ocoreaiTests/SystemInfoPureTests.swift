@@ -38,7 +38,7 @@ struct SystemInfoPureTests {
             diskTotalBytes: 20_000_000_000,
             diskAvailBytes: 10_000_000_000
         )
-        // 逐行精确(不含 platform/arch 两行 — 那两行走编译期, 另断言):
+        // 逐行精确(不含 platform/arch 两行。那两行走编译期, 另断言):
         let lines = withDisk.split(separator: "\n").map(String.init)
         #expect(lines.contains("os: Version 1.0 (Build X)"))
         #expect(lines.contains("cpu: 8 active / 8 cores"))

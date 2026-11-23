@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Locale resolution tests — the HIG contract for the language picker:
+/// Locale resolution tests. The HIG contract for the language picker:
 ///   1. The picker lists only locales with a complete translation table.
 ///   2. A persisted user choice actually drives rendered strings.
 ///   3. First run / never-changed follows the system locale.
 ///
 /// The voice axis (STT recognition + TTS voice + tool reports) consumes the
-/// SAME persisted choice — locked here, in this one sequential test, because
+/// SAME persisted choice. Locked here, in this one sequential test, because
 /// `settings.app.locale` is a shared single key: concurrent tests writing it
 /// interleave. This is the single writer/reader of that key under test.
 ///
@@ -25,7 +25,7 @@ private let localeDefaultsKey = "settings.app.locale"
 struct LocaleTableCompletenessTests {
     /// The invariant that was previously broken and undetected: a `StringKey`
     /// case can be declared and used in the UI while silently absent from a
-    /// delivered table — then `localized(for:)` falls back to the wrong
+    /// delivered table. Then `localized(for:)` falls back to the wrong
     /// language (or the raw key) silently: no red test, no user-visible error.
     /// Lock: each delivered table maps EXACTLY the full key set, no extras.
     @Test("en (base) table covers every StringKey exactly once, no orphans")
@@ -49,7 +49,7 @@ struct LocaleTableCompletenessTests {
         )
     }
 
-    /// A delivered translation must be non-blank text — an empty string
+    /// A delivered translation must be non-blank text. An empty string
     /// renders as an invisible UI label, strictly worse than the raw key.
     @Test("no delivered table contains a blank value")
     func noBlankValues() {
@@ -69,7 +69,7 @@ struct LocaleTableCompletenessTests {
     /// zh must differ from the en text (a "translation" identical to the
     /// original en string is a copy, not a localization). Keys that are
     /// legitimately identical in both scripts (units, brand names) are
-    /// allowed — this only fails keys that LOOK localized but aren't.
+    /// allowed. This only fails keys that LOOK localized but aren't.
     @Test("zh values that contain CJK differ from their en counterpart")
     func localizedStringsActuallyLocalize() {
         for (key, zhValue) in L10nTables.zh {
@@ -110,7 +110,7 @@ struct LocaleTableCompletenessTests {
     /// Copy has one home (`StringKey`); a literal typed into the GUI is copy
     /// that no locale can reach. Measured before this gate existed: 7 sites
     /// (`ApprovalNotifier` banner + the five quick-load model cards).
-    /// `Security/` and `Reasoning/` keep CJK on purpose — those are matcher
+    /// `Security/` and `Reasoning/` keep CJK on purpose. Those are matcher
     /// vocabularies (263 literals), not strings a user reads.
     @Test("the GUI holds no copy outside the string table")
     func guiHasNoCopyOutsideTheStringTable() throws {
@@ -414,7 +414,7 @@ struct LocaleUserChoiceTests {
         #expect(StringKey.systemOnline.l == "System Online")
         #expect(TranscribeAudio.build(locale: nil, maxChars: nil).localeIdentifier == "en")
         // TTS voice selection consumes the bare ISO code (the AVSpeech voice
-        // ladder resolves "zh"/"en", never a script tag — probing confirmed
+        // ladder resolves "zh"/"en", never a script tag. Probing confirmed
         // "zh-Hans" would match no voice and fall to any personal voice).
         #expect(OCALocale.zhHans.languageCode == "zh")
         #expect(OCALocale.en.languageCode == "en")

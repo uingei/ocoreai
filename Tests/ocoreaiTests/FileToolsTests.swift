@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// FileToolsTests.swift — file tool surface: read_file / write_file / search_files.
+/// FileToolsTests.swift. File tool surface: read_file / write_file / search_files.
 ///
 /// Verifies the P0 tool-surface implementation (codex borrow: apply-before-verify)
 /// and that the registry wiring exposes them with correct safety classifications.
@@ -58,7 +58,7 @@ struct FileToolsBehaviorTests {
     // Regression: previously `start + limit - 1` overflowed for a huge `limit`
     // and `start...end` tripped its range precondition for `limit == 0`.
     // Both crash the process ("Fatal error: arithmetic overflow" /
-    // "Range requires lowerBound <= upperBound") — they must now degrade safely.
+    // "Range requires lowerBound <= upperBound"). They must now degrade safely.
     @Test("read_file never overflows for extreme limit: 0, negative, Int.max")
     func readExtremeLimit() throws {
         try seed()

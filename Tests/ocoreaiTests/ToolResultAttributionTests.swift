@@ -4,7 +4,7 @@
 /// actually did.
 ///
 /// Measured before this suite: `ToolResultMeta(` had exactly one construction site (the std lane),
-/// so the MTP loop dispatched every call it collected and published none of them — a GUI tool card
+/// so the MTP loop dispatched every call it collected and published none of them. A GUI tool card
 /// under MTP had no real duration, no failure and no summary. And no refusal anywhere carried the
 /// arguments that missed, while a native turn echoes no `tool_calls` on the wire at all, so a
 /// client could not tell a wrong path from a wrong `oldString` from a call that never left here.
@@ -64,7 +64,7 @@ private func occurrences(of needle: String, in text: String) -> Int {
 }
 
 @Test func digestSurvivesValuesThatAreNotJSONFragments() {
-    // Measured: a `null` argument aborted the process — `NSNull` is non-nil, and
+    // Measured: a `null` argument aborted the process, `NSNull` is non-nil, and
     // `withJSONObject` answers it with an Objective-C exception that `try?` cannot catch.
     #expect(ToolResultMeta.argumentsDigest(["k": NSNull()]) == "k=null")
     let odd = ToolResultMeta.argumentsDigest(["k": Date(timeIntervalSince1970: 0)])
@@ -124,7 +124,7 @@ private func occurrences(of needle: String, in text: String) -> Int {
     let inference = try readSource("Sources/ocoreai/Engine/EngineInference.swift")
     let events = try readSource("Sources/ocoreai/Engine/EngineEvents.swift")
 
-    // One construction of the meta in all of Sources — inside the publisher.
+    // One construction of the meta in all of Sources. Inside the publisher.
     #expect(occurrences(of: "ToolResultMeta(", in: inference) == 0)
     #expect(occurrences(of: "ToolResultMeta(", in: events) == 1)
     // Exactly two publishers: the std lane and the MTP lane. A third lane that forgets to publish

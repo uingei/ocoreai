@@ -3,7 +3,7 @@
 /// Behavioral invariant tests for OOMGuard, Scheduler, and AgentLoop.
 ///
 /// These tests exercise state machines and invariants that the 800+ DTO
-/// round-trip tests never touch — actual bug-finding surface area.
+/// round-trip tests never touch. Actual bug-finding surface area.
 
 import Testing
 import ocoreaiTestUtilities

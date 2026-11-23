@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// CLIModeTests — pins the pure informational CLI surface (--version/--help).
+// CLIModeTests. Pins the pure informational CLI surface (--version/--help).
 // The live proof (binary answers instantly, exit 0, no engine boot) is the
 // smoke run; here we pin the truth table exhaustively, same discipline as
 // HeadlessServeModeTests: exact values, no I/O. Formatting discipline:
-// every call binds to a `let` first — CI's swift-format (603.0.0) and
+// every call binds to a `let` first. CI's swift-format (603.0.0) and
 // this host's (`main`) wrap long #expect arguments differently; lines
 // under 100 chars stay byte-stable in both.
 import Testing
@@ -55,7 +55,7 @@ struct CLIModeTests {
     func failSafeGuiDefault() {
         #expect(CLIMode.informationalReport(for: [], shortVersion: "X") == nil)
         #expect(CLIMode.informationalReport(for: ["ocoreai"], shortVersion: "X") == nil)
-        // near misses — only the exact tokens answer
+        // near misses, only the exact tokens answer
         let nearMisses = ["-version", "--versions", "Help", "", "SERVER"]
         for token in nearMisses {
             let args = ["ocoreai", token]
@@ -74,7 +74,7 @@ struct CLIModeTests {
                 "\(token) must print an object, got \(text.prefix(24))")
             // The trailing newline belongs to the report. `make openapi` redirects stdout
             // straight into the committed openapi.json, so a report without one plus a
-            // `print` that adds one puts a stray byte in git — measured 10-29, before
+            // `print` that adds one puts a stray byte in git. Measured 10-29, before
             // Application.swift stopped letting `print` decide.
             #expect(
                 text.hasSuffix("}\n") && !text.hasSuffix("\n\n"),

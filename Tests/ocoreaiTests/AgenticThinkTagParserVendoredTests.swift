@@ -6,7 +6,7 @@
 // Pins the #206 agentic streaming hardening (consumeEntryMarker
 // ` to=` + `<|start|>assistant ` prefix variants, isPartialRoutingHeader
 // held-back, generic to=<tool> routing, stripReasoning static) that the
-// pre-#206 vendored ocoreai lacked — ocoreai was at 0/0/0 of these,
+// pre-#206 vendored ocoreai lacked. Ocoreai was at 0/0/0 of these,
 // upstream `b91bb18` is 2/2/1. See `Sources/ocoreai/Parsers/TokenParsers/
 // ThinkTagParser.swift` header.
 

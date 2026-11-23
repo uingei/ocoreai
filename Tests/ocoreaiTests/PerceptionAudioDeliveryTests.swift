@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PerceptionAudioDeliveryTests.swift — regression tests for the audio branch
+/// PerceptionAudioDeliveryTests.swift. Regression tests for the audio branch
 /// of PerceptionEngine.contentParts(): an `.audio` frame carrying an audioURL
 /// must be delivered as an `audio` ContentPart with the URL intact (not
 /// degraded to a "[Audio recording context]" text placeholder that drops the

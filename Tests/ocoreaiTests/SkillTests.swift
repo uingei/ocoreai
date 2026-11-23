@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SkillTests.swift — Tests for SkillModels, SkillRegistry, SystemPromptBuilder, SkillLoader
+/// SkillTests.swift. Tests for SkillModels, SkillRegistry, SystemPromptBuilder, SkillLoader
 ///
 /// Covers:
 ///  - SkillMetadata serialize/roundtrip
@@ -415,7 +415,7 @@ struct SkillLoaderTests {
         } catch {
             // Yams throws its own error which wraps into SkillError.parseFailed
             // but if YAML is completely invalid, Yams' own error propagates first
-            // — either is acceptable
+            // Either is acceptable
         }
     }
 
@@ -480,7 +480,7 @@ struct SkillLoaderTests {
 /// The order `resolvedSkills()` returns is not presentation detail: it is the order the skill
 /// blocks are written into the system prompt. Swift randomizes its hashing seed per launch, so
 /// every place this registry handed back `Array(dictionary.keys)` produced different prompt bytes
-/// in every process — measured 10-23 via `OCOREAI_MARGIN_DUMP`: eight cold boots of one request
+/// in every process. Measured 10-23 via `OCOREAI_MARGIN_DUMP`: eight cold boots of one request
 /// produced four byte-variants of the same 713-token prompt, each in its own logits regime, and
 /// two of the four regimes answered EOS after one token. That is a task failing by coin flip.
 ///

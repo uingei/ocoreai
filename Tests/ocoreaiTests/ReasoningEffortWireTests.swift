@@ -7,7 +7,7 @@
 // the raw value into the jinja chat-template context. The model template is
 // the single validation authority (Qwen3.8: xhigh/medium/low,
 // raise_exception otherwise). ocoreai makes NO local mapping, NO default,
-// NO local enum — so these tests assert verbatim pass-through and merge
+// NO local enum, so these tests assert verbatim pass-through and merge
 // semantics, never a canonicalized value.
 //
 // JSON payloads are built via `[String: Any]` + `JSONSerialization` (same
@@ -33,7 +33,7 @@ private func decodeRequest(_ extra: [String: Any]) throws -> ChatCompletionReque
 struct ReasoningEffortWireTests {
 
     /// Every codex-aligned word + Qwen3.8's three accepted values decode
-    /// VERBATIM (no local mapping may normalize or translate them — the
+    /// VERBATIM (no local mapping may normalize or translate them. The
     /// model template is the validation authority).
     @Test
     func wireDecodesEffortVerbatim() throws {
@@ -44,7 +44,7 @@ struct ReasoningEffortWireTests {
     }
 
     /// Absent field → nil (the model template then applies its own default,
-    /// e.g. xhigh for Qwen3.8 — ocoreai must not supply one).
+    /// e.g. xhigh for Qwen3.8. Ocoreai must not supply one).
     @Test
     func wireAbsentIsNil() throws {
         let req = try decodeRequest(["reasoning": true])
@@ -86,7 +86,7 @@ struct ReasoningEffortContextTests {
     }
 
     /// nil / empty / whitespace raw + nil base → stays nil (no behavior
-    /// change for thinking-off / no-effort traffic — nothing injected,
+    /// change for thinking-off / no-effort traffic. Nothing injected,
     /// no empty-dict placeholder).
     @Test
     func nilOrEmptyRawWithNilBaseStaysNil() {

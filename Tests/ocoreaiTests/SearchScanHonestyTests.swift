@@ -1,19 +1,19 @@
 // Copyright © 2026 uingei.
 // Licensed under MIT.
-/// SearchScanHonestyTests.swift — `search_files` may not report a scan it did not run.
+/// SearchScanHonestyTests.swift, `search_files` may not report a scan it did not run.
 ///
 /// A walk that silently skipped an unreadable directory made every negative answer a
 /// complete-scan claim. Absorbs the codex #57186 axis (fail closed on unreadable search
 /// roots): a blocked root is a refusal naming the OS reason, and a partial walk says so.
 ///
-/// The second face of the same rule, added 11-03: a search that *stopped* — at the result limit —
+/// The second face of the same rule, added 11-03: a search that *stopped*. At the result limit,
 /// may not label the count it stopped at as a total. The field calls it `truncated`/`total`
 /// (deepseek-harness `docs/subsystems/tools.md:623`, codex `PostPreview` at
 /// `message-board/src/types.rs:23-30` and `PostContent` at `:33-39`, pi
 /// `coding-agent/src/core/bash-executor.ts:26-37`); here it is one line of prose, and the prose
 /// is what a checkpoint reads before deciding whether to narrow its query.
 ///
-/// The unreadable premise is asserted, not assumed — a host that ignores mode bits would
+/// The unreadable premise is asserted, not assumed. A host that ignores mode bits would
 /// otherwise turn every expectation here into a vacuous pass.
 import Foundation
 import Testing
@@ -47,7 +47,7 @@ struct SearchScanHonestyTests {
         return (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) == nil
     }
 
-    /// Restore mode bits so the tree stays deletable — `#expect` records, it does not
+    /// Restore mode bits so the tree stays deletable, `#expect` records, it does not
     /// throw, so every test reaches this line.
     private func unblock(_ dir: URL) {
         try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir.path)
@@ -139,7 +139,7 @@ struct SearchScanHonestyTests {
         }.sorted()
     }
 
-    /// Filename mode costs no I/O to finish counting, so it owes the real total beside the window —
+    /// Filename mode costs no I/O to finish counting, so it owes the real total beside the window,
     /// the strongest form of the rule, and the one a client can page against.
     @Test("a capped filename search names the window AND the whole it was cut from")
     func cappedGlobNamesTheWhole() throws {
@@ -188,7 +188,7 @@ struct SearchScanHonestyTests {
         #expect(!capped.contains("total:"), "a capped content count claimed a total: \(capped)")
 
         // The uncapped face keeps the honest word, so the assertion above means something. Six,
-        // not five: `init` seeds `visible.txt`, which carries the same needle — the count under
+        // not five: `init` seeds `visible.txt`, which carries the same needle. The count under
         // test is the tree's, not the helper's.
         let whole = try FileTools.search(
             path: root.path, pattern: "needle", target: "content", limit: 50)

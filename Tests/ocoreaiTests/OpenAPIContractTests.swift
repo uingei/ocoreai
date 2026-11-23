@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// OpenAPIContractTests.swift — the published OpenAPI contract must be the server, not a
+/// OpenAPIContractTests.swift. The published OpenAPI contract must be the server, not a
 /// description of it.
 ///
 /// ### Why each test exists (the red it was sampled against)
 /// `GET /openapi.json` is rendered from `V1EndpointCatalog`, and `V1EndpointCatalogTests` pins
 /// that catalog to the router. So the *route set* is already honest. What is not derived is
-/// everything else in the document — the committed `openapi.json`, the media types, the error
-/// envelope, the path parameters — and each of those is a copy that can go stale the moment
+/// everything else in the document. The committed `openapi.json`, the media types, the error
+/// envelope, the path parameters, and each of those is a copy that can go stale the moment
 /// someone edits the emit site and not the spec. These five tests are the gates for the four
 /// ways a generated contract still lies, plus the one that checks the checker.
 ///
@@ -179,7 +179,7 @@ struct OpenAPIContractTests {
         // The second half of this test's premise inverted when the trie-miss 404 was ported: this
         // file used to read the SAME three keys out of two files, because the middleware owned a
         // literal copy of the envelope. It throws `AppError.routeNotFound` now, so the red this
-        // assertion is sampled against is a second home *coming back* — a `"code":` literal in
+        // assertion is sampled against is a second home *coming back*. A `"code":` literal in
         // that middleware means the envelope has two owners again, which is the shape the spec
         // here cannot describe (it documents one).
         let emitted = ["message", "type", "code"]
@@ -204,8 +204,8 @@ struct OpenAPIContractTests {
             "spec requires \(required.sorted()); the emit sites guarantee \(emitted.sorted())")
 
         // `type` is the status-keyed table, not one constant: the five names come from
-        // `AppError.openAIErrorTypeName`, and no route can return a sixth. `app_error` — the
-        // catch-all the trie-miss 404 used to write from its own literal — is asserted *absent*
+        // `AppError.openAIErrorTypeName`, and no route can return a sixth. `app_error`. The
+        // catch-all the trie-miss 404 used to write from its own literal. Is asserted *absent*
         // from both sides: a spec that lists a name nothing emits describes a server that does
         // not exist, and a server that emitted it again would be a second envelope home.
         let typeSchema = (error?["properties"] as? [String: Any])?["type"] as? [String: Any]

@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// inspect_ui live AX — end-to-end proof that UIInspectDriver.readTree runs
+// inspect_ui live AX. End-to-end proof that UIInspectDriver.readTree runs
 // against a real macOS accessibility tree and annotates elements with
 // ` at:(x,y)` frame coordinates (the "看到按钮 → 点中按钮" closed loop).
 //
@@ -22,7 +22,7 @@ struct InspectUIClientLiveTests {
         let out = await UIInspectDriver.readTreeAsync(app: nil, depth: 6, nodes: 400, role: nil)
         // 头行必在(权限与目标都 OK 时)
         #expect(out.hasPrefix("# ui-tree pid="))
-        // 至少一行带坐标 —— 整条回路(AXValue → 解包 → 中心点)的运行时证明
+        // 至少一行带坐标。整条回路(AXValue → 解包 → 中心点)的运行时证明
         #expect(
             out.split(separator: "\n").contains(where: { $0.contains(" at:(") }))
     }

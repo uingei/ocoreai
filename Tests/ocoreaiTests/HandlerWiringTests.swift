@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// 通电测试 — 真跑 handler 闭包(entry(store:injected).handler，非纯函数)。
+/// 通电测试。真跑 handler 闭包(entry(store:injected).handler，非纯函数)。
 ///
 /// 此前 CheckTools/GetPlan 的全部单测都在测**纯函数**(render/filterAndSort/
-/// reduce)。handler 闭包那条 handler→真值源的接缝——JSON→Args 解码 + 读
-/// `PlanTaskStore.current` / `AuditTrail` + 跨 actor await —— **从没被真跑过**：
+/// reduce)。handler 闭包那条 handler→真值源的接缝。JSON→Args 解码 + 读
+/// `PlanTaskStore.current` / `AuditTrail` + 跨 actor await。**从没被真跑过**：
 /// 纯函数全绿也测不到"解码失败/读错源/await 丢值"。本文件把两个 client 的
 /// `entry(store:injected)` 真 handler round-trip，断言 seam→源→render 通路端到端正确。
 import Foundation

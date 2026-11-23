@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MultimodalStateBehavioralTests.swift — Multimodal context entry routing,
+/// MultimodalStateBehavioralTests.swift. Multimodal context entry routing,
 /// VisionOCR threshold, and MMContextEntry struct behavioral invariants.
 ///
 /// Focus:
@@ -8,7 +8,7 @@
 ///  - VisionOCR.minCharacters threshold value
 ///
 /// NOTE: MultimodalState is a @MainActor singleton whose didSet wiring fires
-/// real AVFoundation services — direct toggle tests belong in UI integration
+/// real AVFoundation services. Direct toggle tests belong in UI integration
 /// tests, not unit tests. TTS output cleaning (ex-`TTSFilterConfig` filter
 /// surface, removed as zero-consumer dead config) is covered by
 /// `TTSCleaningTests`.

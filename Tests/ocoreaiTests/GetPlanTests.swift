@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `get_plan` 读面 — 精确值测试(全离线: 快照注入, 不触 PlanTaskStore / SQLite).
+/// `get_plan` 读面。精确值测试(全离线: 快照注入, 不触 PlanTaskStore / SQLite).
 ///
 /// 覆盖:
-///   PlanRead.render  — 混合 3 状态计数精确 / step 1:1 顺序 / 三状态 tick 记号精确 /
+///   PlanRead.render。混合 3 状态计数精确 / step 1:1 顺序 / 三状态 tick 记号精确 /
 ///                      note 有/无 / 未知状态显式标记 / 空 items 边界 / 缺席诚实文案
-///   PlanRead.utcTime — epoch 精确锚点(0 / 86400 / 31536000)
-///   GetPlanClient    — 注册面(plan toolset · 零参 schema · 名称)
+///   PlanRead.utcTime. Epoch 精确锚点(0 / 86400 / 31536000)
+///   GetPlanClient。注册面(plan toolset · 零参 schema · 名称)
 import Foundation
 import Testing
 

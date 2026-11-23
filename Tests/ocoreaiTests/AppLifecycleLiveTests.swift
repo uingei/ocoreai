@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// App lifecycle live — 真实 NSWorkspace 面上三工具的端到端语义验证:
+// App lifecycle live。真实 NSWorkspace 面上三工具的端到端语义验证:
 //   1. list_apps 真值: 头行 # apps + 至少一行 active(Finder 恒在 → 名单非空的可靠锚)
 //   2. activate_app(Finder): 恒在的 running app, 幂等激活, 必得到 frontmost 确认
 //   3. open_app(Finder): 已运行分支 → 「already running … activated」(不重复拉起)
@@ -23,12 +23,12 @@ struct AppLifecycleLiveTests {
     /// 读的是失败信息里那个量本身，不是「测试被跑起来了所以有 GUI」这种推论：frontmost 恒为
     /// `com.apple.loginwindow` = 屏幕锁着/停在登录窗，任何进程都上不了前台；`nil` frontmost =
     /// 没有窗口会话（headless/ssh）。在这两种会话上断言「Finder 必须成为前台」测的是会话状态，
-    /// 不是本仓的代码 —— 每次全量门都为它报三处红，噪音会把真回归埋掉。与
+    /// 不是本仓的代码。每次全量门都为它报三处红，噪音会把真回归埋掉。与
     /// `RepetitionPenaltyGPUStateTests` 的 `.enabled(if: MTLCreateSystemDefaultDevice() != nil)`
     /// 同族：门只在自己声称的前提成立时说话。
     ///
     /// 不许反过来用：会话可前台时，失败照旧是失败（下面两条测试的断言一字未放宽）；锁屏那一侧
-    /// 也不是没人管 —— `liveActivateAndOpenNameTheirBlockerWhenLocked` 专测降级必须点名阻塞。
+    /// 也不是没人管。`liveActivateAndOpenNameTheirBlockerWhenLocked` 专测降级必须点名阻塞。
     private static var frontmostBlocker: String? {
         guard let front = NSWorkspace.shared.frontmostApplication else {
             return "frontmostApplication=nil (no window session — headless/ssh)"
@@ -48,8 +48,8 @@ struct AppLifecycleLiveTests {
         #expect(all.hasPrefix("# apps"))
 
         // active 标记与真实 frontmost 双向一致(不假设 runner 上有可见 app):
-        // 负向 — 至多一个 active 行, 且该行必是 before/after 快照之一(frontmost 唯一性);
-        // 正向 — frontmost 在两快照间未变且为 .regular(app 名可列) → 该行必有 active 标记。
+        // 负向。至多一个 active 行, 且该行必是 before/after 快照之一(frontmost 唯一性);
+        // 正向。frontmost 在两快照间未变且为 .regular(app 名可列) → 该行必有 active 标记。
         let allRows = Array(all.split(separator: "\n").dropFirst())
         let activeRows = allRows.filter { $0.hasSuffix("active") }
         #expect(activeRows.count <= 1, "frontmost 唯一 → 至多一个 active 标记: \(all)")
@@ -87,7 +87,7 @@ struct AppLifecycleLiveTests {
         #expect(out.contains("→ frontmost"), "got: \(out)")
         // 真实语义: activate 被接受后, 前台状态收敛(实测 ~28ms); 给 2s 收敛窗口轮询,
         // 不裸查瞬间(那是 OS 状态机竞态, 不是工具语义)。
-        // 活体证据(10-05 全量门): 窗口全程 frontmost=com.nousresearch.hermes —
+        // 活体证据(10-05 全量门): 窗口全程 frontmost=com.nousresearch.hermes,
         // macOS WindowServer 对"非前台进程发起的 activate"有 focus-stealing 抑制,
         // 首次请求可被静默吞掉(hermes 前台活跃时必现, 空闲时通过)。真实 agent 的
         // 恢复模式 = 窗口中段重申一次 activate 再收敛, 断言本身不放宽。

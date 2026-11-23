@@ -4,7 +4,7 @@
 //!
 //! Red sample: measured 2026-11-01 against the installed `ocoreai.app`, `tool_choice:"required"`
 //! answered `200 · finish_reason:"stop" · content:""` with zero calls executed, and the only
-//! trace of the gap was a server log line — which a harness does not read. Every expectation
+//! trace of the gap was a server log line, which a harness does not read. Every expectation
 //! below is an exact value; the scans floor their own hit counts.
 
 import Foundation
@@ -87,7 +87,7 @@ struct ToolChoiceUnsatisfiedTests {
         #expect(OcoreaiTurn.assemble(toolResults: []) == nil)
     }
 
-    /// The field is one decision assembled at four sites (two faces x stream / non-stream) —
+    /// The field is one decision assembled at four sites (two faces x stream / non-stream),
     /// the same parity rule `scripts/probes/21-sleep-steer-wake.sh` §7 holds for
     /// `ocoreai.tool_results`: a face that lost its site would still answer correctly while
     /// quietly dropping the verdict.

@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Completions Endpoint Tests — /v1/completions wire contract + HTTP validation
+/// Completions Endpoint Tests. /v1/completions wire contract + HTTP validation
 ///
 /// Two suites:
-/// 1. ``CompletionsWireTests`` — precise-value DTO decode/encode assertions
+/// 1. ``CompletionsWireTests``. Precise-value DTO decode/encode assertions
 ///    (prompt union decode, default fields, object/id/choices/usage wire shape,
 ///    stream-option usage presence). No inference required.
-/// 2. ``CompletionsE2ETests`` — HTTP pipeline (router guard → handler validation)
+/// 2. ``CompletionsE2ETests``. HTTP pipeline (router guard → handler validation)
 ///    through a real Hummingbird test app, mirroring ``HTTPE2ESmokeTests`` scope
 ///    (no inference / no model load).
 
@@ -202,7 +202,7 @@ struct CompletionsWireTests {
         #expect(usage?["total_tokens"] as? Int == 9)
     }
 
-    // MARK: A2 loglikelihood — what a position with no measurement looks like
+    // MARK: A2 loglikelihood. What a position with no measurement looks like
 
     @Test("LogprobsResult: an unmeasured position is JSON null, arrays stay aligned")
     func logprobsNullAbsence() throws {
@@ -227,7 +227,7 @@ struct CompletionsWireTests {
     @Test("A non-finite logprob has no JSON encoding at all")
     func nonFiniteLogprobCannotBeEncoded() {
         // Why the payload spends `null` instead of a sentinel: `0.0` encodes fine and reads as
-        // probability 1.0, while the truthful number cannot be expressed — so absence, not a value.
+        // probability 1.0, while the truthful number cannot be expressed, so absence, not a value.
         let result = LogprobsResult(
             tokens: ["a"], tokenLogprobs: [-Double.infinity], topLogprobs: [nil], textOffset: [0])
         #expect(throws: (any Error).self) { try JSONEncoder().encode(result) }
@@ -237,7 +237,7 @@ struct CompletionsWireTests {
 // MARK: - Key coverage: every wire key this DTO declares must reach a property
 
 /// A `CodingKeys` case that no line of `init(from:)` reads is a wire field a client can set
-/// with no effect and no word — the same shape as the dropped `input_audio` part, one struct
+/// with no effect and no word. The same shape as the dropped `input_audio` part, one struct
 /// over. Two were live here before this suite: `logprob_token_ids` and `repetition_context_size`
 /// were declared, listed in `CodingKeys`, and never decoded, so `repetition_context_size` (the
 /// spelling `/v1/chat/completions` honours at `ChatHandler.swift:635`) was dropped on this route
@@ -331,7 +331,7 @@ struct CompletionRequestKeyCoverageTests {
         #expect(try param(#"{"prompt":"hi","min_tokens":4}"#) == "min_tokens")
         #expect(try param(#"{"prompt":"hi","skip_special_tokens":false}"#) == "skip_special_tokens")
         // The defaults ask for nothing, and `logprobs` has its own honest answer (A2 scoring
-        // where it exists, 501 `logitsUnsupported` where it does not) — never this refusal.
+        // where it exists, 501 `logitsUnsupported` where it does not). Never this refusal.
         #expect(
             try param(
                 #"{"prompt":"hi","echo":false,"min_tokens":0,"skip_special_tokens":true,"logprobs":2}"#
@@ -382,7 +382,7 @@ struct CompletionsE2ETests {
         // "no default configured" fixture: .default carries gemma as the
         // production default (EngineConfig.swift:61); since EnginePool now
         // seeds config-authored defaults into modelSamplingDefaults, these
-        // 400-tests must explicitly clear it — the honest fixture shape for
+        // 400-tests must explicitly clear it. The honest fixture shape for
         // "no default" is an empty defaultModelId, not an unseeded map.
         var poolConfig = EnginePoolConfig.default
         poolConfig.defaultModelId = ""

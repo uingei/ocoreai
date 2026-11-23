@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// Identity truth: every surface that reports a version must report the
-/// SAME value derived from the running artifact — never a frozen literal.
+/// SAME value derived from the running artifact. Never a frozen literal.
 /// (Shipped bug 2026-10: About said v1.0.0, metrics said 1.0.0, MCP said
 /// 0.7.0, while v0.1.6 was the released tag.)
 import Foundation
@@ -30,7 +30,7 @@ struct AppVersionIdentityTests {
         let line = #"{"jsonrpc":"2.0","id":"1","method":"initialize","params":{}}"#
         let reply = try #require(await server.dispatch(line))
         // Envelope: {jsonrpc: String, id: String, result: {serverInfo: {...}}}
-        // — drill with JSONSerialization; typed decode guessed wrong once
+        // Drill with JSONSerialization; typed decode guessed wrong once
         // already (jsonrpc is a String, not a dict).
         let obj = try #require(
             JSONSerialization.jsonObject(with: reply.data(using: .utf8)!) as? [String: Any])

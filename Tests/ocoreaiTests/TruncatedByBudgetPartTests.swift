@@ -7,7 +7,7 @@
 /// must be user-visible by default: without an always-visible part, a
 /// budget-truncated answer renders as a normal ending.
 ///
-/// Strategy: @testable import + real `TranscriptPart` values — no mocks.
+/// Strategy: @testable import + real `TranscriptPart` values, no mocks.
 
 import Foundation
 import Testing

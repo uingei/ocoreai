@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ContextWindowPolicy — 有效上下文窗口的来源裁决(纯函数,零磁盘零网络)。
+/// ContextWindowPolicy。有效上下文窗口的来源裁决(纯函数,零磁盘零网络)。
 ///
 /// 钉住的缺口(2026-10-12 实证):所有预算面(ChatView 水位 /
 /// `get_context_remaining` / 自动压缩 / 400 墙)只读
@@ -22,7 +22,7 @@ import Testing
 @Suite("ContextWindowPolicy.resolve")
 struct ResolveTests {
 
-    /// 无人覆写时,模型自己声明的窗口必须成为预算 —— 这正是修正的那一刀。
+    /// 无人覆写时,模型自己声明的窗口必须成为预算。这正是修正的那一刀。
     @Test("no override → model-declared window becomes the cap")
     func declaredBecomesCapWithoutOverride() {
         let r = ContextWindowPolicy.resolve(override: nil, declared: 131_072)
@@ -93,7 +93,7 @@ struct ResolveTests {
 struct OverrideLookupTests {
 
     /// 覆写表以 bare canonical 为键,请求带 `hf:`/`mscope:` 前缀也必须命中
-    /// —— 否则人设的覆写对他自己都不生效。
+    ///。否则人设的覆写对他自己都不生效。
     @Test("prefixed request finds bare-canonical override")
     func prefixedRequestFindsBareOverride() {
         let table: [String: ModelSamplingConfig] = [
@@ -237,7 +237,7 @@ struct OverrideLookupTests {
     }
 }
 
-/// 磁盘 → 预算 的端到端钉:这段之前没有任何测试覆盖,而它正是修正的那一刀——
+/// 磁盘 → 预算 的端到端钉:这段之前没有任何测试覆盖,而它正是修正的那一刀。
 /// 窗口的真值一直躺在 `config.json` 上,只是没有进预算面。这里用 fixture 复现
 /// 真实形状(顶层 / `text_config` 嵌套 / 三键优先级),把
 /// `ModelStore.contextLength` → `ContextWindowPolicy.resolve` 这条链钉死,
@@ -363,7 +363,7 @@ struct HumanSurfaceTests {
     }
 
     /// 空 / 垃圾 / 非正数一律 nil = 「继承模型声明」。把 0 当成合法上限
-    /// 会让所有预算面看起来已配置、实则全关 —— 那是谎,不是预算。
+    /// 会让所有预算面看起来已配置、实则全关。那是谎,不是预算。
     @Test("empty, garbage, and non-positive input mean inherit, never zero")
     func invalidInputMeansInherit() {
         for text in ["", "   ", "0", "-1", "abc", "k", "1kk", "1.5", "0k"] {
@@ -378,10 +378,10 @@ struct HumanSurfaceTests {
     /// 这里不静默替用户决定。
     @Test("overflow boundary is exactly Int64, and never traps")
     func overflowBoundaryIsInt64() {
-        // 999999999999 * 1024 * 1024 ≈ 1.05e18 — representable, honoured as typed.
+        // 999999999999 * 1024 * 1024 ≈ 1.05e18. Representable, honoured as typed.
         #expect(
             ContextWindowPolicy.parseOverride("999999999999m") == 999_999_999_999 * 1_024 * 1_024)
-        // One more digit overflows Int64 (≈1.05e19) — refused, not trapped.
+        // One more digit overflows Int64 (≈1.05e19). Refused, not trapped.
         #expect(ContextWindowPolicy.parseOverride("9999999999999m") == nil)
         #expect(ContextWindowPolicy.parseOverride("99999999999999999999") == nil)
     }

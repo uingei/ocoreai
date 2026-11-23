@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Wire contract tests — JSON envelope on EVERY error path, including
+/// Wire contract tests. JSON envelope on EVERY error path, including
 /// unmatched routes and HEAD semantics.
 ///
 /// Before NotFoundEnvelopeMiddleware, a trie-miss 404 had an EMPTY body
 /// (Hummingbird's HTTPError(.notFound) carries nil body → bare
 /// Response(status:)), the only endpoint class in this service that broke
 /// the "every error is structured JSON" contract. And without
-/// .autoGenerateHeadEndpoints, `HEAD /health` 404d on a route that exists —
+/// .autoGenerateHeadEndpoints, `HEAD /health` 404d on a route that exists,
 /// RFC 9110: GET implies HEAD. Both are honesty-floor defects: a client
 /// cannot distinguish "route missing" from "server broken" from `404 len=0`.
 
@@ -100,7 +100,7 @@ struct NotFoundEnvelopeWireTests {
                 // The trie-miss 404 speaks the table's name now, not a literal of its own: this
                 // assertion used to pin `app_error` *because* the middleware was the envelope's
                 // second home (see the boundary test below, which recorded the asymmetry as real).
-                // The port made the two 404s agree on `type` while keeping `error_code` distinct —
+                // The port made the two 404s agree on `type` while keeping `error_code` distinct,
                 // which is the pair a client needs: one name to branch on, one fact to repair on.
                 #expect(err["type"] as? String == "not_found_error")
                 #expect(err["error_code"] as? String == "route_not_found")
@@ -128,7 +128,7 @@ struct NotFoundEnvelopeWireTests {
         }
     }
 
-    // ── Boundary: the catch is HTTPError(.notFound)-only — matched-route ──
+    // ── Boundary: the catch is HTTPError(.notFound)-only. Matched-route ──
     // ── AppError 404s keep their ORIGINAL envelope (no details key) ───────
 
     @Test("boundary: matched-route AppError 404 keeps original shape")
@@ -138,7 +138,7 @@ struct NotFoundEnvelopeWireTests {
         try await app.test(.router) { client in
             // /v1/models/:model/sampling IS registered; unknown model → AppError
             // .modelNotFound thrown INSIDE the handler, re-encoded by HB at the
-            // responder level — invisible to NotFoundEnvelopeMiddleware (which
+            // responder level. Invisible to NotFoundEnvelopeMiddleware (which
             // only observes the trie miss below the responder chain).
             try await client.execute(
                 uri: "/v1/models/no-such-model/sampling", method: .get
@@ -146,14 +146,14 @@ struct NotFoundEnvelopeWireTests {
                 #expect(r.status == .notFound)
                 let err = try self.decodeError(r.body)
                 #expect(err["code"] as? Int == 404)
-                // Both 404s now speak the table's name — the asymmetry this test used to record as
+                // Both 404s now speak the table's name. The asymmetry this test used to record as
                 // real closed with the port. What stays different is the fact, not the spelling: a
                 // model that is not loaded carries no `error_code`/`details`, because the repair is
                 // "pick another id", not "call a different route".
                 #expect(err["type"] as? String == "not_found_error")
                 // AppError envelope: message says "not found", NO error_code
                 // (only context-window/memory cases carry error_code), NO
-                // details key — proves the middleware did NOT rewrite it.
+                // details key. Proves the middleware did NOT rewrite it.
                 let msg = err["message"] as? String ?? ""
                 #expect(msg.contains("no-such-model"), "named the model: \(msg)")
                 #expect(
@@ -186,7 +186,7 @@ struct NotFoundEnvelopeWireTests {
         try await app.test(.router) { client in
             try await client.execute(uri: "/nope", method: .head) { r in
                 #expect(r.status == .notFound)
-                // createHeadResponse() strips bodies — envelope presence is
+                // createHeadResponse() strips bodies. Envelope presence is
                 // asserted via content-type + the GET sibling of same path.
                 #expect(r.headers[.contentType]?.contains("application/json") == true)
             }

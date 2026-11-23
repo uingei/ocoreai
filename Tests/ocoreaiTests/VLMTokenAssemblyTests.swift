@@ -5,10 +5,10 @@ import Testing
 /// #130 ANE-VLM 装配层纯函数测试
 ///
 /// 测试对象:`VLMTokenAssembly`(assembleVLMPrompt + expandImagePlaceholders)
-/// — 上游 coreai-models llm-runner `buildVLMPromptFromChatTemplate`(L1245-1283)
+///。上游 coreai-models llm-runner `buildVLMPromptFromChatTemplate`(L1245-1283)
 /// + `runVLMGeneration`(L1126-1144)的 in-tree 对位。
 ///
-/// 纯 token 序列计算 — 不依赖 CoreAI / 活体 VLM bundle / GPU,全 OS 可跑。
+/// 纯 token 序列计算。不依赖 CoreAI / 活体 VLM bundle / GPU,全 OS 可跑。
 /// 每 token 映射确定(unicode scalar value + special 偏移),全部用 `#expect(==)` 精确值。
 
 @Suite("VLMTokenAssembly — ANE-VLM 装配层")

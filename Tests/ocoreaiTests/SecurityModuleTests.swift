@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SecurityModuleTests.swift — Pure logic in the Security module
+/// SecurityModuleTests.swift. Pure logic in the Security module
 ///
 /// Coverage:
 /// - RuntimeSafetyConfig: config conversion, mode resolution
@@ -145,7 +145,7 @@ struct SafetyConfigTests {
 
     @Test("validate() allows owner to disable underageSexual")
     func validateAllowsUnderageSexualDisabled() throws {
-        // Opt-in filter is fully owner-controlled — no category is non-negotiable.
+        // Opt-in filter is fully owner-controlled, no category is non-negotiable.
         let config = SafetyConfig(
             enabled: true,
             categoryModes: ["underageSexual": "disabled"]
@@ -164,7 +164,7 @@ struct SafetyConfigTests {
 
     @Test("validate() allows owner to disable any category")
     func validateAllowsSelfHarmDisabled() throws {
-        // No category is non-negotiable — the opt-in filter is fully owner-controlled.
+        // No category is non-negotiable. The opt-in filter is fully owner-controlled.
         let config = SafetyConfig(
             categoryModes: ["selfHarm": "disabled"]
         )

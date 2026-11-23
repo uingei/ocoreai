@@ -1,4 +1,4 @@
-// EnginePoolRoutingTests.swift — Regression gate for load-model routing
+// EnginePoolRoutingTests.swift. Regression gate for load-model routing
 import Foundation
 import Testing
 
@@ -6,7 +6,7 @@ import Testing
 
 // Regression guard: the CoreAI-specialization branch in EnginePool.loadModel
 // must only fire for a real local file path. Hub repo ids ("hf:org/model",
-// "mscope:org/model", "org/model") are downloads — they must route to the MLX
+// "mscope:org/model", "org/model") are downloads. They must route to the MLX
 // leg. Before the fix they were misdetected, tried CoreAI on a bogus path,
 // and silently fell back to an empty stub (no download, no load happened).
 @Suite("EnginePool — local-vs-hub routing decision (isHubModelIdentifier)")
@@ -46,7 +46,7 @@ struct EnginePoolRoutingTests {
         // Bare name, never a hub repo (exists on no hub): unresolvable → 404
         #expect(structurallyUnresolvableModelId("gemma-4e2b") == true)
         #expect(structurallyUnresolvableModelId("mistral-7b") == true)
-        // Org/model: a valid hub id — allowed through (404 only if the download
+        // Org/model: a valid hub id. Allowed through (404 only if the download
         // also fails later, which is an independent failure)
         #expect(structurallyUnresolvableModelId("Qwen/Qwen2.5-0.5B-Instruct") == false)
         #expect(structurallyUnresolvableModelId("mlx-community/gemma-4-e2b-it-4bit") == false)
@@ -56,11 +56,11 @@ struct EnginePoolRoutingTests {
         #expect(structurallyUnresolvableModelId("/dev/null") == false)
         // A real existing file: never a 404
         #expect(structurallyUnresolvableModelId("/etc/hosts") == false)
-        // A non-existent local file: still a 404 — we don't have the weights
+        // A non-existent local file: still a 404. We don't have the weights
         #expect(structurallyUnresolvableModelId("/Users/t/does/not/exist/my.aimodel") == true)
         // Multi-segment path (a/b/c): treated as a file path, not a hub id
         #expect(structurallyUnresolvableModelId("some/relative/path/to/safetensors") == true)
-        // Empty string: not a hub id, no local file, no ready dir — 404
+        // Empty string: not a hub id, no local file, no ready dir, 404
         #expect(structurallyUnresolvableModelId("") == true)
     }
 
@@ -88,7 +88,7 @@ struct EnginePoolRoutingTests {
 
     // Regression guard (live 09-19): an absolute/~/ weights DIRECTORY used to
     // pass the structural 404 guard (path exists) but then 503 on the macOS-27
-    // FM load route — EnginePool fetched hub config on a filesystem path
+    // FM load route. EnginePool fetched hub config on a filesystem path
     // (404/network burn) and the FM load closure only knew loadFromHub.
     // `localWeightsDirectory` is the shared criterion: non-nil ⇒ disk load.
     @Test("localWeightsDirectory — existing local dirs resolve; non-dirs / hub ids don't")

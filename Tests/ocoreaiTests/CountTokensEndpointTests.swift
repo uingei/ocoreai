@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// CountTokensEndpointTests — the counting surface over real HTTP, no model loaded.
+/// CountTokensEndpointTests. The counting surface over real HTTP, no model loaded.
 ///
 /// `CountTokensWireShapeTests` pins the DTO; this pins the ROUTE and the ERROR
 /// contract, which is where the 10-13 live failures actually were:
@@ -13,8 +13,8 @@
 /// Deliberately model-free: an unknown model id must fail with `model_not_found`, not
 /// with a route/validation error. That keeps these suites runnable without a GPU (a
 /// loaded model means Metal, and in a sandboxed session an MLX device failure aborts
-/// the whole test process instead of reporting). The happy path — a 200 with a
-/// token-exact count — is the live `serve` + `curl` probe recorded in AGENTS.md.
+/// the whole test process instead of reporting). The happy path. A 200 with a
+/// token-exact count. Is the live `serve` + `curl` probe recorded in AGENTS.md.
 import Foundation
 import HTTPTypes
 import Hummingbird
@@ -42,7 +42,7 @@ struct CountTokensEndpointTests {
     {
         let log = Logger(label: "test.counttokens")
         // No default model: every request must resolve to `model_not_found`, which is
-        // the point — see the suite header.
+        // the point. See the suite header.
         var config = EnginePoolConfig.default
         config.defaultModelId = ""
         let enginePool = EnginePool(
@@ -143,7 +143,7 @@ struct CountTokensEndpointTests {
                     "messages": [["role": "user", "content": "size this prompt"]],
                 ])
             ) { response in
-                // The status is 404 here (unknown model) — what must NOT be true is
+                // The status is 404 here (unknown model). What must NOT be true is
                 // `route_not_found`: that is the 10-13 failure this endpoint fixes.
                 #expect(Self.errorCode(response) != "route_not_found")
                 #expect(Self.errorMessage(response).contains(Self.unknownModel))

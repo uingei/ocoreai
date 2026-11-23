@@ -1,9 +1,9 @@
-// CoreAI live generate — production surface: the model BUNDLE directory
+// CoreAI live generate. Production surface: the model BUNDLE directory
 // (metadata.json + tokenizer/ + <name>.aimodel + N× <name>.hXX.aimodelc).
 //
 // CoreAILiveGenerateTests drives the raw .aimodel dir. Upstream llm-runner
 // (206.1 tok/s on the same bundle, hardware-specialized) drives the bundle
-// directory — that is the surface ocrei's `resolveCoreAIModelURL` (no-op)
+// directory, that is the surface ocrei's `resolveCoreAIModelURL` (no-op)
 // forwards to `AIModel(contentsOf:)`. This test closes that gap: ocrei's own
 // EngineFactory + real metadata.json config + bundle-dir load.
 //
@@ -41,7 +41,7 @@ struct CoreAILiveBundleDirTests {
 
     /// ocrei `parseModelConfig` keys: top-level snake_case
     /// (name / vocab_size / max_context_length / function). The export pipeline's
-    /// metadata.json nests those under `language.*` — lift them to the top level
+    /// metadata.json nests those under `language.*`. Lift them to the top level
     /// the engine expects.
     private static func configJSON(from metaURL: URL) throws -> String {
         let obj = try JSONSerialization.jsonObject(with: Data(contentsOf: metaURL))
@@ -58,7 +58,7 @@ struct CoreAILiveBundleDirTests {
     }
 
     // Both premises are declared where the test is declared. A `print`ed SKIP never reached the run
-    // summary, so this read as work nobody had decided to skip — the third dishonest shape that
+    // summary, so this read as work nobody had decided to skip. The third dishonest shape that
     // `PlatformPremiseHonestyTests` now keeps out of Tests/.
     @Test(
         "EngineFactory over bundle dir (raw .aimodel + hardware-specialized .aimodelc)",
@@ -87,7 +87,7 @@ struct CoreAILiveBundleDirTests {
         ]
         let promptTokens = try tokenizer.applyChatTemplate(messages: messages).map(Int32.init)
 
-        // Engine through ocrei's OWN factory — production surface = bundle dir.
+        // Engine through ocrei's OWN factory. Production surface = bundle dir.
         let engine: any InferenceEngine = try await EngineFactory.createEngine(
             config: configJSON.data(using: .utf8)!,
             modelURL: Self.bundleRoot,

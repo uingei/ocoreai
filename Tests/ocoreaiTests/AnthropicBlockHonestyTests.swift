@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AnthropicBlockHonestyTests.swift — every content block a spec-legal client can send is
+/// AnthropicBlockHonestyTests.swift. Every content block a spec-legal client can send is
 /// either carried into the prompt or refused by name. Nothing in between.
 ///
 /// Why the stakes (AGENTS.md § Wire DTOs + invariant 2, measured 10-15 by
@@ -8,9 +8,9 @@
 /// `enum BlockType { case text, toolUse }`. A block of any other spec-legal type failed to
 /// decode; array decoding is all-or-nothing, so ``AnthropicContent``'s fallback replaced the
 /// entire message with empty text. Live consequence: `[{"type":"text",…},{"type":"image",…}]`
-/// reached the model as an empty turn — HTTP 200, `usage.input_tokens` 10 against 22 for the
+/// reached the model as an empty turn. HTTP 200, `usage.input_tokens` 10 against 22 for the
 /// same instruction as a plain string, answer "Please provide the input you would like me to
-/// process." — and `tool_result`, the shape Anthropic's SDK requires to continue a tool
+/// process.", and `tool_result`, the shape Anthropic's SDK requires to continue a tool
 /// loop, took the same path. The client could not tell any of that from success.
 ///
 /// Every test here is offline: decoding and mapping need no engine, no model, no network.
@@ -33,7 +33,7 @@ private func request(_ json: String) throws -> AnthropicMessageRequest {
 ///
 /// One Anthropic message can now become several engine turns (N `tool_result` blocks are
 /// N `role:"tool"` turns, because that channel carries one `tool_call_id` per turn), so a
-/// test that reasons about "the" converted message has to say it expected exactly one —
+/// test that reasons about "the" converted message has to say it expected exactly one,
 /// otherwise a mapping that split the turn would still pass its text assertions and the
 /// test would stop meaning what it claims (AGENTS.md: a check asserts its own premises).
 extension AnthropicMessage {
@@ -160,7 +160,7 @@ struct AnthropicBlockHonestyTests {
 
     /// A `tool_result` reaches the model on the engine's tool channel: its own
     /// `role:"tool"` turn with the `tool_call_id` it answers, not prose inside the user turn.
-    /// (The prose it used to be is quoted below — the answer stayed correct on this
+    /// (The prose it used to be is quoted below. The answer stayed correct on this
     /// checkpoint even so, which is why no probe caught it: the deviation is structural.)
     @Test(
         "tool_result reaches the prompt as a tool turn carrying its call id",
@@ -199,7 +199,7 @@ struct AnthropicBlockHonestyTests {
         #expect(textOf(turns[1]) == "so what is the weather?")
     }
 
-    /// A reference with no `tool_name` names nothing — it must not invent a name, and a
+    /// A reference with no `tool_name` names nothing. It must not invent a name, and a
     /// search that found nothing reads as nothing ("no output"), the same floor as an
     /// empty result. The named case above is what probe 07's red measured.
     @Test("a nameless tool_reference contributes silence, not a hallucinated name")
@@ -256,7 +256,7 @@ struct AnthropicBlockHonestyTests {
     }
 
     /// The other direction, floored by the same helper: an id the conversation DOES declare
-    /// keeps the structured tool turn — the fold must not regress the pair that lines up.
+    /// keeps the structured tool turn. The fold must not regress the pair that lines up.
     @Test("a result whose call the conversation declares keeps the structured tool turn")
     func correlatedResultStaysStructured() throws {
         let turns = try anthropicMappedConversation([
@@ -273,7 +273,7 @@ struct AnthropicBlockHonestyTests {
     }
 
     /// `is_error:true` means the call FAILED. The engine's tool turn has no error bit
-    /// (`Chat.Message.tool(_:id:)` takes content and id), so the flag travels as text —
+    /// (`Chat.Message.tool(_:id:)` takes content and id), so the flag travels as text,
     /// the alternative is a model told, in effect, that the call succeeded.
     @Test("a failed tool_result says it failed")
     func failedToolResultIsMarked() throws {
@@ -289,7 +289,7 @@ struct AnthropicBlockHonestyTests {
         #expect(text.lowercased().contains("error"), "a failure must read as a failure: \(text)")
     }
 
-    /// A result with no `tool_use_id` cannot be paired with a call, so it stays text —
+    /// A result with no `tool_use_id` cannot be paired with a call, so it stays text,
     /// text is the fallback medium, not the primary one. Content the client sent is never
     /// dropped on the way to the prompt because its id was missing.
     @Test("a tool_result with no id falls back to text instead of vanishing")
@@ -305,14 +305,14 @@ struct AnthropicBlockHonestyTests {
     }
 
     /// The assistant's own `tool_use` block becomes the structured call the engine matches
-    /// generated calls against — the same shape `/v1/chat/completions` hands over as
+    /// generated calls against. The same shape `/v1/chat/completions` hands over as
     /// `assistant.tool_calls`, and what `EngineInference` renders through the chat
     /// template's tool channel (`Chat.Message.assistant(_:toolCalls:)`).
     ///
     /// Structured history does not make the engine run anything: it dispatches the calls it
     /// parses out of *generation*, never out of the messages it was handed. That premise is
     /// what the old test asserted by requiring `toolCalls == nil`, and it is now gated
-    /// behaviourally instead — probe 13 §7 continues a loop and requires the turn to answer
+    /// behaviourally instead. Probe 13 §7 continues a loop and requires the turn to answer
     /// with the supplied result (`17C`), stop at `end_turn`, and emit no new call.
     @Test("a prior tool_use becomes the structured call the engine keys on")
     func toolUseBecomesStructuredCall() throws {

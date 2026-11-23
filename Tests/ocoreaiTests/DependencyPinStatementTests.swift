@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! DependencyPinStatementTests.swift — the manifest's own sentences about its pins must say
+//! DependencyPinStatementTests.swift. The manifest's own sentences about its pins must say
 //! what the pins say.
 //!
 //! `Package.swift` is the contract (AGENTS.md § Upstream Audit Dependencies: "the pin in
 //! `Package.swift` is the contract"), and the prose above the pins is the only place a human
 //! learns *why* a version is pinned. It had no reader. Measured 10-20: the comment over the
 //! mlx-swift pin read "pin to the 0.32.2 tag (main HEAD 2b5e877)" while the pin itself said
-//! `exact: "0.32.3"` — the bump landed in `0401256` with its reason in CHANGELOG, and the
+//! `exact: "0.32.3"`. The bump landed in `0401256` with its reason in CHANGELOG, and the
 //! sentence that states the pin kept stating the old one. Same pass found its two consumer
 //! cites 214 and 124 lines off. Every version check in this repo compares *names*
 //! (`ThirdPartyNoticesTests`), so both drifted through CI green.
@@ -72,7 +72,7 @@ struct DependencyPinStatementTests {
 
     /// The constraint value declared for a repo: the first `keyword: "…"` after that repo's
     /// URL. The prose sits *above* the declaration and never writes `exact: "` / `revision: "`,
-    /// so a comment cannot satisfy this by quoting a version — it has to move to read the pin.
+    /// so a comment cannot satisfy this by quoting a version. It has to move to read the pin.
     private static func manifestConstraint(_ manifest: String, packageURL: String, keyword: String)
         -> String?
     {
@@ -238,7 +238,7 @@ struct DependencyPinStatementTests {
 
     /// Direct MLX surface as the code expresses it. Measured 10-20: the manifest's own
     /// consumer-impact audit said "only these two calls" (`Stream.gpu.synchronize`,
-    /// `result.eval`) while `Sources` reaches MLX at 10 sites across 5 APIs — `asArray` is
+    /// `result.eval`) while `Sources` reaches MLX at 10 sites across 5 APIs, `asArray` is
     /// called 4× and `MLXArray` is constructed and stored in the embedding path. The
     /// under-report is not pedantry: 0.32.3→main carries #486 ("Fix asArray crash on
     /// zero-size arrays"), an API the audit did not know we used.
@@ -346,7 +346,7 @@ struct DependencyPinStatementTests {
     /// Every lm checkout this host has, in the order a local run would prefer them.
     ///
     /// `.build/out/checkouts` is in the list because it exists on real hosts as an orphan of an
-    /// older SwiftPM layout — a resolved tree of a *previous* pin that nothing refreshes. It is
+    /// older SwiftPM layout. A resolved tree of a *previous* pin that nothing refreshes. It is
     /// listed so it can be judged, never trusted: only `trustedLmCheckout` decides.
     static func lmCheckoutCandidates() -> [URL] {
         guard let root = try? repoRoot() else { return [] }
@@ -370,7 +370,7 @@ struct DependencyPinStatementTests {
                 URL(fileURLWithPath: scratch)
                     .appendingPathComponent("checkouts/mlx-swift-lm/Package.swift"))
         }
-        // Xcode — the route `make test-ci` and CI take — resolves into DerivedData, not `.build`.
+        // Xcode. The route `make test-ci` and CI take. Resolves into DerivedData, not `.build`.
         // On a runner that is the only tree at the pinned revision, so a gate blind to it can
         // only ever answer "cannot verify".
         let derived = URL(
@@ -402,7 +402,7 @@ struct DependencyPinStatementTests {
         return found
     }
 
-    /// The revision the repository *declares* — the authority a checkout is judged against, so
+    /// The revision the repository *declares*. The authority a checkout is judged against, so
     /// the gate never infers its own premise from whichever tree happens to be on disk.
     static func declaredLmRevision() -> String? {
         guard let text = try? repoFile("Package.resolved"),
@@ -438,7 +438,7 @@ struct DependencyPinStatementTests {
         return sha
     }
 
-    /// The one checkout that is the declared revision — or nil, which the caller must treat as
+    /// The one checkout that is the declared revision, or nil, which the caller must treat as
     /// "cannot verify", never as "no problem".
     ///
     /// A CI cache restores `.build/checkouts` with a prefix restore-key, so the day a pin moves
@@ -575,7 +575,7 @@ struct DependencyPinStatementTests {
         let mirror = checkout(
             named: "mirror", head: "ref: refs/heads/main", symbolicRef: declared)
 
-        // The declared tree wins even when a resolved tree of the previous pin is listed first —
+        // The declared tree wins even when a resolved tree of the previous pin is listed first,
         // that is exactly the CI shape (a cache restore keyed by prefix).
         #expect(
             trustedLmCheckout(
@@ -622,7 +622,7 @@ struct DependencyPinStatementTests {
     /// `make drift` promises 0 / 10 / 1 and the Makefile says so out loud. Measured 10-29 it
     /// returned **141**: every window truncation was `producer | head -N`, and once a window is
     /// bigger than a pipe buffer (codex, +366 commit subjects) `head` closes the read end, the
-    /// writer takes SIGPIPE and `set -o pipefail` aborts the script mid-report — 47 of 78 lines
+    /// writer takes SIGPIPE and `set -o pipefail` aborts the script mid-report, 47 of 78 lines
     /// printed, so the reader lost the largest window, the whole tag axis *and* the verdict line.
     ///
     /// Two halves on purpose: the idiom is banned in the script, and the mechanism is re-run here
@@ -681,7 +681,7 @@ struct DependencyPinStatementTests {
         )
     }
 
-    /// One bash run, exit code and stdout both returned — the pair is the contract here, since the
+    /// One bash run, exit code and stdout both returned. The pair is the contract here, since the
     /// 10-29 failure was a wrong *exit code* on an otherwise plausible-looking report.
     private static func runBash(_ script: String) throws -> (status: Int32, out: String) {
         let process = Process()

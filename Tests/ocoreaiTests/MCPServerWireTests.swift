@@ -2,13 +2,13 @@
 // Licensed under MIT.
 /// The `/mcp` surface, measured against the two specs it claims (JSON-RPC 2.0 + MCP
 /// v2025-06-18). Everything here was a live failure on this host at HEAD, obtained by booting
-/// `serve` and posting spec-legal requests — not inferred:
+/// `serve` and posting spec-legal requests, not inferred:
 ///   • `{"jsonrpc":"2.0","id":1,...}` → `-32700 Parse error`. `id` was typed `String?`, and the
 ///     synthesized Decodable therefore *required* a string, while §4.1 allows String, Number or
 ///     Null. The Python/TypeScript MCP SDKs send integers, so a standard client could not complete
 ///     a single handshake with a surface the endpoint catalog advertises.
 ///   • `params` had no CodingKey (`paramsData` matched nothing on the wire), so every request
-///     arrived with params == nil and `tools/call` answered `{"result":{}}` — success-shaped,
+///     arrived with params == nil and `tools/call` answered `{"result":{}}`. Success-shaped,
 ///     empty, indistinguishable from "the tool ran and returned nothing".
 ///   • `tools/list` published `{"inputSchema":{"properties":{}}}` for all 39 tools: every tool
 ///     described as taking no arguments, descriptions dropped.
@@ -45,7 +45,7 @@ struct MCPServerWireTests {
     }
 
     /// JSON-RPC §4.1: the responder returns the *same* identifier, so a number in must not come
-    /// back as a string — clients match on it.
+    /// back as a string. Clients match on it.
     @Test("numeric id is accepted and echoed as a number")
     func numericIdRoundTrips() async {
         let server = await makeServer()
@@ -61,7 +61,7 @@ struct MCPServerWireTests {
             id is Int || id is Double, "id came back as \(type(of: id as Any)) — must stay a number"
         )
         // Compare as a number: JSON carries no int/float distinction for a client, and the
-        // requirement is "the same identifier, still numeric" — not a particular spelling.
+        // requirement is "the same identifier, still numeric", not a particular spelling.
         #expect(
             (id as? NSNumber)?.intValue == 7,
             "id changed value on the way out: \(String(describing: id))")
@@ -174,7 +174,7 @@ private func json(_ s: String?) -> [String: Any]? {
 /// fail-closed 拒绝（codex `codex-rs/exec/src/lib.rs:566`），这条线漏了。
 ///
 /// 修复只把「这条通道能不能有人答」从入口带到门上，所以两条面都得可证：wire 面即刻拒绝且
-/// broker 空行；bridge 自己的本地派发仍然挂起等人裁决 —— 一刀切关掉审批是把一个 bug 换成另一个。
+/// broker 空行；bridge 自己的本地派发仍然挂起等人裁决。一刀切关掉审批是把一个 bug 换成另一个。
 /// 挂住的 dispatch 会把裸 `await` 一起挂住，因此响应经有界读取：park 必须是红色，不是挂死。
 @Suite("MCPServer wire: a channel that cannot answer must not park on the broker")
 struct MCPServerHeadlessGateTests {
@@ -218,7 +218,7 @@ struct MCPServerHeadlessGateTests {
         return (server, broker, runs)
     }
 
-    /// 有界取响应：400 × 2 ms 没等到就报 nil —— 那正是修复前的形态。
+    /// 有界取响应：400 × 2 ms 没等到就报 nil。那正是修复前的形态。
     private func respond(
         _ server: MCPServer, _ line: String, headless: Bool
     ) async -> String? {

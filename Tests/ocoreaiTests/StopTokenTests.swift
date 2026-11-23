@@ -1,5 +1,5 @@
 // Copyright 2026 Apple Inc. (BSD-3-clause upstream)
-// Adapted for ocoreai — consumed from coreai-models swift/Tests/GuidedGenerationTests/StopTokenTests.swift
+// Adapted for ocoreai. Consumed from coreai-models swift/Tests/GuidedGenerationTests/StopTokenTests.swift
 // at 6a6bb0e (#374, 10-30), the only commit that file has in the mirror (checked 11-02: `git log --` that
 // path returns 6a6bb0e alone; a mirror proves content, never HEAD). The four tests are upstream's,
 // unchanged but for three named deviations:
@@ -8,12 +8,12 @@
 //   2. `allowedTokenIDs(session:)` lives in `GrammarTestUtilities.swift` with upstream's body (upstream
 //      keeps it in `TestUtilities.swift:68-79`, a file this tree does not consume).
 //   3. Upstream's vocabulary spells the two special-token literals directly. They are composed from parts
-//      here, because writing that literal shape into a file disrupted authoring on this host (11-02 —
+//      here, because writing that literal shape into a file disrupted authoring on this host (11-02,
 //      host-local colour, not a project verdict, so it is labelled as such). `imEndDecoded` pins what the
 //      composed entry means, so the fixture cannot silently become a different token.
 //
 // Why this file exists in place of a local one: this tree's own suite for the same fix had been red on
-// the macOS 27 runner since it landed, and the reason was the fixture, not the fix — it named the
+// the macOS 27 runner since it landed, and the reason was the fixture, not the fix. It named the
 // grammar's own opening brace as the stop id and asked for a blocked bit where an emptied mask is the
 // honest answer. Upstream names its stop ids *outside* the grammar's alphabet, where withholding cannot
 // starve the grammar, and that is what a caller's end-of-turn id actually is.

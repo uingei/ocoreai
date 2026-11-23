@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// Why a gate here: an error thrown out of `POST /v1/messages` answered this file's OpenAI-shaped
-/// body — `{"error":{"message","type":"app_error","code":400}}` — which is not a shape an Anthropic
+/// body, `{"error":{"message","type":"app_error","code":400}}`, which is not a shape an Anthropic
 /// client parses. Both reference stacks answer Anthropic's envelope on that route
 /// (`sglang/python/sglang/srt/entrypoints/anthropic/protocol.py:25-36`,
 /// `vllm/vllm/entrypoints/anthropic/protocol.py:25-30`), and vllm writes down why the string inside
 /// matters: "Anthropic SDKs dispatch on `error.type`, which must use Anthropic's own vocabulary
 /// rather than vLLM's internal/Python error class names" (`protocol.py:33-34`). So the same throw
-/// must now answer two shapes, chosen by the path the request arrived on — one throw site, two
+/// must now answer two shapes, chosen by the path the request arrived on. One throw site, two
 /// published vocabularies, no second home for either table.
 ///
 /// Both wire assertions go through the real router with a real body, because the claim is about the
@@ -87,7 +87,7 @@ struct AnthropicErrorEnvelopeTests {
     /// server happened to be speaking.
     ///
     /// Anthropic's column is read off `vllm/entrypoints/anthropic/protocol.py:34-53` (the fallbacks
-    /// are that function's own). OpenAI's column is the documented table — the choice, with the two
+    /// are that function's own). OpenAI's column is the documented table. The choice, with the two
     /// references it departs from named, is on `AppError.openAIErrorTypeName`.
     @Test("one status, two documented names, no catch-all")
     func bothVocabulariesPerStatus() {

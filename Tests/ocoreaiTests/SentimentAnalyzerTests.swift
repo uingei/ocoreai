@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SentimentAnalyzerTests.swift — Keyword-based sentiment analysis
+/// SentimentAnalyzerTests.swift. Keyword-based sentiment analysis
 ///
 /// Coverage: polarity classification, compound scoring, emoji detection,
 /// batch analysis, high-risk flag, and edge cases.

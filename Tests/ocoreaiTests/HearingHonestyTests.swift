@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// HearingHonestyTests.swift — nothing reaches Apple's Speech analyzer without a measurement,
+/// HearingHonestyTests.swift. Nothing reaches Apple's Speech analyzer without a measurement,
 /// and nothing on the surface claims more than that measurement supported.
 ///
 /// Why this suite exists (AGENTS.md invariant 2, with an audio hat): on the host this project
 /// ships from, `SFSpeechRecognizer(...).supportsOnDeviceRecognition` answers **true** while
-/// `SpeechAnalyzer.analyzeSequence(from:)` dies with SIGTRAP — an error no `catch` can take,
+/// `SpeechAnalyzer.analyzeSequence(from:)` dies with SIGTRAP. An error no `catch` can take,
 /// because it takes the process with it. So OS availability APIs are not evidence, and the
 /// only honest gate is one built out of things that were actually measured: permission read
 /// without prompting, a locale that resolved, and an analysis pass that completed in a *child*.
@@ -267,7 +267,7 @@ struct HearingProbeStateTests {
         await state.record(.fault)
         let open = await state.isOpen
         #expect(open)
-        // Cached, so the next request refuses without paying another child — and provably
+        // Cached, so the next request refuses without paying another child, and provably
         // did: inside this host a real probe answers `.unavailable`, never `.fault`.
         let again = await state.once(timeout: 1)
         #expect(again == .fault)
@@ -454,7 +454,7 @@ func readyHearingPublishesNoNoise() {
 @Test("`local_stt` points at where speech enters and where it is measured")
 func capabilityLinePointsAtTheSeam() throws {
     // The tier-floor boolean is not a delivery claim, so the note has to say where the
-    // delivery claim lives — otherwise `/v1/capabilities` advertises "local STT" as though
+    // delivery claim lives. Otherwise `/v1/capabilities` advertises "local STT" as though
     // this box had already been shown to transcribe.
     let line = try #require(RuntimeCapability.lines.first { $0.name == "local_stt" })
     if #available(macOS 26.0, iOS 26.0, *) {

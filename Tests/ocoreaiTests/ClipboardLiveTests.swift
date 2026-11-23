@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// Clipboard live — NSPasteboard(UIPasteboard) 真 I/O face 的 round-trip 铁证:
+// Clipboard live. NSPasteboard(UIPasteboard) 真 I/O face 的 round-trip 铁证:
 //   write(marker) → read 必须 == marker(证 read/write 真走平台面, 非假回显)。
 //
 // 剪贴板是全局用户可见态 → 可逆纪律(用户铁律: 整理类操作必须可逆):

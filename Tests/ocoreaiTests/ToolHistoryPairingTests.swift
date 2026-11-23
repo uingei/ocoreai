@@ -1,14 +1,14 @@
 // Copyright © 2026 uingei.
 // Licensed under MIT.
-/// ToolHistoryPairingTests.swift — the request-boundary pairing walk, both wire faces,
+/// ToolHistoryPairingTests.swift. The request-boundary pairing walk, both wire faces,
 /// pinned to the shape sglang ships (`serving_chat.py:300-330`, read at reference HEAD
 /// 11-16): a result must answer a call of the run opened immediately before it, nothing
-/// may cut into an unanswered run, and a run left open at the END is legal — that is the
+/// may cut into an unanswered run, and a run left open at the END is legal, that is the
 /// "answer this call" request, and sglang's own walker allows it.
 ///
 /// Why the stakes: unpaired tool traffic was measured live 11-16 answering HTTP 200 on
 /// this server while the prompt silently dropped the result (orphan) or labelled it
-/// `unknown` (mismatch) — a 200 over lost content. The walk runs on each face's RAW
+/// `unknown` (mismatch). A 200 over lost content. The walk runs on each face's RAW
 /// request DTO before any conversion, so the Anthropic face is checked before its
 /// converter folds a `tool_result` back to text and the break disappears.
 ///

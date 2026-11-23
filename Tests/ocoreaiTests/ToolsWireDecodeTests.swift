@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// toolsWireDecodeTests.swift — pins the OpenAI `tools[]` decode contract on
+/// toolsWireDecodeTests.swift. Pins the OpenAI `tools[]` decode contract on
 /// ChatCompletionRequest.
 ///
 /// Why it matters: the live tool-call path was observed logging
@@ -11,7 +11,7 @@
 /// "tools decoded to nil" can only mean the `tools` key was never seen as
 /// present. Pin the exact production body and assert tools lands non-nil,
 /// so the decode contract is proven (or the gap is exposed) deterministically
-/// — not by a live server whose log the harness can muddy.
+///, not by a live server whose log the harness can muddy.
 import Foundation
 import Testing
 
@@ -19,7 +19,7 @@ import Testing
 
 @Suite("ChatCompletionRequest.tools wire decode")
 struct ToolsWireDecodeTests {
-    /// The exact production body (single line, valid JSON — the same shape
+    /// The exact production body (single line, valid JSON. The same shape
     /// real OpenAI clients send).
     private let body = #"""
         {"model": "mlx-community/gemma-4-e2b-it-4bit", "max_tokens": 200, "messages": [{"role": "system", "content": "Use the get_weather tool to answer weather questions."}, {"role": "user", "content": "What is the weather in Berlin right now?"}], "tools": [{"type": "function", "function": {"name": "get_weather", "description": "Get current weather for a city", "parameters": {"type": "object", "properties": {"city": {"type": "string", "description": "City name"}}, "required": ["city"]}}}], "tool_choice": "auto"}

@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// ToolResultNameTests — pins the id → name correlation that hands a tool result
+// ToolResultNameTests. Pins the id → name correlation that hands a tool result
 // the name the model called (`toolResultNamesByID`, fed to upstream
 // `Chat.Message.tool(_:id:name:)`). The rendered-name leg is upstream's
 // contract (Chat.swift's generator emits `name` when present); the DTO parse
@@ -88,7 +88,7 @@ struct ToolResultNameTests {
             from: wire, rendered: rendered(as: wire), names: toolResultNamesByID(in: wire))
         #expect(pairs.count == 4)
         #expect(pairs[0].toolCallID == nil && pairs[0].name == nil && pairs[0].toolCalls == nil)
-        // The assistant turn survives with both calls, in order — the template's
+        // The assistant turn survives with both calls, in order. The template's
         // id→name correlation needs them.
         #expect(pairs[1].toolCalls?.map { $0.function.name } == ["read_file", "exec"])
         // Tool results: the ladder names the one the caller left bare…

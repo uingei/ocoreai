@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// `StreamOutputFilter` (streaming wire hygiene) — the streaming counterpart
+// `StreamOutputFilter` (streaming wire hygiene). The streaming counterpart
 // of `OutputSanitizer`. Exact-value assertions; markers assembled from
 // UnicodeScalar code points (transport-safe, no bare sequences).
 //
-// The golden invariant under test (STRICT — every corpus line, any chunking):
+// The golden invariant under test (STRICT. Every corpus line, any chunking):
 //   concat(content channel) == OutputSanitizer.strip(fullRawText)
 //   thinking text routed to the reasoning channel, never to content.
 
@@ -14,7 +14,7 @@ import Testing
 @testable import ocoreai
 
 // MARK: transport-safe markers (code-point assembled, same bytes as
-// OutputSanitizer — cross-verified in markerParity below).
+// OutputSanitizer. Cross-verified in markerParity below).
 let lt = Character(UnicodeScalar(0x3C))  // <
 let gt = Character(UnicodeScalar(0x3E))  // >
 let pip = Character(UnicodeScalar(0x7C))  // |
@@ -192,7 +192,7 @@ struct StreamOutputFilterTests {
     /// The SSE handler settles ONCE at true stream end over the FULL
     /// accumulated text (pass-1 tool JSON + pass-2 natural-language
     /// continuation). The settled content must be the continuation and the
-    /// tool array must be stripped — exact, so a regression that loses the
+    /// tool array must be stripped. Exact, so a regression that loses the
     /// pass-2 text (or leaks the tool JSON into content) fails loudly.
     @Test(
         "tool-loop: finish over full stream yields the pass-2 continuation, tool array stripped (exact)"
@@ -211,7 +211,7 @@ struct StreamOutputFilterTests {
         #expect((fin.content ?? "") == OutputSanitizer.strip(raw))
     }
 
-    /// One-shot latch semantics — the ROOT-CAUSE mechanism of the T2 bug:
+    /// One-shot latch semantics. The ROOT-CAUSE mechanism of the T2 bug:
     /// `finish()` latches, and every subsequent `feed`/`finish` returns
     /// nothing. A per-pass handler that called `finish()` at pass-1's
     /// `.done` silently discarded pass-2's answer. Nail the latch so the
@@ -234,7 +234,7 @@ struct StreamOutputFilterTests {
 
     // MARK: - the golden property: chunking invariance + STRICT strip parity
 
-    /// For the whole corpus (incl. pathological mixed-marker interleave —
+    /// For the whole corpus (incl. pathological mixed-marker interleave,
     /// each real model emits only one protocol, so these only prove the
     /// filter can't be exploited to smuggle thinking into content) and a
     /// spread of chunk sizes (incl. 1-byte feeds and tag-boundary splits):
@@ -276,7 +276,7 @@ struct StreamOutputFilterTests {
             let baseContent = baseFin.content ?? ""
             let baseReasoning = baseFeedR + (baseFin.reasoning ?? "")
 
-            // STRICT golden invariant: content == strip(full) — for EVERY
+            // STRICT golden invariant: content == strip(full), for EVERY
             // corpus line, including the pathological interleaves.
             #expect(
                 baseContent == OutputSanitizer.strip(raw),

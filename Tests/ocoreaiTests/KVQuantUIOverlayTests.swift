@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// KVQuantUIOverlayTests — exact-value verification of the UI→engine
+/// KVQuantUIOverlayTests. Exact-value verification of the UI→engine
 /// KV-cache quantization overlay (the fix for the dead `kvQuantization.*`
 /// panel controls found in an evidence-first audit).
 ///
@@ -8,7 +8,7 @@
 /// `EngineInference.makeGenerateParameters` →
 /// `makeKVCacheConfiguration` → `GenerateParameters.kvCache` (typed upstream
 /// `KVCacheConfiguration`), so this is the same wiring class as the
-/// specDecoding fix — not a new mechanism.
+/// specDecoding fix, not a new mechanism.
 ///
 /// Merge rule under test (`pureKVQuantUIOverlay` in Config/ConfigStruct.swift):
 ///   - a dimension the user never touched (nil) keeps the AUTHORED value,
@@ -148,7 +148,7 @@ struct KVIsSetTests {
 @Suite("Engine bridge honors the UI bit selection (not the authored turbo scheme)")
 struct KVQuantEngineBridgeTests {
 
-    /// The authored engine config — the `KVCacheQuantizationConfig.default`
+    /// The authored engine config. The `KVCacheQuantizationConfig.default`
     /// value that `EngineConfig` ships when the config file has no override
     /// (the exact case that made the UI '8' knob a lie).
     private static let authored = KVCacheQuantizationConfig.default

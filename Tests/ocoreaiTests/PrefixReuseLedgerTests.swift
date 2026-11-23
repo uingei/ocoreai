@@ -1,4 +1,4 @@
-/// PrefixReuseLedgerTests.swift — pin the prefix-reuse state machine and its wire shape.
+/// PrefixReuseLedgerTests.swift. Pin the prefix-reuse state machine and its wire shape.
 ///
 /// Why a gate here: `GET /v1/models/:model/kv-cache` now publishes `prefixReuse`, a
 /// capability statement a client can read. AGENTS.md invariant 2 says such a statement must
@@ -161,7 +161,7 @@ struct PrefixReuseLedgerTests {
             Issue.record("expected .reused, got \(statement)")
             return
         }
-        // The total is what the turn's prompt actually was — paid plus reused, never the
+        // The total is what the turn's prompt actually was. Paid plus reused, never the
         // paid count alone, or a reader would divide the saving by the wrong denominator.
         #expect(
             message

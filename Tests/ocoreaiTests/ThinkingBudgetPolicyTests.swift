@@ -1,7 +1,7 @@
 import MLXLMCommon
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ThinkingBudgetPolicy — exact-value tests for how a finite `maxTokens` is split
+/// ThinkingBudgetPolicy. Exact-value tests for how a finite `maxTokens` is split
 /// between thinking and the answer, on every lane.
 ///
 /// Why this needs a gate of its own: measured 10-30 on gemma-4-e2b-it-4bit at
@@ -11,7 +11,7 @@ import MLXLMCommon
 /// numbers; whether those numbers actually bite on the wire is probe 44's job.
 ///
 /// The processor's own arithmetic (budget + transition + reserve must fit the
-/// limit) is deliberately NOT recomputed here — `applyingThinkingBudget` installs
+/// limit) is deliberately NOT recomputed here, `applyingThinkingBudget` installs
 /// a parameter validator and these tests assert that validator's verdict.
 import Testing
 
@@ -67,7 +67,7 @@ struct ThinkingBudgetPolicyTests {
         #expect(
             ThinkingBudgetPolicy.split(reasoning: qwen, maxTokens: 256, thinkingEnabled: false)
                 == nil)
-        // An unspecified preference is the template's default, which may think — so the
+        // An unspecified preference is the template's default, which may think, so the
         // ceiling covers the caller who never mentioned reasoning at all.
         #expect(
             ThinkingBudgetPolicy.split(reasoning: qwen, maxTokens: 256, thinkingEnabled: nil)
@@ -141,7 +141,7 @@ struct ThinkingBudgetPolicyTests {
     @Test("A turn that owes a tool call is never capped")
     func toolBearingTurnIsNeverCapped() {
         // Measured 10-30 on Qwen3.6-35B-A3B-4bit: one declared tool at `max_tokens: 64` answered
-        // 200 at HEAD and 500 once this cap was installed on that lane — the thought closed at 32
+        // 200 at HEAD and 500 once this cap was installed on that lane. The thought closed at 32
         // tokens, the tool-call payload never completed, and each rejected-tool-call retry re-ran
         // under the same ceiling. Gate: probe 44 §2b.
         let components = ThinkingBudgetPolicy.components(

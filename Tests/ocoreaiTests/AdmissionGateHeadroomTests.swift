@@ -7,7 +7,7 @@ import Testing
 /// Whole-machine load (active+inactive+wired+compressed) was previously
 /// subtracted from our cap, collapsing headroom to 0 whenever the box was
 /// loaded, then rejecting every request. System pressure stays advisory
-/// (level/routing) — never the per-request gate. Hermetic via the
+/// (level/routing). Never the per-request gate. Hermetic via the
 /// systemUsageOverride seam, so results are independent of live machine load.
 
 @Suite("AdmissionGate: whole-machine load must NOT gate headroom")

@@ -1,11 +1,11 @@
-// GuidedIncompleteRecoveryTests.swift — 契约: incompleteOutput 吸收为部分文本
+// GuidedIncompleteRecoveryTests.swift。契约: incompleteOutput 吸收为部分文本
 //
 // 对齐上游: MLXFoundationModels/MLXLanguageModel.swift L1370/L1704
 //   `catch .incompleteOutput { incomplete = true }` → 保留已流式产出, 不 throw。
 //
 // 契约面(本测试钉住):
 //   .incompleteOutput   → absorb, 不 throw (否则客户端 500, 部分文本全丢)
-//   .prematureEOS 照抛, 无关错误 照抛 — 上游不吸收这两类
+//   .prematureEOS 照抛, 无关错误 照抛。上游不吸收这两类
 //   sink.incompleteOutput 标记: 吸收路径置位, 非吸收路径保持 false
 //   sink.finalBuffer:   吸收路径写入部分文本, 非吸收路径保持 nil
 import Foundation

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ChatState session ID clearing and lifecycle — opaque identifier cleanup,
+/// ChatState session ID clearing and lifecycle. Opaque identifier cleanup,
 /// cancel/inference interrupt, undo semantics, and model-switch safety.
 
 import Foundation
@@ -127,7 +127,7 @@ struct ChatStateSessionTests {
         s.responseText = "partial"
         s.resetConversation()
         // Core invariant of the fix: after reset the in-flight-stream re-append path is
-        // CLOSED — before the fix resetConversation left _cancelledByUI == false (gate
+        // CLOSED. Before the fix resetConversation left _cancelledByUI == false (gate
         // open), allowing the running stream tail to resurrect the cleared conversation.
         #expect(s.responseText.isEmpty)
         #expect(s._cancelledByUI == true)  // gate CLOSED — in-flight tail can't re-append
@@ -141,7 +141,7 @@ struct ChatStateSessionTests {
         s.responseText = "partial"
         s.resetConversation()
         // resetConversation clears the UI, but the partial is preserved (interrupted
-        // assistant) inside the undo snapshot — recoverable, not lost or resurrected.
+        // assistant) inside the undo snapshot. Recoverable, not lost or resurrected.
         #expect(s.messages.isEmpty)
         #expect(s.hasUndo)
         s.undoReset()

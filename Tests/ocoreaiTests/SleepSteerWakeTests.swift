@@ -1,9 +1,9 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `sleep` 的唤醒契约 — 谁能结束这场等待、会话键走哪条路、真时钟下的节拍是多少。
+/// `sleep` 的唤醒契约。谁能结束这场等待、会话键走哪条路、真时钟下的节拍是多少。
 ///
 /// 上游参照: codex #55644(`305db3808c`, `sleep.rs` + turn-state injection)。它修的是
-/// 「注入排在 wait **开始之前**」那一格 —— 此前只等 activity 订阅上的**变化**, 于是
+/// 「注入排在 wait **开始之前**」那一格。此前只等 activity 订阅上的**变化**, 于是
 /// 已经排进 turn_state 的注入打不断自己招来的等待。ocoreai 形状更简单:
 /// `SteerQueue.pendingCount(sessionKey:)` 读的是**当前深度**而非变更通知, 所以那一格
 /// 天然覆盖; 代价是按节拍轮询(AGENTS.md 并发条: 轮询循环只睡一个间隔, 绝不睡到 deadline)。
@@ -17,7 +17,7 @@
 ///
 /// 外加一条静态门(`EngineToolLanesCarryConversationKey`): 引擎两条投喂路必须把会话键交给
 /// `ToolRegistry.call`。键一断, 工具描述里那句「ends early when new input arrives」当场
-/// 变成空头承诺, 而运行时没有任何东西会变红 —— 那正是这类接线唯一不自证的点。
+/// 变成空头承诺, 而运行时没有任何东西会变红。那正是这类接线唯一不自证的点。
 ///
 /// 时钟纪律: 只有 `SystemSleepBackend` 那几条碰真时钟, 且上界宽松(秒级 vs 30 s 请求时长),
 /// 所以 CI 快机上不慢、慢机上不误报; 「途中到达」那条把界钉在转向**实际到场之后**并带本机
@@ -29,7 +29,7 @@ import Testing
 @testable import ocoreai
 
 /// 每个用例自带唯一会话键 + `defer` 清理: `SleepWake.session` 读的是 `SteerQueue.shared`,
-/// 而 Swift Testing 会用线程跑并行用例 —— 共享单例上残留的转向会让下一个用例读到脏深度。
+/// 而 Swift Testing 会用线程跑并行用例。共享单例上残留的转向会让下一个用例读到脏深度。
 private func isolatedKey(_ tag: String) -> String {
     let key = "sleep-steer-wake-tests/\(tag)"
     SteerQueue.shared.discard(sessionKey: key)
@@ -59,7 +59,7 @@ struct SleepWakeScopingTests {
         defer { SteerQueue.shared.discard(sessionKey: key) }
         SteerQueue.shared.enqueue(sessionKey: key, text: "already delivered")
         #expect(SleepWake.session(key)() == true)
-        // 引擎的投喂点就是这个 drain —— 投完即归零, 下一场等待不该被同一条叫醒。
+        // 引擎的投喂点就是这个 drain。投完即归零, 下一场等待不该被同一条叫醒。
         #expect(SteerQueue.shared.drain(sessionKey: key).map(\.text) == ["already delivered"])
         #expect(SleepWake.session(key)() == false)
     }
@@ -187,7 +187,7 @@ struct SystemSleepBackendTests {
         let key = isolatedKey("real-mid-arrival")
         defer { SteerQueue.shared.discard(sessionKey: key) }
         // 到达时刻是量出来的, 不是假定的。set run 里 615 个套件共用一条协作池, 投递任务自己
-        // 那 60 ms 的睡眠能迟到几秒 —— 11-02 全量实测 `took ≥ 2500` 红在这一行, 而轮询唤醒
+        // 那 60 ms 的睡眠能迟到几秒。11-02 全量实测 `took ≥ 2500` 红在这一行, 而轮询唤醒
         // 本身没有错。界因此钉在「转向真正到场之后」, 与 `EngineBusyAdmissionTests
         // .queueWakesOnRelease` 同一形状: 返回时刻 + 控制项量本机此刻一次 50 ms 睡眠的代价,
         // 慢机器上界自己放大。缺陷签名(睡到 deadline)是 30 000 ms, 仍远在一切界之上。
@@ -309,7 +309,7 @@ struct SleepWireWordingTests {
 @Suite("Engine tool lanes hand the conversation key to the registry")
 struct EngineToolLanesCarryConversationKey {
 
-    /// 按 `Package.swift` 定位仓库根, 不做固定层数上溯 —— 固定跳数落到树外面,
+    /// 按 `Package.swift` 定位仓库根, 不做固定层数上溯。固定跳数落到树外面,
     /// ENOENT 会被读成通过。
     private func sourcesFile(_ relative: String) throws -> String {
         var url = URL(fileURLWithPath: #filePath)
@@ -329,7 +329,7 @@ struct EngineToolLanesCarryConversationKey {
             .components(separatedBy: "\n")
         var lanes: [(line: Int, text: String)] = []
         // 两条投喂点写法不同: 标准路是 `registry.call(`, MTP 路是 `toolRegistry?.call(`。
-        // 那个 `?` 让「registry.call(」这个子串漏掉后者 —— 一条只数到 1 的扫描会把
+        // 那个 `?` 让「registry.call(」这个子串漏掉后者。一条只数到 1 的扫描会把
         // 「投喂点少了一条」读成「一切正常」, 所以按正则匹配, 并让下面的 count 断言说话。
         let lanePattern = #/[A-Za-z]*[Rr]egistry\??\.call\(/#  // codespell:ignore
         for (index, line) in lines.enumerated() {

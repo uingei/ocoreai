@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SystemInstructionDeliveryTests.swift — what the caller writes as instructions must reach
+/// SystemInstructionDeliveryTests.swift. What the caller writes as instructions must reach
 /// the one channel generation reads, and must not be counted as a conversation turn.
 ///
 /// Measured 10-20 on this host (`mlx-community/gemma-4-e2b-it-4bit`, temp 0): a request whose
 /// `messages[0]` was a ~1000-character `system` message delivered the *same*
-/// `usage.prompt_tokens` as the identical request with no system message — differential **0** —
+/// `usage.prompt_tokens` as the identical request with no system message. Differential **0**,
 /// while this server's own disclosure line counted the text (`promptTokens=838` against 705).
 /// The Anthropic face delivered the same content (+182 `input_tokens`), so the two faces
 /// disagreed about the most-used instruction field on the OpenAI wire.
@@ -14,7 +14,7 @@
 /// (`EngineInference.swift:1791`) and filters every `system` role out of the feed it renders
 /// (mlx-swift-lm's `Chat.Message.Role` has no `developer` case either, `Chat.swift:120-124`),
 /// while `buildMessages` inserted this server's own prompt at index 0 and left the client's
-/// message in the list at index 1 — counted, never delivered, and `developer` silently
+/// message in the list at index 1. Counted, never delivered, and `developer` silently
 /// re-cast as a user turn.
 
 import Foundation
@@ -108,7 +108,7 @@ struct SystemInstructionDeliveryTests {
         #expect(instructionMessageRoles.sorted() == ["developer", "system"])
     }
 
-    // MARK: — the wiring, scanned with its own floor
+    // MARK:. The wiring, scanned with its own floor
 
     private static func source(_ relative: String) throws -> String {
         var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
@@ -138,7 +138,7 @@ struct SystemInstructionDeliveryTests {
             try NSRegularExpression(pattern: #"splitInstructionMessages\(\s*context\.rawMessages"#)
             .matches(in: builder, range: NSRange(builder.startIndex..., in: builder)).count
         #expect(calls == 1)
-        // The defect shape — assembly starting from the unfiltered request list — must not
+        // The defect shape. Assembly starting from the unfiltered request list. Must not
         // come back; it is what let a client system message sit at index 1 and be dropped.
         let staleFeed =
             try NSRegularExpression(pattern: #"var messages = context\.rawMessages"#)
@@ -174,7 +174,7 @@ struct SystemInstructionDeliveryTests {
                 "SYS", ["user:hi", "assistant:yo", "user:again"],
                 ["system:SYS", "user:hi", "assistant:yo", "user:again"],
             ),
-            // Never a second copy — a feed that already opens with the instructions keeps one.
+            // Never a second copy. A feed that already opens with the instructions keeps one.
             ("SYS", ["system:SYS", "user:hi"], ["system:SYS", "user:hi"]),
             ("SYS", ["system:OTHER", "user:hi"], ["system:OTHER", "user:hi"]),
         ] as [(instructions: String?, feed: [String], expected: [String])]

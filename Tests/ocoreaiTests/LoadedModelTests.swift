@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// LoadedModelTests.swift — Per-model lifecycle unit tests
+/// LoadedModelTests.swift. Per-model lifecycle unit tests
 ///
 /// Coverage: CAS inference lock, atomic session counting, warmup once-guarantee,
 /// spec decoding config builder, metadata immutability, cleanup, and
@@ -229,7 +229,7 @@ struct WarmupTests {
     @Test("prewarm runs at least once without error")
     func prewarmCompletes() async throws {
         let model = makeLoadedModel()
-        // In stub mode (no coreai/mlx), prewarm is a no-op log — should not throw
+        // In stub mode (no coreai/mlx), prewarm is a no-op log. Should not throw
         try await model.prewarmIfNeeded(4)
     }
 
@@ -240,7 +240,7 @@ struct WarmupTests {
         #expect(model.prewarmFullySucceeded == true)
         // Stub environment: no mlxModelHandle → warmup trip early-returns
         // without running. The trip did NOT complete, so the honest flag
-        // must be false — the exact "Missing hash file" case the
+        // must be false. The exact "Missing hash file" case the
         // "first request will be fast" log must not claim for.
         try await model.prewarmIfNeeded(4)
         #expect(model.prewarmFullySucceeded == false)
@@ -274,7 +274,7 @@ struct SpecDecodingTests {
     func disabledReturnsNil() {
         let model = makeLoadedModel()
         model.setSpecDecodingConfig(.init(enabled: false))
-        // No MLX handle set, so always nil in stub mode — but config is stored
+        // No MLX handle set, so always nil in stub mode, but config is stored
         #expect(model.createSpeculativeConfig() == nil)
     }
 
@@ -328,7 +328,7 @@ struct SendableSafetyTests {
         // global-unordered variant (all 20 releases allowed to land before
         // any acquire) is NOT a valid model: `releaseSession` is clamped at
         // zero by P0 design to survive unmatched releases on error paths,
-        // so a dropped decrement there is intentional — not a race to assert
+        // so a dropped decrement there is intentional, not a race to assert
         // against.
         await withTaskGroup(of: Void.self) { group in
             for _ in 0 ..< 20 {
@@ -338,7 +338,7 @@ struct SendableSafetyTests {
                 }
             }
         }
-        // Every pair completed — counter must be zero
+        // Every pair completed. Counter must be zero
         #expect(model.activeSessions == 0)
     }
 }
@@ -456,7 +456,7 @@ struct ConstraintTemplateCacheTests {
         #expect(maskAfter.isTerminated == maskBefore.isTerminated)
     }
 
-    /// Token ids a mask admits, in vocab order — the observable a sampler acts on.
+    /// Token ids a mask admits, in vocab order. The observable a sampler acts on.
     ///
     /// This suite asserts closure through the mask rather than through
     /// `isTerminated`, because measured on lm's vendored xgrammar v0.1.30 (pin
@@ -479,7 +479,7 @@ struct ConstraintTemplateCacheTests {
     @Test("a cached template still closes a valid JSON value")
     func validJsonClosesTheGrammar() throws {
         let model = makeLoadedModel()
-        // `{"n":42}` — each char is one token of grammarTestVocab. Both faces of
+        // `{"n":42}`. Each char is one token of grammarTestVocab. Both faces of
         // the cache run: the miss compiles and stores, the hit hands out a matcher
         // over the stored template, and a stub or spent matcher fails the second.
         let sequence = ["{", "\"", "n", "\"", ":", "4", "2", "}"]

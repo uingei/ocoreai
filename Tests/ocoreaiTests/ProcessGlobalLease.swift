@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ProcessGlobalLease — exclusive access, in tests, to state that is global to the process.
+/// ProcessGlobalLease. Exclusive access, in tests, to state that is global to the process.
 ///
 /// `SessionWorkspace`'s active directory (an `NSLock`-guarded singleton), `OCOREAI_WORKSPACE`
 /// and `OCOREAI_MODELS_DIR` are process-wide: they have no per-test scope, so two tests
 /// touching them read each other's values.
 ///
-/// `.serialized` does not fix this — it orders a suite's *own* tests, not suites against each
+/// `.serialized` does not fix this. It orders a suite's *own* tests, not suites against each
 /// other. Measured 10-22: `WorkspacePathAnchorTests` and `SessionWorkspaceWorktreeTests` both
 /// carry `.serialized`, and running them together with `EditMismatchRecoveryTests` failed in
 /// 3/3 runs with three different victims (one suite resolved `calc.py` inside another suite's
@@ -16,12 +16,12 @@
 /// nothing.
 ///
 /// Every test that touches one of those globals takes a lease and releases it in a `defer`.
-/// Releasing restores each key to whatever the process held *before* the lease — unset if it held
-/// nothing — and drops the shared workspace, so a value CI exported survives the suite while a
+/// Releasing restores each key to whatever the process held *before* the lease. Unset if it held
+/// nothing, and drops the shared workspace, so a value CI exported survives the suite while a
 /// value a test invented does not. One lock covers all of them: contention costs seconds, a
 /// missed collision costs a false green.
 ///
-/// Gate: `ProcessGlobalLeaseDisciplineTests` — a floored scan that fails when a test file mutates
+/// Gate: `ProcessGlobalLeaseDisciplineTests`. A floored scan that fails when a test file mutates
 /// one of these globals without taking a lease, plus the save/restore contract itself.
 import Foundation
 import Testing
@@ -33,12 +33,12 @@ final class ProcessGlobalLease: @unchecked Sendable {
     /// How long a waiter may sit before the convoy is reported rather than endured. A holder does
     /// bounded *local* I/O: measured 10-26, every lease here is held for milliseconds once the
     /// hub-facing suites stopped paying a real connect timeout. A minute is orders of magnitude
-    /// above that, and it is not a licence to do a minute of work under a process-global lease —
+    /// above that, and it is not a licence to do a minute of work under a process-global lease,
     /// at 240 s one leaked lease cost every waiter four minutes, which is how a 122 s run became
     /// 370 s with nine false reds.
     static let waitBudget: TimeInterval = 60
     /// Written while the lock is free (i.e. by the holder), read by a waiter that just lost the
-    /// race — a benign race by construction, and only ever used to name a stall in a message.
+    /// race. A benign race by construction, and only ever used to name a stall in a message.
     nonisolated(unsafe) private static var holder: String = "<never>"
     nonisolated(unsafe) private static var heldSince = Date.distantPast
 

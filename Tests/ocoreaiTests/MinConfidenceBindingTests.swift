@@ -1,17 +1,17 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MinConfidenceBindingTests.swift — recallPermanentMemory minConfidence SQL bind 精确值测试
+/// MinConfidenceBindingTests.swift. RecallPermanentMemory minConfidence SQL bind 精确值测试
 ///
 /// e5ff71e 改了 bind 参数(0.5→?)+ ChatHandler:620 传 0.6,但 Tests/ 0 条 recall 测试。
 /// 这里钉死"minConfidence 真的绑进 SQL 并起作用"(不再硬编码 0.5):
-///   1. 阈值 0.60 真滤(0.40 滤掉,0.72 在)——证明参数生效、非固定 0.5
-///   2. 阈值 0.05 召回所有(0.72/0.40 都在)——证明参数变化真的影响结果
+///   1. 阈值 0.60 真滤(0.40 滤掉,0.72 在)。证明参数生效、非固定 0.5
+///   2. 阈值 0.05 召回所有(0.72/0.40 都在)。证明参数变化真的影响结果
 ///   3. 阈值边界 confidence >= minConfidence 用 >= 而非 >
 ///   4. memory_types 过滤(fact/preference 在,pattern 出)
 ///
 /// 注: recall 无 query 路径不碰 FTS,只靠 confidence+memory_type;
 ///     boostRecalled 会改 confidence(+0.05),所以断言用 context 识别行,
-///     不读 confidence 值——避免和 recall 内部副作用冲突。
+///     不读 confidence 值。避免和 recall 内部副作用冲突。
 import Foundation
 import Testing
 

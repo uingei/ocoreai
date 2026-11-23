@@ -1,4 +1,4 @@
-// ToolDeclarationSurfaceTests.swift — a client-declared tool stays declared.
+// ToolDeclarationSurfaceTests.swift. A client-declared tool stays declared.
 //
 // The defect these tests exist for (measured live 10-18): the handler intersected
 // the caller's `tools[]` with the local registry and dropped what did not survive,
@@ -252,7 +252,7 @@ private let forcingCases: [(choice: String?, expectsCall: Bool)] = [
     ("function:get_weather", true), ("REQUIRED", false),
 ]
 
-/// (toolCount, responseFormat, toolChoice, mustConstrain) — the whole rule table for
+/// (toolCount, responseFormat, toolChoice, mustConstrain). The whole rule table for
 /// the shared decision. A declared surface alone never constrains; the GUI (no
 /// `tool_choice`, nil tools count = its full registry) never constrains either.
 private let constrainCases: [(tools: Int?, jsonShape: String?, choice: String?, expected: Bool)] = [
@@ -272,7 +272,7 @@ private func toolDefs(count: Int) -> [ToolDef] {
     }
 }
 
-/// Find the repo by searching for `Package.swift`, never by fixed parent hops — a fixed
+/// Find the repo by searching for `Package.swift`, never by fixed parent hops. A fixed
 /// hop lands outside the tree and an ENOENT reads as a pass.
 private func repoFile(_ relative: String) throws -> String {
     var url = URL(fileURLWithPath: #filePath)

@@ -2,7 +2,7 @@
 /// MCP Endpoint & Config Tests
 ///
 /// Coverage: MCPEndpoint model, MCPEndpoint.Status, MCPBridgeConfig defaults
-/// Rationale: First line of defense for MCP module — verify DTO correctness
+/// Rationale: First line of defense for MCP module. Verify DTO correctness
 
 import Foundation
 import Testing
@@ -50,7 +50,7 @@ struct MCPEndpointTests {
     }
 }
 
-/// Storage round-trips only. This suite is NOT where a knob's delivery is proved —
+/// Storage round-trips only. This suite is NOT where a knob's delivery is proved,
 /// `serverTimeoutSeconds` sat here with `#expect(config.serverTimeoutSeconds == 10)`
 /// while nothing in Sources read it (measured 10-21), which is a green suite describing
 /// a capability that did not exist. Timeout delivery is gated in `MCPTimeoutDeliveryTests`

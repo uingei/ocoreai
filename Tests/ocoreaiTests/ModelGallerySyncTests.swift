@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ModelGallerySyncTests.swift — the committed gallery is two copies of one GET, or a placeholder.
+/// ModelGallerySyncTests.swift. The committed gallery is two copies of one GET, or a placeholder.
 ///
 /// README's gallery block and `models.json` are both renders of one `GET /v1/models`
 /// (`scripts/gen-model-gallery.sh`); a published table that rots is the surface claiming more
@@ -68,7 +68,7 @@ struct ModelGallerySyncTests {
     }
 
     /// The lines strictly between the marker comment lines. Throws when the pair is missing or
-    /// inverted — the script refuses to write a README without them, so a broken pair is a red.
+    /// inverted. The script refuses to write a README without them, so a broken pair is a red.
     private static func blockInterior(_ lines: [String]) throws -> [String] {
         guard let start = lines.firstIndex(where: { $0.contains(startMarker) }),
             let end = lines.firstIndex(where: { $0.contains(endMarker) }),
@@ -212,7 +212,7 @@ struct ModelGallerySyncTests {
             Set(top.keys) == ["schema", "generatedAt", "source", "models"],
             "unexpected top-level keys: \(Set(top.keys))")
         let rows = try #require(top["models"] as? [[String: Any]])
-        // The script's own KEYS projection — a key outside it cannot come from a script run.
+        // The script's own KEYS projection. A key outside it cannot come from a script run.
         let allowed: Set<String> = [
             "id", "max_model_len", "vlm", "capabilities",
             "toolCallDelivery", "toolCallEvidence",

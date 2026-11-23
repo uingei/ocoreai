@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `observe_state` 工具 — 精确值测试(全离线: 帧集注入, 不启动任何 sensor, 不触 wall clock).
+/// `observe_state` 工具。精确值测试(全离线: 帧集注入, 不启动任何 sensor, 不触 wall clock).
 ///
 /// 覆盖:
-///   PerceptionObserve.build  — 缺席通道不列 / 类型优先级(ocr>image>audio>text) / 通道序稳定
-///   PerceptionObserve.clip   — ≤300 原样(无标记) / >300 截到 300 并标出丢弃数(边界精确)
-///   PerceptionObserve.render — 空缓冲诚实缺席 / 新鲜度精确值 / stale 计数精确
-///   ObserveStateClient       — 工具注册面(名称/toolset/无参 schema)/ 离线 runForTest 精确渲染
+///   PerceptionObserve.build。缺席通道不列 / 类型优先级(ocr>image>audio>text) / 通道序稳定
+///   PerceptionObserve.clip. ≤300 原样(无标记) / >300 截到 300 并标出丢弃数(边界精确)
+///   PerceptionObserve.render。空缓冲诚实缺席 / 新鲜度精确值 / stale 计数精确
+///   ObserveStateClient。工具注册面(名称/toolset/无参 schema)/ 离线 runForTest 精确渲染
 import Foundation
 import Testing
 
@@ -91,7 +91,7 @@ struct ObserveStateClipTests {
         let s = String(repeating: "a", count: 300)
         #expect(PerceptionObserve.clip(s).count == 300)
         #expect(PerceptionObserve.clip(s) == s)
-        // Premise for the face below: at the cap nothing was dropped, so no marker may appear —
+        // Premise for the face below: at the cap nothing was dropped, so no marker may appear,
         // otherwise "the marker shows up" would be the invariant and a silent cut would hide in it.
         #expect(!PerceptionObserve.clip(s).contains("not shown"))
     }

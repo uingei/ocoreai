@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! VideoDeliveryDisclosureTests.swift — the video line on `/v1/models` may only say what
+//! VideoDeliveryDisclosureTests.swift. The video line on `/v1/models` may only say what
 //! this process measured, and must say it once it is true.
 //!
 //! Probe 08 measured that `mlx-community/gemma-4-e2b-it-4bit` sees video (red clip →
@@ -8,7 +8,7 @@
 //! video. Invariant 2 cuts both ways: the surface may not claim more than the engine
 //! delivered, and it may not withhold what the engine delivered. These tests pin the
 //! ledger's exact values, the closed vocabulary, per-model isolation, and that the wire key
-//! names match what the live probe reads — so the disclosure cannot drift silent again.
+//! names match what the live probe reads, so the disclosure cannot drift silent again.
 
 import Foundation
 import Testing

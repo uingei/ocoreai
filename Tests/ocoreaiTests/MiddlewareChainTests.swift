@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Integration Tests — Middleware Chain: Auth + Rate Limit
+/// Integration Tests. Middleware Chain: Auth + Rate Limit
 ///
 /// Fills the gap where HTTPE2ESmokeTests runs with auth disabled
 /// (AuthMiddleware(.default) → env var → empty → bypassed).
@@ -214,7 +214,7 @@ struct MiddlewareChainTests {
 
     /// Anthropic's SDK authenticates with `x-api-key`, and `openapi.json` publishes
     /// `/v1/messages`. With a key configured and this rung missing, that SDK got 401 from
-    /// a door the contract advertised — the surface claiming more than it served.
+    /// a door the contract advertised. The surface claiming more than it served.
     @Test("Auth on: x-api-key passes (what the Anthropic SDK sends)")
     func testAuthAnthropicKeyHeader() async throws {
         let (app, dbs) = try await Self.makeApp(authKeys: ["secret"])
@@ -252,7 +252,7 @@ struct MiddlewareChainTests {
     /// The order, stated as an assertion because it is a decision: the FIRST rung present
     /// is the one judged, once. splash instead refuses any request whose supplied
     /// credentials disagree (`http_security.py:22-38`); we keep the ladder mlx-serve and
-    /// omlx run, so a client sending two rungs is answered by the earlier one — and this
+    /// omlx run, so a client sending two rungs is answered by the earlier one, and this
     /// line is where a future change to that choice has to be argued.
     @Test("Ladder order: a bad Bearer ahead of a good x-api-key is refused, not skipped")
     func testCredentialLadderOrder() async throws {
@@ -294,7 +294,7 @@ struct MiddlewareChainTests {
     // ── § a browser page may not write here ──
 
     /// `POST /mcp` reaches `tools/call`, no key is configured by default, and a
-    /// `text/plain` body never preflights — so before this gate any web page the user
+    /// `text/plain` body never preflights, so before this gate any web page the user
     /// happened to have open could drive this process. The control matters as much as the
     /// refusal: the same write WITHOUT an Origin is a native client and must still work,
     /// or the gate is a self-inflicted outage measured as a security win.
@@ -309,7 +309,7 @@ struct MiddlewareChainTests {
             page[.authorization] = "Bearer key1"
             try await client.execute(uri: "/mcp", method: .post, headers: page, body: buf) { r in
                 #expect(r.status == .forbidden, "got \(r.status)")
-                // No credential would change the answer — that is what the refusal says —
+                // No credential would change the answer, that is what the refusal says,
                 // so RFC 9110 gives a 403 no challenge.
                 #expect(r.headers[.wwwAuthenticate] == nil, "403 named a challenge")
             }

@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `required` is a JSON Schema set, and the registry synthesized it as `Array(parameters.keys)` —
+/// `required` is a JSON Schema set, and the registry synthesized it as `Array(parameters.keys)`,
 /// the iteration order of a Swift `Dictionary`, picked by Swift from a per-process hash seed. Same
 /// request, two boots, different prompt bytes: the 10-23(8) skill-block defect reaching the prompt
 /// through the MCP door. This suite pins that both live exits (`ToolRegistry.toToolSpecs`,
-/// `ToolEntry.toToolDef`) synthesize it name-sorted, and — the premise the fix stands on — that a
+/// `ToolEntry.toToolDef`) synthesize it name-sorted, and. The premise the fix stands on, that a
 /// server omitting `required` really does arrive as `nil` rather than being silently treated as
 /// "all optional". A third translation lived in `MCPTools`, which nobody ever instantiated; it is
 /// deleted, and the outbound face publishes from the same home (`MCPServerWireTests` covers it).

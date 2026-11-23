@@ -1,6 +1,6 @@
-// oCoreAI — TokenHistory contract parity with coreai-models upstream.
+// oCoreAI. TokenHistory contract parity with coreai-models upstream.
 // Upstream provenance (BSD-3-clause, Apple), coreai-models
-// swift/Tests/LanguageModelsTests/UnifiedGenerationAPITests.swift —
+// swift/Tests/LanguageModelsTests/UnifiedGenerationAPITests.swift,
 // `@Suite("TokenHistory")` (8 tests). This file ports that suite verbatim
 // onto the ocoreai in-tree `TokenHistory` (CoreAIEngine.swift L358), so the
 // shared prefix-caching contract is pinned in-tree, not only upstream.
@@ -8,7 +8,7 @@
 // Same algorithm, different fast path (documented parity):
 //   upstream: memcmp fast path + element-wise divergence scan.
 //   ocoreai :  element-wise scan ("safe equivalent", no force-unwrapped
-//              buffer pointers) — CoreAIEngine.swift L366-369.
+//              buffer pointers). CoreAIEngine.swift L366-369.
 // Surface parity: ocoreai adds `isEmpty` + `trim(maxCapacity:)` (production
 // bounds; upstream has neither). `private(set) tokens` keeps the same
 // access as upstream, asserted here via @testable.
@@ -26,7 +26,7 @@ import Testing
 @Suite("TokenHistory contract parity (upstream coreai-models @Suite) — 8 exact-value tests")
 struct TokenHistoryUpstreamContractTests {
 
-    // 1 — upstream: "resolve with empty history returns all tokens as new"
+    // 1. Upstream: "resolve with empty history returns all tokens as new"
     @Test("resolve with empty history returns all tokens as new")
     func resolveEmptyHistory() {
         let history = TokenHistory()
@@ -36,7 +36,7 @@ struct TokenHistoryUpstreamContractTests {
         #expect(Array(newTokens) == [1, 2, 3, 4, 5])
     }
 
-    // 2 — upstream: "resolve with exact match returns no new tokens"
+    // 2. Upstream: "resolve with exact match returns no new tokens"
     @Test("resolve with exact match returns no new tokens")
     func resolveExactMatch() {
         var history = TokenHistory()
@@ -47,7 +47,7 @@ struct TokenHistoryUpstreamContractTests {
         #expect(Array(newTokens) == [])
     }
 
-    // 3 — upstream: "resolve with prefix match returns only new tokens"
+    // 3. Upstream: "resolve with prefix match returns only new tokens"
     @Test("resolve with prefix match returns only new tokens")
     func resolvePrefixMatch() {
         var history = TokenHistory()
@@ -58,7 +58,7 @@ struct TokenHistoryUpstreamContractTests {
         #expect(Array(newTokens) == [4, 5])
     }
 
-    // 4 — upstream: "resolve with divergence finds divergence point"
+    // 4. Upstream: "resolve with divergence finds divergence point"
     @Test("resolve with divergence finds divergence point")
     func resolveDivergence() {
         var history = TokenHistory()
@@ -69,7 +69,7 @@ struct TokenHistoryUpstreamContractTests {
         #expect(Array(newTokens) == [99, 100])
     }
 
-    // 5 — upstream: "resolve with shorter input than history"
+    // 5. Upstream: "resolve with shorter input than history"
     @Test("resolve with shorter input than history")
     func resolveShorterInput() {
         var history = TokenHistory()
@@ -80,7 +80,7 @@ struct TokenHistoryUpstreamContractTests {
         #expect(Array(newTokens) == [])
     }
 
-    // 6 — upstream: "resolve with completely different input"
+    // 6. Upstream: "resolve with completely different input"
     @Test("resolve with completely different input")
     func resolveCompleteDivergence() {
         var history = TokenHistory()
@@ -91,7 +91,7 @@ struct TokenHistoryUpstreamContractTests {
         #expect(Array(newTokens) == [99, 98, 97])
     }
 
-    // 7 — upstream: "append and truncate lifecycle"
+    // 7. Upstream: "append and truncate lifecycle"
     @Test("append and truncate lifecycle")
     func appendAndTruncate() {
         var history = TokenHistory()
@@ -107,7 +107,7 @@ struct TokenHistoryUpstreamContractTests {
         #expect(history.count == 0)
     }
 
-    // 8 — upstream: "resolve with empty input returns 0 common prefix"
+    // 8. Upstream: "resolve with empty input returns 0 common prefix"
     @Test("resolve with empty input returns 0 common prefix")
     func resolveEmptyInput() {
         var history = TokenHistory()
@@ -118,7 +118,7 @@ struct TokenHistoryUpstreamContractTests {
         #expect(Array(newTokens) == [])
     }
 
-    // ocoreai surface additions (beyond upstream — not parity gaps):
+    // ocoreai surface additions (beyond upstream, not parity gaps):
     // `isEmpty` + `trim(maxCapacity:)` pin the extra contract.
     @Test("ocoreai addition: trim bounds growth and preserves tail")
     func trimBoundsGrowth() {

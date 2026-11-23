@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// SystemInfo live — Driver.collect() 真机采集的不变量测试(非精确值, 精确值走 Pure):
+// SystemInfo live. Driver.collect() 真机采集的不变量测试(非精确值, 精确值走 Pure):
 //   报告自洽(6 行) / ram 必 >0 / cpu active≥1 且 ≤ physical / 磁盘行合法
 // 真机值随机器而异 → 只断"恒真不变量", 不钉具体 GB 数。
 import Foundation

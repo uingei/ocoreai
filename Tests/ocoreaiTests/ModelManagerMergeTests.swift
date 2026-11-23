@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// GUI 模型页去重回归 — 旧代码的 id 空间撕裂。
+/// GUI 模型页去重回归。旧代码的 id 空间撕裂。
 ///
 /// 根因：`refreshLocalModels` 早版本用 **字符串精确匹配**去重
 ///   - loaded id = 已加载（canonical bare `org/repo`，如 `mlx-community/Qwen3.5-4B-MLX-4bit`）
@@ -118,7 +118,7 @@ final class ModelManagerMergeTests {
         #expect(out.0.first?.paramsCustomized == false)
     }
 
-    /// disk-ready 模型的 contextLength 必须透传到 ModelID.maxContext —
+    /// disk-ready 模型的 contextLength 必须透传到 ModelID.maxContext,
     /// GUI 的 "128K" 徽标对未加载模型同样成立(wire 已报,UI 不得留空);
     /// nil contextLength → 0 → contextString 空(未知 ≠ 谎报)。
     @Test

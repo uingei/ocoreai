@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PDFReadFileTests.swift — `read_file` PDF text-layer branch.
+/// PDFReadFileTests.swift, `read_file` PDF text-layer branch.
 ///
 /// Closes the "开箱即用" gap: `read_file` previously rejected every PDF as
 /// "not a text file" (PDF is not a NUL-byte UTF-8 file). Now it extracts the
@@ -66,7 +66,7 @@ struct PDFReadFileTests {
     func pdfNoTextLayerHonest() throws {
         try seedPDFs()
         let path = workdir.appendingPathComponent("notext.pdf").path
-        // Must not be a success — and the error text must be an honest, actionable hint.
+        // Must not be a success, and the error text must be an honest, actionable hint.
         let out = (try? FileTools.read(path: path))
         #expect(
             out == nil,

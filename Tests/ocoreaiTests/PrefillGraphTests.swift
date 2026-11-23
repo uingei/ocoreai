@@ -3,7 +3,7 @@
 // Absorbed from coreai-models 156cdb6 (#204) swift/Tests/LanguageModelsTests/
 // PrefillGraphTests.swift (copy-first; ocoreai adaptation: every called
 // symbol is @available(macOS 27.0, iOS 27.0)-gated, and @Suite/@Test macros can NOT
-// carry @available, so each test body opens with a `guard #available` early-return —
+// carry @available, so each test body opens with a `guard #available` early-return,
 // same convention as EngineVariantRoutingTests.swift).
 //
 /// Covers the decisions the engines make around the optional `prefill` entrypoint: whether
@@ -97,7 +97,7 @@ struct PrefillGraphTests {
     @Test("The held-back token is always excluded from the plan")
     func heldBackExcluded() {
         guard #available(macOS 27.0, iOS 27.0, *) else { return }
-        // The invariant the engines depend on: chunks cover exactly count - heldBack, so the
+        // The invariant the engines depend on: chunks cover exactly count. HeldBack, so the
         // caller's suffix(1) is never prefilled twice.
         for count in [1, 2, 5, 63, 64, 65, 128, 400] {
             let sizes = prefillChunkSizes(tokenCount: count, chunkSize: 64, heldBack: 1)

@@ -32,7 +32,7 @@ struct ConfigDecodingLeniencyTests {
     func serverOnlyDocumentIsRefused() throws {
         // The bind belongs to OCOREAI_HOST/OCOREAI_PORT, so `server:` is no longer a key
         // this file recognizes. A document that says nothing else must fail the funnel's
-        // "no recognized key" check rather than be adopted as a default configuration —
+        // "no recognized key" check rather than be adopted as a default configuration,
         // the difference between naming the problem and silently ignoring it.
         var threw = false
         do {

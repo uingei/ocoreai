@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SystemContextSensor tests — memory-pressure classification (pure) +
+/// SystemContextSensor tests. Memory-pressure classification (pure) +
 /// live read path on macOS (real kernel values, no stubbing).
 ///
 /// Regression root cause: the previous `sysctlbyname("vm.page_count")`
@@ -41,7 +41,7 @@ struct SystemContextSensorLiveTests {
     @MainActor
     func liveSmoke() async throws {
         // Real L2: start a sensor, let a poll land, read contextText(). Without start() the read
-        // returns "[system] no context" — the "closed vs. powered-on" distinction made testable.
+        // returns "[system] no context". The "closed vs. powered-on" distinction made testable.
         //
         // The sensor is *owned* here, not `.shared`: `PerceptionEngine.stop()` fires a detached
         // `SystemContextSensor.shared.stop()` (PerceptionEngine.swift:292) that lands whenever the

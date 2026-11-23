@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AdmissionGate Behavioral Tests — budget control, jitter protection,
+/// AdmissionGate Behavioral Tests. Budget control, jitter protection,
 /// reservation lifecycle, and emergency abort.
 ///
 /// Methodology matches upstream pattern:
@@ -98,7 +98,7 @@ struct AdmissionGateReservationTests {
         #expect(s1.active == 3)
         #expect(s1.requests == 3)
 
-        // Release middle — s1.reserved should decrease by r2's cost
+        // Release middle. S1.reserved should decrease by r2's cost
         let r2cost = await gate.estimatedCost(inputTokens: 200, maxOutputTokens: 200)
         await gate.release("r2")
 
@@ -256,7 +256,7 @@ struct AdmissionGateIdempotencyTests {
         await gate.admit("r1", inputTokens: 100, maxOutputTokens: 100)
 
         // Second check for same ID should return .ok (already reserved)
-        // — this is the continuation path: the request was admitted, now
+        // This is the continuation path: the request was admitted, now
         // downstream is checking again before dispatch. Must not re-estimate.
         let r2 = await gate.check(
             requestId: "r1",
@@ -343,7 +343,7 @@ struct AdmissionGateBudgetTests {
             memoryTracker: nil
         )
 
-        // Admit large, release small — should not underflow
+        // Admit large, release small. Should not underflow
         await gate.admit("big", inputTokens: 5000, maxOutputTokens: 5000)
         // Try to release something else that doesn't exist, activePreFills
         // could conceptually reach negative but release of unknown is a no-op

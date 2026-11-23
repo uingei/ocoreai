@@ -1,12 +1,12 @@
-// MediaLifetimeTests.swift — the rule: inline media bytes live as long as a live session
+// MediaLifetimeTests.swift. The rule: inline media bytes live as long as a live session
 // cites them, and no longer.
 //
 // Why this suite exists (measured 10-16, `scripts/probes/08-video-honesty.sh`): a clip
 // posted to `/v1/chat/completions` as a `data:` URL was written to a temp file, handed to
 // the model as `.url(...)`, and deleted when the request ended. The transcript the model
 // received kept that path, and upstream re-feeds the transcript on every later turn
-// (`ChatSession.swift:1131`), so turn two of the conversation — even a plain text
-// follow-up — failed with `500 … The operation could not be completed`, permanently, while
+// (`ChatSession.swift:1131`), so turn two of the conversation. Even a plain text
+// follow-up. Failed with `500 … The operation could not be completed`, permanently, while
 // the same clip posted as a `file://` URL worked and was recalled. The fix moved the bytes
 // into a spool whose lifetime is the session's; these tests pin the mechanics of that
 // lifetime, because every one of them is a way the original defect could come back:
@@ -114,7 +114,7 @@ struct MediaCollectionTests {
         #expect(FileManager.default.fileExists(atPath: shared.path))
         #expect(!FileManager.default.fileExists(atPath: owned.path))
 
-        // Now B leaves too, with nothing live left — the shared file goes.
+        // Now B leaves too, with nothing live left. The shared file goes.
         MediaSpool.discard([shared], keeping: [], in: dir)
         #expect(!FileManager.default.fileExists(atPath: shared.path))
     }
@@ -196,7 +196,7 @@ struct MediaCollectionTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         // The spelling a config or env var produces (`/path/to/media/`). Comparing URLs
         // instead of paths makes the containment guard always false, and a guard that
-        // never matches releases nothing — a disk leak that reads as working code.
+        // never matches releases nothing. A disk leak that reads as working code.
         let spelled = URL(fileURLWithPath: dir.path + "/")
         let url = MediaSpool.spool(
             Data("bytes that must be collectable".utf8),
@@ -285,7 +285,7 @@ struct MediaCollectionTests {
         #expect(FileManager.default.fileExists(atPath: inFlight.path))
         #expect(!FileManager.default.fileExists(atPath: orphan.path))
 
-        // A sweep that finds the pinned file past its idle TTL must skip it — the request
+        // A sweep that finds the pinned file past its idle TTL must skip it. The request
         // that spooled it may still be handing it to the processor.
         let report = MediaSpool.sweep(
             policy: .init(idleTTL: .seconds(60), maxBytes: 0), in: dir)
@@ -330,7 +330,7 @@ struct MediaPolicyFloorTests {
     @Test("idle TTL is floored above the session TTL, so media outlives its session by design")
     func idleTTLFloorsAboveSessionTTL() {
         // A media TTL shorter than the session TTL would delete bytes a conversation that
-        // is still inside its own TTL cites — the 10-16 defect, expressed as a config.
+        // is still inside its own TTL cites. The 10-16 defect, expressed as a config.
         let sloppy = SessionPoolConfig(sessionTTLSeconds: 600, mediaIdleTTLSeconds: 1)
         #expect(sloppy.mediaPolicy.idleTTL == .seconds(660))
 

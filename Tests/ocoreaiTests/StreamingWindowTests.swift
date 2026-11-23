@@ -241,7 +241,7 @@ struct EndpointDetectorTests {
         // A 12-frame hop that emitted 9 frames in: only 3 frames of trailing silence.
         #expect(
             detector.observe(framesAdvanced: 12, silentFrames: 3, segmentHasContent: true) == false)
-        // Another full chunk of audio, still emitting — silence stays short.
+        // Another full chunk of audio, still emitting. Silence stays short.
         #expect(
             detector.observe(framesAdvanced: 12, silentFrames: 2, segmentHasContent: true) == false)
         #expect(detector.segmentFrames == 24)
@@ -267,7 +267,7 @@ struct EndpointDetectorTests {
     @Test("The length cap waits for a pause rather than cutting mid-word")
     func lengthCapWaitsForPause() {
         var detector = EndpointDetector(silenceFrames: 1_000, maxSegmentFrames: 20)
-        // Well past the cap, but speech is continuous — must not fire.
+        // Well past the cap, but speech is continuous. Must not fire.
         #expect(
             detector.observe(framesAdvanced: 12, silentFrames: 0, segmentHasContent: true) == false)
         #expect(
@@ -290,11 +290,11 @@ struct EndpointDetectorTests {
     }
 
     /// The bug: a long pause consumes frames while the next segment is still empty, spending its
-    /// length budget before it has any audio — an 8 s pause cut the next segment ~7 s early.
+    /// length budget before it has any audio. An 8 s pause cut the next segment ~7 s early.
     @Test("A pause does not spend the next segment's length budget")
     func silenceDoesNotChargeTheEmptySegment() {
         var detector = EndpointDetector(silenceFrames: 10, maxSegmentFrames: 20)
-        // Speech, then an endpoint — the streaming path resets here.
+        // Speech, then an endpoint. The streaming path resets here.
         #expect(
             detector.observe(framesAdvanced: 12, silentFrames: 12, segmentHasContent: true) == true)
         detector.reset()
@@ -351,7 +351,7 @@ struct EndpointDetectorTests {
     }
 
     /// Zero silence frames would fire an endpoint on every hop, and a cap below one chunk
-    /// could never be reached at a pause — the segment would be cut on the first chunk instead.
+    /// could never be reached at a pause. The segment would be cut on the first chunk instead.
     @Test("Endpointing rejects a threshold that could never behave as intended")
     func endpointingRejectsUnreachableThresholds() {
         #expect(throws: SpeechError.self) {
@@ -398,7 +398,7 @@ struct StreamingMetadataTests {
     }
 
     /// The block a current export writes carries only what the runtime reads. Older bundles
-    /// carry six extra derived keys, which `Decodable` ignores — covered above.
+    /// carry six extra derived keys, which `Decodable` ignores. Covered above.
     @Test("A block of only the recorded keys decodes")
     func recordedKeysOnly() throws {
         let json = """
@@ -413,7 +413,7 @@ struct StreamingMetadataTests {
         #expect(config.windowMelFrames == 1201)
     }
 
-    /// Left is derived, so the recorded copy is only a cross-check — and it has to bite, or a
+    /// Left is derived, so the recorded copy is only a cross-check, and it has to bite, or a
     /// hand-edited chunk would leave the file describing a geometry the runtime never runs.
     @Test("A block whose left context disagrees with its window is rejected")
     func inconsistentLeftIsRejected() {
@@ -438,7 +438,7 @@ struct StreamingMetadataTests {
         #expect(try StreamingConfig.decode(fromMetadata: Data("not json".utf8)) == nil)
     }
 
-    /// `encoderFrameCount` halves, so a factor of 6 would silently act as 4 — one frame is
+    /// `encoderFrameCount` halves, so a factor of 6 would silently act as 4. One frame is
     /// 80 ms, enough to drop or duplicate words at every boundary. Caught before any frame
     /// count is derived from it.
     @Test("A subsampling factor the frame arithmetic cannot express is rejected")
@@ -557,7 +557,7 @@ struct ParakeetTDTConfigTests {
 struct SpeechErrorTests {
     @Test("Descriptions embed their payload")
     func descriptionsEmbedPayload() {
-        // Substring assertions only — verbatim message equality would break on any rewording.
+        // Substring assertions only. Verbatim message equality would break on any rewording.
         #expect(SpeechError.missingModel("encoder").description.contains("encoder"))
         #expect(SpeechError.invalidAudio("bad rate").description.contains("bad rate"))
         #expect(SpeechError.incompatibleResources("mismatch").description.contains("mismatch"))

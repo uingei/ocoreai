@@ -4,8 +4,8 @@
 /// very object those producers count into.
 ///
 /// Measured before this suite: six recorders sat in `MetricsRegistry` with no producer on the
-/// shipping path — `recordAuthFailure`, `recordRateLimitRejection`, `recordModelLoad`,
-/// `recordModelLoadFailure`, TTFB, `incrementKVEvictions` — so those series
+/// shipping path, `recordAuthFailure`, `recordRateLimitRejection`, `recordModelLoad`,
+/// `recordModelLoadFailure`, TTFB, `incrementKVEvictions`, so those series
 /// published a flat zero no matter what the process did, and the app container handed the
 /// exporter its own private registry. A zero that cannot move is indistinguishable from
 /// "nothing went wrong": invariant 2 wearing a Prometheus header.
@@ -13,7 +13,7 @@
 /// The TTFB half of that diagnosis was wrong in the safe direction and cost the opposite error:
 /// the streaming lane already handed its timed first byte to `observeInferenceDuration`, which
 /// counts it. Adding a second, direct `observeTTFB` there did not create a producer, it doubled
-/// one — see `ttfbIsCountedExactlyOncePerFirstByte`, which is where the series' one-home rule lives.
+/// one. See `ttfbIsCountedExactlyOncePerFirstByte`, which is where the series' one-home rule lives.
 ///
 /// Each row pins the call at the chokepoint where the event is decided (not near the exporter),
 /// and every scan floors its own premises so a regex that stopped matching fails the run. The TTFB
@@ -141,7 +141,7 @@ struct MetricProducerWiringTests {
 
     /// Membership is derived from the registry's own `func` declarations, not from the list above.
     /// The enumerated rows pin *where* each known series is produced; they can never see a seventh
-    /// recorder added without a producer, and that is the exact defect this suite was built on —
+    /// recorder added without a producer, and that is the exact defect this suite was built on,
     /// a series that exports a flat zero no matter what the process does. The scan fails it at
     /// add time instead of at the next manual audit. A recorder named outside the three verbs is
     /// the known hole in the derivation; the doc-header scan above is its backstop.
@@ -213,7 +213,7 @@ struct MetricProducerWiringTests {
 
     /// The sample has exactly one home. The 10-25 round that added a direct `observeTTFB` beside
     /// the streaming duration call believed the series had no producer; it had one, in the recorder
-    /// the very next statement hands the value to — so every streamed turn entered the histogram
+    /// the very next statement hands the value to, so every streamed turn entered the histogram
     /// twice. Measured live before this fix: one streaming turn moved `/v1/stats`
     /// `ttfbSampleCount` 0 → 2 and `ocoreai_ttfb_seconds_count` 2 → 4 while `totalRequests` moved
     /// by one. The average hid it (numerator and denominator both doubled); only the counts lied.
@@ -269,7 +269,7 @@ struct MetricProducerWiringTests {
         // The metric call has exactly one home; a second one is where a rule starts to drift.
         #expect(occurrences(of: "incrementKVEvictions(", in: text) == 1)
         // Its funnel is called by the three paths that discard caches while the model stays
-        // loaded (pressure flush, TTL sweep, LRU) — not by `clear()` / `clear(modelId:)`.
+        // loaded (pressure flush, TTL sweep, LRU), not by `clear()` / `clear(modelId:)`.
         #expect(occurrences(of: "noteKVCacheEvictions(", in: text) == 4)
     }
 }

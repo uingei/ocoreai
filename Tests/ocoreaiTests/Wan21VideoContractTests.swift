@@ -4,7 +4,7 @@
 // Exact-value verification of the Wan 2.1 consumption CONTRACT surface
 // (`Sources/ocoreai/Video/Wan21VideoContract.swift`), copied value-for-value from
 // coreai-models `CoreAIVideoDiffusionPipeline`. Every assertion is an equality
-// against a constant pinned to the upstream source — a weak `count > 0` is a defect.
+// against a constant pinned to the upstream source. A weak `count > 0` is a defect.
 //
 // Upstream provenance (exact values these tests pin):
 //   QualityPreset        -> VideoConfiguration.swift:9-37 (steps/numFrames/cfgCutoff)
@@ -260,7 +260,7 @@ struct Wan21AssetResolutionTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         let metadata = try WanBundleMetadata(
             metadataURL: dir.appendingPathComponent("metadata.json"))
-        // The pre-fix shape hardcoded `Transformer.aimodel` et al. — names this
+        // The pre-fix shape hardcoded `Transformer.aimodel` et al.. Names this
         // bundle does not contain. The declared name resolves, exactly.
         #expect(
             try metadata.assetURL(for: WanComponentKey.transformer)

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// DirectInference behavioral tests — DirectChunkMetadata Codable fidelity,
+/// DirectInference behavioral tests. DirectChunkMetadata Codable fidelity,
 /// InferenceCancellation propagation, and InferenceRequest param wiring.
 ///
 /// Replaced pure-DTO self-assertion tests: DirectChatChunk has only stored

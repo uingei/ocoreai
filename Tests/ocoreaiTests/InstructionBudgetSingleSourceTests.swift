@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// InstructionBudgetSingleSourceTests.swift — 32 KiB lives in two files; this is what makes it one number.
+/// InstructionBudgetSingleSourceTests.swift, 32 KiB lives in two files; this is what makes it one number.
 ///
 /// The cap is ocoreai policy since 11-03 (owner: codex is no longer an authority), so no checkout outside
-/// this repo measures it; the two homes — `WorkspaceContext.maxDocBytes` and the budget sentence at the
-/// head of `AGENTS.md` — are hand-copied from one another. Sampled red 11-03 in the prose itself: two
+/// this repo measures it; the two homes, `WorkspaceContext.maxDocBytes` and the budget sentence at the
+/// head of `AGENTS.md`. Are hand-copied from one another. Sampled red 11-03 in the prose itself: two
 /// comments citing the origin disagreed about the line, and nothing went red because the only cross-check
-/// was a sentence. The third home — the docs contract's `OCOREAI_AGENTS_MAX_CHAIN` pin — retired 11-16
+/// was a sentence. The third home. The docs contract's `OCOREAI_AGENTS_MAX_CHAIN` pin. Retired 11-16
 /// with the bespoke docs gates (owner ruling after reading the consumed trees); this suite is now the
 /// whole of the cross-check, which is the field shape: a code-grep, not a prose scanner. The reader
 /// whose action this changes is whoever raises the cap: the loader and the docs must move together.

@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Dashboard health honesty — the bar may claim only what the engine's lifecycle machine
+/// Dashboard health honesty. The bar may claim only what the engine's lifecycle machine
 /// says, and every resting state must carry a way out.
 ///
 /// Before this suite the bar rendered `engineReady ? "System Online" : "System Loading"`,
 /// so an idle engine, a degraded one and a breaker-open one all read "System Loading" and
-/// none of them offered an action - while the engine already carried six states, a failure
+/// none of them offered an action. While the engine already carried six states, a failure
 /// count and (since this round) the cause of the last failure.
 
 import Foundation

@@ -65,7 +65,7 @@ struct Wan21SchedulerTests {
         let result = scheduler.step(
             output: output, timeStep: scheduler.timeSteps[0], sample: sample)
 
-        // dt = sigmas[1] - sigmas[0] = 0.9004 - 1.0 = -0.0996
+        // dt = sigmas[1]. Sigmas[0] = 0.9004 - 1.0 = -0.0996
         let dt = scheduler.sigmas[1] - scheduler.sigmas[0]
         let expected = zip(sample, output).map { $0 + $1 * dt }
 

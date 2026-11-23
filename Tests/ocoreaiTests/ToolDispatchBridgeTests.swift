@@ -1,4 +1,4 @@
-// ToolDispatchBridgeTests.swift — Verify ChatSession tool injection on both pool-hit and new-session paths.
+// ToolDispatchBridgeTests.swift. Verify ChatSession tool injection on both pool-hit and new-session paths.
 
 import Logging
 import Testing

@@ -1,8 +1,8 @@
 import Foundation
-// DesktopControlPureTests.swift — computer-use action 轴 Pure 层(归一化/校验)精确值验证
+// DesktopControlPureTests.swift. Computer-use action 轴 Pure 层(归一化/校验)精确值验证
 //
 // 纪律: 精确值断言(#expect == N / throws), 禁 count>0 弱断言。
-// Pure 层 = DesktopControl enum(无平台门控, macOS/iOS 同构) —— 不发 CGEvent、
+// Pure 层 = DesktopControl enum(无平台门控, macOS/iOS 同构)。不发 CGEvent、
 // 不查系统态, 离线可测。Driver(CGEvent)与 Clients 面由 ToolSpecFullRegistryTests
 // 覆盖(macOS lane, wire/schema 真实构建)。
 import Testing
@@ -10,7 +10,7 @@ import Testing
 @testable import ocoreai
 
 // Throwing-closure convention (mirror StreamingWindowTests.swift:174):
-//   #expect(throws: ToolError.self) { try ... }  — closure body `try`s the call;
+//   #expect(throws: ToolError.self) { try ... }. Closure body `try`s the call;
 //   the function itself must be `throws` so non-throws branches can `#expect(try ...)`.
 struct DesktopControlPureTests {
 

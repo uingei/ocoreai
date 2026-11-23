@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// HarnessConnectTests — the pure half of `ocoreai connect`: argv classification, PATH
+// HarnessConnectTests. The pure half of `ocoreai connect`: argv classification, PATH
 // detection, the printed plan, and the child's environment, all to exact values.
 // The live half (server trust via /v1/models, exit forwarding) is probe 55, which
-// execs a stand-in harness — a real loop's wire proof stays probe 53's. Same
+// execs a stand-in harness. A real loop's wire proof stays probe 53's. Same
 // formatting discipline as CLIModeTests: bind to a `let` first, keep lines short.
 import Foundation
 import Testing

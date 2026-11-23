@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// The audit's record is attributable to the turn that dispatched it — the fix for the skew
+/// The audit's record is attributable to the turn that dispatched it. The fix for the skew
 /// measured 2026-11-01, where a turn that dispatched no tool at all was told "This turn did
 /// change files" because a concurrent turn's writes landed inside its baseline window. An
 /// inflated set does not merely suppress the honest notice; it INVENTS the other one, which is
@@ -35,7 +35,7 @@ private func occurrences(of needle: String, in text: String) -> Int {
 }
 
 // The state tests own their ledger instances (the `.shared` actor is written by every suite
-// that dispatches a tool — load-immunity by ownership, per ToolAttemptLedgerTests 11-01(100));
+// that dispatches a tool. Load-immunity by ownership, per ToolAttemptLedgerTests 11-01(100));
 // the one dispatch test pins its OWN record by tool+target+token, unknowable-count-free.
 @Suite("ClaimVsAudit — the record is attributed to the turn that dispatched it")
 struct ClaimVsAuditTurnKeyTests {
@@ -95,7 +95,7 @@ struct ClaimVsAuditTurnKeyTests {
         #expect(ToolAttemptLedger.unresolvedMutatingFailures(foreign) == 0)
     }
 
-    /// The chokepoint stamps the caller's key onto both halves — the unit-level end of the
+    /// The chokepoint stamps the caller's key onto both halves. The unit-level end of the
     /// handler → engine → registry thread. The record is pinned by tool+target+token, so
     /// concurrent dispatchers cannot perturb it (`ToolAttemptLedgerTests` ownership rule).
     @Test func dispatchedCallCarriesTheCallersTurnKey() async throws {
@@ -119,12 +119,12 @@ struct ClaimVsAuditTurnKeyTests {
 
     /// The wiring the unit tests above cannot reach is the handler thread: both wire handlers
     /// mint one key per request and use it at every engine call and every `since`. A dropped
-    /// argument there compiles green and silently reintroduces the 11-01 skew — so the scan
+    /// argument there compiles green and silently reintroduces the 11-01 skew, so the scan
     /// floors its own premise against the call sites each file has.
     @Test func handlersThreadTheKeyThroughEveryAuditPath() throws {
         let chat = try readSource("Sources/ocoreai/Handlers/ChatHandler.swift")
         // 3 engine calls (main + correction stream + stream) and 4 keyed reads (2 finalize
-        // sites × 2 ledgers) — each half of both functions; dropping one is the skew's return.
+        // sites × 2 ledgers). Each half of both functions; dropping one is the skew's return.
         #expect(occurrences(of: "turnToken: turnKey", in: chat) >= 7)
         #expect(occurrences(of: "let turnKey = UUID()", in: chat) >= 2)
         let anthropic = try readSource("Sources/ocoreai/Handlers/AnthropicMessagesHandler.swift")
@@ -137,7 +137,7 @@ struct ClaimVsAuditTurnKeyTests {
         // The FM lane (macOS-27 runtime, compile-verified SDK-27 legs and locally): its proxies
         // forward the key through the dispatch closure; this text scan is the gate that runs
         // where the runtime does not. Verified by reading that no other lane is left: the
-        // CoreAI/ANE engines hold no `ToolRegistry` reference at all — they never dispatch
+        // CoreAI/ANE engines hold no `ToolRegistry` reference at all. They never dispatch
         // in-process, so they produce no records to key.
         let fmBridge = try readSource("Sources/ocoreai/Engine/FMToolBridge.swift")
         #expect(occurrences(of: "turnToken: turnToken", in: fmBridge) >= 1)

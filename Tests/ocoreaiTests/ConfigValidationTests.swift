@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ConfigValidationTests.swift — Validate that config validation catches
+/// ConfigValidationTests.swift. Validate that config validation catches
 /// invalid field combinations before the app starts.
 
 import Foundation

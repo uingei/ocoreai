@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// LoRABatchGeometryTests.swift — a LoRA `batch_size` below 1 is a refusal, never a trap.
+/// LoRABatchGeometryTests.swift. A LoRA `batch_size` below 1 is a refusal, never a trap.
 ///
 /// Upstream cuts a batch as `(index ..< min(index + batchSize, count))` (`LoraTrain.swift:43-45`)
 /// and validates nothing: a negative inverts the range and Swift's `Range` precondition traps, 0
@@ -9,7 +9,7 @@
 ///
 /// The engine call itself needs weights, which this cache does not hold, so what is proven here is
 /// the two things that do not: the decision (exact values, both sides of each bound) and its
-/// placement — every face must ask before it resolves a model, read off the file rather than from
+/// placement. Every face must ask before it resolves a model, read off the file rather than from
 /// a claim about it. The live half ships in `scripts/probes/23-lora-seam-honesty.sh`.
 
 import Foundation

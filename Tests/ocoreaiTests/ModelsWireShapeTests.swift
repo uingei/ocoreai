@@ -1,16 +1,16 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `/v1/models` wire 形状回归 — 纯 Codable,不依赖 MLX/EnginePool,任何环境可跑。
+/// `/v1/models` wire 形状回归。纯 Codable,不依赖 MLX/EnginePool,任何环境可跑。
 ///
 /// 锚定:
 ///   - `object == "list"` / `"model"`(OpenAI 客户端靠它识别模型列表)
-///   - 规范两键 `owned_by` / `created` — vllm 与 sglang 都发(sglang
+///   - 规范两键 `owned_by` / `created`. Vllm 与 sglang 都发(sglang
 ///     `srt/entrypoints/openai/protocol.py:87-95`、vllm
 ///     `entrypoints/serve/engine/protocol.py:105-114`),`openai-python` 的 `Model` 读这两个名。
 ///     本行 11-02 之前发的是 `ownedBy` 且**没有** `created`,而下面这条测试当年把 `ownedBy`
-///     钉成了断言——钉住偏离的门比没有门更糟(同一族见 CHANGELOG 11-01 Anthropic delta 判别符),
+///     钉成了断言。钉住偏离的门比没有门更糟(同一族见 CHANGELOG 11-01 Anthropic delta 判别符),
 ///     所以现在钉的是规范名,并加了一条「struct 有字段却上不了线」的自检。
-///   - ocreai 扩展字段 `state`/`vlm`/`weightsDir` — nil 时**不出现**
+///   - ocreai 扩展字段 `state`/`vlm`/`weightsDir`. Nil 时**不出现**
 ///     (encodeIfPresent),非 nil 时必须出现且值正确
 
 import Foundation
@@ -56,7 +56,7 @@ struct ModelsWireShapeTests {
     }
 
     /// One row with every stored property populated. A field added to `ModelObject` without a
-    /// `CodingKeys` case encodes as nothing at all — the row silently loses a promise, and no
+    /// `CodingKeys` case encodes as nothing at all. The row silently loses a promise, and no
     /// per-field assertion notices unless someone thinks to write one. This reflects the struct,
     /// so forgetting is caught by the same test that reads the wire.
     private static func fullRow() -> ModelObject {
@@ -101,7 +101,7 @@ struct ModelsWireShapeTests {
     func ceilingPublishedUnderReferencesName() throws {
         // `max_model_len` is what both stacks call it (`vllm .../engine/protocol.py:112`,
         // `sglang .../openai/protocol.py:94`). The `contextLength` alias shipped one release
-        // and left on its stated date; this is the gate that keeps the retired key off — an
+        // and left on its stated date; this is the gate that keeps the retired key off. An
         // alias revived is a second spelling of one number, which is what clients stopped reading.
         var row = ModelObject(id: "m", state: "ready")
         row.maxModelLen = 8192
@@ -112,7 +112,7 @@ struct ModelsWireShapeTests {
             json["contextLength"] == nil,
             "the retired `contextLength` alias reached the wire: \(json)")
 
-        // A row whose ceiling is unknown omits the key — never 0, which a client sizes a prompt with.
+        // A row whose ceiling is unknown omits the key. Never 0, which a client sizes a prompt with.
         let unknown = try #require(
             try JSONSerialization.jsonObject(with: JSONEncoder().encode(ModelObject(id: "m")))
                 as? [String: Any])
@@ -134,7 +134,7 @@ struct ModelsWireShapeTests {
             "the test filesystem stores no creation date — the fallback is what is being measured")
         #expect(stamped == Int(birth.timeIntervalSince1970), "not the directory's own date")
         #expect(ModelRowClock.created(weightsDir: dir) == stamped, "created moved between polls")
-        // A row with no directory names the instant this server came to know it — never 0, which
+        // A row with no directory names the instant this server came to know it. Never 0, which
         // a client reads as 1970.
         #expect(ModelRowClock.created(weightsDir: nil) == ModelRowClock.firstRowEpochSeconds)
         #expect(ModelRowClock.firstRowEpochSeconds > 1_000_000_000)

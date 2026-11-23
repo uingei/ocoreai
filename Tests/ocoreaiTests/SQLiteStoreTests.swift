@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SQLiteStoreTests.swift — SQLite layer integration tests
+/// SQLiteStoreTests.swift. SQLite layer integration tests
 ///
 /// Covers: open/close lifecycle, DML execution, scalarQuery, multi-row query,
 /// FTS5 full-text search, memory_events six-element CRUD, Actor boundary safety.

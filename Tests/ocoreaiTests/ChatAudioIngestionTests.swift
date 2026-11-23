@@ -1,8 +1,8 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ChatAudioIngestionTests.swift — audio on `/v1/chat/completions` gets heard, or refused,
-/// or the request never reaches a 200. The route that used to happen — 200 OK with the
-/// audio silently gone — is pinned out of existence here.
+/// ChatAudioIngestionTests.swift. Audio on `/v1/chat/completions` gets heard, or refused,
+/// or the request never reaches a 200. The route that used to happen, 200 OK with the
+/// audio silently gone. Is pinned out of existence here.
 ///
 /// Why the stakes (AGENTS.md invariant 2, measured 10-15): at the pinned mlx-swift-lm
 /// revision nothing under `Libraries/MLXVLMCommon` mentions `audio` at all, so a posted
@@ -39,7 +39,7 @@ private func partsMessage(_ parts: [ContentPart], role: String = "user") -> Mess
 /// `Message` deliberately has no `Equatable` conformance (it is a wire DTO; adding it would
 /// ripple through `ContentPart`/`ContentPolymorphic`/`ToolCall` just to satisfy an
 /// assertion). What these tests claim is that the *request a client sent* came out
-/// unchanged, which is precisely what the encoded bytes say — so compare those, with
+/// unchanged, which is precisely what the encoded bytes say, so compare those, with
 /// `.sortedKeys`.
 ///
 /// Why the formatter is not optional (measured 10-16, `make test-clt`): Foundation's JSON
@@ -50,7 +50,7 @@ private func partsMessage(_ parts: [ContentPart], role: String = "user") -> Mess
 ///   `{"type":"audio_url","audio_url":{…}}` vs `{"audio_url":{…},"type":"audio_url"}`.
 /// A byte comparison without sorted keys therefore asserts a property the encoder never
 /// promised: "splicing nothing leaves the conversation byte-identical" failed while the two
-/// documents were structurally identical. Same lesson as AGENTS.md invariant 1 — a check
+/// documents were structurally identical. Same lesson as AGENTS.md invariant 1. A check
 /// that infers its premises from its environment rots; here the premise was key ordering.
 private func sameWire(_ lhs: [Message], _ rhs: [Message]) throws -> Bool {
     let encoder = JSONEncoder()
@@ -105,7 +105,7 @@ struct ChatAudioIngestionTests {
             return
         }
         // The client wrote its instruction around the payload, so the payload's words belong
-        // in the slot the payload occupied — not parked at the end of the turn.
+        // in the slot the payload occupied, not parked at the end of the turn.
         #expect(parts.count == 3)
         #expect(parts[0].text == "repeat this")
         #expect(parts[1].text == "[heard · zh_CN] 你好")

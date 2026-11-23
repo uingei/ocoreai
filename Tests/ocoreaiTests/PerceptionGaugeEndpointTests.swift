@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// PerceptionGaugeEndpointTests.swift — locks the honesty semantics of the
+// PerceptionGaugeEndpointTests.swift. Locks the honesty semantics of the
 // GET /v1/perception gauge vote-resolution (PerceptionGaugeSnapshot.vote).
 // These are the assertions the cold-boot saga earned: absent votes stay
 // absent, cast votes report verbatim, environment folds with OR on BOTH

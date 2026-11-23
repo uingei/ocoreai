@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `curr_time` + `sleep` 工具 — 精确值测试(全离线, fake clock/backend, 不触 wall clock).
+/// `curr_time` + `sleep` 工具。精确值测试(全离线, fake clock/backend, 不触 wall clock).
 ///
 /// 覆盖两个 seam:
 ///   curr_time: `ClockCurrentTime.report`(精确 UTC 格式锚点)
@@ -20,13 +20,13 @@ import Testing
 
 @testable import ocoreai
 
-/// 文件级固定时钟 — 注入精确时间戳, report 可离线断言(不 touch wall clock)。
+/// 文件级固定时钟。注入精确时间戳, report 可离线断言(不 touch wall clock)。
 struct FixedClock: ClockTimeProvider {
     let stamp: Date
     nonisolated func now() -> Date { stamp }
 }
 
-/// 文件级假 sleep 后端 — 记录被请求的时长, 不真等(12h 上限可安全触发, 不拖慢 CI)。
+/// 文件级假 sleep 后端。记录被请求的时长, 不真等(12h 上限可安全触发, 不拖慢 CI)。
 ///
 /// 契约照搬 `SystemSleepBackend`: 第一刀之前先查一次 `wakeCheck`, 命中即 `.interrupted`
 /// (codex #55644 那一格)。`checks` 记下 consult 次数, 让「先查再睡」离线可断言,
@@ -182,7 +182,7 @@ struct SleepClientTests {
 
     @Test
     func maxDurationTriggersFakeBackendWithoutRealWait() async {
-        // 12h 上限经 fake backend 离线触发 — 不真等, 断言请求值精确。
+        // 12h 上限经 fake backend 离线触发。不真等, 断言请求值精确。
         let req = RefBox<[Int]>([])
         let out = await SleepClient.runForTool(
             durationMs: 43_200_000, wakeCheck: SleepWake.never,

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SelfCorrectionPipelineTests.swift — Three-phase self-correction pipeline
+/// SelfCorrectionPipelineTests.swift. Three-phase self-correction pipeline
 ///
 /// Coverage: Phase 1 bypass, CorrectionTrace serialization, memory event conversion,
 /// rule critique result, and config defaults.

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ThinkingBudgetTests.swift — Verify adaptive budget multiplier logic
+/// ThinkingBudgetTests.swift. Verify adaptive budget multiplier logic
 /// and scaffolding injection by complexity band.
 
 import Foundation
@@ -153,7 +153,7 @@ struct ThinkingBudgetTests {
         let tb = ThinkingBudget()
         for i in 0 ..< 63 { await tb.recordQuality(0.95, for: "a\(i)") }
         #expect(await tb.sessionKeyCount == 63)
-        // Touch "a0" — most-recent, must survive the next eviction (2nd 0.95 → 1.4)
+        // Touch "a0". Most-recent, must survive the next eviction (2nd 0.95 → 1.4)
         await tb.recordQuality(0.95, for: "a0")
         #expect(await tb.sessionKeyCount == 63)
         await tb.recordQuality(0.95, for: "b0")  // 64th key — fits, no eviction

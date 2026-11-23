@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ReadyHubDownloader M8 tests — flat layout + local-first short-circuit.
+/// ReadyHubDownloader M8 tests. Flat layout + local-first short-circuit.
 ///
 /// Coverage:
 ///   - local-ready dir + matching files → returns flat target, NO network
@@ -34,7 +34,7 @@ private let unreachableHubEndpoint = "http://127.0.0.1:9"
 /// of real `~/.ocoreai/models`; `HubClient` reads `HF_ENDPOINT` when it is constructed
 /// (swift-huggingface `HubClient.swift:116` → `detectHost()` at :189), so pinning it makes the
 /// network-path tests independent of the machine. Both are process-wide, so both travel in one
-/// `ProcessGlobalLease` — this helper used to leave `OCOREAI_MODELS_DIR` pointing at a temp dir for
+/// `ProcessGlobalLease`. This helper used to leave `OCOREAI_MODELS_DIR` pointing at a temp dir for
 /// every suite scheduled afterwards (it once turned a force-unwrap into a SIGTRAP that silenced
 /// the rest of the run), and leaving `HF_ENDPOINT` alone cost 122 s per network-path test on a
 /// host that black-holes the hub, which serialized behind this very lease.
@@ -119,7 +119,7 @@ struct ReadyHubDownloaderFlatTests {
             )
             Issue.record("expected network-path failure (offline), download unexpectedly succeeded")
         } catch {
-            // Any error proves the short-circuit was NOT taken — the attempt
+            // Any error proves the short-circuit was NOT taken. The attempt
             // went through the hub client. (Offline/tokenless → non-200 throw.)
         }
     }
@@ -187,7 +187,7 @@ struct ReadyHubDownloaderFlatTests {
             )
             Issue.record("expected invalidRepositoryID for a malformed id")
         } catch is HuggingFaceDownloaderError {
-            // expected — thrown before any file/network I/O
+            // expected. Thrown before any file/network I/O
         } catch {
             Issue.record("expected HuggingFaceDownloaderError, got \(type(of: error))")
         }

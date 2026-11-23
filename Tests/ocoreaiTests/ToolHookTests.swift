@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ToolHookTests.swift — Codex-aligned hook surface (PreToolUse veto, PostToolUse observation).
+/// ToolHookTests.swift. Codex-aligned hook surface (PreToolUse veto, PostToolUse observation).
 ///
 /// Baseline: codex `codex-rs/protocol/src/protocol.rs` `HookEventName`
 /// (preToolUse → deny/ask/allow gating, postToolUse → observation).

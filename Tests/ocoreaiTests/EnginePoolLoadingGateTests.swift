@@ -1,11 +1,11 @@
-// EnginePoolLoadingGateTests.swift — Regression gate for acquire()'s wait on an
+// EnginePoolLoadingGateTests.swift. Regression gate for acquire()'s wait on an
 // in-flight model load: a request must be released when the load finishes, not
 // when the wait window expires.
 //
 // Background (10-13): waitForLoading() slept `Task.sleep(until: deadline)`, i.e.
 // the whole 120 s window, instead of one poll interval. Every first chat request
 // that arrived while boot prewarm held the loading slot therefore parked for the
-// full window — 120.5/120.7/120.5/120.6/121.1 s across five cold processes, even
+// full window, 120.5/120.7/120.5/120.6/121.1 s across five cold processes, even
 // though the model was ready after ~8 s.
 
 import Foundation
@@ -102,7 +102,7 @@ struct EnginePoolLoadingGateTests {
             #expect(failedId == modelId)
             // The refusal is the caller's only answer for another ~12 min on a cold load, so it
             // carries the wait's own measurement: the slot this test entered owns a clock
-            // (`beginLoad`), and nothing was fetched for it — bytes and ETA stay absent rather
+            // (`beginLoad`), and nothing was fetched for it. Bytes and ETA stay absent rather
             // than arriving as zeros a client would read as a stalled fetch.
             let measured = try #require(progress, "a refused waiter got no measurement")
             #expect(measured.elapsedSeconds >= 1, "the clock started after the wait: \(measured)")
@@ -116,7 +116,7 @@ struct EnginePoolLoadingGateTests {
         #expect(elapsed < 5.0, "wait overshoot the 1 s window: \(elapsed)s")
     }
 
-    /// Cancellation must interrupt a parked waiter immediately — polling must not
+    /// Cancellation must interrupt a parked waiter immediately. Polling must not
     /// turn cancellation into another full-window stall.
     @Test("a parked waiter honours cancellation promptly")
     func cancellationInterruptsWait() async throws {

@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// InferenceOptionsToolRoutingTests — the native-side tool-routing contract.
+/// InferenceOptionsToolRoutingTests. The native-side tool-routing contract.
 ///
 /// The HTTP wire (ChatHandler) sets `hasNativeTools` / `declaredToolNames`
 /// from the request's `tools[]`; that contract closes
 /// the tool loop (emit → dispatch → result → continuation) while the
 /// one-shot FM guided path does NOT (EngineInference L2251 observation:
 /// "tool executes… but no continuation"). The native Fast Path (desktop UI)
-/// must therefore mirror the exact same contract — `InferenceOptions.
+/// must therefore mirror the exact same contract, `InferenceOptions.
 /// toolRouting` is that single source. These tests pin it so a future edit
 /// cannot silently re-diverge the two paths (the divergence that left the
 /// desktop UI without a working tool loop).

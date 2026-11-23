@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ToolCallAccumulator behavioral tests — chunk-by-chunk injection aligned
+/// ToolCallAccumulator behavioral tests. Chunk-by-chunk injection aligned
 /// with upstream mlx-swift-lm ToolCallProcessor pattern.
 ///
 /// Mirrors `ToolTests.swift`:
@@ -16,7 +16,7 @@ import ocoreaiTestUtilities
 
 @testable import ocoreai
 
-/// Tool Call Accumulator tests — chunk-by-chunk injection, malformed recovery,
+/// Tool Call Accumulator tests. Chunk-by-chunk injection, malformed recovery,
 // MARK: - Chunk-by-chunk injection (upstream ToolTests pattern)
 
 @Suite("ToolCallAccumulator: chunk-by-chunk injection")
@@ -100,9 +100,9 @@ struct AccMalformed {
         var acc = ToolCallAccumulator()
         // First chunk: plain text prefix
         acc.processChunk("Let me check that for you. ")
-        // Second chunk: valid array appended — combined buffer is not valid JSON
+        // Second chunk: valid array appended. Combined buffer is not valid JSON
         acc.processChunk(#"[{"name":"search","arguments":{"q":"doc"}}]"#)
-        // Combined: "Let me check... [{"name"...}]" — not valid JSON array → nil
+        // Combined: "Let me check... [{"name"...}]", not valid JSON array → nil
         let result = acc.processEOS()
         #expect(result == nil)
     }
@@ -121,7 +121,7 @@ struct AccMalformed {
         acc.processChunk(#"[{"name":"a","arguments":{}}]"#)
         _ = acc.processEOS()
         #expect(acc.buffer == "")
-        // Second round — empty buffer
+        // Second round. Empty buffer
         _ = acc.processEOS()
     }
 

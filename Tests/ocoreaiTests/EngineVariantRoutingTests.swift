@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// #146/#170 alignment — EngineFactory variant routing (dynamic → pipelined,
+// #146/#170 alignment. EngineFactory variant routing (dynamic → pipelined,
 // aligned with upstream coreai-models `EngineFactory`; ocoreai removed the
 // sequential-fallback layer so auto-detect is honored directly).
 //
@@ -10,13 +10,13 @@
 // fallback `enum EngineFactory` lives in InferenceStubs.swift
 // `#if !canImport(CoreAI)` (L464). On a non-CoreAI runner (macos-26, no
 // CoreAI framework in SDK 26.5) the name resolves to the stub enum, which
-// has no `Variant` — so this suite must NOT compile there. Same convention as
+// has no `Variant`, so this suite must NOT compile there. Same convention as
 // RepetitionPenaltyGPUStateTests.swift (canImport = compile gate; the
 // macos-26 runner skips the block).
 //
 // Inside the gate, `struct EngineFactory` is @available(macOS 27.0, iOS 27.0, *)
 // and the deployment target is macOS 14 / iOS 17, so every test body guards
-// with #available(macOS 27.0) — @Suite/@Test macros can NOT carry @available
+// with #available(macOS 27.0). @Suite/@Test macros can NOT carry @available
 // (ocoreai-dev skill §6.1).
 
 import Foundation
@@ -146,7 +146,7 @@ struct EngineVariantRoutingTests {
                 .compatible == false, "upstream: non-LLM structure → no variant is compatible")
     }
 
-    // MARK: CoreAI asset preflight (hasCoreAIAsset — 09-15 "Missing hash file" fix)
+    // MARK: CoreAI asset preflight (hasCoreAIAsset, 09-15 "Missing hash file" fix)
 
     @Test("hasCoreAIAsset: Hub/MLX model dir (safetensors/tokenizer) → false")
     func hubModelDirReturnsFalse() throws {
@@ -196,7 +196,7 @@ struct EngineVariantRoutingTests {
     @Test("hasCoreAIAsset: path itself is an asset (no dir listing needed) → true")
     func directAssetPathReturnsTrue() {
         guard #available(macOS 27.0, iOS 27.0, *) else { return }
-        // No filesystem touch — pure extension check (asset bundles are dirs themselves)
+        // No filesystem touch. Pure extension check (asset bundles are dirs themselves)
         #expect(
             PreparedModel.hasCoreAIAsset(at: URL(fileURLWithPath: "/models/Transformer.aimodel"))
                 == true)

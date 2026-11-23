@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// LoopGuardRemedyTests — the identical-call cap has to hand the model a next step.
+/// LoopGuardRemedyTests. The identical-call cap has to hand the model a next step.
 ///
 /// Measured on the eval scoreboard: one 21-task run produced 68 identical refusals reading the
 /// same file, one per repeat, and the turn ended with the task unmade. The cap is right (a model
-/// hammering the same call is stuck); the message was the dead end — the same shape `edit_file`'s
+/// hammering the same call is stuck); the message was the dead end. The same shape `edit_file`'s
 /// `found 0` had before it started quoting the file back.
 ///
 /// `.serialized` because `SessionWorkspace` is a process-global (see `EditMismatchRecoveryTests`).

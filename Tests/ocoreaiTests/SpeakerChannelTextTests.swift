@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SpeakerChannelTextTests — the exact line the `.speaker` channel injects into the
+/// SpeakerChannelTextTests. The exact line the `.speaker` channel injects into the
 /// model's context, and the fields it must never claim to have measured.
 
 import Testing

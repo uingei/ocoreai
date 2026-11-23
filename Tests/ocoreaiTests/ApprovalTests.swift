@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ApprovalTests.swift — 审批参照形状（codex 基准，语义对齐非逐行抄）。
+/// ApprovalTests.swift。审批参照形状（codex 基准，语义对齐非逐行抄）。
 ///
 /// 参照锚点：
 /// - `protocol.rs:984 AskForApproval`（两档 `.interactive`/`.never`）
@@ -220,7 +220,7 @@ struct ApprovalBrokerTests {
         #expect(await t3.value == .denied(reason: "session-ended"))
 
         // ④ 缓存已失效：同 action 不再自动放行 → 重新挂起发布新 pending 行
-        //    （若缓存未清则命中静默放行、此行永不发布 —— 正是泄漏的 fail-safe 方向）
+        //    （若缓存未清则命中静默放行、此行永不发布。正是泄漏的 fail-safe 方向）
         let t4 = Task {
             await b.request(toolName: "write_file", arguments: "{}", reason: "r")
         }
@@ -416,7 +416,7 @@ struct ReviewSurfaceGateTests {
         }
         for _ in 0 ..< 400 {
             if let row = await b.snapshot().first {
-                // 80 必须**能**过门到 pending——断言后裁决清场（不泄漏挂起 continuation）
+                // 80 必须**能**过门到 pending。断言后裁决清场（不泄漏挂起 continuation）
                 #expect(await b.resolve(id: row.id, decision: .denied(reason: "t")) == true)
                 _ = await t.value
                 #expect(await b.snapshot().count == 0)
@@ -460,7 +460,7 @@ struct ReviewSurfaceGateTests {
         //
         // ocoreai 的结构性保证：审批态活在 `ApprovalBroker`（actor 内
         // `sessionApprovedKeys`），而 `ConversationCompaction.compact` 是纯函数
-        // ——只重排 `[Message]`，从不触碰 broker。本测试把这个不变量钉死，
+        //。只重排 `[Message]`，从不触碰 broker。本测试把这个不变量钉死，
         // 防止未来有人把审批态挪进 transcript / 或让 compaction 路径去动 broker。
         let b = ApprovalBroker(policy: .interactive)
 
@@ -494,7 +494,7 @@ struct ReviewSurfaceGateTests {
         #expect(compacted.removedCount > 0, "test premise: compaction actually removed messages")
 
         // 3) 不变量：compaction 之后，broker 内该 action 的会话放行态仍然命中
-        //    ——若有人把审批态挪进 transcript（或让 compaction 清 broker），此断言必红。
+        //。若有人把审批态挪进 transcript（或让 compaction 清 broker），此断言必红。
         let stillApproved = await b.request(
             toolName: "write_file", arguments: "{\"path\":\"/tmp/keep\"}", reason: "r")
         #expect(stillApproved == .approved, "session-approval state must survive compaction")
@@ -518,7 +518,7 @@ struct ReviewSurfaceGateTests {
     // MARK: - headless surface (codex lib.rs:566: headless → Never → Rejected)
 
     /// The .interactive verdict arrives via a PreToolUse `.ask` hook (the gate's
-    /// `ungated` default only fills calls no hook claims — a deny-hook veto must
+    /// `ungated` default only fills calls no hook claims. A deny-hook veto must
     /// survive headless, same as a broker veto today).
     private static let headlessAskReason =
         "denied: interactive approval is not available on this (headless) channel"
@@ -583,7 +583,7 @@ struct ReviewSurfaceGateTests {
 
     // MARK: - policy-aware headless gate (auto / never / no-broker)
 
-    /// `.auto` policy: a headless `.ask` is auto-approved — the policy is an
+    /// `.auto` policy: a headless `.ask` is auto-approved. The policy is an
     /// explicit autonomy choice and must not be killed by the headless
     /// short-circuit (that path is reserved for `.interactive` only).
     @Test("headless .ask with .auto policy is auto-approved (autonomy is a policy choice)")
@@ -602,7 +602,7 @@ struct ReviewSurfaceGateTests {
         #expect(await b.snapshot().isEmpty, "auto-approve must not park on the broker")
     }
 
-    /// `.auto` also passes on the in-process (GUI) path — policy gates both
+    /// `.auto` also passes on the in-process (GUI) path. Policy gates both
     /// surfaces uniformly.
     @Test("in-process .ask with .auto policy is auto-approved (uniform policy surface)")
     func inProcessAutoPolicyApproves() async {
@@ -622,7 +622,7 @@ struct ReviewSurfaceGateTests {
 
     private static let neverDenyReason = "auto-denied"
 
-    /// `.never` policy: auto-deny on BOTH headless and in-process surfaces —
+    /// `.never` policy: auto-deny on BOTH headless and in-process surfaces,
     /// the exact reason string is the contract (consumers may pattern-match).
     @Test("headless .ask with .never policy is auto-denied (exact reason)")
     func headlessNeverPolicyDenies() async {
@@ -661,7 +661,7 @@ struct ReviewSurfaceGateTests {
         }
     }
 
-    /// No broker at all: every `.ask` fail-closes on both surfaces — the
+    /// No broker at all: every `.ask` fail-closes on both surfaces. The
     /// regression protection "no approval surface ⇒ never silently allows"
     /// holds regardless of the new policy branch.
     @Test("no broker + headless .ask still fail-closes with the hook reason")
@@ -741,19 +741,19 @@ struct ApprovalExactlyOnceTests {
 /// 面（量出来的，不是假想）：`ChatView.stopStreaming()`（ChatView.swift:1021）在
 /// `cancelInference()` 之后还打 `activeTask?.cancel()`，注释自陈「propagate cancellation to both
 /// the Task layer and the InferenceCancellation layer」，而 `activeTask` 跑的 `chatState.chat(...)`
-/// 正是可能 park 在 `request()` 里的那个任务；`withCheckedContinuation` 对取消无感 —— Stop 撤销了
+/// 正是可能 park 在 `request()` 里的那个任务；`withCheckedContinuation` 对取消无感。Stop 撤销了
 /// 任务，没撤销 prompt。
 ///
 /// 已有的两条清场（`cancelInference()` / `resetConversation()` → `cancelAll()`，见
 /// `ChatStateTurnEndApprovalClosureTests`）都是**当下的批量**清场，只 resolve 那一刻已登记的行。
 /// 行若在清场之后才登记（Stop 落在登记前），bulk clear 结构上救不到它，broker 也从不看调用方的
-/// 取消位 —— banner 长留、任务永挂，事后一次点击就能复活 owner 已死的破坏性 call。`ChatViewModel`
+/// 取消位。banner 长留、任务永挂，事后一次点击就能复活 owner 已死的破坏性 call。`ChatViewModel`
 /// reset 处的注释（「否则旧审批卡仍可 resolve 复活已死 call」）承认的正是这个危险，只是只在会话
 /// 边界防它。HTTP 客户端断连**不是**本改动的依据：probe 31 实测它不撤销上游任务。
 ///
 /// 两条交错都要覆盖：`onCancel` 晚于登记（`cancelResolvesItsOwnPrompt` 靠 20 次循环撞两条分支）与
 /// 早于登记（`cancelBeforeRegistration` 用门钉成确定顺序）。未修复时挂起方**永不返回**，所以裁决经
-/// ``ResultBox`` 有界读取 —— 回归必须报成红色，而不是把整个 suite 挂死。
+/// ``ResultBox`` 有界读取。回归必须报成红色，而不是把整个 suite 挂死。
 @Suite("ApprovalBroker — 请求取消即终结自己的 prompt")
 struct ApprovalCancellationPromptTests {
 
@@ -766,14 +766,14 @@ struct ApprovalCancellationPromptTests {
         func resolve() { resolutions += 1 }
     }
 
-    /// 挂起方的落点，由调用任务自己写。调用没返回就永远是 nil —— 有界等待才能把死锁报成失败。
+    /// 挂起方的落点，由调用任务自己写。调用没返回就永远是 nil。有界等待才能把死锁报成失败。
     private actor ResultBox {
         private(set) var value: ApprovalDecision?
 
         func store(_ decision: ApprovalDecision) { value = decision }
     }
 
-    /// 让任务先进门、等测试按下取消再出发 —— 把「取消先于登记」从赛跑变成确定顺序。
+    /// 让任务先进门、等测试按下取消再出发。把「取消先于登记」从赛跑变成确定顺序。
     private actor StartGate {
         private var arrived = false
         private var go = false

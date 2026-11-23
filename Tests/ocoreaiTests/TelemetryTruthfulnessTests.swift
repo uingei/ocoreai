@@ -5,7 +5,7 @@
 /// Measured before this suite: the fast path's post-stream quality signal passed
 /// `toolCallCount: 0` while the very same stream forwarded every tool call to the UI, and
 /// `DirectInferenceResult.toolCallParts` was documented as "Populated when AgentLoop ran
-/// multiple iterations" after that coordinator had been deleted for having zero callers —
+/// multiple iterations" after that coordinator had been deleted for having zero callers,
 /// a condition that can no longer occur. Both fed the thinking-budget loop a picture of the
 /// turn that was not the turn, and the loop that tunes the budget steers on it.
 ///

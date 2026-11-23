@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AuditTrailTests.swift — AuditTrail actor: record, query, enforce, export
+/// AuditTrailTests.swift. AuditTrail actor: record, query, enforce, export
 /// Removed: AuditEntry model self-proof (struct field assertions, Codable, enum case count)
 
 import Foundation

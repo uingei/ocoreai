@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// README pair parity — `README.md` and `README.zh.md` are one document in two languages, so
+/// README pair parity, `README.md` and `README.zh.md` are one document in two languages, so
 /// everything language-neutral in them must be identical: the skeleton a reader navigates, the
 /// link targets that make a claim checkable, and the `OCOREAI_*` names a reader can set.
 ///
 /// Measured before this suite: the Chinese README carried no `curl … /health` example, no
 /// References line (eight links absent: Apple docs ×2, vLLM, vLLM-Metal, SGLang, omlx,
-/// OpenClaw, Hermes Agent) and no `%2F` caveat — so a reader of one language could not
+/// OpenClaw, Hermes Agent) and no `%2F` caveat, so a reader of one language could not
 /// reach a single source behind the upstream claims, and could not check the one wire-shape
 /// sharp edge this project documents. DeepSeek's harness keeps `.i18n.yaml` beside every doc
 /// for this reason (`~/references/deepseek-harness/README.i18n.yaml`), and goose gates the
@@ -117,7 +117,7 @@ struct ReadmePairParityTests {
     }
 
     /// A documented sharp edge is a warning the reader needs in the language they read: how to
-    /// address a model id containing `/` — verbatim `org/name`, or `%2F` — is named on both sides,
+    /// address a model id containing `/`. Verbatim `org/name`, or `%2F`. Is named on both sides,
     /// or half the audience has to guess.
     @Test func modelIdSlashRuleIsOnBothSides() throws {
         let root = readmeRoot()

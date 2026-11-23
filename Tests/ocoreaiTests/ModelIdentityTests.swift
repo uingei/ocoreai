@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ModelIdentityTests — Parse coverage + prefixedId correctness.
+/// ModelIdentityTests. Parse coverage + prefixedId correctness.
 ///
 /// ModelIdentity is the single source of truth for Hub routing.
 /// If parse or prefixedId is wrong, models download from the wrong Hub.

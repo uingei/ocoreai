@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ToolRegistryTests.swift — Actor tool registration, dispatch, safety.
+/// ToolRegistryTests.swift. Actor tool registration, dispatch, safety.
 ///
 /// Coverage:
 /// - Registration: success, duplicate skip, checkFn reject
@@ -220,7 +220,7 @@ struct ToolRegistryExecutionTests {
     /// `sleep(duration_ms:8000)` calls from four different sessions inside 60 s made the fourth
     /// come back `[tool_error: Execution loop detected: sleep] FAILED — its effects do not
     /// exist.` to a client that had called the tool once. The registry is one process-wide
-    /// actor, so the streak has to be bucketed by the conversation that owns the call — the
+    /// actor, so the streak has to be bucketed by the conversation that owns the call. The
     /// same reason `SessionIsolationTests` exists and the reason `sleep` asks
     /// `SteerQueue.pendingCount(sessionKey:)` rather than a global flag.
     @Test("loop detection is scoped per conversation — another conversation is not contaminated")
@@ -276,7 +276,7 @@ struct ToolRegistryExecutionTests {
     }
 
     /// Lanes with no conversation (inbound MCP `tools/call`, a proactive GUI read, a harness)
-    /// share one `process` bucket — the net stays armed where no identity exists, rather than
+    /// share one `process` bucket. The net stays armed where no identity exists, rather than
     /// being switched off by the scoping above.
     @Test("keyless calls share one bucket, so scoping cannot silently disarm the net")
     func keylessCallsStillShareOneBucket() async {
@@ -317,7 +317,7 @@ struct ToolRegistryExecutionTests {
                 _ = try await registry.call("breaker", arguments: "{}")
                 #expect(Bool(false), "Broken tool should throw")
             } catch {
-                // Expected: executionFailed (or wrapped) — acceptable pre-cap.
+                // Expected: executionFailed (or wrapped). Acceptable pre-cap.
             }
         }
 
@@ -336,7 +336,7 @@ struct ToolRegistryExecutionTests {
 
     // ── exec-host failure breaker (absorbs codex #41454) ──────────────────
     // Scope: the tools that RUN a command (`exec_command` + the live-session trio),
-    // not every tool — codex counts failures of `exec`. Trigger: 3 consecutive
+    // not every tool. Codex counts failures of `exec`. Trigger: 3 consecutive
     // HANDLER failures → refused on the 4th call (distinct from the loop net, which
     // keys on identical re-attempts). Reset: a successful tool in the same
     // conversation, or TTL. Streaks are bucketed per conversation: the registry is
@@ -350,8 +350,8 @@ struct ToolRegistryExecutionTests {
                 name: "exec_shell", toolset: "debug", schema: ToolSchema(),
                 handler: { _ in throw BrokenToolError() }))
 
-        // 3 consecutive handler failures (varying args so the SHA loop net —
-        // which keys on identical re-attempts — stays at ≤3 and does NOT fire).
+        // 3 consecutive handler failures (varying args so the SHA loop net,
+        // which keys on identical re-attempts. Stays at ≤3 and does NOT fire).
         for i in 0 ..< 3 {
             let args = "{\"cmd\": \"failing \(i)\"}"
             do {
@@ -422,7 +422,7 @@ struct ToolRegistryExecutionTests {
                 handler: { _ in throw BrokenToolError() }))
 
         // 5 handler failures of a NON-exec tool (varying args, loop net stays <3):
-        // codex scopes the streak to the exec host — these must NOT advance it.
+        // codex scopes the streak to the exec host. These must NOT advance it.
         for i in 0 ..< 5 {
             do {
                 _ = try await registry.call("bad_tool", arguments: "{\"n\": \(i)}")
@@ -435,7 +435,7 @@ struct ToolRegistryExecutionTests {
         }
 
         // exec host still has its OWN full 3-failure tolerance: 3 failures pass
-        // (each a plain handler failure — none refused by the breaker), and only
+        // (each a plain handler failure. None refused by the breaker), and only
         // the 4th exec failure engages it. Proves the 5 non-exec failures above
         // did not pre-consume the exec streak (which would have tripped sooner).
         for i in 0 ..< 3 {
@@ -490,8 +490,8 @@ struct ToolRegistryExecutionTests {
                 handler: { _ in throw BrokenToolError() }))
 
         // `exec_shell`-only tests could not see this: the default `execHostTools` set
-        // named the live-session trio, and `exec_command` — the one-shot runner every
-        // default toolset registers — was outside it, so the breaker never fired for
+        // named the live-session trio, and `exec_command`. The one-shot runner every
+        // default toolset registers. Was outside it, so the breaker never fired for
         // the surface an agent actually grinds. Args vary to keep the loop net out.
         for i in 0 ..< 3 {
             do {

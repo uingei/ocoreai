@@ -1,17 +1,17 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `update_plan` 工具 — 精确值测试(全离线, fake publisher, 无 I/O).
+/// `update_plan` 工具。精确值测试(全离线, fake publisher, 无 I/O).
 ///
 /// 覆盖三个 seam:
-///   1. `PlanUpdate.validate` 纯核对 — 参数化遍历:
+///   1. `PlanUpdate.validate` 纯核对。参数化遍历:
 ///      空 plan / 缺 step 文本 / 状态越界 / 多 in_progress / 合法组合(含单 in_progress);
 ///      拒绝报告逐条精确锚定(codex 错误语义: parse/enum 越界 = 可读拒绝, 不静默).
-///   2. `UpdatePlanClient.toolEntry` — 工具面(codex `plan_spec.rs` 对齐):
+///   2. `UpdatePlanClient.toolEntry`。工具面(codex `plan_spec.rs` 对齐):
 ///      name=`update_plan` / toolset=`plan` / 参数 `explanation`(string, optional) +
 ///      `plan`(array, items=object, required=[step,status]) / 成功输出固定文案
 ///      `Plan updated`(codex `PLAN_UPDATED_MESSAGE`) / 事件经 injection publisher 交付
 ///      (对齐 codex `send_event(EventMsg::PlanUpdate(args))`).
-///   3. `ToolEntry.toToolDef` 序列化 — `plan.items` JSON Schema 形状精确断言.
+///   3. `ToolEntry.toToolDef` 序列化, `plan.items` JSON Schema 形状精确断言.
 ///
 /// 基准: codex `codex-rs/core/src/tools/handlers/plan_spec.rs` + `plan.rs`
 /// (0.160.0 HEAD, #41630 默认启用; 工具名 / 参数名 / 状态枚举 / 输出文案 = 原值).
@@ -130,7 +130,7 @@ struct PlanValidateSuccessTests {
     }
 }
 
-// MARK: - 3. Tool 面 — codex 对齐(codex `plan_spec.rs` 原值)
+// MARK: - 3. Tool 面。codex 对齐(codex `plan_spec.rs` 原值)
 
 @Suite("update_plan tool face — codex parity")
 struct UpdatePlanToolFaceTests {
@@ -206,7 +206,7 @@ struct UpdatePlanToolFaceTests {
                 == "update_plan: error: plan[0].status must be one of pending | in_progress | completed (got \"running\")"
         )
         // 非法调用不得发事件(codex: 解析失败即 RespondToModel, 不发 PlanUpdate 事件)
-        // — 用 fresh recorder 验证:
+        //。用 fresh recorder 验证:
         let rec = PlanStateRecorder()
         let e2 = UpdatePlanClient.toolEntry(publisher: rec)
         _ = try? await e2.handler(bad)

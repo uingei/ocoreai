@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! PlatformPremiseHonestyTests — an OS premise is declared conditionally or not at all.
+//! PlatformPremiseHonestyTests. An OS premise is declared conditionally or not at all.
 //!
 //! Three ways a suite hid "this OS cannot run it", all measured in this repo on 10-26:
 //! `Issue.record("requires macOS 27")` (a red that is the platform talking, so one failure is two
 //! verdicts), `print`ing a SKIP (invisible in the run summary, so untested work reads as tested),
-//! and `.disabled("requires macOS 27 runtime")` — which never revives when the runner moves to
+//! and `.disabled("requires macOS 27 runtime")`, which never revives when the runner moves to
 //! macOS 27, leaving a claim with no gate behind it. Every one of those is gone from `Tests/`, and
 //! this scan keeps them gone. The repo root is found by searching rather than by fixed parent hops,
 //! and the scan floors its own hit count so a regex that stopped matching cannot pass vacuously

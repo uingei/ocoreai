@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AuditPersistenceSQLiteTests.swift — Verify 段 P0：audit_traces 持久化面
+/// AuditPersistenceSQLiteTests.swift. Verify 段 P0：audit_traces 持久化面
 ///
 /// 覆盖（精确值断言，零 count>N）：
 /// 1. persist → 重开实例 → 全字段恢复（Verify 段 P0）

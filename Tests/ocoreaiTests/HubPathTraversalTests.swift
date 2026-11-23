@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// HubPathTraversalTests.swift — a hub-supplied path lands under its root, or nowhere.
+/// HubPathTraversalTests.swift. A hub-supplied path lands under its root, or nowhere.
 ///
 /// Three floors, ordered by how much they prove:
-///   1. the rule itself — `HubRelativePath.components` / `.resolve`, exact values;
-///   2. behaviour on the wire — `POST /v1/models/download` answers 400 naming the field and
+///   1. the rule itself, `HubRelativePath.components` / `.resolve`, exact values;
+///   2. behaviour on the wire, `POST /v1/models/download` answers 400 naming the field and
 ///      echoing the value, *before* the SSE stream or any filesystem work;
 ///   3. that both download lanes route through the rule (one real predicate on the HF lane, plus
 ///      source scans with their own hit-count floors), because a rule nobody calls is a rule that
@@ -12,7 +12,7 @@
 ///      that stopped matching must fail rather than pass vacuously.
 ///
 /// What is NOT covered here, stated rather than hidden: the ModelScope lane's manifest refusal
-/// sits behind `listRepoFiles`, so it has no hermetic behavioural assertion — probe
+/// sits behind `listRepoFiles`, so it has no hermetic behavioural assertion. Probe
 /// `scripts/probes/20-download-path-traversal.sh` covers the wire end live, and the scan floors
 /// cover the wiring.
 
@@ -129,7 +129,7 @@ struct HubRelativePathResolveTests {
     }
 
     /// The write-side attack: the cache dir contains a symlink to somewhere else, and the manifest
-    /// names a path *through* it. The tail does not exist yet — that is precisely the case a
+    /// names a path *through* it. The tail does not exist yet, that is precisely the case a
     /// lexical check passes and a real filesystem obeys.
     @Test("a symlink inside the root cannot carry a write outside it")
     func symlinkEscapeIsRefused() throws {
@@ -157,7 +157,7 @@ struct HubRelativePathResolveTests {
     }
 
     /// A dangling symlink has no target to escape to (creating through it fails at the syscall),
-    /// so it stays contained — asserted so the resolution rule's ancestor walk is pinned, too.
+    /// so it stays contained. Asserted so the resolution rule's ancestor walk is pinned, too.
     @Test("a dangling symlink tail stays contained")
     func danglingSymlinkStaysContained() throws {
         let (root, outside, cleanup) = try Self.makeSandbox()
@@ -245,7 +245,7 @@ struct DownloadRequestTraversalTests {
 @Suite("Download lanes route through HubRelativePath")
 struct HubPathWiringTests {
 
-    /// Repo root found by walking up until the file exists — never a fixed hop count
+    /// Repo root found by walking up until the file exists. Never a fixed hop count
     /// (`V1EndpointCatalogTests`: hardcoded hops landed on `Tests/` and every scan threw ENOENT).
     private static func source(_ relative: String) throws -> String {
         var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
@@ -314,7 +314,7 @@ struct HubPathWiringTests {
         #expect(
             dl.flatTarget(for: "mlx-community/tiny")?.path
                 == root.path + "/mlx-community/tiny")
-        // A single-component id is not flat-layout — legacy cache path (unchanged behaviour).
+        // A single-component id is not flat-layout. Legacy cache path (unchanged behaviour).
         #expect(dl.flatTarget(for: "just-a-name") == nil)
     }
 

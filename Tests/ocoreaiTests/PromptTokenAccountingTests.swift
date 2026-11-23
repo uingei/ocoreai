@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! PromptTokenAccountingTests.swift — `prompt_tokens` must be the whole rendered prompt, and
+//! PromptTokenAccountingTests.swift, `prompt_tokens` must be the whole rendered prompt, and
 //! `cached_tokens` must be a part of it.
 //!
 //! ### The defect this locks (measured live 10-21, this host)
@@ -13,27 +13,27 @@
 //!
 //! (the other two legs said `prompt_tokens: 44` and `prompt_tokens: 54` with the same
 //! `cached_tokens: 949.)` No test in this repo could see what is wrong with those numbers.
-//! `cached_tokens` (949) is bigger than the `prompt_tokens` (30) it claims to break down — up to
+//! `cached_tokens` (949) is bigger than the `prompt_tokens` (30) it claims to break down. Up to
 //! 31x the whole it belongs to, which OpenAI's field contract makes impossible
 //! (`prompt_tokens_details` is a breakdown OF `prompt_tokens`). And by upstream's own sum
 //! (`cached + prefilled` = 979) a 979-token prompt reached the client as 30, so the entire reused
 //! prefix vanished from anything a client bills or budgets with. Cause: upstream
 //! `GenerateCompletionInfo.promptTokenCount` is what the turn *prefilled*, and on a reuse turn
-//! that is only the suffix — upstream's total is `totalPromptTokenCount = cached + prefilled`
+//! that is only the suffix. Upstream's total is `totalPromptTokenCount = cached + prefilled`
 //! (its getter in `Evaluate.swift`; the markers beside that doc comment in `OpenAIModels.swift`
 //! pin the sum and an emit site), which is what mlx-swift-lm itself emits as input tokens. We
 //! published the delta and kept the prefix in a separate field.
 //!
 //! ### Why exact values, and why the last test
 //! Probes 01 and 19 compare the wire's `cached_tokens` against the engine's reuse line, and both
-//! stayed green through this — they never asked what `prompt_tokens` was on the same turn. So the
+//! stayed green through this. They never asked what `prompt_tokens` was on the same turn. So the
 //! assertions below are exact-value, and the final one encodes a real `Usage` and re-reads the
 //! JSON, so a regression in field wiring (not just in the arithmetic) goes red.
 //!
 //! ### Why the scan at the end
 //! Summing in one place is only half the rule: the same turn reports its prompt at several hops
 //! (the wire, `/metrics`, the persisted session row), and 4b706ef fixed the wire on the streaming
-//! path while metrics and session memory kept the suffix — one turn, two numbers, every gate green.
+//! path while metrics and session memory kept the suffix. One turn, two numbers, every gate green.
 //! So the last test counts the hops per face instead of trusting that a fix reached all of them.
 
 import Foundation
@@ -73,7 +73,7 @@ struct PromptTokenAccountingTests {
 
     /// Paths that produce no `GenerateCompletionInfo` at all (guided / FoundationModels / CoreAI)
     /// hand over a pre-flight tokenizer estimate of the WHOLE prompt. There is no suffix here, so
-    /// adding a cached count would over-report — the add-back is conditional by design.
+    /// adding a cached count would over-report. The add-back is conditional by design.
     @Test("no .info on this path — keep the estimate, never add a cached count")
     static func pathWithoutInfoKeepsEstimate() {
         #expect(
@@ -145,7 +145,7 @@ struct PromptTokenAccountingTests {
     /// Session memory is deliberately not in these counts. A persisted row is a *message*, not
     /// a turn, and since 10-21 it carries its own content tokens
     /// (`SessionTranscript` + `EnginePool.countContentTokens`) rather than a share of the
-    /// turn's prompt — the apportionment was the second defect, pinned off by
+    /// turn's prompt. The apportionment was the second defect, pinned off by
     /// `PersistHopSourceTests.persistHopShape`.
     @Test(arguments: [
         HopCase(

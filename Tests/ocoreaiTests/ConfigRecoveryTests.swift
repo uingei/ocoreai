@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
-/// ConfigRecoveryTests.swift — Last-known-good config recovery (hermes `de2d6a1b93` pattern)
+/// ConfigRecoveryTests.swift. Last-known-good config recovery (hermes `de2d6a1b93` pattern)
 ///
-/// Exact-value assertions (test-quality rule — no count>N):
+/// Exact-value assertions (test-quality rule, no count>N):
 ///   * good-path layout is exactly `<dir>/backups/config/config.yaml.good`,
 ///   * snapshot round-trips decode to the EXACT same AppConfig,
 ///   * corrupt main file + usable snapshot → restored EXACT config, corrupt file
@@ -10,7 +10,7 @@
 ///   * unverified (corrupt) write does NOT refresh the good snapshot (stale value kept),
 ///   * verified write DOES refresh the good snapshot (new exact value visible).
 ///
-/// All paths are injected — tests never touch `~/.ocoreai`.
+/// All paths are injected. Tests never touch `~/.ocoreai`.
 
 import Foundation
 import Logging
@@ -151,9 +151,9 @@ struct ConfigRecoveryTests {
         #expect(restored == Self.exactConfig(), "restored config must be the EXACT snapped fixture")
         #expect(restored?.agent.approvalPolicy == "never")
 
-        // Corrupt user file untouched — user can inspect/diff it.
+        // Corrupt user file untouched. User can inspect/diff it.
         let onDisk = try Data(contentsOf: URL(fileURLWithPath: cfg))
-        // `corruptBytes` is a source literal — UTF-8 representation is guaranteed by
+        // `corruptBytes` is a source literal. UTF-8 representation is guaranteed by
         // language semantics, so build the expected bytes directly (no optional guard,
         // no dead `#expect(false)` sentinel branch).
         let corruptData = Data(corruptBytes.utf8)
@@ -231,7 +231,7 @@ struct ConfigRecoveryTests {
     }
 }
 
-// MARK: - ConfigSystem failure-order (create path) — integration-level, exact
+// MARK: - ConfigSystem failure-order (create path). Integration-level, exact
 
 @Suite("ConfigSystem — corrupt config never clobbers the user file")
 struct ConfigSystemCorruptionTests {

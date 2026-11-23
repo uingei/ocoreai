@@ -39,7 +39,7 @@ struct Wan21TiledDecodeTests {
 
     @Test("extractLatentSubTensor extracts the exact requested latent region")
     func extractRegion() {
-        // 1 channel, 1 frame, 4x4 spatial — latents = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+        // 1 channel, 1 frame, 4x4 spatial. Latents = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
         var latents = [Float](repeating: 0, count: 16)
         for i in 0 ..< 16 { latents[i] = Float(i) }
 

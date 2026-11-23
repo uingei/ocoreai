@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `web_fetch` 工具 — 精确值测试。
+/// `web_fetch` 工具。精确值测试。
 ///
 /// 覆盖三类 seam(均可离线、无真实网络):
-///   1. `WebFetchRequest.build`   — http/https 接受,其他 scheme/空串/无 host 拒绝,timeout clamp。
-///   2. `WebFetchParser`          — 归一化 trim、空页归一为 emptyPage、报告格式。
-///   3. `WebFetchClient.runForTool` — 注入 fake backend,契约化"成功→ok 报告 / 失败→error 文本"。
+///   1. `WebFetchRequest.build`. Http/https 接受,其他 scheme/空串/无 host 拒绝,timeout clamp。
+///   2. `WebFetchParser`。归一化 trim、空页归一为 emptyPage、报告格式。
+///   3. `WebFetchClient.runForTool`。注入 fake backend,契约化"成功→ok 报告 / 失败→error 文本"。
 ///
 /// 基准实证: WKWebView CLI 进程抓取 developer.apple.com → TITLE "Foundation Models |
 /// Apple Developer Documentation", BODY_CHARS 9277, 0 error。
@@ -16,7 +16,7 @@ import Testing
 
 @testable import ocoreai
 
-/// 文件级假 backend — 供 parser/client 测试复用(离线,不发网络)。
+/// 文件级假 backend。供 parser/client 测试复用(离线,不发网络)。
 struct FakeWebFetchBackend: WebFetchBackend {
     let result: WebFetchResult
     nonisolated func fetch(_ req: WebFetchRequest.Built) async -> WebFetchResult { result }
@@ -91,7 +91,7 @@ struct WebFetchParserTests {
 
     @Test
     func emptyPageBecomesExplicitError() async throws {
-        // 模拟"加载成功但 body 为空"——WebFetchClient.fetch 归一为 emptyPage
+        // 模拟"加载成功但 body 为空"。WebFetchClient.fetch 归一为 emptyPage
         let b = try WebFetchRequest.build(
             urlString: "https://canvas-only.example.com/", timeoutSeconds: 5)
         let backend = FakeWebFetchBackend(result: WebFetchResult(title: "T", body: "", error: nil))
@@ -147,7 +147,7 @@ struct WebFetchClientContractTests {
 
     @Test
     func invalidURLShortCircuitsWithoutBackend() async {
-        // 校验先于后端 — 不依赖 WebKit 是否存在,不发网络
+        // 校验先于后端。不依赖 WebKit 是否存在,不发网络
         let text = await WebFetchClient.runForTool(
             url: "not-a-url", timeout: 5, backend: nil, environment: [:])
         #expect(text.hasPrefix("error:"))

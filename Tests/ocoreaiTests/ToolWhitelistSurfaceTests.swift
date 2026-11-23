@@ -1,13 +1,13 @@
-// ToolWhitelistSurfaceTests.swift — P0-3: declared-whitelist filtering of the
+// ToolWhitelistSurfaceTests.swift. P0-3: declared-whitelist filtering of the
 // injected tool surface, + 10-06 flip: resolveToolSurface is the single choke.
 //
 // Semantics under test:
 //   1. Wire default flipped (10-06): client declared no tools[] (nil) →
 //      ZERO tools injected (`resolveToolSurface` nil branch), never the
-//      implicit full registry surface — live evidence: implicit full surface
+//      implicit full registry surface. Live evidence: implicit full surface
 //      made small models hallucinate tool calls on plain-text requests.
 //   2. Whitelist contract: declared names → only those specs survive, in
-//      declared (wire) order — spec order is dict-unstable.
+//      declared (wire) order. Spec order is dict-unstable.
 //   3. Declared-but-unregistered names → no crash, and no phantom spec from
 //      the registry. Supplying the caller's own specs declares them verbatim
 //      instead (10-18, `resolveToolSurface(declaredSpecsJSON:)`:
@@ -45,7 +45,7 @@ struct ToolWhitelistSurfaceTests {
         let names = filtered.compactMap {
             (($0["function"] as? [String: any Sendable])?["name"]) as? String
         }
-        // Declared (wire) order — deterministic; specs order is dict-unstable.
+        // Declared (wire) order. Deterministic; specs order is dict-unstable.
         #expect(names == ["exec_command", "write_file"])
         #expect(!names.contains("read_file"))
     }

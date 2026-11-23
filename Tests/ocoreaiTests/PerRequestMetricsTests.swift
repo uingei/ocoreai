@@ -1,8 +1,8 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PerRequestMetricsTests.swift — 推理指标追踪的纯函数验证
+/// PerRequestMetricsTests.swift。推理指标追踪的纯函数验证
 ///
-/// PerRequestMetrics is instantiated per-request, never shared — safe to test
+/// PerRequestMetrics is instantiated per-request, never shared. Safe to test
 /// as a direct unit. Tracks timing, token counts, throughput.
 ///
 /// Tests follow upstream pattern: read actual source before asserting values.
@@ -122,7 +122,7 @@ struct PerRequestMetricsTests {
     }
 
     /// Gauge honesty pin (10-07): ocoreai_tokens_per_second was computed as
-    /// requests/second (count/sum) and labeled tok/s — live proof: gauge 0.12
+    /// requests/second (count/sum) and labeled tok/s. Live proof: gauge 0.12
     /// while the registry held 17 tokens over 8.458 s (≈2.0 tok/s). Formula is
     /// now generated/seconds; this fixture distinguishes the two: 100 tok over
     /// 2.0 s → 50.00 tok/s, whereas count/sum would emit 0.50.

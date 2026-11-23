@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! MCPTimeoutDeliveryTests.swift — an external MCP server's response budget must be the
+//! MCPTimeoutDeliveryTests.swift. An external MCP server's response budget must be the
 //! budget this server publishes, in behaviour and on the wire.
 //!
 //! ### Why these tests exist (10-21)
@@ -160,7 +160,7 @@ struct MCPTimeoutDeliveryTests {
                 error.localizedDescription.contains("did not answer within 1s"),
                 "the caller is told which bound fired: \(error.localizedDescription)")
             // 这个 stub 一声不吭 ⇒ 文案必须和加 stderr 采集之前逐字相同：
-            // 没有证据就不许出现"stderr"字样（invariant 2 的反面——不许编证据）。
+            // 没有证据就不许出现"stderr"字样（invariant 2 的反面。不许编证据）。
             #expect(
                 !error.localizedDescription.contains("stderr"),
                 "a silent child must not gain invented evidence: \(error.localizedDescription)")
@@ -326,7 +326,7 @@ struct MCPTimeoutDeliveryTests {
     // MARK: - helpers
 
     /// 只留代码行：一条解释"为什么不能这样写"的注释不是那个写法本身。
-    /// 若注释也算命中，后来的维护者只会把注释删掉——门反而教会人销毁理由。
+    /// 若注释也算命中，后来的维护者只会把注释删掉。门反而教会人销毁理由。
     /// 与 AGENTS.md 里 claim 扫描同一口径（`grep -vE ':[0-9]+: *(//|/\*|\*)'`）。
     /// 只剥整行注释，行尾注释保留：`x = 15 // 旧值` 仍然是代码里的那个 15。
     static func codeOnly(_ source: String) -> String {
@@ -346,7 +346,7 @@ struct MCPTimeoutDeliveryTests {
         return try #require(parsed as? [String: Any], "not a JSON object: \(line.prefix(160))")
     }
 
-    /// Unwrap the JSON-RPC envelope — assertions read what a client reads, never an
+    /// Unwrap the JSON-RPC envelope. Assertions read what a client reads, never an
     /// internal struct, so a published field cannot be "fixed" in code and stay absent on the wire.
     private static func resultObject(_ line: String) throws -> [String: Any] {
         let inner = try jsonObject(line)["result"]

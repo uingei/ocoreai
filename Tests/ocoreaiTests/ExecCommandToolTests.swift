@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ExecCommandToolTests — `exec_command` (codex unified-exec baseline) unit gate.
+/// ExecCommandToolTests, `exec_command` (codex unified-exec baseline) unit gate.
 ///
 /// Coverage (exact-value assertions):
 /// - zsh `-c` execution: stdout, stderr, exit code round-trip
@@ -233,7 +233,7 @@ struct ExecCommandApprovalTests {
     struct ExecGateArgs: Codable, Sendable { let marker: String }
 }
 
-// MARK: - Bootstrap registration (integration — tool is present + callable in a clean registry)
+// MARK: - Bootstrap registration (integration. Tool is present + callable in a clean registry)
 
 @Suite("bootstrapBuiltInTools — exec_command registered + callable")
 struct ExecCommandBootstrapTests {

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingeai.
 // Licensed under MIT.
-/// AnthropicMappingTests.swift — Cross-protocol stop reason mapping.
+/// AnthropicMappingTests.swift. Cross-protocol stop reason mapping.
 ///
 /// Behavioral invariant: Anthropic stop_reason ↔ OpenAI finish_reason
 /// must be bijective (round-trip identity). Unknown values must not crash.
@@ -74,7 +74,7 @@ struct AnthropicMappingTests {
     @Test("OpenAI → Anthropic → OpenAI round-trip for shared reasons")
     func roundTripOpenAIToOpenAI() {
         // cancelled is OpenAI-specific (Anthropic has no equivalent),
-        // so it fails round-trip — verify that explicitly below.
+        // so it fails round-trip. Verify that explicitly below.
         let shared = ["stop", "length", "tool_calls", "error"]
         for reason in shared {
             let anthropic = openAIToAnthropicStopReason(reason)
@@ -88,7 +88,7 @@ struct AnthropicMappingTests {
     @Test("OpenAI 'cancelled' has no Anthropic equivalent — maps to stop")
     func cancelledOpenAISpecific() {
         // Behavioural: cancelled passthroughs to Anthropic, but Anthropic has
-        // no 'cancelled' — it falls back to 'stop'. This is a known protocol gap.
+        // no 'cancelled'. It falls back to 'stop'. This is a known protocol gap.
         let toAnthropic = openAIToAnthropicStopReason("cancelled")
         #expect(toAnthropic == "cancelled")
         let toOpenAI = anthropicToOpenAIFinishReason(toAnthropic)

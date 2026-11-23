@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ScreenDeliveryHonestyTests.swift — the screen verdict may not outrun a delivered frame.
+/// ScreenDeliveryHonestyTests.swift. The screen verdict may not outrun a delivered frame.
 ///
 /// Separate from `MultimodalStatusHonestyTests` because that suite owns the
 /// permission × device-count derivation every channel shares. This one owns the axis only
-/// screen has — whether pixels actually arrived — plus the per-process record that
+/// screen has. Whether pixels actually arrived. Plus the per-process record that
 /// remembers it.
 ///
 /// The defect it exists for (AGENTS.md invariant 2, measured 10-15 on the shipping host):
@@ -175,10 +175,10 @@ struct ScreenDeliveryRecordTests {
         #expect(measured.screenDelivery == .failed)
         #expect(measured.screenDeliveryError == "could not start stream")
         #expect(measured.screenDeliveryLatencyMs == 194)
-        // A measured failure is decisive regardless of the grant read — the rule probe 04's
+        // A measured failure is decisive regardless of the grant read. The rule probe 04's
         // refused leg (167 ms, same process, seconds apart) settled on 11-09: the leg
         // measured, so the verdict says `blocked` in the framework's words and never the
-        // preflight's `unknown`. The verdict still never reads `ready` without a frame —
+        // preflight's `unknown`. The verdict still never reads `ready` without a frame,
         // the case the shipping host was caught publishing.
         #expect(measured.screenStatus != .ready)
         #expect(measured.screenStatus == .blocked)

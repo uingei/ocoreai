@@ -1,12 +1,12 @@
 import Foundation
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// WorkspaceContextTests — the instruction-chain contract we ship, gated on our own behaviour.
+/// WorkspaceContextTests. The instruction-chain contract we ship, gated on our own behaviour.
 ///
 /// What is pinned is ours: root discovery (`.git` marker, no-marker → cwd only), root→cwd ordering,
 /// per-level `AGENTS.override.md` preference, byte-budget truncation with an exact-byte disclosure. The
 /// semantics were originally ported from a codex-style loader; since 11-03 they are ocoreai policy
-/// (`WorkspaceContext`'s header), so this suite is the evidence — no codex checkout is needed to run it,
+/// (`WorkspaceContext`'s header), so this suite is the evidence, no codex checkout is needed to run it,
 /// and none is consulted.
 import Testing
 
@@ -173,7 +173,7 @@ struct WorkspaceContextTests {
 
         let budget = 100
         let section = WorkspaceContext.buildSection(cwd: root.path, maxBytes: budget)
-        // Measure ONLY the doc body (after the first `---`) — the working_directory
+        // Measure ONLY the doc body (after the first `---`). The working_directory
         // line and the file path can contain 'x' and must not count against the
         // doc byte budget (counting them over-stated the truncated size).
         let body = section.split(separator: "\n---\n").last.map(String.init) ?? ""
@@ -203,7 +203,7 @@ struct WorkspaceContextTests {
         #expect(measured.truncatedDocs == 1)
         #expect(measured.droppedDocs == 0)
         #expect(measured.injectedBytes == 100)
-        // The notice is model-visible, names the doc, and states the exact delta — not
+        // The notice is model-visible, names the doc, and states the exact delta, not
         // "some instructions were shortened".
         #expect(
             section.contains(

@@ -6,7 +6,7 @@ import Tokenizers
 
 #if canImport(CoreAI)
 
-// #248 (coreai-models 3e172fb) — absorption test.
+// #248 (coreai-models 3e172fb). Absorption test.
 //
 // Pins the engine-agnostic constrained-decoding loop (`ConstrainedDecodingStrategy`)
 // against a mock `InferenceEngine` that mirrors the `CoreAIStaticShapeEngine`
@@ -21,7 +21,7 @@ import Tokenizers
 // Determinism: bias is `'5'` (id 53) against a `{"type":"integer"}` schema.
 // In xgrammar's integer grammar `'5'` is a valid next token at every step of a
 // (possibly empty so far) digit run, so the first `maxTokens` steps succeed and
-// the loop terminates only on the token budget — exercising the full per-step
+// the loop terminates only on the token budget. Exercising the full per-step
 // contract, not the early-termination path.
 //
 // Modeled on `CoreAILiveGenerateTests` (gate `#if canImport(CoreAI)` +

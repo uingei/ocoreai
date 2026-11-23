@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// V1EndpointCatalogTests.swift — the published endpoint index must be the
+/// V1EndpointCatalogTests.swift. The published endpoint index must be the
 /// router, not a snapshot of it.
 ///
 /// `NotFoundEnvelopeMiddleware` tells every client that hits a 404 to enumerate
 /// endpoints via `GET /v1/capabilities`. Until now that sentence had no delivery
 /// seam: the payload carried capability rows only. These tests make the promise
-/// checked instead of asserted — and check the checker, because a route scan that
+/// checked instead of asserted, and check the checker, because a route scan that
 /// stopped matching would otherwise make "catalog == routes" pass vacuously
 /// (CONTRIBUTING → "The three questions": the gate asserts its own premises).
 ///
@@ -75,7 +75,7 @@ struct V1EndpointCatalogTests {
 
     /// One route, two notations: the router registers the slash-bearing model routes with a
     /// recursive wildcard (`/v1/models/**/sampling`, so a verbatim `org/name` id reaches them),
-    /// while the index publishes the one-segment `:model` spelling — what a client substitutes and
+    /// while the index publishes the one-segment `:model` spelling. What a client substitutes and
     /// what GET /openapi.json renders as `{model}`. Mapped on both sides so the equality below
     /// still means "nothing published that is not wired"; an unmapped shape stays a difference.
     static func publishedNotation(_ path: String) -> String {
@@ -128,8 +128,8 @@ struct V1EndpointCatalogTests {
     /// A route that stops at a `limit` may not publish a note that reads as a complete list. The
     /// field draws the line the same way everywhere (codex `message-board/src/types.rs:23-39`,
     /// deepseek-harness `docs/subsystems/tools.md:623`, pi `bash-executor.ts:26-37`); here the
-    /// note is what reaches a stranger's agent — through `/v1/capabilities` `endpoints[]` and
-    /// `/openapi.json` — and "List stored sessions" promised every stored session while the SQL
+    /// note is what reaches a stranger's agent. Through `/v1/capabilities` `endpoints[]` and
+    /// `/openapi.json`, and "List stored sessions" promised every stored session while the SQL
     /// said `ORDER BY updated_at DESC LIMIT ?` (`SessionCompressor.swift:227`).
     ///
     /// The scan finds capped routes by reading the handlers, so a third capped endpoint that
@@ -149,7 +149,7 @@ struct V1EndpointCatalogTests {
                 let declRange = Range(match.range, in: source)
             else { continue }
             let path = String(source[pathRange])
-            // The handler is the text until the next route registers — good enough to see which
+            // The handler is the text until the next route registers. Good enough to see which
             // query parameters this closure reads.
             let bodyStart = declRange.upperBound
             let bodyEnd: String.Index
@@ -216,14 +216,14 @@ struct V1EndpointCatalogTests {
     }
 
     // ── auth is one home ─────────────────────────────────────────────────────
-    // Measured 10-20: four places stated which routes are public — `AuthRoutePolicy
+    // Measured 10-20: four places stated which routes are public, `AuthRoutePolicy
     // .publicPaths` (the set `AuthMiddleware` consults), `/v1/capabilities` (derived, the
     // only correct copy), README.md/README.zh.md (hand-copied), and this router's own header
     // comment. The header was wrong: it named 5 of the 7 public paths and asserted "All
     // other endpoints require valid API key", false for `/v1/tools` and
     // `/v1/capabilities`; and a docstring on `/v1/perception` called that route "public"
     // while the enforced set never contained it. `authColumnIsDerived` cannot catch any of
-    // it — it proves the column is derived, not that the set is the documented one.
+    // it. It proves the column is derived, not that the set is the documented one.
 
     @Test("the public set is exactly the documented discovery surface")
     func publicSetIsTheDocumentedSurface() {
@@ -232,7 +232,7 @@ struct V1EndpointCatalogTests {
         // it open. Either way this must be a deliberate edit, in the same change as the
         // README rows that publish it.
         // 10-29: `/openapi.json` joined this set. Deliberate, and the argument is measurable,
-        // not taste — everything the contract discloses (the route set, and each route's auth
+        // not taste. Everything the contract discloses (the route set, and each route's auth
         // scope) is already public on `/v1/capabilities`, which has been in this set from the
         // start. An open document therefore reveals no path an unauthenticated caller could not
         // already enumerate; closing it would hide the shape from the agents we want to install

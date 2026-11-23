@@ -1,13 +1,13 @@
-// ToolCallDeliveryDisclosureTests.swift — `/v1/models` may only say what a
+// ToolCallDeliveryDisclosureTests.swift, `/v1/models` may only say what a
 // declaring turn actually did in this process (AGENTS.md invariant 2).
 //
 // Why this ledger exists: `agent_loop: true` on `/v1/capabilities` and a healthy
-// `/v1/models` said nothing about the one thing an agent client routes on — whether
+// `/v1/models` said nothing about the one thing an agent client routes on. Whether
 // a `tools[]` request ever came back as `tool_calls`. Measured 10-18: it had not,
 // and the surface was silent in both directions.
 //
 // Gold standard here (ThinkingBudget/ComplexityAnalyzer style): exact values, not
-// `> 0`, plus the negatives — `not_observed` must be published, not omitted, and a
+// `> 0`, plus the negatives, `not_observed` must be published, not omitted, and a
 // model that simply answered a question must not be labelled broken.
 
 import Foundation

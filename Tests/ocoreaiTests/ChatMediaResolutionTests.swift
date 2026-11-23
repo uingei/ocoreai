@@ -1,4 +1,4 @@
-// ChatMediaResolutionTests.swift — a media part that names an unreadable file is refused
+// ChatMediaResolutionTests.swift. A media part that names an unreadable file is refused
 // by name, with the blame assigned to the right party.
 //
 // The condition is real and was measured 10-16: before `ChatMedia` existed, a turn whose
@@ -9,7 +9,7 @@
 // `data:`, never remote URLs), assign origin (caller's path → theirs to fix; this
 // server's own spool → ours to report), and hand back a status plus a remediation a
 // client can act on. `fileExists` is injected, so every branch here is exercised without
-// touching a disk — and the "spool file vanished" branch, which is otherwise a race, is
+// touching a disk, and the "spool file vanished" branch, which is otherwise a race, is
 // directly expressible.
 
 import Foundation

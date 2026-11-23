@@ -1,16 +1,16 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// EvalSummaryHonestyTests.swift — `POST /v1/models/evaluate` may only report what it ran.
+/// EvalSummaryHonestyTests.swift, `POST /v1/models/evaluate` may only report what it ran.
 ///
 /// The summary is four fields a client ranks runs by, and three of them were not measurements:
-/// `perplexity` carried the raw loss (mean cross-entropy per token in nats —
+/// `perplexity` carried the raw loss (mean cross-entropy per token in nats,
 /// `LoraTrain.swift:242` over the per-position mean at `:199`), so it printed e²·⁰ as `2.0`;
 /// `batchesEvaluated` was computed from the dataset while upstream stops at `max_batches`
 /// (`LoraTrain.swift:237-239`, 0 meaning no cap), so a capped request reported coverage it had
 /// skipped; and `durationSeconds` was the constant 0 for a call that spent real time.
 ///
 /// The engine call itself needs a loaded MLX model, so what is traversed here is the derivation
-/// that turned those inputs into the body — exact values, with the cap's boundary on both sides.
+/// that turned those inputs into the body. Exact values, with the cap's boundary on both sides.
 /// The live half ships in `scripts/probes/23-lora-seam-honesty.sh`, which reads the identity off
 /// the bytes a running server sent.
 
@@ -41,7 +41,7 @@ struct EvalSummaryHonestyTests {
         let summary = Self.summary(loss: loss, datasetCount: 4, batchSize: 4, maxBatches: 0)
         #expect(abs(Double(summary.perplexity) - perplexity) < 1e-6)
         // The regression this exists for is the pass-through, which is exact for loss 0 and wrong
-        // for every other value — so name the identity, do not just note a difference.
+        // for every other value, so name the identity, do not just note a difference.
         #expect(summary.loss == loss)
     }
 

@@ -1,8 +1,8 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// DirectWebSearch — model-free retrieval contract, locked offline.
+/// DirectWebSearch. Model-free retrieval contract, locked offline.
 /// The Bing fixture below is REAL captured cn.bing SERP markup (2026-10-11,
-/// cookie session, query "黄金价格") — blocks minimized to the structural
+/// cookie session, query "黄金价格"). Blocks minimized to the structural
 /// essentials the parser depends on, titles/urls/snippets kept verbatim.
 import Foundation
 import Testing
@@ -112,7 +112,7 @@ struct DirectParserTests {
         #expect(r.contains("- 金价网"))
         #expect(r.contains("url: https://j.net"))
         #expect(r.contains("4133 USD"))
-        // Empty is surfaced as empty — never disguised.
+        // Empty is surfaced as empty. Never disguised.
         #expect(
             DirectSearchOutcome(
                 engine: "bing", query: "q", hits: [], foundTotal: 0, trail: []
@@ -120,7 +120,7 @@ struct DirectParserTests {
                 .contains("results: (none"))
     }
 
-    /// The window and the whole it was cut from travel together, so the report can say both —
+    /// The window and the whole it was cut from travel together, so the report can say both,
     /// a bare list is read as "the page had nothing else", which is the same lie as a capped
     /// `total:` in `search_files`. The parse is real (a ddg SERP fixture), the cap is the product's
     /// own, so the assertion below is about bytes a model reads, not about a stubbed count.

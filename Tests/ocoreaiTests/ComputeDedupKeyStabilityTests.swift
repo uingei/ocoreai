@@ -1,8 +1,8 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ComputeDedupKeyStabilityTests.swift — dedup_key 跨进程稳定性 + upsert 真合并
+/// ComputeDedupKeyStabilityTests.swift. Dedup_key 跨进程稳定性 + upsert 真合并
 ///
-/// MemoryEventModel.computeDedupKey 此前 = raw.hashValue.description —
+/// MemoryEventModel.computeDedupKey 此前 = raw.hashValue.description,
 /// Swift String.hashValue **进程间随机化**（HashDoS 防护种子），两次 swift 进程
 /// 同一输入实测不同(5574914235216148489 vs 6832846833449623354)。dedup_key 是唯一索引/
 /// ON CONFLICT 去重依据 → **进程重启后同一条记忆每次生成新 key，永不命中 upsert**，
@@ -19,7 +19,7 @@ import Testing
 
 @Suite("dedup_key 跨进程稳定 + upsert 真合并")
 struct ComputeDedupKeyStabilityTests {
-    /// FNV-1a 64 — 与 MemoryEventModel stableHash64 实现同源（跨进程稳定判据）。
+    /// FNV-1a 64。与 MemoryEventModel stableHash64 实现同源（跨进程稳定判据）。
     /// 若上游改实现，此函数同步改，否则测试失效。
     private func fnv1a64(_ input: String) -> UInt64 {
         var hash: UInt64 = 0xcbf_29ce_4842_2325
@@ -109,7 +109,7 @@ struct ComputeDedupKeyStabilityTests {
         let compressor = SessionCompressor(store: store, fts: FTS5Search(store: store))
         try await compressor.storeMemoryEvent(e1)
 
-        // 同 (context,cause,entities) 再写 — 期望同 key 命中 upsert 分支
+        // 同 (context,cause,entities) 再写。期望同 key 命中 upsert 分支
         let e2 = MemoryEvent(
             sessionId: sidInt, context: "prefers dark mode", entities: [],
             cause: "ui setup", process: "asked again", result: "still dark",

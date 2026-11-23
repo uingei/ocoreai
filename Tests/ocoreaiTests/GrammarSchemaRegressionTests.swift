@@ -1,5 +1,5 @@
 import Foundation
-// GrammarSchemaRegressionTests.swift — locks buildGrammarSchema JSON serializability.
+// GrammarSchemaRegressionTests.swift. Locks buildGrammarSchema JSON serializability.
 // Regression: toAny 只剥一层 AnyCodable, 嵌套 schema(深度>=2)
 // 导致 JSONSerialization "Invalid type in JSON write (__SwiftValue)" NSException,
 // ObjC 异常 try? 接不住 → 进程死(带 tools 的 HTTP 请求全崩)。旧实现上 test1 的
@@ -66,7 +66,7 @@ struct GrammarSchemaRegressionTests {
     // so THIS function's fallback decides what "give me JSON" constrains. It used to be
     // `{"type":"object","properties":{}}`, which tells the grammar that no key is legal:
     // the only generatable answer is the empty object. Measured 10-18 on this host at
-    // temp 0 — `json_object` → `'{}'` (2 completion tokens) for a prompt that names two
+    // temp 0, `json_object` → `'{}'` (2 completion tokens) for a prompt that names two
     // keys, while `json_schema` carrying `{"type":"object"}` → `{"answer":8,...}` (20).
     // vllm and sglang both map this mode to `{"type":"object"}`:
     // vllm/parser/abstract_parser.py:277, sglang/srt/entrypoints/openai/protocol.py:1191.
@@ -94,7 +94,7 @@ struct GrammarSchemaRegressionTests {
     }
 
     /// One home, enforced mechanically: the zero-key literal must not come back anywhere
-    /// in Sources — it had four copies (handler fallback + three constrained-decoding
+    /// in Sources. It had four copies (handler fallback + three constrained-decoding
     /// paths), and four copies is four chances to silently return `{}`.
     @Test("no second copy of the zero-key object schema survives in Sources")
     func zeroKeyLiteralAbsentFromSources() throws {
@@ -161,7 +161,7 @@ struct GrammarSchemaRegressionTests {
     /// answer in ```json, so nothing downstream could parse it (3/3). sglang installs a tool
     /// grammar only for a demand (`serving_chat.py:1488-1501`) and calls the schema response
     /// data (`serving_chat.py:1349-1353`). What JSON-first still cannot do is ground a turn
-    /// that must call a tool before answering — probe 12 §7 holds that open.
+    /// that must call a tool before answering. Probe 12 §7 holds that open.
     @Test("tools + json_object: the caller's JSON wins, the envelope must not")
     func jsonObjectBeatsToolEnvelope() throws {
         let tools = try decodeTools(
@@ -207,7 +207,7 @@ struct GrammarSchemaRegressionTests {
 
     /// A demand IS the answer shape: `tool_choice: "required"`/pinned function means the
     /// caller asked for a call, so the envelope constrains alone even with a JSON
-    /// `response_format` alongside it — sglang's `required`-only rule, same direction.
+    /// `response_format` alongside it. Sglang's `required`-only rule, same direction.
     @Test("tool_choice required keeps the envelope alone, and constrains")
     func demandKeepsEnvelopeAlone() throws {
         let tools = try decodeTools(
@@ -260,12 +260,12 @@ private func decodeTools(_ json: String) throws -> [ToolDef] {
 
 // MARK: - The shape a `/v1/messages` client asks for
 
-/// `/v1/messages` has no `response_format` — that is the OpenAI spelling. Its shape request is
+/// `/v1/messages` has no `response_format`, that is the OpenAI spelling. Its shape request is
 /// `output_config.format`, and the comparator translates that into the OpenAI field its grammar
 /// builder already understands (`vllm/entrypoints/anthropic/serving.py:745-761`,
 /// `_handle_output_config`: same type, schema forwarded whole, name taken from the type).
 /// Measured 10-31 before that mapping existed here: a body with `output_config.format` and the
-/// same body without it produced byte-identical responses — while this repo's DTO declared a
+/// same body without it produced byte-identical responses. While this repo's DTO declared a
 /// `response_format` key that the grammar site overrode with a literal `nil` twice and the
 /// translation a third time. A client asking for JSON got prose and a 200 either way.
 @Suite("output_config.format — the shape asked for on /v1/messages reaches the grammar")
@@ -356,8 +356,8 @@ struct AnthropicOutputConfigGrammarTests {
 
     /// Same grammar, not same bytes: the schema travels as `[String: AnyCodable]`, so key order
     /// in the serialized grammar is unspecified and a byte claim here would flake on a runtime
-    /// that hashes differently. Sorting the keys asserts the content — the property set, the
-    /// required list, the types — without pinning an order nobody promised.
+    /// that hashes differently. Sorting the keys asserts the content. The property set, the
+    /// required list, the types. Without pinning an order nobody promised.
     private static func canonical(_ json: String) throws -> String {
         let object = try JSONSerialization.jsonObject(with: Data(json.utf8))
         return String(

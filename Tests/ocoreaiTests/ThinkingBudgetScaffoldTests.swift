@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ThinkingBudget scaffolding tests — adaptive multiplier adjustment,
+/// ThinkingBudget scaffolding tests. Adaptive multiplier adjustment,
 /// taskType→scaffold mapping, and quality feedback calibration.
 ///
 /// Matches upstream methodology: parameterized across ComplexityBand + TaskType

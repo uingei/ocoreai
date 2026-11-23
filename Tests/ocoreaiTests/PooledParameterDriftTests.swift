@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PooledParameterDriftTests.swift — a reused pooled session must carry *this* turn's
+/// PooledParameterDriftTests.swift. A reused pooled session must carry *this* turn's
 /// sampling knobs, not the ones it was created with.
 ///
 /// Sampling does not travel with the call in mlx-swift-lm: `ChatSession` stores
@@ -115,9 +115,9 @@ struct PooledParameterDriftTests {
         #expect(MLXSessionPool.staleSamplingFields(before: stored, after: incoming).isEmpty)
     }
 
-    // MARK: — the refresh is wired, not just computable
+    // MARK:. The refresh is wired, not just computable
 
-    /// Source of the pool, found by walking up (never by fixed path hops — three
+    /// Source of the pool, found by walking up (never by fixed path hops. Three
     /// "passing" scan assertions in this repo were really ENOENT).
     private static func sessionPoolSource() throws -> String {
         let relative = "Sources/ocoreai/Engine/SessionPool.swift"

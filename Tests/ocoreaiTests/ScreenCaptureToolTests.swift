@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `view_screen` 工具 — 精确值测试(全离线, fake backend, 不触 OS 截屏).
+/// `view_screen` 工具。精确值测试(全离线, fake backend, 不触 OS 截屏).
 ///
 /// 覆盖三类 seam:
-///   1. `ScreenCapture.build`     — OCR on/off、maxOCRChars clamp(200...8000)、0=off。
-///   2. `ScreenCapturePure`       — dataURL→JPEG 解码、pixelSize、OCR trim+cap、报告精确形态。
-///   3. `ScreenCaptureClient.runForTool` — fake backend: 成功(有/无 OCR)、
+///   1. `ScreenCapture.build`. OCR on/off、maxOCRChars clamp(200...8000)、0=off。
+///   2. `ScreenCapturePure`. DataURL→JPEG 解码、pixelSize、OCR trim+cap、报告精确形态。
+///   3. `ScreenCaptureClient.runForTool`. Fake backend: 成功(有/无 OCR)、
 ///      后端失败→error 文本、非 JPEG 载荷→error 文本。
 
 import AppKit
@@ -15,7 +15,7 @@ import Testing
 
 @testable import ocoreai
 
-/// 文件级假 backend — parser/client 测试复用(离线, 不发真实截屏).
+/// 文件级假 backend. Parser/client 测试复用(离线, 不发真实截屏).
 struct FakeScreenBackend: ScreenCaptureBackend {
     let dataURL: String?
     nonisolated func captureScreen() async -> String? { dataURL }
@@ -74,7 +74,7 @@ struct ScreenCaptureRequestTests {
 @Suite("view_screen pure decode/parse/report")
 struct ScreenCapturePureTests {
 
-    /// 6x4 RGB JPEG, 真像素 6x4 — 构造于测试内, 离线可用.
+    /// 6x4 RGB JPEG, 真像素 6x4。构造于测试内, 离线可用.
     /// 注意: JPEG 重采样可能微调尺寸, 故断言用 >= 且 >0, 形态精确断言在 report 层。
     private func makeTinyJPEG() -> Data {
         let w = 6

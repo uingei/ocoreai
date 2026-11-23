@@ -1,9 +1,9 @@
 // Copyright © 2026 uingei@163.com.
-/// MCPCallCache Tests — LRU eviction + TTL expiry
+/// MCPCallCache Tests. LRU eviction + TTL expiry
 ///
 /// Coverage: get/set/eviction/expiration on MCPCallCache (actor)
 ///
-/// Rationale: MCPCallCache is pure data logic — no hardware needed.
+/// Rationale: MCPCallCache is pure data logic, no hardware needed.
 /// Tests verify LRU ordering and TTL expiration in actor isolation.
 
 import Testing

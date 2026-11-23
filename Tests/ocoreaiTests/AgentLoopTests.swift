@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AgentLoopTests.swift — Tests for AgentLoop production types
+/// AgentLoopTests.swift. Tests for AgentLoop production types
 ///
 /// Tests:
 ///  - AgentLoopIterationLog: CustomStringConvertible description format
 ///
-/// Note: AgentLoopResult is a plain struct with stored properties only —
+/// Note: AgentLoopResult is a plain struct with stored properties only,
 /// testing default values requires no unit tests (Swift guarantees them).
 /// Full AgentLoop integration is tested via MessageBuilderTests.
 

@@ -1,5 +1,5 @@
 // Copyright © 2026 uingei@163.com.
-/// MockTokenizer.swift — Protocol-level tokenizer mock for unit tests.
+/// MockTokenizer.swift. Protocol-level tokenizer mock for unit tests.
 ///
 /// Tests coverage: Round-trip encode/decode, chat template, special tokens, batch ops.
 ///

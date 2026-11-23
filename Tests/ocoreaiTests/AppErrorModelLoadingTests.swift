@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AppError contract tests — new ``modelLoading`` case must stay distinct
+/// AppError contract tests. New ``modelLoading`` case must stay distinct
 /// from ``engineUnavailable`` so clients can tell transient-retry apart from
 /// permanent-fail.
 

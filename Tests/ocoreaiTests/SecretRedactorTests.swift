@@ -1,14 +1,14 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SecretRedactorTests.swift — exact-value coverage for the codex-baseline
+/// SecretRedactorTests.swift. Exact-value coverage for the codex-baseline
 /// port (`codex-rs/secrets/src/sanitizer.rs::redact_secrets`).
 ///
 /// Two layers:
-///   1. `SecretRedactor` unit level — full positive + negative matrix
+///   1. `SecretRedactor` unit level. Full positive + negative matrix
 ///      (codex's `redacts_supported_bearer_tokens` and
 ///      `avoids_bearer_false_positives` ported as exact-value `#expect`
 ///      cases; the other three rule groups get equivalent coverage).
-///   2. `ToolRegistry.call` injection level — proves the chokepoint actually
+///   2. `ToolRegistry.call` injection level. Proves the chokepoint actually
 ///      returns the redacted string, not just that the helper exists.
 import Foundation
 import Logging
@@ -68,7 +68,7 @@ struct SecretRedactorTests {
         let out = SecretRedactor.redact("export OPENAI_API_KEY=\(key)")
         #expect(out == "export OPENAI_API_KEY=[REDACTED_SECRET]")
         #expect(!out.contains(key))
-        // 19 chars — below the {20,} threshold, untouched.
+        // 19 chars. Below the {20,} threshold, untouched.
         let short = "sk-" + String(repeating: "x", count: 19)
         #expect(SecretRedactor.redact("key: \(short)") == "key: \(short)")
     }
@@ -79,11 +79,11 @@ struct SecretRedactorTests {
     func awsKeyId() {
         let k = "AKIA" + "ABCD1234EFGH5678"  // 16 [0-9A-Z]
         #expect(SecretRedactor.redact("aws --key \(k)") == "aws --key [REDACTED_SECRET]")
-        // Embedded in a longer alphanumeric run — word-boundary kills it.
+        // Embedded in a longer alphanumeric run. Word-boundary kills it.
         let embedded = "XX" + k + "YY"
         #expect(SecretRedactor.redact("v=\(embedded)") == "v=\(embedded)")
-        // 17 chars — [0-9A-Z]{16} would match a 16-prefix, but \b fails at the
-        // 17th alphanumeric. Codex's pattern is \bAKIA[0-9A-Z]{16}\b — no match.
+        // 17 chars. [0-9A-Z]{16} would match a 16-prefix, but \b fails at the
+        // 17th alphanumeric. Codex's pattern is \bAKIA[0-9A-Z]{16}\b, no match.
         let tooLong = "AKIA" + "ABCD1234EFGH56789"  // 17
         #expect(SecretRedactor.redact("k=\(tooLong)") == "k=\(tooLong)")
     }
@@ -102,7 +102,7 @@ struct SecretRedactorTests {
         for (input, expected) in cases {
             #expect(SecretRedactor.redact(input) == expected)
         }
-        // 3-char value — below the {8,} threshold, untouched.
+        // 3-char value. Below the {8,} threshold, untouched.
         let short = "api_key: ab1"
         #expect(SecretRedactor.redact(short) == short)
         // Non-secret keys must pass (no "token" word, no "key" word).

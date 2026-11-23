@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `ChatState.parseToolArguments` — the exact mapping from raw tool-call
+/// `ChatState.parseToolArguments`. The exact mapping from raw tool-call
 /// argument JSON (as the engine's `ToolCallMeta.arguments` carries it) into the
 /// flat `[String: String]` shape stored on `ToolCallPart` / `ToolCallRecord`.
 ///
@@ -52,7 +52,7 @@ struct ParseToolArgumentsTests {
     @Test("round-trip: persisted record's arguments render back byte-identical")
     func persistedArgumentsSurvive() {
         // This mirrors the LIVE card population (ChatViewModel .toolCall branch)
-        // then the RESTORE path (fromMessageModel uses rec.arguments directly) —
+        // then the RESTORE path (fromMessageModel uses rec.arguments directly),
         // the end-to-end value the user sees on a re-opened session.
         let raw = #"{"path":"/tmp/agent_test/autonomy/inventory","recursive":true}"#
         let liveCard = ChatState.parseToolArguments(raw)

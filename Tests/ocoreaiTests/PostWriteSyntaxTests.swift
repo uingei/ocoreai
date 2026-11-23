@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Post-write validity reporting — the tool result must say whether the artefact is valid,
+/// Post-write validity reporting. The tool result must say whether the artefact is valid,
 /// not merely that bytes landed.
 ///
 /// `write_file`/`edit_file` verified durability (atomic write + read-back byte compare) and
@@ -89,7 +89,7 @@ struct PostWriteSyntaxTests {
         let line = try FileTools.write(path: broken, content: "def f(:\n    pass\n")
         #expect(line.contains("write_file: OK-but-invalid"))
         #expect(line.contains("syntax: py_compile FAILED"))
-        // Durability facts must survive alongside the verdict — the write did happen.
+        // Durability facts must survive alongside the verdict. The write did happen.
         #expect(line.contains("read-back verified"))
 
         let fixed = dir + "/fixed.py"

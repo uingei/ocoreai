@@ -1,8 +1,8 @@
 // Copyright © 2026 uingeai.
 // Licensed under MIT.
-/// ChatViewModelBehavioralTests.swift — Behavioral tests against real production types.
+/// ChatViewModelBehavioralTests.swift. Behavioral tests against real production types.
 ///
-/// Strategy: @testable import exposes internal types. No mocks — construct real
+/// Strategy: @testable import exposes internal types. No mocks. Construct real
 /// ChatMessage, TranscriptPart, and verify actual computed properties and filter logic.
 ///
 /// Matches upstream mlx-swift-lm pattern: test real object graphs, not simulations.
@@ -247,7 +247,7 @@ struct ChatMessageInitTests {
     }
 }
 
-// MARK: - ChatState.displayText — UI/wire parity tests
+// MARK: - ChatState.displayText. UI/wire parity tests
 // The UI live preview and final bubble must strip the fake tool-plan array
 // the same way the OpenAI wire does (OutputSanitizer). These tests pin that
 // parity to exact-value expectations.
@@ -274,7 +274,7 @@ struct ChatStateDisplayTextTests {
 
     @Test("Unsettled/incomplete tool array survives incremental view (no partial strip)")
     func incompleteArraySurvives() {
-        // While streaming: array not yet closed — must NOT be spliced
+        // While streaming: array not yet closed. Must NOT be spliced
         let raw = "Planning: [{ \"name\": \"exec_command\", \"argumen"  // codespell:ignore
         #expect(ChatState.displayText(from: raw) == raw)
     }
@@ -288,7 +288,7 @@ struct ChatStateDisplayTextTests {
     }
 
     // Real thinking family in the strip path is ` think/think` (verified by
-    // hexdump of ChatViewModel source). Tags assembled from code points —
+    // hexdump of ChatViewModel source). Tags assembled from code points,
     // transport-safe, same pattern as OutputSanitizer.
     @Test("Complete thinking block + tool array both stripped (exact)")
     func thinkingAndToolArrayExact() {
@@ -365,7 +365,7 @@ struct ChatStateDisplayTextTests {
     func qwen3LegacyEotIdKeepsAnswer() {
         let raw = Self.q3Open + "inner" + Self.q3Eot + "  the answer  "
         let out = ChatState.displayText(from: raw)
-        // UI keeps the original edge whitespace (no trim — it is the live
+        // UI keeps the original edge whitespace (no trim. It is the live
         // preview of growing text; trimming is the wire's `strip` job).
         #expect(out == "  the answer  ")
         #expect(!out.contains("inner"))

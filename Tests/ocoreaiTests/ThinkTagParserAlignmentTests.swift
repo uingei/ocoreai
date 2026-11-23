@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// F2 — `ThinkTagParser` alignment: the merged parser must keep ocoreai's
+// F2, `ThinkTagParser` alignment: the merged parser must keep ocoreai's
 // `primedInside` routing (upstream `coreai-models` has no equivalent) and add
 // the #182 agentic `Format` path (upstream `684ae8e`
 // `swift/Sources/CoreAILanguageModels/LanguageModel/ThinkTagParser.swift`),
@@ -9,7 +9,7 @@
 // Assertion style follows upstream `ThinkTagParserTests.swift`: `Event` is
 // deliberately not `Equatable` in both trees, so tests compare the compacted
 // per-kind strings (`eventStrings`). Expectations are exact arrays / exact
-// joined strings — no `isEmpty`/`contains` soft checks.
+// joined strings, no `isEmpty`/`contains` soft checks.
 
 import Foundation
 import Testing
@@ -21,7 +21,7 @@ private enum EventKind {
     case reasoning
 }
 
-/// Upstream `ThinkTagParserTests.eventStrings(_:_:)` — compact a parser event
+/// Upstream `ThinkTagParserTests.eventStrings(_:_:)`. Compact a parser event
 /// list down to the payloads of one kind, preserving order.
 private func eventStrings(_ events: [ThinkTagParser.Event], kind: EventKind) -> [String] {
     events.compactMap { event in
@@ -106,7 +106,7 @@ struct ThinkTagParserTagPairTests {
 
 /// Upstream `AgenticThinkTagParserTests` 用的真 marker 协议（Muse Glimmer / ATEM
 /// 风格）：`to=self<|message|>` / `to=user<|message|>` + eom/eot boundary tokens。
-/// 旧占位假 marker（`to-self`/`to-user`）不保 — 没有任何 ocoreai 生产消费者
+/// 旧占位假 marker（`to-self`/`to-user`）不保。没有任何 ocoreai 生产消费者
 /// 走该路径（Engine / MLXBridge / CoreAI* 全走 tagPair + `primedInside`）。
 /// 真正的 agentic 断言面 → `AgenticThinkTagParserVendoredTests.swift`（#206）。
 @Suite("ThinkTagParser agentic — marker protocol parity guard")

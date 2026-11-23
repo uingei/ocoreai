@@ -1,15 +1,15 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// WorkspacePathAnchorTests — where a relative tool path lands, and whether the caller
+/// WorkspacePathAnchorTests, where a relative tool path lands, and whether the caller
 /// can find out.
 ///
 /// Why (measured 10-22, `scripts/eval/run.sh`): the first task-success scoreboard scored
-/// 4/9, and five failures were the same sentence in the server log —
+/// 4/9, and five failures were the same sentence in the server log,
 /// `edit_file: cannot read (missing or non-UTF8): calc.py`. `SessionWorkspace.setDirectory`
 /// is called only from the UI (`ChatViewModel`, `SessionManager`), so a wire client had no
 /// way to state a workspace: every relative path anchored to the *process* cwd, the
 /// `working_directory:` line was absent from the prompt, and the refusal named only the
-/// relative name — so the model retried the same wrong path until it gave up. Two homes
+/// relative name, so the model retried the same wrong path until it gave up. Two homes
 /// fix that: `OCOREAI_WORKSPACE` in `WorkspaceContext.configuredDirectory()` (the fallback
 /// every consumer already reads), and `FileTools.pathContext` in the refusals.
 import Foundation
@@ -99,7 +99,7 @@ struct WorkspacePathAnchorTests {
         }
     }
 
-    /// The refusal must describe the anchor it actually used — which depends on how this
+    /// The refusal must describe the anchor it actually used, which depends on how this
     /// host is configured, so the assertion follows the measured anchor instead of assuming
     /// one (a gate that only passes on a pristine machine is a gate that gets ignored).
     @Test("the refusal names the anchor it really used, including the no-workspace case")

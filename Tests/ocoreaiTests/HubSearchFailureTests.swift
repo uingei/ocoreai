@@ -1,6 +1,6 @@
 import Foundation
 // Guards the honest hub-search failure surface: the user must be able to
-// tell WHICH hub broke, WHY it broke, and WHAT lever fixes it — and a
+// tell WHICH hub broke, WHY it broke, and WHAT lever fixes it, and a
 // failure banner must never be overwritten by "nothing found".
 import Testing
 
@@ -9,7 +9,7 @@ import Testing
 @Suite("Hub search failure honesty")
 struct HubSearchFailureTests {
 
-    /// Resolve a key against the EN table explicitly — `.l` follows the
+    /// Resolve a key against the EN table explicitly, `.l` follows the
     /// host locale (this host runs zh), so content assertions on English
     /// substrings must pin the table, not the chain.
     private func en(_ key: StringKey) -> String { L10nTables.base[key] ?? "" }
@@ -36,7 +36,7 @@ struct HubSearchFailureTests {
 
     @Test("failure and empty-results are distinct states")
     func failureDistinctFromNoResults() {
-        // The old lie: failure rendered as "No models found: x" — the user
+        // The old lie: failure rendered as "No models found: x". The user
         // could not distinguish a broken network from an empty query.
         let failPrefix = en(.modelSearchFailedFormat).lowercased()
         let emptyEn = en(.modelSearchNoResults).lowercased()

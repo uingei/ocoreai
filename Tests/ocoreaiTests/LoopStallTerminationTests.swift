@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// LoopStallTerminationTests — zero new information is counted, bounded, and honest.
+/// LoopStallTerminationTests. Zero new information is counted, bounded, and honest.
 ///
 /// Three defects, all measured in this repo's own transcripts (CHANGELOG `loop-stall`):
 ///   • a refusal reached no state at all (`recordExecution` counts only calls that reached
-///     the handler), so one refusal could be renewed forever — 86 identical ones in a task;
+///     the handler), so one refusal could be renewed forever, 86 identical ones in a task;
 ///   • clearing the ladder on ANY successful call let a caller alternate two calls forever
 ///     without either ladder climbing;
 ///   • the wall keyed on arguments alone refused a re-read after the file had changed,
@@ -37,7 +37,7 @@ struct LoopStallTerminationTests {
         return registry
     }
 
-    /// One run then a refusal is not the point — the point is that the count has a top.
+    /// One run then a refusal is not the point. The point is that the count has a top.
     /// Three runs, six correctable refusals, terminal from the ninth zero-gain event.
     @Test("the same unchanged call climbs to a terminal verdict, exact vector")
     func zeroGainLadderVector() async throws {

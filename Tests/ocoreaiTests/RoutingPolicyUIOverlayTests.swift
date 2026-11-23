@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// RoutingPolicyUIOverlayTests — exact-value verification of the UI→config
+/// RoutingPolicyUIOverlayTests. Exact-value verification of the UI→config
 /// hardware-routing-policy overlay.
 ///
 /// The bridge under test (`pureRoutingPolicyUIOverlay` in
@@ -13,7 +13,7 @@
 ///   - untouched `BackendConfig` dimensions are never modified.
 ///
 /// The i18n side (5 new `StringKey`s) is locked by
-/// `LocaleTableCompletenessTests` — en + zh must cover them exactly. The
+/// `LocaleTableCompletenessTests`. En + zh must cover them exactly. The
 /// SwiftUI surface enumerates `RoutingPolicy.allCases`, so the option list
 /// cannot drift from the enum.
 

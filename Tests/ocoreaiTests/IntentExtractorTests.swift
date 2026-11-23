@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// IntentExtractorTests.swift — Pattern-based intent recognition
+/// IntentExtractorTests.swift. Pattern-based intent recognition
 ///
 /// Coverage: action type detection, urgency classification,
 /// confidence scoring, target extraction, and edge cases.
@@ -125,7 +125,7 @@ struct IntentConfidenceTests {
     @Test("multiple matches → exact keyword list (gold standard, not count > N)")
     func multipleMatches() {
         let intent = extractor.extract(from: "Find and search the data quickly")
-        // Gold standard: pin the exact match set in match order —
+        // Gold standard: pin the exact match set in match order,
         //  action:search("search"), action:search("find"), urgency:high("quickly").
         //  Any silent regression (a pattern added/dropped, a stray substring
         //  match like "is"/"do" leaking in) flips this list and fails here.

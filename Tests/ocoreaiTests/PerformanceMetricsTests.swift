@@ -34,7 +34,7 @@ final class MockClock: TimingClock, @unchecked Sendable {
 }
 
 // `PerformanceMetrics`, `StatsStorage`, `InstrumentsProfiler` are
-// `@available(macOS 27.0, *)` — but the Swift Testing macros `@Suite`/`@Test`
+// `@available(macOS 27.0, *)`, but the Swift Testing macros `@Suite`/`@Test`
 // REFUSE to expand on a type or function that is itself marked `@available`
 // ("Attribute 'Suite' cannot be applied to this structure because it has been
 // marked '@available'"). So the suite and every test stay deployment-floor

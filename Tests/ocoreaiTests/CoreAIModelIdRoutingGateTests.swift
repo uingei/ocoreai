@@ -1,10 +1,10 @@
-// CoreAI gate: a single-slash model id (the `/v1/models` canonical shape —
+// CoreAI gate: a single-slash model id (the `/v1/models` canonical shape,
 // `org/name`, exactly like an MLX id) must resolve to the CoreAI local dir
 // under ModelStore.root when it carries a real `.aimodel` asset, instead of
 // being mis-routed to the MLX path whose load fails (the dir has main.mlirb +
 // main.hash, not safetensors) → live 503 "Engine unavailable".
 //
-// Regression: live-verified on 2026-09-24 — `Qwen2.5-1.5B-CoreAI/qwen2_5_...`
+// Regression: live-verified on 2026-09-24, `Qwen2.5-1.5B-CoreAI/qwen2_5_...`
 // ready in /v1/models (disk discovery passed), 503 on the chat call
 // (EnginePool CoreAI gate `localPath.hasPrefix("/")` refused it).
 
@@ -34,7 +34,7 @@ struct CoreAIModelIdRoutingGateTests {
     private func makeCoreAIBundle(relPath: String) throws -> URL {
         let dir = root.appendingPathComponent(relPath, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        // Shape ModelStore.discoverReady enumerates — `<leaf>.aimodel/` as a
+        // Shape ModelStore.discoverReady enumerates, `<leaf>.aimodel/` as a
         // DIRECT child of the dir (the real .aimodel bundle).
         let leaf = (relPath as NSString).lastPathComponent
         let asset = dir.appendingPathComponent("\(leaf).aimodel", isDirectory: true)
@@ -53,7 +53,7 @@ struct CoreAIModelIdRoutingGateTests {
         let name = "qwen2_5_1_5b_instruct_4bit_weights_8bit_kv_cache_dynamic"
         try makeCoreAIBundle(relPath: "\(org)/\(name)")
 
-        // Single slash — the /v1/models canonical id shape.
+        // Single slash. The /v1/models canonical id shape.
         let expected = root.appendingPathComponent("\(org)/\(name)").path
         let resolved = localCoreAIModelDir(for: "\(org)/\(name)")
         #expect(
@@ -126,7 +126,7 @@ struct CoreAIModelIdRoutingGateTests {
         let name = "qwen_bundle_abs"
         let dir = try makeCoreAIBundle(relPath: "\(org)/\(name)")
 
-        // Absolute path — the shape that worked before the fix must keep working.
+        // Absolute path. The shape that worked before the fix must keep working.
         #expect(localCoreAIModelDir(for: dir.path) == dir.path)
     }
 
@@ -148,7 +148,7 @@ struct CoreAIModelIdRoutingGateTests {
 
         // The old EnginePool L700 fallback `?? URL(fileURLWithPath: modelId)` then
         // produces a RELATIVE path (resolved against CWD, not the real bundle under
-        // OCOREAI_MODELS_DIR) — not a real dir.
+        // OCOREAI_MODELS_DIR), not a real dir.
         let oldFallback = URL(fileURLWithPath: modelId)
         var isDir: ObjCBool = false
         let oldFallbackLooksReal =
@@ -162,7 +162,7 @@ struct CoreAIModelIdRoutingGateTests {
             "hasCoreAIAsset at OLD fallback is false (why dispatch/warmup said 'has no .aimodel')")
 
         // The authoritative resolution (localCoreAIModelDir) finds the real bundle
-        // root where the .aimodel asset lives — the fix's modelURL.
+        // root where the .aimodel asset lives. The fix's modelURL.
         let resolvedRoot = localCoreAIModelDir(for: modelId)
         #expect(
             resolvedRoot == dir.path,

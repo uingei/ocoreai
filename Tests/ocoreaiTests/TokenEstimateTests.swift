@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! TokenEstimateTests.swift — one rule answers "roughly how many tokens is this text?", and
+//! TokenEstimateTests.swift. One rule answers "roughly how many tokens is this text?", and
 //! the scan that enforces it proves it can still see the rule.
 //!
 //! ### What this replaces (measured 10-21)
 //! 17 sites in 9 files answered the same question with three formulas: the CJK-aware byte rule
 //! copy-pasted five times (`ChatHandler`, `AnthropicMessagesHandler`, `CompletionsHandler`,
 //! `EngineInference`, `ConversationCompaction`), "length / 4" eleven times (`utf8.count / 4` in
-//! `SchedulerActor` — which decides whether a request is admitted — plus ten character-count
+//! `SchedulerActor`, which decides whether a request is admitted. Plus ten character-count
 //! sites across the perception budget), and `utf16/3` once, in the GUI's `ChatState` (the
 //! composer's context meter). That last copy described itself as CJK-aware while counting one
 //! unit per CJK character: "你好世界" read as **1** token on that meter where this rule says
@@ -69,7 +69,7 @@ struct TokenEstimateValueTests {
     }
 
     /// The values the GUI meter used to answer, restated at the one rule. `utf16/3` counted one
-    /// unit per CJK character, so Chinese text was read at about a quarter of its real cost —
+    /// unit per CJK character, so Chinese text was read at about a quarter of its real cost,
     /// the meter that tells a user how full the context window is.
     @Test("the GUI's CJK reading is corrected, not preserved")
     static func cjkReadingCorrected() {
@@ -124,7 +124,7 @@ struct TokenEstimateSingleHomeTests {
     }
 
     /// The three formulas this file replaces, as regexes. Regex rather than substring because
-    /// the copies spelled the quantity in locals — `utf16Count / 3` is what the GUI meter
+    /// the copies spelled the quantity in locals, `utf16Count / 3` is what the GUI meter
     /// actually did, and a literal "utf16.count / 3" scan walks straight past it.
     private static let formulas: [(name: String, pattern: String, offender: String)] = [
         ("CJK divisor", #"1\.5\s*\?\s*3\s*:\s*4"#, "let divisor = avgBytesPerChar > 1.5 ? 3 : 4"),
@@ -155,7 +155,7 @@ struct TokenEstimateSingleHomeTests {
                 "the instrument cannot even see the shape it forbids — \(formula.name)")
 
             // Paths, not contents: Swift Testing prints the operands of a failed expectation,
-            // and a gate that dumps whole files into CI gets muted — which is worse than no
+            // and a gate that dumps whole files into CI gets muted, which is worse than no
             // gate. The message names the formula and the offending files, and nothing else.
             let offenders: [String] = files.compactMap { path, lines in
                 guard path != home else { return nil }

@@ -1,5 +1,5 @@
 // Copyright © 2026 uingei@163.com.
-/// MCP Stdio client lifecycle tests — reconnect on unexpected child exit.
+/// MCP Stdio client lifecycle tests. Reconnect on unexpected child exit.
 ///
 /// Uses a Python stdio stub (python3 mcp_stub.py) as the MCP server.
 /// The stub responds to initialize / tools/list / tools/call with minimal
@@ -183,7 +183,7 @@ struct MCPStdioLifecycleTests {
         let pid = (await bridge.testClientPIDs())["shutdown-target"] ?? -1
         #expect(pid > 0, "Connected endpoint must have a live PID")
 
-        // SHUTDOWN — must terminate the child
+        // SHUTDOWN. Must terminate the child
         await bridge.shutdown()
 
         // Post-shutdown: child gone (terminate is via Task inside disconnectEndpoint,

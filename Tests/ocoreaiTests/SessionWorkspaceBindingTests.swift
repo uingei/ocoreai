@@ -4,7 +4,7 @@ import Testing
 @testable import ocoreai
 
 /// Session↔worktree DB 绑定（codex new_worktree 持久化）。
-/// 关键事实：`CREATE TABLE sessions` 本身不含 workspace_directory 列 —— 所有库
+/// 关键事实：`CREATE TABLE sessions` 本身不含 workspace_directory 列。所有库
 /// （新/旧）都靠 ensureSchema 里的条件 ALTER（PRAGMA table_info 探测 → ADD COLUMN）
 /// 补列；本机 libsqlite3 3.54 拒绝 `ADD COLUMN IF NOT EXISTS`，故必须走探测式迁移。
 /// 这里全部用仓内 actor API（SQLiteStore.execute/query）实证，不 mock 存储层。

@@ -1,11 +1,11 @@
-// FMOptionResolverTests.swift — FM 选项决策矩阵钉死（提取自 runInferenceBody 的 verbatim 语义）
+// FMOptionResolverTests.swift. FM 选项决策矩阵钉死（提取自 runInferenceBody 的 verbatim 语义）
 //
-// 第一性原理: runInferenceBody 的 760 行里, 这四面是纯函数决策——
+// 第一性原理: runInferenceBody 的 760 行里, 这四面是纯函数决策。
 //   samplingMode / toolCallingMode / contextOptions / guidedSchema。
 // 抽到 FMOptionResolver 后必须证明"抽取即等价": 每个分支一个断言,
 // 输入→输出的完整矩阵钉死, 任何后续改动若偏离原语义即刻 RED。
 //
-// 编译面: 与 FMToolProxyContractTests 同 gate — 仅 CI (macos-26 runner +
+// 编译面: 与 FMToolProxyContractTests 同 gate。仅 CI (macos-26 runner +
 // Xcode SDK27) 执行; CLT SDK26.5 无 FM v2 符号, 该文件编译为空。
 
 #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)

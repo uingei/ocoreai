@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// CapabilityMeasurementHonestyTests — the matrix may state tier truth; only measurement
+/// CapabilityMeasurementHonestyTests. The matrix may state tier truth; only measurement
 /// may state delivery.
 ///
 /// Two defects this suite keeps dead:
@@ -42,7 +42,7 @@ struct CapabilityMeasurementHonestyTests {
         let out = RuntimeCapability.measured(.unmeasured)
         // The overlay appends exactly what it has always appended plus function-calling
         // delivery (10-18): if a third measured row appears, this floor is the notice.
-        // (The 11-08 structured_output row is TIER truth — it lives in `lines`, not here.)
+        // (The 11-08 structured_output row is TIER truth. It lives in `lines`, not here.)
         #expect(out.count == base.count + 2)
         // Everything the tier matrix says is unchanged, in the same order.
         for (index, tierLine) in base.enumerated() {
@@ -106,13 +106,13 @@ struct CapabilityMeasurementHonestyTests {
     @Test("structured_output discloses its composition limit, not just its existence")
     func structuredOutputRowDisclosesLimit() throws {
         let row = try Self.row(RuntimeCapability.measured(.unmeasured), "structured_output")
-        // The row exists unmeasured — a client must learn the limit before its first request.
+        // The row exists unmeasured. A client must learn the limit before its first request.
         #expect(
             RuntimeCapability.lines.contains { $0.name == "structured_output" },
             "the prompt/info-tool audience reads the tier matrix only; a wire-only row would leave them the liars"
         )
         // Pure response_format turns DO work, so `true` is the measured value; the honest
-        // part is the note — a row that said only "structured output: yes" is exactly the
+        // part is the note. A row that said only "structured output: yes" is exactly the
         // overclaim the board's structured tasks paid for (fabricated answers, 11-08 pair).
         #expect(row.available)
         #expect(

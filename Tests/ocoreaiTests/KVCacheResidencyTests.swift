@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// KV residency — the byte figure three surfaces publish must come from a cache, not a constant.
+/// KV residency. The byte figure three surfaces publish must come from a cache, not a constant.
 ///
 /// `/metrics` (`ocoreai_kv_cache_gpu_bytes`, `ocoreai_gpu_memory_gb`) and the dashboard's GPU
 /// tile were all fed by `EnginePool.engineSummary()`, whose `gpuCacheGB` was the literal `0.0`:
 /// a deployment that had allocated 31 MiB of KV still certified a zero-byte cache (probe 35,
 /// repeat run for repeat). This suite pins the arithmetic, the refusal to claim on an empty
-/// pool, and — because the whole point is that no constant may feed these surfaces again —
+/// pool, and, because the whole point is that no constant may feed these surfaces again,
 /// the absence of a hardcoded zero in the assembly that feeds them.
 
 import Foundation

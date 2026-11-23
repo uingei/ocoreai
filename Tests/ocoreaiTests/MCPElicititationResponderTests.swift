@@ -1,24 +1,24 @@
-// MCPElicititationResponderTests.swift — MCP server 入站请求应答（Red→Green）
+// MCPElicititationResponderTests.swift. MCP server 入站请求应答（Red→Green）
 //
 // 缺陷（代码即文档）：MCP stdio 是**双向** JSON-RPC 通道。旧的
-// `MCPStdioClient.waitForResponse()` 只认第一行 JSON-RPC——外部 elicitation
+// `MCPStdioClient.waitForResponse()` 只认第一行 JSON-RPC。外部 elicitation
 // server 发来的**入站请求**（`elicit` user-verification / `ping`）没有
 // method 匹配层，被两种错误消费：
 //   1. 被当作自己请求的响应返回 → server 永远拿不到 accept/decline，
 //      工具调用挂死（MCP elicitation spec：server 可无限等待）；
 //   2. 无 result 的入站请求 → 误抛 protocolError 中断调用。
 // 上游参照：codex `555b82afa9` "Add opt-in MCP user-verification transport"
-// —— verification 请求路由 approval surface，**不静默 cancel**；
+//。verification 请求路由 approval surface，**不静默 cancel**；
 // response 形状 `{"action":"accept"|"decline", "content":{...}}`。
 //
 // wire 对齐（spec 权威实证, modelcontextprotocol.io/specification/2025-06-18/client/elicitation）：
 //   - 方法名 = **`elicitation/create`**（spec 原文两处 wire 示例；codex 权威常量
-//     `MCP_ELICITATION_CREATE_METHOD = "elicitation/create"`）——旧实现监听 `"elicit"`，
+//     `MCP_ELICITATION_CREATE_METHOD = "elicitation/create"`）。旧实现监听 `"elicit"`，
 //     规范 server 发的请求被丢弃；
 //   - client MUST 初始化声明 `capabilities: {"elicitation": {}}`（spec MUST 条款）；
 //   - elicitation 为 **2025-06-18 新增**（"newly introduced in this version"）→
 //     握手版本从 2024-11-05 升到 2025-06-18（codex legacy 基线同为 V_2025_06_18）；
-//   - initialize 响应必须消费（协商版本）——旧实现 `_ = try await sendRPC` 丢弃。
+//   - initialize 响应必须消费（协商版本）。旧实现 `_ = try await sendRPC` 丢弃。
 //
 // 纪律：Python stdio stub 驱动**生产同路**
 // （`MCPBridge.connectEndpoint` → `routeToolCall` → `MCPStdioClient` →
@@ -279,7 +279,7 @@ struct MCPElicititationResponderTests {
             args: [try writeElicitationStub().path], capabilities: ["tools"])
         defer { Task { await bridge.disconnectEndpoint(name: "mcp-elicit") } }
 
-        // 调用应当**完成**（不挂死）——elicitation 被拒绝，但 server 拿到应答后继续完成
+        // 调用应当**完成**（不挂死）。elicitation 被拒绝，但 server 拿到应答后继续完成
         let result = try await Self.withTimeout(seconds: 30) {
             () -> String in try await bridge.routeToolCall("elicit_gate", arguments: "{}")
         }

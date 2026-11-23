@@ -12,7 +12,7 @@
 ///   1. 真源默认值 = ModelScope 根域(精确值);
 ///   2. `HubConfigFetcher` 解析出的默认端点与真源一致(API 级);
 ///   3. **除真源 `ModelStore.swift` 外,`Sources/` 任何 .swift 都不得再出现
-///      `modelscope.cn` 端点字面量** —— 谁再硬编码进别的文件,此测试即红。
+///      `modelscope.cn` 端点字面量**。谁再硬编码进别的文件,此测试即红。
 
 import Foundation
 import Testing

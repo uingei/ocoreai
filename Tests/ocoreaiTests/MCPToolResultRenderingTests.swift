@@ -1,15 +1,15 @@
 // Copyright © 2026 uingei@163.com.
-/// MCP tool-result rendering — text passthrough + non-text survival.
+/// MCP tool-result rendering. Text passthrough + non-text survival.
 ///
 /// Baseline: codex `75cb7c903d` "Preserve MCP tool output as content items"
-/// — non-text content must survive the tool-result channel.
+/// Non-text content must survive the tool-result channel.
 /// ocoreai channel is text-only (`ChatSession.toolDispatch` returns `String`,
 /// upstream `MLXLMCommon/ChatSession.swift:318`), so media blocks render as
 /// explicit `[<type>]` placeholders instead of failing the call or vanishing.
 ///
 /// Regression target: a media-only result must render as `[<type>]`,
 /// not throw "No text content in response" (forward path) or return
-/// "(no content)" (registered handler) — the agent must not see a hard
+/// "(no content)" (registered handler). The agent must not see a hard
 /// failure or dead silence instead of "[image]".
 
 import Testing

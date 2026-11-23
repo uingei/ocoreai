@@ -1,17 +1,17 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// FastPathContextWindowTests.swift — Exact-value tests for the Fast Path
+/// FastPathContextWindowTests.swift. Exact-value tests for the Fast Path
 /// context-window parity gate (`enforceContextWindow`, DirectInferenceClient).
 ///
 /// Historical gap: the Fast Path used a bare 400 backstop while the wire path
-/// (ChatHandler Phase 3.5) first ran a rule-based compaction pass — the same
+/// (ChatHandler Phase 3.5) first ran a rule-based compaction pass. The same
 /// prompt survived over HTTP (auto-compacted) but died with 400 in the native
 /// UI. `enforceContextWindow` closes that branch with the wire path's exact
 /// semantics: estimate → PreCompact veto → compact → adopt-if-fits → wall.
 ///
 /// Every expected number is derived independently from the Phase 3 estimator
 /// (UTF-8 bytes/4 for Latin text, avg bytes/char ≤ 1.5) and asserted with
-/// exact equality — no `>=`, no approximate bounds.
+/// exact equality, no `>=`, no approximate bounds.
 ///
 /// See codex #42319 (live compaction status) + omlx `max_context_window`.
 
@@ -85,7 +85,7 @@ struct FastPathContextWindowGateTests {
         #expect(est(msgs) == 164)  // sanity
 
         // cap 100: compact target = max(0, 100 - 4096) = 0 → remove from oldest
-        // until fixedEst + noteEst + regionEst ≤ 0 (impossible) — so the greedy
+        // until fixedEst + noteEst + regionEst ≤ 0 (impossible), so the greedy
         // sweep empties the removable region [200a, 204a, 20a] (50+51+5 = 106).
         let result = try await enforceContextWindow(
             cap: 100, messages: msgs, sessionId: nil, store: ContextStatusStore())
@@ -124,14 +124,14 @@ struct FastPathContextWindowGateTests {
             Issue.record("Expected AppError.contextWindowExhausted (typed 400 wall)")
             return
         } catch let AppError.contextWindowExhausted(postTokens, cap) {
-            // The wall is TYPED — cap and the post-compaction estimate carried
+            // The wall is TYPED. Cap and the post-compaction estimate carried
             // exactly (independently derived: region emptied → prefix + note + suffix).
             #expect(cap == 10)
             let drained = ConversationCompaction.compact(msgs, .init(maxPromptTokens: 10))
             #expect(drained.removedCount == 3)
             #expect(postTokens == est(drained.messages))
 
-            // Status is a client 400 (not a 500) — exhaustion is a request-level
+            // Status is a client 400 (not a 500). Exhaustion is a request-level
             // condition, and the typed case + description tell the client WHY
             // (retrying an equally-sized request fails identically).
             #expect(

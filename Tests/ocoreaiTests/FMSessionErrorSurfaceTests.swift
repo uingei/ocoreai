@@ -1,8 +1,8 @@
-// FMSessionErrorSurfaceTests.swift — catch-site 错误面分类
+// FMSessionErrorSurfaceTests.swift. Catch-site 错误面分类
 //
 // 契约(FMToolBridge.swift FMErrorClassifier):
 //   LanguageModelSession 抛错 → human/UI 面消息分类。
-//   ① contextSizeExceeded 是唯一 bespoke 面 — 精确串, 携真实
+//   ① contextSizeExceeded 是唯一 bespoke 面。精确串, 携真实
 //      tokenCount/contextSize, "start a fresh conversation" 导向(镜像
 //      非 FM 路径 AppError.contextWindowExhausted)。
 //   ② 其余一切 throw(rateLimited/refusal/timeout/unsupported*/非 FM 错)
@@ -10,7 +10,7 @@
 //
 // 被本门钉死的失真: 任何"把非 context 失败也导向 fresh conversation"
 //   的路由(限流/拒答被误告知开新会话=误导; 或 context
-//   耗尽只回一句无数字的 generic 串=用户空转重试)——两类都靠分类路由错。
+//   耗尽只回一句无数字的 generic 串=用户空转重试)。两类都靠分类路由错。
 //
 // 断言纪律(拒绝 count 弱断言):
 //   context 面断言**逐字** == 期望串(带两个真实数字)。
@@ -28,7 +28,7 @@ import Testing
 
 @testable import ocoreai
 
-/// 非 FoundationModels 的普通错误 — 供"分类器不误伤非 FM 抛错"断言构造
+/// 非 FoundationModels 的普通错误。供"分类器不误伤非 FM 抛错"断言构造
 /// (String 不 conform Error, 不能直接喂 `message(for: Error)`)。
 private struct PlainNonFMError: Error {
     var reason: String

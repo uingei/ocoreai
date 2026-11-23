@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! LoRASampleDomainTests.swift — the LoRA dataset rule decided by exact values, plus the
+//! LoRASampleDomainTests.swift. The LoRA dataset rule decided by exact values, plus the
 //! scan proving both wire faces actually route through it.
 //!
 //! The rule exists because a 1-token sample gives the batch iterator nothing to predict and
@@ -18,7 +18,7 @@ struct LoRASampleDomainValueTests {
 
     /// Stub token counter: one token per space-separated run, so every number asserted here
     /// is written down rather than borrowed from a vocabulary this test does not own. (The
-    /// production call sites pass the model's real tokenizer — that part cannot be stubbed
+    /// production call sites pass the model's real tokenizer, that part cannot be stubbed
     /// without a download, and the probe measures it live.)
     private static func wordCount(_ text: String) -> Int {
         text.split(separator: " ").count
@@ -140,7 +140,7 @@ struct LoRASampleDomainSurfaceTests {
 
     /// Every zero-tolerance count here self-proves its own pattern first (invariant 1): a
     /// scan that stopped matching reports a clean tree, which is the failure it exists to
-    /// catch. Expectations carry counts and paths only — Swift Testing prints the operands of
+    /// catch. Expectations carry counts and paths only. Swift Testing prints the operands of
     /// a failed expectation, and a gate that dumps files into CI gets muted.
     @Test("train and evaluate both gate their samples, and neither resolves the model alone")
     static func bothFacesRouteThroughTheHome() throws {

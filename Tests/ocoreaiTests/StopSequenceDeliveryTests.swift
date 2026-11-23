@@ -1,22 +1,22 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Gate: `stop` on the wire actually cuts the reply — at the earliest occurrence, before
+/// Gate: `stop` on the wire actually cuts the reply. At the earliest occurrence, before
 /// the stop text, and with OpenAI's word for it.
 ///
 /// Located 10-18 by measuring, not reading: `POST /v1/chat/completions` with
 /// `stop:["2"]` on a counting prompt returned the full `1 2 3 … 20` with
 /// `finish_reason:"stop"`, while the same binary's own engine log recorded
-/// `stopmatch=2 len=3` — the engine had already decided to stop and the stream ignored it.
+/// `stopmatch=2 len=3`. The engine had already decided to stop and the stream ignored it.
 /// Two independent causes, both at the seam every path shares:
 ///   1. every call site did `if shouldBreak { … break }` from inside a `switch` nested in
 ///      the generation loop, so `break` left the switch and the loop kept streaming.
 ///   2. the test was `accumulated.hasSuffix(stop)`, which misses a stop that arrives in
 ///      the middle of a decoded chunk, and when it did match at offset 0 the whole chunk
-///      was dropped — `stop:["banana"]` returned four bananas where the same prompt with
+///      was dropped, `stop:["banana"]` returned four bananas where the same prompt with
 ///      no stop returned five. Text lost, and the client never told why.
 /// Contract now (OpenAI/vllm: the stop text is not part of the returned content): cut at
 /// the earliest occurrence anywhere in the reply, hand over only text that is both new and
-/// precedes the cut, then report termination — spelled `"stop"`, because OpenAI's
+/// precedes the cut, then report termination. Spelled `"stop"`, because OpenAI's
 /// `finish_reason` enum is `stop | length | tool_calls | content_filter` and this repo
 /// already translates Anthropic's `stop_sequence` to `"stop"` on the way in
 /// (`AnthropicModels.swift:726`).
@@ -119,7 +119,7 @@ struct OpenAIFinishReasonWordTests {
     }
 
     /// Premise of the shared-helper change: the Anthropic wire translates from these words,
-    /// so re-spelling `stop_sequence` as `stop` must land on `end_turn` — the value it
+    /// so re-spelling `stop_sequence` as `stop` must land on `end_turn`. The value it
     /// already produced via the `default:` arm. Without this, the fix above would silently
     /// change /v1/messages.
     @Test("premise: Anthropic's mapping is unchanged by the OpenAI word fix")

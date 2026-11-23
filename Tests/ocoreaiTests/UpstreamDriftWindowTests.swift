@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// UpstreamDriftWindowTests.swift — the fork ledger's two premises are measured, not asserted:
+/// UpstreamDriftWindowTests.swift. The fork ledger's two premises are measured, not asserted:
 /// where its window ends, and which files count as mirrors at all.
 ///
 /// `make drift` prints one "未读 N 个" row per forked engine file. Measured 10-31, the axis read
 /// GitHub's HEAD (`d3382a5`) while that table measured against the local clone's `origin/HEAD`
-/// (`6a6bb0e`), so the newest commit — the one that added 243 lines to
-/// `CoreAIStaticShapeEngine.swift` — was reported as "未读 0 个 | 无", and the same report claimed
+/// (`6a6bb0e`), so the newest commit. The one that added 243 lines to
+/// `CoreAIStaticShapeEngine.swift`. Was reported as "未读 0 个 | 无", and the same report claimed
 /// "与轴同一 ref" in parentheses. A premise stated in prose is not a premise (AGENTS.md invariant 1):
 /// these tests run the resolver that decides the endpoint, against throwaway repos, with no network.
 ///
@@ -20,11 +20,11 @@
 /// same day by two commits that edited six such mirrors in one window. The exit code is only honest if
 /// the verdict table is measured too, so which axes exist is read off `REPOS=` and which of them owe a red
 /// is asked through the `axis-owed` seam (every listed axis owes; codex's 11-03 report-only ruling survives
-/// as a retired line — its axis was removed 11-22, root § Upstream 5).
+/// as a retired line. Its axis was removed 11-22, root § Upstream 5).
 ///
 /// The third premise is the code set itself. A contract of three numbers is worth whatever stops a
 /// fourth from leaving: `set -e` hands out the *failing command's* number, and `make` hands out its
-/// own 2 for every failed recipe, so both layers had to be asked — the script through the
+/// own 2 for every failed recipe, so both layers had to be asked. The script through the
 /// `abort-code` seam, the target through `make -n` (11-05: one verdict, exit 10 from the script and
 /// exit 2 from `make drift`, read as a broken contract).
 
@@ -162,7 +162,7 @@ struct UpstreamDriftWindowTests {
             "the axis grew its own HEAD resolution again — two resolvers is the defect this suite owns"
         )
         // One enumeration, or the table and the seam start telling different stories about who is a
-        // mirror — the same two-resolvers shape, one floor up. The mode is parameterized (table /
+        // mirror. The same two-resolvers shape, one floor up. The mode is parameterized (table /
         // delta / census), so pin the shared call, not a mode literal.
         #expect(
             script.contains("fork_ledger_py \"$d\" \"$upref\" \"$(pwd)/Sources/ocoreai\""),
@@ -172,7 +172,7 @@ struct UpstreamDriftWindowTests {
     @Test("delta mode measures code baseline..HEAD, not the read-point")
     func deltaUsesCodeBaseline() throws {
         // A mirror whose read-point is already at HEAD (table reads 0 un-read) but whose code
-        // baseline lags an upstream change — delta must still report the debt the read-point hides.
+        // baseline lags an upstream change. Delta must still report the debt the read-point hides.
         let base = FileManager.default.temporaryDirectory
             .appendingPathComponent("drift-delta-\(UUID().uuidString.prefix(8))")
         let up = base.appendingPathComponent("up")
@@ -194,7 +194,7 @@ struct UpstreamDriftWindowTests {
         try Self.write(
             """
             // Copyright © 2026 uingei@163.com.
-            // Provenance: coreai-models — swift/Sources/Up/EngineThing.swift
+            // Provenance: coreai-models. Swift/Sources/Up/EngineThing.swift
             //   Absorbed: #7 \(baseline)
             // Adjudicated: \(head)
 
@@ -234,7 +234,7 @@ struct UpstreamDriftWindowTests {
         try Self.write(
             """
             // Copyright © 2026 uingei@163.com.
-            // Provenance: coreai-models — swift/Sources/Up/FileA.swift
+            // Provenance: coreai-models. Swift/Sources/Up/FileA.swift
             //   Absorbed: #7 \(head)
 
             let alpha = 1
@@ -246,7 +246,7 @@ struct UpstreamDriftWindowTests {
         try Self.write(
             """
             // Copyright © 2026 uingei@163.com.
-            // Provenance: coreai-models — swift/Sources/Up/FileB.swift
+            // Provenance: coreai-models. Swift/Sources/Up/FileB.swift
             //   Absorbed: #7 \(head)
 
             let alpha = 1
@@ -356,7 +356,7 @@ struct UpstreamDriftWindowTests {
         try Self.write(
             """
             // Copyright © 2026 uingei@163.com.
-            // Provenance: coreai-models — swift/Sources/Up/EngineThing.swift
+            // Provenance: coreai-models. Swift/Sources/Up/EngineThing.swift
             //   Absorbed: #7 \(ref)
 
             import Foundation
@@ -398,7 +398,7 @@ struct UpstreamDriftWindowTests {
         // Measured 11-05: the table said 40 mirrors had "no baseline" while four of them carried
         // `Provenance: aligned with … @ <sha>` in line 5. The ledger knew two spellings, the headers
         // used a third, and the file that proved it costliest also asserted "(0 commits changed
-        // … — anchor current)" when upstream had since edited it twice — so the blind spot was not
+        // …. Anchor current)" when upstream had since edited it twice, so the blind spot was not
         // unread files, it was a reader that could not parse being read.
         let base = FileManager.default.temporaryDirectory
             .appendingPathComponent("drift-prov-\(UUID().uuidString.prefix(8))")
@@ -425,7 +425,7 @@ struct UpstreamDriftWindowTests {
             // Copyright 2026 Apple Inc.
             // Use of this source code is governed by a BSD-3-clause license that can
             // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
-            // Provenance: aligned with coreai-models Up/Thing.swift @ \(baseline) (0 commits changed \(baseline)..HEAD — anchor current).
+            // Provenance: aligned with coreai-models Up/Thing.swift @ \(baseline) (0 commits changed \(baseline)..HEAD. Anchor current).
 
             import Foundation
 
@@ -439,9 +439,9 @@ struct UpstreamDriftWindowTests {
         #expect(!r.out.contains("#nobase Engine/Thing.swift"), "and reports no hole: \(r.out)")
     }
 
-    /// Upstream where two committed files answer to one glob — `DecodingStrategy.swift` and
+    /// Upstream where two committed files answer to one glob, `DecodingStrategy.swift` and
     /// `ConstrainedDecodingStrategy.swift` both match `*DecodingStrategy.swift`, and git lists the
-    /// `Constrained…` one first — with the post-baseline commits landing on the **exact-named** file
+    /// `Constrained…` one first, with the post-baseline commits landing on the **exact-named** file
     /// only. `ours` holds a BSD-3 mirror of the exact-named file carrying a read-point, and a BSD-3
     /// file whose name is only a *suffix* of an upstream one (`Writer.swift` / `StreamingWriter.swift`).
     private static func makeSuffixAmbiguousPair() throws -> (
@@ -507,7 +507,7 @@ struct UpstreamDriftWindowTests {
         defer { try? FileManager.default.removeItem(at: ours.deletingLastPathComponent()) }
         let r = try Self.runCensus(clone: clone, ref: ref, ours: ours)
         // `git ls-files "*DecodingStrategy.swift"` is a SUFFIX match and answers in alphabetical
-        // order, so `hits[0]` was `ConstrainedDecodingStrategy.swift` — a file we mirror separately.
+        // order, so `hits[0]` was `ConstrainedDecodingStrategy.swift`. A file we mirror separately.
         // Measured 11-05 on the live tree: five mirrors were bound this way, three of them while an
         // exact-named upstream file sat right there. The dangerous direction is the quiet one: the
         // neighbour had no commits since the baseline, so the window reads "0 个" and goes green.
@@ -565,7 +565,7 @@ struct UpstreamDriftWindowTests {
         let ours = base.appendingPathComponent("ours")
         // The live shape, quoted from `Engine/InputLayout.swift`: the sha of the commit it came in at,
         // in prose no reader parses. `Parsers/TokenParsers/ThinkTagParser.swift` carries one that means
-        // the opposite — `#182 637cc63: agentic Format (upstream ahead)` — which is why the ledger must
+        // the opposite, `#182 637cc63: agentic Format (upstream ahead)`, which is why the ledger must
         // not start guessing at what a bare sha means, and must not call the two cases one number.
         try Self.write(
             """
@@ -640,7 +640,7 @@ struct UpstreamDriftWindowTests {
     @Test("a compare read that failed is reported as a failed read, not as a rewritten history")
     func rateLimitedReadNamesItself() throws {
         // Measured 11-05: api.github.com sat at 0/60, both compare numbers came back "?", and the
-        // loop's last `elif` — which only asks whether base ≠ HEAD — printed "? 非线性分叉" for codex.
+        // loop's last `elif`, which only asks whether base ≠ HEAD. Printed "? 非线性分叉" for codex.
         // A reader told "the history is non-linear, review by hand" goes looking for a force-push;
         // the truth was a quota. The verdict's *shape* is untouched (still 1, still human review);
         // only the named cause moved, and the two window faces print exactly what they used to.
@@ -793,7 +793,7 @@ struct UpstreamDriftWindowTests {
 
     @Test("`make drift` prints the script's number, because make re-signals every failure as 2")
     func makeDriftCarriesTheScriptNumber() throws {
-        // GNU make's own status is 2 for any failed recipe, whatever the recipe returned — measured
+        // GNU make's own status is 2 for any failed recipe, whatever the recipe returned. Measured
         // 11-05, the script exited 10 on a verdict and this target exited 2 on the same one, which
         // is how a reader came to file the contract as broken when it was the layer. The number
         // therefore has one surviving channel through make: stdout. `make -n` asks where it lives
@@ -821,7 +821,7 @@ struct UpstreamDriftWindowTests {
     @Test("a failed window read names itself and keeps the verdict it was printed under")
     func failedHintReadIsNamedNotFatal() throws {
         // Measured 11-05 with the trap in place: a rate-limited `compare` read killed the process
-        // mid-report — `window="$(api …)"` under `set -e` — so the exit went 10 → 1, the two axes
+        // mid-report, `window="$(api …)"` under `set -e`, so the exit went 10 → 1, the two axes
         // below never printed, and an automation reading the code saw "a check could not complete"
         // where the truth was "two windows need adjudication". A subject list is the keyword
         // screen's input, a hint; only a failed *verdict* may move the code. The seam points the
@@ -874,7 +874,7 @@ struct UpstreamDriftWindowTests {
             contentsOf: try Self.repoRoot().appendingPathComponent("scripts/upstream-drift.sh"),
             encoding: .utf8)
         // `REPOS=` is the axis declaration home, so the verdict table is read off it rather than
-        // restated here — a second list is how a verdict and an axis drift apart.
+        // restated here. A second list is how a verdict and an axis drift apart.
         let line = try #require(
             script.split(separator: "\n").first { $0.hasPrefix("REPOS=") },
             "REPOS= no longer declares the axes at top level — the scan stopped matching")

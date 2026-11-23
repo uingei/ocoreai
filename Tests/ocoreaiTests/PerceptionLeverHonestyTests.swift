@@ -1,15 +1,15 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PerceptionLeverHonestyTests — every perception channel flag the settings
+/// PerceptionLeverHonestyTests. Every perception channel flag the settings
 /// surface composes must be the value the runtime actually honors.
 ///
 /// Bugs this kills (all live before this slice):
 ///   1. `PerceptionEngine.start()` hardcoded `channels.network = true`,
 ///      silently overwriting the user's persisted choice on every restart.
 ///   2. `SettingsViewModel.applyPerceptionSettings()` hardcoded
-///      `network: true` — no lever existed for the network channel at all.
+///      `network: true`, no lever existed for the network channel at all.
 ///   3. `perceptionSystemEnabled` / `perceptionSpeakerEnabled` persisted but
-///      `load()` never restored them and SettingsView rendered no row —
+///      `load()` never restored them and SettingsView rendered no row,
 ///      phantom levers: the store implied a setting the user could never
 ///      reach.
 ///
@@ -101,7 +101,7 @@ struct PerceptionLeverHonestyTests {
     @Test("resync honors camera/screen authority of MultimodalState at compose time")
     func resyncCameraScreen() throws {
         // The VM composes camera/screen from MultimodalState (live permission
-        // truth) — locked at the source choke so a future refactor cannot
+        // truth). Locked at the source choke so a future refactor cannot
         // silently freeze them false while the store says otherwise.
         let src = try Self.source("Sources/ocoreai/UI/ViewModels/SettingsViewModel.swift")
         #expect(src.contains("camera: MultimodalState.shared.cameraEnabled"))
@@ -136,7 +136,7 @@ struct PerceptionLeverHonestyTests {
             .joined(separator: "\n")
     }
 
-    /// Remove ALL whitespace (not just spaces) — swift-format legally wraps
+    /// Remove ALL whitespace (not just spaces). Swift-format legally wraps
     /// conditions across lines, so scanners must match logical, not textual,
     /// shape.
     private static func compact(_ s: Substring) -> String {

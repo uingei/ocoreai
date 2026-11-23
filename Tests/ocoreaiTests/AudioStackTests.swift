@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AudioStackTests.swift — exact, value-asserted coverage of the adaptive
+/// AudioStackTests.swift. Exact, value-asserted coverage of the adaptive
 /// audio ladder (`AudioStack.resolve`).
 ///
 /// `resolve(_:)` is a PURE function (platform, major-version) → capability
@@ -8,7 +8,7 @@
 /// 8-version matrix the header documents (macOS 14/15/26/27, iOS
 /// 17/18/26/27) as exact value assertions (`#expect(...) == ...`), plus the
 /// pure boundary rules and the Sendable value-equality contract. Running them
-/// on macOS 27 does NOT weaken them: `resolve` never touches the host OS —
+/// on macOS 27 does NOT weaken them: `resolve` never touches the host OS,
 /// only `currentQuery()` does.
 import Testing
 

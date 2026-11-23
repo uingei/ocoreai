@@ -9,7 +9,7 @@ import Testing
 @testable import ocoreai
 
 // `SessionWorkspace` is a process-global: this suite sets it, so it leases it (see
-// `ProcessGlobalLease` — an unleased setter is how a passing suite turns into a flaky one).
+// `ProcessGlobalLease`. An unleased setter is how a passing suite turns into a flaky one).
 
 @Suite("exec cwd — resolved once, honestly, by both lanes", .serialized)
 struct ExecCwdContractTests {

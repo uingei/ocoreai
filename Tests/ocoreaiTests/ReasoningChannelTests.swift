@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ReasoningChannelTests.swift — two verified defects, exact-value regression tests:
+/// ReasoningChannelTests.swift. Two verified defects, exact-value regression tests:
 ///
-/// 1. `AssistantMessage.reasoning_content` — non-streaming responses must carry
+/// 1. `AssistantMessage.reasoning_content`. Non-streaming responses must carry
 ///    reasoning on a SEPARATE channel (parity with streaming `ChatDelta` /
 ///    OpenAI reasoning-models protocol). Nil → key omitted.
-/// 2. `AuditTrail` sub-second durationMs — fast (<1s) tool calls previously
+/// 2. `AuditTrail` sub-second durationMs. Fast (<1s) tool calls previously
 ///    recorded a flat `0.0ms` because the millisecond conversion dropped the
 ///    attosecond remainder; now in a measurable range after a controlled sleep.
 

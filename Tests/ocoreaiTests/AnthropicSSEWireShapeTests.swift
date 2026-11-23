@@ -1,7 +1,7 @@
-// AnthropicSSEWireShapeTests.swift — Anthropic SSE event sequence + wire shape.
+// AnthropicSSEWireShapeTests.swift. Anthropic SSE event sequence + wire shape.
 // Live 10-13: the /v1/messages stream went `message_start → content_block_start →
 // content_block_delta → content_block_stop → message_stop`, skipping `message_delta`
-// — the only event that carries `stop_reason`, so clients finished with no reason.
+// The only event that carries `stop_reason`, so clients finished with no reason.
 
 import Foundation
 import Testing
@@ -36,7 +36,7 @@ struct AnthropicSSEWireShapeTests {
     /// The delta inside a `content_block_delta` event is discriminated by its own
     /// `type`, and the text member of that union is `text_delta` (sglang
     /// `srt/entrypoints/anthropic/protocol.py:402-426`). This assertion used to pin
-    /// `content_block_delta` there — the event name repeated in the discriminator slot —
+    /// `content_block_delta` there. The event name repeated in the discriminator slot,
     /// which is exactly what a pinned-but-wrong gate looks like: it held the deviation in
     /// place and every SDK dispatching on `delta.type` read the turn as having no text.
     @Test("content_block_delta carries a text_delta discriminator")
@@ -70,7 +70,7 @@ struct AnthropicSSEWireShapeTests {
     /// The spec's `error` event is `{"type":"error","error":{"type","message"}}` (sglang
     /// protocol.py:25-36), and `error.message` is the only place a client learns what
     /// happened. Measured 11-21 (probe 58): this server's SSE failure exits emitted
-    /// `{"type":"error"}` with no payload — an error event no client can read.
+    /// `{"type":"error"}` with no payload. An error event no client can read.
     @Test("error event carries the spec {type,message} payload and nothing else")
     func errorEventShape() {
         let e = json(

@@ -2,7 +2,7 @@
 // Licensed under MIT.
 /// The switch that arms the P0 instrument is itself a claim, and until now nothing gated it:
 /// `=1` must pay only on collapsed turns, `=all` must widen to every turn (arm E's pairing),
-/// and unset must mean off. A typo in the mode string used to be invisible — the probe simply
+/// and unset must mean off. A typo in the mode string used to be invisible. The probe simply
 /// never logged, and `scripts/collapse-discriminators.sh` arm D counted the missing lines as
 /// collapsed replays and still printed a verdict.
 ///
@@ -57,7 +57,7 @@ struct DegenerateMarginProbeModeTests {
 }
 
 /// `toolsCarried` says whether `promptHash` covers schema bytes, so a reader who misses it reads a
-/// blind hash as a verdict on tool declarations — the exact misreading this field exists to prevent
+/// blind hash as a verdict on tool declarations. The exact misreading this field exists to prevent
 /// (probe 32's NOTE claimed exactly that on 10-23, from an instrument carrying zero specs). The
 /// value therefore has to be gated where it is published, and the probe that scrapes it has to
 /// agree with the format that emits it: two surfaces, one contract, checked in CI rather than at

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ChatPipelineBehavioralTests.swift — L2 behavioral invariants for the inference pipeline
+/// ChatPipelineBehavioralTests.swift. L2 behavioral invariants for the inference pipeline
 ///
 /// Upstream alignment: ToolTests.swift (chunk-by-chunk tool call detection).
 ///

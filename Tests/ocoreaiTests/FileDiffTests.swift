@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// FileDiffTests — pins the inline-diff core behind the change-review UI.
+// FileDiffTests. Pins the inline-diff core behind the change-review UI.
 // The review card is the user's ground truth for "what did the agent
 // change"; these tests pin that ground truth: exact LCS line classification,
 // honest counts, elision that never hides a changed line, and the size
 // guard that keeps the render bounded. Formatting discipline: bind to `let`
-// — swift-format 603 vs `main` wrap long #expect args differently.
+// Swift-format 603 vs `main` wrap long #expect args differently.
 import Testing
 
 @testable import ocoreai
@@ -88,7 +88,7 @@ struct FileDiffTests {
         }
         let visibleEdits = d.lines.filter(editedRemoved).count
         #expect(visibleEdits == 2)
-        // Elision markers exist (200 lines, ±3 context — most must elide).
+        // Elision markers exist (200 lines, ±3 context. Most must elide).
         func isElided(_ l: FileDiff.Line) -> Bool {
             if case .elided = l { return true } else { return false }
         }

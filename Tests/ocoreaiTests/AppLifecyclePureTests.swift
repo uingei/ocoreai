@@ -2,7 +2,7 @@
 // Licensed under MIT.
 //
 // App lifecycle Pure 段(全平台离线可测, 不触 NSWorkspace 运行时状态):
-// 寻址语义 / list 格式化 / 钳制 / 过滤 — 精确值断言, 禁 count>0 弱断言。
+// 寻址语义 / list 格式化 / 钳制 / 过滤。精确值断言, 禁 count>0 弱断言。
 import Testing
 
 @testable import ocoreai

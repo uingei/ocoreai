@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `transcribe_audio` + `speak` 工具 — 精确值测试(全离线, fake backend, 不触 OS Speech/TTS).
+/// `transcribe_audio` + `speak` 工具。精确值测试(全离线, fake backend, 不触 OS Speech/TTS).
 ///
 /// 覆盖两组 seam:
 ///   transcribe_audio: `TranscribeAudio.build`(locale/maxChars clamp 100...8000)
@@ -14,7 +14,7 @@ import Testing
 
 @testable import ocoreai
 
-/// 文件级假 STT 后端 — parser/client 测试复用(离线, 不发真实识别).
+/// 文件级假 STT 后端。parser/client 测试复用(离线, 不发真实识别).
 /// 观察量(收到的 locale)走共享引用 cell, 避开 struct 协议见证不能改 self 的约束。
 final class RefBox<T>: @unchecked Sendable {
     var value: T
@@ -34,7 +34,7 @@ struct FakeSTT: STTTranscriber {
     }
 }
 
-/// 文件级假 TTS 后端 — 记录被 speak 的文本, 不触发 OS 语音合成.
+/// 文件级假 TTS 后端。记录被 speak 的文本, 不触发 OS 语音合成.
 struct FakeTTS: TTSBackend {
     let spoken: RefBox<[String]>
     init(spoken: RefBox<[String]> = RefBox<[String]>([])) {
@@ -152,7 +152,7 @@ struct TranscribeAudioClientTests {
         let out = await TranscribeAudioClient.runForTool(
             path: "/tmp/x.caf", locale: nil, maxChars: nil,
             backend: FakeSTT(outcome: .belowFloor))
-        // 双引擎(L3 离线 + cloud 10.15+)均不可用才到这 — 精确文案锁定
+        // 双引擎(L3 离线 + cloud 10.15+)均不可用才到这。精确文案锁定
         #expect(
             out == "transcribe_audio: error: no speech recognition engine for this OS — "
                 + "both local (macOS 26 / iOS 26+) and cloud (10.15+ / 13+) engines unavailable")
@@ -160,7 +160,7 @@ struct TranscribeAudioClientTests {
 
     @Test
     func cloudAuthorizationDenialReportsHonestReason() async {
-        // 授权缺失(<26 cloud 路径 / 26+ L3 降级路径)的精确 reason — 模型可读、可转述
+        // 授权缺失(<26 cloud 路径 / 26+ L3 降级路径)的精确 reason。模型可读、可转述
         let out = await TranscribeAudioClient.runForTool(
             path: "/tmp/x.caf", locale: nil, maxChars: nil,
             backend: FakeSTT(
@@ -186,7 +186,7 @@ struct TranscribeAudioClientTests {
 
     @Test
     func cloudSuccessUsesSameReportShapeAsLocal() async {
-        // cloud 降级成功走同一 report(精确两行) — 工具面不暴露"哪档引擎"
+        // cloud 降级成功走同一 report(精确两行)。工具面不暴露"哪档引擎"
         let out = await TranscribeAudioClient.runForTool(
             path: "/tmp/x.caf", locale: "en-US", maxChars: 2000,
             backend: FakeSTT(outcome: .success(text: "  the words come through ")))
@@ -307,7 +307,7 @@ struct SpeakClientTests {
 
 // MARK: - STTDecision: OS 真值裁决(纯)
 
-/// `STTDecision.decide` — 文本空时, `SpeechDetector` 硬件 VAD 真值决定
+/// `STTDecision.decide`。文本空时, `SpeechDetector` 硬件 VAD 真值决定
 /// 「真没语音」还是「有语音但没认出词」。纯函数, 精确断言。
 @Suite("STTDecision — honest no-speech arbitration (pure)")
 struct STTDecisionTests {

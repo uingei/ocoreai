@@ -101,7 +101,7 @@ struct BuildVersionResolutionTests {
     }
 
     /// The rung that broke: with no tag the ladder must land on `0.0.0`, and the pre-fix
-    /// expression is asserted to produce the empty string it produced — the premise, pinned.
+    /// expression is asserted to produce the empty string it produced. The premise, pinned.
     @Test func taglessTreeResolvesZeroAndTheOldFormResolvedEmpty() throws {
         let dir = try scratchRepo()
         let fixed = try shell("bash \(scriptPath())", cwd: dir, override: nil)

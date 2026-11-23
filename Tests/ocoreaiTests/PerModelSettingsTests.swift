@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Per-Model Settings — omlx `ModelSettings` borrow surface (max_context_window /
+/// Per-Model Settings. Omlx `ModelSettings` borrow surface (max_context_window /
 /// is_default / is_pinned). Tests the pure decision helpers + Codable round-trip
 /// + PATCH-toConfig merge + response echo. No live ChatSession / MLX runtime needed.
 
@@ -234,7 +234,7 @@ struct IsPinnedExemptTests {
     }
 }
 
-// MARK: - Fast Path cascade (fastPathDefaults) — single source of truth
+// MARK: - Fast Path cascade (fastPathDefaults). Single source of truth
 
 @Suite("SamplingConfiguration.fastPathDefaults — per-model cascade")
 struct FastPathCascadeTests {

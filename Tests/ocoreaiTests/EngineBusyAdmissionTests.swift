@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// EngineBusyAdmissionTests — capacity is a status, and a queue must not sleep on the deadline.
+/// EngineBusyAdmissionTests. Capacity is a status, and a queue must not sleep on the deadline.
 ///
 /// Measured 10-22 (`scripts/eval`, run-3): 13 consecutive tasks in 4 seconds answered
 /// `{"error":{"message":"Generation failed: Engine busy","code":500}}`. The engine's
 /// contention guard was a fail-fast CAS, and the handler turned any error-channel string into
-/// `generationError` — so a well-formed request against an occupied engine was reported as a
+/// `generationError`, so a well-formed request against an occupied engine was reported as a
 /// server failure, while `AppError.engineBusy` (429) sat unused two files away.
 import Foundation
 import Testing
@@ -117,7 +117,7 @@ struct EngineBusyAdmissionTests {
         #expect(AppError.engineBusy.status == .tooManyRequests)
         #expect(AppError.generationError("the model tripped").status == .internalServerError)
         #expect(EngineBusySignal.retryAfterSeconds >= 1, "Retry-After must never promise 0")
-        // `isBusy` decides the status, so it has to catch the wrapped form too — the 500 body
+        // `isBusy` decides the status, so it has to catch the wrapped form too. The 500 body
         // this whole round is about is `Generation failed: Engine busy`.
         #expect(EngineBusySignal.isBusy(EngineBusySignal.message))
         #expect(EngineBusySignal.isBusy("Generation failed: Engine busy"))

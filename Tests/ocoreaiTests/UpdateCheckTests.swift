@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// UpdateCheck honesty tests — pure logic, no network.
+/// UpdateCheck honesty tests. Pure logic, no network.
 import Foundation
 import Testing
 
@@ -16,7 +16,7 @@ struct UpdateCheckTests {
         #expect(UpdateCheck.candidateIsNewer("1.0.0", than: "0.99.99"))
         #expect(!UpdateCheck.candidateIsNewer("0.1.6", than: "0.1.6"))
         #expect(UpdateCheck.candidateIsNewer("0.1.6.1", than: "0.1.6"))
-        // Non-numeric hosts (dev builds) compare as 0 — any real release
+        // Non-numeric hosts (dev builds) compare as 0. Any real release
         // is newer, and the About pane then honestly offers the page.
         #expect(UpdateCheck.candidateIsNewer("0.1.6", than: "dev"))
         #expect(!UpdateCheck.candidateIsNewer("dev", than: "0.1.6"))
@@ -68,7 +68,7 @@ struct UpdateCheckTests {
             version: "9.9.9",
             url: URL(string: "https://example.com")!,
             isPrerelease: true)
-        // check() short-circuits prereleases to upToDate — encode the rule
+        // check() short-circuits prereleases to upToDate. Encode the rule
         // as the same predicate the pane uses.
         let advertised =
             !pre.isPrerelease

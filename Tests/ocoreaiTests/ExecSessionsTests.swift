@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ExecSessionsTests — session exec surface (exec_shell / write_stdin /
+/// ExecSessionsTests. Session exec surface (exec_shell / write_stdin /
 /// exec_poll, `ExecSessionManager`) exact-value gate.
 ///
 /// Additive to the pinned `ExecCommandToolTests` (blocking `exec_command`):
@@ -20,7 +20,7 @@
 /// - bootstrap: the three tools are registered in the shell toolset
 ///
 /// Every test that spawns a live child calls `shutdown()` on the shared
-/// manager via `defer` — the suite must leave zero live processes.
+/// manager via `defer`. The suite must leave zero live processes.
 import Foundation
 import Testing
 
@@ -28,7 +28,7 @@ import Testing
 
 // NOTE on test isolation: all suites share `ExecSessionManager.shared`.
 // Tests that spawn a LIVE child must kill their specific session id before
-// finishing (per-test scope); NONE of them call the global `shutdown()` —
+// finishing (per-test scope); NONE of them call the global `shutdown()`,
 // a global kill racing a parallel suite's live child is exactly the failure
 // this suite must not reproduce. Orphaned children at process exit are
 // harmless (stdin pipe closes → EOF; `sleep` is reaped when the runner dies,
@@ -163,10 +163,10 @@ struct ExecSessionsSpawnTests {
         // runner that redundant wait wedged the whole 60-min job right
         // at this exact test class. N back-to-back spawn→poll cycles
         // must all land with their EXACT exit codes inside a hard wall
-        // clock — a stall now shows up as a bounded local failure
+        // clock. A stall now shows up as a bounded local failure
         // (seconds), not an unbounded CI timeout.
         //
-        // 09-15 flake fix: the yield contract is best-effort "≤ yieldMs" —
+        // 09-15 flake fix: the yield contract is best-effort "≤ yieldMs",
         // under CI load the reaper can legitimately take >500ms, in which
         // case `spawn` CORRECTLY returns `completed: false` (codex regime
         // semantics, `drainBlocking` finalizes only if the child is dead in
@@ -211,7 +211,7 @@ struct ExecSessionsSpawnTests {
         #expect(!poll.completed)
         #expect(poll.report.contains("exit code: -1"))
         // Per-test cleanup: kill OUR session only (never the global
-        // shutdown — other suites may own live children in parallel).
+        // shutdown. Other suites may own live children in parallel).
         let note = try await m.kill(sessionId: id)
         #expect(note.contains("terminated"))
         let after = try await m.poll(sessionId: id, yieldMs: 300)
@@ -313,7 +313,7 @@ struct ExecSessionsKillTests {
 
     /// The regression: `makeRoom()` used to drop every finished session at the head of every
     /// spawn, so the idempotent answer documented by `kill`/`poll`/`write_stdin` was unreachable
-    /// as soon as anything else ran — a contract that only holds while nothing else happens is
+    /// as soon as anything else ran. A contract that only holds while nothing else happens is
     /// not a contract. Retention (idle TTL + ceiling) bounds finished entries instead.
     @Test("a later spawn does not erase a finished session — every consumer still reaches it")
     func finishedSessionSurvivesNextSpawn() async throws {
@@ -412,7 +412,7 @@ struct ExecSessionsBootstrapTests {
         #expect(out.contains("exit code: 0"))
         #expect(out.contains("session_id:"))
         // No global shutdown here: that suite may run in parallel with
-        // interactive-suite tests that own live children — a global kill
+        // interactive-suite tests that own live children. A global kill
         // would be a cross-test corruption, not a cleanup.
     }
 }

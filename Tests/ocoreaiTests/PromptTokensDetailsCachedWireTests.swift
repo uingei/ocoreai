@@ -5,7 +5,7 @@
 //
 // Root defect fixed: the `Usage` DTO declared `cachedPromptTokens` →
 // `prompt_tokens_details.cached_tokens` (OpenAIModels.swift `PromptTokensDetails`)
-// but NO producer ever populated it — the value was silently always-omitted even
+// but NO producer ever populated it. The value was silently always-omitted even
 // though the OpenAI field is industry-standard (vllm
 // `entrypoints/openai/protocol.py` `prompt_tokens_details.cached_tokens`; sglang
 // `serving_completions.py` uses the same shape).
@@ -50,7 +50,7 @@ struct PromptTokensDetailsCachedWireTests {
             "cached_tokens must be exactly 2048, got \(String(describing: details?["cached_tokens"]))"
         )
 
-        // Siblings unchanged — cached_tokens is a detail, not a prompt_tokens override.
+        // Siblings unchanged. Cached_tokens is a detail, not a prompt_tokens override.
         #expect(root["prompt_tokens"] as? Int == 2500)
         #expect(root["completion_tokens"] as? Int == 42)
         #expect(root["total_tokens"] as? Int == 2542)

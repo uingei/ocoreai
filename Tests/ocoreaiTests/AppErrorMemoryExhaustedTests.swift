@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AppError.memoryExhausted contract tests — the new typed OOM-refusal case
+/// AppError.memoryExhausted contract tests. The new typed OOM-refusal case
 /// must stay distinct from ``engineUnavailable`` and carry the actual numbers
 /// (used vs budget) + a concrete next step, mirroring the wire path's
 /// ``contextWindowExhausted`` precedent and the vllm-metal #756 error bar

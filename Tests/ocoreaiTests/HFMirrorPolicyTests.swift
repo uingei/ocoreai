@@ -5,8 +5,8 @@ import Testing
 
 /// Pins the single HF_ENDPOINT precedence for all three startup entries
 /// (App / Application.init / HeadlessServer) and the GUI Toggle setter.
-/// The pre-fix behavior was three divergent rules — one reading a phantom
-/// UserDefaults key, two clobbering an explicit HF_ENDPOINT — so every
+/// The pre-fix behavior was three divergent rules. One reading a phantom
+/// UserDefaults key, two clobbering an explicit HF_ENDPOINT, so every
 /// precedence edge below is a regression gate, not decoration.
 struct HFMirrorPolicyTests {
 
@@ -139,7 +139,7 @@ struct HFMirrorPolicyTests {
     }
 
     @Test func endpointsAreHTTPSNoPath() {
-        // Consumers concatenate "/api/…" — a trailing slash would double it.
+        // Consumers concatenate "/api/…". A trailing slash would double it.
         for endpoint in [HFMirrorPolicy.canonical, HFMirrorPolicy.mirror] {
             #expect(endpoint.hasPrefix("https://"))
             #expect(!endpoint.hasSuffix("/"))

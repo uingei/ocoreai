@@ -1,8 +1,8 @@
 // Copyright (c) 2026 uingei@163.com.
 // Licensed under MIT.
-// Reasoning model tests - ThinkingTelemetry quality scoring + ThinkingBudget multiplier feedback
+// Reasoning model tests. ThinkingTelemetry quality scoring + ThinkingBudget multiplier feedback
 // Removed: ComplexityScore struct (compiler-enforced fields), ComplexityBand rawValues, TaskType enum
-// (all self-proof — Codable round-trip is a language guarantee)
+// (all self-proof. Codable round-trip is a language guarantee)
 
 import Foundation
 import Testing

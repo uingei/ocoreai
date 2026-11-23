@@ -2,23 +2,23 @@
 // Licensed under MIT.
 /// Why a gate here: `AppError.response` decides which envelope a refusal wears by the path the
 /// request arrived on (3d0e542), but that decision only holds for a refusal that *reaches* it.
-/// Three families kept hand-built bodies beside it — the rate limiter's 429, the trie-miss 404,
+/// Three families kept hand-built bodies beside it. The rate limiter's 429, the trie-miss 404,
 /// and the safety refusals (`content_policy_violation`, `prompt_injection`), the last two built at
 /// five and three sites respectively, two of them inside `POST /v1/messages` itself. So a client
 /// speaking Anthropic's protocol to `/v1/messages` got OpenAI's envelope from exactly the layers
 /// furthest from the model: a capacity refusal, a wrong URL, a blocked prompt. vllm states why the
-/// string inside that envelope is not ours to invent — "Anthropic SDKs dispatch on `error.type`,
+/// string inside that envelope is not ours to invent. "Anthropic SDKs dispatch on `error.type`,
 /// which must use Anthropic's own vocabulary" (`vllm/entrypoints/anthropic/protocol.py:33-34`).
 ///
 /// The claim this suite holds is therefore about the bytes, at the two places they can be read:
 /// the same refusal, on both faces, each in its own envelope, with the refusal's own fact
-/// (`error_code`, `details`, `categories`, the measured wait) surviving *both* shapes — the fact
+/// (`error_code`, `details`, `categories`, the measured wait) surviving *both* shapes. The fact
 /// is the reason the client is reading the body at all.
 ///
 /// What is proven here is the render and the wire; what is proven in `ContentGuardTests` is the
 /// guard's verdict carrying into the typed refusal. The guard itself is installed only by real
 /// engine startup (`App.swift:584`) behind a process-global, so the live end-to-end block on both
-/// faces is `scripts/probes/50-refusal-envelope-per-face.sh`, not a suite — a test that reached
+/// faces is `scripts/probes/50-refusal-envelope-per-face.sh`, not a suite. A test that reached
 /// for it would be mutating a process-global to satisfy an assertion (see
 /// `ProcessGlobalLeaseDisciplineTests`).
 
@@ -41,7 +41,7 @@ struct MiddlewareEnvelopeDisciplineTests {
     ///
     /// The refill rate is 0.001 tokens/s, not a number that "looks realistic", because this suite
     /// runs beside ~618 others on one cooperative pool: the first version drained a burst of 1 at
-    /// 5 tokens/s and passed in 0.12 s alone, then went red inside `make test` — the stall between
+    /// 5 tokens/s and passed in 0.12 s alone, then went red inside `make test`. The stall between
     /// the drain and the target request let one token back, and the request was allowed. That is the
     /// same mechanism `docs/agent/open-items.md` records as the loaded-host cast (wall-clock bounds
     /// betting on the one cooperative pool every suite shares), so the premise here no longer depends
@@ -104,7 +104,7 @@ struct MiddlewareEnvelopeDisciplineTests {
         body["error"] as? [String: Any] ?? [:]
     }
 
-    /// A body with an out-of-range `temperature` — the request never needs to be answered, it only
+    /// A body with an out-of-range `temperature`. The request never needs to be answered, it only
     /// has to reach the rate limiter, so the subject stays the refusal.
     private static let body =
         #"{"model":"m","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}"#
@@ -113,7 +113,7 @@ struct MiddlewareEnvelopeDisciplineTests {
 
     /// One capacity refusal, two envelopes. The OpenAI face keeps `code` (its error object has
     /// one); the Anthropic face must not (its object is exactly `{type,message}` and the status is
-    /// already the status line). Both must carry the wait the bucket measured — in the body *and*
+    /// already the status line). Both must carry the wait the bucket measured, in the body *and*
     /// in `Retry-After`, off one number, because a 429 that says nothing about when to come back
     /// trains the client to hammer the box that just said no.
     @Test("429 — Anthropic's shape on /v1/messages, OpenAI's elsewhere, one wait either way")
@@ -194,7 +194,7 @@ struct MiddlewareEnvelopeDisciplineTests {
     // MARK: - 404: the trie miss is a refusal like any other
 
     /// A miss under `/v1/messages` must read as Anthropic's `not_found_error`, and a miss anywhere
-    /// else as OpenAI's — while `error_code: route_not_found` and the `details` pair survive both,
+    /// else as OpenAI's. While `error_code: route_not_found` and the `details` pair survive both,
     /// because they are the part the client repairs against. The middleware used to own a literal
     /// copy of this body, which is how the same 404 said `app_error` while a handler-thrown 404
     /// said `not_found_error`.
@@ -235,7 +235,7 @@ struct MiddlewareEnvelopeDisciplineTests {
 
     /// A scan, so it asserts its own premises: it finds its root by searching (a fixed number of
     /// `deletingLastPathComponent()` hops rots the day the tree moves), floors how many files it
-    /// actually read, and requires the positive control — the one home — to match its own pattern
+    /// actually read, and requires the positive control. The one home, to match its own pattern
     /// before it believes a zero anywhere else. Without that floor this test would pass on a silent
     /// directory walk and on a build where the renderer changed its spelling.
     @Test("one file builds the error envelope; the hand-built bodies stay gone")
@@ -270,7 +270,7 @@ struct MiddlewareEnvelopeDisciplineTests {
 
     // MARK: - Repo access
 
-    /// Walk up until the marker file is found — the pattern in `OpenAPIContractTests`, for the
+    /// Walk up until the marker file is found. The pattern in `OpenAPIContractTests`, for the
     /// reason recorded there: a fixed hop count from `#filePath` is a second truth about the tree.
     private static func repoRoot() throws -> URL {
         let probe = "Sources/ocoreai/Models/OpenAIModels.swift"

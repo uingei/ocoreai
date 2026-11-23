@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MessageBuilderTests.swift — Tests for the 7-phase message assembly pipeline
+/// MessageBuilderTests.swift. Tests for the 7-phase message assembly pipeline
 ///
 /// Tests real production paths by constructing the full actor chain:
 /// SQLiteStore → FTS5Search → SessionCompressor, plus ComplexityAnalyzer + ThinkingBudget.
@@ -337,7 +337,7 @@ struct ComplexityCacheTests {
             score?.taskType == .code,
             "Python linked-list prompt should be classified as .code (got \(score?.taskType.rawValue ?? "nil"))"
         )
-        // Verify score composite is populated — code task should yield a positive score
+        // Verify score composite is populated. Code task should yield a positive score
         // ComplexityAnalyzer: 20 messages (messageCount=20 → complexity ≥ 0.15)
         // + code keywords → task multiplier → composite ≥ 0.2
         #expect(

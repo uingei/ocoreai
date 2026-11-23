@@ -1,18 +1,18 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Work tool schema-type round-trip regression — pins the contract that the
+/// Work tool schema-type round-trip regression. Pins the contract that the
 /// parameter type exposed to the model in the wire schema must match the
 /// declared type of the corresponding Codable `Args` field on the receiving
 /// side, for every numeric field on the work surface (`computer` toolset).
 ///
-/// Why it matters: a live probe on 2026-09-24 showed `list_apps` — and by
+/// Why it matters: a live probe on 2026-09-24 showed `list_apps`, and by
 /// inspection the same pattern across 12 numeric fields (list_apps.limit,
 /// read_clipboard.max_chars, inspect_ui.depth/max_nodes,
-/// move_mouse.x/y, click.x/y, drag.x1/y1/x2/y2) — declaring `type: "string"`
+/// move_mouse.x/y, click.x/y, drag.x1/y1/x2/y2). Declaring `type: "string"`
 /// in the schema while the `Args` struct field is `Int?` / `Int`. A model
 /// that honours the declared type (emitting strings) decodes straight into
 /// `The data couldn't be read because it isn't in the correct format.` on
-/// the ocoreai side — not a model-capability gap. Reproduced with two
+/// the ocoreai side, not a model-capability gap. Reproduced with two
 /// different models (Qwen3.5-0.8B-4bit VLM + gemma-4-e2b-it-4bit, both
 /// routed through the same tool call loop with loopDetected retries).
 ///
@@ -32,7 +32,7 @@ import Testing
 struct WorkToolSchemaTypeRoundTripTests {
     /// Verify that the schema-declared parameter type for `param` in tool
     /// `toolName` matches `expected` (the type we pin for Args-field
-    /// compatibility — Int? fields must be .integer, Int fields must be
+    /// compatibility. Int? fields must be .integer, Int fields must be
     /// .integer, and so on). Returns the observed type on failure.
     private static func assertNumericFieldType(
         _ registry: ToolRegistry,
@@ -55,32 +55,32 @@ struct WorkToolSchemaTypeRoundTripTests {
         let registry = ToolRegistry(log: Logger(label: "test.schematype"))
         await bootstrapBuiltInTools(registry: registry)
 
-        // list_apps.limit — Int? — live-reproduced
+        // list_apps.limit. Int?. Live-reproduced
         #expect(
             await Self.assertNumericFieldType(registry, "list_apps", "limit", expected: .integer),
             "list_apps.limit must be .integer (Args field is Int?; a .string declaration breaks decode)"
         )
-        // read_clipboard.max_chars — Int?
+        // read_clipboard.max_chars. Int?
         #expect(
             await Self.assertNumericFieldType(
                 registry, "read_clipboard", "max_chars", expected: .integer))
-        // inspect_ui.depth / max_nodes — Int?
+        // inspect_ui.depth / max_nodes. Int?
         #expect(
             await Self.assertNumericFieldType(registry, "inspect_ui", "depth", expected: .integer))
         #expect(
             await Self.assertNumericFieldType(
                 registry, "inspect_ui", "max_nodes", expected: .integer))
-        // move_mouse.x / y — Int
+        // move_mouse.x / y. Int
         #expect(
             await Self.assertNumericFieldType(registry, "move_mouse", "x", expected: .integer))
         #expect(
             await Self.assertNumericFieldType(registry, "move_mouse", "y", expected: .integer))
-        // click.x / y — Int
+        // click.x / y. Int
         #expect(
             await Self.assertNumericFieldType(registry, "click", "x", expected: .integer))
         #expect(
             await Self.assertNumericFieldType(registry, "click", "y", expected: .integer))
-        // drag.x1 / y1 / x2 / y2 — Int
+        // drag.x1 / y1 / x2 / y2. Int
         #expect(
             await Self.assertNumericFieldType(registry, "drag", "x1", expected: .integer))
         #expect(

@@ -3,7 +3,7 @@
 // Before this, the approval surface was a hand-copied name list in `App.swift` while the
 // truth lived in `ToolEntry.isDestructive` (17 declarations against a 7-name matcher), so
 // `edit_lines`, `write_clipboard`, `open_url`, the app-lifecycle pair and all six
-// desktop-control tools ran unasked under the default `.interactive` policy — with
+// desktop-control tools ran unasked under the default `.interactive` policy, with
 // `write_file` next to them asking. These tests gate the derivation itself: no hook names
 // any of these tools, so a matcher list is no longer part of what they assert.
 import Testing

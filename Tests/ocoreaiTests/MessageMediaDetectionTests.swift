@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MessageMediaDetectionTests.swift — precise-value invariants for the
+/// MessageMediaDetectionTests.swift. Precise-value invariants for the
 /// `Message.hasMediaPart` / `Message.mediaPartCount` / `ContentPart.isMedia`
 /// media-detection predicates (single source of truth for the engine's VLM
 /// guard and the MessageBuilder complexity fallback).
@@ -137,7 +137,7 @@ struct MessageMediaPartTests {
                 ])),
         ]
         #expect(msgs.contains(where: \.hasMediaPart) == true)
-        // Total media across the whole conversation — exact 1 (not >= 1).
+        // Total media across the whole conversation. Exact 1 (not >= 1).
         let total = msgs.reduce(0) { $0 + $1.mediaPartCount }
         #expect(total == 1)
     }

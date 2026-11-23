@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SystemPromptContractTests — coding-agent behavioral contract regression gate.
+/// SystemPromptContractTests. Coding-agent behavioral contract regression gate.
 ///
 /// The base prompt is the behavioral contract that makes the model actually
 /// USE its tools (action-first) and report verification. A silent drift back
@@ -112,7 +112,7 @@ struct SystemPromptContractTests {
         let built = SystemPromptBuilder.basePrompt(hasTools: true).lowercased()
         #expect(built.contains("claiming an action requires having called the tool"))
         #expect(built.contains("narration that sounds like a completed action is not one"))
-        // The ban must exist on BOTH surfaces — a turn with tools and a turn
+        // The ban must exist on BOTH surfaces. A turn with tools and a turn
         // without both fabricate; only the wording differs.
         let noTools = SystemPromptBuilder.basePrompt(hasTools: false).lowercased()
         #expect(noTools.contains("never pretend to run a command"))
@@ -121,7 +121,7 @@ struct SystemPromptContractTests {
     @Test("tool surface is part of the prompt cache key")
     func toolSurfaceSeparatesCache() async {
         // One builder serves many turns. If `hasTools` were outside the hash, an
-        // agentic turn would serve the cached no-tools prompt next time — the
+        // agentic turn would serve the cached no-tools prompt next time. The
         // model silently losing (or gaining) its marching orders.
         let builder = SystemPromptBuilder(basePrompt: SystemPromptBuilder.codingAgentIdentity)
         let withTools = await builder.build(hasTools: true)
@@ -136,7 +136,7 @@ struct SystemPromptContractTests {
 
     @Test("contract survives user system-prompt append, never gets dropped")
     func userOverrideStillAppendsContract() async {
-        // MessageBuilder Phase 3: userSystem + builtSystemPrompt — the contract
+        // MessageBuilder Phase 3: userSystem + builtSystemPrompt. The contract
         // must still be present after a user-provided system prompt.
         let contract = SystemPromptBuilder.codingAgentBase
         let userSystem = "Custom user instructions."

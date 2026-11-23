@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MemoryPressureCorroborationTests — 整机内存压力必须先与**自己**的占用对账，
+/// MemoryPressureCorroborationTests。整机内存压力必须先与**自己**的占用对账，
 /// 才允许花钱（丢前缀缓存 / 关投机解码）。
 ///
 /// 实机起因（10-12，M5 Max / 128 GB）：一个游离的 python/MLX 进程占着 ~79 GB，
 /// `memoryUsageFraction()` 因此读到 ~74% ⇒ level 3 ⇒ `route()` Tier-1 判 `.cpu`
 /// ⇒ 每个请求绕过 SessionPool（KV 每轮重建）+ 关投机解码；而 ocoreai 自己只用
 /// 3.5 GB / 70 GB 预算。Apple Silicon 的 `wire_count` 含**所有进程**的 GPU 锁定页，
-/// 所以这个数字本身证明不了「是我们的压力」——它既没换来内存，又把吞吐花了。
+/// 所以这个数字本身证明不了「是我们的压力」。它既没换来内存，又把吞吐花了。
 /// 本文件钉纯函数契约：`pressureIsOurs` 的边界 + `route()` 在对账不过时不得降级。
 
 #if os(macOS) || os(iOS)

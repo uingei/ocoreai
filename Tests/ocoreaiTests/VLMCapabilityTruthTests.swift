@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// VLM capability truth — one predicate, every surface agrees.
+/// VLM capability truth. One predicate, every surface agrees.
 ///
 /// Bug class this pins: two partial predicates for one fact. Discovery
 /// (`ModelStore.discoverReady`) tested `preprocessor_config.json` only; the loader
 /// (`MLXModelLoader.isVLMModel`) tested `processor_config.json` only. On the
-/// installed default model (gemma-4-e2b-it-4bit — ships `processor_config.json`,
+/// installed default model (gemma-4-e2b-it-4bit. Ships `processor_config.json`,
 /// not `preprocessor_config.json`) the engine loaded a working VLM and answered an
 /// image correctly ("Red"), while `GET /v1/models` published `vlm:false`. Older
 /// checkpoints flip the direction: advertised as VLM, loaded as text-only LLM.

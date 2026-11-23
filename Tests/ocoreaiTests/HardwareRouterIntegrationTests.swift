@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// HardwareRouterIntegrationTests.swift — Policy thresholds, thermal mapping,
+/// HardwareRouterIntegrationTests.swift. Policy thresholds, thermal mapping,
 /// memory pressure levels, query() integration, callback emission.
 ///
 /// Supplements HardwareRouterMirrorTests.swift which covers the pure
@@ -135,7 +135,7 @@ struct QueryTierTests {
                 policy: .balanced, urgentBypass: true) == .gpu)
     }
 
-    // Tier 1: memory pressure is absolute — even an urgent request is forced to CPU.
+    // Tier 1: memory pressure is absolute. Even an urgent request is forced to CPU.
     @Test("Severe memory pressure forces CPU regardless of priority")
     func memoryPressureCPU() {
         #expect(
@@ -172,7 +172,7 @@ struct PollerIntegrationTests {
     @Test("Poller respects debounce window")
     func debounceWindow() async {
         let poller = RouterPoller(policy: .balanced, logger: .init(label: "test"))
-        // Poller only emits if channel actually changes — on nominal hardware
+        // Poller only emits if channel actually changes. On nominal hardware
         // it stays GPU, so baseline must remain .gpu after pollOnce.
         // The 3s debounce is the real protection against spam on real hardware.
         // We verify the default baseline survives a poll on nominal hardware.

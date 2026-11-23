@@ -1,23 +1,23 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// LineEndingFidelityTests — an edit writes the bytes the caller named and no others.
+/// LineEndingFidelityTests. An edit writes the bytes the caller named and no others.
 ///
 /// `read_file` renders a file's lines with `\r` stripped (`FileTools.numberedContentLines`), so the
 /// only text a caller can copy off it is LF. Both write seams then worked on the file's raw bytes:
 /// `edit_file` matched a multi-line quote against them, so on a CRLF file a *correct* quote answered
-/// `found 0` — and the retry the refusal neighbour suite owns reproduces the same miss, because the
+/// `found 0`, and the retry the refusal neighbour suite owns reproduces the same miss, because the
 /// caller has no other view of the file. `edit_lines` was worse: it rebuilt the file from the
 /// stripped view, so editing line 2 rewrote every line ending in the file and returned OK naming a
 /// byte delta nobody asked for (invariant 2: the surface may not claim more than the engine did).
 ///
 /// The field lands one rule here, not a flatten: pi splices each replacement back into the original
-/// text — "text outside the replaced ranges keeps its bytes, including its line endings"
+/// text. "text outside the replaced ranges keeps its bytes, including its line endings"
 /// (pi d448c51e, #11751); opencode matches "the LF view Read shows the model, then maps offsets back
 /// to the source, so CRLF and mixed line endings neither block matches nor leak into untouched
 /// regions" (`packages/core/src/tool/plugin/edit.ts:165-188`); codex keeps a per-line ending with the
 /// first one preferred for inserted lines (`codex-rs/apply-patch/src/text_file.rs:19-33`).
 /// qwen-code normalizes the whole file to one ending instead (`packages/core/src/tools/edit.ts:269`)
-/// — the flatten pi's commit removes.
+/// The flatten pi's commit removes.
 ///
 /// `.serialized` + the workspace lease for the same reason as `EditMismatchRecoveryTests`:
 /// `SessionWorkspace` is a process-global, and a lease never spans live I/O.
@@ -30,7 +30,7 @@ import Testing
 struct LineEndingFidelityTests {
 
     /// A frozen pair: the bytes on disk, the caller's text, the bytes required back, and the phrase
-    /// the result owes about what it did to the endings (`""` when it owes none — `PresentationEcho`
+    /// the result owes about what it did to the endings (`""` when it owes none, `PresentationEcho`
     /// names CRLF for its own reasons, so the assertion is on this seam's phrase, not the word).
     struct Pair: Sendable {
         let label: String
@@ -122,7 +122,7 @@ struct LineEndingFidelityTests {
             Array(pair.expected.utf8) == onDisk,
             "\(pair.label): verdict said \(out); bytes on disk were \(onDisk)")
         // The verdict is the only report of what happened to the bytes, so where the file's own
-        // endings were applied to text the caller wrote as LF, the result says so (invariant 2) —
+        // endings were applied to text the caller wrote as LF, the result says so (invariant 2),
         // and where nothing was applied it stays silent, or the note stops meaning anything.
         if pair.note.isEmpty {
             #expect(

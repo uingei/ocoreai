@@ -1,15 +1,15 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ToolEntrySpecTests — pins the OpenAI function-calling JSON Schema surface.
+/// ToolEntrySpecTests. Pins the OpenAI function-calling JSON Schema surface.
 ///
 /// Upstream basis: `Sources/ocoreai/Tools/ToolEntry.swift:161-219`
-/// (extension `ToolDef bridge` — `toToolDef()` + `buildParametersJSON()`).
+/// (extension `ToolDef bridge`, `toToolDef()` + `buildParametersJSON()`).
 ///
 /// Pattern: codex `apply_patch_spec_tests.rs` (`create_apply_patch_freeform_tool_matches_expected_spec`).
-/// ocoreai is the consumer of this surface — the LLM sees the `ToolDef` JSON,
+/// ocoreai is the consumer of this surface. The LLM sees the `ToolDef` JSON,
 /// so a regression that renames a key, drops `required`, or loses the `items`
 /// sub-schema will silently break model tool-calls at runtime. Pinning here
-/// surfaces it at test time. Zero new source surface — pure assertion on
+/// surfaces it at test time. Zero new source surface. Pure assertion on
 /// the existing pure functions.
 ///
 /// Conventions: swift-testing (`@Suite`/`@Test`) + `#expect`, aligned with
@@ -119,7 +119,7 @@ struct ToolEntrySpecTests {
         #expect(Set(required ?? []) == Set(["command", "workdir", "timeout"]))
     }
 
-    /// Explicit `required` subset wins over the all-declared fallback —
+    /// Explicit `required` subset wins over the all-declared fallback,
     /// a parameter the handler defaults (`Int?`/`String?`) must NOT be
     /// marked required on the wire, or a grammar-constrained small model
     /// is forced to emit the shortest legal value (`limit:1` → `read_file`
@@ -179,7 +179,7 @@ struct ToolEntrySpecTests {
     // MARK: - tool-level description survival
     // Root cause: toToolSpecs() sent the *source text* `\(entry.name)`
     // (double-escaped) to the model, and ToolEntry.typed() accepted a
-    // `description:` argument and silently dropped it — built-in tools
+    // `description:` argument and silently dropped it. Built-in tools
     // shipped real descriptions the model never saw.
 
     @Test("typed(description:) survives to entry.description (was silently dropped)")

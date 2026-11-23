@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// StdToolCallRecovery — exact-value tests for the bounded rejected-tool-call
+/// StdToolCallRecovery. Exact-value tests for the bounded rejected-tool-call
 /// recovery policy (ocoreai caller-level recovery over upstream's throw-only
 /// `RejectedToolCallError`, mlx-swift-lm pin 604fae7 "the caller owns
 /// recovery"). These are the regression lines that let the 4500+ line

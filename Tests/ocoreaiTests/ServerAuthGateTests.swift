@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ServerAuthGateTests.swift — exact-value tests for the loopback/auth gate.
+/// ServerAuthGateTests.swift. Exact-value tests for the loopback/auth gate.
 ///
 /// Two tables, exact values (no `> N` style weak asserts):
-/// 1. ``LoopbackBinding.classify(_:)`` — full classifier matrix.
-/// 2. ``ServerAuthGate.checkHost(_:authEnabled:logger:)`` — the 4-cell gate
+/// 1. ``LoopbackBinding.classify(_:)``. Full classifier matrix.
+/// 2. ``ServerAuthGate.checkHost(_:authEnabled:logger:)``. The 4-cell gate
 ///    table (loopback × {on,off}, nonLoopback × {on,off}); only the
 ///    nonLoopback/off cell must throw, and with the exact error type.
 

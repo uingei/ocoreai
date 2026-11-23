@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ScriptedEngineTests — the model-free lane produces exactly what the script declares, and no more.
+/// ScriptedEngineTests. The model-free lane produces exactly what the script declares, and no more.
 ///
 /// `ScriptedInference` is the seam that lets a wire-contract claim be decided without Metal (probe 37
 /// proves the end-to-end shape); this suite pins the producer itself, where a mistake is a line number
@@ -24,7 +24,7 @@ struct ScriptedEngineTests {
         return path
     }
 
-    /// The text payloads in arrival order, concatenated — order is part of the contract.
+    /// The text payloads in arrival order, concatenated. Order is part of the contract.
     private func text(of events: [InferenceEvent.Kind]) -> String {
         events.reduce("") { soFar, kind in
             if case .text(let chunk) = kind { return soFar + chunk }

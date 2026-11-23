@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ComposerIngest — the composer front door's ingest policy, pinned.
+/// ComposerIngest. The composer front door's ingest policy, pinned.
 ///
 /// Why this file exists: `ComposerIngest.swift` declares its path-token format
-/// "AGENT-FACING — pinned by ComposerIngestTests", and until this file existed that
-/// claim was false — no such suite was in the repo. The token is what the model
+/// "AGENT-FACING. Pinned by ComposerIngestTests", and until this file existed that
+/// claim was false, no such suite was in the repo. The token is what the model
 /// reads and the only durable attachment surface (the messages table has no
 /// attachment column), so an unpinned format is an unpinned model-behaviour contract.
 ///
@@ -27,7 +27,7 @@ private func composerPath(_ name: String) -> URL {
 struct ImageRoutingTests {
 
     /// Every declared image extension reaches the VLM pipeline with the URL
-    /// preserved byte-exact — a re-encoded or renamed handoff breaks parity.
+    /// preserved byte-exact. A re-encoded or renamed handoff breaks parity.
     @Test("every image extension routes to .image, URL preserved")
     func everyImageExtensionRoutes() {
         for ext in ["png", "jpg", "jpeg", "heic", "heif", "webp", "gif", "bmp", "tiff", "tif"] {
@@ -36,7 +36,7 @@ struct ImageRoutingTests {
                 ComposerIngest.classify(url: url, isDirectory: false, byteCount: 1024)
                     == .image(url), "ext \(ext) must route to .image")
         }
-        // Uppercase on disk is the user's right — matching is case-folded.
+        // Uppercase on disk is the user's right. Matching is case-folded.
         let upper = composerPath("SHOT.PNG")
         #expect(
             ComposerIngest.classify(url: upper, isDirectory: false, byteCount: 1024)
@@ -91,7 +91,7 @@ struct DocumentRoutingTests {
     }
 
     /// An unsupported extension must refuse while NAMING the extension, and never
-    /// fall through to the file path — a bogus token would send the agent to
+    /// fall through to the file path. A bogus token would send the agent to
     /// `read_file` on a binary it cannot decode.
     @Test("unsupported extension refuses and names the extension")
     func unsupportedRefuses() {
@@ -219,7 +219,7 @@ struct RefusalTests {
                 .contains("bin"))
     }
 
-    /// Byte counts are not reviewable prose — sizes render as MB, one decimal.
+    /// Byte counts are not reviewable prose. Sizes render as MB, one decimal.
     @Test("megabyte formatting is exact")
     func megabytesExact() {
         #expect(ComposerIngest.megabytes(10 * 1024 * 1024) == "10.0")
@@ -286,7 +286,7 @@ struct FunnelTests {
         #expect(state.inputText == afterFirst, "duplicate drop must not change composer text")
     }
 
-    /// A mixed drop reports each outcome separately and never swallows a refusal —
+    /// A mixed drop reports each outcome separately and never swallows a refusal,
     /// the picker it replaced dropped unreadable files silently.
     @Test("mixed drop reports accepted and refused separately")
     func mixedDrop() throws {
@@ -309,7 +309,7 @@ struct FunnelTests {
         #expect(error.contains("setup.exe"))
     }
 
-    /// Dropping nothing changes nothing — no phantom token, no false success.
+    /// Dropping nothing changes nothing, no phantom token, no false success.
     @Test("empty drop is a no-op")
     func emptyDrop() {
         let state = ChatState()
@@ -343,7 +343,7 @@ struct PickerDerivationTests {
     }
 
     /// Every accepted extension must also be OFFERABLE, or the door stays shut for a
-    /// file the engine can read — the exact bug this slice fixed. Fails and names it.
+    /// file the engine can read. The exact bug this slice fixed. Fails and names it.
     @Test("no accepted extension is unpickable")
     func everyAcceptedExtensionIsPickable() {
         var unpickable: [String] = []

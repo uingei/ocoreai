@@ -1,9 +1,9 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MultimodalStatusHonestyTests.swift — pin what `/v1/multimodal/status` and
+/// MultimodalStatusHonestyTests.swift. Pin what `/v1/multimodal/status` and
 /// `/v1/multimodal/capture` are allowed to claim.
 ///
-/// Why gates here (AGENTS.md invariant 2 — the surface never claims more than the engine
+/// Why gates here (AGENTS.md invariant 2. The surface never claims more than the engine
 /// delivered): the status route is indexed as "permission + device status" and published
 /// only three UI toggles, so a client could not tell "camera on" from "camera permitted";
 /// and the microphone capture leg answered `success: true` with `dataURL: null`. Both are
@@ -140,7 +140,7 @@ struct MultimodalStatusHonestyTests {
         // This is the assertion that used to read `facts(screen: .authorized) == .ready`,
         // i.e. "the user allowed it, therefore it works". Measured 10-15 on the shipping
         // host: the grant is on, a display enumerates, and SCScreenshotManager still
-        // refuses — so the grant answers only the first of two questions.
+        // refuses, so the grant answers only the first of two questions.
         #expect(facts(screen: .authorized).screenStatus == .ready)
         #expect(
             facts(screen: .authorized, screenDelivery: .notAttempted).screenStatus == .unknown)
@@ -148,7 +148,7 @@ struct MultimodalStatusHonestyTests {
             facts(screen: .authorized, screenDelivery: .failed).screenStatus == .blocked)
         #expect(facts(screen: .denied).screenStatus == .blocked)
         #expect(facts(screen: .restricted).screenStatus == .blocked)
-        // CGPreflightScreenCaptureAccess reports permitted vs not only — not a verdict.
+        // CGPreflightScreenCaptureAccess reports permitted vs not only, not a verdict.
         #expect(facts(screen: .notGranted).screenStatus == .unknown)
         #expect(facts(screen: .unsupported).screenStatus == .unsupported)
     }
@@ -218,7 +218,7 @@ struct MultimodalStatusHonestyTests {
         #expect(json?["microphoneDeviceCount"] == nil)
         #expect(json?["speechVoiceCount"] == nil)
         // The delivery axis says "nothing attempted" rather than going quiet on the field
-        // that tells a reader it was never exercised — and keeps its error absent, not null.
+        // that tells a reader it was never exercised, and keeps its error absent, not null.
         #expect(json?["screenDelivery"] as? String == "notAttempted")
         #expect(json?["screenDeliveryError"] == nil)
         #expect(json?["screenDeliveryLatencyMs"] == nil)
@@ -350,7 +350,7 @@ struct MultimodalStatusHonestyTests {
         #expect(measured.permission(forChannel: "microphone") == .restricted)
         #expect(measured.permission(forChannel: "transcription") == .notDetermined)
         #expect(measured.permission(forChannel: "screen") == .notGranted)
-        // An unmapped channel is unknown — which the gate treats as "attempt", not "no".
+        // An unmapped channel is unknown, which the gate treats as "attempt", not "no".
         #expect(measured.permission(forChannel: "unknown-channel") == .unknown)
     }
 
@@ -405,7 +405,7 @@ struct MultimodalStatusHonestyTests {
 
     // MARK: - Helpers
 
-    /// Source with whole-line comments removed — the convention `scripts/audit.swift_patterns.sh`
+    /// Source with whole-line comments removed. The convention `scripts/audit.swift_patterns.sh`
     /// uses, because this rule first fired on the doc comment that *states* it
     /// ("Never prompt. `AVCaptureDevice.requestAccess(for:)`…"). Documentation about a rule
     /// is not a call site.
@@ -421,7 +421,7 @@ struct MultimodalStatusHonestyTests {
     }
 
     /// Repo-root-relative source read, finding the root by walking up until the file
-    /// appears (never a fixed `deletingLastPathComponent()` hop count — see
+    /// appears (never a fixed `deletingLastPathComponent()` hop count. See
     /// V1EndpointCatalogTests for the failure that rule exists to prevent).
     private func repoFile(_ relative: String) throws -> String {
         var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()

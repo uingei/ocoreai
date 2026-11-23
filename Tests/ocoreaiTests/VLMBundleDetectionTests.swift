@@ -1,6 +1,6 @@
 // VLM bundle detection unit tests.
 //
-// Pure Foundation (no CoreAI import) — runs on ALL macOS/iOS versions.
+// Pure Foundation (no CoreAI import). Runs on ALL macOS/iOS versions.
 // Covers `VLMBundleDetector` / `VLMBundleMetadata`:
 //   - VLM bundle detection (assets.vision + assets.embedding present)
 //   - Non-VLM bundle (single main asset only) → nil
@@ -33,7 +33,7 @@ struct VLMBundleDetectionTests {
         "main": "model.main.aimodel"
     ]
 
-    /// Built per-call (not a shared static) — Swift 6: a `static let` of
+    /// Built per-call (not a shared static). Swift 6: a `static let` of
     /// `[String: Any]` is not concurrency-safe (non-Sendable shared mutable).
     private static func visionConfigJSON() -> [String: Any] {
         [
@@ -100,7 +100,7 @@ struct VLMBundleDetectionTests {
     func noMetadataFile() {
         let dir = makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        // Empty directory — no metadata.json written
+        // Empty directory, no metadata.json written
 
         #expect(VLMBundleDetector.load(at: dir) == nil)
         #expect(VLMBundleDetector.isVLMBundle(at: dir) == false)
@@ -150,7 +150,7 @@ struct VLMBundleDetectionTests {
 
         // Simulate coreai-build compile: create .aimodelc, remove .aimodel source.
         // CA #303 (coreai-models 3efa838): silent `.aimodel` → `.aimodelc` fallback is
-        // removed — metadata.json must name the file that actually ships, so this
+        // removed. Metadata.json must name the file that actually ships, so this
         // now resolves to `nil` and `createVLMEngine` surfaces a precise load error
         // ("no .aimodel asset for role 'vision'") instead of guessing a sibling file.
         let visionSrc = dir.appendingPathComponent("model.vision.aimodel")

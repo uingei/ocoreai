@@ -1,16 +1,16 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `get_context_remaining` 工具 — 精确值测试(全离线, store 注入, 不触 ChatHandler/EnginePool).
+/// `get_context_remaining` 工具。精确值测试(全离线, store 注入, 不触 ChatHandler/EnginePool).
 ///
 /// 基准: codex `core/src/tools/handlers/get_context_remaining.rs` +
 /// `session/context_window.rs`(tokens_remaining) +
 /// `context/token_budget_context.rs:170-172`(render 逐字, 0.150.1 HEAD).
 ///
 /// 覆盖:
-///   ContextRemaining.tokensRemaining — nil→nil / used<limit / used==limit / used>limit(clamp 0)
-///   ContextRemaining.report         — codex render 字符串逐字断言(known + unknown)
-///   GetContextRemainingClient.runForTool — store 注入(known/unknown/未设置)离线精确值
-///   GetContextRemainingClient.toolEntry  — 名称/命名空间注册面
+///   ContextRemaining.tokensRemaining. Nil→nil / used<limit / used==limit / used>limit(clamp 0)
+///   ContextRemaining.report. Codex render 字符串逐字断言(known + unknown)
+///   GetContextRemainingClient.runForTool. Store 注入(known/unknown/未设置)离线精确值
+///   GetContextRemainingClient.toolEntry。名称/命名空间注册面
 
 import Foundation
 import Testing
@@ -24,7 +24,7 @@ struct ContextRemainingComputeTests {
 
     @Test
     func usedBelowLimitIsExact() {
-        // codex: limit.map(|l| l.saturating_sub(used).max(0)) — 直接算术域.
+        // codex: limit.map(|l| l.saturating_sub(used).max(0))。直接算术域.
         #expect(ContextRemaining.tokensRemaining(limit: 8192, used: 4096) == 4096)
     }
 
@@ -85,7 +85,7 @@ struct ContextRemainingReportTests {
 @Suite("get_context_remaining client")
 struct GetContextRemainingClientTests {
 
-    /// 每用例独立 store 实例 — 不碰 `ContextStatusStore.shared`(避免并发测试间串值).
+    /// 每用例独立 store 实例。不碰 `ContextStatusStore.shared`(避免并发测试间串值).
     private func seeded(used: Int, limit: Int?) async -> ContextStatusStore {
         let store = ContextStatusStore()
         await store.set(usedTokens: used, windowLimit: limit)
@@ -140,7 +140,7 @@ struct GetContextRemainingClientTests {
 // MARK: - UI bridge 面: ChatState.contextRemainingTokens(会话上下文水位 → UI 单一真值)
 
 /// 契约: `ChatState.contextRemainingTokens` 与 `ContextRemaining.tokensRemaining`
-/// 同一定义 — UI 水位条与 `get_context_remaining` 工具读同一个数(codex `unknown` 路径:
+/// 同一定义。UI 水位条与 `get_context_remaining` 工具读同一个数(codex `unknown` 路径:
 /// 无窗口/无用量 → nil, 诚实隐藏, 绝不伪造预算)。
 @Suite("session context watermark — UI bridge")
 @MainActor

@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Wire contract tests — the browser-origin decision (`OCOREAI_CORS_ORIGIN`).
+/// Wire contract tests. The browser-origin decision (`OCOREAI_CORS_ORIGIN`).
 ///
 /// Two claims live here, and both are about ordering rather than about any one layer.
 ///
 /// 1. A preflight must be answered before the API-key gate. `fetch` sends no
-///    `Authorization` on an OPTIONS preflight — that is the whole point of the
-///    preflight — so a chain that asks for a key first answers 401 to a question whose
+///    `Authorization` on an OPTIONS preflight, that is the whole point of the
+///    preflight, so a chain that asks for a key first answers 401 to a question whose
 ///    answer the browser needs in order to send the key. Registering CORS after auth
 ///    makes every authenticated browser client fail, while `curl` (which never
 ///    preflights) keeps passing.
@@ -14,7 +14,7 @@
 /// 2. A 404 a browser can read is still a 404 with its envelope. Upstream's CORS layer
 ///    re-throws a downstream error wrapped so it carries the CORS headers
 ///    (CORSMiddleware.swift:220-229), and the 404 middleware matches on `HTTPError`,
-///    not on the wrapper — with CORS *inside* it, the envelope disappears and the
+///    not on the wrapper, with CORS *inside* it, the envelope disappears and the
 ///    client gets a bare body it cannot parse. Outside it, both survive.
 ///
 /// The off face is asserted too: `nil` must be byte-identical to the surface that
@@ -43,7 +43,7 @@ struct CORSPreflightWireTests {
             .path
     }
 
-    /// The real chain — the same `buildRouter` the server boots, not a stand-in.
+    /// The real chain. The same `buildRouter` the server boots, not a stand-in.
     private func makeApp(
         cors: CORSPolicy.Allow?,
         authKeys: [String] = []
@@ -129,7 +129,7 @@ struct CORSPreflightWireTests {
     }
 
     /// The write half of the same decision, as a table rather than a story. Pure, so every
-    /// row is asserted without a server: no `Origin` means a native client (measured —
+    /// row is asserted without a server: no `Origin` means a native client (measured,
     /// `URLSession` sends none), and a knob whose value was refused admits nothing, exactly
     /// as it registers no middleware.
     @Test("the write table: no Origin is a native client; off/refused admits no page")
@@ -160,7 +160,7 @@ struct CORSPreflightWireTests {
     }
 
     /// The knob is the exit, so the row a real browser client depends on: the admitted
-    /// origin writes and the next one over does not — not even holding a key, because a key
+    /// origin writes and the next one over does not, not even holding a key, because a key
     /// says WHO the caller is while `Origin` says WHAT KIND of caller it is.
     @Test("an admitted origin may write; the next origin over may not, key or no key")
     func admittedOriginMayWrite() async throws {

@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// #176 alignment — `RepetitionPenaltyProcessor` + `fallbackSampler(from:tokenHistory:)`.
+// #176 alignment, `RepetitionPenaltyProcessor` + `fallbackSampler(from:tokenHistory:)`.
 // Aligned with upstream coreai-models `Samplers/RepetitionPenaltyProcessor.swift`
 // + `Samplers/SamplingConfiguration.swift` @ 5660fc6.
 //
@@ -14,7 +14,7 @@
 // LogitsScalarType sampler pipeline in CompositeSampler.swift) live inside a
 // `#if canImport(CoreAI)` block (CompositeSampler.swift:11). On the macos-26
 // runner (Xcode 26.6 / SDK 26.5) the CoreAI framework is absent, so that block
-// is not compiled and there is nothing to test — the compiler skips the whole
+// is not compiled and there is nothing to test. The compiler skips the whole
 // suite, identical convention to NDArrayHelpersAlignmentTests.swift (F1).
 // On a macOS 27 target (canImport true) the suite runs and exercises the
 // sign-aware divide/multiply, dedup, range-guard, window scoping, and the

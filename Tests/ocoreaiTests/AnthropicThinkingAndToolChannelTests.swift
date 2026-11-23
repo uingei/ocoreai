@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AnthropicThinkingAndToolChannelTests.swift — `thinking` must reach the engine, and the
+/// AnthropicThinkingAndToolChannelTests.swift, `thinking` must reach the engine, and the
 /// agent context must not depend on which wire the client speaks.
 ///
 /// Measured live 10-19 (`mlx-community/gemma-4-e2b-it-4bit`, temperature 0, this host):
@@ -12,7 +12,7 @@
 ///   • The identical one-turn request cost 24 `input_tokens` here against 774
 ///     `prompt_tokens` on the OpenAI face, and "List the skills you have available"
 ///     answered "terminal / file / search / memory" there but "Processing and understanding
-///     natural language…" here — the face that skipped the shared assembly answered as a
+///     natural language…" here. The face that skipped the shared assembly answered as a
 ///     different product, which is invariant 2, not a token-accounting detail.
 ///   • `POST /v1/steer` then `/v1/messages` on that session answered "Please provide more
 ///     context" (the steer was never drained), while the same sequence on
@@ -31,7 +31,7 @@ private struct MissingSource: Error, CustomStringConvertible {
     var description: String { "could not find \(path) walking up from the test file" }
 }
 
-/// Reads a repo source file by locating the root from this file's path — never a fixed
+/// Reads a repo source file by locating the root from this file's path. Never a fixed
 /// number of `deletingLastPathComponent()` hops, which is how a "passing" scan turns out
 /// to have been reading nothing (`V1EndpointCatalogTests` carries that failure).
 private func source(_ relative: String) throws -> String {
@@ -119,7 +119,7 @@ struct AnthropicThinkingPreferenceTests {
     }
 
     /// Before this fix the check was `thinking != nil`, so the request to turn thinking
-    /// OFF turned it ON — the one mapping that had to be exactly backwards to matter.
+    /// OFF turned it ON. The one mapping that had to be exactly backwards to matter.
     @Test("disabled means off, not on")
     func disabledIsNotEnabled() throws {
         let req = try request(body(["thinking": ["type": "disabled"]]))
@@ -153,7 +153,7 @@ struct AnthropicThinkingPreferenceTests {
         #expect(message.contains("max_tokens"), "the message must name both sides: \(message)")
     }
 
-    /// A disabled config keeps its stale budget without tripping the rule — the pair is
+    /// A disabled config keeps its stale budget without tripping the rule. The pair is
     /// only a live constraint when thinking is on.
     @Test("a disabled config is not constrained by a stale budget")
     func disabledIgnoresBudgetRule() throws {
@@ -176,7 +176,7 @@ struct AnthropicThinkingWireShapeTests {
         #expect(json.keys.contains("input") == false)
     }
 
-    /// `content_block_start` opens a thinking block empty, with no signature — that field
+    /// `content_block_start` opens a thinking block empty, with no signature, that field
     /// arrives in its own delta, and inventing one at open time would put an unverifiable
     /// value where a client expects a verification token.
     @Test("the thinking block opens without a signature")
@@ -190,7 +190,7 @@ struct AnthropicThinkingWireShapeTests {
     }
 
     /// `delta.type` is the discriminator SDKs dispatch on, so each member carries only its
-    /// own payload key — the same rule that made `text_delta` a fix (round 19).
+    /// own payload key. The same rule that made `text_delta` a fix (round 19).
     @Test("thinking and signature deltas carry only their own payload")
     func thinkingDeltasAreDiscriminated() {
         let thinking = wireJSON(AnthropicStreamEvent.thinkingDelta(index: 0, thinking: "hm"))
@@ -260,7 +260,7 @@ struct AnthropicThinkingStreamOrderingTests {
     }
 
     /// Reasoning never lands in the answer's block, and the answer never lands in the
-    /// reasoning block — the separation is the point of the block types.
+    /// reasoning block. The separation is the point of the block types.
     @Test("reasoning and answer never share a block")
     func channelsNeverMix() {
         var emitter = AnthropicStreamEmitter()
@@ -285,7 +285,7 @@ struct AnthropicThinkingStreamOrderingTests {
     }
 
     /// A call after thinking: thinking closes with its signature, the call takes the next
-    /// index — block numbering stays addressable across all three block kinds.
+    /// index. Block numbering stays addressable across all three block kinds.
     @Test("thinking then a call numbers the blocks 0 and 1")
     func thinkingThenToolCallNumbering() {
         var emitter = AnthropicStreamEmitter()
@@ -415,7 +415,7 @@ struct AnthropicSharedAssemblySourceTests {
 
     /// One builder, both entrances: `/v1/messages` calls it from the handler, and
     /// `count_tokens` from the route. Two lists would let the pre-flight budget a request
-    /// that then costs more — the reason this endpoint exists.
+    /// that then costs more. The reason this endpoint exists.
     @Test("the two Anthropic routes count one list")
     func oneBuilderTwoRoutes() throws {
         #expect(
@@ -429,7 +429,7 @@ struct AnthropicSharedAssemblySourceTests {
     }
 
     /// Both faces disclose what they assembled, from one helper. The parity claim of this
-    /// round ("one assembly, both wires") was settled by reading those lines — before the
+    /// round ("one assembly, both wires") was settled by reading those lines. Before the
     /// helper existed, a divergence between the faces was only visible as an unexplained
     /// token delta in a probe. One home, two callers; a face that stops reporting is red.
     @Test("both faces disclose the prompt they assembled")
@@ -447,8 +447,8 @@ struct AnthropicSharedAssemblySourceTests {
             "the disclosure lives in one home next to the assembly it describes")
     }
 
-    /// `usage` on this face reports the engine's measured **rendered** prompt — the tokens this
-    /// turn prefilled plus whatever its KV cache kept — not a second number for the same prompt,
+    /// `usage` on this face reports the engine's measured **rendered** prompt. The tokens this
+    /// turn prefilled plus whatever its KV cache kept, not a second number for the same prompt,
     /// and not the suffix on its own. Textual because the value needs an engine: the live pair is
     /// probe 13 §9. The sum (rather than the prefilled count) is `PromptTokenAccounting`'s job,
     /// pinned by `PromptTokenAccountingTests`: `cached_tokens` is a breakdown OF the prompt

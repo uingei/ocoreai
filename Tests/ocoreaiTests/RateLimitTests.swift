@@ -1,4 +1,4 @@
-// RateLimitTests.swift — TokenBucket & RateLimitProvider unit tests
+// RateLimitTests.swift. TokenBucket & RateLimitProvider unit tests
 //
 // Validates token bucket math, burst behavior, and global rate limit config
 // without requiring CoreAI runtime or Hummingbird Request types.

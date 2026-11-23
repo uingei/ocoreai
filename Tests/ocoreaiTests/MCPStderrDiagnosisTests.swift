@@ -1,20 +1,20 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! MCPStderrDiagnosisTests.swift — when an external MCP server fails, the caller is told what
+//! MCPStderrDiagnosisTests.swift, when an external MCP server fails, the caller is told what
 //! the server itself said.
 //!
 //! ### Why these tests exist (10-21)
 //! `MCPStdioClient.launchProcess` had `proc.standardError = nil`, so Foundation sent the child's
 //! stderr to /dev/null. Every refusal therefore described the symptom ("exited with status 1",
 //! "did not answer within 30s") while the cause — `ModuleNotFoundError`, `MODULE_NOT_FOUND`,
-//! `bind: address already in use` — was destroyed on arrival. No existing test could have caught
+//! `bind: address already in use`. Was destroyed on arrival. No existing test could have caught
 //! that: the old wording was green precisely because nothing was expected to arrive. So the
 //! cases below assert on real bytes from real child processes, and one floors a source scan so
 //! `= nil` cannot come back silently (AGENTS.md invariant 1).
 //!
 //! ### The two directions guarded
 //! Evidence must arrive (a dying server's traceback reaches the refusal), and evidence must not be
-//! invented (a silent child's wording stays byte-for-byte what it was before — invariant 2 cuts
+//! invented (a silent child's wording stays byte-for-byte what it was before. Invariant 2 cuts
 //! both ways).
 
 import Foundation

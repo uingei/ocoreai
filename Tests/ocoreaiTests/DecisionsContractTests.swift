@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! DecisionsContractTests — `/v1/decisions` speaks sglang's contract, and only this suite makes
+//! DecisionsContractTests, `/v1/decisions` speaks sglang's contract, and only this suite makes
 //! that a fact rather than a comment.
 //!
 //! ### The red each test was sampled against
@@ -8,7 +8,7 @@
 //! `Wire/DecisionsWire.swift`, and each was sampled by running the offending body through the
 //! decoder first. The load-bearing one is the unknown-field refusal: pydantic sets
 //! `extra = "forbid"` on every decision model (`protocol.py:1654`, `:1603`, `:1610`, `:1629`,
-//! `:1639`) because a silently dropped knob answers a *different question* than the one asked —
+//! `:1639`) because a silently dropped knob answers a *different question* than the one asked,
 //! so a body carrying `"temprature"` must not decode into `temperature: 1.0`. The status codes are
 //! sampled too: sglang overrides FastAPI's default 422 to 400 on this route and keeps 422 only for
 //! `/v1/systemone` (`http_server.py:636-660`), so a schema failure that surfaces as a 500 is a red
@@ -43,7 +43,7 @@ struct DecisionsContractTests {
 
     private static func choiceQuestion(_ optionCount: Int, id: String = "q1") -> String {
         // An option is an OBJECT `{name, description?}` (`protocol.py:1602-1607`), so the braces are
-        // part of the shape — writing the pair without them yields `"options":["name":"opt0"]`, which
+        // part of the shape. Writing the pair without them yields `"options":["name":"opt0"]`, which
         // is not JSON, and every assertion routed through this helper then judged a malformed body
         // instead of the rule it named.
         let options = (0 ..< optionCount).map { "{\"name\":\"opt\($0)\"}" }
@@ -109,7 +109,7 @@ struct DecisionsContractTests {
     @Test("the suite's own builders are sound — a builder that emits garbage judges nothing")
     func buildersAreSound() throws {
         // This suite's premises are two string builders. The first version of `choiceQuestion`
-        // emitted `"options":["name":"opt0"]` — no braces, not JSON — and 11 assertions quietly read
+        // emitted `"options":["name":"opt0"]`, no braces, not JSON, and 11 assertions quietly read
         // "body must be a JSON object" as if it were a verdict about bounds and option names. So the
         // builders get asserted, at both a middle size and the boundary a bound test relies on.
         let two = try DecisionsRequest.decode(Data(Self.body(Self.choiceQuestion(2)).utf8))
@@ -237,7 +237,7 @@ struct DecisionsContractTests {
                     """
                 )) == ["question 'q1': option names must be nonempty"])
         // The reason quotes the name verbatim, exactly as the "repeats another option" reason below
-        // does, so the string it quotes contains the real newline the caller sent — JSON escapes it on
+        // does, so the string it quotes contains the real newline the caller sent. JSON escapes it on
         // the wire, and the two messages about a name must not disagree about whether to escape.
         #expect(
             Self.reasons(

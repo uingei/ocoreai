@@ -1,4 +1,4 @@
-// FMToolErrorRecoveryTests.swift — 契约: FM 路径 handler 失败镜像 MLX/codex 回灌
+// FMToolErrorRecoveryTests.swift。契约: FM 路径 handler 失败镜像 MLX/codex 回灌
 //
 // 同一失败、两条路径结局必须一致(行为分叉红线):
 //   - MLX 路径 (EngineInference catch-site): 回灌 `"[tool_error: <msg>]"` 给模型自纠
@@ -28,7 +28,7 @@ struct FMToolErrorRecoveryTests {
     func makeFailingRegistry() async -> ToolRegistry {
         let registry = ToolRegistry(log: Logger(label: "test.fmtoolrecoveryp"))
         // 与 FileTools.edit_file 拒绝路径同型:ToolError.invalidParameter 抛
-        // (handler 内部 throw, 非 preflight 拒绝 — preflight 发生在 call() 早期,
+        // (handler 内部 throw, 非 preflight 拒绝。preflight 发生在 call() 早期,
         // 这里我们直接让 handler 抛, 走 L382 `catch` → ToolError.executionFailed 包装)。
         let entry = ToolEntry(
             name: "edit_file",

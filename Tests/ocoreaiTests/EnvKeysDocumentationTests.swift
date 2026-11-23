@@ -6,17 +6,17 @@
 // literals + 8 read through a constant, an accessor, or an interpolated prefix
 // (`HttpBridgePolicy.envVar`, `HF_ENDPOINT_MIRROR` via operatorEnvironment,
 // and `\(...)HOST/PORT/BACKEND/...` in ConfigSystem.applyEnvOverrides).
-// 10-21: `HF_TOKEN` / `MODELSCOPE_TOKEN` stopped being literals at their read sites —
+// 10-21: `HF_TOKEN` / `MODELSCOPE_TOKEN` stopped being literals at their read sites,
 // `Models/HubCredential.swift` names them once (`HubSource.envVar`) and reads them only
 // through `precedence(source:stored:)`. Assertion 5 unions the accessor's own names rather
 // than letting the floor drop: a key that moves behind an accessor must stay visible to the
 // contract, not age out of it.
-// Every count here is re-derived by set analysis, not remembered — a stale
+// Every count here is re-derived by set analysis, not remembered. A stale
 // count in a doc comment is the drift this file was born from (22→23 found
 // live: README said 22, expectedKeys held 23). 10-12: the native web_search
 // path added OCRE_SEARCH_MODE / _ENGINES / _MAX_HITS / _DIRECT_TIMEOUT to
 // Sources/, and this suite stayed green with all four absent from BOTH the
-// contract and .env.example — a remembered key list cannot see code-side
+// contract and .env.example. A remembered key list cannot see code-side
 // additions. Assertion 5 derives the literal key set from Sources/ and fails
 // on any key the contract does not carry, so the list can no longer lag code.
 //
@@ -28,10 +28,10 @@
 //   2. no omission:  no expected key missing from `.env.example`
 //   3. no stale row: every expected key is actually read in Sources/
 //   4. no dupes:     `.env.example` has no repeated key
-//   5. no blind spot: every env key Sources/ can produce — a literal `environment["KEY"]`
-//      read, or a name declared by the accessor that reads on its behalf — is carried by the
+//   5. no blind spot: every env key Sources/ can produce. A literal `environment["KEY"]`
+//      read, or a name declared by the accessor that reads on its behalf. Is carried by the
 //      contract; a key added in code cannot skip this file
-//   6. no stale prose: the human-facing README says this same count, split the same way —
+//   6. no stale prose: the human-facing README says this same count, split the same way,
 //      measured 10-24: both READMEs still claimed "23 (17 static + 6)" while the contract and
 //      `.env.example` carried 27, drift nothing had read since the 10-12 key group landed
 //
@@ -53,7 +53,7 @@ struct EnvKeysDocumentationTests {
         // Backend (ConfigSystem.applyEnvOverrides)
         "OCOREAI_BACKEND", "OCOREAI_MAX_SESSIONS",
         "OCOREAI_DEFAULT_MODEL", "OCOREAI_MEMORY_ENABLED",
-        // Agent (统一审批 — 单源真值,跨 GUI / headless 两入口)
+        // Agent (统一审批。单源真值,跨 GUI / headless 两入口)
         "OCOREAI_APPROVAL_POLICY",
         // Model 存储 / 工作树
         "OCOREAI_MODELS_DIR", "OCOREAI_WORKTREE_ROOT", "OCOREAI_PROJECT_DIR",
@@ -61,13 +61,13 @@ struct EnvKeysDocumentationTests {
         "HF_TOKEN", "HF_ENDPOINT", "HF_ENDPOINT_MIRROR",
         // ModelScope
         "MODELSCOPE_TOKEN", "MODELSCOPE_ENDPOINT",
-        // web_search — native direct SERP (the default path, needs no backend)
+        // web_search. Native direct SERP (the default path, needs no backend)
         "OCRE_SEARCH_MODE", "OCRE_SEARCH_ENGINES", "OCRE_SEARCH_MAX_HITS",
         "OCRE_SEARCH_DIRECT_TIMEOUT",
-        // web_search / web_fetch (local ollama backend — opt-in via MODE)
+        // web_search / web_fetch (local ollama backend. Opt-in via MODE)
         "OCRE_SEARCH_BASE_URL", "OCRE_SEARCH_MODEL", "OCRE_SEARCH_TIMEOUT",
         "OCRE_SEARCH_PROBE_TIMEOUT", "OCRE_FETCH_TIMEOUT",
-        // degeneration probe (diagnostics — all three default off, healthy turns pay nothing)
+        // degeneration probe (diagnostics. All three default off, healthy turns pay nothing)
         "OCOREAI_MARGIN_PROBE", "OCOREAI_MARGIN_NO_KV", "OCOREAI_MARGIN_DUMP",
     ]
 
@@ -159,7 +159,7 @@ struct EnvKeysDocumentationTests {
     ///
     /// Deliberately dumb: a substring scan, no regex. Interpolated reads such as
     /// `environment["\(envPrefix)BACKEND"]` yield a token containing a backslash
-    /// and are skipped here on purpose — their prefix lives in a constant, and
+    /// and are skipped here on purpose. Their prefix lives in a constant, and
     /// assertion 3 already covers that direction.
     private static func derivedLiteralKeys() -> Set<String> {
         let prefixes = ["OCOREAI_", "OCRE_", "HF_", "MODELSCOPE_"]
@@ -186,12 +186,12 @@ struct EnvKeysDocumentationTests {
     /// read site: `HubSource.envVar` (`Models/HubCredential.swift`) is the one home for the
     /// two hub-token names, and `precedence(source:stored:)` the only expression that reads
     /// them. Taken from the compiled type rather than a remembered list, so this still sees a
-    /// provider added to the enum — the direction assertion 5 exists to cover.
+    /// provider added to the enum. The direction assertion 5 exists to cover.
     private static var keysDeclaredByAccessor: Set<String> {
         Set(HubSource.allCases.map(\.envVar))
     }
 
-    /// Assertion 5 — closes the hole this suite was blind to: keys that exist in
+    /// Assertion 5. Closes the hole this suite was blind to: keys that exist in
     /// code but were never added to the contract (and therefore never documented).
     @Test func noLiteralReadIsMissingFromContract() {
         let literal = Self.derivedLiteralKeys()
@@ -216,11 +216,11 @@ struct EnvKeysDocumentationTests {
             "Sources/ reads env keys the contract does not carry: \(unlisted)")
     }
 
-    /// Assertion 6 — the README's own number is a claim about this set, so this file reads it.
+    /// Assertion 6. The README's own number is a claim about this set, so this file reads it.
     /// Measured 10-24: both READMEs still said "23 environment variables (17 static literals +
-    /// 6)" while the contract and `.env.example` carried 27 — two key groups landed since, and
+    /// 6)" while the contract and `.env.example` carried 27. Two key groups landed since, and
     /// no gate ever re-grepped the prose (invariant 1: a doc whose numbers nobody re-greps
-    /// drifts). The scan floors its own hit count — a rotted pattern finds nothing and must
+    /// drifts). The scan floors its own hit count. A rotted pattern finds nothing and must
     /// go red, not report parity vacuously.
     @Test func readmeStatesThePinnedSurfaceCount() throws {
         let surface: [(file: String, pattern: String)] = [

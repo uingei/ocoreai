@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PresentationEchoGuardTests — our own tool-output chrome never passes as file content.
+/// PresentationEchoGuardTests. Our own tool-output chrome never passes as file content.
 ///
 /// Measured on the task scoreboard (`scripts/eval/`, `copy-with-suffix`): read-then-write turns
-/// produced the tool result they had been shown — `1|KERNEL-7-COPY` plus the `total_lines:` footer
-/// — with the requested transformation applied inside the copy, and both tool calls reported `OK`.
+/// produced the tool result they had been shown, `1|KERNEL-7-COPY` plus the `total_lines:` footer
+///, with the requested transformation applied inside the copy, and both tool calls reported `OK`.
 /// Baseline over 13 attempts: 0 passes. Telling the model not to copy it (a sentence in the
-/// footer) made the artefact bigger, because the sentence was copied too — so the fix has to sit
+/// footer) made the artefact bigger, because the sentence was copied too, so the fix has to sit
 /// on the write, and it has to say what it did. These tests pin the ladder: detect, repair what is
 /// provable, refuse to guess, and never quote a body into a tool result.
 ///

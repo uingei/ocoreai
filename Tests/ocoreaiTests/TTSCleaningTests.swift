@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com
 // Licensed under MIT.
-/// TTSCleaningTests.swift — canonical TTS cleaning (thinking + code) invariants.
+/// TTSCleaningTests.swift. Canonical TTS cleaning (thinking + code) invariants.
 ///
 /// Locks the single source of truth that the agent `speak` tool
 /// (`Speak.build`) and the chat speaker (`MultimodalState.speakIfEnabled`)
-/// now both route through. Each behavior is asserted with an EXACT value —
+/// now both route through. Each behavior is asserted with an EXACT value,
 /// no count-`>` weak assertions.
 
 import Foundation

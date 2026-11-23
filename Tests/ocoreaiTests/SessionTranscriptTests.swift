@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! SessionTranscriptTests.swift — one conversation owns one session row, and a row costs its
+//! SessionTranscriptTests.swift. One conversation owns one session row, and a row costs its
 //! own message.
 //!
 //! ### The defects this locks (measured live 10-21, this host)
 //! Three `/v1/chat/completions` turns sent with the same `session_id` produced **three**
 //! `sessions` rows (ids 1936/1937/1938, `message_count=2` each), because the persist hop
-//! reused a row only when the key parsed as `Int64` and otherwise created one — and nothing on
+//! reused a row only when the key parsed as `Int64` and otherwise created one, and nothing on
 //! the HTTP surface ever hands a client an integer to reuse. The conversation the engine keeps
 //! in its session pool had no counterpart in session memory: `/sessions`,
 //! `/sessions/:id/memory`, `/sessions/search` and the GUI session list saw one snapshot per
@@ -14,7 +14,7 @@
 //!
 //! The same hop divided the turn's whole prompt over the user rows
 //! (`tokensPerMsg = promptTokens / userMsgCount`), so a 34-character message was stored with
-//! `token_count: 705` — that turn's entire rendered prompt, including this server's own system
+//! `token_count: 705`, that turn's entire rendered prompt, including this server's own system
 //! prompt and chat template. And because every user message in the re-sent history was inserted
 //! again each turn, the session total that `SessionCompressor` compares against
 //! `tokenThreshold` to prune charged the same history once per turn.
@@ -78,7 +78,7 @@ struct SessionTranscriptRulesTests {
 
     /// The trap one level down: the stored rows interleave assistant replies while the client
     /// list (as persisted) does not. Filtering only one side stops the overlap at the first
-    /// reply and re-stores every earlier turn — the same defect, smaller.
+    /// reply and re-stores every earlier turn. The same defect, smaller.
     @Test("both sides are filtered to one shape, so the overlap sees the whole head")
     static func shapeFilteringAgreesOnBothSides() throws {
         let client = SessionTranscript.client([
@@ -154,7 +154,7 @@ struct SessionIdentitySQLiteTests {
         #expect(rows.count == 6, "expected 6 rows on one session, got \(rows.count)")
         let session = try #require(await c.getSession(first))
         #expect(session.messageCount == 6)
-        // (6 + 2) x 3: each row carries its own size and the session total is their sum —
+        // (6 + 2) x 3: each row carries its own size and the session total is their sum,
         // no share of a turn prompt anywhere in it.
         #expect(session.tokenCount == 24)
 
@@ -176,7 +176,7 @@ struct SessionIdentitySQLiteTests {
             "re-resolution must be stable")
     }
 
-    /// A numeric key naming an existing row keeps meaning that row — that behaviour predates
+    /// A numeric key naming an existing row keeps meaning that row, that behaviour predates
     /// this fix and clients may already rely on it. A numeric key naming *nothing* used to
     /// write `messages` rows against a missing parent; now it owns a real row instead.
     @Test("numeric keys: an existing row is reused, a missing one is created rather than orphaned")
@@ -237,7 +237,7 @@ struct SessionIdentitySQLiteTests {
 
     /// `limit` counts *conversation* rows, not raw rows. An unfiltered reader answers short
     /// on a deep conversation (half its rows are replies), and the overlap rule reads that
-    /// short head as "these turns are new" — duplicating history again, which is the exact
+    /// short head as "these turns are new". Duplicating history again, which is the exact
     /// defect identity was fixed for.
     @Test("12 turns deep, the reader still sees the whole head so only U13 is new")
     func deepConversationSeesTheWholeHead() async throws {
@@ -292,7 +292,7 @@ struct PersistHopSourceTests {
     }
 
     /// The roles a conversation contributes are decided once. A second hand-written list on
-    /// the SQL side is how the reader and the rule would start comparing different shapes —
+    /// the SQL side is how the reader and the rule would start comparing different shapes,
     /// and a reader that filters nothing has to guess the margin, which is how a deep
     /// conversation gets a short head.
     @Test("the SQL reader and the in-memory filter share one roles list")
@@ -319,8 +319,8 @@ struct PersistHopSourceTests {
     /// Session memory is one rule with one home, so both wires have to reach it. Measured
     /// 10-21: `/v1/messages` took `sessionCompressor`/`semanticSearch` and discarded both, so
     /// every Anthropic-SDK conversation was absent from `/sessions`, FTS and the GUI list
-    /// while the OpenAI face was remembered. Exact counts — one call per response mode per
-    /// face — because a `>= 1` would hide the missing streaming mode.
+    /// while the OpenAI face was remembered. Exact counts. One call per response mode per
+    /// face, because a `>= 1` would hide the missing streaming mode.
     @Test("both HTTP faces reach the one persist hop, once per response mode")
     static func bothFacesReachTheHop() throws {
         let faces = [
@@ -349,8 +349,8 @@ struct PersistHopSourceTests {
         throw Missing(relative: relative)
     }
 
-    /// Code lines only. Prose is allowed to *name* a shape a gate forbids — that is how a
-    /// doc comment explains what regressed — while code is not allowed to bring it back. Same
+    /// Code lines only. Prose is allowed to *name* a shape a gate forbids, that is how a
+    /// doc comment explains what regressed. While code is not allowed to bring it back. Same
     /// rule the retired `docs-check` applied to its `<!-- claim: … -->` greps.
     private static func codeLines(_ text: String) -> [String] {
         text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init).filter {

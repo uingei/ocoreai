@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ReuseRefusalLedgerTests.swift — the refusal vocabulary, and the accounting built on it.
+/// ReuseRefusalLedgerTests.swift. The refusal vocabulary, and the accounting built on it.
 ///
 /// Why this has a gate at all: the ledger exists to price two owner decisions (refresh vs
 /// refuse for a changed instruction set; cross-conversation prefix reuse) that were argued
 /// from mechanism alone. A number nobody can regress is worse than no number, so every rule
-/// here — which name a refusal gets, that the name agrees with the rule that refused it, and
-/// what the wire says — is pinned in this file.
+/// here, which name a refusal gets, that the name agrees with the rule that refused it, and
+/// what the wire says. Is pinned in this file.
 ///
 /// Nothing here needs Metal, a loaded model, or a live server: the ledger and both pure
 /// classifiers are values, which is why these run on the CLT route.
@@ -316,7 +316,7 @@ struct ReuseRefusalObservationWireTests {
         let object = try #require(
             JSONSerialization.jsonObject(with: data) as? [String: Any])
         // Swift's encoder omits an absent Optional rather than writing null, so "we have not
-        // seen one" reaches the client as a missing key — which is what keeps it from being
+        // seen one" reaches the client as a missing key, which is what keeps it from being
         // misread as a measured zero. Assert the convention, because a client that defaults a
         // missing key to 0 gets the wrong answer either way.
         #expect(object["bestMessagesInCommon"] == nil, "unobserved must be absent, not zero")

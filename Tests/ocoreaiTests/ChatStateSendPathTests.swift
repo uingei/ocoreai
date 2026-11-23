@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei.
 // Licensed under MIT.
-/// ChatStateSendPathTests.swift — the GUI's send seam, executed.
+/// ChatStateSendPathTests.swift. The GUI's send seam, executed.
 ///
 /// Before this file every GUI test called a *logic helper* (`cleanMessages`,
 /// `displayText`, `parseToolArguments`, the steer badge). Nothing in `Tests/`
-/// had ever called `ChatState.chat(...)` — the one method that turns a composer
-/// keystroke into an engine request — and nothing had ever read
+/// had ever called `ChatState.chat(...)`. The one method that turns a composer
+/// keystroke into an engine request, and nothing had ever read
 /// `OcoreaiEngine.shared.activeEnginePool` (both greps: 0 hits in `Tests/`
 /// at HEAD `2a9bff4`). So "the GUI can send" was an inference from the HTTP probes,
 /// not a verified fact: the GUI reaches the engine through
@@ -14,11 +14,11 @@
 ///
 /// Test 1 runs everywhere and gates invariant 2 (the surface never claims more
 /// than the engine delivered) on the GUI face: with no engine, an ask must fail
-/// *visibly* — bubble kept, error shown, nothing fabricated, composer not
+/// *visibly*. Bubble kept, error shown, nothing fabricated, composer not
 /// wedged (`loading` reset is the common exit at `ChatViewModel.swift:1437`).
 ///
 /// Test 2 is the live half: opt-in (`OCOREAI_GUI_LIVE=1`), same skip convention
-/// as `CoreAILiveGenerateTests` — a real turn through the seam, and the SQLite
+/// as `CoreAILiveGenerateTests`. A real turn through the seam, and the SQLite
 /// round-trip that the GUI transcript is actually built from.
 ///
 /// No window, no Accessibility: `osascript` System Events hangs >30 s on this
@@ -61,7 +61,7 @@ struct ChatStateSendPathTests {
         #expect(
             state.responseText.isEmpty, "no fabricated reply on a turn that never reached an engine"
         )
-        // The composer must be usable again — `loading` stuck true makes the GUI deaf.
+        // The composer must be usable again, `loading` stuck true makes the GUI deaf.
         #expect(state.loading == false)
         #expect(state.inferencePhase == nil)
         state.resetForTesting()
@@ -92,7 +92,7 @@ struct ChatStateSendPathTests {
             let marker = "Reply with exactly OCOREAI_GUI_SEAM_OK and nothing else."
 
             // Live telemetry is cleared at the common exit (`ChatViewModel.swift:1438`), so the
-            // only honest way to check the TTFT wiring is to sample it DURING the turn — which
+            // only honest way to check the TTFT wiring is to sample it DURING the turn, which
             // is what the GUI's badge reads while streaming. A 20 ms poll can miss a value that
             // only the final chunk carries, so tok/s is reported, not asserted.
             let sampler = Task { @MainActor () -> (ttft: Double?, tps: Double?) in

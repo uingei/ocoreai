@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Anthropic prompt-usage accounting — a prompt is split the way Anthropic defines it,
+/// Anthropic prompt-usage accounting. A prompt is split the way Anthropic defines it,
 /// `total == input_tokens + cache_read_input_tokens + cache_creation_input_tokens`, and the
 /// cache-served part is published whenever the engine measured it.
 ///
@@ -65,7 +65,7 @@ struct AnthropicCacheUsageTests {
         #expect(keys == ["input_tokens", "output_tokens"])
     }
 
-    /// A measured zero *is* a measurement, and is published — same vocabulary as
+    /// A measured zero *is* a measurement, and is published. Same vocabulary as
     /// `prompt_tokens_details.cached_tokens` on the OpenAI face.
     @Test func measuredZeroIsPublished() {
         let usage = AnthropicUsage.split(totalPromptTokens: 90, cacheRead: 0, outputTokens: 2)
@@ -85,7 +85,7 @@ struct AnthropicCacheUsageTests {
         #expect(parts.uncached + (parts.cacheRead ?? 0) == max(0, total))
     }
 
-    /// No cache *write* is measured on this engine, so the key never appears — the face may
+    /// No cache *write* is measured on this engine, so the key never appears. The face may
     /// not bill a write it cannot show.
     @Test func cacheCreationIsNeverClaimed() {
         let measured = json(
@@ -120,7 +120,7 @@ struct AnthropicCacheUsageTests {
         #expect(streamed?["output_tokens"] as? Int == 12)
     }
 
-    /// Every `usage` this face builds goes through the split — a hand-built `AnthropicUsage`
+    /// Every `usage` this face builds goes through the split. A hand-built `AnthropicUsage`
     /// is where the identity would drift a second time. The scan floors its own mechanism
     /// with a control pattern that must still match.
     @Test func everyUsageAssemblyGoesThroughTheSplit() throws {

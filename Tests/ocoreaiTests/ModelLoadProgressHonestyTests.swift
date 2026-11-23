@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// Why a gate here: `/v1/models` gained `loadProgress` and the 503 `model_loading` body gained
-/// the same measurement, on the strength of a measured wait — the shipping default checkpoint is
+/// the same measurement, on the strength of a measured wait. The shipping default checkpoint is
 /// 3 550 670 554 B and fetched in 794 s at 4.5 MB/s while a waiter was released at the 120 s
 /// window with nothing but "still loading" (CHANGELOG 11-01(101)). A field that says how far a
 /// load has come is exactly the surface that rots silently: read the store under the wrong key
@@ -129,7 +129,7 @@ struct ModelLoadProgressHonestyTests {
         let rate = try #require(measured.bytesPerSecond)
         let eta = try #require(measured.secondsRemainingEstimate, "two measured numbers, no ETA")
         #expect(rate > 0)
-        // Exact value, derived from the two numbers this measurement itself reports — never a
+        // Exact value, derived from the two numbers this measurement itself reports. Never a
         // constant copied from the code under test. Rounded up: an ETA that under-states the
         // wait sends the caller back early.
         #expect(
@@ -145,7 +145,7 @@ struct ModelLoadProgressHonestyTests {
         let measured = ModelLoadProgress.measure(
             modelId: "hf:org/x", enteredAt: .now, store: store)
         // `finish` evicts the entry, so the map/specialize/warm window reads as weights already on
-        // disk — the honest reading — and not as bytes still landing.
+        // disk. The honest reading, and not as bytes still landing.
         #expect(!measured.downloading)
         #expect(measured.bytesDownload == nil)
     }
@@ -210,8 +210,8 @@ struct ModelLoadProgressHonestyTests {
     @Test("a reporter with no measured denominator books no byte count at all")
     func syntheticCompletionIsDropped() async throws {
         // Upstream's `ModelLoadProgressReporter.finish()` publishes a synthetic 1/1 when it never
-        // measured a total. Copying that sample would publish `weights_bytes: 1` — a byte count the
-        // loader never read — so the store drops it and the wait keeps the honest old sentence.
+        // measured a total. Copying that sample would publish `weights_bytes: 1`. A byte count the
+        // loader never read, so the store drops it and the wait keeps the honest old sentence.
         let store = OcoreaiDownloadProgress(forTesting: ())
         let synthetic = Progress.discreteProgress(totalUnitCount: 0)
         synthetic.completedUnitCount = 1
@@ -335,7 +335,7 @@ struct ModelLoadProgressHonestyTests {
             msToken: nil
         )
 
-        // A load slot with no downloader entry behind it — the prewarm/map/warm window, and the
+        // A load slot with no downloader entry behind it. The prewarm/map/warm window, and the
         // shape a caller meets on a warm cache. Nothing here touches Metal.
         await pool.setLoadingForTesting("test/in-flight", loading: true)
         defer { Task { await pool.setLoadingForTesting("test/in-flight", loading: false) } }

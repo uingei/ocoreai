@@ -1,6 +1,6 @@
-// ToolSurfaceCurationHonestyTests.swift — the native turn's tool surface is honest to the
+// ToolSurfaceCurationHonestyTests.swift. The native turn's tool surface is honest to the
 // flag: off hands the full registry untouched, on hands exactly the eval-measured 6-tool
-// arm — never more, never re-invented (AGENTS.md invariant 2 applied to what a turn is
+// arm. Never more, never re-invented (AGENTS.md invariant 2 applied to what a turn is
 // handed; the measured arm and its verdict live in `scripts/eval/README.md` § repeat
 // recipe).
 

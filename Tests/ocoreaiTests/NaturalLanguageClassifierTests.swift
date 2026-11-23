@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// NaturalLanguageClassifierTests.swift — Ticket classification engine
+/// NaturalLanguageClassifierTests.swift. Ticket classification engine
 ///
 /// Coverage: all ticket categories, confidence thresholds, fallback mode,
 /// keyword matching, and edge cases.

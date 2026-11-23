@@ -1,6 +1,6 @@
 // Wire-contract tests for POST /v1/embeddings (OpenAI-compatible surface).
 // Covers the decode contracts, the encoding_format/dimensions refusals and the
-// truthful-identity rule — the parts that are pure (no live embedder required).
+// truthful-identity rule. The parts that are pure (no live embedder required).
 // The live half is scripts/probes/51-embeddings-encoding-format.sh; breaker
 // behavior lives in EmbeddingCircuitBreakerTests.
 
@@ -31,7 +31,7 @@ struct EmbeddingsWireTests {
     @Test("token-id arrays are rejected, not re-tokenized")
     func tokenIdArraysRejected() {
         // Pre-tokenized ids from a foreign tokenizer would produce garbage
-        // vectors against the LFM embedding tokenizer — decode must reject.
+        // vectors against the LFM embedding tokenizer. Decode must reject.
         #expect(throws: (any Error).self) {
             try JSONDecoder().decode(
                 EmbeddingsRequest.self,
@@ -100,7 +100,7 @@ struct EmbeddingsWireTests {
     /// Every arm below is the pure gate, so it decides with no embedder resident; the live
     /// envelope is probe 51's job. A request field the endpoint accepts and reinterprets is the
     /// surface promising a shape it never delivered, so each one owes a named refusal or a real
-    /// answer — never a silent third thing.
+    /// answer. Never a silent third thing.
     private static let native = EmbeddingService.embeddingDimension
     private static let model = EmbeddingService.canonicalModelId
 
@@ -175,7 +175,7 @@ struct EmbeddingsWireTests {
     }
 
     /// The `embedding` value byte-for-byte: still a JSON array, still the encoder's own float
-    /// rendering (`1.0` prints as `1` — a wire fact a caller parses). Key order inside the object
+    /// rendering (`1.0` prints as `1`. A wire fact a caller parses). Key order inside the object
     /// is not pinned, because JSON key order is not a promise any client may depend on.
     @Test("the float shape on the wire is unchanged")
     func floatShapeUnchanged() throws {

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Resume semantics tests — interrupted downloads survive (roadmap line 2).
+/// Resume semantics tests. Interrupted downloads survive (roadmap line 2).
 ///
 /// Pins the decision surface of ModelScopeDownloader's resume machinery:
 ///   - deterministic temp names (the UUID temps made resume impossible);
@@ -10,7 +10,7 @@
 ///   - real-FS state machine: byte accumulation across attempt boundaries,
 ///     cancel discards, success promotes and cleans the sidecar.
 ///
-/// No network — the bytes are simulated against the real file system.
+/// No network. The bytes are simulated against the real file system.
 
 import Foundation
 import Testing
@@ -28,7 +28,7 @@ struct ResumeTempNamingTests {
             for: "weights/model-00001.safetensors", in: cache)
         #expect(a == b)  // a new process computes the SAME path
         #expect(a.lastPathComponent.hasPrefix(".download-"))
-        // '/' flattened — temp lives in exactly ONE canonical directory.
+        // '/' flattened. Temp lives in exactly ONE canonical directory.
         #expect(!a.lastPathComponent.contains("/"))
     }
 
@@ -212,7 +212,7 @@ struct ResumableBytesDiscoveryTests {
         fm.createFile(
             atPath: blobs.appendingPathComponent("def456").path,
             contents: Data(repeating: 0xB2, count: 9999))
-        // URLSession temp naming — dies on cancel, must never be promised.
+        // URLSession temp naming. Dies on cancel, must never be promised.
         fm.createFile(
             atPath: blobs.appendingPathComponent("URLSession-temps-xyz.tmp").path,
             contents: Data(repeating: 0xC3, count: 4096))
@@ -282,7 +282,7 @@ struct ResumeFileSystemTests {
         let meta = ModelScopeDownloader.resumeMetaURL(for: path, in: cache)
         let dest = cache.appendingPathComponent(path)
         // attemptDownload creates dest.parent at its top (createDirectory
-        // withIntermediateDirectories) — the simulation must too, promotion
+        // withIntermediateDirectories). The simulation must too, promotion
         // into a nested path fails without it.
         try fm.createDirectory(
             at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -318,7 +318,7 @@ struct ResumeFileSystemTests {
         #expect(!fm.fileExists(atPath: temp.path))
         #expect(!fm.fileExists(atPath: meta.path))
 
-        // Cancellation KEEPS resumable state — user intent is "pause";
+        // Cancellation KEEPS resumable state. User intent is "pause";
         // attemptDownload's catch no longer deletes temp on cancel (bytes
         // are a valid prefix; resume continues from offset next attempt).
         fm.createFile(atPath: temp.path, contents: Data(repeating: 0xC3, count: 100))
@@ -382,7 +382,7 @@ extension FileManager {
 @Suite("Progress — BatchBytes funnel (bar honesty)")
 struct BatchBytesTests {
     /// Collect onProgress emissions. BatchBytes calls the handler OUTSIDE
-    /// its own lock, so a locked box here is enough (no actor hop needed —
+    /// its own lock, so a locked box here is enough (no actor hop needed,
     /// the sync handler cannot `await`).
     private actor Recorder {}  // marker: keep actor for Swift 6 isolation checks
     private final class Sink: @unchecked Sendable {
@@ -433,7 +433,7 @@ struct BatchBytesTests {
         batch.report(file: "a", cumulativeBytes: 400)
         batch.report(file: "b", cumulativeBytes: 400)  // sum 800
         #expect(sink.last == 500)  // capped at limit
-        // Promotion truth lands via settle: temp over-ran the manifest —
+        // Promotion truth lands via settle: temp over-ran the manifest,
         // authoritative downward write, bar recomputes from real sizes.
         batch.settle(file: "a", exactBytes: 100)
         batch.settle(file: "b", exactBytes: 100)

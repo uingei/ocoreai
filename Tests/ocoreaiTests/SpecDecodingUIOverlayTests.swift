@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SpecDecodingConfigTests — exact-value verification of the UI→engine
+/// SpecDecodingConfigTests. Exact-value verification of the UI→engine
 /// specDecoding overlay (the fix for the dead specDecoding toggles found in
 /// an evidence-first audit: 5 UI knobs wrote UserDefaults with 0 engine
 /// consumers; `backend.specDecoding` is the engine's sole read point).
@@ -9,7 +9,7 @@
 ///   - a UI dimension the user never touched (nil) keeps the AUTHORED value,
 ///   - a UI dimension the user DID touch takes PRECEDENCE in that dimension only,
 ///   - the untouched draft model / token / memoryPolicy fields are never modified
-///     (they have no UI surface — authored-in-config file only).
+///     (they have no UI surface. Authored-in-config file only).
 ///
 /// This is the single source of merge semantics between `SettingsStore` (UI)
 /// and `EngineConfig.specDecoding` → `EnginePool.loadMTPDrafter`, so a

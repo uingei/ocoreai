@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! SessionPoolPolicyTests.swift — the pool switch, and the escape hatch that lets a live
+//! SessionPoolPolicyTests.swift. The pool switch, and the escape hatch that lets a live
 //! check reach the lane with no pool.
 //!
 //! `OCOREAI_SESSION_POOL=0` exists so probe 17 can boot a server on the unpooled lane on

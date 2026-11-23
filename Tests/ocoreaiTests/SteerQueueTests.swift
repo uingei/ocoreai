@@ -7,7 +7,7 @@ import Testing
 @testable import ocoreai
 
 /// Mid-turn steering contract pins (Hermes-style steering; codex interjection
-/// parity). These are pure-logic pins on SteerQueue — the GUI wiring compiles
+/// parity). These are pure-logic pins on SteerQueue. The GUI wiring compiles
 /// against this shape and the engine drains exactly these keys.
 @Suite("SteerQueue mid-turn steering")
 struct SteerQueueTests {
@@ -117,7 +117,7 @@ struct SteerQueueTests {
                 }
             }
         }
-        // Parallel arrival order is nondeterministic — what MUST hold: the
+        // Parallel arrival order is nondeterministic. What MUST hold: the
         // ceiling caps the queue, drains return every survivor exactly once,
         // and the queue is empty afterwards (no dup, no phantom, no leak).
         let drained = q.drain(sessionKey: "c")
@@ -133,14 +133,14 @@ struct SteerQueueTests {
 /// Pins for the request-head merge that makes `POST /v1/steer`'s documented
 /// "survives and merges into the NEXT request" contract real on the wire path.
 /// Before this seam the only drains lived inside tool-dispatch loops, so a steer
-/// accepted while no turn ran — or during a turn that never dispatched a tool —
+/// accepted while no turn ran, or during a turn that never dispatched a tool,
 /// stayed in the queue and never reached the model.
 @Suite("Steering merge at the request head")
 struct SteerRequestHeadTests {
 
     private static var rendered: String { SteerQueue.wireMarker + "\nuse tabs\nand no emoji" }
 
-    /// `Message` is Codable but not Equatable — compare the role and text
+    /// `Message` is Codable but not Equatable. Compare the role and text
     /// channels separately instead of the whole array.
     private static func roles(_ msgs: [Message]) -> [String] {
         msgs.map { $0.role }

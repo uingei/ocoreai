@@ -6,7 +6,7 @@
 // `Sources/CoreAILanguageModels/TextGeneration/LogProbabilities.swift`).
 //
 // Whole file is CoreAI-gated: `LogProbabilities` and `LogitsScalarType`
-// exist only inside `#if canImport(CoreAI)` (same gate as c2 — the
+// exist only inside `#if canImport(CoreAI)` (same gate as c2. The
 // `114dcbe` red light was a missing gate, fixed by `980112c`).
 //
 // All assertions are exact-value (zero `count>N`): known-softmax
@@ -41,7 +41,7 @@ struct LogProbabilitiesTests {
 
     @Test("dominant logit: logprob near 0 and matches closed-form softmax")
     func dominantToken() {
-        // logp(0) = 10 - ln(e^10 + 1) = 10 - ln(e^10 + 1)
+        // logp(0) = 10. Ln(e^10 + 1) = 10. Ln(e^10 + 1)
         let logits: [[LogitsScalarType]] = [[10, 0]]
         let p = LogProbabilities.compute(logits: logits, targets: [0], topK: 0)
         let expected = 10.0 - log(exp(10.0) + 1.0)
@@ -53,7 +53,7 @@ struct LogProbabilitiesTests {
     func normalizesToOne() {
         // All logit values are exactly representable in Float16 (LogitsScalarType),
         // so the only precision class in play is the algorithm's Float32 internal
-        // path — a 1e-5 bound is exact for this class (equal-logit case passes 1e-6).
+        // path. A 1e-5 bound is exact for this class (equal-logit case passes 1e-6).
         let raw: [Double] = [2.5, -0.5, 3.0, 0.0]
         let vec: [LogitsScalarType] = raw.map(LogitsScalarType.init)
         let logits: [[LogitsScalarType]] = [vec, vec, vec, vec]
@@ -61,7 +61,7 @@ struct LogProbabilitiesTests {
         #expect(p.entries.count == 4)
         let sum = p.entries.map { exp($0.value) }.reduce(0, +)
         #expect(abs(sum - 1.0) < 1e-5)
-        // per-token closed form (raw[2] is the max — the dominant case)
+        // per-token closed form (raw[2] is the max. The dominant case)
         let m = 3.0
         let expected2 = 3.0 - log(exp(2.5) + exp(-0.5) + exp(3.0) + exp(0.0))
         #expect(abs(p.entries[2].value - expected2) < 1e-5)

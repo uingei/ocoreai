@@ -1,4 +1,4 @@
-// GuidedCompletionReserveTests.swift — Regression gate for the guided-generation
+// GuidedCompletionReserveTests.swift. Regression gate for the guided-generation
 // completion zones. Upstream's ×3/×8 recipe lets `hardReserve` reach or exceed a
 // small `max_tokens`, which puts every sampled step in the force-closing zone and
 // corrupts structured output (live 10-13, gemma-4-e2b-it-4bit, json_schema
@@ -52,7 +52,7 @@ struct GuidedCompletionReserveTests {
     }
 
     /// A schema that needs the whole budget still gets a hard zone equal to the
-    /// budget — there is no other sane reading when nothing else fits.
+    /// budget. There is no other sane reading when nothing else fits.
     @Test("budget below the minimal structure forces closing")
     func budgetSmallerThanStructure() {
         let r = guidedCompletionReserves(maxTokens: 5, structuralReserve: 7)

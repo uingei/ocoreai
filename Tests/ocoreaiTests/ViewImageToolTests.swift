@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ViewImageToolTests — `view_image` (codex baseline) unit gate.
+/// ViewImageToolTests, `view_image` (codex baseline) unit gate.
 ///
 /// Coverage (exact-value assertions):
 /// - real PNG → verified 12x8 px, mime/bytes/size echo, exact report shape
@@ -16,7 +16,7 @@ import Testing
 
 @testable import ocoreai
 
-// MARK: - fixture — writes a tiny real PNG to disk for the tool to inspect.
+// MARK: - fixture. Writes a tiny real PNG to disk for the tool to inspect.
 
 private func writeImageRGBA(width: Int, height: Int, at path: String) -> CGImage? {
     let cs = CGColorSpaceCreateDeviceRGB()

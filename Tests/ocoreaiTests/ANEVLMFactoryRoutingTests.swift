@@ -1,23 +1,23 @@
-// ANE-VLM factory routing tests — the wiring added 09-17 that
+// ANE-VLM factory routing tests. The wiring added 09-17 that
 // `VLMBundleDetector.swift` L121-125 documents.
 //
 // Two test surfaces:
 //
-//   1. **Lane inference** — `EngineFactory.createEngine` must route a VLM
+//   1. **Lane inference**, `EngineFactory.createEngine` must route a VLM
 //      bundle (assets.vision + assets.embedding) to `createVLMEngine`, and a
 //      non-VLM bundle (main only) to the existing LLM path unchanged. The
 //      gate at `EngineInference` L1682 used to fall back ANE+multimodal
 //      requests to GPU because the factory had no VLM branch; with this
 //      branch the factory produces a `CoreAISequentialVLMEngine`.
 //
-//   2. **VisionBlockContract** — `createVLMEngine` must reject a VLM bundle
+//   2. **VisionBlockContract**, `createVLMEngine` must reject a VLM bundle
 //      whose `metadata.json` has no `vision` block with a precise error,
 //      mirroring upstream `LanguageBundle` L52-53
 //      (`kind == .vlm && visionConfig == nil → missingField("vision")`).
 //      The factory re-enforces the contract that detection relaxed:
 //      `VLMBundleMetadata.isVLMBundle` only checks the asset keys.
 //
-// Pure Foundation + CoreAI (in-tree) — no `.aimodel` files, no AIModel load.
+// Pure Foundation + CoreAI (in-tree), no `.aimodel` files, no AIModel load.
 // The vision-block case is exercised via a stubbed `PreparedModel.prepare`
 // boundary so no CoreAI runtime is required.
 
@@ -72,7 +72,7 @@ struct ANEVLMFactoryRoutingTests {
             .appendingPathComponent("ane-vlm-\(UUID().uuidString)")
     }
 
-    // MARK: - 1. Lane inference — VLM vs LLM bundle routing
+    // MARK: - 1. Lane inference. VLM vs LLM bundle routing
 
     @Test(
         "VLM bundle (assets.vision + assets.embedding + vision block) → routes to CoreAISequentialVLMEngine"
@@ -83,13 +83,13 @@ struct ANEVLMFactoryRoutingTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         try writeBundle(assets: Self.vlmAssets, visionJSON: Self.visionBlock, to: dir)
 
-        // The routing decision is the `VLMBundleDetector.load` result — a non-nil
+        // The routing decision is the `VLMBundleDetector.load` result. A non-nil
         // return is the contract `EngineFactory.createEngine` keys on.
         let metadata = try #require(VLMBundleDetector.load(at: dir))
         #expect(metadata.isVLMBundle)
         #expect(metadata.visionConfig != nil)
         // The three role keys are all declared and their component paths resolve
-        // (each named asset file exists on disk — post-CA #303 there is no
+        // (each named asset file exists on disk. Post-CA #303 there is no
         // `.aimodelc` variant fallback, so the on-disk files must be the ones
         // metadata.json names).
         #expect(metadata.componentPath(VLMBundleMetadata.assetMain, in: dir) != nil)
@@ -118,7 +118,7 @@ struct ANEVLMFactoryRoutingTests {
         #expect(VLMBundleDetector.load(at: dir) == nil)
     }
 
-    // MARK: - 2. VisionBlockContract — precise error on missing vision block
+    // MARK: - 2. VisionBlockContract. Precise error on missing vision block
 
     @Test(
         "VLM bundle without vision block → createVLMEngine throws 'missing vision block' (upstream LanguageBundle L52-53 contract)"
@@ -130,7 +130,7 @@ struct ANEVLMFactoryRoutingTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         // VLM-bundle detection passes (asset keys present), but the vision block
         // is absent. The factory must still throw with a precise error naming
-        // the missing 'vision' field — not silently fall back to CLIP defaults
+        // the missing 'vision' field, not silently fall back to CLIP defaults
         // (which would produce garbage embeddings with guessed config).
         try writeBundle(assets: Self.vlmAssets, visionJSON: nil, to: dir)
 
@@ -138,7 +138,7 @@ struct ANEVLMFactoryRoutingTests {
         #expect(metadata.isVLMBundle, "detection must pass so this reaches the vision guard")
         #expect(metadata.visionConfig == nil, "test fixture must have no vision block")
 
-        // `parseModelConfig` runs first (lenient — falls back to defaults),
+        // `parseModelConfig` runs first (lenient. Falls back to defaults),
         // then the vision guard fires: the exact contract under test.
         let configJSON: [String: Any] = [
             "name": "test-vlm-bundle",

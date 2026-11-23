@@ -50,7 +50,7 @@ struct EmbedderRefusalHomeTests {
     )
     func embedFaceMirror() {
         // The 11-22 ruling: a request that NAMES a model used to get the canonical
-        // embedder's vectors under a 200 — coordinates in a space the request never asked
+        // embedder's vectors under a 200. Coordinates in a space the request never asked
         // for. A named model is answered by what serves or by a refusal naming what serves.
         let refusal = EmbeddingService.embedRefusal(
             modelId: "text-embedding-3-small", usedEndpoint: "/v1/embeddings")
@@ -177,7 +177,7 @@ struct EmbedderRefusalPerFaceTests {
         let db2 = Self.uuidPath()
         defer { Self.cleanupDBs(db1, db2) }
         let embedder = Self.embedder
-        // (face, uri, body, anthropic envelope?) — every body is refused before the engine
+        // (face, uri, body, anthropic envelope?). Every body is refused before the engine
         // is asked for anything, so the scripted lane is not needed and no model loads.
         let faces: [(String, String, String, Bool)] = [
             (

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Live chain test — real ``OOMGuard`` + real ``SchedulerActor`` (no mocks of
+/// Live chain test. Real ``OOMGuard`` + real ``SchedulerActor`` (no mocks of
 /// the actors under test): the refusal must surface the budget snapshot
 /// captured at the throw site, not a static message.
 @_spi(Testing) import Foundation

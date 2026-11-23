@@ -3,8 +3,8 @@
 /// The dashboard renders numbers it did not measure: it parses the Prometheus text the engine
 /// exports. That parse is a claim of its own, and the TTFB half of it was wrong in two ways at once.
 ///
-/// ① It divided `ocoreai_ttfb_seconds_sum` by `ocoreai_inference_duration_seconds_count` — every
-/// turn that ran — while the numerator counts only the turns that had a first byte. Measured live
+/// ① It divided `ocoreai_ttfb_seconds_sum` by `ocoreai_inference_duration_seconds_count`. Every
+/// turn that ran. While the numerator counts only the turns that had a first byte. Measured live
 /// 11-05 on a server holding one non-streaming and two streaming turns: sum 1.345411, TTFB samples
 /// 4, inference observations 3, so the dashboard printed **448 ms** for the honest 336 ms mean the
 /// server itself published on `/v1/stats` (`avgTTFBSeconds`). Those two errors ran in opposite
@@ -12,7 +12,7 @@
 /// denominator prints 224 ms for the same 336 ms truth, which is why both landed in one round.
 /// ② It computed that quotient on the line where the sum appeared, so it silently fell through to
 /// the `ttft_ms` fallback whenever the exporter printed the TTFB histogram before the inference one
-/// — the value depended on the order of two unrelated blocks in `Metrics.swift`.
+/// The value depended on the order of two unrelated blocks in `Metrics.swift`.
 ///
 /// Both are pinned here at exact values, with the mixed workload that shows ① and a hand-written
 /// export that shows ②.
@@ -59,7 +59,7 @@ struct DashboardMetricsHonestyTests {
 
     @Test("the value does not depend on which histogram the exporter printed first")
     func parseIsOrderIndependent() throws {
-        // The TTFB block placed BEFORE the inference block — a legal export the exporter does not
+        // The TTFB block placed BEFORE the inference block. A legal export the exporter does not
         // emit today, and the shape that made the inline quotient fall through to `ttft_ms`.
         let ttfbFirst = """
             ocoreai_ttft_ms 42

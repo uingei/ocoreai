@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Admission pricing — a reservation must be priced by the model it reserves for.
+/// Admission pricing. A reservation must be priced by the model it reserves for.
 ///
 /// `Scheduler/KVCacheBudget.swift` reserved 1024 B/token for every model on every request, a
 /// number carried over from a weight-quantization heuristic. Probe 35 measures the default
@@ -135,7 +135,7 @@ struct KVCacheAdmissionPricingTests {
             result.estimatedCostMB
                 == Double(UInt64(100_000 * Self.measuredPrice)) / (1024 * 1024))
 
-        // And the same request at the floor still fits — the gate's answer is the price's answer.
+        // And the same request at the floor still fits. The gate's answer is the price's answer.
         let sameAtFloor = await gate.check(
             requestId: "r-big-fallback",
             inputTokens: 50_000,

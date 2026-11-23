@@ -1,6 +1,6 @@
-/// MCPSchemaFidelityTests.swift — MCP 参数面形状保真
+/// MCPSchemaFidelityTests.swift. MCP 参数面形状保真
 //
-// 契约: MCP inputSchema 是 JSON Schema — register 后参数面必须与上游声明逐位一致:
+// 契约: MCP inputSchema 是 JSON Schema. Register 后参数面必须与上游声明逐位一致:
 //   number→.number (非 .integer)、object→嵌套 properties (非拍平 .string)、
 //   array 保 items、required 保子集 (非压平 all)。
 // 否则模型拿到的参数类型/形状失真 → 生成参数错。

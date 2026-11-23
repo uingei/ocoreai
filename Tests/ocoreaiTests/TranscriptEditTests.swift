@@ -41,7 +41,7 @@ struct TranscriptEditPlanTests {
 
     @Test("editing the last message drops exactly one item")
     func editLastDropsOne() {
-        // Transcript ends on a user turn here — in `roles` above, index 3 is the
+        // Transcript ends on a user turn here, in `roles` above, index 3 is the
         // assistant's, and the rule under test is notUser rejection instead.
         let plan = try? TranscriptEdit.plan(
             roles: ["user", "assistant", "user"], editing: 2, rawText: "x"

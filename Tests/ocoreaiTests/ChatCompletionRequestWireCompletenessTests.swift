@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// Wire-contract completeness for `ChatCompletionRequest` — every declared
+// Wire-contract completeness for `ChatCompletionRequest`. Every declared
 // `CodingKeys` field must decode. Root defect fixed: `init(from:)` declared
 // `CodingKeys` for a set of sampling fields (and `reasoningLevel` had none)
-// but never decoded them — silently dropped even when present on the wire.
+// but never decoded them. Silently dropped even when present on the wire.
 // Now decoded and asserted
 // here with exact values, plus the new standard `max_completion_tokens` field
 // (upstream coreai-models #187 `ServerAPITypes.swift:15/25`).
@@ -145,7 +145,7 @@ struct ChatCompletionRequestWireCompletenessTests {
     }
 }
 
-// Regression (live 10-06): `model` is optional BY CONTRACT — the router,
+// Regression (live 10-06): `model` is optional BY CONTRACT. The router,
 // the field type (`String?`), and the doc comment all say omission is
 // legal (default-model resolution). The hand-written init(from:) used
 // `decode`, making it silently required; HB then leaked

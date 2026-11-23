@@ -1,17 +1,17 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ContentPartWireContractTests.swift — locks the OpenAI wire JSON contract
+/// ContentPartWireContractTests.swift. Locks the OpenAI wire JSON contract
 /// for `ContentPart` Codable (snake_case wire keys → camelCase Swift props).
 ///
 /// Why it matters: a key-name mismatch decodes media parts to `nil` →
 /// `hasMediaPart == false` → the engine runs text-only yet returns HTTP 200
-/// with a confident blind answer. Silent data loss, not an error — so the
+/// with a confident blind answer. Silent data loss, not an error, so the
 /// wire keys are pinned exactly, not by inference.
 ///
 /// Coverage: all three media part types + text control, decode + encode +
 /// round-trip on real wire JSON (not in-process construction), including
 /// the minimal real-client shape (video without max_frames), and the carriage
-/// rule — the spec's `input_audio` arrives as the one audio shape this engine
+/// rule. The spec's `input_audio` arrives as the one audio shape this engine
 /// reads, and a part that names an attachment this server cannot carry is
 /// reported by name instead of decoding into nothing (`CarriageTests`).
 
@@ -58,7 +58,7 @@ struct ContentPartWireDecodeTests {
         // Real clients send {"url": "data:..."} with
         // NO max_frames. The synthesized `init(from:)` required `max_frames`
         // (non-optional Int), so the `[ContentPart]` array decode threw and
-        // `ContentPolymorphic` fell back to `.text("")` — the video AND its
+        // `ContentPolymorphic` fell back to `.text("")`. The video AND its
         // sibling text were dropped end-to-end (prompt_tokens:180, zero video
         // tokens, model answered boilerplate). A part-only decode of this wire
         // is the exact red case that fix must turn green.
@@ -78,7 +78,7 @@ struct ContentPartWireDecodeTests {
     )
     func mixedArraySurvivesVideoWithoutMaxFrames() throws {
         // The production drop was the ARRAY falling back to .text(""), not a
-        // single part. This asserts the array — including a text sibling — is
+        // single part. This asserts the array. Including a text sibling. Is
         // preserved when the video part is the minimal real-client shape.
         let wire = #"""
             [
@@ -212,7 +212,7 @@ struct ContentPartWireEncodeTests {
 
 /// Measured on one live server, same bytes, two shapes: `audio_url` with a real wav was
 /// refused honestly (`503 Transcription unavailable`), while OpenAI's `input_audio` with
-/// those identical bytes returned **200 and a blind answer** — the part decoded into a
+/// those identical bytes returned **200 and a blind answer**. The part decoded into a
 /// `ContentPart` carrying nothing, so ingestion, media resolution, the tokenizer and the
 /// engine were each correct about a request that had silently lost its payload. `file`,
 /// an unknown part type, an `image_url` with no payload object and an empty media URL
@@ -255,7 +255,7 @@ struct ContentPartCarriageTests {
         ("{\"type\":\"image_url\"}", "image_url"),
         ("{\"type\":\"audio_url\",\"audio_url\":{\"url\":\"\"}}", "audio_url"),
         ("{\"type\":\"video_url\",\"video_url\":{\"url\":\"\"}}", "video_url"),
-        // A named attachment with nothing in it: no container name, no bytes — guessing
+        // A named attachment with nothing in it: no container name, no bytes. Guessing
         // `wav` would invent a format the client never sent.
         (
             "{\"type\":\"input_audio\",\"input_audio\":{\"data\":\"\",\"format\":\"wav\"}}",
@@ -269,7 +269,7 @@ struct ContentPartCarriageTests {
         let part = try decode(wire)
         #expect(part.uncarriedType == expected)
         // Why the drop was silent: every consumer below the handler keys off a payload that
-        // arrived, so each of these reads as "no media in this conversation" — which is why
+        // arrived, so each of these reads as "no media in this conversation", which is why
         // the refusal cannot live below here.
         let conversation = [Message(role: "user", content: .parts([part]))]
         #expect(ChatMedia.mediaParts(in: conversation).isEmpty)
@@ -277,7 +277,7 @@ struct ContentPartCarriageTests {
     }
 
     @Test(arguments: [
-        // A declared text part carries nothing and is still not a lost attachment — clients
+        // A declared text part carries nothing and is still not a lost attachment. Clients
         // pad with these, and refusing one would break a working request for no gain.
         "{\"type\":\"text\"}",
         "{\"type\":\"text\",\"text\":\"\"}",

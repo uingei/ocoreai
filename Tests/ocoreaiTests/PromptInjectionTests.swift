@@ -1,14 +1,14 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PromptInjectionTests.swift — AuthMiddleware prompt-injection detection contract
+/// PromptInjectionTests.swift. AuthMiddleware prompt-injection detection contract
 ///
 /// PINS TWO failure classes this gate historically had:
-/// 1. FALSE NEGATIVE — live injection slipped the gate. Old P1 (`pri(?:or|r)`)
-///    could NOT match "ignore all previous instructions" — its own docstring's
+/// 1. FALSE NEGATIVE. Live injection slipped the gate. Old P1 (`pri(?:or|r)`)
+///    could NOT match "ignore all previous instructions". Its own docstring's
 ///    flagship example was dead.
-/// 2. FALSE POSITIVE — legitimate "you are the assistant in my design doc" /
+/// 2. FALSE POSITIVE. Legitimate "you are the assistant in my design doc" /
 ///    "you are the reviewer in code review" got hard-400'd by the old bare
-///    `you are the (model|AI|assistant|…)` pattern — contradicting the code's
+///    `you are the (model|AI|assistant|…)` pattern. Contradicting the code's
 ///    own docstring: "deliberately narrow … avoid false positives on
 ///    'You are an assistant helping me translate'".
 ///

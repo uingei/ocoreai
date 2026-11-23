@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// `StreamingDetokenizer` (CoreAI path, `#if canImport(CoreAI)`) — exact-value
+// `StreamingDetokenizer` (CoreAI path, `#if canImport(CoreAI)`). Exact-value
 // test for mlx-swift-lm `#613` / `4c3d793` "Emit only the new scalars when a
 // token extends the previous character".
 //
@@ -11,7 +11,7 @@
 //     different → commonPrefix length 0 → emits "🏳️" (flag + VS) instead of
 //     just the VS. Consumer sees `🏳` repeated.
 //   - old code on (a, é):      new="é" shares a Character ("é" starts with "a"
-//     under canonical equivalence) with old="a"? No — but for real token
+//     under canonical equivalence) with old="a"? No, but for real token
 //     streams the mismatch *blanks out* a legitimate delta (commonPrefix
 //     matched a Character that was actually re-encoded).
 // #613 uses scalar-level prefix so the emitted delta is exactly the scalars
@@ -85,7 +85,7 @@ private final class ExtendedClusterTokenizer: Tokenizers.Tokenizer, @unchecked S
 
     func convertIdToToken(_ id: Int) -> String? { idToToken[id] }
 
-    // Chat-template surface — the SUT (`StreamingDetokenizer`) never calls
+    // Chat-template surface. The SUT (`StreamingDetokenizer`) never calls
     // these; satisfy the protocol requirement minimally (throw). Required
     // overloads: 4-arg / tools / additionalContext / chatTemplate / String /
     // full-control (the 7-arg with additionalContext has a protocol default).
@@ -150,7 +150,7 @@ final class StreamingDetokenizerScalarDeltaTests {
 
     /// #613 exact case (flag + variation selector): token 98 = `"🏳"` then
     /// token 60 = `U+FE0F`. Pre-#613 the emitted tail for step 2 was `"🏳️"`
-    /// (the whole merged cluster — flag duplicated). Post-#613 the emitted
+    /// (the whole merged cluster. Flag duplicated). Post-#613 the emitted
     /// tail for step 2 is exactly `[U+FE0F]`.
     @Test("extending variation selector emits exactly the new scalar")
     func extendingVSExact() throws {
@@ -165,7 +165,7 @@ final class StreamingDetokenizerScalarDeltaTests {
 
     /// #613 direction 2 (a token that *merges* into the previous cluster):
     /// step 1 `"a"`, step 2 a precomposed `é`. The emitted tail for step 2
-    /// must be exactly `[0xE9]` — the new scalar(s) the token added — not a
+    /// must be exactly `[0xE9]`. The new scalar(s) the token added, not a
     /// blank (old code: `commonPrefix` matched a Character it shouldn't have)
     /// and not a re-emit of the previous character.
     @Test("precomposed accented emission is exactly the new scalar")

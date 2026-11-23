@@ -5,7 +5,7 @@
 // `InputLayout.analyze(inputNames:...)` / `resolveRequired` are @available(macOS 27,
 // iOS 27)-gated (they build the 27-gated struct and throw the 27-gated error), and
 // `@Suite`/`@Test` macros cannot carry `@available`, so each test body opens with a
-// `guard #available` early-return — same convention as PrefillGraphTests.swift.
+// `guard #available` early-return. Same convention as PrefillGraphTests.swift.
 //
 /// Locks the #212 decision: a static `[1,1,vocab]` (S=1 / GDN) descriptor must pin the
 /// prefill chunk width to the fixed query length and the logits policy to `.fixed(1)`,

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// DiskSpaceGuard tests — the pre-download disk guard (roadmap line 6).
+/// DiskSpaceGuard tests. The pre-download disk guard (roadmap line 6).
 ///
 /// The guard's promise is *honesty*, pinned here in both directions:
 ///   - blocks ONLY when numbers are known and insufficient (no false blocks);
@@ -8,7 +8,7 @@
 ///   - cache credit subtracts what's already local (resumable downloads
 ///     must not be blocked twice for the same bytes).
 ///
-/// All pure-function surface — no network, no real volume dependency except
+/// All pure-function surface, no network, no real volume dependency except
 /// a temp directory for cachedBytes.
 
 import Foundation
@@ -35,7 +35,7 @@ struct DiskSpaceGuardDecisionTests {
 
     @Test("comfortable free allows")
     func comfortableAllows() {
-        // 100 GB free, 40 GB needed — headroom max(2e9, 5e9)=5e9; 60e9 left ≥ 5e9.
+        // 100 GB free, 40 GB needed. Headroom max(2e9, 5e9)=5e9; 60e9 left ≥ 5e9.
         let free: Int64 = 100_000_000_000
         #expect(DiskSpaceGuard.decision(freeBytes: free, requiredBytes: 40_000_000_000) == true)
     }
@@ -174,7 +174,7 @@ private func temporaryDirectory() throws -> URL {
 struct DiskSpaceGuardWholeRepoTests {
     @Test("empty patterns matches every file")
     func emptyPatternsMatchAll() {
-        // ReadyHubDownloader's main handler path passes matching: [] —
+        // ReadyHubDownloader's main handler path passes matching: [],
         // "whole repo". The guard MUST size every file, not no-match its
         // way into a silent allow-through.
         #expect(DiskSpaceGuard.matchesGlob("anything.bin", patterns: []))

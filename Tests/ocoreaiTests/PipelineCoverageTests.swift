@@ -3,7 +3,7 @@
 /// Pipeline-level tests for model search/download coverage gap.
 ///
 /// Closes P0: core search/download logic had 0 test coverage.
-/// Tests use actor send paths + real JSON fixtures — no mocks.
+/// Tests use actor send paths + real JSON fixtures, no mocks.
 
 import Foundation
 import Testing
@@ -507,7 +507,7 @@ struct ModelIDTests {
             "tokenizer": "lstm",
             // `EnginePool.listModels()` publishes VLM-ness as "vlm"
             // (EnginePool.swift:1115). This fixture used "specialized", which is
-            // the CoreAI ANE flag — the parser that read it reported every MLX
+            // the CoreAI ANE flag. The parser that read it reported every MLX
             // vision model as text-only on macOS 26, and this test pinned that.
             "vlm": "true",
         ]

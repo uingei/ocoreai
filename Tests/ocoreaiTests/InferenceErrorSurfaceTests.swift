@@ -1,9 +1,9 @@
-// InferenceErrorSurfaceTests.swift — top-level catch 错误面: 原错误语义不得被覆盖
+// InferenceErrorSurfaceTests.swift. Top-level catch 错误面: 原错误语义不得被覆盖
 //
 // 契约 (inferenceTopLevelFailedMessage, 纯函数 Error->String):
-//   - 保留原错误的 localizedDescription — 客户端据此区分 grammar 耗尽 / OOM / 超时;
+//   - 保留原错误的 localizedDescription。客户端据此区分 grammar 耗尽 / OOM / 超时;
 //   - 保留客户端已解析的 "Inference failed: " 前缀。
-// 两处 catch (top-level 与 pipelined) 对同一类失败结局必须一致 — 行为分叉红线。
+// 两处 catch (top-level 与 pipelined) 对同一类失败结局必须一致。行为分叉红线。
 
 import Foundation
 import Testing
@@ -14,7 +14,7 @@ import Testing
 struct InferenceErrorSurfaceTests {
 
     /// 构造一个本地化错误:`LocalizeError`协议让 `localizedDescription` 精确可控,
-    /// 用于对 wire message 全串精确比对。(注意:纯 `Error` 不符合此点 —
+    /// 用于对 wire message 全串精确比对。(注意:纯 `Error` 不符合此点,
     ///  其默认 `localizedDescription` 会拼 type 名, 不可控。)
     struct GuidedLikeError: LocalizedError {
         var errorDescription: String? {
@@ -51,7 +51,7 @@ struct InferenceErrorSurfaceTests {
         #expect(msg == "Inference failed: X")
     }
 
-    /// OOM 型错误的稳定构造 — 用一个真实 LocalizedError 保证 localizedDescription 精确。
+    /// OOM 型错误的稳定构造。用一个真实 LocalizedError 保证 localizedDescription 精确。
     static func oomError() -> LocalizedError {
         struct E: LocalizedError {
             var errorDescription: String? { "out of memory (wired limit)" }

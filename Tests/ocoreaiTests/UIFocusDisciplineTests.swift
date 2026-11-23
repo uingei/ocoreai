@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! UIFocusDisciplineTests — the UI keyboard contract, measured.
+//! UIFocusDisciplineTests. The UI keyboard contract, measured.
 //!
 //! `Sources/ocoreai/UI/AGENTS.md` states it in prose: "⌘ coverage and a sane
 //! focus order for primary actions, `Cmd+,` grouped Settings" and "One cancel
 //! gesture, exactly one effect. Keyboard ownership follows focus." Prose
 //! without a reader is how a second focus site or a stray `.defaultAction`
-//! ships silently — this suite is the reader. Scan-based, per the Testing
+//! ships silently. This suite is the reader. Scan-based, per the Testing
 //! Quality rules: the repo root is found by search, every scan floors its own
 //! hit count, and the asserted values are the exact ones measured in the
 //! sources when this file was written, so a scan that stops matching fails
@@ -166,7 +166,7 @@ struct UIFocusDisciplineTests {
 
     /// `selectedTab = .x` … `.keyboardShortcut("N")` pairs, in declaration order.
     /// A shortcut behind `//` is not a shortcut, so the shape is anchored to the line:
-    /// assignment, the closing brace, then the key — whitespace only before each.
+    /// assignment, the closing brace, then the key. Whitespace only before each.
     private static func numberedTabShortcuts(in app: String) throws -> [String] {
         let pattern =
             #"[ \t]*selectedTab = \.([A-Za-z_]+)\n[ \t]*\}[ \t]*\n[ \t]*\.keyboardShortcut\("(\d)"\)"#
@@ -184,7 +184,7 @@ struct UIFocusDisciplineTests {
     }
 
     // The expectation is derived from AppTab's own sidebar groups, which is what
-    // `sidebarSections` renders — not from a literal copied out of the menu. Drift
+    // `sidebarSections` renders, not from a literal copied out of the menu. Drift
     // on either side goes red: reorder a group, or renumber a button, same failure.
     @Test("⌘1–⌘8 number every tab but Settings, in the order the sidebar renders them")
     func tabNumberingFollowsTheSidebar() throws {
@@ -204,7 +204,7 @@ struct UIFocusDisciplineTests {
     }
 
     // `CommandGroup(replacing: .appSettings)` deletes the system item, so the ⌘, it
-    // carried is gone unless this file declares it — the guide's "Cmd+, grouped
+    // carried is gone unless this file declares it. The guide's "Cmd+, grouped
     // Settings" duty needed a line that delivers it, and this is the line.
     @Test("⌘, for Settings is a declared shortcut, not just the name of the group")
     func settingsOwnsItsCommandKey() throws {

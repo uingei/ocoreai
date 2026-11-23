@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ChatStateTurnEndTTSStopTests.swift — turn 终结 ⇒ 停 TTS。
+/// ChatStateTurnEndTTSStopTests.swift. Turn 终结 ⇒ 停 TTS。
 ///
 /// 上游对齐 openclaw d6afb1109a9 "cancel narration requests when their turn ends"。
 /// ocoreai 此前 cancelInference() 只 cancel 推理流、从不 stopSpeak() →
 /// 用户 stop / 切会话 / 切模型 / 重置 后,语音层把整段回复念完。
 ///
-/// 策略:与 ChatViewModelBehavioralTests 同形 —— @testable + ChatState.shared 真对象,
+/// 策略:与 ChatViewModelBehavioralTests 同形。@testable + ChatState.shared 真对象,
 /// 注入 spy 闭包断言副作用发生次数,零 AVFoundation 依赖,精确值断言(非 count>N)。
 /// 生产默认 hook 绑 AudioIO.shared.stopSpeaking(幂等);测试只换 spy,不改生产路径。
 import Foundation

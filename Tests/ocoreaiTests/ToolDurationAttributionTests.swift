@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! ToolDurationAttributionTests.swift — the tool card's duration is the tool's window.
+//! ToolDurationAttributionTests.swift. The tool card's duration is the tool's window.
 //!
 //! Read 11-22 (the open row's shape, confirmed at the sites): the dispatch clock opened before
-//! `securityPrecheck`, and the precheck awaits the human at the approval broker — so a slow
+//! `securityPrecheck`, and the precheck awaits the human at the approval broker, so a slow
 //! approval answer rendered as a slow tool, a number the transcript chip names for the tool.
 //! Codex #57207 attributes the approval wait apart. The registry now reports the post-decision
 //! instant from the one place the decision is awaited, and the durations a user can read size
-//! from it; this suite gates that report contract — when it fires, and that both lanes use it.
+//! from it; this suite gates that report contract, when it fires, and that both lanes use it.
 
 import Foundation
 import Testing
@@ -69,7 +69,7 @@ struct ToolDurationAttributionTests {
             throw InvocationFailure.noApprovalRow
         }
         // The human takes 150 ms; the window must open after the answer. The assertion below is
-        // an Instant ordering, not a bound — this sleep only makes ask and decision separable.
+        // an Instant ordering, not a bound. This sleep only makes ask and decision separable.
         try await Task.sleep(nanoseconds: 150_000_000)
         #expect(await broker.resolve(id: row.id, decision: .approved) == true)
         let decision = ContinuousClock.now
@@ -112,7 +112,7 @@ struct ToolDurationAttributionTests {
 
     /// The lanes' subtraction is a pass-through of the reported instant; without this floor a
     /// dropped reader would re-bill the human silently, because the registry-side contract
-    /// above would still hold. The one home for this scan — a second count in a second suite
+    /// above would still hold. The one home for this scan. A second count in a second suite
     /// is what made two gates disagree on 11-22.
     @Test("both dispatch lanes open their card duration from the reported instant")
     static func lanesReadTheReportedInstant() throws {

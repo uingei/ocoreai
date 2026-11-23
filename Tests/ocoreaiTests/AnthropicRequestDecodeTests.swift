@@ -1,4 +1,4 @@
-// AnthropicRequestDecodeTests.swift — Regression gate for POST /v1/messages request
+// AnthropicRequestDecodeTests.swift. Regression gate for POST /v1/messages request
 // decoding. Anthropic marks `stream` optional (absent = false), so a spec-legal
 // client that omits it must still decode. Live probe 10-13 (macOS 26):
 // `{"model","max_tokens","messages"}` → HTTP 400 "Coding key `stream` not found."
@@ -13,7 +13,7 @@ private struct MissingSource: Error, CustomStringConvertible {
     var description: String { "could not find \(path) walking up from the test file" }
 }
 
-/// Reads a repo source file by locating the root from this file's path — never a fixed
+/// Reads a repo source file by locating the root from this file's path. Never a fixed
 /// number of `deletingLastPathComponent()` hops, which is how a "passing" scan turns out
 /// to have read nothing.
 private func source(_ relative: String) throws -> String {
@@ -97,7 +97,7 @@ struct AnthropicRequestDecodeTests {
     /// What the Anthropic mapping owns, decided offline: the conversation, with the agent
     /// context left for the shared assembly.
     ///
-    /// `/v1/messages` and `/v1/messages/count_tokens` count ONE list — both routes call
+    /// `/v1/messages` and `/v1/messages/count_tokens` count ONE list. Both routes call
     /// `buildAnthropicMessageList`, so a pre-flight cannot budget less than the request it
     /// precedes. That equality is structural (one builder, two callers; the call sites are
     /// pinned by the source scan in `AnthropicToolDeliveryTests`) and measured live by
@@ -106,7 +106,7 @@ struct AnthropicRequestDecodeTests {
     ///
     /// `system` is NOT inserted here: it is the caller's system prompt, and the shared
     /// assembly composes it with the agent's own context in codex's precedence order
-    /// (user instructions, then workspace/skills/memory) — the same field
+    /// (user instructions, then workspace/skills/memory). The same field
     /// `/v1/chat/completions` uses, so both faces give the model the same product context.
     /// `tools[]` is not message text here either: it travels as the structured declaration.
     @Test("the mapping carries the conversation and hands system + tools to the shared assembly")
@@ -132,9 +132,9 @@ struct AnthropicRequestDecodeTests {
 // MARK: - Key coverage: a declared wire key must arrive, and must be read
 
 /// Two ways for a wire field to be a lie, both live here at some point:
-///   * declared in `CodingKeys` and never decoded — the client's bytes are dropped on the
+///   * declared in `CodingKeys` and never decoded. The client's bytes are dropped on the
 ///     floor (`CompletionRequestKeyCoverageTests` gates the same axis one DTO over);
-///   * decoded into a property that nothing reads — the field arrives and dies. That second
+///   * decoded into a property that nothing reads. The field arrives and dies. That second
 ///     one is what this DTO carried twice on 10-31: `user_id` (decoded, read nowhere), and
 ///     `response_format` one property deeper (decoded, then overwritten by a literal `nil`
 ///     at all three sites that could have used it). Both answered 200 with the client's
@@ -211,8 +211,8 @@ struct AnthropicMessageRequestKeyCoverageTests {
     }
 
     /// The second half: a property nothing reads is the same lie as a key nothing decodes.
-    /// The consumer set is closed and small — this DTO is decoded in the router, translated
-    /// in the model file, and served by the handler — so those three files are exactly where
+    /// The consumer set is closed and small. This DTO is decoded in the router, translated
+    /// in the model file, and served by the handler, so those three files are exactly where
     /// a read of one of its keys can live. Reads are matched on the binding that holds the
     /// decoded value, not on a bare `.key`: the handler has an OpenAI request in scope too,
     /// and `chatRequest.temperature` would otherwise stand in for a read that is not there.

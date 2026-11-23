@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `web_search` 工具 — 精确值测试。
+/// `web_search` 工具。精确值测试。
 ///
 /// 覆盖三类 seam(均可离线、无网络):
-///   1. `WebSearchRequest.build`  —— URL 补 `/v1`、请求体精确 JSON、空 query 拒绝。
-///   2. `WebSearchParser.parse`   —— ollama Responses API 逐字段解析(实跑验证形状)、
+///   1. `WebSearchRequest.build`。URL 补 `/v1`、请求体精确 JSON、空 query 拒绝。
+///   2. `WebSearchParser.parse`。ollama Responses API 逐字段解析(实跑验证形状)、
 ///                                     error 对象、空 answer 拒绝。
-///   3. `WebSearchClient.toolEntry` —— 工具面名字/参数 schema(模型可见契约)。
+///   3. `WebSearchClient.toolEntry`。工具面名字/参数 schema(模型可见契约)。
 ///
 /// 协议来源(实证):已实跑 ollama `/v1/responses`(Addis Ababa, 2.98s, exit 0),
 /// 响应 `output[]` = `web_search_call.action.query` + `message.content[].output_text.text`;

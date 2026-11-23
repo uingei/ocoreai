@@ -1,4 +1,4 @@
-// oCoreAI — absorbed VLM config + image-preprocessor tests (unit-testable, no ANE).
+// oCoreAI. Absorbed VLM config + image-preprocessor tests (unit-testable, no ANE).
 // Upstream provenance (BSD-3-clause, Apple), coreai-models HEAD 5716935:
 //   Bundle/LanguageConfig.swift (VisionConfig), Image/ImagePreprocessor.swift
 // Exact-value assertions where math permits; image cases anchor on the

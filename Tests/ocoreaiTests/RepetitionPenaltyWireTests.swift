@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// #176 alignment — user-facing `repetition_penalty` / `repetition_penalty_window`
+// #176 alignment. User-facing `repetition_penalty` / `repetition_penalty_window`
 // wire fields (upstream coreai-models 5660fc6 `--repetition-penalty` and
 // `--repetition-penalty-window` flags, `LLMRunnerMain.swift:119`).
 //
@@ -53,7 +53,7 @@ struct RepetitionPenaltyWireTests {
             """#)
         #expect(req.repetitionPenalty == nil)
         #expect(req.repetitionPenaltyWindow == nil)
-        // 0 is a legal value, so it must round-trip exactly — no 0-sentinel
+        // 0 is a legal value, so it must round-trip exactly, no 0-sentinel
         #expect(
             try decodeRepetitionPenalty(
                 #"""

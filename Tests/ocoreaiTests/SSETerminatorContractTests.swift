@@ -1,21 +1,21 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// `SSE.doneMarker` — the OpenAI-compatible SSE stream terminator, now a
+// `SSE.doneMarker`. The OpenAI-compatible SSE stream terminator, now a
 // single source of truth (SSEHelpers.swift) referenced by every emitter.
 //
 // Regression contract pinned here (exact values, transport-safe):
 //   1. The marker is byte-identical to the canonical upstream `[DONE]`
 //      (vllm/sglang/omlx/codex + swift-huggingface all terminate on this).
-//   2. `yieldSSERaw(marker)` renders exactly `data: [DONE]\n\n` — the frame
+//   2. `yieldSSERaw(marker)` renders exactly `data: [DONE]\n\n`. The frame
 //      consumers (swift-huggingface HTTPClient) strip the `data:` prefix,
 //      trim whitespace/newlines, and compare `==` to the canonical token.
-//   3. Case IS part of the contract — a lowercase variant must NOT equal the
+//   3. Case IS part of the contract. A lowercase variant must NOT equal the
 //      canonical form (this is the exact bug the old chat-stream `[done]`
 //      had: it would silently hang a case-sensitive upstream client).
 //
 // Canonical bytes are assembled from UnicodeScalar code points (not a raw
 // literal) so the comparison is independent of any transport-layer mangling
-// of the literal in the production file — if that literal were corrupted,
+// of the literal in the production file, if that literal were corrupted,
 // test (1) below would fail.
 import Foundation
 import Testing

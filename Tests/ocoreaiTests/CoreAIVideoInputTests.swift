@@ -1,4 +1,4 @@
-// oCoreAI — absorbed CoreAIVideoInput tests (unit-testable, no ANE).
+// oCoreAI. Absorbed CoreAIVideoInput tests (unit-testable, no ANE).
 // Upstream provenance (BSD-3-clause, Apple), coreai-models HEAD 5716935.
 
 import CoreGraphics

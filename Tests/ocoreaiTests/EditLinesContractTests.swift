@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// EditLinesContractTests — the seam that answers with line numbers instead of bytes.
+/// EditLinesContractTests. The seam that answers with line numbers instead of bytes.
 ///
 /// `edit_file` refuses when `oldString` is not byte-exact, and the scoreboard's repair tasks die
 /// there: measured over the k=3 baseline of `scripts/eval/tasks-edit-repair.json`, the model

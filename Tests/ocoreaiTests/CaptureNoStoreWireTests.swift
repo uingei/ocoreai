@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! CaptureNoStoreWireTests — a capture response must never be cacheable, and no leg may
+//! CaptureNoStoreWireTests. A capture response must never be cacheable, and no leg may
 //! bypass the one builder that says so.
 //!
 //! Why this exists (AGENTS.md invariant 2 plus the adoption privacy contract): a
 //! `POST /v1/multimodal/capture` body carries the frame or the sample itself, as a
-//! `data:` URL — the bytes of what this box just saw or heard travel inside the JSON. Any
+//! `data:` URL. The bytes of what this box just saw or heard travel inside the JSON. Any
 //! intermediary that stored one would hold the user's camera frame after the request ended.
 //! A cached *refusal* is its own dishonesty: it would keep answering "refused" after the
 //! user grants the channel, which is the surface quoting a permission the process has
@@ -14,7 +14,7 @@
 //! The header alone is a claim, so the second half of this suite scans the emit site: every
 //! capture leg must route through `captureWireResponse`, and the file that puts frame bytes on
 //! the wire must not own an encoder. It did (`fileprivate extension Response.json`), one that
-//! silently swallowed header arguments — the leg that runs on a denied host bound to it, so the
+//! silently swallowed header arguments. The leg that runs on a denied host bound to it, so the
 //! header a reader could see being set was never the header being sent. Root found by searching,
 //! floor on its own hit count (§ Testing Quality).
 //!
@@ -22,7 +22,7 @@
 //! hold a private `JSONEncoder` for their own response shapes (completions, Anthropic messages,
 //! chat, model download, lifecycle). "One JSON-encoding home repo-wide" is therefore NOT this
 //! invariant, and a scan of `Response.json` declarations alone is blind to any helper that
-//! encodes under another name — so the scan here is on the mechanism (`JSONEncoder(`), scoped
+//! encodes under another name, so the scan here is on the mechanism (`JSONEncoder(`), scoped
 //! to the file that carries bytes. Folding the per-handler encoders is a separate cleanup.
 
 import Foundation
@@ -67,7 +67,7 @@ struct CaptureNoStoreWireTests {
 
     /// Just the capture lane: `multimodalCaptureHandler` and the `captureGate` it calls, cut
     /// at the next declaration. Cut by declaration rather than by payload type because the
-    /// speak legs reuse `CaptureResponse` and carry no captured bytes — they are not this
+    /// speak legs reuse `CaptureResponse` and carry no captured bytes. They are not this
     /// invariant. A renamed boundary throws instead of scanning nothing.
     private static func captureLane(_ text: String) throws -> String {
         guard let start = text.range(of: "func multimodalCaptureHandler(") else {
@@ -164,7 +164,7 @@ struct CaptureNoStoreWireTests {
         )
 
         // Not one `CaptureResponse` may reach the wire through a direct encoder. The speak
-        // and status legs encode directly and are allowed to — they carry no captured bytes.
+        // and status legs encode directly and are allowed to. They carry no captured bytes.
         let bypassed = Self.occurrences(of: "Response.json(CaptureResponse(", in: tight)
         #expect(
             bypassed == 0,
@@ -177,7 +177,7 @@ struct CaptureNoStoreWireTests {
         // taking no header argument. Calls in that file bound to it, so the header being set
         // visibly was not the header being sent. This scans DECLARATIONS of that name, which
         // is the shadowing hazard; it deliberately does not claim to find every encoder
-        // (see the file header — helpers under other names exist and are another cleanup).
+        // (see the file header. Helpers under other names exist and are another cleanup).
         let root = try Self.repoRoot()
         let sources = root.appendingPathComponent("Sources/ocoreai")
         guard

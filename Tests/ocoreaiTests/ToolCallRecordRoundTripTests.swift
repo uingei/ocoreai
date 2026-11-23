@@ -1,14 +1,14 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ToolCallRecord SQLite round-trip — GUARANTEE that the GUI tool card's
+/// ToolCallRecord SQLite round-trip. GUARANTEE that the GUI tool card's
 /// real `resultSummary` + `durationMs` survive session persistence and
-/// restore (a re-opened session must show the same tool badges — name,
-/// truthful result, measured ms — not the fake "N bytes args" + 0ms).
+/// restore (a re-opened session must show the same tool badges. Name,
+/// truthful result, measured ms, not the fake "N bytes args" + 0ms).
 ///
 /// Regression guards:
 ///  1. exact-value preservation through addMessage → getMessages (SQLite
 ///     encoding/JSON/blob path), success AND failure records;
-///  2. a failure record's `resultSummary` must come back byte-identical —
+///  2. a failure record's `resultSummary` must come back byte-identical,
 ///     it must never be replaced by an "executed"/"N bytes args" look-alike;
 ///  3. a message with NO tool calls must not gain phantom tool records
 ///     on restore.
@@ -70,14 +70,14 @@ struct ToolCallRecordRoundTripTests {
         #expect(
             calls?.count == 2, "both records must survive; got \(String(describing: calls?.count))")
 
-        // exact-value, field-by-field — no floating tolerance:
+        // exact-value, field-by-field, no floating tolerance:
         #expect(calls?[0].callId == "call_real_01")
         #expect(calls?[0].toolName == "exec_command")
         #expect(calls?[0].arguments["command"] == "find . -name '*.txt' | wc -l")
         #expect(calls?[0].resultSummary == "15")
         #expect(calls?[0].durationMs == 126.755)
 
-        // failure record: the denial text must be byte-identical after the trip —
+        // failure record: the denial text must be byte-identical after the trip,
         // it is the user-visible "what actually happened" and must never be
         // substituted by a generic "executed" / "N bytes args" string.
         #expect(calls?[1].callId == "call_real_02")

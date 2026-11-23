@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// coreai-models #244 (d65a651) — "Fix pipelined engine crash with repetition
+// coreai-models #244 (d65a651). "Fix pipelined engine crash with repetition
 // penalty during prefill". Upstream bug: when `repetitionPenalty` is set,
 // MPSGraphCompositeSampler compiles the graph with 6 feeds
 // (logits, penalty, temperature, random, topP, minP), but the non-penalty
@@ -22,7 +22,7 @@
 //    feed-type error (the crash class #244 fixes) and yields the argmax token.
 // 4. Neutral feed is a true no-op: penalty-path token with an all-1.0 penalty
 //    buffer == non-penalty-path token on identical logits (both argmax).
-// 5. encodeWithSlice() (the prefill path — the actual #244 crash site)
+// 5. encodeWithSlice() (the prefill path. The actual #244 crash site)
 //    completes on the penalty-enabled graph with the correct token.
 //
 // Guarded with `#if canImport(Metal)` + `#if canImport(CoreAI)` and

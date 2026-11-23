@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Scheduler lifecycle tests — submit → dispatch → complete/fail/interrupt
+/// Scheduler lifecycle tests. Submit → dispatch → complete/fail/interrupt
 /// Verifies: memory tracking, OOM protection, priority queue, release-on-completion
 
 import Foundation
@@ -122,7 +122,7 @@ struct SchedulerLifecycleTests {
     // The actor lives as long as the server, so anything keyed by a fresh request id that
     // survives its completion is a leak (the pit references paid for: hermes-agent
     // `bound the pending-created-topics cache`). The table that leaked used to be capped at
-    // 256; it has since been deleted outright — nothing is retained per finished request, so
+    // 256; it has since been deleted outright. Nothing is retained per finished request, so
     // the honest assertion is that *nothing* accumulates: after 300 full cycles the queue, the
     // active set and the tracker's reservation are all back to zero.
 

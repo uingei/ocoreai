@@ -2,7 +2,7 @@
 // Licensed under MIT.
 //
 // Clipboard Pure 段(双平台离线可测, 不触 NSPasteboard/UIPasteboard 运行时):
-// 空态 / max_chars 钳制 / 读报告(截断+诚实尾注) / 写报告 — 精确值断言, 禁 count>0 弱断言。
+// 空态 / max_chars 钳制 / 读报告(截断+诚实尾注) / 写报告。精确值断言, 禁 count>0 弱断言。
 import Testing
 
 @testable import ocoreai
@@ -50,7 +50,7 @@ struct ClipboardPureTests {
         // 恰好 20 个 x 的正文 + 诚实尾注
         #expect(r.contains(String(repeating: "x", count: 20)))
         #expect(r.contains("…(80 more chars not shown)"))
-        // 截断后正文只出 20 个 x(不是 100) — 精确, 非包含
+        // 截断后正文只出 20 个 x(不是 100)。精确, 非包含
         let body = r.split(separator: "\n").dropFirst().first ?? ""
         let xcount = body.filter { $0 == "x" }.count
         #expect(xcount == 20, "body x-count \(xcount)")

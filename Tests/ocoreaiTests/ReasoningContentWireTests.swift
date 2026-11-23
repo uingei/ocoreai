@@ -5,8 +5,8 @@
 //
 // Verified context (daemon, Qwen3.5-4B over the FM/SDK
 // path, thinking on): the SDK classifies the entire generation into
-// Transcript.Entry.reasoning — usage reasoning_tokens>0, zero text on the
-// content channel — so consumers reading only `content` must still receive
+// Transcript.Entry.reasoning. Usage reasoning_tokens>0, zero text on the
+// content channel, so consumers reading only `content` must still receive
 // the answer via this fallback.
 
 import Testing

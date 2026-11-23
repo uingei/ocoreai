@@ -8,10 +8,10 @@
 // `~/.ocoreai/config.yaml → agent.approvalPolicy`, resolved by
 // `SettingsStore.approvalPolicyUnified` in the order:
 //   1. yaml key (authored single source, 12-factor, headless-editable)
-//   2. GUI bundle domain (`com.ocoreai.ocoreai`) — the owner's product-facing
+//   2. GUI bundle domain (`com.ocoreai.ocoreai`). The owner's product-facing
 //      choice, which a headless surface must ADOPT, not silently ignore
 //   3. the surface's own legacy domain (pure headless install)
-//   4. `interactive` (fail-safe default — never silently allow)
+//   4. `interactive` (fail-safe default. Never silently allow)
 //
 // Pattern follows SettingsStoreTests: `@testable import ocoreai`,
 // `@MainActor @Suite`, fresh suite per test.
@@ -58,7 +58,7 @@ struct UnifiedApprovalPolicyTests {
         own.set("auto", forKey: SettingsStore.Key.approvalPolicy.rawValue)
 
         // Author the policy through the app's own config encoder (a real
-        // config.yaml round-trips; a hand-written minimal doc would not) —
+        // config.yaml round-trips; a hand-written minimal doc would not),
         // this mirrors how a live config.yaml actually looks on disk.
         SettingsStore.testsHomeOverride = home
         try? FileManager.default.createDirectory(

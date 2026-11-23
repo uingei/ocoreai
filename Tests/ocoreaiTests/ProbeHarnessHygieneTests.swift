@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! ProbeHarnessHygieneTests.swift — the harness that validates every behavioural claim must
+//! ProbeHarnessHygieneTests.swift. The harness that validates every behavioural claim must
 //! itself be correct, in ways that are asserted rather than remembered.
 //!
 //! Two defects measured 10-17, both invisible to every probe:
@@ -8,14 +8,14 @@
 //!      "first existing". SwiftPM 6.4 emits `<scratch>/out/Products/<config>/ocoreai`, so
 //!      `.build-clt/debug/ocoreai` no longer exists and the loop fell through to a
 //!      five-day-old `.build/debug/ocoreai` built from mlx-swift-lm 7eb77efa while the pin
-//!      said 6e338e5df — a run whose every number would describe code this repo does not
+//!      said 6e338e5df. A run whose every number would describe code this repo does not
 //!      ship. It also derived the dependency checkout by a fixed `dirname/../` hop, so the
 //!      pin premise printed "not verifiable" instead of holding.
 //!   2. `05-hearing.sh` installed its own `trap 'rm -f "$AIFF"' EXIT INT TERM`, which
 //!      replaced `_lib.sh`'s `probes_cleanup` (bash keeps one handler per signal). Its
 //!      server was never TERM'd, `SingleInstanceLock`'s flock stayed held, and 06/07/08
 //!      each spent the full 240 s ready timeout reporting "Metal unavailable or model load
-//!      stuck" — a leaked process misdiagnosed three times.
+//!      stuck". A leaked process misdiagnosed three times.
 //!
 //! The scan floors below are what keep these from becoming folklore: if the patterns stop
 //! matching, the suite fails instead of passing vacuously (AGENTS.md invariant 1).
@@ -33,7 +33,7 @@ struct ProbeHarnessHygieneTests {
         var description: String { "no repo file at \(path) (walked up from \(#filePath))" }
     }
 
-    /// Repo root found by walking until the harness itself is present — finding the file is
+    /// Repo root found by walking until the harness itself is present. Finding the file is
     /// the proof of the root (fixed hop counts have broken scan tests here before).
     private static func repoRoot() throws -> URL {
         var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
@@ -199,7 +199,7 @@ struct ProbeHarnessHygieneTests {
         let pinned = try makeScratch(root: tmp, relative: ".build-clt/out/Products/Debug/ocoreai")
         let newer = try makeScratch(root: tmp, relative: ".build/debug/ocoreai")
         // The older binary's tree is clean and at the pin; the newer one has nothing to
-        // verify against. Newest-first — the behaviour this fix replaced — picks the second.
+        // verify against. Newest-first. The behaviour this fix replaced. Picks the second.
         let head = try makeCheckout(
             at: tmp.appendingPathComponent(".build-clt/checkouts/mlx-swift-lm"))
         FileManager.default.createFile(

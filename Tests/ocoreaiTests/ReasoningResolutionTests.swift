@@ -14,7 +14,7 @@ import Testing
 @Suite("ReasoningResolution.thinkingEnabled")
 struct ReasoningResolutionTests {
 
-    // MARK: - reasoningLevel absent — the explicit `reasoning` bool must win
+    // MARK: - reasoningLevel absent. The explicit `reasoning` bool must win
 
     @Test("nil level + explicit true → ON")
     func levelAbsent_reasoningTrue() {

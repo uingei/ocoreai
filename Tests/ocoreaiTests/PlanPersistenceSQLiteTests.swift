@@ -2,7 +2,7 @@ import Foundation
 import Logging
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SQLite 持久化面 — persist → 重开实例 rehydrate 精确值恢复（重启模拟）
+/// SQLite 持久化面。persist → 重开实例 rehydrate 精确值恢复（重启模拟）
 import Testing
 
 @testable import ocoreai

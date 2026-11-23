@@ -1,5 +1,5 @@
 // Copyright 2026 Apple Inc. (BSD-3-clause upstream)
-// Absorbed: coreai-models #251 (89ba0d4) test — SequentialIteratorTests.
+// Absorbed: coreai-models #251 (89ba0d4) test. SequentialIteratorTests.
 //   upstream: swift/Tests/LanguageModelsTests/SequentialIteratorTests.swift
 
 import Testing

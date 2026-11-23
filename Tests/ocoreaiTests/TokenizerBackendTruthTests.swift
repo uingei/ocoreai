@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Tokenizer backend truth — the shipping build must actually tokenize.
+/// Tokenizer backend truth. The shipping build must actually tokenize.
 ///
 /// Why this exists (proven 2026-10-12 on macOS 26): `Tokenizer/TokenizerManager.swift`
 /// was gated `#if canImport(CoreAI)`, but its real dependency is swift-transformers.
@@ -29,7 +29,7 @@ struct TokenizerBackendTruthTests {
 
     @Test("registration does real work — a nonexistent path must fail loudly")
     func registrationIsNotANoOp() async throws {
-        // The stub's `registerTokenizer(for:tokenizerPath:)` is `{}` — it accepts
+        // The stub's `registerTokenizer(for:tokenizerPath:)` is `{}`. It accepts
         // anything. Throwing here is positive proof the real backend is compiled in.
         let manager = TokenizerManager()
         let bogus = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -78,7 +78,7 @@ struct TokenizerBackendTruthTests {
             to: dir.appendingPathComponent("tokenizer.json"), atomically: true, encoding: .utf8)
         // `tokenizer_class` + `chat_template` are both required by
         // swift-transformers (missingTokenizerClassInConfig / missingChatTemplate
-        // otherwise) — same two keys every real checkpoint ships.
+        // otherwise). Same two keys every real checkpoint ships.
         let tokenizerConfig = """
             {
               "tokenizer_class": "BertTokenizer",
@@ -100,7 +100,7 @@ struct TokenizerBackendTruthTests {
             messages: [["role": "user", "content": "hello world"]])
         // Exact-value contract (gold standard, not `count > N`). The template
         // emits message content verbatim, and the fixture vocab is
-        // [PAD]=0 [UNK]=1 hello=2 world=3 — so "hello world" MUST be [2, 3].
+        // [PAD]=0 [UNK]=1 hello=2 world=3, so "hello world" MUST be [2, 3].
         // Any [UNK] here means the vocab never loaded.
         #expect(ids == [2, 3], "expected exact ids [2, 3], got \(ids)")
         let text = try await tok.detokenize(tokenIds: ids)

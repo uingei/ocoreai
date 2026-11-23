@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Scheduler concurrent stress tests — queue under load, OOM rejection,
+/// Scheduler concurrent stress tests. Queue under load, OOM rejection,
 /// priority dispatch ordering, and batch dispatch integrity.
 
 import Foundation
@@ -172,7 +172,7 @@ struct SchedulerConcurrentTests {
     func submitAndDispatchIsOwnedById() async throws {
         let sched = SchedulerActor(maxQueueSize: 128, log: Logger(label: "test.ownership"))
 
-        // X (higher priority) submitted; its own dispatch message has not run yet —
+        // X (higher priority) submitted; its own dispatch message has not run yet,
         // exactly how two callers interleave.
         _ = try await sched.submit(
             SchedulingRequest(

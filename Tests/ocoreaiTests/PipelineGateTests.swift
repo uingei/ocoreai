@@ -1,21 +1,21 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PipelineGateTests.swift — the backpressure gate's accounting, and exactly-once waiter
+/// PipelineGateTests.swift. The backpressure gate's accounting, and exactly-once waiter
 /// consumption.
 ///
 /// This suite exists because the class used to sit inside `CoreAIPipelinedEngine.swift`'s single
-/// file-level `#if canImport(CoreAI)`, which deleted it on the macOS 26 SDK — so the comment
+/// file-level `#if canImport(CoreAI)`, which deleted it on the macOS 26 SDK, so the comment
 /// claiming "exercised by `PipelineGateTests`" described a suite that could not compile, let
 /// alone run, on any runner this project has (CLT SDK 26.5 has no CoreAI; CI is macos-26). The
-/// type now lives in `Engine/PipelineGate.swift`, gated on what its body actually needs —
-/// `os.OSAllocatedUnfairLock`, available at the package floor — so these tests compile and run on
+/// type now lives in `Engine/PipelineGate.swift`, gated on what its body actually needs,
+/// `os.OSAllocatedUnfairLock`, available at the package floor, so these tests compile and run on
 /// the CLT route on this macOS 26 host.
 ///
 /// The invariant worth pinning came across the language boundary from codex #55581 (`e8aa7c1678`,
 /// read 10-20): a one-shot waiter must leave the state before it is consumed. codex polled a
 /// `oneshot` receiver while it was still stored, so a closed receiver stayed in session state and
 /// a later `await` panicked instead of falling back. The local equivalents are (a) resuming a
-/// waiter that is still in `waiters` — a double resume traps at runtime — and (b) handing out a
+/// waiter that is still in `waiters`. A double resume traps at runtime, and (b) handing out a
 /// permit nobody holds, which turns the gate back into the encode backlog it exists to bound.
 ///
 /// What is NOT asserted, stated rather than hidden: FIFO *order* of woken waiters. The queue is
@@ -32,7 +32,7 @@ import Testing
 @Suite("PipelineGate — slot accounting and exactly-once consumption")
 struct PipelineGateTests {
 
-    /// Polls one interval at a time (never to a deadline — AGENTS.md § Concurrency) until
+    /// Polls one interval at a time (never to a deadline. AGENTS.md § Concurrency) until
     /// `waiters` reaches `count`, and reports whether it got there.
     private static func waitUntil(_ gate: PipelineGate, waiters count: Int) async -> Bool {
         var waitedMs = 0

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// FTS5 search surface — the wire behind `GET /sessions/search` (README.md L101
+/// FTS5 search surface. The wire behind `GET /sessions/search` (README.md L101
 /// advertises it, and its unscoped form is the DEFAULT call).
 ///
 /// Why this suite exists: `messages_fts` and `messages` both expose

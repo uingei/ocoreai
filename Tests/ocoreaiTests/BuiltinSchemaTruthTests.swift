@@ -1,15 +1,15 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// BuiltinSchemaTruthTests — the schema-lie regression gate on the REAL
+// BuiltinSchemaTruthTests. The schema-lie regression gate on the REAL
 // production registry (same bootstrap as boot). Live proof (2026-10-11,
 // official v0.1.12 DMG /v1/tools): info / skills_lookup / skills_view /
 // echo advertised `properties: {}` while their argsType carries stored
-// members — the model cannot call them correctly without knowing the keys.
+// members. The model cannot call them correctly without knowing the keys.
 // Discipline (mirrors ToolSpecFullRegistryTests): production bootstrap,
 // exact per-key asserts, no count>0 softness. Zero-parameter tools
 // (curr_time, system_info, observe_state, get_context_remaining) legitimately
-// advertise empty properties — that is truth, not the lie; the lie is
+// advertise empty properties, that is truth, not the lie; the lie is
 // "argsType has members AND advertised properties is empty".
 import Foundation
 import Logging

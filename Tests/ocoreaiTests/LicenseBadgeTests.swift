@@ -43,7 +43,7 @@ struct LicenseBadgeTests {
     }
 
     @Test func localizationKeysExist() {
-        // Both tables must carry the a11y string — a zh gap falls back to
+        // Both tables must carry the a11y string. A zh gap falls back to
         // en silently (invisible to `.l`), so assert per-table, not per-chain.
         #expect(L10nTables.base[StringKey.licenseBadgeA11yFormat]?.contains("%@") == true)
         #expect(L10nTables.zh[StringKey.licenseBadgeA11yFormat]?.contains("%@") == true)

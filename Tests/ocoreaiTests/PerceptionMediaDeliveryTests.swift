@@ -1,18 +1,18 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PerceptionMediaDeliveryTests.swift — b4 tests for the perception→VLM media
+/// PerceptionMediaDeliveryTests.swift. B4 tests for the perception→VLM media
 /// delivery wire:
-///   b1 `PerceptionEngine.mediaContentParts()` — media-only part filtering
+///   b1 `PerceptionEngine.mediaContentParts()`. Media-only part filtering
 ///      (image/audio bytes in; OCR/text frames out, staying on the
 ///      `contextText()` system path so nothing is double-delivered).
-///   b2 `attachPerceptionMedia(...)` — attaches decoded media to the LAST
+///   b2 `attachPerceptionMedia(...)`. Attaches decoded media to the LAST
 ///      user message (user-turn semantics, not system instructions), returns
 ///      temp audio file URLs for caller cleanup.
-///   b2 decoders `makeMLXImage` / `makeMLXAudio` — real byte decoding:
+///   b2 decoders `makeMLXImage` / `makeMLXAudio`. Real byte decoding:
 ///      data-URL → CIImage / temp `.caf` with exact-byte round-trip.
 ///
 /// All assertions are exact values (counts, URLs, byte round-trips). The
-/// shared `PerceptionEngine.shared.buffer` is cleared in every test — the
+/// shared `PerceptionEngine.shared.buffer` is cleared in every test. The
 /// singleton outlives test boundaries (30s frame TTL), so without clearing
 /// results are nondeterministic.
 
@@ -24,7 +24,7 @@ import Testing
 @testable import ocoreai
 
 private enum Fixtures {
-    /// 1×1 PNG (valid, decodable). Deterministic — no network, no temp assets.
+    /// 1×1 PNG (valid, decodable). Deterministic, no network, no temp assets.
     static let onePixelPNGBase64 =
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
 
@@ -241,7 +241,7 @@ struct MediaDecoderTests {
             return
         }
         // Where it lands is the point: the spool is owned by the conversation, and a file
-        // written to the temp root used to be deleted when the request ended — which
+        // written to the temp root used to be deleted when the request ended, which
         // poisoned every later turn of the transcript that cited it (measured 10-16).
         #expect(MediaSpool.isInside(spool, MediaSpool.directory()))
         #expect(spool.pathExtension == "caf")

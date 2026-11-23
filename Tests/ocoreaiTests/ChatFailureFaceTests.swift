@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ChatFailureFaceTests — which banner an engine refusal earns in the GUI.
+/// ChatFailureFaceTests, which banner an engine refusal earns in the GUI.
 ///
 /// Sampled against the red this file was written for, read in `ChatViewModel.swift`'s catch before
-/// this change: only `.modelNotFound` had a face, so `AppError.modelLoading` — the 503 the engine
-/// answers while a cold load runs, 794 s for the shipping default (CHANGELOG 11-01(101)) — fell
+/// this change: only `.modelNotFound` had a face, so `AppError.modelLoading`. The 503 the engine
+/// answers while a cold load runs, 794 s for the shipping default (CHANGELOG 11-01(101)). Fell
 /// through to "Generation failed" with Retry as the only exit. The reader whose action it changes:
 /// whoever pressed send on a cold machine, was told the turn had failed 120 s in, and had no way to
-/// learn that `OcoreaiDownloadProgress` was already counting bytes in — the same store
+/// learn that `OcoreaiDownloadProgress` was already counting bytes in. The same store
 /// `ModelView.swift:355` draws a bar from.
 ///
 /// Asserted as the exact string the banner renders in each delivered table, plus the flag
@@ -18,7 +18,7 @@ import Testing
 
 @testable import ocoreai
 
-/// A failure the mapping has no face for — what any foreign `Error` looks like at the seam.
+/// A failure the mapping has no face for. What any foreign `Error` looks like at the seam.
 private struct unrelatedError: Error {}
 
 /// Byte-exact copy per delivered table. A count of locales would pass while one table
@@ -39,7 +39,7 @@ struct ChatFailureFaceTests {
         let face = ChatState.failureFace(
             for: AppError.modelLoading("test/model", nil), locale: locale)
         #expect(face.message == copy)
-        // The way out is the Models page — where the bar reads the measurement the 503 carried.
+        // The way out is the Models page, where the bar reads the measurement the 503 carried.
         #expect(face.offersModels)
         #expect(face.message != StringKey.generationFailed.localized(for: locale))
         // And it makes no promise about a transfer: `downloading` is false for the map/specialize/
@@ -51,7 +51,7 @@ struct ChatFailureFaceTests {
     /// The GUI hands the numbers over rather than repeating them: a second spelling of the
     /// disclosure sentence in two tables is one more home for a wording
     /// `ModelLoadProgress.disclosureLine` exists to keep in one place. So the measured and the
-    /// unmeasured wait render identically here — and differ, byte for byte, on the wire.
+    /// unmeasured wait render identically here, and differ, byte for byte, on the wire.
     @Test("a measured wait does not grow a second sentence in the GUI")
     func measuredWaitRendersTheSameFace() {
         let measured = ModelLoadProgress(
@@ -81,7 +81,7 @@ struct ChatFailureFaceTests {
         }
     }
 
-    /// Everything else keeps the banner it has always had, with no route attached — the face the
+    /// Everything else keeps the banner it has always had, with no route attached. The face the
     /// cold load used to wear.
     @Test("every other refusal stays generic and un-routed")
     func otherFailuresStayGeneric() {

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// HardwareRouterMirrorTests.swift — Pure routing decisions and tier precedence.
+/// HardwareRouterMirrorTests.swift. Pure routing decisions and tier precedence.
 ///
 /// Behavioral focus: 3-tier routing logic (memory → thermal → GPU saturation),
 /// policy sensitivity, urgent bypass interaction, tier override guarantees.

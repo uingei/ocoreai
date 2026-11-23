@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SessionWorkspaceWorktreeTests — codex Agent-axis worktree-session seam gate.
+/// SessionWorkspaceWorktreeTests. Codex Agent-axis worktree-session seam gate.
 ///
 /// Baseline: codex `core/worktree/src/git.rs:98-135` (`default_worktree_base`,
 /// no fetch) + `core/worktree/src/lib.rs` (`worktree add --detach <sha>`) + TUI
@@ -16,7 +16,7 @@
 ///
 /// All tests share the one process-global `ActiveDirectory` pointer, so the
 /// suite is `.serialized` (a `SessionWorkspace.setDirectory` in one test must
-/// not race a `clear()` in a concurrent test — swift-testing runs suites in
+/// not race a `clear()` in a concurrent test. Swift-testing runs suites in
 /// parallel by default, which is what broke the cross-suite precedence test).
 import Foundation
 import Testing
@@ -25,7 +25,7 @@ import Testing
 
 // Real git probe for the tests, mirroring the repo's `ModelStoreTests`
 // `setenv`/`defer unsetenv` convention. `sh` asserts success; `shOut` returns
-// stdout (or throws on failure) — but a *quiet* read (`... --quiet`) that
+// stdout (or throws on failure), but a *quiet* read (`... --quiet`) that
 // fails cleanly returns an empty string instead of throwing, which is exactly
 // how `git symbolic-ref --quiet HEAD` signals "detached HEAD".
 private enum GitProbe {
@@ -101,7 +101,7 @@ struct SessionWorkspacePointerTests {
             UserDefaults.standard.set(nil, forKey: WorkspaceContext.settingsKey)
         }
         // `configuredDirectory()` validates the path exists on disk (an invalid
-        // global must not become the process cwd) — so the fixture is real.
+        // global must not become the process cwd), so the fixture is real.
         let globalWS = (NSTemporaryDirectory() as NSString)
             .appendingPathComponent("ws-global-\(UUID().uuidString.prefix(6))")
         try? FileManager.default.createDirectory(
@@ -126,7 +126,7 @@ struct SessionWorkspacePointerTests {
 struct SessionWorkspaceWorktreeTests {
 
     // Per-test isolated worktree base (the service honors the `worktreeRoot`
-    // parameter directly — deterministic, no env dependency).
+    // parameter directly. Deterministic, no env dependency).
     private func tempBase() -> String {
         let base = (NSTemporaryDirectory() as NSString)
             .appendingPathComponent("ocoreai_wt_\(UUID().uuidString)")
@@ -228,7 +228,7 @@ struct SessionWorkspaceWorktreeTests {
 
         // Detached: no symbolic HEAD for the worktree (codex `--detach`).
         // `symbolic-ref --quiet HEAD` exits 1 (nonzero) and prints nothing when
-        // detached — exactly the "quiet failure = not on a branch" contract.
+        // detached. Exactly the "quiet failure = not on a branch" contract.
         let ref = try GitProbe.shOut(
             ["symbolic-ref", "--quiet", "HEAD"], in: created.root,
             allowNonZero: true)

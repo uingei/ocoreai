@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AcceleratorClaimHonestyTests — UI 徽章不得声称一个从未发生过的设备切换。
+/// AcceleratorClaimHonestyTests. UI 徽章不得声称一个从未发生过的设备切换。
 ///
 /// 实机背景：`ComputeChannel.cpu` 这一档只关掉前缀缓存复用与投机解码，Metal 设备在
 /// `ModelContainer` 装载时就绑定、运行期从不切换；此前它把徽章文案写成 "CPU"，

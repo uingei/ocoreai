@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Download infrastructure tests — real types, no mock fixtures.
+/// Download infrastructure tests. Real types, no mock fixtures.
 ///
 /// Coverage:
 ///   - DownloadSemaphore: concurrency limit, duplicate rejection, cancellation
@@ -16,10 +16,10 @@ import Testing
 // MARK: - Helpers
 
 /// Reset shared singletons to known state before each test.
-/// DownloadSemaphore and OcoreaiDownloadProgress are singletons — tests must
+/// DownloadSemaphore and OcoreaiDownloadProgress are singletons. Tests must
 /// clean state to avoid cross-test pollution.
 private func resetDownloadState() {
-    // Atomic reset — clears inFlight count and active set under the lock.
+    // Atomic reset. Clears inFlight count and active set under the lock.
     DownloadSemaphore.shared._test_reset()
 }
 
@@ -143,7 +143,7 @@ struct DownloadSemaphoreTests {
         // Give it time to enter the loop
         try? await Task.sleep(for: .milliseconds(300))
 
-        // Cancel — task should see cancellation and return promptly
+        // Cancel. Task should see cancellation and return promptly
         cancelTask.cancel()
 
         // If cancellation works, result returns within ~500ms (one sleep cycle).
@@ -172,7 +172,7 @@ struct DownloadSemaphoreTests {
     func inFlightNonNegative() {
         defer { resetDownloadState() }
         #expect(DownloadSemaphore.shared.tryAcquire(for: "neg-test") == .ok)
-        // Double release — should clamp to 0
+        // Double release. Should clamp to 0
         DownloadSemaphore.shared.release(for: "neg-test")
         DownloadSemaphore.shared.release(for: "neg-test")
         // Semaphore should still work normally after clamping
@@ -245,7 +245,7 @@ struct DownloadProgressTests {
         #expect(progress.isDownloading("evict-test"))
         progress.finish(modelId: "evict-test", success: true)
         #expect(!progress.isDownloading("evict-test"))
-        // finish(success:true) delays eviction by 2s for UI completion flash — force clear to test eviction logic
+        // finish(success:true) delays eviction by 2s for UI completion flash. Force clear to test eviction logic
         progress.clear()
         #expect(progress.progress(for: "evict-test") == nil)
     }
@@ -279,7 +279,7 @@ struct DownloadProgressTests {
     }
 }
 
-// MARK: - OcoreaiDownloadProgress — concurrent access (first-launch crash regression)
+// MARK: - OcoreaiDownloadProgress. Concurrent access (first-launch crash regression)
 
 /// Regression for the 2026-09-28 clean-machine first-launch SIGABRT.
 ///
@@ -291,8 +291,8 @@ struct DownloadProgressTests {
 /// right after the prewarm finished, killing the process.
 ///
 /// The store is now a synchronous `NSLock`-guarded container (no Task, no
-/// main-actor hop), so the same hammering — many threads writing start/update/
-/// while readers race on the main and background paths — must not crash.
+/// main-actor hop), so the same hammering. Many threads writing start/update/
+/// while readers race on the main and background paths. Must not crash.
 @Suite("OcoreaiDownloadProgress — concurrent access crash regression", .serialized)
 struct DownloadProgressConcurrencyTests {
 
@@ -303,7 +303,7 @@ struct DownloadProgressConcurrencyTests {
         let workers = 8
         let iterations = 500
 
-        // Hammer from the global concurrent pool — mirrors downloader callbacks
+        // Hammer from the global concurrent pool. Mirrors downloader callbacks
         // (background threads) racing with main-thread UI readers.
         await withTaskGroup(of: Void.self) { group in
             for w in 0 ..< workers {
@@ -322,7 +322,7 @@ struct DownloadProgressConcurrencyTests {
                             store.finish(modelId: id, success: true)
                             store.finish(modelId: id, success: false)
                         default:
-                            // Concurrent reader — the UI's hot read path.
+                            // Concurrent reader. The UI's hot read path.
                             _ = store.progress(for: id)
                             _ = store.isDownloading(id)
                         }
@@ -345,7 +345,7 @@ struct DownloadProgressConcurrencyTests {
         store.start(modelId: "sync-evict")
         store.finish(modelId: "sync-evict", success: true)
         // Old impl deferred a 2s "completed flash"; the reaper Task was the crash.
-        // Now the entry is gone synchronously — no residual, no hidden Task.
+        // Now the entry is gone synchronously, no residual, no hidden Task.
         #expect(store.progress(for: "sync-evict") == nil)
         #expect(!store.isDownloading("sync-evict"))
         OcoreaiDownloadProgress.shared.clear()

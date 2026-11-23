@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// EditMismatchRecoveryTests — an `edit_file` refusal has to be answerable.
+/// EditMismatchRecoveryTests. An `edit_file` refusal has to be answerable.
 ///
 /// Measured 10-22 (`scripts/eval/run.sh`, task `fix-off-by-one`): the model edited from an
 /// assumption instead of a read, and the server answered
@@ -12,7 +12,7 @@
 ///
 /// `.serialized` because `SessionWorkspace` is a process-global (`NSLock`-guarded singleton,
 /// not task-local): the `setDirectory`/`clear` in `seeded` leak into tests running in
-/// parallel — measured 10-22 this suite failed 3/3 standalone, two tests resolving against
+/// parallel. Measured 10-22 this suite failed 3/3 standalone, two tests resolving against
 /// each other's temp dir. Same trait as `SessionWorkspaceWorktreeTests`.
 import Foundation
 import Logging
@@ -61,7 +61,7 @@ struct EditMismatchRecoveryTests {
                 message.contains("    for i in range(1, n):"),
                 "the refusal must show the actual line, indentation and all: \(message)")
             // Nearest-window scoring alone pointed at the wrong line on 10-22 (`return s` at
-            // line 5), so a file this small is quoted whole — the target line cannot be hidden.
+            // line 5), so a file this small is quoted whole. The target line cannot be hidden.
             #expect(
                 message.contains("def total(n):"),
                 "a small file is quoted whole so the target cannot be missed: \(message)")
@@ -76,7 +76,7 @@ struct EditMismatchRecoveryTests {
                 !message.contains("1|def total(n):"),
                 "a hint that says verbatim may not hand back chrome: \(message)")
         }
-        // the file is untouched — the hint adds information, never a write
+        // the file is untouched. The hint adds information, never a write
         let onDisk = try String(contentsOf: url, encoding: .utf8)
         #expect(onDisk == Self.sum100)
     }
@@ -84,7 +84,7 @@ struct EditMismatchRecoveryTests {
     /// More indentation than the file has is a genuine miss (a shallower indent would be a
     /// real substring, which is why this case was rewritten: the first version of this test
     /// claimed a refusal for `"  return a +"` against a four-space line, and the tool was
-    /// right to match it — the test was wrong, not the engine).
+    /// right to match it. The test was wrong, not the engine).
     @Test("deeper indentation than the file has is refused, and the real indent is quoted")
     func indentationDriftIsRefusedAndAnswered() throws {
         let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
@@ -118,7 +118,7 @@ struct EditMismatchRecoveryTests {
         let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         // Measured 10-22 (two rounds): `edit-replace-all` was 0/3 with a bare count in the
-        // refusal, and stayed 0/3 after naming `occurrences: 3` — the model read the count and
+        // refusal, and stayed 0/3 after naming `occurrences: 3`. The model read the count and
         // answered the *user* ("please specify how many occurrences you intended") instead of
         // retrying. So the refusal now names the conventional knob first and says out loud
         // that resolving it is this call's job, not the user's.
@@ -197,7 +197,7 @@ struct EditMismatchRecoveryTests {
         #expect(try String(contentsOf: url, encoding: .utf8) == "BAR bar\nbaz BAR\nBAR end\n")
     }
 
-    /// A quoted window that gets clipped has to say so and say how big the file is — codex
+    /// A quoted window that gets clipped has to say so and say how big the file is. Codex
     /// `format_exec_output_for_model` publishes `Total output lines` whenever it shows less
     /// than it has. A silent clip can drop the exact line the caller needed.
     @Test("a clipped hint states the file's real size instead of trailing off")
@@ -237,8 +237,8 @@ struct EditMismatchRecoveryTests {
     }
 
     /// The scoreboard shape this contract came from: `fix-boundary-comparison` quoted a
-    /// `capacity.py` line that did not exist, the refusal printed the two-line file whole —
-    /// with the caller's own `newString` already correct — and the turn ended at "I need to
+    /// `capacity.py` line that did not exist, the refusal printed the two-line file whole,
+    /// with the caller's own `newString` already correct, and the turn ended at "I need to
     /// read the file first". The data was there; the next action was not. So a refusal that
     /// quoted everything names the retry and closes the exit that loses the task.
     @Test("a whole-file quote orders the retry instead of a round trip it already served")
@@ -280,7 +280,7 @@ struct EditMismatchRecoveryTests {
     }
 
     /// The failure shape the scoreboard's `fix-*` tasks actually hit: the caller quoted
-    /// `read_file` faithfully — chrome and all — and the raw count came back 0. Stripping is
+    /// `read_file` faithfully. Chrome and all, and the raw count came back 0. Stripping is
     /// decided by the match itself (attempted only after a raw miss, accepted only when the
     /// stripped string matches `expected`), and the verdict says out loud that it happened.
     @Test("a quote copied from read_file is stripped to match, and says so")
@@ -325,7 +325,7 @@ struct EditMismatchRecoveryTests {
     /// `edit_file` with an empty `newString` (the caller's own deletion intent) at a file whose
     /// one line it had not read, was refused with that line quoted whole, and answered the user
     /// asking for exactly that line. `edit_file` can empty a file and no file tool deletes one,
-    /// so the refusal has to say which route exists — or the turn dies on a two-line file.
+    /// so the refusal has to say which route exists, or the turn dies on a two-line file.
     @Test("an empty newString names the removal route the retry cannot be")
     func deletionIntentNamesTheRemovalRoute() throws {
         let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])

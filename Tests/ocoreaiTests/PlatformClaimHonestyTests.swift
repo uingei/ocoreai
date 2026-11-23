@@ -2,7 +2,7 @@
 // Licensed under MIT.
 /// A platform line a user reads is a claim, so it carries the same duty as `/v1/capabilities`.
 ///
-/// Both READMEs advertised "macOS 14+ · iOS 17+" — a floor declared in `Package.swift` and never
+/// Both READMEs advertised "macOS 14+ · iOS 17+". A floor declared in `Package.swift` and never
 /// executed: the test suite, the live probes and the task scoreboard all run on one macOS 26 host,
 /// the iOS leg in CI builds `-destination generic/platform=iOS` and does not run, and this host has
 /// no iOS simulator runtime at all (`xcrun simctl list runtimes` answers empty). Invariant 2 says a

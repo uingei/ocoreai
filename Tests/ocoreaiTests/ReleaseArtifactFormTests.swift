@@ -2,7 +2,7 @@
 // Licensed under MIT.
 /// The delivery form has to be judged on the artifact, not on the SDK sitting on disk.
 ///
-/// `scripts/toolchain-contract.sh` checks R1 (no CoreAI in the delivery SDK) against routes —
+/// `scripts/toolchain-contract.sh` checks R1 (no CoreAI in the delivery SDK) against routes,
 /// correctly, and by compiling a kernel for Metal. But `make release` was a bare
 /// `swift build -c release`, so whichever SDK the host happened to carry decided the shape of
 /// what ships: measured on this host, the produced binary weak-links
@@ -74,11 +74,11 @@ struct ReleaseArtifactFormTests {
         #expect(deliveryPath == 1, "delivery judges .build/release, saw \(deliveryPath)")
     }
 
-    /// The delivery route is pinned, never inherited — because the host here is exactly the case
+    /// The delivery route is pinned, never inherited, because the host here is exactly the case
     /// that breaks it (Xcode SDK 27 carries CoreAI.framework). Pinned by the ladder that owns the
     /// decision, not by a copy of it in the recipe: `release` evals `print-delivery-env`, and the
     /// same resolver is what `build-app.sh` uses for the .app a user installs. This test is where
-    /// that rule was broken once — it grepped for `DEVELOPER_DIR=$(CLT_DIR)`/`$(SDKROOT_CLT)` and
+    /// that rule was broken once. It grepped for `DEVELOPER_DIR=$(CLT_DIR)`/`$(SDKROOT_CLT)` and
     /// went red the day the literals moved into the resolver, which is the second-home AGENTS.md
     /// forbids. It now asserts the ladder itself, so a route that stops being pinned still goes
     /// red, and so does a pin that drifts out of the resolver.
@@ -118,7 +118,7 @@ struct ReleaseArtifactFormTests {
             "the .app a user installs drifted off the delivery ladder")
     }
 
-    /// The bundling path — the bundle a user installs — is judged too, not just the binary.
+    /// The bundling path. The bundle a user installs. Is judged too, not just the binary.
     @Test func bundlingScriptJudgesItsBinary() throws {
         let script = try read("scripts/build-app.sh")
         let judges = occurrences(of: "release-artifact-check.sh\" delivery", in: script)

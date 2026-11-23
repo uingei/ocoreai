@@ -11,10 +11,10 @@
 //!     with `finish_reason:"tool_calls"`; the Anthropic face said `tool_use` at
 //!     `max_tokens:18` while its own no-tools control correctly said `max_tokens`.
 //!   • SSE: the tool-call delta carried `finish_reason:"tool_calls"` and the terminal chunk
-//!     said `stop` — so a streaming client was told there were no calls, and a client that
+//!     said `stop`, so a streaming client was told there were no calls, and a client that
 //!     ends the stream on the first non-null `finish_reason` stopped before the answer.
-//!   • `tool_choice:{"type":"function","function":{"name":"get_weather"}}` — OpenAI's own
-//!     shape — answered `400 {"error":{"message":"Coding key \`name\` not found."}}`,
+//!   • `tool_choice:{"type":"function","function":{"name":"get_weather"}}`. OpenAI's own
+//!     shape. Answered `400 {"error":{"message":"Coding key \`name\` not found."}}`,
 //!     while this server's invented flat alias worked; `"banana"` and a bare tool name
 //!     answered 200.
 //!
@@ -141,7 +141,7 @@ struct ToolChoiceVocabularyTests {
         #expect(try Self.decode(sent) == expected)
     }
 
-    /// OpenAI's canonical named-tool form — the one that used to die at the decoder.
+    /// OpenAI's canonical named-tool form. The one that used to die at the decoder.
     @Test("the spec's nested named-tool shape decodes to the pin word")
     func canonicalNestedShape() throws {
         #expect(
@@ -162,7 +162,7 @@ struct ToolChoiceVocabularyTests {
         #expect(try Self.decode(#"{"type":"function","name":"none"}"#) == "function:none")
     }
 
-    /// Every refusal names `tool_choice` and says what the client may send instead —
+    /// Every refusal names `tool_choice` and says what the client may send instead,
     /// Hummingbird's `Coding key \`name\` not found.` named neither.
     @Test(arguments: [
         "\"banana\"", "\"get_weather\"", "\"REQUIRED\"",
@@ -282,7 +282,7 @@ struct AnthropicParallelFlagTests {
 @Suite("Both faces route the tool-call claims through ToolCallWire")
 struct ToolCallWireSeamTests {
 
-    /// Finds the repo root by searching (never by fixed `deletingLastPathComponent()` hops —
+    /// Finds the repo root by searching (never by fixed `deletingLastPathComponent()` hops,
     /// three "passing" assertions here were really ENOENT).
     private func repoFile(_ relative: String) throws -> String {
         var dir = URL(fileURLWithPath: #filePath)

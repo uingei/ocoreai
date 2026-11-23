@@ -1,6 +1,6 @@
 // Copyright © 2026 uingeai.
 // Licensed under MIT.
-/// ModelManagerTests.swift — Behavioral tests against real ModelManager.
+/// ModelManagerTests.swift. Behavioral tests against real ModelManager.
 ///
 /// Extracted from RealStateTests which was merged into ChatStateSessionTests.
 /// Tests the search-state rules (an emptied query, a hub switch), isDownloading, modelIdStrings.

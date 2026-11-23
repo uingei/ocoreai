@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// StateHandler fix — `GrowingNDArrayState.ensureCapacity` (KV growth) and
+// StateHandler fix, `GrowingNDArrayState.ensureCapacity` (KV growth) and
 // `reset()` now move/zero state explicitly, aligned with upstream
 // coreai-models `StateHandler+NDArray.swift` (copyCache / zeroFillNDArray, #268).
 //
@@ -13,13 +13,13 @@
 // models (gpt-oss-style) could trap on the typed-view path.
 //
 // These tests pin the data-movement contract at the primitive level, on the
-// SAME shape convention `GrowingNDArrayState` uses — `[1,1,1,capacity]` with
+// SAME shape convention `GrowingNDArrayState` uses, `[1,1,1,capacity]` with
 // capacity as the last (growing) axis (`KVCacheFactory.detectSequenceDim` / the
 // many `resolvingDynamicDimensions([... , capacity])` call sites).
 //
 // Guarded `#if canImport(CoreAI)` (identical to NDArrayHelpersAlignmentTests);
 // each body carries `#available(macOS 27.0, *)` (the @Test macro does not
-// accept @available — same convention as NDArrayHelpersAlignmentTests).
+// accept @available. Same convention as NDArrayHelpersAlignmentTests).
 
 import Foundation
 import Testing
@@ -112,7 +112,7 @@ struct StateHandlerGrowthTests {
     }
 
     /// Guard: the helper must not copy past the source (no out-of-bounds read)
-    /// when the destination is larger — it copies exactly `oldCap` elements.
+    /// when the destination is larger. It copies exactly `oldCap` elements.
     @Test("copyStateCache (Float32) copies exactly the old rows, never beyond the source")
     func noOutOfBoundsCopy() {
         guard #available(macOS 27.0, *) else { return }

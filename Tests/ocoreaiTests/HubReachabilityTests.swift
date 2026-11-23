@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! HubReachabilityTests.swift — the table that decides "ask the other hub, or refuse", pinned
+//! HubReachabilityTests.swift. The table that decides "ask the other hub, or refuse", pinned
 //! by exact value, plus the scan proving the guard sits in front of the download.
 //!
 //! ### What this gates (measured 10-21, this host)
@@ -8,7 +8,7 @@
 //! repo that exists (`HTTP=000` at 8 s), while ModelScope answers a real 404 in 0.18 s. Before
 //! the guard, `MLXBridge.loadFromHubWithFallback` handed the request to the HF client anyway: a
 //! turn for an unresolvable id produced no answer after 300 s, and the id stayed in
-//! `EnginePool.loadingModels` while it waited. Silence is the defect, so the gate is twofold —
+//! `EnginePool.loadingModels` while it waited. Silence is the defect, so the gate is twofold,
 //! the decision table pinned by value, and a scan pinning that the fallback download cannot be
 //! reached before the guard has run. A refusal that a later refactor forgets to call is the
 //! same bug with a green suite (invariant 1).
@@ -80,7 +80,7 @@ struct HubReachabilityVerdictTests {
     @Test("a hub that cannot be reached at all answers promptly, and never throws")
     static func unreachableAnswersPromptly() async {
         // Port 1 on loopback: nothing binds a privileged port without root, so connect fails
-        // immediately. This is the promise the header makes — a failure to ask is an answer,
+        // immediately. This is the promise the header makes. A failure to ask is an answer,
         // delivered fast, not an exception and not a wait.
         let started = ContinuousClock.now
         let verdict = await HubReachability.probe(
@@ -113,7 +113,7 @@ struct HubReachabilityURLTests {
                 == "https://modelscope.cn/api/v1/models/org/name")
     }
 
-    /// The probe must ask the mirror the operator configured, not the canonical host — the same
+    /// The probe must ask the mirror the operator configured, not the canonical host. The same
     /// rule `HFMirrorPolicy` was written for, on the other hub. `ModelScopeSearchClient` and
     /// `ModelScopeDownloader` already read `MODELSCOPE_ENDPOINT`; a probe that ignored it would
     /// ask one host and download from another.
@@ -131,7 +131,7 @@ struct HubReachabilityURLTests {
                     hub: .modelScope, repoId: "Qwen/Qwen3-4B",
                     modelScopeEndpoint: "https://mirror.example.cn/"))
                 == "https://mirror.example.cn/api/v1/models/Qwen/Qwen3-4B")
-        // Empty counts as unset, not "point here" — same rule as HF.
+        // Empty counts as unset, not "point here". Same rule as HF.
         #expect(
             text(
                 HubReachability.apiURL(
@@ -216,7 +216,7 @@ struct HubGuardPlacementTests {
         var description: String { "could not find \(what) walking up from \(#filePath)" }
     }
 
-    /// Comment-aware code lines — prose is allowed to name the shape in order to forbid it.
+    /// Comment-aware code lines. Prose is allowed to name the shape in order to forbid it.
     private static func codeLines(_ text: String) -> [String] {
         text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init).filter {
             line in
@@ -329,7 +329,7 @@ struct HubGuardPlacementTests {
 
     /// The whole classification, per file, in line numbers. Note the shape of the real home: the
     /// provider is *selected* before the guard (line N) and the *download* follows the guard
-    /// (line N+k) — selecting a fallback is not the risk, spending a request on it is.
+    /// (line N+k). Selecting a fallback is not the risk, spending a request on it is.
     private static func route(
         probeLines: [Int], choiceLines: [Int], downloadLines: [Int], gated: Set<Int> = []
     ) -> Route {
@@ -431,7 +431,7 @@ struct HubGuardPlacementTests {
 
     /// `ModelScopeEndpointSourceTests` forbids bare ModelScope URL literals outside
     /// `ModelStore.swift`; this pins that the guard joined that single source instead of quietly
-    /// re-spelling a host (the `www` alias resolves too — which is precisely why a second
+    /// re-spelling a host (the `www` alias resolves too, which is precisely why a second
     /// spelling survives review until a probe asks a host the downloader never uses).
     @Test("the guard names no hub host of its own — it joins the existing single sources")
     static func guardNamesNoHostLiteral() throws {
@@ -478,7 +478,7 @@ struct HubGuardPlacementTests {
     /// FoundationModels-only route. That route is measured, not assumed: CLT SDK 26.5 declares
     /// FoundationModels `-user-module-version 1.5.2`, so `canImport(FoundationModels, _version: 2)`
     /// compiles the block out (`swiftc` on this host prints FM_V2_FALSE), while SDK 27 declares
-    /// 2.0.68.1.402 and compiles it in — the duplicate there is a macOS-27-only route this box
+    /// 2.0.68.1.402 and compiles it in. The duplicate there is a macOS-27-only route this box
     /// cannot run, and it is registered in AGENTS.md § Open. The last expectation pins that
     /// register: fix the route without updating the register and this goes red too.
     @Test("no hub fallback on a route this host compiles is ungarded")

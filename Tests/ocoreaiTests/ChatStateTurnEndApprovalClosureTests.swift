@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ChatStateTurnEndApprovalClosureTests.swift — turn 终结 ⇒ 审批回路闭合。
+/// ChatStateTurnEndApprovalClosureTests.swift. Turn 终结 ⇒ 审批回路闭合。
 ///
 /// 上游对齐 codex `ReviewDecision::Abort → Err(ToolError::Codex(CodexErr::TurnAborted))`
 /// （`codex-rs/core/src/tools/approvals.rs:488`）:停止 = turn 终结 ⇒ 挂起审批一律清场。
@@ -10,7 +10,7 @@
 /// 本 patch 在 cancelInference() funnel 内接 `clearApprovalSession()`（每行
 /// `.denied("session-ended")`）+ 可注入 seam `turnEndApprovalClosureHook`。
 ///
-/// 策略:与 ChatStateTurnEndTTSStopTests 同形 —— @testable + ChatState.shared 真对象,
+/// 策略:与 ChatStateTurnEndTTSStopTests 同形。@testable + ChatState.shared 真对象,
 /// 注入 spy 闭包断言副作用发生,零 broker / avfoundation 依赖,精确值断言。
 import Foundation
 import Testing
@@ -66,7 +66,7 @@ struct ChatStateTurnEndApprovalClosureTests {
         state._cancelledByUI = false
         state.responseText = ""
 
-        // resendFromMessage 首行即 cancelInference()（ChatViewModel:374）——
+        // resendFromMessage 首行即 cancelInference()（ChatViewModel:374）。
         // 走同一 funnel,断言 seam 触发一次。
         state.cancelInference()
         #expect(fired == 1)

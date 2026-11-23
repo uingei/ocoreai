@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ModelStore (就绪模型目录) — unit tests
+/// ModelStore (就绪模型目录). Unit tests
 ///
 /// Coverage:
 /// - repo encoding/decoding (HubCache-compatible `models--<ns>--<name>`)
@@ -10,7 +10,7 @@
 /// - discoverReady: mixed HF + MS + local tree, dedup
 /// - removeReady: removal across new + legacy roots
 ///
-/// M7: omlx 对齐"就绪模型目录"层 — omlx 对应物 `~/.omlx/models`(settings.py:44/232)。
+/// M7: omlx 对齐"就绪模型目录"层。omlx 对应物 `~/.omlx/models`(settings.py:44/232)。
 
 import Foundation
 import Testing
@@ -46,7 +46,7 @@ struct ModelStoreTests {
 
     @Test("encode/decode roundtrip preserves repo id")
     func roundtrip() {
-        // Domain contract: hub repo ids are 2-segment (owner/repo) — same as
+        // Domain contract: hub repo ids are 2-segment (owner/repo). Same as
         // huggingface_hub's python `--` cache encoding. No deeper nesting exists,
         // so decode only needs to split on the first `--`.
         let samples = ["org/name", "org/x--weird", "ns/model.final"]
@@ -114,7 +114,7 @@ struct ModelStoreTests {
         defer { unsetenv("OCOREAI_MODELS_DIR") }
 
         #expect(
-            // /var ↔ /private/var macOS symlink — compare standardized paths
+            // /var ↔ /private/var macOS symlink. Compare standardized paths
             ModelStore.hubReadyDir("org/ready")?.standardizedFileURL.path
                 == newSnap.deletingLastPathComponent().standardizedFileURL.path,
             "expected snapshots/main to be the ready dir")
@@ -135,7 +135,7 @@ struct ModelStoreTests {
         // Missing repo → nil
         #expect(ModelStore.hubReadyDir("org/missing") == nil)
 
-        // cleanup (only legacy dir we created — never touch other users' caches)
+        // cleanup (only legacy dir we created. Never touch other users' caches)
         try? fm.removeItem(at: legacyA.deletingLastPathComponent())
         try? fm.removeItem(at: rootURL)
     }
@@ -327,7 +327,7 @@ struct ModelStoreTests {
             "flat ready = repo dir (path identity). hasValid=\(ModelStore.hasValidSafetensors(in: dir)) gotR=\(gotR?.path ?? "nil") dir=\(dir.path) list=\(fileList)"
         )
 
-        // 遗留三级(root/modelscope/leg/x/main)仍可读 — omlx 对齐后新布局优先、旧布局兜底
+        // 遗留三级(root/modelscope/leg/x/main)仍可读。omlx 对齐后新布局优先、旧布局兜底
         let legacyReady = try Self.file(
             at:
                 rootURL
@@ -341,7 +341,7 @@ struct ModelStoreTests {
 
     // MARK: - CoreAI 资产就绪判定
 
-    /// 资产运行时可用性门 — CoreAI 资产(.aimodel/.aimodelc)仅在 macOS 27+/iOS 27+ 可加载;
+    /// 资产运行时可用性门。CoreAI 资产(.aimodel/.aimodelc)仅在 macOS 27+/iOS 27+ 可加载;
     /// macOS 26 runner 上"资产目录不可见"才是正确行为, 资产就绪断言在这些面直接跳过。
     private static var coreAIAssetRuntimeAvailable: Bool {
         if #available(macOS 27.0, iOS 27.0, *) { return true }
@@ -355,7 +355,7 @@ struct ModelStoreTests {
         let rootURL = Self.tmpRoot.appendingPathComponent("root")
         let fm = FileManager.default
 
-        // 资产目录: 含 .aimodelc / .aimodel,无 safetensors — 消费层必须识别为 ready
+        // 资产目录: 含 .aimodelc / .aimodel,无 safetensors。消费层必须识别为 ready
         _ = try Self.file(at: rootURL.appendingPathComponent("local/qwen25-1.5b/main.aimodelc"))
         _ = try Self.file(
             at: rootURL.appendingPathComponent("Qwen/Qwen2.5-1.5B-Instruct/model.aimodel"))
@@ -416,14 +416,14 @@ struct ModelStoreTests {
             .appendingPathComponent("Qwen2.5-1.5B-CoreAI")
             .appendingPathComponent("qwen2_5_1_5b_instruct_4bit_weights_8bit_kv_cache_dynamic")
 
-        // metadata.json — assets.main declares the .aimodel (mirror of the real export)
+        // metadata.json. Assets.main declares the .aimodel (mirror of the real export)
         let meta =
             #"{"metadata_version":"0.2","kind":"llm","assets":{"main":"qwen2_5_1_5b_instruct_4bit_weights_8bit_kv_cache_dynamic.aimodel"}}"#
             .data(using: .utf8)!
         _ = try Self.file(at: bundle.appendingPathComponent("metadata.json"), contents: meta)
         // tokenizer/ sibling (embedded_tokenizer mirrors the file, harmless)
         _ = try Self.file(at: bundle.appendingPathComponent("tokenizer/tokenizer.json"))
-        // the .aimodel is a DIRECTORY (bundle) holding the weights — this is the real shape
+        // the .aimodel is a DIRECTORY (bundle) holding the weights. This is the real shape
         _ = try Self.file(
             at:
                 bundle
@@ -472,7 +472,7 @@ struct ModelStoreTests {
             at: dir.appendingPathComponent("config.json"),
             contents: Data("{\"text_config\": {\"max_position_embeddings\": 32768}}".utf8))
         #expect(ModelStore.contextLength(weightsDir: dir) == 32768)
-        // zero/negative is not a capability - refuse rather than report
+        // zero/negative is not a capability. Refuse rather than report
         _ = try Self.file(
             at: dir.appendingPathComponent("config.json"),
             contents: Data("{\"max_position_embeddings\": 0}".utf8))

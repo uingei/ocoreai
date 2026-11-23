@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// HTTP E2E Smoke Tests — Request → Router → Middleware → Handler guard → Response
+/// HTTP E2E Smoke Tests. Request → Router → Middleware → Handler guard → Response
 ///
 /// Verifies the full HTTP pipeline up to the validation layer.
 /// Does NOT test inference (requires loaded model + MLX GPU).
@@ -32,7 +32,7 @@ struct HTTPHandlerE2ESmokeTests {
     }
 
     private static func makeEnginePool() -> EnginePool {
-        // "no default" fixture — EnginePool seeds config-authored defaults
+        // "no default" fixture. EnginePool seeds config-authored defaults
         // (EnginePool.swift init); the production default in .default would
         // otherwise resolve no-model requests to 200 instead of exercising
         // the 400/503 pipeline paths this smoke suite asserts.
@@ -194,7 +194,7 @@ struct HTTPHandlerE2ESmokeTests {
                 headers: headers,
                 body: buf
             ) { response in
-                // 400 (validation) or 500 (no model loaded) — both prove the HTTP pipeline works
+                // 400 (validation) or 500 (no model loaded). Both prove the HTTP pipeline works
                 #expect(response.status == .badRequest || response.status == .internalServerError)
             }
         }
@@ -237,7 +237,7 @@ struct HTTPHandlerE2ESmokeTests {
                 headers: headers,
                 body: buf
             ) { response in
-                // 400 (validation) or 500 (no model loaded) — both prove the HTTP pipeline works
+                // 400 (validation) or 500 (no model loaded). Both prove the HTTP pipeline works
                 #expect(response.status == .badRequest || response.status == .internalServerError)
             }
         }
@@ -282,7 +282,7 @@ struct HTTPHandlerE2ESmokeTests {
                 headers: headers,
                 body: buf  // DEBUG: print status
             ) { response in
-                // 400 (validation) or 503 (no model loaded → engineUnavailable) or 500 — all prove the pipeline works
+                // 400 (validation) or 503 (no model loaded → engineUnavailable) or 500. All prove the pipeline works
                 #expect(
                     response.status == .badRequest || response.status == .serviceUnavailable
                         || response.status == .internalServerError)

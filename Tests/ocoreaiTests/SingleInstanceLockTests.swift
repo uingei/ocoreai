@@ -6,7 +6,7 @@ import Darwin
 /// The flock is the authority: a live holder blocks every later acquisition,
 /// release re-opens the gate, and the env escape hatch never blocks tests.
 /// Cross-process semantics (crash release) are kernel-guaranteed by
-/// flock(2)'s fd lifetime — the in-process tests below cover the API
+/// flock(2)'s fd lifetime. The in-process tests below cover the API
 /// contract; the child-process test covers real second-instance refusal.
 import Foundation
 import Testing
@@ -77,7 +77,7 @@ struct SingleInstanceLockTests {
         // waits; the parent must see .busy while it lives, and win after it
         // dies (kernel auto-releases the flock with the child's fd table).
         let path = tempLockPath()
-        // macOS ships no flock(1) util — use python's fcntl (POSIX flock).
+        // macOS ships no flock(1) util. Use python's fcntl (POSIX flock).
         let child = Process()
         child.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         child.arguments = [
@@ -89,7 +89,7 @@ struct SingleInstanceLockTests {
         try child.run()
         // Non-blocking-ish: child prints LOCKED immediately (flush=True);
         // readDataToEndOfFile would block until the child's 30s sleep ends
-        // and the kernel had already released the flock — defeating the test.
+        // and the kernel had already released the flock. Defeating the test.
         Thread.sleep(forTimeInterval: 1.5)
         let outData = pipe.fileHandleForReading.availableData
         let out = String(data: outData, encoding: .utf8) ?? ""
@@ -108,7 +108,7 @@ struct SingleInstanceLockTests {
         } else {
             Issue.record("expected .busy while child holds lock, got \(blocked)")
         }
-        // Kill the holder — kernel releases; our reacquire must now win.
+        // Kill the holder. Kernel releases; our reacquire must now win.
         kill(child.processIdentifier, SIGKILL)
         child.waitUntilExit()
         Thread.sleep(forTimeInterval: 0.3)

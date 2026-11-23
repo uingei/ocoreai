@@ -1,32 +1,32 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// GrammarStopTokenPlumbingTests.swift — the caller's stop token ids must reach xgrammar.
+/// GrammarStopTokenPlumbingTests.swift. The caller's stop token ids must reach xgrammar.
 ///
 /// `ConstrainedDecodingStrategy.createSession` derives single-token stop ids from the request's
 /// `stop` field (`:97`) and logs them as applied. Until `3b9c61f` the value went nowhere: the
 /// session built its `TokenizerInfo` without them and the vendored bridge handed xgrammar
 /// `std::nullopt`, so xgrammar substituted the eight literals it detects by text
 /// (`tokenizer_info.cc:281`: `</s>`, `<|end_of_text|>`, `<|eot_id|>` and five peers). A stop token
-/// matching none of them was classified `special` instead, and the two lists are disjoint — that
+/// matching none of them was classified `special` instead, and the two lists are disjoint, that
 /// line routes each vocabulary entry down exactly one branch. This is coreai-models #374 (6a6bb0e),
 /// which fixed the identical discard upstream; our `Sources/lib/CXGrammar` is their file, so the
 /// bridge patch is consumed, not re-authored.
 ///
-/// ### What xgrammar does with a named id — the model this suite asserts
+/// ### What xgrammar does with a named id. The model this suite asserts
 /// The same branch that classifies it also **withholds it from `sorted_decoded_vocab_`**, the
 /// vocabulary the matcher matches against (`tokenizer_info.cc:281-287`: one if / else-if / else
 /// chain, and the third arm is the one that pushes into the sorted vocab). So naming an id does not
 /// reserve it for the end of the document; it takes it out of the grammar's alphabet, and
 /// `grammar_matcher.cc:1065`/`:1085` only add it back at a terminal state and subtract it at a
 /// non-terminal one. Both consequences are measured, on this host, through this tree's own bridge
-/// against the pinned xgrammar 0.2.2 (`4d145cc`) — recipe in CHANGELOG 11-02(104):
+/// against the pinned xgrammar 0.2.2 (`4d145cc`). Recipe in CHANGELOG 11-02(104):
 /// naming `"` where the grammar admits it drops the mask from 3 allowed tokens to 2 (the witness
 /// that the ids arrive at all), and naming `{` at the start leaves **zero** allowed.
 ///
 /// ### Why the first version of this suite was red on the macOS 27 runner
 /// It asked `nextTokenBitmask()` for `false` where the honest answer is `nil`: an all-zero mask is
 /// read as "the grammar is done" (`ConstrainedGenerationSession.swift:175`), so a starved grammar
-/// reports the document complete. That is a hazard, not a contract — a caller whose one-token
+/// reports the document complete. That is a hazard, not a contract. A caller whose one-token
 /// `stop` string is a character the schema needs (`"`, `{`, a digit) should not get truncated JSON
 /// presented as finished. It is asserted here in the shape the engine actually produces, so that
 /// the guard `open-items.md` puts to its owner turns *this* test red instead of this test quietly
@@ -66,7 +66,7 @@ struct GrammarStopTokenPlumbingTests {
 
     /// The mask after feeding a prefix, plus what the session then believes about itself. `mask == nil`
     /// is the session's own verdict "nothing left to generate", reached either by explicit termination
-    /// or by the all-zero mask (`ConstrainedGenerationSession.swift:175`) — the two are reported
+    /// or by the all-zero mask (`ConstrainedGenerationSession.swift:175`). The two are reported
     /// together on purpose, because which one happened *is* the finding.
     @available(macOS 27.0, *)
     private static func maskAfterFeeding(
@@ -106,7 +106,7 @@ struct GrammarStopTokenPlumbingTests {
         // `"` is what the grammar wants after `{`, and naming it takes it away: 3 tokens allowed
         // become 2 (the two whitespace spellings), measured through the bridge on this host. Both
         // counts are asserted, so a discard at the bridge or at TokenizerInfo shows up as 3/3 and a
-        // starved grammar shows up as nil — neither can pass as "the ids got through".
+        // starved grammar shows up as nil. Neither can pass as "the ids got through".
         let unnamed = try Self.maskAfterFeeding(stopTokenIds: nil, fed: [Self.lbrace])
         #expect(Self.allowed(Self.quote, in: unnamed.mask) == true)
         #expect(Self.allowedCount(unnamed.mask) == 3)
@@ -124,7 +124,7 @@ struct GrammarStopTokenPlumbingTests {
         .enabled(if: PlatformPremise.hasMacOS27))
     @available(macOS 27.0, *)
     func namingANeededTokenStarvesTheGrammar() throws {
-        // The hazard face, asserted as measured — not as desirable. `{` is the only token that can
+        // The hazard face, asserted as measured, not as desirable. `{` is the only token that can
         // open this document, and once it is out of the alphabet nothing is admissible at position 0:
         // the mask comes back all zeros, which the session reads as a complete document. So a wire
         // request whose one-token `stop` is `{` (or `"` further in) ends the constrained turn with a

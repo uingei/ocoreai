@@ -1,7 +1,7 @@
 import Foundation
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PlanPersistenceTests — Recover slice 1，精确值断言:
+/// PlanPersistenceTests. Recover slice 1，精确值断言:
 ///   内存面(planUpdated→current) + 工具面(recovery seam) + JSON 精确 round-trip
 ///   + SQLite persist→重开实例 rehydrate(重启模拟)。
 /// 纪律: #expect == 精确值; 隔离 PlanTaskStore() 实例; 每测试私有 DB 文件(不碰 shared)。

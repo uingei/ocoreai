@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Download-plan tests — what a dry-run answers, and what it must refuse to answer.
+/// Download-plan tests. What a dry-run answers, and what it must refuse to answer.
 ///
 /// The dry-run publishes bytes-to-fetch before bytes flow, so its promise is the same one
 /// the pre-flight guard owns: a number only when something measured it. Everything here is a
-/// pure or filesystem-only surface — no network, no fixed sleep, and no assertion that
+/// pure or filesystem-only surface, no network, no fixed sleep, and no assertion that
 /// merely checks a call did not throw.
 
 import Foundation

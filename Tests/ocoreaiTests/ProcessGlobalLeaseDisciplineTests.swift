@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! ProcessGlobalLeaseDisciplineTests — no test may mutate a process-global without leasing it.
+//! ProcessGlobalLeaseDisciplineTests, no test may mutate a process-global without leasing it.
 //!
 //! `ProcessGlobalLease` exists because the active `SessionWorkspace` directory,
 //! `OCOREAI_WORKSPACE`, `OCOREAI_MODELS_DIR`, `OCOREAI_MARGIN_PROBE` and `HF_ENDPOINT` have no
 //! per-test scope, and `.serialized` orders a suite's *own* tests, never suites against each
 //! other. The mechanism was written; adoption is what makes it true, and adoption decays the
-//! moment a new suite forgets it — which is exactly what happened on 10-26:
+//! moment a new suite forgets it, which is exactly what happened on 10-26:
 //! `ExecCwdContractTests` set `SessionWorkspace` with no lease while `LoopGuardRemedyTests`
 //! held the lease, and that suite read `sum100.py` from the repo root instead of its own temp
 //! dir. So adoption is scanned here, the scan floors its own premises, and the repo root is
@@ -67,7 +67,7 @@ struct ProcessGlobalLeaseDisciplineTests {
         return
             kept
             .joined(separator: "\n")
-            // `unsetenv(key)` contains `setenv(` — restoring a value is not a mutation.
+            // `unsetenv(key)` contains `setenv(`. Restoring a value is not a mutation.
             .replacingOccurrences(of: "unsetenv(", with: "unSETENV(")
     }
 
@@ -107,7 +107,7 @@ struct ProcessGlobalLeaseDisciplineTests {
             "exactly the lease implementation may mutate without leasing (measured \(exemptions.count))"
         )
         // Floor the mutator count: if these patterns stop matching anything, "no offenders"
-        // would be vacuously true — the failure mode this repo keeps tripping over.
+        // would be vacuously true. The failure mode this repo keeps tripping over.
         #expect(
             mutators.count >= 15,
             "the mutator patterns still see the suites that mutate (floor 15, measured \(mutators.count))"

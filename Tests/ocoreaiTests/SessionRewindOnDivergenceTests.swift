@@ -1,4 +1,4 @@
-// Gates `MLXSessionPool.rewindHistoryEnd` — the rule that decides whether a diverged
+// Gates `MLXSessionPool.rewindHistoryEnd`. The rule that decides whether a diverged
 // conversation's resident KV cache may be rewound onto the conversation that arrived
 // (via upstream `ChatSession.fork(history:)`, ChatSession.swift:1652) instead of being
 // discarded and re-prefilled.
@@ -6,7 +6,7 @@
 // Why this needs a gate of its own: `canReusePooledSession` answers "may this turn be
 // answered from the cache as it stands?" and must keep answering no for a diverged
 // conversation (SessionIsolationTests.forkRefused pins that). This rule answers a
-// different question — "may the cache be rewound first?" — and the two must never
+// different question. "may the cache be rewound first?", and the two must never
 // contradict: an offer made where the session is also reusable-as-is would credit a cache
 // with turns it never held. Live proof that the rewind actually happens and actually
 // reuses lives in probe 27; this file pins the decision table so a loosened guard fails
@@ -83,7 +83,7 @@ struct SessionRewindOnDivergenceTests {
 
     @Test("an edited resend is offered at the common prefix")
     func editedResendOfferedAtCommonPrefix() {
-        // cached [u1, a1, u2, a2] vs incoming [u1, a1, u2', q] — the probe-27 shape.
+        // cached [u1, a1, u2, a2] vs incoming [u1, a1, u2', q]. The probe-27 shape.
         #expect(end(cached: 4, common: 2, incoming: 4) == 2)
         // The turn that only adds a message needs no rewind: it is a plain hit.
         #expect(end(cached: 4, common: 4, incoming: 5) == nil)
@@ -116,7 +116,7 @@ struct SessionRewindOnDivergenceTests {
     /// this turn generates through GuidedGenerationLoop, which builds its own KV cache and
     /// releases the pooled slot before generating. Offering here would skip the
     /// `reuseRefusals` booking for a refusal the turn did pay, and log a reuse the turn
-    /// never spent — measured 10-22: "Session REWOUND … instead of re-prefilling 2", then
+    /// never spent. Measured 10-22: "Session REWOUND … instead of re-prefilling 2", then
     /// `prompt_tokens=753 cached_tokens=0`.
     @Test("a lane that cannot spend the cache gets no offer")
     func bypassingLaneGetsNoOffer() {
@@ -251,7 +251,7 @@ struct SessionRewindOnDivergenceTests {
             "runsOnPooledSession must fold in the std-reasoning route, exempting only media-free turns; without the fold the plain turn on a reasoning checkpoint withholds a prefix nobody continues, without the exemption a media turn is booked to a lane that drops its frames"
         )
         // The mirror half: the routing `if` itself. The 11-07 defect was these two sites
-        // disagreeing — the lane predicate exempted media, the reasoning `if` did not — so
+        // disagreeing. The lane predicate exempted media, the reasoning `if` did not, so
         // both wordings are pinned and drift between them is red on the spot.
         #expect(
             inferenceSource.contains(
@@ -272,7 +272,7 @@ struct SessionRewindOnDivergenceTests {
 
         // The reserve is what makes the fork pay, and it is pinned because its absence is
         // invisible to a correctness probe: with the fork applied but no reserve, upstream
-        // silently downgrades the rewind to a rebuild — measured 10-21 on
+        // silently downgrades the rewind to a rebuild. Measured 10-21 on
         // gemma-4-e2b-it-4bit, the edited turn answered correctly and reused 0 tokens;
         // with the reserve the same turn reused 718 of 758. A knob that quietly stops
         // being requested costs latency and nothing goes red, so the request itself gets a

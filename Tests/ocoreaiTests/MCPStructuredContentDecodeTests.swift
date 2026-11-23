@@ -1,5 +1,5 @@
 // Copyright © 2026 uingei@163.com.
-/// MCP tool-result `structuredContent` 解码 — codex 轴对齐缺口补齐.
+/// MCP tool-result `structuredContent` 解码。codex 轴对齐缺口补齐.
 ///
 /// Baseline: codex `protocol/src/models.rs:2227-2266` 真值链:
 ///   1. `content` 中任一 `EncryptedContent`  → 独占(结构化不生效)
@@ -8,7 +8,7 @@
 ///
 /// ocoreai 缺口: 两处解码点(`MCPStdioClient.parseToolCallResponse` 外部 +
 /// `MCPBridge` local dispatch 内部)**均只取 `result.content` 数组,`structuredContent`
-/// 静默丢弃** — 上游(本地 + 外部)结构化结果面消费为零,违反 codex 轴对齐.
+/// 静默丢弃**。上游(本地 + 外部)结构化结果面消费为零,违反 codex 轴对齐.
 ///
 /// 修复面:
 ///   - `MCPBridge.parseToolCallJSON`    (纯函数, 可单测)
@@ -83,7 +83,7 @@ struct MCPStructuredContentDecodeTests {
 
     @Test("JSON 整数 1 必须解码为 number(1), 不能失真为 true(NSNumber 桥接陷阱)")
     static func integerOneDoesNotBecomeTrue() {
-        // NSNumber(1) as? Bool == true — 若 Bool 判别排在 Int 之前, 1 会编成 true(值失真)
+        // NSNumber(1) as? Bool == true。若 Bool 判别排在 Int 之前, 1 会编成 true(值失真)
         let json =
             #"{"result":{"structuredContent":{"flag":true,"id":1,"ratio":0.5,"list":[1,2,3]}}}"#
         let blocks = MCPBridge.parseToolCallJSON(json)
@@ -119,7 +119,7 @@ struct MCPStructuredContentDecodeTests {
     @Test("serializeStructuredContent → 合法 JSON(语义等价,键序确定)")
     static func serializeEmpty() {
         let s = MCPBridge.serializeStructuredContent(["a": 1] as [String: Any])
-        // beta 工具链 XPCDictionary 桥接下 Optional<Any> == 字面量不可靠 — 用解析后的具体字段精确断言
+        // beta 工具链 XPCDictionary 桥接下 Optional<Any> == 字面量不可靠。用解析后的具体字段精确断言
         guard
             let parsed = try? JSONSerialization.jsonObject(with: s.data(using: .utf8)!)
                 as? [String: Any]

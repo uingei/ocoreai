@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ToolCallParsingTests.swift — L2 behavioral invariants for parseToolCalls
+/// ToolCallParsingTests.swift. L2 behavioral invariants for parseToolCalls
 ///
 /// Methodology: upstream ToolTests (1163 lines) verify chunk accumulation.
 /// We verify the actual parseToolCalls function used by ChatHandler + AgentLoop.
@@ -16,7 +16,7 @@ import ocoreaiTestUtilities
 
 @testable import ocoreai
 
-/// parseToolCalls tests — detection, false positive prevention, safe rejection.
+/// parseToolCalls tests. Detection, false positive prevention, safe rejection.
 // MARK: - Helpers
 
 private func jsonToolCalls(_ entries: [[String: Any]]) -> String {
@@ -30,7 +30,7 @@ private func jsonToolCalls(_ entries: [[String: Any]]) -> String {
     return "[\(items.joined(separator: ","))]"
 }
 
-// MARK: - L2: Core detection — must detect tool calls to break agent loops
+// MARK: - L2: Core detection. Must detect tool calls to break agent loops
 
 @Suite("parseToolCalls: detection correctness")
 struct ToolCallDetectionTests {
@@ -134,7 +134,7 @@ struct ToolCallDetectionTests {
     }
 }
 
-// MARK: - L2: False negative prevention — missing fields must NOT be detected
+// MARK: - L2: False negative prevention. Missing fields must NOT be detected
 
 @Suite("parseToolCalls: safe rejection of invalid payloads")
 struct ToolCallSafeRejectionTests {

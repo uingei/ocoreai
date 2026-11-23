@@ -1,6 +1,6 @@
 // Copyright 2026 uingei@163.com.
 // Licensed under MIT.
-/// update_plan opt-in 注册门精确值测试 — 对齐 codex `#41744`（默认 false）。
+/// update_plan opt-in 注册门精确值测试。对齐 codex `#41744`（默认 false）。
 ///
 /// 两条镜像：不传 / 显式 false → 未注册；显式 true → 注册。
 import Testing

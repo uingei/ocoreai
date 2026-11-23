@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 // Align `ToolCallParser` (vended from coreai-models) with ocoreai's open tool-call
-// id convention: `call_<8 hex>` — matching upstream coreai-models #203 and
+// id convention: `call_<8 hex>`. Matching upstream coreai-models #203 and
 // ocoreai's own `ToolCallAccumulator` (Models/OpenAIModels.swift). The parser id
 // flows into the streamed `ToolCall` event AND the round-trip result message
 // (`EngineInference.swift` `Chat.Message.tool(result, id: toolCall.id)`), so both

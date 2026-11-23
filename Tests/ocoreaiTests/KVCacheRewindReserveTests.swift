@@ -2,7 +2,7 @@
 // Licensed under MIT.
 // The rewind reserve stopped being a bare constant: it is now a plan the endpoint states
 // and an override the operator owns. The resolver takes the environment as a dictionary,
-// so no test touches the process env — there is nothing to lease
+// so no test touches the process env. There is nothing to lease
 // (ProcessGlobalLeaseDisciplineTests). Every row asserts exact wire values; the refused
 // override rows assert the raw text is quoted, because a refused override that goes silent
 // is the same class of lie as a flat-zero metrics series.
@@ -42,7 +42,7 @@ struct KVCacheRewindReserveTests {
         let got = KVCacheRewindReservePolicy.resolve(environment: env)
         #expect(got.tokens == row.tokens)
         #expect(got.basis == row.basis)
-        // The default basis never echoes an env value; every other basis quotes it —
+        // The default basis never echoes an env value; every other basis quotes it,
         // including the refused override.
         #expect(got.rawEnvironment == row.raw)
     }

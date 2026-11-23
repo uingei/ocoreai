@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Download-integrity tests — the bytes that land must be the bytes the hub described.
+/// Download-integrity tests. The bytes that land must be the bytes the hub described.
 ///
 /// Pins the post-download verdict in `verifyDownloadedFiles`: what a mirror that serves the
 /// right number of wrong bytes costs, what a cache hit costs, and what still catches a
@@ -21,7 +21,7 @@ private func scratchPath(_ tag: String) -> URL {
         .appendingPathComponent("ocoreai-\(tag)-\(UUID().uuidString)")
 }
 
-/// SHA-256 as the hub writes it — the oracle, one shot over the whole buffer.
+/// SHA-256 as the hub writes it. The oracle, one shot over the whole buffer.
 private func oracleSHA256(_ bytes: Data) -> String {
     Data(SHA256.hash(data: bytes)).map { String(format: "%02x", $0) }.joined()
 }

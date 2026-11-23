@@ -4,14 +4,14 @@
 ///
 /// Located 10-18 by reading what our build actually consumes: at mlx-swift-lm
 /// `48114ee` (the pin) the processor applies each penalty whenever it is merely
-/// non-zero — Libraries/MLXLMCommon/Evaluate.swift:345 (repetition), :355 (presence),
-/// :365 (frequency) — and *subtracts* it from the selected logits
+/// non-zero. Libraries/MLXLMCommon/Evaluate.swift:345 (repetition), :355 (presence),
+/// :365 (frequency), and *subtracts* it from the selected logits
 /// (Libraries/MLXLMCommon/Evaluate.swift:614). So `presence_penalty: -1.5` is a
 /// meaningful, spec-legal OpenAI value in [-2, 2]: it rewards tokens that are already
 /// present instead of punishing them.
 ///
 /// Our mapping gated all three on `> 0` (MLXBridge, pre-10-18), which accepted such a
-/// request, ran a full generation, and answered as if the client had sent nothing —
+/// request, ran a full generation, and answered as if the client had sent nothing,
 /// the surface claiming a behaviour it did not deliver (AGENTS.md invariant 2). The
 /// handlers already cascaded with `!= 0` (ChatHandler:568 / CompletionsHandler:166), so
 /// the sign survived everywhere except the last hop, which is exactly where a sign

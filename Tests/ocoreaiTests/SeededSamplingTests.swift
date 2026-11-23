@@ -3,7 +3,7 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 //
-// coreai-models #265 (6441c8c) — "Add reproducible generation: seed and
+// coreai-models #265 (6441c8c). "Add reproducible generation: seed and
 // system_fingerprint". Ported test: swift/Tests/LanguageModelsTests/
 // SeededSamplingTests.swift (upstream test module CoreAILanguageModels).
 // Adaptations: `@testable import ocoreai`; `SamplingConfiguration.seed` is
@@ -20,7 +20,7 @@ import Testing
 
 /// Coverage for seeded, reproducible sampling: the `SeededRandomNumberGenerator` and the
 /// `SamplingConfiguration.seed` path through `fallbackSampler` / `sampleToken`. All model-free
-/// and hardware-free — pure CPU sampling over hand-built logits.
+/// and hardware-free. Pure CPU sampling over hand-built logits.
 @Suite("Seeded sampling (#265)", .serialized)
 struct SeededSamplingTests {
     // MARK: - SeededRandomNumberGenerator
@@ -77,7 +77,7 @@ struct SeededSamplingTests {
     @Test("The seed actually influences the sampled token")
     func seedInfluencesSelection() {
         // Over many seeds on a uniform 4-way distribution, seeing only one token would be
-        // 4 * (1/4)^N — vanishing for N=128. So >1 distinct token is effectively certain,
+        // 4 * (1/4)^N. Vanishing for N=128. So >1 distinct token is effectively certain,
         // and proves the seed feeds the sampler rather than being ignored.
         var tokens: Set<Int32> = []
         for seed in 0 ..< Int64(128) {
@@ -145,7 +145,7 @@ struct SeededSamplingTests {
         #expect(token >= 0 && token < 8)
     }
 
-    // MARK: - fallbackSampler(from:tokenHistory:step:) — the static-shape engine path
+    // MARK: - fallbackSampler(from:tokenHistory:step:). The static-shape engine path
 
     /// The static-shape/ANE engine samples through `fallbackSampler(from:tokenHistory:step:)`.
     /// Before the fix it always passed `step: 0`, so `seed &+ step` never advanced and every
@@ -163,7 +163,7 @@ struct SeededSamplingTests {
         #expect(tokens.count > 1)
     }
 
-    /// A frozen step (the pre-fix behavior) collapses to one token — the bug this fix removes.
+    /// A frozen step (the pre-fix behavior) collapses to one token. The bug this fix removes.
     @Test("A frozen step collapses to a single quantile")
     func frozenStepCollapses() {
         let config = SamplingConfiguration(seed: 88, temperature: 1.0)

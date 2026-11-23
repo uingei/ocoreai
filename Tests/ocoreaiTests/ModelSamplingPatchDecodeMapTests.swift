@@ -2,7 +2,7 @@
 // Licensed under MIT.
 //
 // Regression suite for the "storage + toConfig present but CodingKeys case
-// missing" decode-map bug class in ModelSamplingPatch — the same silent-nil
+// missing" decode-map bug class in ModelSamplingPatch. The same silent-nil
 // class that #176's repetition_penalty(_window) hit (fixed ccee9da), which a
 // self-negation scan then found was also affecting 5 pre-existing PATCH keys
 // (fixed 2f0070e).

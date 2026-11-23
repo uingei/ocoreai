@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SettingsStoreTests — UserDefaults persistence, clamping, token priority.
+/// SettingsStoreTests. UserDefaults persistence, clamping, token priority.
 ///
 /// Creates a fresh UserDefaults suite per test to avoid cross-test pollution.
 
@@ -118,7 +118,7 @@ struct SettingsStoreTests {
     @Test("hfTokenMasked masks token correctly")
     func hfTokenMasked() {
         let s = store()
-        // Write directly via the accessor — no env var so it falls through to defaults
+        // Write directly via the accessor, no env var so it falls through to defaults
         s.hfToken = "huggingface_abc123xyz"
 
         // Token should be masked

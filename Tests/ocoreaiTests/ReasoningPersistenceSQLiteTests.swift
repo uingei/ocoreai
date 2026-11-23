@@ -3,7 +3,7 @@ import Testing
 
 @testable import ocoreai
 
-// Reasoning persistence (codex #46711 parity) — persist → re-open → precise-value round-trip.
+// Reasoning persistence (codex #46711 parity). Persist → re-open → precise-value round-trip.
 //
 // Verifies the full chain:
 //   1. `addMessage` (new path) → `getMessages` (read path) → `fromMessageModel`
@@ -49,7 +49,7 @@ final class ReasoningPersistenceSQLiteTests {
         )
         await store1.close()
 
-        // Re-open in a fresh instance — same way a restarted app reads the session.
+        // Re-open in a fresh instance. Same way a restarted app reads the session.
         let store2 = SQLiteStore(path: path)
         try await store2.open()
         let c2 = SessionCompressor(store: store2, fts: FTS5Search(store: store2))

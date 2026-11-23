@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ComplexityAnalyzer tests — keyword classification, scoring, band mapping,
+/// ComplexityAnalyzer tests. Keyword classification, scoring, band mapping,
 /// session tracking, and composite score verification.
 ///
 /// Coverage: classifyTaskType keyword matching, scoreLength/scoreHistory
@@ -181,7 +181,7 @@ struct ComplexityAnalyzerScoringTests {
         let short = "calculate 1 + 1"
         let scoreLong = await analyzer.analyze(input: long, messageCount: 1, sessionId: "s7a")
         let scoreShort = await analyzer.analyze(input: short, messageCount: 1, sessionId: "s7b")
-        // Same intent (.math=0.80), same history — long should have higher composite
+        // Same intent (.math=0.80), same history. Long should have higher composite
         #expect(scoreLong.composite > scoreShort.composite)
     }
 }
@@ -276,7 +276,7 @@ struct ComplexityAnalyzerTrackingTests {
     @Test("Global baseline shifts toward recent low-complexity scores")
     func testGlobalBaselineShiftsDown() async {
         let analyzer = ComplexityAnalyzer()
-        // Feed many simple inputs — global baseline should drift below 0.5
+        // Feed many simple inputs. Global baseline should drift below 0.5
         for _ in 0 ..< 20 {
             _ = await analyzer.analyze(input: "hi", messageCount: 0, sessionId: "ga")
         }
@@ -287,7 +287,7 @@ struct ComplexityAnalyzerTrackingTests {
     @Test("Global baseline shifts toward recent high-complexity scores")
     func testGlobalBaselineShiftsUp() async {
         let analyzer = ComplexityAnalyzer()
-        // Feed many complex inputs — global baseline should rise above 0.5
+        // Feed many complex inputs. Global baseline should rise above 0.5
         for _ in 0 ..< 20 {
             _ = await analyzer.analyze(
                 input: "def foo(): calculate integral", messageCount: 50, sessionId: "ga")

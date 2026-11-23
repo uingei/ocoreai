@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! CoreAIStateClassificationTests.swift — pin the three shapes that keep ocoreai out of the
+//! CoreAIStateClassificationTests.swift. Pin the three shapes that keep ocoreai out of the
 //! failure modes coreai-models fixed in `82c3488` (#354, 10-19).
 //!
 //! Upstream fixed three things at once: a static-shape KV cache was classified sliding because
@@ -10,7 +10,7 @@
 //! with more than two states died on the first constrained encode; and a sliding ring wrote
 //! before it attended, destroying Q−1 positions of a prefill chunk's own history.
 //!
-//! ocoreai's derivation does not carry those shapes — but nothing said so. Every file involved
+//! ocoreai's derivation does not carry those shapes, but nothing said so. Every file involved
 //! is `#if canImport(CoreAI)` + `@available(macOS 27, *)`, so none of it compiles on the CLT
 //! SDK and none of it can be exercised here: a static gate is the only instrument available on
 //! this host, and it is textual on purpose, so it runs whether or not the SDK has CoreAI. Each
@@ -120,7 +120,7 @@ struct CoreAIStateClassificationTests {
     static func compactPositionIdsStayDisabled() throws {
         let files = try engineSwiftFiles()
         // A decision is a call site that binds the flag. Parameter declarations (`: Bool`) are
-        // not decisions; anything else that is not literally `false` — including a variable —
+        // not decisions; anything else that is not literally `false`. Including a variable,
         // is, because that is how a ring path would sneak compact ids in without a review.
         let callPattern = try NSRegularExpression(pattern: #"useCompactPositionIds:\s*([\w.]+)"#)
         var decisions = 0

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ProjectStore — Bionic-parity project container tests: schema migrates on
+/// ProjectStore. Bionic-parity project container tests: schema migrates on
 /// an existing DB, CRUD round-trips, folder inheritance lands on sessions,
 /// delete never destroys sessions, listing is bounded and never fabricated.
 

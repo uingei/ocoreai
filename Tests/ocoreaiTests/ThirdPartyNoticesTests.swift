@@ -6,7 +6,7 @@ import CryptoKit
 /// ocoreai ships source derived from apple/coreai-models (BSD-3-Clause) plus 30+
 /// SPM dependencies. BSD-3 clause 2 / Apache-2.0 section 4 oblige the license
 /// texts to travel with the binary, and before this gate existed the texts lived
-/// only in the git repo while the product went out as .app/.dmg — a silent
+/// only in the git repo while the product went out as .app/.dmg. A silent
 /// violation nobody could see. These tests pin the contract that
 /// scripts/collect-third-party-licenses.sh and scripts/bundle-licenses.sh keep,
 /// so adding a dependency without collecting its text fails CI instead of
@@ -183,7 +183,7 @@ struct ThirdPartyNoticesTests {
 
     /// BSD-3 clause 1: redistributed Apple code must carry the copyright notice
     /// *and* the conditions pointer. A file that copies Apple source without the
-    /// license line is the failure mode this pins — a scan of the tree, not a
+    /// license line is the failure mode this pins. A scan of the tree, not a
     /// count, so it cannot be satisfied by editing a number.
     @Test("every Apple-copyrighted source file declares the BSD-3 notice")
     func appleCopyrightedFilesCarryBsdNotice() throws {
@@ -213,7 +213,7 @@ struct ThirdPartyNoticesTests {
     }
 
     /// A header vendored under `Sources/lib/` is neither ocoreai's MIT code nor
-    /// Apple's BSD-3 code — it carries somebody else's copyright into the product,
+    /// Apple's BSD-3 code. It carries somebody else's copyright into the product,
     /// so it needs its own attribution and text. dlpack.h is the one case today;
     /// the exact count is the point: a second one must land here deliberately.
     @Test("vendored third-party headers are attributed, with their text bundled")
@@ -250,7 +250,7 @@ struct ThirdPartyNoticesTests {
         #expect(
             apacheText.contains("TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION"))
         // Body only: the appendix is guidance, and its template line names whoever
-        // wrote the file the text was taken from — that must not travel under a
+        // wrote the file the text was taken from, that must not travel under a
         // dlpack filename. ("Appendix below" is legitimate section-4 prose, so the
         // heading/template is what gets asserted, not the word itself.)
         #expect(apacheText.contains("END OF TERMS AND CONDITIONS"))
@@ -259,7 +259,7 @@ struct ThirdPartyNoticesTests {
     }
 
     /// Two shipped lines read `Copyright ? 2026 …` (mojibake of the sign) and
-    /// `uigei@163.com` (a missing letter) — notices that name the right holder
+    /// `uigei@163.com` (a missing letter). Notices that name the right holder
     /// incorrectly. Both classes fail here.
     @Test("no malformed rightsholder marker in any source header")
     func rightsholderMarkersAreIntact() throws {
@@ -308,12 +308,12 @@ struct ThirdPartyNoticesTests {
     /// A vendored header is third-party source sitting in *our* tree: no package
     /// graph resolves it, no build log mentions it, and nothing re-checks it after
     /// the day it was copied. The manifest is the only record that it is not ours,
-    /// so the digest is asserted against the file itself — a silent local edit
+    /// so the digest is asserted against the file itself. A silent local edit
     /// changes the bytes the product ships and must fail here.
     @Test("every vendored file exists, hashes to its record, and ships its license text")
     func vendoredFilesMatchTheirRecords() throws {
         // Floor: the collector measured one vendored header. Without it an empty
-        // list — the collector finding nothing — would read as full compliance.
+        // list. The collector finding nothing. Would read as full compliance.
         #expect(manifest.vendored.count >= 1, "no vendored entries recorded")
         for entry in manifest.vendored {
             #expect(!entry.upstream.isEmpty, "vendored entry without upstream: \(entry.file)")

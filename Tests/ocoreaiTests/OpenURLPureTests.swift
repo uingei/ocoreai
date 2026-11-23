@@ -2,7 +2,7 @@
 // Licensed under MIT.
 //
 // OpenURL Pure 段(双平台离线可测, 不触 NSWorkspace/UIApplication 运行时):
-// validate(空/无 scheme/合法) / urlCategory(scheme 路由) / report(成功) — 精确值断言, 禁 count>0 弱断言。
+// validate(空/无 scheme/合法) / urlCategory(scheme 路由) / report(成功)。精确值断言, 禁 count>0 弱断言。
 import Foundation
 import Testing
 

@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `check_tools` 工具 — 精确值测试(全离线: 条目注入, 不触 AuditTrail actor, 不触 SQLite, 不依赖 wall clock).
+/// `check_tools` 工具。精确值测试(全离线: 条目注入, 不触 AuditTrail actor, 不触 SQLite, 不依赖 wall clock).
 ///
 /// 覆盖:
-///   AuditVerify.filterAndSort  — 窗口边界(±2s 精确) / tool 过滤 / status 过滤 / 时间倒序 / id 倒序 tiebreak / limit 截断
-///   AuditVerify.clip           — ≤160 原样 / 161 截到 160(边界精确)
-///   AuditVerify.render         — 空窗口诚实缺席 / 窗口内四态计数精确 / limit 精确 / 明细行字段精确 / 过滤参数贯穿
-///   CheckToolsClient.reduce    — id 去重 in-memory 优先 / distinct 双留
+///   AuditVerify.filterAndSort。窗口边界(±2s 精确) / tool 过滤 / status 过滤 / 时间倒序 / id 倒序 tiebreak / limit 截断
+///   AuditVerify.clip. ≤160 原样 / 161 截到 160(边界精确)
+///   AuditVerify.render。空窗口诚实缺席 / 窗口内四态计数精确 / limit 精确 / 明细行字段精确 / 过滤参数贯穿
+///   CheckToolsClient.reduce. Id 去重 in-memory 优先 / distinct 双留
 import Foundation
 import Testing
 
@@ -216,7 +216,7 @@ struct CheckToolsEntryTests {
 // ── the gap this report used to hide ───────────────────────────────────────
 // Every audit row says the CALL ran. None of them says whether the artifact was ever
 // run, so a turn that wrote three files and executed nothing could read its own
-// `check_tools` output as four green lights (durability, not validity — AGENTS.md).
+// `check_tools` output as four green lights (durability, not validity. AGENTS.md).
 
 @Suite("check_tools writes awaiting a run")
 struct CheckToolsVerifyGapTests {

@@ -1,7 +1,7 @@
 // Copyright 2026 uingei@163.com.
 // Licensed under MIT.
 /// ProactiveAdvisor / ProactiveSuggestionStore 精确值测试。
-/// 自主回路 — 确定性决策 + 建议生命周期 + **观察可寻址**（切片 3：绝对路径）。
+/// 自主回路。确定性决策 + 建议生命周期 + **观察可寻址**（切片 3：绝对路径）。
 /// 契约：只提案、不执行（永不产生 tool call）；"查看"产可执行草稿（含完整路径）。
 
 import Foundation

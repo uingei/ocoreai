@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// MetalShaderLibraryTests — the shader-payload search, pinned against the layout
+/// MetalShaderLibraryTests. The shader-payload search, pinned against the layout
 /// that actually bit this host on 10-14.
 ///
 /// Pure logic: no GPU, no filesystem writes, no MLX call. These therefore run in the
-/// sandboxed route too — the case where the payload is missing is exactly when a
+/// sandboxed route too. The case where the payload is missing is exactly when a
 /// Metal-touching test would abort the process instead of reporting a failure.
 import Foundation
 import Testing
@@ -57,7 +57,7 @@ struct MetalShaderLibraryTests {
     }
 
     /// MLX's own search is binary-relative first (paths ①/②), and those paths sit inside
-    /// the `.xctest`. Reading them is fine; WRITING them is not — a `.metallib` under
+    /// the `.xctest`. Reading them is fine; WRITING them is not. A `.metallib` under
     /// `Contents/MacOS` is a nested code object, so the build's CodeSign task dies with
     /// "code object is not signed at all … mlx.metallib" (measured 10-14, when this
     /// target began staging into the bundle SwiftPM 6.4 actually produces). The invariant
@@ -125,7 +125,7 @@ struct MetalShaderLibraryTests {
             isUsable: { $0 == payload }
         )
         #expect(chosen == payload, "the walk must reach the products-dir payload")
-        // Real usability check, fake tree: nothing on disk here, so the answer is nil —
+        // Real usability check, fake tree: nothing on disk here, so the answer is nil,
         // the resolver must not hand back a path it never verified.
         #expect(
             MetalShaderLibrary.firstExisting(

@@ -1,13 +1,13 @@
 // Copyright 2026 uingei@163.com.
 // Licensed under MIT.
-/// `generate_video` tool — exact-value tests (fully offline, fake backend,
+/// `generate_video` tool. Exact-value tests (fully offline, fake backend,
 /// no CoreAI/WanPipeline/weight access).
 import Foundation
 import Testing
 
 @testable import ocoreai
 
-/// File-scope fake video backend — records what it received, returns fixed outcome.
+/// File-scope fake video backend. Records what it received, returns fixed outcome.
 struct FakeVideoBackend: VideoGenerationBackend {
     let outcome: VideoGenOutcome
     nonisolated func generate(built: GenerateVideo.Built, outputURL: URL) async -> VideoGenOutcome {

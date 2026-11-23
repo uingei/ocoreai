@@ -2,14 +2,14 @@ import Testing
 
 @testable import ocoreai
 
-/// Pins ``DegenerateTurn.isSuspected`` — the predicate that stops a one-token turn from
+/// Pins ``DegenerateTurn.isSuspected``. The predicate that stops a one-token turn from
 /// leaving the process as a silent success.
 ///
 /// The shapes come from live measurement, not invention: 16 sequential turns of one prompt
 /// at `max_tokens=200` on `gemma-4-e2b-it-4bit` split bimodally into `tokens=200 /
 /// reason=maxTokens` (whole turn 4.7–7.5 s) and `tokens=1 / reason=eos` (whole turn
 /// 0.12–0.22 s) (CHANGELOG 10-22(8)). The latency that separated them is whole-turn, not
-/// time-to-first-token — see `DegenerateTurn` — and the predicate never read a latency anyway:
+/// time-to-first-token. See `DegenerateTurn`, and the predicate never read a latency anyway:
 /// it keys on token count, reason and budget. If it ever widens or narrows, these cases go red
 /// rather than the behaviour drifting behind a doc that describes the old shape.
 struct DegenerateTurnTests {
@@ -133,7 +133,7 @@ struct DegenerateTurnTests {
 
     @Test func everyOtherShapeDoesNotSteer() {
         // A healthy turn, a plain-chat turn, an already-steered turn, and a turn with no slot left
-        // are all left to surface as-is — none of them recovers.
+        // are all left to surface as-is. None of them recovers.
         #expect(
             !DegenerateTurn.shouldSteer(
                 suspected: false, toolsDeclared: true, alreadySteered: false, attemptsRemain: true))

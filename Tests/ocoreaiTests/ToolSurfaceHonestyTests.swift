@@ -1,11 +1,11 @@
-// ToolSurfaceHonestyTests.swift — enforcement of the measured tool-surface negative is
+// ToolSurfaceHonestyTests.swift. Enforcement of the measured tool-surface negative is
 // opt-in (`settings.toolsSurface.enforce`, default OFF); publication already lives on
 // `/v1/models` (`toolCallDelivery`) and is not re-published here.
 //
 // Why this exists: the wire answers 200 to a declaring request even after this server has
 // *seen* that checkpoint keep every call in the prose (open-items § "one knob is gated,
-// the surface is not"). The measured negative has exactly one carrier — a completed
-// tool-declaring turn that left a call-shaped answer unparsed — because a template that
+// the surface is not"). The measured negative has exactly one carrier. A completed
+// tool-declaring turn that left a call-shaped answer unparsed, because a template that
 // ignores tools is not by itself a failure: the prose lane compensates and the delivery
 // ledger measures whether that whole chain actually delivered. So refusal needs BOTH a
 // declaration and `prose_only`; `parsed` and `not_observed` always pass through (the
@@ -13,7 +13,7 @@
 // failure may cost one).
 //
 // Gold standard mirrors `ReasoningEffortHonestyTests`: the rule as a pure truth table, the
-// refusal naming the knob, the ledger's own evidence line, and both exits — plus the
+// refusal naming the knob, the ledger's own evidence line, and both exits. Plus the
 // negatives: flag OFF must be byte-identical to today, and a caller that declared nothing
 // is never refused whatever the flag or the ledger says.
 
@@ -45,7 +45,7 @@ struct ToolSurfaceHonestyTests {
 
     @Test("the truth table: declared x delivery status, six exact booleans")
     func refusalTruthTable() {
-        // Nothing declared: nothing demanded, nothing to refuse — whatever was measured.
+        // Nothing declared: nothing demanded, nothing to refuse. Whatever was measured.
         #expect(
             ToolCallWire.refuseSurface(
                 declared: false, status: ToolCallDeliveryLedger.statusProseOnly) == false)

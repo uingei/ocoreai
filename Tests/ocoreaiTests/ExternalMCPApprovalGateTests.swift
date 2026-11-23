@@ -1,9 +1,9 @@
-// ExternalMCPApprovalGateTests.swift — codex #41094 parity: the external-MCP
+// ExternalMCPApprovalGateTests.swift. Codex #41094 parity: the external-MCP
 // tool path must pass the same security preflight (PreToolUse hooks +
 // approval broker) as local tools before any `forwardToolCall` runs.
 //
 // codex baseline (approvals.rs:505 precedence "1. Hooks 2. user";
-// mcp_tool_call.rs:1497): MCP calls are FIRST-CLASS approval objects — a call
+// mcp_tool_call.rs:1497): MCP calls are FIRST-CLASS approval objects. A call
 // no hook claims still routes through the policy/broker (OnRequest default →
 // user decides; policy Never → denied). A broker-less `.ask` NEVER silently
 // forwards; it hard-denies (regression protection).
@@ -41,7 +41,7 @@ struct ExternalMCPApprovalGateTests {
     }
 
     /// Poll pending row (Task concurrency has a startup window; must appear
-    /// within deadline) — same pattern as ApprovalTests.waitForRow.
+    /// within deadline). Same pattern as ApprovalTests.waitForRow.
     private func waitForRow(_ b: ApprovalBroker) async -> PendingApproval? {
         for _ in 0 ..< 400 {
             if let row = await b.snapshot().first {
@@ -89,7 +89,7 @@ struct ExternalMCPApprovalGateTests {
         }
     }
 
-    /// The ungated (no-hook) ask reason — must match the production constant
+    /// The ungated (no-hook) ask reason. Must match the production constant
     /// in `ToolRegistry.securityPrecheckExternal` EXACTLY (precise-value bar).
     private let ungatedReason =
         "External MCP tool — operator approval required (no hook claims this call)"

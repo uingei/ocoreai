@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AnthropicToolDeliveryTests.swift — `/v1/messages` must be able to deliver a tool call.
+/// AnthropicToolDeliveryTests.swift, `/v1/messages` must be able to deliver a tool call.
 ///
 /// Live 10-19, `gemma-4-e2b-it-4bit`, temperature 0, with `tools:[get_weather]` and
 /// "Use the get_weather tool to check the weather in Paris.":
 /// `stop_reason:"end_turn"`, `content:[{"type":"text","text":"Which city are you
 /// interested in? Please specify the city name."}]`. The model was never told the tool
 /// existed in a form the engine reads, and a call it did make had no block to arrive in.
-/// Four defects sat at one seam — declaration, event, response shape, schema — and none
+/// Four defects sat at one seam. Declaration, event, response shape, schema, and none
 /// of them had a gate: every tool test in the suite is written against the OpenAI face,
 /// so the whole suite stayed green while this face answered prose. These tests pin all
 /// four, and the source-scan guards assert their own premises so a scan that stopped
@@ -120,7 +120,7 @@ struct AnthropicToolDeclarationTests {
         #expect(city["type"] as? String == "string")
     }
 
-    /// A schema that names no keys stays an open object — `{"type":"object",
+    /// A schema that names no keys stays an open object, `{"type":"object",
     /// "properties":{}}` would pin zero keys (round 19's `jsonObjectSchema`).
     @Test("an object schema with no keys stays open")
     func schemaWithoutKeysStaysOpen() throws {
@@ -133,7 +133,7 @@ struct AnthropicToolDeclarationTests {
         #expect(flattened.keys.contains("required") == false)
     }
 
-    /// A caller that sent no schema at all gets no schema back — the server invents
+    /// A caller that sent no schema at all gets no schema back. The server invents
     /// requirements nobody asked for, but still declares the tool by name so the model
     /// can call it and the caller can run it.
     @Test("a null input_schema invents no schema, and the tool stays declared")
@@ -222,7 +222,7 @@ struct AnthropicToolResponseShapeTests {
         #expect((block["input"] as? [String: Any])?.isEmpty == true)
     }
 
-    /// Anthropic's carrier for arguments is `input_json_delta`/`partial_json` — OpenAI's
+    /// Anthropic's carrier for arguments is `input_json_delta`/`partial_json`. OpenAI's
     /// `function.arguments` for the same bytes.
     @Test("input_json_delta carries partial_json and no text key")
     func inputJsonDeltaShape() throws {
@@ -324,7 +324,7 @@ struct AnthropicToolPathSourceTests {
         #expect(try source(modelsSource).contains("toolChoice: req.toolChoice?.openAIVocabulary"))
     }
 
-    /// Both modes consume `.toolCall` — round 18's lesson was that SSE delivered while
+    /// Both modes consume `.toolCall`. Round 18's lesson was that SSE delivered while
     /// non-stream dropped. Exactly two sites, so a mode that drops it is a red test.
     @Test("both modes collect the engine's calls and record delivery")
     func bothModesCollectCalls() throws {
@@ -361,7 +361,7 @@ struct AnthropicStreamTextSettleTests {
         #expect(held.isEmpty, "a call payload must not leave as text deltas")
     }
 
-    /// Prose has to keep streaming — holding every turn until EOS would trade a tool-call
+    /// Prose has to keep streaming. Holding every turn until EOS would trade a tool-call
     /// fix for first-token latency on the whole wire.
     @Test("prose releases immediately and keeps streaming")
     func proseStreams() {
@@ -394,7 +394,7 @@ struct AnthropicStreamTextSettleTests {
     }
 
     /// The fix's whole point: when the settled answer turns out to be calls, the held
-    /// text is dropped — a client gets the structured block and never a JSON blob to
+    /// text is dropped. A client gets the structured block and never a JSON blob to
     /// render as an answer.
     @Test("a settled payload is delivered as blocks, never as text")
     func settledPayloadNeverLeaks() {
@@ -430,7 +430,7 @@ struct AnthropicStreamTextSettleTests {
         #expect(types(events).last == "content_block_stop", "the tool_use block is closed")
     }
 
-    /// A turn that produced nothing still gets one empty text block — strict SDKs index
+    /// A turn that produced nothing still gets one empty text block. Strict SDKs index
     /// `content[0]` after opening a stream (vllm serving.py:879-883).
     @Test("an empty turn still opens and closes one text block")
     func emptyTurnKeepsOneBlock() {

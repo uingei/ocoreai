@@ -1,4 +1,4 @@
-// oCoreAI — PIP5: pipelined-prefix last-token regression guard.
+// oCoreAI. PIP5: pipelined-prefix last-token regression guard.
 // Upstream provenance (BSD-3-clause, Apple), coreai-models #237 (62ff88b, fixes #234):
 //   "Fix pipelined prefix reuse skipping the last sampled token"
 //
@@ -7,7 +7,7 @@
 // history.count == processedTokenCount + 1. On the next call TokenHistory.resolve
 // matches that unprocessed trailing token (prefix = history.count), and a KV-based
 // prefill would then place the new tokens one position too far past the true
-// KV-valid boundary — corrupting attention for that turn onward.
+// KV-valid boundary. Corrupting attention for that turn onward.
 //
 // The clamp under test is the decision at CoreAIPipelinedEngine.generate (the
 // `commonPrefix > processedTokenCount` cap + history.truncate + the relocated
@@ -21,7 +21,7 @@ import Testing
 @testable import ocoreai
 
 // `TokenHistory` lives in CoreAIEngine.swift, which is `#if canImport(CoreAI)`
-// gated (the floor — macOS 14/15 / the macos-26 Xcode-26.6 SDK tier — has no
+// gated (the floor. MacOS 14/15 / the macos-26 Xcode-26.6 SDK tier. Has no
 // CoreAI framework). This suite references it, so it must be excluded there
 // too; on the macOS 26/27 tier (CoreAI present) the 5 tests run. Same
 // convention as CoreAIVisionConfigTests (wraps whole @Suite in this gate).

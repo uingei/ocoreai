@@ -1,18 +1,18 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//! ModelWaitFaceHonestyTests — the Models page renders a wait the store measured, whoever began
+//! ModelWaitFaceHonestyTests. The Models page renders a wait the store measured, whoever began
 //! it, and only the transfer lane may open/close that measurement.
 //!
 //! Two premises, both from reading shipped code and both false before this suite existed:
 //! ① `ModelResultRow` gated its ring on `ModelManager.downloadingModelId`, which records the
-//!   window that BEGAN a fetch — so during a boot prewarm (the exact user the failure banner
+//!   window that BEGAN a fetch, so during a boot prewarm (the exact user the failure banner
 //!   routes to this page) gigabytes landed while the row showed an enabled `Download` button and
 //!   no wait; the store had the bytes the whole time.
 //! ② `ModelManager._downloadAndLoad` called `finish` on its way out. When its `pool.acquire`
 //!   times out at the 120 s wait window behind a 794 s cold fetch, that `finish` evicted the
-//!   prewarm's LIVE row — the ring went blank mid-transfer and `/v1/models`' `loadProgress`
+//!   prewarm's LIVE row. The ring went blank mid-transfer and `/v1/models`' `loadProgress`
 //!   (which reads the same store) reported `downloading:false` for a fetch still landing bytes.
-//! The store is seeded through an isolated `init(forTesting:)` instance, never `.shared` —
+//! The store is seeded through an isolated `init(forTesting:)` instance, never `.shared`,
 //! process-global state is leased, never set (§ Testing Quality); the scan finds the repo root
 //! by searching and floors its own hit counts.
 
@@ -101,7 +101,7 @@ struct ModelWaitFaceHonestyTests {
 
     @Test("a disk-backed load renders from the pool's own state field, which ModelID keeps")
     func poolStateSurvivesTheParse() {
-        // A load whose weights are on disk opens no store row and no window task — the face is
+        // A load whose weights are on disk opens no store row and no window task. The face is
         // `.idle` for it by construction, so the card asks the pool instead, through this parse.
         let loading = ModelID.fromListModels(["id": id, "state": "loading"])
         #expect(
@@ -167,7 +167,7 @@ struct ModelWaitFaceHonestyTests {
             if f > 0 { finishes[rel] = f }
         }
 
-        // Floors: if the patterns stop matching anything, "no offenders" is vacuously true —
+        // Floors: if the patterns stop matching anything, "no offenders" is vacuously true,
         // the failure mode this repo keeps tripping over (§ Testing Quality).
         let total = starts.values.reduce(0, +) + finishes.values.reduce(0, +)
         #expect(
@@ -179,7 +179,7 @@ struct ModelWaitFaceHonestyTests {
         #expect(
             starts == [bridge: 2],
             "only MLXBridge's two hub lanes may open a progress row; measured \(starts)")
-        // Closes: the same lane, plus exactly one UI voice — `deleteModel`, where deleting the
+        // Closes: the same lane, plus exactly one UI voice, `deleteModel`, where deleting the
         // model moots the row. A second UI close is a waiter evicting an owner (premise ②).
         #expect(
             Set(finishes.keys) == [bridge, manager],

@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// WireDTOOptionalityTests.swift — a default in Swift is not an optional on the wire.
+/// WireDTOOptionalityTests.swift. A default in Swift is not an optional on the wire.
 ///
 /// Measured 10-20 by `scripts/probes/20-download-path-traversal.sh`: every body sent to
-/// ``POST /v1/models/download`` — which is to say, every body that did not volunteer a refresh
-/// flag nobody asked about — answered
+/// ``POST /v1/models/download``, which is to say, every body that did not volunteer a refresh
+/// flag nobody asked about. Answered
 ///
 ///     400 {"error":{"message":"Coding key `useLatest` not found."}}
 ///
@@ -15,7 +15,7 @@
 ///
 /// Two shapes hide this: a **property** default (`var n: Int = 4`) and an **init parameter**
 /// default (`init(n: Int = 4)`). The scanner below looks for both, and proves it can see both on
-/// synthetic samples before it is allowed to report zero on the real surface — a scan whose
+/// synthetic samples before it is allowed to report zero on the real surface. A scan whose
 /// pattern stopped matching would otherwise report the same clean number as a fixed bug
 /// (CONTRIBUTING → "the gate asserts its own premises").
 
@@ -164,7 +164,7 @@ struct WireDTOScanTests {
         throw MissingPath(path: "Sources/ocoreai/Router/ChatCompletionsRouter.swift")
     }
 
-    /// Every type the router actually decodes — the inbound surface, read from the router rather
+    /// Every type the router actually decodes. The inbound surface, read from the router rather
     /// than hand-copied (a hand-copied list is a second truth that drifts).
     static func inboundDTOs() throws -> [String] {
         let source = try String(
@@ -258,7 +258,7 @@ struct WireDTOScanTests {
     }
 
     /// The scanner must see both shapes. Without this, "zero violations" is indistinguishable from
-    /// "the regex stopped matching" — the exact state this file was written into.
+    /// "the regex stopped matching". The exact state this file was written into.
     @Test("self-test: the scanner sees a property default AND an init-parameter default")
     func scannerSeesBothShapes() {
         let propertyShape = """

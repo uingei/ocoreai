@@ -2,9 +2,9 @@
 // Licensed under MIT.
 /// The scheduler's consumed surface, pinned by scanning rather than by memory.
 ///
-/// Why this exists: the actor once carried a whole lifecycle API — `submitAll`,
+/// Why this exists: the actor once carried a whole lifecycle API, `submitAll`,
 /// `dispatchBatch`, `interruptAll`, `status(of:)`, `snapshot()`, `RequestState`,
-/// `avgQueueTimeMs` — and no production call site ever used any of it. Unevidenced surface is
+/// `avgQueueTimeMs`, and no production call site ever used any of it. Unevidenced surface is
 /// how the per-request leak got written in the first place: a table whose only reader was its
 /// own sibling method. This scan goes red when a fourth member enters production use without a
 /// decision, and its floor goes red when the scan itself stops matching (invariant 1).
@@ -17,8 +17,8 @@ import Testing
 struct SchedulerConsumedSurfaceTests {
 
     /// Every `SchedulerActor` member production code may reach. `submit`, `dispatch` and
-    /// `interrupt` also exist on the actor — internal/test use and the reserved mid-flight
-    /// release seam — and none of them reaches outside `Sources/ocoreai/Scheduler/`.
+    /// `interrupt` also exist on the actor. Internal/test use and the reserved mid-flight
+    /// release seam, and none of them reaches outside `Sources/ocoreai/Scheduler/`.
     private static let consumedMembers: Set<String> = [
         "complete", "fail", "submitAndDispatch",
     ]
@@ -64,7 +64,7 @@ struct SchedulerConsumedSurfaceTests {
         return out
     }
 
-    /// Comments name identifiers too — a doc reference to `scheduler.snapshot()` must not be
+    /// Comments name identifiers too. A doc reference to `scheduler.snapshot()` must not be
     /// counted as a call site, or this gate reports a consumer that does not exist.
     private static func isCodeLine(_ line: Substring) -> Bool {
         let trimmed = line.drop(while: { $0 == " " || $0 == "\t" })

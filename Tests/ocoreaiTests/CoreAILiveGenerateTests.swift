@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// CoreAI live generation — end‑to‑end proof that ocreai's vendored CoreAI
+// CoreAI live generation. End‑to‑end proof that ocreai's vendored CoreAI
 // engine pipeline (`EngineFactory` → `PreparedModel` → `CoreAI*Engine`)
 // produces real tokens from a real `.aimodel` bundle on macOS 27.
 //
@@ -30,7 +30,7 @@ struct CoreAILiveGenerateTests {
     // (+ `coreai-build compile --preferred-compute neural-engine`) at the default
     // scratch path. Override via OCOREAI_COREAI_LIVE_ASSET_DIR on machines/CI
     // where the .aimodel bundle lives elsewhere; if neither is present the test
-    // SKIPs quietly — live-asset proof, not a unit gate. metadata.json on disk
+    // SKIPs quietly. Live-asset proof, not a unit gate. metadata.json on disk
     // confirms vocab=151936 / ctx=8192 / function=main.
     private static var bundlePath: String {
         (ProcessInfo.processInfo.environment["OCOREAI_COREAI_LIVE_ASSET_DIR"]
@@ -91,7 +91,7 @@ struct CoreAILiveGenerateTests {
         let _ = tokenizer  // keep tokenizer alive till after decode
 
         // 2. Build the engine via ocreai's own factory. Point at the .aimodel
-        //    dir (metadata.json → assets.main), NOT bundleRoot — the same
+        //    dir (metadata.json → assets.main), NOT bundleRoot. The same
         //    "blind try on wrong dir" footgun as the prewarm 09‑15 fix.
         print(
             "[COREAI-LIVE-GEN] step=2a about-to-EngineFactory.createEngine url=\(aimodelDir.path)")
@@ -126,7 +126,7 @@ struct CoreAILiveGenerateTests {
 
         #expect(!generated.isEmpty, "expected at least one generated token from ANE")
 
-        // 4. Detokenize — confirms decodable text and gives us a readable
+        // 4. Detokenize. Confirms decodable text and gives us a readable
         //    assertion artifact.
         let text = tokenizer.decode(tokens: generated.map(Int.init)).trimmingCharacters(
             in: .whitespacesAndNewlines)

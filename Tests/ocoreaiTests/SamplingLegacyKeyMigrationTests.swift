@@ -5,7 +5,7 @@ import Foundation
 ///
 /// 背景:GUI 早期版本按带来源前缀的 id 存采样参数
 /// (`settings.model.params.mscope:org/name`),canonical 去重后统一读
-/// bare key (`settings.model.params.org/name`)——老用户的自定义参数
+/// bare key (`settings.model.params.org/name`)。老用户的自定义参数
 /// 原本会静默丢失。`loadSamplingConfig` 现在回退到 legacy key 命中时
 /// 自动 re-key 回 bare 并清旧 key。本测试精确锁定:
 ///   1) bare key 命中 → 直接读(不走回退)

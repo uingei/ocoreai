@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// CountTokensWireShapeTests.swift — pin every body shape `POST /v1/count-tokens`
+/// CountTokensWireShapeTests.swift. Pin every body shape `POST /v1/count-tokens`
 /// accepts, plus the response keys both counting endpoints put on the wire.
 ///
 /// Why a gate here: live 10-14 the endpoint decoded only `{model, prompt}`, so
 /// spec-legal OpenAI (`input`) and Anthropic (`messages` + `system`) bodies got
-/// `400 Coding key `prompt` not found.` — from the one endpoint whose job is to
+/// `400 Coding key `prompt` not found.`. From the one endpoint whose job is to
 /// tell a client how big its request is. Decode-level tests, no GPU and no
 /// loaded model: the defect was in the DTO, so the gate lives at the DTO.
 

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SQLiteOpenBusyTimeoutTests.swift — `open()` must wait out another connection, and a WAL
+/// SQLiteOpenBusyTimeoutTests.swift, `open()` must wait out another connection, and a WAL
 /// truncation it could not perform must be reported rather than called a success.
 ///
 /// Why the ladder order is the bug: `PRAGMA busy_timeout` used to be the fourth statement in
@@ -8,7 +8,7 @@
 /// Measured 10-20 against macOS' system libsqlite3 (two connections on one file; the writer holds
 /// `BEGIN IMMEDIATE` and commits 300 ms later):
 ///   * `PRAGMA wal_checkpoint(TRUNCATE)` answers `busy=1 log=2` in ~4 ms and leaves the WAL to
-///     grow — and because it reports contention in **column 0 of a returned row** instead of as an
+///     grow, and because it reports contention in **column 0 of a returned row** instead of as an
 ///     error code, `exec` (which accepts SQLITE_ROW) called the skipped truncation a success.
 ///     With `busy_timeout` first, the same call waits for the writer and truncates: `busy=0`.
 ///   * `journal_mode=WAL` on an already-WAL database (the steady state) is a no-op row, so the
@@ -16,11 +16,11 @@
 ///
 /// The premise floor is in the suite, not in a comment: `busy` has to be able to come back **true**
 /// (the long-held-lock test drives it there by holding past the timeout), so deleting the column
-/// read — or the ladder fix — turns this suite red instead of silently passing.
+/// read, or the ladder fix. Turns this suite red instead of silently passing.
 ///
 /// What this suite does NOT claim, stated because the measurement found it and the fix does not
 /// paper over it: a database that is **not** in WAL mode refuses `journal_mode=WAL` with
-/// SQLITE_BUSY *immediately* while another connection holds a transaction — the busy timeout does
+/// SQLITE_BUSY *immediately* while another connection holds a transaction. The busy timeout does
 /// not turn that refusal into a wait (measured 10-20, both `BEGIN IMMEDIATE` and the pragma vs.
 /// `sqlite3_busy_timeout()` routes; `PRAGMA busy_timeout` reads back 5000 either way). That case
 /// needs an external tool to have flipped the journal mode off WAL, and it ends in `failStartup`,
@@ -40,7 +40,7 @@ struct SQLiteOpenBusyTimeoutTests {
     ///
     /// The margin is arithmetic, not taste: `open()` may spend the whole 5 s busy timeout
     /// before it gives up, so committing at 6.5 s left 1.5 s for the checkpoint to overrun
-    /// into the commit and *succeed* — which makes `busy == false` pass for the wrong
+    /// into the commit and *succeed*, which makes `busy == false` pass for the wrong
     /// reason. CI measured an `open()` that ran 6.60 s against that 5 s timeout, so the
     /// overrun is not hypothetical. At 12 s a late success needs a 7 s overrun of a handler
     /// that sleeps in millisecond steps.
@@ -70,7 +70,7 @@ struct SQLiteOpenBusyTimeoutTests {
     /// *uncommitted* transaction are invisible to a checkpoint, so the old helper left copyable
     /// pages only when the writer's own startup truncation happened to skip them. Committing
     /// first is what makes "there is a truncation to refuse" true by construction, not by host
-    /// luck — and it is the premise the whole suite's `busy == true` rests on.
+    /// luck, and it is the premise the whole suite's `busy == true` rests on.
     private func holdWriteLock(on writer: SQLiteStore, delay: UInt64) async throws
         -> (epoch: DispatchTime, commit: Task<Int, any Error>)
     {
@@ -176,7 +176,7 @@ struct SQLiteOpenBusyTimeoutTests {
         // CI reproduces this red on both matrix legs and this host does not, and the job log
         // needs a token to read. So a failing run names the quantity that broke instead of
         // leaving a bare `busy == false` behind: `logPages` separates "sqlite refused the
-        // truncation and nobody read it" from "there was nothing to truncate" — and only one
+        // truncation and nobody read it" from "there was nothing to truncate", and only one
         // of those is a bug in `open()`. Tagged EVIDENCE so CI publishes the line.
         if reported?.busy != true {
             let timeout = try? await challenger.scalarQuery(sql: "PRAGMA busy_timeout;")
@@ -235,7 +235,7 @@ struct SQLiteOpenBusyTimeoutTests {
     /// difference was a file's size: 79 pages to copy here, none there, because the writer's own
     /// startup checkpoint truncated cleanly over there. Truncating on purpose reproduces that
     /// beginning on any host, which leaves exactly one variable: the frames. With a 0-byte WAL
-    /// and a *committed* transaction behind it, a refused truncation must still be reported —
+    /// and a *committed* transaction behind it, a refused truncation must still be reported,
     /// that is the property this test pins, and it fails if `holdWriteLock` stops committing.
     @Test("a WAL the writer already truncated still produces a refused truncation")
     func truncatedStartStillRefusesTruncation() async throws {

@@ -1,9 +1,9 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// AudioTranscriptionTests.swift — pin the wire contract of `POST /v1/audio/transcriptions`.
+/// AudioTranscriptionTests.swift. Pin the wire contract of `POST /v1/audio/transcriptions`.
 ///
 /// Why these are here (AGENTS.md invariant 1: a claim is worth exactly the gate that goes red
-/// when it breaks): the endpoint's header promises four things a client acts on — that it
+/// when it breaks): the endpoint's header promises four things a client acts on, that it
 /// accepts OpenAI's multipart shape *and* a JSON extension, that every optional field is
 /// optional on the wire, that remote `url` is refused rather than fetched, and that a refusal
 /// names the axis (permission / locale / engine) instead of being a bare 500. None of that was
@@ -151,7 +151,7 @@ func malformedMultipart(name: String, body: Data, boundary: String) {
 @Test("an unterminated quoted value is refused, never guessed at")
 func unterminatedQuoteRefuses() {
     // `filename="a.wav` with no closing quote is not a value to invent one for, and `name=`
-    // is a suffix of `filename=`, so a key match must not land mid-word — otherwise a part
+    // is a suffix of `filename=`, so a key match must not land mid-word. Otherwise a part
     // carrying only a filename masquerades as `name="a.wav"`.
     let unterminated = MultipartFormData.field(
         in: Data("Content-Disposition: form-data; name=\"file\"; filename=\"a.wav\r\n\r\nx".utf8))
@@ -206,8 +206,8 @@ func bareValues(params: String, key: String, want: String?) {
 @Test("every optional field is genuinely optional on the wire")
 func emptyJSONObjectDecodes() throws {
     // The synthesized Decodable in this target requires every non-Optional key; the
-    // `AnthropicMessageRequest.stream` 400 is the same defect class, so the empty body —
-    // which a client may legitimately send to learn what is missing — must decode.
+    // `AnthropicMessageRequest.stream` 400 is the same defect class, so the empty body,
+    // which a client may legitimately send to learn what is missing. Must decode.
     let minimal = try JSONDecoder().decode(TranscriptionJSONRequest.self, from: Data("{}".utf8))
     #expect(minimal.model == nil)
     #expect(minimal.language == nil)
@@ -463,7 +463,7 @@ func failureStatusCoversVocabulary() {
 @Test("the AppError thrown for a failure carries the status the table assigns it")
 func appErrorAgreesWithTheStatusTable() {
     // The defect this closes (measured 10-15): `.undecodableAudio` is a 400 in the table
-    // above, but the throw site had only `.transcriptionUnavailable`, whose status is 503 —
+    // above, but the throw site had only `.transcriptionUnavailable`, whose status is 503,
     // so the wire contradicted the endpoint's own classification and told a client to retry
     // the service over bytes that will never decode. Both routes that hear audio now throw
     // through `AudioTranscription.appError(for:)`, and that agreement is the claim pinned
@@ -520,7 +520,7 @@ func successBodyShape() throws {
 @Test("silence reports that it listened; a refusal reports that it did not")
 func failureBodiesReportTheDetectorHonestly() throws {
     // The endpoint header promises `speech_detected: false` for silence. That is only true
-    // if the body actually says so — a 200 that omits the field leaves the client to guess
+    // if the body actually says so. A 200 that omits the field leaves the client to guess
     // whether anyone listened.
     let silence = try encoded(AudioTranscription.failureBody(.noSpeechDetected))
     #expect(silence["speech_detected"] as? Bool == false)
@@ -549,7 +549,7 @@ func errorCodeDerivation() {
     #expect(TranscriptFailure.engineFault.errorCode == "engine_fault")
     #expect(TranscriptFailure.speechNotDetermined.errorCode == "speech_not_determined")
     #expect(TranscriptFailure.osUnsupported.errorCode == "os_unsupported")
-    // Every code is snake_case and unique — the property clients branch on.
+    // Every code is snake_case and unique. The property clients branch on.
     let codes = TranscriptFailure.allCases.map(\.errorCode)
     #expect(Set(codes).count == TranscriptFailure.allCases.count)
     for code in codes {

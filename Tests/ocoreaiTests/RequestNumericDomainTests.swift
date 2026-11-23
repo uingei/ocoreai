@@ -4,7 +4,7 @@
 /// reach the line that kills the process.
 ///
 /// Measured 10-17 (live, macOS 26): `POST /v1/chat/completions {"max_tokens":-5}` answered
-/// nothing at all — the server died with `EXC_BREAKPOINT (SIGTRAP)` inside
+/// nothing at all. The server died with `EXC_BREAKPOINT (SIGTRAP)` inside
 /// `SchedulerActor.dispatch()`, because `UInt64(request.tokenBudget)` traps on a negative.
 /// One malformed body took down every other conversation on the box. `max_tokens: 0` was
 /// worse in a quieter way: 200 OK with an empty completion.
@@ -148,7 +148,7 @@ struct ChatNumericDomainTests {
     }
 
     /// 0 is not nonsense here: `CompositeSampler.swift:138` applies the top-k filter only
-    /// when `topK > 0`, so 0 means "no filter" — the same reading vllm publishes.
+    /// when `topK > 0`, so 0 means "no filter". The same reading vllm publishes.
     @Test("top_k 0 means disable and passes; below 0 is refused")
     func topKRange() {
         #expect(Self.violation(Self.body("\"top_k\":0")) == nil)
@@ -389,7 +389,7 @@ struct SchedulerTokenFloorTests {
     @Test("estimatedCost: a negative output budget must not discount the input")
     func estimatedCostDoesNotDiscount() async {
         let gate = AdmissionGate(memoryTracker: nil)
-        // Before the fix this was UInt64(100 + -50) — 50 tokens billed for 100.
+        // Before the fix this was UInt64(100 + -50), 50 tokens billed for 100.
         let cost = await gate.estimatedCost(inputTokens: 100, maxOutputTokens: -50)
         #expect(cost == 100 * 1024, "negative output must bill zero, not subtract: \(cost)")
         let both = await gate.estimatedCost(inputTokens: -1, maxOutputTokens: -1)
@@ -399,7 +399,7 @@ struct SchedulerTokenFloorTests {
     }
 
     /// The exact crash path from 10-17, one level below the wire: a request whose budget is
-    /// negative reaches `dispatch()` and must come back as a result or a typed error — never
+    /// negative reaches `dispatch()` and must come back as a result or a typed error. Never
     /// as a dead process.
     @Test("submitAndDispatch survives a negative tokenBudget")
     func submitSurvivesNegativeBudget() async throws {
@@ -407,7 +407,7 @@ struct SchedulerTokenFloorTests {
             maxQueueSize: 4, memoryTracker: nil, log: Logger(label: "test.numeric-domain"))
         let request = SchedulingRequest(
             id: "neg-budget-1", priority: .chat, modelId: "m", prompt: "hi", tokenBudget: -5)
-        // Either answer is fine — admitted, or refused with a typed reason. What is not
+        // Either answer is fine. Admitted, or refused with a typed reason. What is not
         // fine is the 10-17 outcome: reaching this line at all is the assertion, because
         // before the fix `UInt64(-5)` inside dispatch() ended the process here. A refusal
         // by this call can only ever be about *our* request, so a dispatch that does come
@@ -494,7 +494,7 @@ struct MalformedRequestHTTPTests {
         return buffer
     }
 
-    /// A malformed body must be refused *before* anything that needs a model — otherwise the
+    /// A malformed body must be refused *before* anything that needs a model. Otherwise the
     /// answer for a server with nothing loaded is 503 and the gate is untested.
     /// One malformed-body case: endpoint, body, and the `param` the 400 must name.
     private struct Case {
@@ -504,7 +504,7 @@ struct MalformedRequestHTTPTests {
         let value: String
     }
 
-    /// The gate must fire *before* anything that needs a loaded model — with nothing loaded,
+    /// The gate must fire *before* anything that needs a loaded model, with nothing loaded,
     /// an un-guarded body would answer 503 and the assertion would test nothing.
     private static func expectNamed400(_ c: Case) async throws {
         let dbs = [uuidPath(), uuidPath()]

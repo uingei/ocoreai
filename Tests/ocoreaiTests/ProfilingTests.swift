@@ -1,10 +1,10 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ProfilingTests.swift — L0 contract tests for PerRequestMetrics
+/// ProfilingTests.swift. L0 contract tests for PerRequestMetrics
 ///
 /// Seam: Public lifecycle of PerRequestMetrics (start → track → summary)
 ///
-/// These are contract tests — they verify the profiling helpers behave
+/// These are contract tests. They verify the profiling helpers behave
 /// correctly at their public boundary without mocking the inference engine.
 
 import Foundation

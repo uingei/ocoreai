@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// HardwareRouterPressureRegression — 内存压力口径回归。
+/// HardwareRouterPressureRegression。内存压力口径回归。
 ///
 /// 修复背景（2026-09-24，实测驱动）：
 /// `memoryUsageFraction()` 曾把 `inactive_count` 计入"已用"。inactive 是可回收
@@ -8,7 +8,7 @@
 ///   active≈280137  inactive≈259995  wire≈150684  compressor≈159490
 /// 含 inactive → usedFraction≈0.79 → pressure L3 → route() Tier-1 强制 .cpu
 /// 剔 inactive → usedFraction≈0.55 → 仍 <0.7 … 取决于阈值；关键不变式是
-/// 「inactive 页不计入分子」——这条是行为契约，不能因页面语义回归。
+/// 「inactive 页不计入分子」。这条是行为契约，不能因页面语义回归。
 ///
 /// 本测试只钉纯函数 ``HardwareRouter/usedFraction(active:wire:compressor:pageSize:memSize:)``
 /// 的数学契约（缓存排除 + 边界 guard），不依赖具体机器。

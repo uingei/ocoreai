@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Server Lifecycle Endpoint Tests — `/ready`, `/v1/stats`, `POST /v1` auto-route
+/// Server Lifecycle Endpoint Tests, `/ready`, `/v1/stats`, `POST /v1` auto-route
 ///
 /// Covers the three llm-server (coreai-models) wire contracts added to ocoreai:
-/// - ``GET /ready``  — readiness probe (ready/busy)
-/// - ``GET /v1/stats`` — structured inference counters/gauges (JSON)
-/// - ``POST /v1``    — auto-route (prompt → completions, else chat)
+/// - ``GET /ready``. Readiness probe (ready/busy)
+/// - ``GET /v1/stats``. Structured inference counters/gauges (JSON)
+/// - ``POST /v1``. Auto-route (prompt → completions, else chat)
 ///
 /// Every asserted value is exact (no `>0` / "contains something" weak assertions):
 /// seeded ``MetricsRegistry`` values are checked field-by-field against the
@@ -256,7 +256,7 @@ struct ServerLifecycleEndpointTests {
                 #expect(r.status == .badRequest, "got \(r.status)")
                 let body = Self.bodyString(r)
                 // empty messages is rejected at decode (required non-empty) or the
-                // router guard — both are 400; assert the class, not the exact message.
+                // router guard. Both are 400; assert the class, not the exact message.
                 #expect(
                     body.contains("Messages") || body.contains("Invalid ChatCompletionRequest"),
                     "expected a 400 chat reject, body: \(body)"

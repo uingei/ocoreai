@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Vocabulary-encoding inference — the mechanism coreai-models #359 landed upstream, ported to
+/// Vocabulary-encoding inference. The mechanism coreai-models #359 landed upstream, ported to
 /// `Sources/ocoreai/Engine/GuidedGeneration/TokenizerInfo.swift`.
 ///
 /// Before this, every grammar entry point defaulted to `.byteLevel`. SentencePiece

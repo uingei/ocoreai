@@ -1,10 +1,10 @@
-// ReasoningEffortHonestyTests.swift — `reasoning_effort` may only be honored by a checkpoint
+// ReasoningEffortHonestyTests.swift, `reasoning_effort` may only be honored by a checkpoint
 // this server measured reading it (AGENTS.md invariant 2: the surface never claims more than
 // the engine delivered).
 //
 // Why this exists: the wire forwards the caller's word verbatim into the chat-template context
 // (`ReasoningEffortWire` deliberately owns no enum and no word table), and for a checkpoint
-// whose template never names the variable the word is dropped before generation — the caller
+// whose template never names the variable the word is dropped before generation. The caller
 // still gets 200 and believes it asked for thinking control. Both host checkpoints measured
 // that way; Qwen3.8 is the other face of the same fact (it raises inside jinja on a word it
 // does not accept). The refusal is shaped after codex's `unsupported_code_mode_warning`
@@ -12,7 +12,7 @@
 // exits.
 //
 // Gold standard: exact wire strings and the exact sentence fragments a client acts on, plus the
-// negatives — an unmeasured checkpoint must NOT be refused, and a caller that asked for nothing
+// negatives. An unmeasured checkpoint must NOT be refused, and a caller that asked for nothing
 // must never be.
 
 import Foundation
@@ -52,7 +52,7 @@ struct ReasoningEffortHonestyTests {
 
     @Test("a refusal needs BOTH a demand and a measured negative")
     func refusalTruthTable() {
-        // No demand: the word was never asked, so there is nothing to refuse — whatever the
+        // No demand: the word was never asked, so there is nothing to refuse. Whatever the
         // measurement says.
         for mode in ReasoningEffortMode.allCases {
             #expect(

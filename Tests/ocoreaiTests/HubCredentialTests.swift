@@ -1,12 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// HubCredentialTests.swift — the credential a hub request carries, and what a refusal says.
+/// HubCredentialTests.swift. The credential a hub request carries, and what a refusal says.
 ///
 /// Why this has a gate: three sites used to write `if let token { "Bearer \(token)" }`, which
-/// checks for nil and not for usable. The shapes that came out of that — `Bearer ` for a
+/// checks for nil and not for usable. The shapes that came out of that, `Bearer ` for a
 /// whitespace-only stored token, a CR/LF inside the value from `MODELSCOPE_TOKEN="$(cat t.txt)"`,
 /// and a 401 reported as `ModelScope API request failed: Optional<NSHTTPURLResponse>` with no
-/// statement of whether a token was even sent — are all silent. Every assertion below is an exact
+/// statement of whether a token was even sent. Are all silent. Every assertion below is an exact
 /// value, and every traversal floors its own size so a shrunk loop cannot pass
 /// (AGENTS.md invariant 1).
 ///
@@ -148,7 +148,7 @@ struct HubCredentialResolutionTests {
 
     /// The deliberate choice, priced: an env var that is present but blank is refused rather
     /// than quietly replaced by the Settings token. Silent substitution would make
-    /// `MODELSCOPE_TOKEN=""` — a runner's way of saying "no credentials here" — mean "use the
+    /// `MODELSCOPE_TOKEN=""`. A runner's way of saying "no credentials here". Mean "use the
     /// token saved on this Mac", the one reading that variable must ever have.
     @Test("a blank env value is named, not swapped for the stored token")
     func blankEnvIsNotSilentlyReplaced() {
@@ -218,7 +218,7 @@ struct HubRejectionTests {
 
     /// Two homes decide one question: `isRetryable(statusCode:)` decides whether to send again,
     /// `HubRejection` decides whether to call it transient. If they disagree, the advice tells
-    /// the user to wait while the retry loop never does (or the reverse) — so the two are
+    /// the user to wait while the retry loop never does (or the reverse), so the two are
     /// traversed together instead of trusted to agree.
     @Test(arguments: HubRejectionTestStatuses.all)
     func HubRejectionAgreesWithRetryClassifier(_ status: Int) {
@@ -317,12 +317,12 @@ struct HubRejectionTests {
 struct HubSourceCredentialIdentityTests {
 
     /// Advice tells the user to set `MODELSCOPE_TOKEN`. That sentence is only true if this
-    /// process really reads that variable — and reads it **once**. Two spellings of
+    /// process really reads that variable, and reads it **once**. Two spellings of
     /// `env["MODELSCOPE_TOKEN"] ?? stored` is how "env vars take precedence" (a promise the
     /// Settings UI makes in its own label text) starts meaning different things on different
     /// surfaces: the startup path and `SettingsStore` each carried their own copy until 10-21.
-    /// So the scan asserts both halves — the variable is read somewhere, and it is read in
-    /// exactly one file, the precedence home — and proves it can see a hit at all before it is
+    /// So the scan asserts both halves. The variable is read somewhere, and it is read in
+    /// exactly one file, the precedence home, and proves it can see a hit at all before it is
     /// allowed to report zero (CONTRIBUTING: a gate asserts its own premises).
     @Test("each env var is named in exactly one file, and read by exactly one expression")
     func envVarIsReadOnce() throws {
@@ -433,7 +433,7 @@ struct HubSourceCredentialIdentityTests {
         // else quoting one is a third truth about where a token is stored. Scoped to the token
         // keys and not to the `settings.hub.` prefix: that prefix also carries
         // `useHFMirror`, whose one home is `Config/HFMirrorPolicy.swift` (`persistedKey`,
-        // pinned against `SettingsStore.Key.useHFMirror.rawValue` by HFMirrorPolicyTests) —
+        // pinned against `SettingsStore.Key.useHFMirror.rawValue` by HFMirrorPolicyTests),
         // a different lever, not a second token store.
         #expect(
             spelledKeys.isEmpty,
@@ -458,7 +458,7 @@ struct HubSourceCredentialIdentityTests {
         }
     }
 
-    /// Every `.swift` under `Sources/` — the scan's own domain, so a moved file cannot hide a
+    /// Every `.swift` under `Sources/`. The scan's own domain, so a moved file cannot hide a
     /// second read site by falling outside a hardcoded two-file list.
     private func hubCredentialSwiftFiles(root: URL) throws -> [String] {
         let base = root.appendingPathComponent("Sources")
@@ -486,7 +486,7 @@ private enum HubCredentialTestScan {
         text.components(separatedBy: needle).count - 1
     }
 
-    /// How many of `needles` occur at least once in `text` — the count of *distinct keys
+    /// How many of `needles` occur at least once in `text`. The count of *distinct keys
     /// present*, which is what a positive control needs (occurrences would pass on one key
     /// written twice).
     static func countAll(_ needles: [String], in text: String) -> Int {
@@ -494,7 +494,7 @@ private enum HubCredentialTestScan {
     }
 }
 
-/// Resolves the repo root by walking up until a known file appears — a fixed
+/// Resolves the repo root by walking up until a known file appears. A fixed
 /// `deletingLastPathComponent()` hop count lands on `Tests/`, where every scan "passes" on ENOENT.
 private func hubCredentialRepoRoot() throws -> URL {
     let marker = "Sources/ocoreai/Models/HubCredential.swift"

@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// #176 alignment — `RepetitionPenaltyGPUState` (GPU penalty buffer ring,
+// #176 alignment, `RepetitionPenaltyGPUState` (GPU penalty buffer ring,
 // ported verbatim from upstream coreai-models `Samplers/RepetitionPenaltyGPUState.swift`).
 //
 // Upstream test source: `Tests/LanguageModelsTests/CoreAIPipelinedTests.swift`
-// ("MPSGraph completion ordering" suite — guards the submission-order assumption
+// ("MPSGraph completion ordering" suite. Guards the submission-order assumption
 // `RepetitionPenaltyGPUState` relies on) plus the state-class contract itself.
 //
 // Guarded with `#if canImport(Metal)` + `#if canImport(CoreAI)`:
@@ -128,7 +128,7 @@ struct RepetitionPenaltyGPUStateTests {
             state.recordToken(Int32(testVocabSize))
             state.recordToken(Int32.max)
             let buf = state.buffer(forStep: 0)
-            // buffer must be all 1.0 — nothing was recorded
+            // buffer must be all 1.0. Nothing was recorded
             let ptr = buf.contents().assumingMemoryBound(to: Float16.self)
             #expect(ptr[0] == 1.0)
             #expect(ptr[Int(testVocabSize) - 1] == 1.0)

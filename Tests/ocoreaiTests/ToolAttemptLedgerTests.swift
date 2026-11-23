@@ -3,7 +3,7 @@
 /// The audit needs the failure half of the record, and only the dispatch chokepoint can keep it.
 ///
 /// `ToolMutationLedger` counted successes only, so a turn that fired `edit_file` five times and
-/// hit nothing was indistinguishable, in the audit, from a turn that never touched a tool —
+/// hit nothing was indistinguishable, in the audit, from a turn that never touched a tool,
 /// measured 2026-10-25 on the scoreboard, where the stable failures are exactly that shape.
 /// Every assertion below is an exact value; the scans floor their own hit counts so a regex
 /// that stopped matching fails the run instead of passing vacuously.
@@ -46,7 +46,7 @@ private func attempt(
 
 // No `.serialized` here on purpose: the two tests that touch the ledger either own their
 // instance or pin their own record, so nothing in this suite can be raced by another suite
-// dispatching through the shared chokepoint — load-immunity is by ownership, not by ordering.
+// dispatching through the shared chokepoint. Load-immunity is by ownership, not by ordering.
 @Suite("ToolAttemptLedger — failures are audited too")
 struct ToolAttemptLedgerTests {
 
@@ -213,8 +213,8 @@ struct ToolAttemptLedgerTests {
     /// The ledger here is one this test owns, not `.shared`, because `.shared` is written by
     /// every suite that dispatches a tool and swift-testing parallelizes suites: measured
     /// 11-01(100), foreign dispatches landed inside this test's own window and it went red on a
-    /// loaded host. A lease cannot fence those writers — `ToolRegistry.call` legitimately does
-    /// live I/O and § Concurrency forbids holding the lease across it — so the bound is measured
+    /// loaded host. A lease cannot fence those writers, `ToolRegistry.call` legitimately does
+    /// live I/O and § Concurrency forbids holding the lease across it, so the bound is measured
     /// on an instance instead: the same actor, the same code path, zero cross-suite coupling.
     @Test func windowCapsTheRetainedRecord() async {
         let ledger = ToolAttemptLedger()

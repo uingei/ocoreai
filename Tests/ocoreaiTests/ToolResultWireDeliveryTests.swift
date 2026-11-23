@@ -9,7 +9,7 @@
 //! tool result entirely in-process. Measured live 10-24 on `mlx-community/gemma-4-e2b-it-4bit`:
 //! a `/v1/chat/completions` turn whose `sleep` ran 9402 ms carried no tool record at all, and a
 //! follow-up request in the same session answered "I do not have access to any previous tool
-//! output" — so a client could neither see the dispatch nor re-send it. `ToolResultMeta` existed
+//! output", so a client could neither see the dispatch nor re-send it. `ToolResultMeta` existed
 //! and stopped at the GUI.
 //!
 //! What the field is *for*: `duration_ms` is the wall time measured around the real dispatch, so
@@ -129,7 +129,7 @@ struct ToolResultWireDeliveryTests {
     }
 
     /// The scan floors its own hit count (invariant 1): four assembly sites is the shipped
-    /// contract — two faces x two modes. One fewer means a face lost its delivery seam while
+    /// contract. Two faces x two modes. One fewer means a face lost its delivery seam while
     /// still being quoted as carrying it.
     @Test("four assembly sites exist, one per face per mode")
     func assemblySitesAreFour() throws {

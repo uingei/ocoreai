@@ -3,7 +3,7 @@
 /// ProactiveActionExecutor 切片 4（批准→只读行动）精确值测试。
 ///
 /// 断言刻意 locale-不变（draft / 绝对路径 / failureDetail 哨兵），
-/// 不断言 locale 模板词 —— 同一断言 en/zh 都稳。
+/// 不断言 locale 模板词。同一断言 en/zh 都稳。
 import Foundation
 import Testing
 

@@ -5,7 +5,7 @@ import Testing
 
 @testable import ocoreai
 
-/// HttpBridgePolicy 决策面钉住 — 编译期 trait × 运行时 env 的全组合。
+/// HttpBridgePolicy 决策面钉住。编译期 trait × 运行时 env 的全组合。
 ///
 /// 纯函数，全量覆盖（非抽样）。精确布尔断言（`#expect(true/false)` 对应
 /// 具体 env 形态），拒绝 "some combo enabled" 式弱断言。
@@ -55,7 +55,7 @@ struct HttpBridgePolicyTests {
         #expect(HttpBridgePolicy.shouldStart(appStoreCompiled: true, enableEnv: "TRUE"))
     }
 
-    // MARK: env var 名称契约（与 App.swift start() 文档面一致 — 防"文档承诺不存在的开关"复发）
+    // MARK: env var 名称契约（与 App.swift start() 文档面一致。防"文档承诺不存在的开关"复发）
 
     @Test("env var name contract = OCOREAI_ENABLE_HTTP (no typo)")
     func envVarName() {
@@ -66,7 +66,7 @@ struct HttpBridgePolicyTests {
     func envVarInAppSwiftDoc() throws {
         // 历史债：`OCOREAI_ENABLE_HTTP` 曾只是 App.swift:211 一句文档、零实现。
         // 契约面：env 名必须真实出现在 OcoreaiEngine 启动路径源码里。
-        // 测试与源码同仓 — 用源码相对路径（Tests/ → Sources/）解析，
+        // 测试与源码同仓。用源码相对路径（Tests/ → Sources/）解析，
         // 不硬编码开发者机绝对路径（CI runner 无 /Users/t）。
         let testDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let appSwift =

@@ -1,12 +1,12 @@
 import Foundation
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// RuntimeCapabilityTests — pins the capability-matrix contract so every
+/// RuntimeCapabilityTests. Pins the capability-matrix contract so every
 /// surface name stays stable across releases and every consumer (prompt /
 /// info tool / /v1/capabilities) reads from the same source of truth.
 ///
 /// Grounded on four-tier targets (macOS 14 / iOS 17, 15/18, 26/26, 27/27).
-/// The contract tests do NOT assert specific availability per OS — that is
+/// The contract tests do NOT assert specific availability per OS, that is
 /// an environment fact, not a code fact. They only assert the shape and
 /// that consumers agree with the matrix.
 import Testing
@@ -15,7 +15,7 @@ import Testing
 
 @Suite("RuntimeCapability")
 struct RuntimeCapabilityTests {
-    // The 10 surface names are a public contract — changing or removing any
+    // The 10 surface names are a public contract. Changing or removing any
     // of them is a breaking change for clients that parse this wire JSON.
     private static let requiredNames: Set<String> = [
         "agent_loop",
@@ -53,7 +53,7 @@ struct RuntimeCapabilityTests {
             #expect(!l.isEmpty, "empty label on \(line.name)")
             // The point of `label` is a *display* form. A snake_case raw name
             // leaking through means the switch fell to `default: return name`
-            // — i.e. the display map lost track of this surface.
+            // I.e. the display map lost track of this surface.
             #expect(
                 !l.contains("_"),
                 "label '\(line.label)' looks like the raw snake_case id for \(line.name)")
@@ -122,7 +122,7 @@ struct RuntimeCapabilityTests {
         // "Version 27.0 (…)").
         let raw = ProcessInfo.processInfo.operatingSystemVersionString
         guard let m = raw.range(of: #"\d+\.\d+"#, options: .regularExpression) else {
-            // No extractable core (unexpected shape) — at least assert the
+            // No extractable core (unexpected shape). At least assert the
             // version string is non-empty and not the placeholder "TBD".
             #expect(!RuntimeCapability.osVersion.isEmpty)
             #expect(RuntimeCapability.osVersion != "TBD")
