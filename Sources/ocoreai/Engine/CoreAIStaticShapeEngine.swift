@@ -27,6 +27,8 @@
 /// KV cache allocated ONCE to max-context descriptor shape, reused across all
 /// extend functions (same shape, strides, interleaveLayout).
 /// Chunked prefill via multiple extend calls. CPU fallback sampler.
+//   Adjudicated: 8e16840 (window to c8e00c0 read; verdicts:
+//   docs/agent/coreai-fork-window-log.md § Window read 11-23)
 
 #if canImport(CoreAI)
 

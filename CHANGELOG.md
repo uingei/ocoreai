@@ -9,6 +9,25 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased] — 2026-09-05 → 2026-11-23
 
+**11-23 coreai-models +46 窗口读完并 adopt:三个活 bug 落地,轴归零** — 改了什么:owner 裁定上一轮
+"记台账不等于同步",这轮把 `0bfb548..ca2aecf`(+46,含镜像中途前进的一条)逐 commit 判完:每条与全部
+镜像文件做交集,零交集 25 条按 subject 记 n/a,有交集的读到 hunk 并 grep 验证我们副本有没有该形状。
+**port 了三条我们树里的活 bug**:① #537 sampler 缓存只按 temperature 键——后一请求换 top_p 会静默沿用
+旧 MPSGraph(wire 声称了引擎没应用的采样参数,invariant 2),greedy 翻转还会 throw 要一个引擎从不做的
+reset;改为按 `MPSGraphSamplerGraphKey`(工厂真正编译进图的字段)整键重建。② #533 gate slot 泄漏:
+`_encodeNextStepGPU` 先 `acquire` 再裸 `try` encode,encode 抛错则 slot 永不归还,累计 pipelineDepth
+次失败后该 lane 永久卡死;连带 prepare span/step interval/chunk interval 三条抛错路径全部补关。
+③ #522 grammar-session 缓存只比 schema——同 schema 不同 `stop` 会复用另一个请求语法的 session;新
+`ConstrainedSessionKey`(schema + stop 集合 + vocab,nil≠∅),CPU bitmask 同时把超出语法词表的 padding
+id 置 −inf。④ #524 正确性半:CPU fallback `softmax` 遇 fp16 +inf 算出 inf−inf=NaN,全零概率表静默吐
+token 0;现按 +inf 位均匀分布(性能半不 port,已记 §)。gates:`CacheKeyInvalidationTests`+
+`CompositeSamplerInfLogitTests` 绿(前者做过 mutation 红),padded-mask 套件按既有约定在 macOS 27
+runner 跑。28+ 镜像 stamp 到各自 last-touch(`Adjudicated:`,台账成行 28→38、无基线 25→15),
+`upstream-drift.sh adopt coreai-models` → `make drift` 报 `coreai-models 0 new ✓`;剩余的红是
+mlx-swift-lm +9,其 bump 协议止于 `make test-ci` 与 push,业主窗口,不擅动。三个本窗命名的缺口进
+open-items:#294 加法惩罚在 wire 上但 CoreAI 引擎没编、#530 bundle 声明的 `eos_token_ids` 我们不读、
+#509 的 `maxConsecutiveUnknownIds` 我们解码器没有。全程主线程,零 subagent。
+
 **11-23 「coreai-models 真的同步了吗」按行回答,仪器也被抓出一句反话** — 改了什么:把上一轮的
 `Adjudicated:` 章当成 premise 直接测——在镜像 clone 里把四个深测镜像 vs 各自读点做去注释、空白归一
 的逐行对拍。测得:四文件的 upstream-only 代码行(40/4/12/2)全部归因到换行空白、已宣告适应

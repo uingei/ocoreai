@@ -3,6 +3,8 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
+// Adjudicated: 8bbadd0 (window to c8e00c0 read; verdicts in
+// docs/agent/coreai-fork-window-log.md § Window read 11-23)
 #if canImport(CoreAI)
 
 import Foundation
@@ -35,6 +37,10 @@ struct ConstrainedGenerationSession: ~Copyable {
 
     /// The JSON schema this session enforces.
     let schema: String
+
+    /// Token ids the grammar takes as its end, as the session was built with; nil for xgrammar's
+    /// defaults. The reuse cache compares on it (coreai-models #522).
+    var stopTokenIds: [Int32]? { tokenizerInfo.stopTokenIds }
 
     /// Whether the grammar has reached a terminal state (valid JSON complete).
     ///
@@ -325,6 +331,8 @@ private func _applyBitmask<T: BinaryFloatingPoint>(
     negativeInfinity negInf: T
 ) {
     let count = min(logits.count, vocabularySize)
+    // Ids past the vocabulary (a padded output layer's) are no token the grammar could accept.
+    for i in count ..< logits.count { logits[i] = negInf }
     for (wordIndex, mask) in bitmask.enumerated() {
         let base = wordIndex &* 32
         if base >= count { break }

@@ -22,6 +22,14 @@
 //   `getOrCreateSampler` no longer creates penalty state, `runCompletion` does. Constrained path
 //   matches upstream: no penalty setup. Compile-verified SDK 27.2; runtime pending CI xcode-27.
 //   Row: coreai-fork-window-log.md § Window read 11-09)
+//   Absorbed: #533 f5d220b (encode throw releases the gate slot and closes its spans; strides
+//   hoisted out of the prepare span; the chunk interval ends on every path) and #537 25af63c
+//   (the sampler cache keys on `MPSGraphSamplerGraphKey`, the fields the factory compiles from —
+//   a temperature-keyed cache ignored a changed top_p and threw on a greedy flip).
+//   Absorbed: #522 783fa1a (the grammar-session cache compares `ConstrainedSessionKey`: schema,
+//   stop ids as a set, vocabulary size).
+//   Adjudicated: 819ec7e (window to c8e00c0 read; verdicts:
+//   docs/agent/coreai-fork-window-log.md § Window read 11-23)
 
 #if canImport(CoreAI)
 import CoreAI
@@ -39,7 +47,6 @@ import Tokenizers
 /// the same memory.
 private let pipelineDepth = 3
 private let averageExpectedPromptSize = 256
-private let temperatureTolerance: Double = 0.001
 
 /// MPSNDArray enforces 64-byte row-stride alignment on backing buffers.
 private let minimumMPSNDArrayBufferSize = 64
@@ -463,8 +470,10 @@ final class CoreAIPipelinedEngine: InferenceEngine, ConstrainedGenerationCapable
         vocabSize: Int,
         stopTokenIds: [Int32]?
     ) throws -> ConstrainedSessionHandle {
+        let key = ConstrainedSessionKey(
+            schema: jsonSchema, stopTokenIds: stopTokenIds, vocabularySize: vocabSize)
         if let cached: ConstrainedSessionHandle = _constrainedSessionCache.withLock({ cache in
-            guard let box = cache, box.schema == jsonSchema else {
+            guard let box = cache, box.key == key else {
                 cache = nil
                 return nil
             }
@@ -547,7 +556,7 @@ private struct EngineImpl: ~Copyable {
 
     // GPU sampler — reuses MPSGraphSampler from MPSGraphSamplers.swift
     var cachedSampler: (any MPSGraphSampler)?
-    var cachedSamplerTemperature: Double?
+    var cachedSamplerKey: MPSGraphSamplerGraphKey?
 
     // GPU repetition penalty state (coreai-models #176). Non-nil only when the
     // active sampling configuration has repetitionPenalty > 1.0 on the pipelined
@@ -826,41 +835,23 @@ private struct EngineImpl: ~Copyable {
         self.logits = logitsRef
         self.inputLayout = layout
         self.cachedSampler = nil
-        self.cachedSamplerTemperature = nil
+        self.cachedSamplerKey = nil
         self.penaltyState = nil
 
     }
 
     // MARK: - Sampler
 
+    /// Returns the cached sampler when `config` compiles to the same graph it was built for, else
+    /// builds a new one. Steps already in flight keep the sampler they were given (upstream #537:
+    /// a temperature-keyed cache silently ignored a changed top_p and threw on a greedy flip).
     private mutating func getOrCreateSampler(for config: SamplingConfiguration) throws
         -> any MPSGraphSampler
     {
         let config = config.normalized()
-        let temperature = config.temperature
-
-        if let existingSampler = cachedSampler, let existingTemp = cachedSamplerTemperature {
-            // `existingTemp` is unwrapped to a non-optional `Double` here.
-            let existingIsGreedy = existingTemp == 0
-            let requestedIsGreedy = temperature == 0
-
-            if existingIsGreedy != requestedIsGreedy {
-                throw InferenceRuntimeError.genericError(
-                    "Sampling configuration changed mid-generation. Call reset() first.")
-            }
-            if !existingIsGreedy && !requestedIsGreedy
-                && abs(existingTemp - (temperature ?? 0)) > temperatureTolerance
-            {
-                throw InferenceRuntimeError.genericError(
-                    "Temperature changed mid-generation (\(existingTemp) -> \(temperature ?? 0)). Call reset() first."
-                )
-            }
-            // The penalty stage is compiled into the graph; rebuild when this request needs it (#490).
-            let cachedPenaltyEnabled =
-                (existingSampler as? MPSGraphCompositeSampler)?.penaltyEnabled ?? false
-            if cachedPenaltyEnabled || !config.needsRepetitionPenalty {
-                return existingSampler
-            }
+        let key = MPSGraphSamplerGraphKey(config)
+        if let cachedSampler, cachedSamplerKey == key {
+            return cachedSampler
         }
 
         // Penalty state is created per generation in runCompletion (#490), not cached here.
@@ -876,7 +867,7 @@ private struct EngineImpl: ~Copyable {
             config: config
         )
         cachedSampler = newSampler
-        cachedSamplerTemperature = temperature
+        cachedSamplerKey = key
         return newSampler
     }
 
@@ -908,6 +899,16 @@ private struct EngineImpl: ~Copyable {
             details: "step=\(currentStep) qLen=\(queryLength)"
         )
 
+        // Strides first: they can throw, and nothing inside the prepare span may. A throw escaping
+        // a begun span leaves it reported as never ended (upstream #533).
+        let posLength = processedTokenCount + queryLength
+        let tokenShape = [1, queryLength]
+        let tokenStrides = try resolvedStrides(descriptor: inputIdsBaseDesc, shape: tokenShape)
+        let posShape = [1, posLength]
+        let posStrides = try resolvedStrides(descriptor: positionIdsBaseDesc, shape: posShape)
+        let logitsShape = [1, queryLength, vocabSize]
+        let logitsStrides = try resolvedStrides(descriptor: logitsBaseDesc, shape: logitsShape)
+
         // PrepareStep: write tokens + build views
         let prepareSpan = InstrumentsProfiler.beginPrepareStep(
             step: currentStep, operation: "write+build", engine: "CoreAI-Pipelined")
@@ -927,11 +928,8 @@ private struct EngineImpl: ~Copyable {
 
         // Select cache position buffer for this step (pipeline-depth-matched rotation)
         let cachePosBuffer = cachePositionBuffers[step % pipelineDepth]
-        let posLength = processedTokenCount + queryLength
 
         // Build Inputs as AsyncValue (from MTLBuffers)
-        let tokenShape = [1, queryLength]
-        let tokenStrides = try resolvedStrides(descriptor: inputIdsBaseDesc, shape: tokenShape)
         let tokenValue: InferenceFunction.AsyncValue
         if tokens.isEmpty {
             // Decode: read input token from previous step's decode output buffer
@@ -952,8 +950,6 @@ private struct EngineImpl: ~Copyable {
                 strides: tokenStrides
             )
         }
-        let posShape = [1, posLength]
-        let posStrides = try resolvedStrides(descriptor: positionIdsBaseDesc, shape: posShape)
         let posValue = unsafe InferenceFunction.AsyncValue(
             unsafeBuffer: cachePosBuffer,
             byteOffset: 0,
@@ -993,8 +989,6 @@ private struct EngineImpl: ~Copyable {
         // Decode uses per-step rotating buffer; prefill uses the shared growing buffer.
         let logitsOutputBuffer =
             tokens.isEmpty ? decodeLogitsBuffers[step % pipelineDepth] : logits.metalBuffer
-        let logitsShape = [1, queryLength, vocabSize]
-        let logitsStrides = try resolvedStrides(descriptor: logitsBaseDesc, shape: logitsShape)
 
         prepareSpan.end()
 
@@ -1008,14 +1002,26 @@ private struct EngineImpl: ~Copyable {
 
         // Swift 6 lifetime safety: AsyncMutableViews uses @lifetime(self: &mutableValue)
         // on insert(), so all inserts + consume must be in the same scope without branching.
-        try _CoreAIEncodeHelpers.encodeWithStates(
-            function: function, inputs: asyncInputs,
-            keyState: &keyState, keyCacheName: keyCacheName,
-            valState: &valState, valueCacheName: valueCacheName,
-            additionalStates: additionalStates,
-            logitsBuffer: logitsOutputBuffer, logitsName: logitsOutputName,
-            logitsShape: logitsShape, logitsStrides: logitsStrides,
-            computeStream: computeStream)
+        do {
+            try _CoreAIEncodeHelpers.encodeWithStates(
+                function: function, inputs: asyncInputs,
+                keyState: &keyState, keyCacheName: keyCacheName,
+                valState: &valState, valueCacheName: valueCacheName,
+                additionalStates: additionalStates,
+                logitsBuffer: logitsOutputBuffer, logitsName: logitsOutputName,
+                logitsShape: logitsShape, logitsStrides: logitsStrides,
+                computeStream: computeStream)
+        } catch {
+            // No sampler will run for this step to give the gate slot back, and no callback will
+            // close the spans this step opened (upstream #533: without this the gate starves after
+            // pipelineDepth such failures and every later step waits forever).
+            inFlightGate.release()
+            logitsSpan.end()
+            InstrumentsProfiler.endCustomInterval(
+                name: "CoreAIPipelinedEncodeNextStep",
+                signpostID: encodeStepID, details: "encode error")
+            throw error
+        }
         logitsSpan.end()
 
         // GPU sampling via Metal queue
@@ -1025,7 +1031,7 @@ private struct EngineImpl: ~Copyable {
             tokens.isEmpty ? decodeLogitsBuffers[step % pipelineDepth] : logits.metalBuffer
         let logitsOffset = (actualTokenCount - 1) * vocabSize * MemoryLayout<UInt16>.size
         let samplerStrategy = gpuSampler is MPSGraphArgmaxSampler ? "GPU-argmax" : "GPU-composite"
-        let samplerTemperature = cachedSamplerTemperature ?? 0.0
+        let samplerTemperature = cachedSamplerKey?.temperature ?? 0.0
 
         let sampleSpan = InstrumentsProfiler.beginSampleEncoding(
             step: currentStep, strategy: samplerStrategy, temperature: samplerTemperature)
@@ -1092,6 +1098,9 @@ private struct EngineImpl: ~Copyable {
                     localInFlightGate.release()
                     continuation.finish(throwing: error)
                     sampleSpan.end()
+                    InstrumentsProfiler.endCustomInterval(
+                        name: "CoreAIPipelinedEncodeNextStep",
+                        signpostID: encodeStepID, details: "sampler error")
                     return
                 }
             } else {
@@ -1330,6 +1339,10 @@ private struct EngineImpl: ~Copyable {
             name: "CoreAIPipelinedChunk",
             details: "step=\(currentStep) qLen=\(queryLength) graph=\(graphName)"
         )
+        // Ended on every path, a throw included (upstream #533).
+        defer {
+            InstrumentsProfiler.endCustomInterval(name: "CoreAIPipelinedChunk", signpostID: chunkID)
+        }
 
         // Write at the chunk's natural position so each chunk occupies a disjoint
         // region of inputTokensBuffer. Encode holds a live MTLBuffer reference — writing
@@ -1395,7 +1408,6 @@ private struct EngineImpl: ~Copyable {
 
         processedTokenCount += queryLength
         step += 1
-        InstrumentsProfiler.endCustomInterval(name: "CoreAIPipelinedChunk", signpostID: chunkID)
     }
 
     mutating func reset() {
@@ -1403,7 +1415,7 @@ private struct EngineImpl: ~Copyable {
         processedTokenCount = 0
         step = 0
         cachedSampler = nil
-        cachedSamplerTemperature = nil
+        cachedSamplerKey = nil
         // Steps still in flight hold their own reference; a new generation allocates fresh (#490).
         penaltyState = nil
         penaltyStateIdle = true

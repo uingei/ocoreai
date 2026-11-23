@@ -20,6 +20,8 @@
 // descriptor → buffer size mismatch → crash at init. `InputLayout` detects the fixed
 // seqLen at init and pins both `initialCapacity` and `maxCapacity` to 1, so the
 // buffer matches the descriptor contract exactly.
+// Adjudicated: df8f817 (window to c8e00c0 read; verdicts:
+// docs/agent/coreai-fork-window-log.md § Window read 11-23)
 
 #if canImport(CoreAI)
 import CoreAI

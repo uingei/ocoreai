@@ -13,6 +13,8 @@
 // always compiled (unit-testable on any Apple OS at the module floor).
 // `import simd` trimmed (unused in ocoreai build); `ImageStrategy` lives in
 // CoreAIImageStrategy.swift.
+//   Adjudicated: 128d2f3 (window to c8e00c0 read; verdicts:
+//   docs/agent/coreai-fork-window-log.md § Window read 11-23)
 
 import Accelerate
 import CoreGraphics

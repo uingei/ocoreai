@@ -23,6 +23,8 @@
 ///   member, `acceptsMultimodalInput` — "an engine built from a text bundle reports false". Not
 ///   taken: no CoreAI lane runs here, and a flag nothing can measure would publish an unmeasured
 ///   capability. Landing site when the lane is verifiable: beside `supportsLogits` below.)
+///   Adjudicated: 819ec7e (window to c8e00c0 read; verdicts:
+///   docs/agent/coreai-fork-window-log.md § Window read 11-23)
 /// EngineOptions, KVCacheStrategy, InferenceOptions, InferenceOutput redefined here
 /// to avoid importing reference repo (macOS 27 requirement). Types match reference API
 /// for compatibility.

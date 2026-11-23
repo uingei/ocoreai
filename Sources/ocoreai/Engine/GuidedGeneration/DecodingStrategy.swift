@@ -3,6 +3,8 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
+// Adjudicated: 60e8605 (window to c8e00c0 read; verdicts in
+// docs/agent/coreai-fork-window-log.md § Window read 11-23)
 #if canImport(CoreAI)
 
 import Foundation

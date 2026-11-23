@@ -6,6 +6,8 @@
 //
 // Gated behind #if canImport(CoreAI) — LogitsScalarType lives inside CoreAI engine module.
 
+// Adjudicated: 0e5b5ab (window to c8e00c0 read; verdicts in
+// docs/agent/coreai-fork-window-log.md § Window read 11-23)
 import Foundation
 
 #if canImport(CoreAI)
@@ -102,6 +104,16 @@ enum CompositeSampler {
 
     static func softmax(_ logits: inout [Float]) -> [Float] {
         let maxVal = logits.max() ?? 0
+        // A +inf logit (e.g. fp16 overflow) dominates every finite one, so the limit of the
+        // softmax is uniform over the +inf positions. Subtracting the max would give
+        // inf - inf = NaN at each of them (coreai-models #524).
+        if maxVal == .infinity {
+            let infPositions = logits.indices.filter { logits[$0] == .infinity }
+            let share = 1 / Float(infPositions.count)
+            var probs = [Float](repeating: 0, count: logits.count)
+            for i in infPositions { probs[i] = share }
+            return probs
+        }
         let exps = logits.map { exp($0 - maxVal) }
         let sum = exps.reduce(0, +)
         guard sum > 0, sum.isFinite else {

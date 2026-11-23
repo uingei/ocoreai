@@ -8,6 +8,8 @@
 //   reworded and two multi-turn TODOs moved; no line of the verbatim slice changed.
 //   docs/agent/coreai-fork-adjudication.md)
 // CoreAI dependency (NDArray) — gated.
+//   Adjudicated: 128d2f3 (window to c8e00c0 read; verdicts:
+//   docs/agent/coreai-fork-window-log.md § Window read 11-23)
 
 #if canImport(CoreAI)
 import CoreAI

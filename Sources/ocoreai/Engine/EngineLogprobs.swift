@@ -23,6 +23,8 @@
 // InferenceEngine / LogitsScalarType / LogProbabilities, all CoreAI-side.
 // Consumers (CompletionsHandler loglikelihood branch) are likewise
 // CoreAI-gated (LogProbabilities.swift header contract).
+// Adjudicated: a68e73f (window to c8e00c0 read; verdicts:
+// docs/agent/coreai-fork-window-log.md § Window read 11-23)
 
 #if canImport(CoreAI)
 

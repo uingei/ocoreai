@@ -28,6 +28,8 @@
 //     measurement at all as 1.0, the same "no evidence reads as perfect" shape the first
 //     divergence removes at the field level. A consumer that wants them must arrive with the
 //     aggregate's honest domain (no finite entry ⇒ no score), not re-import the collision.
+// Adjudicated: 09ff139 (window to c8e00c0 read; verdicts:
+// docs/agent/coreai-fork-window-log.md § Window read 11-23)
 
 #if canImport(CoreAI)
 

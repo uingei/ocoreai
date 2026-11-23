@@ -3,6 +3,8 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
+// Adjudicated: 603bf7f (window to c8e00c0 read; verdicts in
+// docs/agent/coreai-fork-window-log.md § Window read 11-23)
 import Foundation
 import Metal
 import MetalPerformanceShadersGraph
@@ -116,6 +118,30 @@ extension MPSGraphSampler {
 }
 
 // MARK: - Sampler Factory
+
+/// The fields ``MPSGraphSamplerFactory/makeSampler(device:vocabSize:config:)`` compiles a sampler
+/// graph from, so the pipelined engine caches its sampler on this instead of the whole request
+/// config. Upstream #537 keyed its cache on the whole config because its struct holds nothing else;
+/// ours also carries stop sequences, seed and KV fields the graph does not read, and rebuilding on
+/// those would recompile an MPSGraph per request. Normalized first, so a greedy request's top_p
+/// (dropped by `normalized()`) never invalidates the cache. No availability requirement: it is a
+/// value type, so the cache decision is testable on every route.
+struct MPSGraphSamplerGraphKey: Equatable {
+    let temperature: Double?
+    let topK: Int?
+    let topP: Double?
+    let minP: Double?
+    let penaltyEnabled: Bool
+
+    init(_ config: SamplingConfiguration) {
+        let config = config.normalized()
+        self.temperature = config.temperature
+        self.topK = config.topK
+        self.topP = config.topP
+        self.minP = config.minP
+        self.penaltyEnabled = config.needsRepetitionPenalty
+    }
+}
 
 /// Factory for creating the appropriate MPSGraph sampler based on configuration.
 @available(macOS 27.0, iOS 27.0, *)

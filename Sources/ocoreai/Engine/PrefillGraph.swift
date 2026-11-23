@@ -10,6 +10,8 @@
 /// `prefill` is exported beside `main` (see coreai-models `export/macos.py`) with the
 /// same inputs and states, but no LM head and no outputs: it only fills the KV cache.
 /// Both the sequential and pipelined engines load it when the asset has it.
+// Adjudicated: 82c3488 (window to c8e00c0 read; verdicts:
+// docs/agent/coreai-fork-window-log.md § Window read 11-23)
 
 #if canImport(CoreAI)
 import CoreAI

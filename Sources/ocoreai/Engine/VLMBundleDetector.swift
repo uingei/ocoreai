@@ -19,6 +19,8 @@
 //
 // Pure Foundation (no CoreAI import) — testable on all macOS/iOS versions.
 // `VisionConfig` is declared un-gated in `CoreAIVisionConfig.swift` (L14-110).
+//   Adjudicated: 1e59152 (window to c8e00c0 read; verdicts:
+//   docs/agent/coreai-fork-window-log.md § Window read 11-23)
 
 import Foundation
 

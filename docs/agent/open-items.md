@@ -108,23 +108,29 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — three `@available(macOS 27.0, *)` or
   SDK-gated sites (detail: `docs/agent/build-gate-reality.md`) ⇒ no blind fix and no claim of one; their
   suites now skip on this OS through `PlatformPremise.hasMacOS27` instead of reporting a red.
-- **The coreai fork's debt is named open verdicts, not a drift window** (Engine/) — 8 of them from
-  77a122f reading all 36 commits behind the four engine windows (7 absorbed, 21 n/a), 3 from the #388/#374
-  read, 3 from the 11-05 read, 2 from the 11-06/11-09 reads (#412's GPU-error stop and #490's
-  repetition-penalty carry-in: our `CoreAIPipelinedEngine.swift` still carries the pre-fix yield shape
-  (`:1050`) and the pre-fix lazy-penalty shape (`:859,:1387`), both ports wait the macOS 27 window);
-  one row each with its action in
-  `docs/agent/coreai-fork-window-log.md` (#368 measured 10-30 by probe 12 §5b: the shipping lane damps whitespace via
-  upstream `WhitespaceTokenBias`, so its exposure is CoreAI-only, unverifiable here). Per-file windows
-  re-measured 11-22: `make drift` reads a non-empty window (exit 10); the shape and the queue: that log's
-  § Window read 11-22. The axis has also moved export-side **and** through two Swift commits in
-  `CoreAILanguageModels/SpeculativeDecoding/` — a target this tree mirrors nothing of (rows: that log's
-  § Window read 11-05), so § Upstream 2 still has no surface for it. The ledger's other face, re-measured
-  11-22: of 57 candidates **25** are still no-baseline, and the two carrying a sha in prose are exactly
-  the two § 11-05 (b) said would be read *wrong* — left stampless on purpose. Nine prose read-points went
-  canonical that day (§ Window read 11-22), surfacing 19 real unread commits the unread bucket had been
-  hiding; `make drift` prints both counts every round.
-- **The `+6` mlx-swift-lm window hands us a truth we cannot read until the bump** (Engine/) — read 11-05 in
+- **The coreai fork's debt is named open verdicts, not a drift window** (Engine/) — the drift window is
+  now closed: the full `0bfb548..ca2aecf` (+46) read (§ Window read 11-23 (b) of
+  `docs/agent/coreai-fork-window-log.md`) ported three live bugs (#537 sampler cache, #533 gate/span
+  leak, #522 grammar-session key + padded mask, plus #524's +inf half), stamped every mirror whose
+  window was adjudicated, and adopted the axis — `make drift` reports `coreai-models 0 new`. What
+  remains is the verdict debt, one row each with its action in that log: #412's GPU-error stop and
+  #490's repetition-penalty carry-in (ports landed 11-12, runtime pending the macOS 27 window), #368's
+  whitespace damping (CoreAI-only, unverifiable here), and three names this read surfaced:
+  1. **#294 additive penalties are on the wire but off the engine** — `/v1` accepts
+     `frequency_penalty`/`presence_penalty`, the CoreAI pipelined GPU sampler never compiled them
+     (upstream's additive stage is the missing piece) and the CPU fallback applies neither; the MLX
+     lane honors them. Invariant 2 exposure: the surface promises, the engine silently drops. Waiting
+     the same host.
+  2. **#530 bundle-declared `eos_token_ids`** (Gemma 4's `<|tool_response|>` = 50) — the CoreAI lane
+     reads no bundle stop-ids (0 hits in `Sources/`); stop semantics ride the wire `stop` field alone.
+  3. **#509's `maxConsecutiveUnknownIds`** — their decoder trips when sampling repeatedly lands in a
+     padded vocabulary; our decoder has no such guard, so a stuck sampler runs silently to maxTokens.
+  The ledger's other face, re-measured after the adopt: of 57 candidates **15** remain no-baseline
+  (was 25) — files this window never touched, whose full absorption history stays unverified rather
+  than stamped into a false green; `Handlers/DecisionsHandler.swift` is honestly one of them (an MIT
+  in-tree file whose only sha is another mirror's cite). `make drift` prints both counts every round.
+- **The mlx-swift-lm window (+9 at 11-23; the `+6` below is the 11-05 reading) hands us a truth we
+  cannot read until the bump** (Engine/) — read 11-05 in
   a local clone at `c8dabc6`: `GenerateCompletionInfo` gains `speculativeDecodingFallbackReason`
   (`Evaluate.swift:3083`) naming the five reasons a session with speculation configured ran plain
   generation. We already consume that struct's siblings (`passthroughReason`,

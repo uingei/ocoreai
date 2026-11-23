@@ -273,3 +273,82 @@ slice; the content question is `coreai-content`'s.
 The answer, by three numbers: adjudicated windows — sync is line-true in the sampled set (zero
 undeclared misses); the axis's body — unread (exit 10, 19 commits, 25 unstamped files), and `make
 drift` never calls it synced; one prose claim that contradicted its own file — convicted and repaired.
+
+## Window read 11-23 (b) — the +45 read in full: three real ports, and the axis adopted at zero
+
+The owner's ruling on the previous section: bookkeeping is not sync — finish the read and adopt. This
+section is that read: every commit in `0bfb548..c8e00c0` (plus `ca2aecf`, the one commit the mirror
+gained mid-round, which `adopt coreai-models` baselined — read and adjudicated before this claim
+stands). Method: each commit's file list intersected against the mirror set (28 table rows plus the
+no-baseline mirrors); zero-intersection commits are n/a by file, named by subject; intersection
+commits read at hunk level, then grep-tested for whether the enclosing shape exists in our copy.
+
+### Ported — these were live bugs in our tree
+
+| commit | defect in our copy | port | gate |
+|---|---|---|---|
+| `25af63c` #537 | sampler cache keyed on temperature alone: a later request changing `top_p` silently reused the old MPSGraph (wire claimed a sampling parameter the engine never applied — invariant 2), and a greedy flip threw demanding a `reset()` the engine never runs between requests | cache keyed on `MPSGraphSamplerGraphKey` = the fields `MPSGraphSamplerFactory` compiles from (temperature/topK/topP/minP/penaltyEnabled, normalized); rebuild on any change, no throw. Whole-config equality rejected: our `SamplingConfiguration` also carries seed/stop/KV fields, and keying on them would recompile a graph per request | `CacheKeyInvalidationTests.SamplerGraphKeyTests` — mutation-proved red (`minP` dropped → `✘ Expectation failed`) |
+| `f5d220b` #533 | `_encodeNextStepGPU`: gate slot acquired then bare-`try` encode — a throw leaked the slot forever (after `pipelineDepth` failures the lane stalls permanently) and left three spans unclosed; the sampler sync-throw path leaked the step interval; `_encodeChunk` ended its interval only on success | strides hoisted out of the prepare span; encode wrapped with slot-release + span-close + rethrow; chunk interval `defer`red | compile-verified (mutation probe: the CoreAI block compiles on this host); runtime pending the CI xcode-27 tier, like the 11-12 ports |
+| `783fa1a` #522 | grammar-session cache matched schema alone: same schema + different `stop` strings reused a session whose grammar ends elsewhere (JSON string content truncated by a stop, or a stop no longer honoured); padded-logit ids past the grammar vocabulary escaped the CPU mask and then failed the request | `ConstrainedSessionKey` (schema, stop ids as a set — nil ≠ ∅ — vocabulary size) compared in the cache; `_applyBitmask` masks `count..<logits.count` to −inf | `ConstrainedSessionKeyTests` green here; `PaddedLogitsMaskTests` compiles, runs on the macOS-27 runner (skipped here, named) |
+| `eed1a35` #524 | CPU fallback `CompositeSampler.softmax`: a +inf logit (fp16 overflow) made `inf − inf = NaN`, the `sum.isFinite` guard returned all-zero probabilities, and the sampler silently emitted token 0 — a whole reply off-distribution | correctness half ported: softmax uniform over exactly the +inf positions. Performance half (avoid full-vocab sort for top-p/min-p-only) NOT ported: latency on a fallback lane, and shipping half a tested commit silently is what this read exists to stop | `CompositeSamplerInfLogitTests` — 3 exact-value tests, green on this host |
+
+### Read, inert by absence (0 consumers in `Sources/`, measured this round)
+
+`e7e0724` #525 `mergingTensorData`/`RotatingLogitsBuffers` · `d16691d` #540 + `819ec7e` #549 prefix-cache
+(including disk persistence; their `StateHandler+MTLBuffer` hunks add methods to a 71-line slice that
+carries none of the subsystem) · `b150bae` #515 `prefillPiece`/`commitRow` contract · `6e5c13f` #512
+`LogitsWriter` · `a68e73f` #511 batch-scheduler CLI half (our `EngineLogprobs` slice is the logprob
+lines only) · `8e16840` #543 + `3b41815` #418 PLE (static-shape slice has no
+conv/recurrent/PLE region: `hasRecurrentState`/`conv`/`per_layer` 0 hits) · `1c0e98c` #529 (our
+StaticShape copy contains no profiler plumbing) · `603bf7f` #294 additive stage + `AdditivePenalty*`
+· `0e5b5ab` #545 rename (we keep our type names) · `47c7863` #539 + `3fec410` #534 (docs/skill) ·
+`c8bf489` #555 dependency bump (upstream-side) · `30baee1` #526 + `50975a8` #520 + `a4b39b9` #521
+(upstream tests / llm-server / a tool our copy already sliced out).
+
+### Read, n/a by seam or declared slice
+
+`5316b99` #508 — upstream caught up to OUR feature: our vendored `ThinkTagParser` carried
+`promptEndsInsideReasoning` + `init(primedInside:)` before upstream had any of it (recorded in its
+header); their `promptOpensReasoning` is the same feature, different name. Stamped `Adjudicated:
+5316b99`. · `60e8605` #509 engine half — outcome reporting + token-level stop enforcement lives in
+their strategy layer; ours is a seam decision already on the wire (`EngineInference.swift` native
+stop-sequence detection → `.stopSequence` → ChatHandler finish-reason map). Their
+`maxConsecutiveUnknownIds` guard has no home in our decoder — named below. · `8bbadd0` #532 —
+`GrammarSchemaJSON` canonicalizes FoundationModels-encoded schemas; we feed the wire's schema string
+verbatim to xgrammar, and our FM path never re-encodes a schema into a grammar (checked at
+`EngineInference.swift` FM-guided site). · `128d2f3` #501 + `8a75e8e` #530 — chat-API image plumbing
+and `LanguageConfig.eosTokenIds` sit outside our declared slices; the bundle-declared stop-ids
+semantics (Gemma 4 token 50) is a CoreAI-lane gap named below. · `c8e00c0` #559 + `b972ed5` #510 —
+Sana-NE/dynamic-Flux2 variants; our diffusion slice carries no variant dispatch, and #559's
+`requireGPUComputeUnits()` guard in Wan has no config concept here (`computeUnits` 0 hits). ·
+`4fa41b0` #519 · `da9fb21` #547 · `dcdfc63` #548 · `4c36290` #558 · `989f504` #514 · `40ccccc` #513 ·
+`5e0a236` #553 · `acbce1b` #517 · `f9d5659` #542 · `9ebfa93` #419 · `282bb53` #498 · `ff4bf6c` #496 ·
+`ff227c5` #486 · `75d33c1` #364 · `591da85` #536 · `ca2aecf` #551 — export-side python,
+README, registry: zero Swift mirror files (the established export-side n/a) · `d50c611` #528 —
+refactor of their split encode/wait/reset helpers; our copy has the merged shape, no behaviour delta.
+
+### Names this read surfaced (owed somewhere, decided where)
+
+1. **#294 completeness**: our `/v1` wire accepts `frequency_penalty`/`presence_penalty`, the CoreAI
+   pipelined GPU sampler ignores them (upstream's additive stage is the missing piece; CPU fallback
+   applies neither). MLX lane honors them. → `open-items.md` row.
+2. **#530 bundle-declared `eos_token_ids`** (Gemma 4 `<|tool_response|>` = 50): CoreAI lane reads no
+   `eos_token_ids` from the bundle config (0 hits); gated behind the same macOS-27 unverifiability.
+   → open-items row.
+3. **#509 `maxConsecutiveUnknownIds`**: their decoder fails fast when sampling lands repeatedly in
+   a padded vocabulary; our decoder has no such trip. → open-items row.
+
+### Where the read-point moved, and the axis
+
+28 mirrors carried a stale or absent read-point; all whose window commits are adjudicated above were
+stamped `Adjudicated: <last-touch ≤ c8e00c0>` (ledger-parsable, first-45-lines): 38 rows now read to
+their file's end, 0 pending; the no-baseline list fell 25 → 15 — the 15 left are files this window
+did not touch and whose full absorption history this round did not re-verify (stamping them would be
+the false green the ledger refuses to parse by design). `Handlers/DecisionsHandler.swift` stays
+no-baseline honestly: it is an MIT in-tree file, a candidate only because its header cites another
+mirror's provenance.
+
+Then: `bash scripts/upstream-drift.sh adopt coreai-models` → baseline `ca2aecf`,
+`make drift` reports `coreai-models 0 new ✓ 与基线同点`. The red that remains is
+**mlx-swift-lm +9** — its bump protocol ends in `make test-ci` (CI tier) and a push, both owner
+windows; not taken unilaterally.

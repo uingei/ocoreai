@@ -3,6 +3,8 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 // Provenance: aligned with coreai-models Handlers/StateHandler+MTLBuffer.swift @ a5ece33 (0 commits changed a5ece33..21dc8ad — anchor current).
+// Adjudicated: 819ec7e (window to c8e00c0 read; verdicts:
+// docs/agent/coreai-fork-window-log.md § Window read 11-23)
 
 #if canImport(CoreAI)
 import CoreAI

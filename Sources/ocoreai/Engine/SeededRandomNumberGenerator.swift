@@ -32,6 +32,8 @@
 /// advances the state, then two xor-shift/multiply rounds mix it. It is fast, has a
 /// full 2^64 period, and passes standard statistical tests — enough for a sampling
 /// determinism knob (it is not a cryptographic generator).
+// Adjudicated: 0e5b5ab (window to c8e00c0 read; verdicts:
+// docs/agent/coreai-fork-window-log.md § Window read 11-23)
 struct SeededRandomNumberGenerator: RandomNumberGenerator {
     private var state: UInt64
 

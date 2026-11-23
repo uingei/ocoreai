@@ -31,6 +31,8 @@
 /// Replaces old `CoreAIEngine.swift` which had:
 /// - Hard-coded 2-state guard, manual KV, no chunked prefill
 /// - Mutex cancel, no profiling, no hybrid model support
+//   Adjudicated: b150bae (window to c8e00c0 read; verdicts:
+//   docs/agent/coreai-fork-window-log.md § Window read 11-23)
 
 #if canImport(CoreAI)
 import CoreAI

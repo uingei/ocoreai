@@ -15,6 +15,8 @@
 // InferenceConfiguration conformance — CoreAIEngine.swift L267) instead of the
 // upstream `ModelConfig`. VisionConfig is verbatim (pure value type, no CoreAI
 // dependency).
+//   Adjudicated: 8a75e8e (window to c8e00c0 read; verdicts:
+//   docs/agent/coreai-fork-window-log.md § Window read 11-23)
 
 import Foundation
 

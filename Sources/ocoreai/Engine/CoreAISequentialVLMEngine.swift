@@ -13,6 +13,8 @@
 //   and our logits guard already accepts bfloat16 (`:270`); rows: coreai-fork-window-log.md)
 //   Adjudicated: 12f3700 (#490 read 11-09: inert here — this slice carries no penalty surface
 //   (`penaltyState` grep empty), so the carry-in bug it fixes has no face in this file)
+//   Adjudicated: 819ec7e (window to c8e00c0 read; verdicts:
+//   docs/agent/coreai-fork-window-log.md § Window read 11-23)
 
 #if canImport(CoreAI)
 import CoreAI

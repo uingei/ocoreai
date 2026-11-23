@@ -10,6 +10,8 @@
 //   outside this 19-line strategy; row: coreai-fork-window-log.md § Window read 11-09)
 // Pure Foundation/CoreImage/vDSP value types — no CoreAI dependency, always
 // compiled (usable in tests on any Apple OS ≥ the module floor).
+//   Adjudicated: 128d2f3 (window to c8e00c0 read; verdicts:
+//   docs/agent/coreai-fork-window-log.md § Window read 11-23)
 
 import CoreGraphics
 import CoreImage

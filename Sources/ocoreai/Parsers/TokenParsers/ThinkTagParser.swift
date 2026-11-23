@@ -28,6 +28,8 @@
 // Test in `Tests/ocoreaiTests/AgenticThinkTagParserVendoredTests.swift`
 // (upstream `AgenticThinkTagParserTests` adapted to @testable ocoreai target).
 
+// Adjudicated: 5316b99 (window to c8e00c0 read; verdicts in
+// docs/agent/coreai-fork-window-log.md § Window read 11-23)
 import Foundation
 
 /// Streaming parser that segments a model's text deltas into plain text and
