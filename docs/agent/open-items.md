@@ -128,7 +128,10 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   The ledger's other face, re-measured after the adopt: of 57 candidates **15** remain no-baseline
   (was 25) — files this window never touched, whose full absorption history stays unverified rather
   than stamped into a false green; `Handlers/DecisionsHandler.swift` is honestly one of them (an MIT
-  in-tree file whose only sha is another mirror's cite). `make drift` prints both counts every round.
+  in-tree file whose only sha is another mirror's cite). One of them is a rename blind spot:
+  upstream `Samplers/CompositeSampler.swift` became `ReferenceSampler.swift` (#545) and the ledger
+  maps by the cited path, so our CPU-sampler copy tracks a dead path — the manual instrument is in
+  the window log. `make drift` prints both counts every round.
 - **The mlx-swift-lm window (+9 at 11-23; the `+6` below is the 11-05 reading) hands us a truth we
   cannot read until the bump** (Engine/) — read 11-05 in
   a local clone at `c8dabc6`: `GenerateCompletionInfo` gains `speculativeDecodingFallbackReason`

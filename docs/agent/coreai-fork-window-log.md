@@ -352,3 +352,23 @@ Then: `bash scripts/upstream-drift.sh adopt coreai-models` → baseline `ca2aecf
 `make drift` reports `coreai-models 0 new ✓ 与基线同点`. The red that remains is
 **mlx-swift-lm +9** — its bump protocol ends in `make test-ci` (CI tier) and a push, both owner
 windows; not taken unilaterally.
+
+### Content face re-measured at the new read-points, and one blind spot the stamps exposed
+
+`bash scripts/upstream-drift.sh coreai-content` at the new stamps: 38/38 rows carry absent lines,
+5 173 total (the pre-stamp figure was 26/3 909 — the newly lined rows are the big strategy files,
+whose declared slices account for the jump by count, not by kind). The top rows' `#miss` lines were
+sampled and classified with 11-23 (a)'s lens: `CoreAISequentialVLMEngine` (1 248) is the pipelined
+file's declared slice; `MPSGraphSamplers` (286) is absent lines from the additive stage — that is
+open-item #294's own face, not new debt; `CoreAIStaticShapeEngine`/`CoreAIPipelinedEngine` opens with
+the declared adaptations (`import CoreAIShared` flatten, `ConfigType` naming, the struct-wrapper
+rename, the `milliseconds` helper we never took). No undeclared logic in the sampled top rows.
+
+Blind spot the stamps exposed: upstream `Samplers/CompositeSampler.swift` was renamed to
+`ReferenceSampler.swift` by #545, and the ledger maps mirror→upstream by the header's cited path —
+so our `CompositeSampler.swift` now tracks a dead path (`ReferenceSampler` appears 0 times in the
+census; my `Adjudicated:` there is decorative, the file sits in `胶合/引用`). Future windows on the
+renamed file will not surface against our copy through any ledger line. Named here because a scan
+that stopped matching passes vacuously (invariant 1): the day the content face matters for that file,
+the instrument to run is `git -C ~/references/coreai-models log ReferenceSampler.swift` against
+`Sources/ocoreai/Engine/CompositeSampler.swift` by hand, or give the ledger a rename-aware cite.
