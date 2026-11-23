@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# The spell gate, in one home: `make spell`, a pre-commit hook and CI all run this command
-# against this repo's .codespellrc, on a version whose number is asserted before it is used.
+# The spell gate, in one home: `make spell` (so `make push-ready` too) and the CI governance
+# step all run this command against this repo's .codespellrc, on a version whose number is
+# asserted before it is used. The pre-commit hook kept a second `rev:` pin and was cut 11-24.
 # The assert is the point: a scanner a package manager installs serves whatever release is
 # current, and this repo already lost ~90 CI runs to that with swift-format.
 #

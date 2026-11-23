@@ -1,8 +1,10 @@
 # Local hygiene hooks: the layer every project this repo learns from ships (mlx-swift-lm,
 # coreai-models, vllm, sglang, codex) and this repo did not. Two rules decide membership here:
 # the check must need nothing but the checkout — no pinned toolchain, no Metal, no model — and it
-# must have bitten. So swift-format and the docs contract stay in `make round-gates`, where the
-# pinned swift-format build is resolved; what follows is free everywhere and starts clean today.
+# must have bitten. So swift-format stays in `make push-ready`, where the pinned build is resolved.
+# Codespell left 11-24 (owner gate review): `make spell` and the CI governance step run the same
+# tool on the same .codespellrc with the pin asserted in one home (scripts/spell-check.sh), and a
+# second pin in a hook `rev:` is exactly the split that cost ~90 runs when swift-format drifted.
 #
 # `detect-private-key` is the whole secret story this repo needs: sglang gates secrets with exactly
 # this hook rather than a scanner job, so a credential stops where it is typed, at zero CI minutes
@@ -25,7 +27,3 @@ repos:
         args: [--allow-multiple-documents]
       - id: check-toml
       - id: check-json
-  - repo: https://github.com/codespell-project/codespell
-    rev: v2.4.3
-    hooks:
-      - id: codespell
