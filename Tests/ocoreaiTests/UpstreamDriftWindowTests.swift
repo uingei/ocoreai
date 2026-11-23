@@ -194,7 +194,7 @@ struct UpstreamDriftWindowTests {
         try Self.write(
             """
             // Copyright © 2026 uingei@163.com.
-            // Provenance: coreai-models. Swift/Sources/Up/EngineThing.swift
+            // Provenance: coreai-models — swift/Sources/Up/EngineThing.swift
             //   Absorbed: #7 \(baseline)
             // Adjudicated: \(head)
 
@@ -234,7 +234,7 @@ struct UpstreamDriftWindowTests {
         try Self.write(
             """
             // Copyright © 2026 uingei@163.com.
-            // Provenance: coreai-models. Swift/Sources/Up/FileA.swift
+            // Provenance: coreai-models — swift/Sources/Up/FileA.swift
             //   Absorbed: #7 \(head)
 
             let alpha = 1
@@ -246,7 +246,7 @@ struct UpstreamDriftWindowTests {
         try Self.write(
             """
             // Copyright © 2026 uingei@163.com.
-            // Provenance: coreai-models. Swift/Sources/Up/FileB.swift
+            // Provenance: coreai-models — swift/Sources/Up/FileB.swift
             //   Absorbed: #7 \(head)
 
             let alpha = 1
@@ -356,7 +356,7 @@ struct UpstreamDriftWindowTests {
         try Self.write(
             """
             // Copyright © 2026 uingei@163.com.
-            // Provenance: coreai-models. Swift/Sources/Up/EngineThing.swift
+            // Provenance: coreai-models — swift/Sources/Up/EngineThing.swift
             //   Absorbed: #7 \(ref)
 
             import Foundation
