@@ -11,7 +11,7 @@
 
 ---
 
-### Quick Start
+## Quick start
 
 **macOS 14+ · iOS 17+ · Apple Silicon · Swift 6.2 · Pure SwiftPM**
 
@@ -69,7 +69,7 @@ explicit opt-in. Run `OCOREAI_ENABLE_HTTP=1 /Applications/ocoreai.app/Contents/M
 
 ---
 
-### Lifecycle
+## Lifecycle
 
 - **Update**: Settings → About → "Check for Updates…" compares the running
   build against the latest GitHub release and opens the release page. The
@@ -81,7 +81,7 @@ explicit opt-in. Run `OCOREAI_ENABLE_HTTP=1 /Applications/ocoreai.app/Contents/M
   they are never touched unless you ask. No keychain entries exist by design
   (env-first tokens, mirroring mlx-swift-lm/coreai-models).
 
-### What's in here
+## What's in here
 
 One process: inference (MLX Metal + CoreAI, upstream-derived) + agent loop (tool calling, skills, session memory via SQLite/FTS5) + HTTP gateway (OpenAI/Anthropic-compatible endpoints, table below) + native multimodal I/O (camera/screen/audio/OCR/STT/TTS, all Apple-native) + MCP bridge (stdio).
 
@@ -101,7 +101,7 @@ Known boundaries (as of this commit, not aspirations):
 
 ---
 
-### API Endpoints
+## API endpoints
 
 | Method | Endpoint | Purpose |
 |------|------|------|
@@ -150,7 +150,7 @@ Known boundaries (as of this commit, not aspirations):
 > `reasoningEffort` (`honored` | `template_ignores` | `not_observed`. A word your request sends that the
 > checkpoint measurably never reads is refused 400 with the remedy, never answered 200 as if it had landed), and `GET /v1/capabilities` publishes the same measurements aggregated, plus `tokenizerBackend` (`real`/`heuristic`) and the endpoint index. Nothing is inferred from an architecture name or a linked framework: an unmeasured capability is an explicit `not_observed`/`unknown`, never a silent absence, and unloading a model resets its claims. Model ids contain `/`, and `/v1/models/:model/…` accepts them verbatim (`org/name`) as well as percent-encoded (`org%2Fname`).
 
-#### The measured gallery
+### The measured gallery
 
 The table below is a copy of one `GET /v1/models` against a server that had **measured** these
 checkpoints. Every verdict word is defined in the paragraph above, and an empty cell means
@@ -166,7 +166,7 @@ No measured rows committed yet. Run the command above against a measured server.
 
 ---
 
-### Call it from your code
+## Call it from your code
 
 Both snippets are the shapes a gated probe asserts against exact values,
 `scripts/probes/56-openai-sdk-consumer.sh` boots a server and drives the canonical OpenAI SDK
@@ -196,7 +196,7 @@ print(reply.choices[0].message.content)
 
 ---
 
-### Drive it from another agent
+## Drive it from another agent
 
 `skills/ocoreai/` is a published skill that teaches an outside harness. Claude Code, Codex, or any agent that
 reads a Markdown file, to drive this server: the endpoint index, the agent-loop contract, and the honesty
@@ -221,13 +221,13 @@ that someone has to remember to update.
 
 ---
 
-### Architecture
+## Architecture
 
 One process, no boundary: gateway (Hummingbird `:8080` + SwiftUI) → control plane (Scheduler `P0`→`P3`, OOMGuard, ConfigWatcher) → routing (HardwareRouter GPU/ANE/CPU, AdmissionGate) → inference (MLX Metal / CoreAI ANE, session pool, spec decoding) → persistence (SQLite + FTS5). The scheduler feeds the engine in-process, no localhost hop, no IPC. Directory layout: see the Modules table below.
 
 ---
 
-### Configuration
+## Configuration
 
 Create `~/.ocoreai/config.yaml`:
 
@@ -260,7 +260,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 
 ---
 
-### Modules
+## Modules
 
 | Module | Path | What It Does |
 |--------|------|-------------|
@@ -283,7 +283,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 
 ---
 
-### Security
+## Security
 
 - **Network**. Binds `127.0.0.1` only. No external address exposure.
 - **Auth**. Env var `OCOREAI_API_KEYS` enables it; `OCOREAI_ADMIN_KEYS` gates PATCH/DELETE. Empty/absent = auth off. **Non-loopback bind without auth is refused** (`ServerAuthGate`). Not a YAML key.
@@ -295,7 +295,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 
 ---
 
-### Status
+## Status
 
 Per-feature status with commit refs lives in `CHANGELOG.md`. A pinned ✅ table here would go stale on every commit. What is stable as of this commit:
 
@@ -303,7 +303,7 @@ Per-feature status with commit refs lives in `CHANGELOG.md`. A pinned ✅ table 
 - **Local builds** compile clean: ocoreai source 0 warnings (dependency-bundle noise aside).
 - **Default-off surfaces** (deliberate, not missing): perception channels, TTS/speaker, self-correction pipeline. See "Known boundaries" above.
 
-### Build Info
+## Build info
 
 - Swift 6.2 · SwiftUI · Hummingbird 2.26
 - Declared `.macOS(.v14)` / `.iOS(.v17)` · Apple Silicon · pure SwiftPM. Executed on macOS 26; iOS is compile-validated (`generic/platform=iOS`), never run
@@ -311,7 +311,7 @@ Per-feature status with commit refs lives in `CHANGELOG.md`. A pinned ✅ table 
 
 ---
 
-### License
+## License
 
 MIT. Copyright © 2026 uingei@163.com
 

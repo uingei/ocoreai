@@ -56,7 +56,7 @@ private func skeleton(_ root: URL, _ name: String) throws -> ReadmeSkeleton {
     let lines = text.components(separatedBy: "\n")
     return ReadmeSkeleton(
         name: name,
-        headings: lines.filter { $0.hasPrefix("### ") }.count,
+        headings: lines.filter { $0.hasPrefix("## ") }.count,
         fences: text.components(separatedBy: "```").count / 2,
         tableRows: lines.filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("|") }.count,
         images: matches("!\\[", text).count,

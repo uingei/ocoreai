@@ -11,7 +11,7 @@
 
 ---
 
-### 快速开始
+## 快速开始
 
 **macOS 14+ · iOS 17+ · Apple Silicon · Swift 6.2 · 纯 SwiftPM**
 
@@ -53,12 +53,12 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 
 ---
 
-### 生命周期
+## 生命周期
 
 - **更新**：设置 → 关于 → "检查更新…"。对比当前版本与 GitHub 最新 Release，由用户决定下载；绝不静默下载。
 - **卸载**：`scripts/uninstall.sh`（默认 dry run）按层级列出全部足迹。可再生缓存/日志、用户数据（会话/配置）、模型权重、App 本体。只删除你以 `--data / --userdata / --models / --app / --all` 选中的层级。模型权重动辄数百 GB：不点名绝不碰。钥匙串零条目是有意设计（token 走 env-first，对齐 mlx-swift-lm/coreai-models）。
 
-### 这里有什么
+## 这里有什么
 
 一个进程：推理（MLX Metal + CoreAI，上游衍生）+ Agent 循环（工具调用、技能、SQLite/FTS5 会话记忆）+ HTTP 网关（OpenAI/Anthropic 兼容端点，见下表）+ 原生多模态 I/O（摄像头/屏幕/音频/OCR/STT/TTS，全 Apple 原生）+ MCP 桥接（stdio）。
 
@@ -78,7 +78,7 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 
 ---
 
-### API 端点
+## API 端点
 
 | 方法 | 端点 | 用途 |
 |------|------|------|
@@ -125,7 +125,7 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 
 > 其余路由在设了 `OCOREAI_API_KEYS` 之后一律要 API key。**包括 `GET /v1/perception`**：它不在 `AuthRoutePolicy.publicPaths` 里，所以是带鉴权的。该集合是这份名单的唯一真源。文档须与其保持可 grep 一致（P10 随 bespoke 文档门于 11-16 退役）。
 
-#### 实测画廊
+### 实测画廊
 
 下表是对**已实测**这些 checkpoint 的服务做一次 `GET /v1/models` 的拷贝。每个裁决词的定义见上文段落，空格子只表示尚未观测，绝不表示不支持。在第一次带实测数据的刷新之前，此块保持占位，`models.json` 不存在。
 两份已提交的拷贝都是再生成的，从不手改：
@@ -135,7 +135,7 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 
 ---
 
-### 从你的代码调用它
+## 从你的代码调用它
 
 两段代码都是被门控 probe 按精确值断言的形状。
 `scripts/probes/56-openai-sdk-consumer.sh` 自起服务，用它驱动规范的 OpenAI SDK
@@ -163,7 +163,7 @@ print(reply.choices[0].message.content)
 
 ---
 
-### 让另一个 Agent 来驱动
+## 让另一个 Agent 来驱动
 
 `skills/ocoreai/` 是一份对外发布的 skill，教外部 harness。Claude Code、Codex，或任何读 Markdown 文件的 agent。驱动本服务：端点索引、agent 循环契约，以及把 `not_observed` 与 `supported` 分开的诚实词表都在里面。它是被执行验证的，不是被采信的：`bash scripts/probes/run.sh 39` 自起一个服务、跑完每一条文档化的调用，命中的 marker 少于自己的下界就判红。Claude Code 一步安装：`/plugin install ocoreai --marketplace uingei/ocoreai`（仓库经 `.claude-plugin/` 就是自己的 plugin marketplace；这条命令行是 `claude plugin validate` 规定的那条）。其他宿主：`cp -R skills/ocoreai ~/.codex/skills/`（见 `skills/README.md`）。不想读文档的客户端可以直接从 `GET /v1/capabilities` → `endpoints[]` 枚举同一套接口，那份索引由构建门钉在路由上。
 
@@ -175,13 +175,13 @@ print(reply.choices[0].message.content)
 
 ---
 
-### 架构
+## 架构
 
 单一进程、无边界：网关（Hummingbird `:8080` + SwiftUI）→ 控制平面（调度器 `P0`→`P3`、OOMGuard、ConfigWatcher）→ 路由（HardwareRouter GPU/ANE/CPU、AdmissionGate）→ 推理（MLX Metal / CoreAI ANE、会话池、推测解码）→ 持久层（SQLite + FTS5）。调度器经进程内直接驱动引擎。无 localhost 跳转、无 IPC。目录布局见下方模块表。
 
 ---
 
-### 配置
+## 配置
 
 创建 `~/.ocoreai/config.yaml`：
 
@@ -214,7 +214,7 @@ memory:
 
 ---
 
-### 模块
+## 模块
 
 | 模块 | 路径 | 功能 |
 |------|------|------|
@@ -237,7 +237,7 @@ memory:
 
 ---
 
-### 安全
+## 安全
 
 - **网络**。仅绑定 `127.0.0.1`。非回环地址未设 `OCOREAI_API_KEYS` 时**拒绝启动**（`ServerAuthGate`）。无外部地址暴露。
 - **认证**。环境变量 `OCOREAI_API_KEYS`（逗号分隔）开启，PATCH/DELETE 另需 `OCOREAI_ADMIN_KEYS`；为空则不认证。非 YAML 键。
@@ -249,7 +249,7 @@ memory:
 
 ---
 
-### 状态
+## 状态
 
 逐特性状态 + commit 引用在 `CHANGELOG.md`。截至本 commit 的稳定事实：
 
@@ -258,14 +258,14 @@ memory:
 
 ---
 
-### Build Info
+## Build info
 
 - Swift 6.2 · SwiftUI · Hummingbird 2.26
 - 声明 `.macOS(.v14)` / `.iOS(.v17)` · Apple Silicon · 纯 SwiftPM。实机执行于 macOS 26;iOS 仅编译验证(`generic/platform=iOS`),未运行过
 - 质量门：`make test-ci`（xcodebuild 路径，macOS-26 腿为权威）；ocoreai 源码 0 警告（依赖 bundle 噪声除外）
 ---
 
-### License
+## License
 
 MIT. Copyright © 2026 uingei@163.com
 
