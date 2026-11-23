@@ -44,7 +44,7 @@ struct ReasoningEffortWireTests {
     }
 
     /// Absent field → nil (the model template then applies its own default,
-    /// e.g. xhigh for Qwen3.8. Ocoreai must not supply one).
+    /// e.g. xhigh for Qwen3.8. ocoreai must not supply one).
     @Test
     func wireAbsentIsNil() throws {
         let req = try decodeRequest(["reasoning": true])

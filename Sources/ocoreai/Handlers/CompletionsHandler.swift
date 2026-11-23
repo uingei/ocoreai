@@ -19,7 +19,7 @@
 ///
 /// P1 boundary (documented, no expansion):
 /// - `n > 1`: accepted, generated sequentially (one pass per choice).
-/// - `logprobs`: the true value is A2. Coreai-models loglikelihood; answered by that path
+/// - `logprobs`: the true value is A2. coreai-models loglikelihood; answered by that path
 ///   where it exists, and 501 `logitsUnsupported` where it does not.
 /// - `echo` / `suffix` / `logprob_token_ids` / `include_stop_str_in_output` / `min_tokens` /
 ///   `skip_special_tokens: false`: **refused by name** (`CompletionRequest/unkeptPromise()`),

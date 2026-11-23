@@ -1,4 +1,4 @@
-# coreai-models fork — the per-commit verdict ledger
+# coreai-models fork. The per-commit verdict ledger
 
 The verdicts themselves: one row per upstream commit, read against this tree. The rule, the verdict key
 and the priority queue of what is still owed live in `coreai-fork-adjudication.md`; `make drift`
@@ -12,37 +12,37 @@ recomputes the counts from each file's header, so nothing here carries a number 
 | `62ff88b` | #237 | cap pipelined prefix reuse to `processedTokenCount` (pipelined decode yields the last token unprocessed) | absorbed | `CoreAIPipelinedEngine.swift:186-189` caps, re-slices `resolvedNewTokens`, truncates history |
 | `89ba0d4` | #251 | VLM tidy B3+B4: shared `SequentialIterator` | absorbed | ocoreai `3497ae8`; `SequentialIterator.clampMaxTokens`/`nextToken` at `CoreAISequentialEngine.swift:596,667` and `CoreAISequentialVLMEngine.swift:1119,1199` |
 | `675437b` | #359 | detect byte-fallback vocabularies instead of assuming `.byteLevel`; JSON whitespace policy | absorbed (vocab half) | `GuidedGeneration/TokenizerInfo.swift:29` `VocabularyType.detect`, `ConstrainedGenerationSession.swift:65-71` defaults to it, adapter `Tokenizer/TokenizersMLXTokenizerAdapter.swift:38`. The whitespace half is #368 |
-| `257008b` | #250 | async request queue in `llm-server` | n/a | CLI queue over their runner; ocoreai's admission path is `Scheduler/` (`SchedulerActor`, `AdmissionGate`) in front of the `EnginePool` actor — the engine-file edits are the protocol ripple |
-| `b11ac19` | #188 | `StaticInputHandler` protocol for zero-allocation input filling | n/a | 0 hits for `StaticInputHandler` in `Sources/ocoreai` — our static-shape copy fills inputs on its own path |
+| `257008b` | #250 | async request queue in `llm-server` | n/a | CLI queue over their runner; ocoreai's admission path is `Scheduler/` (`SchedulerActor`, `AdmissionGate`) in front of the `EnginePool` actor; the engine-file edits are the protocol ripple |
+| `b11ac19` | #188 | `StaticInputHandler` protocol for zero-allocation input filling | n/a | 0 hits for `StaticInputHandler` in `Sources/ocoreai`; our static-shape copy fills inputs on its own path |
 | `6441c8c` | #265 | reproducible generation: `seed` + `system_fingerprint` | n/a | 0 hits for `systemFingerprint` under `Engine/`; the wire `seed` surface is served by the MLX lane (`Handlers/CompletionsHandler.swift`, `Handlers/ChatHandler.swift`) |
-| `82c3488` | #354 | KV-state handling: static caches out of the sliding path, ring read-before-write, `additionalStates` on the constrained encode | n/a | 0 hits for `slidingRingCapacity`/`checkWriteFirstStep` — our fork never took the ring path, so the mis-classification has no home here; and the constrained-encode half is structurally already correct: every CoreAI encode routes through `Engine/StateHandler+Encode.swift:33,60`, which binds `additionalStates` |
+| `82c3488` | #354 | KV-state handling: static caches out of the sliding path, ring read-before-write, `additionalStates` on the constrained encode | n/a | 0 hits for `slidingRingCapacity`/`checkWriteFirstStep`; our fork never took the ring path, so the mis-classification has no home here; and the constrained-encode half is structurally already correct: every CoreAI encode routes through `Engine/StateHandler+Encode.swift:33,60`, which binds `additionalStates` |
 | `70daf4e` | #335 | batched-decode runtime (attention-mask path) | n/a | 0 hits for `BatchedDecodeStep` in `Sources/ocoreai` |
 | `c2ef849` | #258 | idempotent generation via external session state | n/a | 0 hits for `IdempotentEngine`/`GenerationSessionState`; ocoreai's durability lives in `SessionManager` + SQLite, not in an engine wrapper |
-| `09ff139` | #367 | continuous-batching scheduler (`BatchScheduler` 515 L, +Scorer 137, `SchedulerSession` 123, `BatchSessionAdapter` 64, `BatchServingRouter` 21) | n/a today, strategic | 0 hits for `BatchScheduler`. The largest capability our fork lacks — a serving feature, not a fix; taking it is a project with its own owner call |
+| `09ff139` | #367 | continuous-batching scheduler (`BatchScheduler` 515 L, +Scorer 137, `SchedulerSession` 123, `BatchSessionAdapter` 64, `BatchServingRouter` 21) | n/a today, strategic | 0 hits for `BatchScheduler`. The largest capability our fork lacks; a serving feature, not a fix; taking it is a project with its own owner call |
 | `1f70655` | #377 | `--concurrent-requests auto`, `/ready` batching + memory estimates in `llm-server` | n/a | their CLI/HTTP surface; our wire surface is `Handlers/` on Hummingbird |
 | `1953c4f` | #332 | move the Gemma 4 PLE sidecar to the `auxiliary_assets` key of a bundle's asset manifest | n/a | export/metadata side; 0 hits for `auxiliary_assets` in `Sources/ocoreai` (we load bundles, we do not export them) |
 | `13c3a1d` | #375 | choose the VLM engine from `vision.token_merge` | n/a | 0 hits for `tokenMerge` in `Sources/ocoreai` |
 | `bd3c539` | #269 | unify stop-token resolution across text and VLM adapters | n/a | the unification happens in adapters and in `LanguageConfig` outside our slice; our EOS path is config/tokenizer (`CoreAIEngine.swift:156`, `CoreAIVisionConfig.swift:132`) |
 | `7fd2063` | #297 | split `includeLogits` into orthogonal tokens + logits axes | **open** (API shape) | our copy threads one `includeLogits` bool through 10 files; no shipped-surface bug, but the next bump has to decide the two-axis shape rather than keep a private variant |
-| `9db7476` | #351 | honour `language.states` when classifying model states | **open** | our fork decodes no `language.states` (0 hits in the config slice); the check that settles it — does any CoreAI bundle we advertise declare `states` — needs a macOS 27 host (`PlatformPremise.hasMacOS27`) |
+| `9db7476` | #351 | honour `language.states` when classifying model states | **open** | our fork decodes no `language.states` (0 hits in the config slice); the check that settles it; does any CoreAI bundle we advertise declare `states`; needs a macOS 27 host (`PlatformPremise.hasMacOS27`) |
 | `7359dbc` | #249 | VLM consolidation B1+B2: shared KV cache, `GenerationTokenBox`, `runChunkedPrefill` | **open** (shape debt) | 0 hits for `GenerationTokenBox`/`runChunkedPrefill`; ours kept the inline equivalents, which is why our copy is 1 238 L while upstream's consolidated file is 1 107 L |
-| `8cf3075` | #370 | Gemma 4 image input: static-shape runtime (+152 L), `LanguageConfig` (+103 L), `ImagePreprocessor` (access level) | **open** (narrow) | the `ImagePreprocessor` half is `private`→`public` only (upstream L194; ours is `private func renderToContext` at `CoreAIImagePreprocessor.swift:188`, internal callers at :91, :136, :170 — nothing to take); the runtime half sits in the ~500 L of static-shape code our slice never took |
-| `8623ac6` | #302 | Gemma 4 E2B/E4B iOS runner upgrades | **open** (big) | upstream rewrote ~500 L of `CoreAIStaticShapeEngine.swift` and 89 L of `LanguageConfig.swift`; our copy is 646 L total. The largest un-absorbed change on a mirrored file — re-sync or record a permanent divergence, one or the other |
+| `8cf3075` | #370 | Gemma 4 image input: static-shape runtime (+152 L), `LanguageConfig` (+103 L), `ImagePreprocessor` (access level) | **open** (narrow) | the `ImagePreprocessor` half is `private`→`public` only (upstream L194; ours is `private func renderToContext` at `CoreAIImagePreprocessor.swift:188`, internal callers at :91, :136, :170; nothing to take); the runtime half sits in the ~500 L of static-shape code our slice never took |
+| `8623ac6` | #302 | Gemma 4 E2B/E4B iOS runner upgrades | **open** (big) | upstream rewrote ~500 L of `CoreAIStaticShapeEngine.swift` and 89 L of `LanguageConfig.swift`; our copy is 646 L total. The largest un-absorbed change on a mirrored file; re-sync or record a permanent divergence, one or the other |
 | `2704a69` | #264 | recover exported turn-end stop tokens by scanning `tokenizer.json` (`\|end\|` pattern, Gemma/Phi) | **open** | 0 hits for `end_of_turn` in `Sources/ocoreai`. A bundle whose metadata omits the turn-end token would run past it on our CoreAI lane; whether any bundle we advertise does is unmeasured here (macOS 27) |
-| `f03e8ce` | #368 | cap whitespace between JSON tokens (`maxWhitespaceCount` 32 — upstream `ConstrainedGenerationSession.swift:24-27`: 15 nesting levels) | **open** — CoreAI lane only | probe 12 §5b measures OUR lane at maxWSrun 11: the guided loop already applies upstream `WhitespaceTokenBias` (-200, `EngineInference.swift:2090`), so the cap binds nothing there. Rest is the CoreAI lane — `#if canImport(CoreAI)` at `EngineInference.swift:781`, ours passes `anyWhitespace: true` at `XGrammarWrapper.swift:69` — unverifiable here |
-| `5b0f350`+`957fa7b`+`dc0b0dd` | #383 #365 #376 | ChunkedEmbedding fix (Gemma-3n-E4B), eager APIs for Qwen 3.5+, Gemma 4 draft-head export | n/a | python/export side (`_constants.py`, `export/pipeline.py`, `models/macos/{gemma3n,qwen3_5}.py`, `primitives/macos/cache.py`, `models/gemma4/{export,export_drafter}.py`, `models/ios/gemma4_text.py`) — this repo has no export surface (§ Upstream 2) |
-| `23308de` | #378 | speculative decoding: protocol, `SpeculativeDecoder`, prompt-lookup drafter | n/a to this lane | theirs is a CoreAI-engine subsystem (`SpeculativeDecoding/`); ocoreai's speculative decoding is MLX-only by its own marker — `Engine/LoadedModel.swift:223` "Speculative Decoding (MLX only)". On a macOS 27 host it is the CoreAI-lane speedup we do not have |
+| `f03e8ce` | #368 | cap whitespace between JSON tokens (`maxWhitespaceCount` 32; upstream `ConstrainedGenerationSession.swift:24-27`: 15 nesting levels) | **open**; CoreAI lane only | probe 12 §5b measures OUR lane at maxWSrun 11: the guided loop already applies upstream `WhitespaceTokenBias` (-200, `EngineInference.swift:2090`), so the cap binds nothing there. Rest is the CoreAI lane, `#if canImport(CoreAI)` at `EngineInference.swift:781`, ours passes `anyWhitespace: true` at `XGrammarWrapper.swift:69`; unverifiable here |
+| `5b0f350`+`957fa7b`+`dc0b0dd` | #383 #365 #376 | ChunkedEmbedding fix (Gemma-3n-E4B), eager APIs for Qwen 3.5+, Gemma 4 draft-head export | n/a | python/export side (`_constants.py`, `export/pipeline.py`, `models/macos/{gemma3n,qwen3_5}.py`, `primitives/macos/cache.py`, `models/gemma4/{export,export_drafter}.py`, `models/ios/gemma4_text.py`); this repo has no export surface (§ Upstream 2) |
+| `23308de` | #378 | speculative decoding: protocol, `SpeculativeDecoder`, prompt-lookup drafter | n/a to this lane | theirs is a CoreAI-engine subsystem (`SpeculativeDecoding/`); ocoreai's speculative decoding is MLX-only by its own marker, `Engine/LoadedModel.swift:223` "Speculative Decoding (MLX only)". On a macOS 27 host it is the CoreAI-lane speedup we do not have |
 | `31484f7` | #363 | select the sequential engine for attention-mask graphs; `--batch-prototype` | n/a | our factory picks by model structure (`CoreAIEngine.swift:665-718`: dynamic → pipelined, static → static-shape) and there is no attention-mask graph path to select for (0 hits for `BatchedDecodeStep`); the rest is their CLI |
-| `cc3c234` | #357 | resolve diffusion assets through a bundle's declared asset manifest so compiled bundles load | **open** | ours hardcodes the three component names (`Video/WanPipeline.swift:115,118,121`) and reads the bundle's manifest only for the `diffusion` block (:94) — the pre-fix shape, whose own comment said declared `assets` names are not consulted. No Wan bundle on this host, so whether a bundle we advertises declares other names is unmeasured; the check is one `metadata.json` read, the fix is upstream's two `resolveDeclaredPipelineAsset` helpers |
+| `cc3c234` | #357 | resolve diffusion assets through a bundle's declared asset manifest so compiled bundles load | **open** | ours hardcodes the three component names (`Video/WanPipeline.swift:115,118,121`) and reads the bundle's manifest only for the `diffusion` block (:94); the pre-fix shape, whose own comment said declared `assets` names are not consulted. No Wan bundle on this host, so whether a bundle we advertises declares other names is unmeasured; the check is one `metadata.json` read, the fix is upstream's two `resolveDeclaredPipelineAsset` helpers |
 | `3e172fb` | #248 | guided generation was refused after engine load on static-shape engines: ask \`supportsLogits\` *or* \`ConstrainedGenerationCapable\`, not the constrained flag alone | absorbed | `EngineInference.swift:326` names the commit and the rule, :336 routes on `engine.supportsLogits`, and the CPU-feed loop for a logits-only engine lives at :946-953 |
 | `0d6c0bf` | #240 | layered prefill chunk size | absorbed | `CoreAIEngine.swift:166` ("Layered prefill chunking (coreai-models #240, 0d6c0bf)"), applied by `:175` |
-| `ed946c8` | #274 | default the 4096 prefill chunk only at >=64 GB | absorbed | `CoreAIEngine.swift:191` — "Chunking defaults (coreai-models #274, ed946c8 — layered resolution)" |
+| `ed946c8` | #274 | default the 4096 prefill chunk only at >=64 GB | absorbed | `CoreAIEngine.swift:191`; "Chunking defaults (coreai-models #274, ed946c8; layered resolution)" |
 | `b63133b` | #262 | route VLM construction through `EngineFactory` (C1+C2) | n/a | their factory gained 97 L; ocoreai constructs VLM engines in its own factory (`CoreAIEngine.swift:718` `createVLMEngine`), and the VLM file's edit was the removal of inline construction our copy never had |
-| `184cc35`+`7debb8d`+`684ae8e` | #255 #191 #184 | additive helpers in the mirrored `NDArray+Helpers`, each for a subsystem we do not run | n/a (measured absence) | `copyIntoNDArray`/`writeNDArrayRegion` (SAM3 video), `flattenBFloat16NDArray` (Wan 2.1), `argmaxFloat`/`forEachFloatElement`/`floatElements` (Parakeet v3) — 0 hits for all seven in `Sources/ocoreai`; our `Video/WanPipeline.swift` calls none of them, so the slice stays a slice until a consumer appears |
-| `0aff938` | #385 | attention mask for SAM3 export and runtime (`ImageSegmentationEngine.swift`) | n/a | ocoreai has no image-segmentation surface (0 hits for `SAM3`/`ImageSegmentation` outside a comment) — this commit landed *during* this pass, and the axis baseline adopted today (`0aff938`) is its sha, so the row exists because the ledger noticed the gap before a human did |
+| `184cc35`+`7debb8d`+`684ae8e` | #255 #191 #184 | additive helpers in the mirrored `NDArray+Helpers`, each for a subsystem we do not run | n/a (measured absence) | `copyIntoNDArray`/`writeNDArrayRegion` (SAM3 video), `flattenBFloat16NDArray` (Wan 2.1), `argmaxFloat`/`forEachFloatElement`/`floatElements` (Parakeet v3); 0 hits for all seven in `Sources/ocoreai`; our `Video/WanPipeline.swift` calls none of them, so the slice stays a slice until a consumer appears |
+| `0aff938` | #385 | attention mask for SAM3 export and runtime (`ImageSegmentationEngine.swift`) | n/a | ocoreai has no image-segmentation surface (0 hits for `SAM3`/`ImageSegmentation` outside a comment); this commit landed *during* this pass, and the axis baseline adopted today (`0aff938`) is its sha, so the row exists because the ledger noticed the gap before a human did |
 | `db7823e` | #389 | qwen3_5: `narrow(1, S-1, K)` → `narrow(1, -K, K)` in `GatedDeltaNet`, graph quant re-enabled | n/a | python export side, 0 Swift § Upstream 2, 0 hits for `GatedDeltaNet` in `Sources/`; `conv_input` is `(K-1)+S` long so `S-1` and `-K` are one element: attribution, not arithmetic |
 
-## Window read 11-03 — `7fd2063` → `ac03f2b` (16 commits)
+## Window read 11-03, `7fd2063` → `ac03f2b` (16 commits)
 
 Endpoint moved three times mid-read (`bc72ed5` → `972f001` → `c1e6d56` → `ac03f2b`). Completeness is a
 census, not an impression: each commit was intersected with the 304 Swift basenames in `Sources/ocoreai`
@@ -54,20 +54,20 @@ how two commits turned up that **the ledger cannot see**: it enumerates `Engine/
 
 | upstream commit | verdict | evidence from our tree |
 |---|---|---|
-| `df8f817` #388 — VLM folded into `CoreAISequentialEngine` (−1 107 L file, +792 L, +549 L new vision front-end) | **open, not taken** | ~1 900 L of restructuring on a lane that cannot run: `canImport(CoreAI)` compiles out on CLT, gate `PlatformPremise.hasMacOS27`. A blind edit here is a claim |
+| `df8f817` #388; VLM folded into `CoreAISequentialEngine` (−1 107 L file, +792 L, +549 L new vision front-end) | **open, not taken** | ~1 900 L of restructuring on a lane that cannot run: `canImport(CoreAI)` compiles out on CLT, gate `PlatformPremise.hasMacOS27`. A blind edit here is a claim |
 | #388's new protocol member `acceptsMultimodalInput` ("a text bundle reports false") | **open, worth taking** | the invariant-2 fact this fork lacks: `CoreAIEngine.swift:304-308` has `isBusy`/`supportsLogits` only, per-checkpoint multimodal is config-level (`CoreAIVisionConfig.swift:49`). Not added: a flag no runnable engine measures publishes an unmeasured capability. Landing site named in that header |
-| #388 + #394 in `InputEmbeddings.swift` / `LanguageConfig.swift` | **n/a** | the embeddings hunk is comment-only (scatter-merge reworded, two TODOs moved); the config hunks are at `:530` (`VisionTokenMerge`) and `:64-90` (`LanguageOverrides`) — outside the `L184-279` slice, both symbols 0 hits in `Sources/` |
-| `6a6bb0e` #374 — a scored continuation ran as one `main` batch; a width-1 `main` beside a prefill graph aborts, so that asset takes the generation path | **open, macOS 27**, invisible to the ledger | it edits 5 mirrors the ledger never enumerates — `GuidedGeneration/{DecodingStrategy,ConstrainedDecodingStrategy,PipelinedConstrainedDecodingStrategy,ConstrainedGenerationSession,TokenizerInfo}.swift` — each `#if canImport(CoreAI)`; and no forced-continuation surface exists here (0 hits `evaluateRawTokens`/`evaluateContinuation`) |
-| `d3382a5` #386 + `1e59152` #394 — CoreAI spec decode (`DraftProposal`, `DraftScan`, `forwardProposal{,Greedy}` → `DrafterFeatures`) | **n/a**, axis input | our drafter is the checkpoint's own MTP layers (`ConfigStruct.swift:336-337`, Gemma4); upstream exports a separate draft head — *why* is inference, #394 does not say. 0 consumers of `Drafter*`/`forwardProposal` here |
-| `ac03f2b` #402 — spec-decode timings become Instruments spans; `profile { }` ends a span on every exit | **n/a**, also outside the ledger | 0 hits `SpeculativeDecoder`/`generationSeconds`/`draftSeconds` here; the mirrored half is `Engine/InstrumentsProfiler.swift` (592 L vs upstream's 909, `beginX() -> ProfileSpan` + `consuming end()`) — it compiles on the shipping lane (`canImport(CoreAI)`: 0), but no leaked span has been observed, so no wrapper |
+| #388 + #394 in `InputEmbeddings.swift` / `LanguageConfig.swift` | **n/a** | the embeddings hunk is comment-only (scatter-merge reworded, two TODOs moved); the config hunks are at `:530` (`VisionTokenMerge`) and `:64-90` (`LanguageOverrides`); outside the `L184-279` slice, both symbols 0 hits in `Sources/` |
+| `6a6bb0e` #374; a scored continuation ran as one `main` batch; a width-1 `main` beside a prefill graph aborts, so that asset takes the generation path | **open, macOS 27**, invisible to the ledger | it edits 5 mirrors the ledger never enumerates, `GuidedGeneration/{DecodingStrategy,ConstrainedDecodingStrategy,PipelinedConstrainedDecodingStrategy,ConstrainedGenerationSession,TokenizerInfo}.swift`; each `#if canImport(CoreAI)`; and no forced-continuation surface exists here (0 hits `evaluateRawTokens`/`evaluateContinuation`) |
+| `d3382a5` #386 + `1e59152` #394; CoreAI spec decode (`DraftProposal`, `DraftScan`, `forwardProposal{,Greedy}` → `DrafterFeatures`) | **n/a**, axis input | our drafter is the checkpoint's own MTP layers (`ConfigStruct.swift:336-337`, Gemma4); upstream exports a separate draft head; *why* is inference, #394 does not say. 0 consumers of `Drafter*`/`forwardProposal` here |
+| `ac03f2b` #402; spec-decode timings become Instruments spans; `profile { }` ends a span on every exit | **n/a**, also outside the ledger | 0 hits `SpeculativeDecoder`/`generationSeconds`/`draftSeconds` here; the mirrored half is `Engine/InstrumentsProfiler.swift` (592 L vs upstream's 909, `beginX() -> ProfileSpan` + `consuming end()`); it compiles on the shipping lane (`canImport(CoreAI)`: 0), but no leaked span has been observed, so no wrapper |
 | #382, #391, #396, #398, #399, #397, #400, #392, #403, #385, #389 | **n/a** | census: no shared basename with `Sources/ocoreai` (their surface is `llm-runner`/`llm-server`/`SpeculativeDecoding`/SAM3/export-side); #392/#397 stay colour for a CI lane whose authority is `make test-ci` on `macos-26`; #385/#389 also keep rows above |
 
-## Window read 11-05 — `ac03f2b` → `f333cf5` (8 commits)
+## Window read 11-05, `ac03f2b` → `f333cf5` (8 commits)
 
 Completeness is the same census as the section above, not an impression: every changed path's basename ∩
-the **304** Swift basenames in `Sources/ocoreai` — **0/8** commits share a name. The per-file fork ledger
+the **304** Swift basenames in `Sources/ocoreai`. **0/8** commits share a name. The per-file fork ledger
 agrees from the other root: 14 baselined rows, each reading 0 upstream commits in the window. Endpoint
-provenance is uneven and is stated as such — 7 commits read in the local clone at `b3376e2` (`git fetch`
+provenance is uneven and is stated as such, 7 commits read in the local clone at `b3376e2` (`git fetch`
 failed twice, curl 28, so the clone lags the axis HEAD by one commit), that eighth commit read from the
 GitHub API's file list rather than a diff. Nothing ported; the open rows above stay open, including
 `acceptsMultimodalInput`, #297's two-axis logits shape, #302's static-shape re-sync and #357's declared
@@ -75,16 +75,16 @@ assets.
 
 | upstream coreai-models commit | verdict | evidence from our tree |
 |---|---|---|
-| `050fc8f` #404 — test-result summaries, python tests in parallel | **n/a** | `.github/scripts/test_summary.py` + `ci.yml` only; our CI authority is `.github/workflows/` on `macos-26` (`make test-ci`), which no upstream file touches |
-| `048a7d4` #401 — parakeet-tdt-0.6b-v2 export | **n/a** | export/python axis (§ Upstream 2: this repo has no export surface); ∩ = 0 |
-| `1286758` #408 — quantize on a chosen device, externalize composites per backend | **n/a** | `export/compression.py` +7, `export/pipeline.py` +12; ∩ = 0 |
-| `181bff0` #395 — embedding modality: CLIP/CLAP bundles | **n/a** | 21 files, python export + its tests; ∩ = 0 |
-| `b3376e2` #369 — EmbeddingGemma 2 export + registry entry | **n/a** | 33 files, python export + primitives/tests; ∩ = 0 |
-| `5fe26cb` #410 — draft head reads the scan table in at load (`DraftScan.swift` +5) | **n/a**, axis input | follow-up to the `SpeculativeDecoding/` subsystem #378/#386/#394 already declined above: 0 files named `DraftScan.swift` under `Sources/`, and our drafter is the checkpoint's own MTP layers (`ConfigStruct.swift:336-337`) |
-| `f4803f9` #409 — stop speculative decoding at single-token `--stop-tokens` | **n/a** to the lane, worth having read | `SpeculativeDecodingOptions.swift`/`LLMRunnerMain.swift`/2 tests, ∩ = 0; `Engine/LoadedModel.swift:223` marks speculative decoding MLX-only. What it settles upstream: a verify block can accept a sequence's first tokens before the stop is recognizable, so single-token stops join the stop set and multi-token ones are **named as ignored** (`SpeculativeDecodingOptions.swift:90-99`) instead of a run ending on part of one. The stall in §Open is the loop's *terminal word*, four faces — this commit does not answer that, so it is cited as precedent for naming what a lane cannot honour, not borrowed as a verdict |
-| `f333cf5` #415 — ci: worksteal scheduling retries crashed workers | **n/a** | one file, `.github/workflows/ci.yml`, 10 lines — read from the API's file list, not a diff (see provenance above); our runner is our own workflow set |
+| `050fc8f` #404; test-result summaries, python tests in parallel | **n/a** | `.github/scripts/test_summary.py` + `ci.yml` only; our CI authority is `.github/workflows/` on `macos-26` (`make test-ci`), which no upstream file touches |
+| `048a7d4` #401; parakeet-tdt-0.6b-v2 export | **n/a** | export/python axis (§ Upstream 2: this repo has no export surface); ∩ = 0 |
+| `1286758` #408; quantize on a chosen device, externalize composites per backend | **n/a** | `export/compression.py` +7, `export/pipeline.py` +12; ∩ = 0 |
+| `181bff0` #395; embedding modality: CLIP/CLAP bundles | **n/a** | 21 files, python export + its tests; ∩ = 0 |
+| `b3376e2` #369; EmbeddingGemma 2 export + registry entry | **n/a** | 33 files, python export + primitives/tests; ∩ = 0 |
+| `5fe26cb` #410; draft head reads the scan table in at load (`DraftScan.swift` +5) | **n/a**, axis input | follow-up to the `SpeculativeDecoding/` subsystem #378/#386/#394 already declined above: 0 files named `DraftScan.swift` under `Sources/`, and our drafter is the checkpoint's own MTP layers (`ConfigStruct.swift:336-337`) |
+| `f4803f9` #409; stop speculative decoding at single-token `--stop-tokens` | **n/a** to the lane, worth having read | `SpeculativeDecodingOptions.swift`/`LLMRunnerMain.swift`/2 tests, ∩ = 0; `Engine/LoadedModel.swift:223` marks speculative decoding MLX-only. What it settles upstream: a verify block can accept a sequence's first tokens before the stop is recognizable, so single-token stops join the stop set and multi-token ones are **named as ignored** (`SpeculativeDecodingOptions.swift:90-99`) instead of a run ending on part of one. The stall in §Open is the loop's *terminal word*, four faces; this commit does not answer that, so it is cited as precedent for naming what a lane cannot honour, not borrowed as a verdict |
+| `f333cf5` #415; ci: worksteal scheduling retries crashed workers | **n/a** | one file, `.github/workflows/ci.yml`, 10 lines; read from the API's file list, not a diff (see provenance above); our runner is our own workflow set |
 
-## Four mirrors the ledger could not see — read 11-05
+## Four mirrors the ledger could not see. Read 11-05
 
 The coreai-models ledger reported **40** of our mirrors as having no read-point. Four of them did have one;
 it was spelled
@@ -92,32 +92,32 @@ it was spelled
 `Adjudicated: <sha>`, so the tool said "no baseline" where the header said "read up to here". Teaching the
 ledger that spelling moved 4 rows out of the hole (rows 14 → 18, no-baseline 40 → 36) and they arrived with
 **unread upstream commits attached**, which is the point: two of the four headers also asserted
-`(0 commits changed … — anchor current)` and both assertions were false — one of those files has since been
+`(0 commits changed … — anchor current)` and both assertions were false. One of those files has since been
 edited twice upstream. The counts are the instrument's, reprinted every round; what is written below is
 only the verdicts.
 
 | upstream commit | verdict | evidence from our tree |
 |---|---|---|
-| `78413ae` #74 — build requests with `NDArrayDescriptor.resolvingDynamicDimensions` instead of mutating `.shape` | **absorbed** | `Engine/KVCache+CoreAI.swift:271,387,470` call it |
-| `6d05c05` #328 — map the fp8 KV types to their real MPS types instead of downgrading to `float16` | **ported 11-12, pending CI xcode-27** | `mpsDataType` now maps `float8e4m3fn → .float8e4m3`, `float8e5m2 → .float8e5m2`, `uint8/float8e8m0fn → .uInt8` (upstream's real types); ocoreai keeps its nearest-type fallback where upstream `fatalError`s (root: zero fatalError), and sub-byte `float4e2m1fn` stays fallback. #356's element-width half was already here. CoreAI-gated, not runnable on the macOS 26 host — ported, not claimed until the CI xcode-27 run |
-| `09e7125` #356 — 8-bit KV states: take the element width from the scalar type; describe the state kinds the runtime has | **open** | the element-width half is already here (`Engine/KVCache+CoreAI.swift:601` returns 1 for the fp8 types); what is missing is the `uint8`/`float8e8m0fn` → `.uInt8` mapping (inside the pre-fix block above) and the doc correction — our `StateKind` (`Engine/StateHandler.swift:25-29`) still carries the pre-#356 reading in which `kv_cache` always grows and a sliding ring is freely truncatable, while upstream now records that a KV cache may export at fixed capacity and a ring rewinds only until it wraps |
-| `156cdb6` #204 — export a `prompt` graph with no LM head and prefill through it | **open**, needs an asset + a macOS 27 host | the mirror half is the output-less encode `#204` appends to `StateHandler+Encode.swift`; this lane has no `prompt` entrypoint to call it with, and producing one is the export side § Upstream 2 has no surface for. What it buys upstream is prefill that stops paying for the LM head on every prompt token — the reason it stays a row instead of an `n/a` |
+| `78413ae` #74; build requests with `NDArrayDescriptor.resolvingDynamicDimensions` instead of mutating `.shape` | **absorbed** | `Engine/KVCache+CoreAI.swift:271,387,470` call it |
+| `6d05c05` #328; map the fp8 KV types to their real MPS types instead of downgrading to `float16` | **ported 11-12, pending CI xcode-27** | `mpsDataType` now maps `float8e4m3fn → .float8e4m3`, `float8e5m2 → .float8e5m2`, `uint8/float8e8m0fn → .uInt8` (upstream's real types); ocoreai keeps its nearest-type fallback where upstream `fatalError`s (root: zero fatalError), and sub-byte `float4e2m1fn` stays fallback. #356's element-width half was already here. CoreAI-gated, not runnable on the macOS 26 host; ported, not claimed until the CI xcode-27 run |
+| `09e7125` #356; 8-bit KV states: take the element width from the scalar type; describe the state kinds the runtime has | **open** | the element-width half is already here (`Engine/KVCache+CoreAI.swift:601` returns 1 for the fp8 types); what is missing is the `uint8`/`float8e8m0fn` → `.uInt8` mapping (inside the pre-fix block above) and the doc correction; our `StateKind` (`Engine/StateHandler.swift:25-29`) still carries the pre-#356 reading in which `kv_cache` always grows and a sliding ring is freely truncatable, while upstream now records that a KV cache may export at fixed capacity and a ring rewinds only until it wraps |
+| `156cdb6` #204; export a `prompt` graph with no LM head and prefill through it | **open**, needs an asset + a macOS 27 host | the mirror half is the output-less encode `#204` appends to `StateHandler+Encode.swift`; this lane has no `prompt` entrypoint to call it with, and producing one is the export side § Upstream 2 has no surface for. What it buys upstream is prefill that stops paying for the LM head on every prompt token; the reason it stays a row instead of an `n/a` |
 
-Of the remaining 36, **25** carry no sha at all — `Provenance: coreai-models … — absorbed.` with no sha, a
-type name where a path belongs, or nothing — and that is the queue. The other **11 do carry a sha**; the
+Of the remaining 36, **25** carry no sha at all, `Provenance: coreai-models … — absorbed.` with no sha, a
+type name where a path belongs, or nothing, and that is the queue. The other **11 do carry a sha**; the
 ledger will not parse the sentence it sits in, and the paragraph above this one, written an hour earlier
 calling all 36 sha-less, was the same error one level up: it trusted the tool's bucket instead of the
 headers. See the next section.
 
-## Window read 11-05 (b) — the ledger bound five mirrors to the wrong file, and called 11 read files unread
+## Window read 11-05 (b). The ledger bound five mirrors to the wrong file, and called 11 read files unread
 
 Two faces of one shape: **a scan that reads its own premise out of a tool that does not enforce it.**
 
 `resolve()` asked `git ls-files "*<basename>"` and took `hits[0]`. That glob is a **suffix** match, not a
 basename match, and it answers in path order: upstream `DecodingStrategies/` answers
 `*DecodingStrategy.swift` with four files and `ConstrainedDecodingStrategy.swift` comes first. **Four** of
-our mirrors were bound to a file they are not — measured by running both resolvers over the tree at
-`f333cf5` and diffing the answer per file — and three of the four have an exact-named counterpart sitting in
+our mirrors were bound to a file they are not. Measured by running both resolvers over the tree at
+`f333cf5` and diffing the answer per file, and three of the four have an exact-named counterpart sitting in
 the same upstream directory:
 
 | our file | bound to (wrong coreai-models file) | its own coreai-models file | history count: printed → true |
@@ -127,15 +127,15 @@ the same upstream directory:
 | `Video/RandomSource.swift` | `NumPyRandomSource.swift` | `RNG/RandomSource.swift` | 2 → 2 (another file's count, coincidentally equal) |
 | `Video/VideoWriter.swift` | `StreamingVideoWriter.swift` | `Video/VideoWriter.swift` | 1 → 1 (same) |
 
-A header that names its coreai-models path keeps that route — `Engine/VLMBundleDetector.swift`
+A header that names its coreai-models path keeps that route, `Engine/VLMBundleDetector.swift`
 reads `CoreAIShared/Bundle/ModelBundle.swift` in coreai-models because a person wrote the path down,
 and prints the same 10 commits before and after. What changed is narrower: a bare basename no longer borrows a neighbour's history.
 
-The 18 baselined rows were unaffected — each still reads 0 unread, before and after — so no green was ever
+The 18 baselined rows were unaffected. Each still reads 0 unread, before and after, so no green was ever
 false *yet*. The damage was waiting: stamping a read-point into
 `Engine/GuidedGeneration/DecodingStrategy.swift` would have pinned it against a neighbour that has no
 commits, which is a permanent green on the wrong file. The rule now is same-name first, then a path the
-header itself names — a person's assertion — and a bare basename gets no suffix guess.
+header itself names. A person's assertion, and a bare basename gets no suffix guess.
 
 The other face is the number itself. Of the 36 the ledger prints in its no-baseline list, **11
 headers carry a sha** and
@@ -155,64 +155,64 @@ the reader refuses them:
 | `Parsers/TokenParsers/ThinkTagParser.swift` | `#182 637cc63: agentic Format (upstream ahead), while keeping` |
 | `Handlers/DecisionsHandler.swift` | a cite of where `EngineLogprobs.swift` came from, not this file's own |
 
-Nine spellings, one fact each — and two of the eleven would be **wrongly** read by a parser that guessed:
+Nine spellings, one fact each, and two of the eleven would be **wrongly** read by a parser that guessed:
 `ThinkTagParser`'s sha names a commit that is *ahead* of us, and `DecisionsHandler` quotes another file's
 provenance. That is why the ledger marks these entries with a `*` in that list instead of learning
 nine dialects: the
 fix is one canonical read-point per file, written by whoever reads that window, not a wider regex. No
-verdict is recorded here for these eleven — reading eleven windows is the queue, and this section only
+verdict is recorded here for these eleven. Reading eleven windows is the queue, and this section only
 establishes that eleven of them have already been read once.
 
-## Window read 11-06 — `f333cf5` → `1c7c71f` (4 commits)
+## Window read 11-06, `f333cf5` → `1c7c71f` (4 commits)
 
 Read per-file from the `api.github.com` compare (files + patches); file→commit attribution from the
-local mirror's `git log --name-only` over the same window — content-level, HEAD authority unaffected.
+local mirror's `git log --name-only` over the same window. Content-level, HEAD authority unaffected.
 
 | commit | verdict | why |
 |---|---|---|
-| `8a2d32a` #412 — stop generation when a GPU command buffer fails | **ported 11-12, pending CI xcode-27** | Upstream found the silent face: a failed command buffer leaves the logits unwritten and the raw `continuation.yield(nextToken)` hands stale bytes to the caller as a real token. Our `Engine/CoreAIPipelinedEngine.swift:1050` is exactly the pre-fix shape (anchor `54e6163`, "all in-range absorbed" — predates #412), and no GPU-error machinery exists anywhere in `Sources/` (grep empty). Adopt = port the new `coreai-models` file `CoreAIPipelinedEngine+Metal.swift` (+96: `GPUErrorHolder`, `ErrorRecordingCommandQueue`) + the yield-site change, header-stamped like its siblings. Unverifiable here by the standing premise — CLT route compiles `canImport(CoreAI)` out, lane needs macOS 27 — so it waits with the §Open CoreAI item, named there. Ported 11-12: `CoreAIPipelinedEngine+Metal.swift` (GPUErrorHolder + ErrorRecordingCommandQueue) + the error-guarded yield + reset/end-check; CoreAI-gated, pending the CI xcode-27 run, not claimed until verified. |
-| `1c7c71f` #416 — follow-ups to the VLM fold | **inert; one named pre-existing divergence** | Upstream deletes `PrefillStrategy.oneAtATime` and its `SequentialIterator` arm; our forks keep it live (`CoreAISequentialEngine.swift:40,394,652`, `CoreAISequentialVLMEngine.swift:1173`) — a locally-ruled choice our enum and iterator both still route, so no sync debt. The new VLM sliding-ring rejection and the logits-guard reshaping don't bite: our VLM fork's guard already diverges by an earlier ruling (accepts bfloat16, `:270`). |
-| `55a098b` #464 — skip real CLIP/CLAP checks on incomplete cached snapshot | **n/a** | one python test file; zero Swift, zero consumption. |
-| `18e6851` #417 — SwitchGLU check summation order | **n/a** | one python test file; ditto. |
+| `8a2d32a` #412; stop generation when a GPU command buffer fails | **ported 11-12, pending CI xcode-27** | Upstream found the silent face: a failed command buffer leaves the logits unwritten and the raw `continuation.yield(nextToken)` hands stale bytes to the caller as a real token. Our `Engine/CoreAIPipelinedEngine.swift:1050` is exactly the pre-fix shape (anchor `54e6163`, "all in-range absorbed"; predates #412), and no GPU-error machinery exists anywhere in `Sources/` (grep empty). Adopt = port the new `coreai-models` file `CoreAIPipelinedEngine+Metal.swift` (+96: `GPUErrorHolder`, `ErrorRecordingCommandQueue`) + the yield-site change, header-stamped like its siblings. Unverifiable here by the standing premise; CLT route compiles `canImport(CoreAI)` out, lane needs macOS 27; so it waits with the §Open CoreAI item, named there. Ported 11-12: `CoreAIPipelinedEngine+Metal.swift` (GPUErrorHolder + ErrorRecordingCommandQueue) + the error-guarded yield + reset/end-check; CoreAI-gated, pending the CI xcode-27 run, not claimed until verified. |
+| `1c7c71f` #416; follow-ups to the VLM fold | **inert; one named pre-existing divergence** | Upstream deletes `PrefillStrategy.oneAtATime` and its `SequentialIterator` arm; our forks keep it live (`CoreAISequentialEngine.swift:40,394,652`, `CoreAISequentialVLMEngine.swift:1173`); a locally-ruled choice our enum and iterator both still route, so no sync debt. The new VLM sliding-ring rejection and the logits-guard reshaping don't bite: our VLM fork's guard already diverges by an earlier ruling (accepts bfloat16, `:270`). |
+| `55a098b` #464; skip real CLIP/CLAP checks on incomplete cached snapshot | **n/a** | one python test file; zero Swift, zero consumption. |
+| `18e6851` #417; SwitchGLU check summation order | **n/a** | one python test file; ditto. |
 
-## Window read 11-09 — the seven re-presented file windows, 4 adjudicable commits (`1c7c71f`..`22b0eaa`)
+## Window read 11-09. The seven re-presented file windows, 4 adjudicable commits (`1c7c71f`..`22b0eaa`)
 
 `make drift` exit 10 named 7 files across 4 commits; the engine windows had stamps to `1c7c71f` and the
-image/logger mirrors to `7fd2063` — the per-file ledger is what caught that the 11-06 and 10-29 reads
+image/logger mirrors to `7fd2063`. The per-file ledger is what caught that the 11-06 and 10-29 reads
 covered the engine slices only, not the same commits' hunks in the other mirrored files. HEAD-authoritative
 (`api.github.com`/mirror). The other 8 commits of the axis window: four docs/README/skills edits
-(#489 #488 #431 #430), a version bump (#463), two python/export-side quantization commits (#465 #407 —
-CLAUDE.md § Upstream 2: no export surface here), and llm-server's out-of-range-sampling 400 (#491 —
-Swift, but zero mirror consumption: every per-file window reads 0) — all n/a; the axis baseline moved
+(#489 #488 #431 #430), a version bump (#463), two python/export-side quantization commits (#465 #407,
+CLAUDE.md § Upstream 2: no export surface here), and llm-server's out-of-range-sampling 400 (#491,
+Swift, but zero mirror consumption: every per-file window reads 0). All n/a; the axis baseline moved
 to `22b0eaa` on this section.
 
 | commit | verdict | why |
 |---|---|---|
 | `1c7c71f` #416 (coreai-models file-level `ImagePreprocessor.swift`) | **inert** | Its one hunk in this file adds the public `loadCGImage(contentsOf:)` over the shared `CIContext`; ocoreai has no caller (our `preprocess(imageURL:)` renders through the same shared `ciContext`, `CoreAIImagePreprocessor.swift:32`), and the helper is outside the 19-line strategy slice. Stamps moved on both image forks. |
-| `b1b9459` #485 — stable tool-prompt rendering (llm-server) | **inert for the mirrors; one named cognition** | The `Logger.swift` hunk is `warnOnce` over a process-global set — the stub mirrors only `log(_:component:level:)` (unchanged) and ocoreai has zero `warnOnce` callers (grep empty); the rest is the swift-jinja/TemplateValues/llm-server stack we don't consume. Cognition kept, guard not: the commit's stated mechanism — `tojson` key order varying per request meant *no* request could reuse another's prefix — names a prefix-cache failure mode our own face has never measured; no observed miss, so it stays a named question (CLAUDE.md: no guard for a failure nobody quoted). |
-| `12f3700` #490 — repetition-penalty state per generation | **ported 11-12, pending CI xcode-27** | Upstream found penalty/window/history carrying from one request into the next, and a penalty-less cached sampler wrongly reused. Our `CoreAIPipelinedEngine.swift:859,:1387` is exactly the pre-fix lazy-init + in-place-reset shape. Adopt = #490's sampler-stage check + `RepetitionPenaltyGPUState.forGeneration` reuse-if-idle + `penaltyStateIdle` tracking (the state file is in the no-baseline mirror set, so its window reads with this port). Unverifiable here by the standing premise — waits with #412's port on the §Open CoreAI item (15 → 16 named verdicts), not absorbed blind. Inert for `CoreAISequentialVLMEngine.swift` (zero penalty surface in the slice, grep empty). |
-| `8d505c2` #420 — shared decode-loop helpers | **inert, by a pre-existing local ruling** | Idempotency *prep*: GenerationTokenBox replaces the private `Mutex<GenerationToken?>`, `drain()` is deleted, the forward pass splits from sampling (`DecodeLoop`/`SamplingPolicy` are new upstream files). No bug fixed; our forks' `drain()` (`CoreAISequentialEngine.swift:476`) and `_activeToken` (`:96`, `CoreAIStaticShapeEngine.swift:80`) are the retained locally ruled shape — the same class as the retained `oneAtATime` (11-06). If we later take upstream idempotency, this refactor arrives with it, not ahead of it. |
+| `b1b9459` #485; stable tool-prompt rendering (llm-server) | **inert for the mirrors; one named cognition** | The `Logger.swift` hunk is `warnOnce` over a process-global set; the stub mirrors only `log(_:component:level:)` (unchanged) and ocoreai has zero `warnOnce` callers (grep empty); the rest is the swift-jinja/TemplateValues/llm-server stack we don't consume. Cognition kept, guard not: the commit's stated mechanism, `tojson` key order varying per request meant *no* request could reuse another's prefix; names a prefix-cache failure mode our own face has never measured; no observed miss, so it stays a named question (CLAUDE.md: no guard for a failure nobody quoted). |
+| `12f3700` #490; repetition-penalty state per generation | **ported 11-12, pending CI xcode-27** | Upstream found penalty/window/history carrying from one request into the next, and a penalty-less cached sampler wrongly reused. Our `CoreAIPipelinedEngine.swift:859,:1387` is exactly the pre-fix lazy-init + in-place-reset shape. Adopt = #490's sampler-stage check + `RepetitionPenaltyGPUState.forGeneration` reuse-if-idle + `penaltyStateIdle` tracking (the state file is in the no-baseline mirror set, so its window reads with this port). Unverifiable here by the standing premise; waits with #412's port on the §Open CoreAI item (15 → 16 named verdicts), not absorbed blind. Inert for `CoreAISequentialVLMEngine.swift` (zero penalty surface in the slice, grep empty). |
+| `8d505c2` #420; shared decode-loop helpers | **inert, by a pre-existing local ruling** | Idempotency *prep*: GenerationTokenBox replaces the private `Mutex<GenerationToken?>`, `drain()` is deleted, the forward pass splits from sampling (`DecodeLoop`/`SamplingPolicy` are new upstream files). No bug fixed; our forks' `drain()` (`CoreAISequentialEngine.swift:476`) and `_activeToken` (`:96`, `CoreAIStaticShapeEngine.swift:80`) are the retained locally ruled shape; the same class as the retained `oneAtATime` (11-06). If we later take upstream idempotency, this refactor arrives with it, not ahead of it. |
 
-## Window read 11-12 — `22b0eaa`..`0bfb548` (+4), adjudicated by file-level diff
+## Window read 11-12, `22b0eaa`..`0bfb548` (+4), adjudicated by file-level diff
 
 HEAD-authoritative (`api.github.com` confirmed `0bfb548`, matches the mirror). Adjudicated by the
-actual `git diff --name-only` of each commit intersected with the mirrored upstream paths — not the
+actual `git diff --name-only` of each commit intersected with the mirrored upstream paths, not the
 axis-word coarse filter. **No commit in this window changes consumed behaviour**, so it adds no open
 verdict (the 16 named ports are unchanged); the axis baseline advances to `0bfb548`.
 
 | commit | verdict | why |
 |---|---|---|
-| `04bbe25` #482/#483 — DiffusionGemma RoPE inv_freq float32 | **n/a** | `coreai-models` `python/.../diffusion_gemma.py` + its python test only; export-side, no export surface here (§ Upstream 2). |
-| `2bec348` #504 — install flash kmeans alongside coreai-opt | **n/a** | `coreai-models` `python/pyproject.toml` + `uv.lock`; python packaging. |
-| `e7b356c` #273/#421 — consolidate RNG into CoreAIShared | **inert for consumed code; provenance relabel owed** | File-level: `WanPipeline.swift`'s only hunk is `TorchRandomSource(seed:)` → `CoreAIShared.TorchRandomSource(seed:)` (module qualification, behaviour byte-identical); `SeededRandomNumberGenerator.swift` is a rename (2 lines). ocoreai flattened the modules and redefined the types locally, so the move changes no consumed code. Owed: the RNG mirrors' come-from headers (`CoreAIDiffusionPipeline/RNG` → `CoreAIShared/RNG`) relabel at next touch — a header update, not a port. |
-| `0bfb548` #503 — sort ALL_PRESET_NAMES | **n/a** | `coreai-models` `python/.../presets.py` + its python test; export-side. |
+| `04bbe25` #482/#483; DiffusionGemma RoPE inv_freq float32 | **n/a** | `coreai-models` `python/.../diffusion_gemma.py` + its python test only; export-side, no export surface here (§ Upstream 2). |
+| `2bec348` #504; install flash kmeans alongside coreai-opt | **n/a** | `coreai-models` `python/pyproject.toml` + `uv.lock`; python packaging. |
+| `e7b356c` #273/#421; consolidate RNG into CoreAIShared | **inert for consumed code; provenance relabel owed** | File-level: `WanPipeline.swift`'s only hunk is `TorchRandomSource(seed:)` → `CoreAIShared.TorchRandomSource(seed:)` (module qualification, behaviour byte-identical); `SeededRandomNumberGenerator.swift` is a rename (2 lines). ocoreai flattened the modules and redefined the types locally, so the move changes no consumed code. Owed: the RNG mirrors' come-from headers (`CoreAIDiffusionPipeline/RNG` → `CoreAIShared/RNG`) relabel at next touch; a header update, not a port. |
+| `0bfb548` #503; sort ALL_PRESET_NAMES | **n/a** | `coreai-models` `python/.../presets.py` + its python test; export-side. |
 
-## Window read 11-22 — nine prose read-points became canonical, and #509 read on one mirror
+## Window read 11-22. Nine prose read-points became canonical, and #509 read on one mirror
 
 The § Window read 11-05 (b) queue minus the two it warned about: nine headers carried their
 absorption sha in prose the ledger could not parse. Each sha was first re-checked in the mirror
 clone (`git merge-base --is-ancestor <sha> c8e00c0`, nine for nine true), then re-stamped as one
-`Adjudicated:` line — no new window verdicts are claimed, the stamps only make the already-established
+`Adjudicated:` line, no new window verdicts are claimed, the stamps only make the already-established
 absorption point machine-readable. The two warned cases stay stampless in the no-baseline list:
 `ThinkTagParser` (its prose sha names a commit ahead of our absorption) and `DecisionsHandler` (it
 cites `EngineLogprobs`' provenance, not its own).
@@ -221,24 +221,24 @@ cites `EngineLogprobs`' provenance, not its own).
 |---|---|---|
 | `Engine/InputLayout.swift` | `27a66f9` (#227) | 2 unread (`df8f817` #388 …) |
 | `Engine/PrefillGraph.swift` | `156cdb6` (#204) | 1 unread (`82c3488`) |
-| `Multimodal/StreamingWindow.swift` | `de31ba5` | 0 — read, current |
+| `Multimodal/StreamingWindow.swift` | `de31ba5` | 0; read, current |
 | `Engine/LogProbabilities.swift` | `8cec4f8` | 1 unread (continuous-batching scheduler) |
 | `Engine/EngineLogprobs.swift` | `b11ac19` (CompletionHandler) | 5 unread (batched llm-runner face …) |
 | `Engine/VLMBundleDetector.swift` | `3efa838` (#303, the header's own later align; `7359dbc` was the earlier pin) | 5 unread on `ModelBundle.swift`; `LanguageBundle` churn uncounted |
 | `Video/CoreAIDiffusionModelFunction.swift` | `ebb3e54` (#252) | 3 unread (`#559` …) |
-| `Engine/SeededRandomNumberGenerator.swift` | `6441c8c` (#265) | 2 unread; the e7b356c move counts once. The 11-12 owed RNG relabel is paid here (only mirror naming the old `Samplers/` path — grep: no other). |
-| `Engine/InferenceOutputSequence.swift` | `60e8605` (#509) | 0 — read, current |
+| `Engine/SeededRandomNumberGenerator.swift` | `6441c8c` (#265) | 2 unread; the e7b356c move counts once. The 11-12 owed RNG relabel is paid here (only mirror naming the old `Samplers/` path; grep: no other). |
+| `Engine/InferenceOutputSequence.swift` | `60e8605` (#509) | 0; read, current |
 
 The one genuinely new read: `#509`'s hunk in `InferenceOutputSequence.swift` is an internal
 `TokenCountStore` feeding upstream's `DecodeOutcomeReporting`; zero consumers of
 `TokenCountStore`/`tokensGenerated`/`DecodeOutcomeReporting` in `Sources/` (measured grep) ⇒ **inert
 for this slice**. Named-not-guarded: #509's strategy-side hunks (engine release at a stop sequence,
 the unknown-id failover) land in `Engine/GuidedGeneration/VanillaDecodingStrategy.swift`, which is
-still a no-baseline mirror — that window is the queue, and the stop-sequence GPU-drain fix is the
+still a no-baseline mirror, that window is the queue, and the stop-sequence GPU-drain fix is the
 part a future read should weigh first.
 
 What the re-stamp costs the report, honestly: the no-baseline bucket went 33 → 25, rows 20 → 28, and
-19 unread commits that lived inside the unread bucket are now counted on the axis — visibility, not
+19 unread commits that lived inside the unread bucket are now counted on the axis. Visibility, not
 regression. Remaining queue: 25 no-baseline files (2 `*`), the newly-visible per-file windows above,
 the 10 OWES sync slabs from `coreai-delta`, and the two § 11-05 (b) warned cases.
 
@@ -251,7 +251,7 @@ line #204 added.
 
 Measured:
 - #204's added lines in `StateHandler+Encode.swift`: **19/19 present**. The header's "the half is not
-  taken" was false — repaired at its site. What is missing is the `prompt` graph to call the encode
+  taken" was false. Repaired at its site. What is missing is the `prompt` graph to call the encode
   with; the #204 open row was about that entrypoint, so its verdict stays open.
 - The four deeply-sampled mirrors (40 / 4 / 12 / 2 upstream-only code lines) resolve line by line to:
   re-wrap and whitespace; declared adaptations (`package`→`internal`, `CoreAIShared` flatten, the
@@ -263,15 +263,15 @@ Measured:
 
 The question became an instrument: `bash scripts/upstream-drift.sh coreai-content` (report-only, like
 `coreai-delta`) names every line the upstream read-point has that our copy lacks. Today's real tree:
-26 of 28 rows non-zero, 3 909 lines — read through the sampled lens: composed mirrors
+26 of 28 rows non-zero, 3 909 lines. Read through the sampled lens: composed mirrors
 (`VLMBundleDetector`'s 99 is our own detector surface against `ModelBundle`), slice designs, re-wrap
 noise and declared rulings all show; a never-absorbed hunk shows as a block. A count is a pointer for
 the human read, never a verdict. `coreai-delta`'s `current` label got the same honesty in-file: it
-means upstream has not touched the file since baseline — `StateHandler.swift` reads `current` and is a
+means upstream has not touched the file since baseline, `StateHandler.swift` reads `current` and is a
 slice; the content question is `coreai-content`'s.
 
-The answer, by three numbers: adjudicated windows — sync is line-true in the sampled set (zero
-undeclared misses); the axis's body — unread (exit 10, 19 commits, 25 unstamped files), and `make
+The answer, by three numbers: adjudicated windows. Sync is line-true in the sampled set (zero
+undeclared misses); the axis's body. Unread (exit 10, 19 commits, 25 unstamped files), and `make
 drift` never calls it synced; one prose claim that contradicted its own file — convicted and repaired.
 
 ## Window read 11-23 (b). The +45 read in full, three live bugs ported, and the axis adopted at zero
@@ -308,24 +308,24 @@ StaticShape copy contains no profiler plumbing) · `603bf7f` #294 additive stage
 
 ### Read, n/a by seam or declared slice
 
-`5316b99` #508 — upstream caught up to OUR feature. Our vendored `ThinkTagParser` carried
+`5316b99` #508. Upstream caught up to OUR feature. Our vendored `ThinkTagParser` carried
 `promptEndsInsideReasoning` + `init(primedInside:)` before upstream had any of it (recorded in its
 header); their `promptOpensReasoning` is the same feature, different name. Stamped `Adjudicated:
 5316b99`. · `60e8605` #509 engine half — outcome reporting + token-level stop enforcement lives in
 their strategy layer; ours is a seam decision already on the wire (`EngineInference.swift` native
 stop-sequence detection → `.stopSequence` → ChatHandler finish-reason map). Their
-`maxConsecutiveUnknownIds` guard has no home in our decoder, named below. · `8bbadd0` #532 —
+`maxConsecutiveUnknownIds` guard has no home in our decoder, named below. · `8bbadd0` #532,
 `GrammarSchemaJSON` canonicalizes FoundationModels-encoded schemas; we feed the wire's schema string
 verbatim to xgrammar, and our FM path never re-encodes a schema into a grammar (checked at
-`EngineInference.swift` FM-guided site). · `128d2f3` #501 + `8a75e8e` #530 — chat-API image plumbing
+`EngineInference.swift` FM-guided site). · `128d2f3` #501 + `8a75e8e` #530. Chat-API image plumbing
 and `LanguageConfig.eosTokenIds` sit outside our declared slices; the bundle-declared stop-ids
-semantics (Gemma 4 token 50) is a CoreAI-lane gap named below. · `c8e00c0` #559 + `b972ed5` #510 —
+semantics (Gemma 4 token 50) is a CoreAI-lane gap named below. · `c8e00c0` #559 + `b972ed5` #510,
 Sana-NE/dynamic-Flux2 variants; our diffusion slice carries no variant dispatch, and #559's
 `requireGPUComputeUnits()` guard in Wan has no config concept here (`computeUnits` 0 hits). ·
 `4fa41b0` #519 · `da9fb21` #547 · `dcdfc63` #548 · `4c36290` #558 · `989f504` #514 · `40ccccc` #513 ·
 `5e0a236` #553 · `acbce1b` #517 · `f9d5659` #542 · `9ebfa93` #419 · `282bb53` #498 · `ff4bf6c` #496 ·
-`ff227c5` #486 · `75d33c1` #364 · `591da85` #536 · `ca2aecf` #551 — export-side python,
-README, registry: zero Swift mirror files (the established export-side n/a) · `d50c611` #528 —
+`ff227c5` #486 · `75d33c1` #364 · `591da85` #536 · `ca2aecf` #551. Export-side python,
+README, registry: zero Swift mirror files (the established export-side n/a) · `d50c611` #528,
 refactor of their split encode/wait/reset helpers; our copy has the merged shape, no behaviour delta.
 
 ### Names this read surfaced (owed somewhere, decided where)
@@ -343,7 +343,7 @@ refactor of their split encode/wait/reset helpers; our copy has the merged shape
 
 28 mirrors carried a stale or absent read-point; all whose window commits are adjudicated above were
 stamped `Adjudicated: <last-touch ≤ c8e00c0>` (ledger-parsable, first-45-lines): 38 rows now read to
-their file's end, 0 pending; the no-baseline list fell 25 → 15 — the 15 left are files this window
+their file's end, 0 pending; the no-baseline list fell 25 → 15. The 15 left are files this window
 did not touch and whose full absorption history this round did not re-verify (stamping them would be
 the false green the ledger refuses to parse by design). `Handlers/DecisionsHandler.swift` stays
 no-baseline honestly. It is an MIT in-tree file, a candidate only because its header cites another

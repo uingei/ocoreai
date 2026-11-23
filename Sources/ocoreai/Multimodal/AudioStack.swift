@@ -34,7 +34,7 @@
 ///   SpeechAnalyzer.start(inputSequence:)                       [Speech.swiftinterface L238]
 ///
 /// Rule of thumb applied throughout: the ENTRY type's floor is NOT the
-/// effective gate. E.g. `SpeechAnalyzer` is 26, but its LIVE-microphone
+/// effective gate, e.g. `SpeechAnalyzer` is 26, but its LIVE-microphone
 /// input provider (`CaptureInputSequenceProvider`) is 27, so B1 wires the
 /// FILE path (26) and the live path ships next batch.  ← B2 (this file) now
 /// carries that live-mic flag: `supportsLiveMic == true` iff majorVersion ≥ 27.

@@ -1,47 +1,47 @@
-# coreai-models fork — window adjudication
+# coreai-models fork. Window adjudication
 
-A mirror is decided by its own header — Apple's copyright plus the BSD-3 clause, or a named
-coreai-models origin — and `make drift` walks `Sources/ocoreai` for them. Measured 11-03: **40** files
+A mirror is decided by its own header. Apple's copyright plus the BSD-3 clause, or a named
+coreai-models origin, and `make drift` walks `Sources/ocoreai` for them. Measured 11-03: **40** files
 carry the fork licence and **26** of those also have a same-name counterpart upstream; the
 `Engine/CoreAI*.swift` prefix that used to be the scan reached 12, and the two sets shared exactly one
 file, which is how a window over six edited mirrors produced no row and no red. A window closes with
-`Adjudicated: <sha>` in the file header plus one row in the window log — one verdict, one piece of
+`Adjudicated: <sha>` in the file header plus one row in the window log. One verdict, one piece of
 evidence from **our** tree. Unfinished verdicts stay in the § Open list, never an implicit "nothing to
 do".
 
-Verdict key — **absorbed**: already in our copy, with the line that proves it. **n/a**: the surface it
+Verdict key. **absorbed**: already in our copy, with the line that proves it. **n/a**: the surface it
 changes does not exist here, with the grep that proves it. **open**: it touches something we ship and
-somebody owes an action — named. Absorbed and n/a are decisions; open is debt with a face.
+somebody owes an action. Named. Absorbed and n/a are decisions; open is debt with a face.
 
 ## The windows are measured by `make drift`, not typed here
 
 `make drift` prints the live table (our file → upstream counterpart → unread count), deriving the
 counterpart from each file's own header. A copy of those numbers here went stale the first time the
-mirror moved, so it is gone; the verdict per commit — what no command can recompute — is in
+mirror moved, so it is gone; the verdict per commit. What no command can recompute. Is in
 `coreai-fork-window-log.md`.
 
 ## Every per-commit verdict lives in `coreai-fork-window-log.md`
 
 Two tables: the closed-window rows and this round's. This file keeps only what no command can recompute
-and nothing can re-derive — the rule above and the queue below.
+and nothing can re-derive. The rule above and the queue below.
 
 ## Open, in the order that pays
 
 The *order* is this list's only claim; each measurement an item rests on lives in its row in the
 window log (and in the file that row cites), so nothing is re-typed here.
 
-1. **`f03e8ce` whitespace cap** — closed on the shipping lane by probe 12 §5b; sits behind `cc3c234`
+1. **`f03e8ce` whitespace cap**. Closed on the shipping lane by probe 12 §5b; sits behind `cc3c234`
    until a macOS 27 host can read the CoreAI lane.
-2. **`cc3c234` Wan asset names** — one read of a bundle's manifest says whether our hardcoded names can
+2. **`cc3c234` Wan asset names**. One read of a bundle's manifest says whether our hardcoded names can
    miss a declared one; port upstream's helper, or stop calling it a risk.
-3. **`8623ac6` static-shape slice (~500 L)** — re-sync to upstream's shape, or record the divergence in
+3. **`8623ac6` static-shape slice (~500 L)**. Re-sync to upstream's shape, or record the divergence in
    the header with the reason. Leaving it unsaid is the failure mode this file exists to end.
-4. **`7359dbc` VLM consolidation** — take it or say why not; ours is bigger than the file it came from.
+4. **`7359dbc` VLM consolidation**. Take it or say why not; ours is bigger than the file it came from.
 5. **`2704a69` turn-end stop tokens**, **`9db7476` `language.states`** and **`6a6bb0e` #374's** width-1
-   `main` fix — all three settle with one macOS 27 run over the bundles we advertise. Owner-side: a host
+   `main` fix. All three settle with one macOS 27 run over the bundles we advertise. Owner-side: a host
    that can import CoreAI.
-6. **`7fd2063` includeLogits two-axis shape** — cheap now, expensive after ten more call sites.
-7. **40 mirrors have no machine-readable baseline** — their window is unmeasurable until each header
+6. **`7fd2063` includeLogits two-axis shape**. Cheap now, expensive after ten more call sites.
+7. **40 mirrors have no machine-readable baseline**. Their window is unmeasurable until each header
    carries `Absorbed: #N <sha>` or `Adjudicated: <sha>`; `make drift` prints all 40 every round, so the
    debt is an inventory now rather than an assumption. Some do record a sha in prose the ledger cannot
    read (`ThinkTagParser.swift:10`, `StreamingWindow.swift:3`), which is a header edit, not a decision.

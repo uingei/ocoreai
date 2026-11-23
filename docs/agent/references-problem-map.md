@@ -1,4 +1,4 @@
-# The references corpus, read by problem — does each problem exist here?
+# The references corpus, read by problem. Does each problem exist here?
 
 > Owner directive 11-20: deep-research `~/references` for the **problem each tree exists to solve**, not
 > their architectures, and check whether that problem exists in ocoreai. This is the problem-first view;
@@ -11,14 +11,14 @@
 
 ## Corpus at HEAD (measured 11-20)
 
-The registry header's own instrument — `for r in $(ls "$HOME/references"); do … CHANGELOG count … done` —
+The registry header's own instrument, `for r in $(ls "$HOME/references"); do … CHANGELOG count … done`,
 had not been run since 10-28. Run today: **56 trees on disk; 7 had no registry row**
 (`foundation-models-utilities`, `gemini-cli`, `mlx-lm`, `mlx-swift`, `oh-my-pi`, `evals`,
-`cursor-plugins` — zero registry rows; the `evals`/`mlx-swift` doc hits are other trees' packages and the
+`cursor-plugins`. Zero registry rows; the `evals`/`mlx-swift` doc hits are other trees' packages and the
 pin-1 label, not rows). `MTPLX`'s row was stale in kind, not just date (its fresh row names the defect).
 Rows added, so the registry again answers for every clone on disk.
 
-## Field-solved here (open — the four findings that change something)
+## Field-solved here (open. The four findings that change something)
 
 1. **`foundation-models-utilities` is a consumer channel we already satisfy and never advertise.**
    Measured: Apple's package drives Apple's `LanguageModelSession` against *any* OpenAI-compatible
@@ -29,38 +29,38 @@ Rows added, so the registry again answers for every clone on disk.
    measured this session: `streamOptions.includeUsage` exists and the final-SSE-chunk usage emission is
    wired (`Handlers/ChatHandler.swift:2023-2024`), `response_format` parses (`Models/OpenAIModels.swift`
    `responseFormat` coding keys), delivery gated by probes 12/54. **Not** measured: a live round-trip of
-   Apple's own client against our server — never run, so it is an axis with a candidate probe, owned by
+   Apple's own client against our server. Never run, so it is an axis with a candidate probe, owned by
    root § Adoption ("agents are a channel they cannot find") and § Upstream's "judge OpenAI/Anthropic
-   compatibility as vllm and sglang judge it: the spec, their implementation, real requests" — Apple's
+   compatibility as vllm and sglang judge it: the spec, their implementation, real requests". Apple's
    client is now the third implementation in that judgment, and an iOS app built on the FM framework is
    the exact stranger in `long-horizon-goal.md`. The package also teaches foreign hosts through
-   `skills/` — the shipped-skill pattern now has three pin-adjacent trees (mlx-swift-lm, coreai-models,
+   `skills/`. The shipped-skill pattern now has three pin-adjacent trees (mlx-swift-lm, coreai-models,
    this), which raises the field count behind runbook § rung-6 without changing its owner-call status.
    Premise check the same day, which half-killed the candidate: the round-trip cannot run on this host
-   for a reason that is not ours — the package's manifest requires `.macOS("27.0")` (`Package.swift:19`,
+   for a reason that is not ours. The package's manifest requires `.macOS("27.0")` (`Package.swift:19`,
    measured) against this host's 26.6.2 (measured `sw_vers`), the same premise as the CoreAI/macOS-27
    row, and building an external tree's code needs the owner's explicit word (the harness refused the
    compile-attempt for a read-only comparator, correctly). The client's source carries zero
-   `@available(macOS 27` gates (measured) — the block is the manifest and the framework, not their file.
+   `@available(macOS 27` gates (measured). The block is the manifest and the framework, not their file.
    The curl-level half of the contract is already gated (probes 12/54/22/56); the client-parser half
    waits on a 27 host, not on a decision.
 2. **`oh-my-pi` names a problem we have and do not solve: IDE-grade feedback inside the loop.**
-   Measured both sides. There: LSP as a multiplexed daemon module — one language-server process per
+   Measured both sides. There: LSP as a multiplexed daemon module. One language-server process per
    identity and instance, per-session request-id remap, cached `initialize`, replayed diagnostics,
    watched-file forwarding (`packages/coding-agent/src/daemon/modules/lsp.ts` header comment, read 11-20
    at `63bfb67d16`); agent-visible ops `diagnostics`/`hover`/`definition`/`references`/`rename`/
-   `symbols`, plus a debug-adapter lane (`evaluate`) — the README's 31 tools / 14 LSP ops / 28 DAP ops is
+   `symbols`, plus a debug-adapter lane (`evaluate`). The README's 31 tools / 14 LSP ops / 28 DAP ops is
    its first screen's claim. Here: zero `lsp`/`dap`/`sourcekit` in `Sources/ocoreai/Tools/` (measured
    grep); our coding loop's feedback after an edit is a full build plus the edit-repair round trip
    (`EditMismatchRecoveryTests`). The problem exists here, unsolved; the remedy is a new agent-facing
-   tool surface, so it is an **owner call per root § Adoption's ladder**, not audit work — footprint
+   tool surface, so it is an **owner call per root § Adoption's ladder**, not audit work. Footprint
    ladder note: sourcekit-lsp already exists as the mechanism to consume. Adjacent axes on the same
    shelf, one line each: `mnemopi` (a local SQLite memory engine for its agents), `snapcompact`
-   (bitmap-frame vision compaction), `metaharness` (benchmark runner + run storage + live dashboard —
+   (bitmap-frame vision compaction), `metaharness` (benchmark runner + run storage + live dashboard,
    the board display our `scripts/eval` has no analogue of). All inferred-not-priced for us.
 3. **`gemini-cli` states our § Open tool-surface premise in Google's own product copy.** Its README's
    first screen is now a warning: not tuned for Gemini 4+, and "**Don't use Gemini CLI to benchmark
-   Gemini models** — its harness isn't tuned … and produces unrepresentative scores" (read 11-20 at
+   Gemini models**. Its harness isn't tuned … and produces unrepresentative scores" (read 11-20 at
    `d4cb1713f`; free tier moved to Antigravity CLI 06-18, enterprise Code Assist only). That is exactly
    the premise of § Open's "the tool surface is ungated against the loaded model" (row confirmed at
    `open-items.md:262`): a harness drifted from its model produces confidently wrong numbers. Field
@@ -69,10 +69,10 @@ Rows added, so the registry again answers for every clone on disk.
 4. **`MTPLX` now ships the flagship our pin cannot load.** Measured at `eb580fce`: first screen "The
    fastest way to run Qwen 3.8 on a Mac" (`README.md:5`), running Qwen 3.8 Flash Next on native MTP with
    a public per-number receipts board (version, machine, date; `README.md:19`), and an honesty line at
-   its own version boundary — the image path uses the compiled verifier but "that sampled comparison has
+   its own version boundary. The image path uses the compiled verifier but "that sampled comparison has
    not yet been repeated for images" (`README.md:34`). Our pin's inability re-measured today: `qsa` and
-   `ngram` are zero times in the built checkout's sources (grep, exit 1). No new consequence — the
-   owner's download-plus-upstream-port decision already lives in the `Qwen3.8-Flash-Next` row — but the
+   `ngram` are zero times in the built checkout's sources (grep, exit 1). No new consequence. The
+   owner's download-plus-upstream-port decision already lives in the `Qwen3.8-Flash-Next` row, but the
    pressure is now "a small tree ships it", which is the same class as the ladder's field-ceiling
    pattern.
 
@@ -91,18 +91,18 @@ detail; "registry (dated)" there means the problem statement is that row's, not 
 | llama.cpp | engine depth on one bet: grammar, MTP, Peg tools | axes, no consumption | registry (dated) |
 | mlx-swift-lm | LLM/VLM layer on MLX (pin 1) | consumed (pin) | § Upstream 1 |
 | mlx-swift | the Swift array framework itself | consumed transitively | new row, measured 11-20 |
-| mlx-lm | Python reference for MLX models + finetune | no — out of stack | new row, measured 11-20 |
+| mlx-lm | Python reference for MLX models + finetune | no; out of stack | new row, measured 11-20 |
 | mlx-serve | same product sentence, foreign engine | the wedge is what it lacks | registry (dated); goal § Rung zero 4 |
 | Rapid-MLX | our sentence shipped, app+server, agents wired | four axes, no home yet | registry (dated) |
 | omlx | distribution: DMG, auto-update, shim, tap | rung 2 consumed | registry (dated); runbook |
 | MTPLX | MTP decoding as its own product | yes (our MTP lane) | registry + dated note, measured 11-20 |
 | TensorFold | a measurement travels as a portable receipt | pattern, no consumer | registry (dated) |
 | Strata | local product growth + honest dry-run | dry-run consumed | registry (dated); probe 36 |
-| vllm-metal | vllm backend on Metal | no — out of stack | registry (dated) |
-| openclaw | #1 distribution machine | no — the wedge it declares | registry (dated); runbook |
+| vllm-metal | vllm backend on Metal | no; out of stack | registry (dated) |
+| openclaw | #1 distribution machine | no; the wedge it declares | registry (dated); runbook |
 | unsloth | train+run at cadence (AGPL boundary) | axis only | registry (dated) |
 | coreai-models | Apple reference graph (pin 2) | consumed (pin) | § Upstream 2 |
-| foundation-models-utilities | FM framework needs a backend; teach foreign hosts | **yes — wire already fits; channel unadvertised** | new row + this §1, measured 11-20 |
+| foundation-models-utilities | FM framework needs a backend; teach foreign hosts | **yes; wire already fits; channel unadvertised** | new row + this §1, measured 11-20 |
 | hermes-agent | loop shape + ops + skills tier | yes, consumed | registry (dated) |
 | codex | first-party self-documentation; guardian context | on-demand file:line（drift 轴位 11-22 撤销） | registry (dated), owner ruled comparator |
 | claude-code | product-behaviour diary of a peer | tracking axis | registry (dated); CHANGELOG 11-02(112) |
@@ -119,14 +119,14 @@ detail; "registry (dated)" there means the problem statement is that row's, not 
 | SWE-agent | agent–computer interface as config | axis only | registry (dated, stale clone) |
 | mini-swe-agent | the price ceiling of harness simplicity | foil axis | registry (dated) |
 | aider | failed-edit round trip as prompt contract | consumed | registry (dated); edit-repair row |
-| evals | a shared registry for eval corpora | no — board scores its own workspace | new row, measured 11-20 |
+| evals | a shared registry for eval corpora | no; board scores its own workspace | new row, measured 11-20 |
 | SWE-ReX | remote sandboxed shell runtime | dormant | registry (dated) |
 | autoresearch | keep-or-discard without floors | pattern only | registry (dated) |
 | OSWorld | per-task honesty in a CU corpus | confirmation | registry (dated) |
 | BrowserGym | silently-skipped ≠ passed | one home (SWE-bench row) | registry (dated) |
 | Hybrid-Computer-Use | refuse actions planned on stale state | § Open multimodal | registry (dated) |
-| HyperAgents | none — placeholder | none | registry (dated), removal candidate |
-| oh-my-pi | IDE-grade feedback (LSP+DAP) in the loop | **yes — unsolved, owner call** | new row + this §2, measured 11-20 |
+| HyperAgents | none; placeholder | none | registry (dated), removal candidate |
+| oh-my-pi | IDE-grade feedback (LSP+DAP) in the loop | **yes; unsolved, owner call** | new row + this §2, measured 11-20 |
 | gemini-cli | enterprise CLI honesty incl. its own staleness | premise feeds § Open tool-surface | new row + this §3, measured 11-20 |
 | OpenHands | UI state + locale completeness | gates exist, harder | registry (dated) |
 | modelcontextprotocol | dated wire substrate for tools | consumed as spec | registry (dated) |
@@ -134,12 +134,12 @@ detail; "registry (dated)" there means the problem statement is that row's, not 
 | claude-skills-official | how a skill routes | consumed 11-09 | registry (dated); probe 39 |
 | claude-plugins-official | the plugin channel + validator | consumed 11-09 | registry (dated) |
 | nanoGPT | a dated reference's death by pointer | pattern axis | registry (dated) |
-| nanochat | one-knob training reference | no — out of stack | registry (dated) |
-| llm.c | pretraining reference (dormant) | no — out of stack | registry (dated) |
+| nanochat | one-knob training reference | no; out of stack | registry (dated) |
+| llm.c | pretraining reference (dormant) | no; out of stack | registry (dated) |
 | Qwen3.8 | what the family promises (wire words) | feeds § Open thinking row | registry (dated) |
-| Qwen3.8-Flash-Next | what the next year runs on | **yes — pin cannot load it** | registry (dated); QSA re-measured 11-20 |
+| Qwen3.8-Flash-Next | what the next year runs on | **yes; pin cannot load it** | registry (dated); QSA re-measured 11-20 |
 | nginx | what a forwarded header canonically means | consumed as authority | registry (dated) |
-| cursor-plugins | none — the owner's own tooling repo | n/a | new row, measured 11-20 |
+| cursor-plugins | none; the owner's own tooling repo | n/a | new row, measured 11-20 |
 
 ## What this map changes, and its gate
 

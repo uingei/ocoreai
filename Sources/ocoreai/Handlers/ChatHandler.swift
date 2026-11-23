@@ -1870,7 +1870,7 @@ private func streamWithToolCalling(
         /// branch. Exactly mirrors the non-stream decision (ChatHandler
         /// L911-931): the "authoritative" tool-call/content suppression is
         /// made on the FULL accumulated content; if the LAST pass ended in a
-        /// tool call (no continuation ran. E.g. the tool name was filtered
+        /// tool call (no continuation ran, e.g. the tool name was filtered
         /// and the engine did not restart), the content channel is
         /// suppressed (non-stream returns empty content + toolCalls); if the
         /// LAST pass was the natural-language continuation, answer is

@@ -5,7 +5,7 @@
 // Compiled only when 'mlx' trait is active. Implements:
 //  - MLXModelLoader (actor). Loads models via ModelScope, HF, or local path
 //  - Sampling parameter bridge. MLXSamplingConfig → GenerateParameters
-//  - Message conversion. Ocoreai Message → mlx-swift-lm Chat.Message
+//  - Message conversion. ocoreai Message → mlx-swift-lm Chat.Message
 //
 // ### Architecture:
 // - Models can be loaded from:

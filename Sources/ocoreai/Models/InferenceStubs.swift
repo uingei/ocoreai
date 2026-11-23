@@ -308,7 +308,7 @@ struct InferenceOptions: Codable {
     /// - `.required`: Model must call at least one tool before responding.
     ///   Enables think-then-call (reasoning phase followed by guided tool gen).
     /// - `.disallowed`: Tool calling is disabled even if tools are available.
-    /// Default is `.auto`. Ocoreai uses presence of tools to infer mode
+    /// Default is `.auto`. ocoreai uses presence of tools to infer mode
     /// (same as current behavior).
     var toolCallingMode: String? = nil
     /// Tool-calling whitelist. The *names* the client declared in its

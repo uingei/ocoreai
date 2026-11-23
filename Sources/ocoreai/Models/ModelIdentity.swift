@@ -11,8 +11,8 @@ import Foundation
 
 /// Strongly-typed model identity. Replaces the prefix-based string convention.
 ///
-/// - huggingFace(repoId:). E.g. "mlx-community/Qwen3.5-4B"
-/// - modelScope(repoId:). E.g. "Qwen/Qwen2.5-7B-Instruct"
+/// - huggingFace(repoId:), e.g. "mlx-community/Qwen3.5-4B"
+/// - modelScope(repoId:), e.g. "Qwen/Qwen2.5-7B-Instruct"
 /// - local(path:). Filesystem path
 ///
 /// The ``prefixedId`` property produces the EnginePool-compatible string

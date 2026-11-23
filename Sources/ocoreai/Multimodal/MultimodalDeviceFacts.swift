@@ -320,7 +320,7 @@ struct MultimodalDeviceFacts: Codable, Equatable, Sendable {
 
     /// The measured reason for one channel, with its `"<channel>: "` prefix removed, or nil
     /// when nothing measured blocks it (which for a capture means "no fact explains the
-    /// miss". E.g. a frame refused by the sampler's rate limit).
+    /// miss", e.g. a frame refused by the sampler's rate limit).
     func limitation(forChannel channel: String) -> String? {
         let prefix = "\(channel): "
         for line in limitations where line.hasPrefix(prefix) {

@@ -120,7 +120,7 @@ WANT="${OCOREAI_TARGET_SDK:-macos26}"
 # `xcodebuild -showComponent MetalToolchain` exits 0 and prints "Status: uninstalled"
 # when the component is absent, so an exit-code guard succeeds and the build dies much
 # later, on the first CompileMetalFile, with "cannot execute tool 'metal'". This is
-# upstream's own parse. Mlx-swift-lm .github/workflows/pull_request.yml:221-229 (local
+# upstream's own parse. mlx-swift-lm .github/workflows/pull_request.yml:221-229 (local
 # clone at 4cc5504), where the same trap cost them a green-then-red pipeline.
 metal_component_status() {
   xcodebuild -showComponent MetalToolchain 2>&1 \

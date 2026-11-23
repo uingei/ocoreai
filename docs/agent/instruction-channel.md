@@ -1,4 +1,4 @@
-# The instructions channel — who delivers the caller's `system` message, and who pays for it
+# The instructions channel. Who delivers the caller's `system` message, and who pays for it
 
 Long form for the `Sources/ocoreai/Handlers/AGENTS.md` § Endpoint Promises rule *"the caller's instructions have one delivery
 seam, and instruction identity gates cache reuse."* Root carries the rule; the measurements, the
@@ -13,14 +13,14 @@ All numbers below are from one session on this host (macOS 26, `mlx-community/ge
 |---|---|---|
 | `messages:[user]` only | 705 | 705 |
 | same + `messages[0] = {role:"system", content: 996 chars}` | **705** (differential 0) | **886** (+181) |
-| same with `role:"developer"` instead | — | **886** (+181) |
+| same with `role:"developer"` instead |; | **886** (+181) |
 | `/v1/messages` with `system:` = same 996 chars | 887 (+182) | 886 |
 | `/v1/messages` without `system:` | 705 | 705 |
 
 The OpenAI face accepted the most-used instruction field on its wire and delivered none of it,
 while its own disclosure line claimed the text had been counted (`systemChars=` included it,
-`promptTokens=` was 838 against a delivered 705). The Anthropic face — whose spec carries
-`system` as a *top-level field* rather than a message — delivered the same text. Same server,
+`promptTokens=` was 838 against a delivered 705). The Anthropic face. Whose spec carries
+`system` as a *top-level field* rather than a message. Delivered the same text. Same server,
 two answers, and the surface that most clients use was the one that lied.
 
 ## 2. Why it was structural, not a parsing miss
@@ -29,7 +29,7 @@ The engine reads standing instructions from exactly one place: the **first** `sy
 finds (`Sources/ocoreai/Engine/EngineInference.swift:1823`), which becomes
 `ChatSession(instructions:)` (`:3117`, `:3175`). Every `system` role is then filtered out of the
 message feed it renders (`:1805`), and the role switch under that filter admits `assistant`,
-`tool`, and everything else as `.user` (`:1808-1812`) — mlx-swift-lm's `Chat.Message.Role` has no
+`tool`, and everything else as `.user` (`:1808-1812`). Mlx-swift-lm's `Chat.Message.Role` has no
 `developer` case (`Chat.swift:124-124`), so `developer` never matched either: it arrived as
 something the *user* said.
 
@@ -44,7 +44,7 @@ the renderer. Disclosure roles before the fix: `[system, system, user]`.
 
 ## 3. What the fix does
 
-- `Handlers/MessageBuilder.swift` — `instructionMessageRoles = ["system","developer"]` and
+- `Handlers/MessageBuilder.swift`, `instructionMessageRoles = ["system","developer"]` and
   `splitInstructionMessages(_:)` take instruction-role messages out of the conversation, in the
   caller's own order, and join them (empty ones dropped rather than turned into blank turns).
   `buildMessages` starts from the remaining conversation; Phase 3 composes
@@ -52,7 +52,7 @@ the renderer. Disclosure roles before the fix: `[system, system, user]`.
   skills / memory, into the **one** system message generation actually reads. Phase 7's
   fallback reads the filtered conversation, so a system-only request can no longer be scored as
   if the system text were the user's question.
-- `Engine/SessionPool.swift` — `canReusePooledSession(cachedMessageCount:commonPrefixCount:
+- `Engine/SessionPool.swift`, `canReusePooledSession(cachedMessageCount:commonPrefixCount:
   instructionsMatch:)` gained the second premise. `ChatSession.instructions` is a stored property
   the processor prepends at prefill, so a session that survives into a turn with different
   instructions answers under instructions this turn never sent. The disk path had refused on this
@@ -85,8 +85,8 @@ Not proven:
   instead of 22). This is correctness bought with performance, and it is the same rule the disk
   path already enforced.
 - **Our own instructions vary per turn.** The merged system message grows when the request
-  declares tools — measured +299 chars of schema-less `## Tool:` prose for one declared tool
-  (probe 13 §11, 3026 → 3325 chars) — so a conversation that alternates tool-declaring and
+  declares tools. Measured +299 chars of schema-less `## Tool:` prose for one declared tool
+  (probe 13 §11, 3026 → 3325 chars), so a conversation that alternates tool-declaring and
   non-declaring turns now loses its cache every time. Narrowing that text is the open item on
   the `tools[]` surface in AGENTS.md § Open, not this rule.
 - Order/merge semantics: several instruction messages are joined into one block with `\n\n`.
@@ -95,12 +95,12 @@ Not proven:
 
 ## 6. Gates
 
-- `Tests/ocoreaiTests/SystemInstructionDeliveryTests.swift` (11) — split semantics (order,
+- `Tests/ocoreaiTests/SystemInstructionDeliveryTests.swift` (11). Split semantics (order,
   casing, empty text, tool/function roles stay put, the role set itself) plus two premise-floored
   source scans: `splitInstructionMessages(context.rawMessages)` exactly once, and
   `var messages = context.rawMessages` zero times (the unfiltered feed must stay gone).
-- `Tests/ocoreaiTests/SessionIsolationTests.swift` — the reuse gate with `instructionsMatch`,
+- `Tests/ocoreaiTests/SessionIsolationTests.swift`. The reuse gate with `instructionsMatch`,
   including the empty-transcript case that only the instruction premise can refuse, and that
   `KVCacheManifest.reuseDecision` reports `.instructionsChanged` rather than `.notAPrefix`.
-- `scripts/probes/15-system-instruction-delivery.sh` — the live half, including the log-reason
+- `scripts/probes/15-system-instruction-delivery.sh`. The live half, including the log-reason
   assertion with its own premise floor (a grep that matched nothing fails the run).

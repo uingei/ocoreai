@@ -1,4 +1,4 @@
-# Build / test gate reality — host forensics
+# Build / test gate reality. Host forensics
 
 > The long form behind § *Build / Test / Lint* → "Gate tiering" in `AGENTS.md`, moved out of the
 > injected layer on 10-14 so the root file keeps judgment and verdicts. Every number here was
@@ -6,22 +6,22 @@
 **A toolchain update can invalidate the route premises, so they are assertions.** One Xcode/CLT
 update repointed CLT's `MacOSX.sdk` from 26.5 to **27.0** (SDK 27 ships `CoreAI.framework`, measured:
 absent in `MacOSX26.5.sdk`) and moved swiftc 6.3.3 -> 6.4, so `DEVELOPER_DIR=…/CommandLineTools`
-**no longer** meant the "macOS 26 / no-CoreAI" route — `canImport(CoreAI)` silently flipped true and
-macOS 27-only blocks compiled into the shipping shape — and `swift build` stopped being executable
+**no longer** meant the "macOS 26 / no-CoreAI" route, `canImport(CoreAI)` silently flipped true and
+macOS 27-only blocks compiled into the shipping shape, and `swift build` stopped being executable
 because `metal` is not installed. Full incident (times, negative controls, remedies): `CHANGELOG.md`,
 grep `toolchain-contract`. Two rules came out of it and both still hold: a route is *asserted*, never
 inferred from the environment (`scripts/toolchain-contract.sh`; R1 "the shipping SDK carries no CoreAI"
 is a hard gate (`make toolchain-check`, in `make push-ready` since 10-28; the shape it guards is judged on the artefact by `release-artifact-check.sh delivery` in `build-appstore`)), and `make test-clt` passes
 `SDKROOT=<newest CoreAI-free SDK>` explicitly instead of trusting the symlink. Sandbox gotcha that cost
-a session: `HOME` must be the canonical `/private/tmp/…` — `/tmp/…` leaves two same-named `.pcm` files
+a session: `HOME` must be the canonical `/private/tmp/…`, `/tmp/…` leaves two same-named `.pcm` files
 in the clang module cache and swift-frontend SIGSEGVs on `_DarwinFoundation1`.
 
 **Sandboxed route = compile + non-Metal tests, no approval needed:** a compile gate does *not* require escalation. `HOME=<writable-dir> DEVELOPER_DIR=/Library/Developer/CommandLineTools swift build --scratch-path .build-clt --disable-sandbox` goes green inside the agent sandbox. `--disable-sandbox` drops only SwiftPM's *own* nested sandbox for the
-package-manifest compile (nesting is impossible here: `sandbox-exec: sandbox_apply: Operation not permitted`); the outer harness sandbox still applies — the same run is denied writing `~/.cache/clang`, which is exactly why `HOME` must point somewhere writable. `make test-clt`'s `-F`/`-rpath` flags are still required for the Testing library, and `DEVELOPER_DIR` keeps it on the
-macOS-26 (no-CoreAI) route. Inside the sandbox pure-logic suites really run — `--filter 'SessionIsolation|MemoryPressureCorroboration|HardwareRouter|EnginePoolRouting'` = **79 tests / 15 suites green** — while Metal suites self-skip (`.enabled(if: MTLCreateSystemDefaultDevice() != nil)`) and `xcodebuild` cannot run at all (`xcodebuild: error: 'ocoreai.xcworkspace' is not a
+package-manifest compile (nesting is impossible here: `sandbox-exec: sandbox_apply: Operation not permitted`); the outer harness sandbox still applies. The same run is denied writing `~/.cache/clang`, which is exactly why `HOME` must point somewhere writable. `make test-clt`'s `-F`/`-rpath` flags are still required for the Testing library, and `DEVELOPER_DIR` keeps it on the
+macOS-26 (no-CoreAI) route. Inside the sandbox pure-logic suites really run, `--filter 'SessionIsolation|MemoryPressureCorroboration|HardwareRouter|EnginePoolRouting'` = **79 tests / 15 suites green**. While Metal suites self-skip (`.enabled(if: MTLCreateSystemDefaultDevice() != nil)`) and `xcodebuild` cannot run at all (`xcodebuild: error: 'ocoreai.xcworkspace' is not a
 workspace file`), so the `test-ci` and `build-ios` legs stay CI's job. Tiering: sandbox → build + non-Metal suites; escalation → full suite + live `serve`/`curl`; `xcodebuild` legs → CI.
 
-**The sandbox route is conditional — the Metal node must be clean (reproducible).** The Metal
+**The sandbox route is conditional. The Metal node must be clean (reproducible).** The Metal
 toolchain's clang resolves its module cache to the *real* user home (`/var/folders/<…>/C/clang/
 ModuleCache/*.pcm`) whatever `HOME` the caller exports — not `~/.cache/clang`, and a gate naming the
 wrong path sends the next reader hunting in the wrong directory (measured by executing the compile: the
@@ -34,42 +34,42 @@ What dirties it: `swift build --build-tests` in the same scratch, and adding `-X
 the canonical `/private/var/folders/<…>/T` (a `TMPDIR` under `/private/tmp` still died with
 `unable to make temporary file`). **Practical rule:** keep the sandbox for the app-target build and run
 the test gate unsandboxed (`make test-clt`); when the sandbox route suddenly dies on `CompileMetalFile`
-it is a stale Metal node plus an unwritable module cache, not a code regression — one unsandboxed build
+it is a stale Metal node plus an unwritable module cache, not a code regression. One unsandboxed build
 fixes it, do not revert code to "fix" it.
 
-**Shader payload — why the test binary cannot find `default.metallib`.** MLX's `load_default_library`
+**Shader payload. Why the test binary cannot find `default.metallib`.** MLX's `load_default_library`
 (mlx `mlx/backend/metal/device.cpp:196-244`) searches five PATH SHAPES (colocated `mlx.metallib`,
 `Resources/mlx`, a **loaded** `mlx-swift_Cmlx` bundle under `Bundle.main`/`allBundles`/`allFrameworks`,
 `Resources/default`, then the compile-time default), and SwiftPM 6.4 puts the runner three levels below
 its resource bundle, so all five miss though the payload sits in the products dir. mlx-swift-lm never
 sees it: it tests through `xcodebuild build-for-testing`, which keeps resources within reach of its own
-runner. So the payload is resolved upstream-first and handed to MLX through the API built for it —
+runner. So the payload is resolved upstream-first and handed to MLX through the API built for it,
 `MLX.GPU.metallib` (mlx-swift `Source/MLX/GPU+Metal.swift:54-73`, "set early in the process to override
 or provide the metallib load path") once at `EnginePool.init` via `MetalShaderLibrary.swift`, with
 `$OCOREAI_METALLIB` as the explicit override. Copying it *into* the bundle is not available: a
 `.metallib` under `Contents/MacOS` is a nested code object and CodeSign dies with `code object is not
 signed at all`. Gate: `MetalShaderLibraryTests` pins the candidate order against a synthetic SwiftPM 6.4
 layout (red the day the layout moves), `$OCOREAI_METALLIB` precedence and "never hand back an unverified
-path" — and it reads the Makefile, so "don't stage into a signed bundle" stays a red build rather than a
+path", and it reads the Makefile, so "don't stage into a signed bundle" stays a red build rather than a
 comment. The ladder itself is `scripts/resolve-metallib.sh`.
 
 **R2 must not infer:** `metal --version` and a listing of the cryptexd mount both flip with the
-environment — the same `report` answered `metal=ok-cryptex` inside the sandbox and
+environment. The same `report` answered `metal=ok-cryptex` inside the sandbox and
 `metal=component-missing` outside it within a minute, while llbuild compiled `arg_reduce.metal`
 successfully in that unsandboxed run. The stable part is the component's own words:
 `xcodebuild -showComponent MetalToolchain` answers `Status: installed` / `Status: uninstalled` and exits
-**0 either way**, so a step that merely runs it proves nothing — and mlx-swift-lm's PR workflow is that
+**0 either way**, so a step that merely runs it proves nothing, and mlx-swift-lm's PR workflow is that
 step today (`pull_request.yml:126-128`; the step this doc cited did parse the `Status:` line, and the
 11-03 pin window dropped the parse, which is what a cite pinned to another repo's line numbers costs).
 `make toolchain-check`
-asks that question on **both** candidate routes rather than the ambient `DEVELOPER_DIR` — the old
+asks that question on **both** candidate routes rather than the ambient `DEVELOPER_DIR`. The old
 single-route check declared "this host cannot produce the macOS-26 shape" as fact while the CLT route
 still held a CoreAI-free SDK 26.5, and a warning that fires every run is a warning nobody reads when it
-becomes true — and `--probe-metal` settles R2 and R3 by compiling a kernel.
+becomes true, and `--probe-metal` settles R2 and R3 by compiling a kernel.
 
 ## The four defects the live loop caught (dated table: `CHANGELOG.md`)
 
-All four were found by running `ocoreai serve` and calling `/v1/*` on this host — a route-level
+All four were found by running `ocoreai serve` and calling `/v1/*` on this host. A route-level
 audit of the same code missed every one of them, which is the entire argument for treating a
 live check as a different instrument rather than a nicer-looking grep. The dated table (wire
 statement vs engine fact vs where the fix landed) is diary and lives in `CHANGELOG.md`,
@@ -81,7 +81,7 @@ state to wire statement is invisible to any static reading of either side.** Bot
 individually correct; only the pair fails. So the standing gate for capability surfaces is a
 live assertion about the pair (`scripts/probes/`), not a test of the handler alone.
 
-## Anchors for the cites above (`make anchor-check` — retired 11-16; the markers remain as comments)
+## Anchors for the cites above (`make anchor-check`. Retired 11-16; the markers remain as comments)
 
 <!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml:126-128 Infra: verify MetalToolchain installed -->
 <!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml:137 xcodebuild build-for-testing -->
@@ -91,7 +91,7 @@ live assertion about the pair (`scripts/probes/`), not a test of the handler alo
 
 The blocker was the **agent sandbox**, never the platform, metallib or macOS 26: inside it MLX logs
 `No Metal device available` and the first MLX suite dies. Run outside it, the full suite is ~2.7k tests /
-~480 suites on the CLT route (`make test-clt`), and `ocoreai serve` + live `curl` on `/v1/*` answer — the
+~480 suites on the CLT route (`make test-clt`), and `ocoreai serve` + live `curl` on `/v1/*` answer. The
 loop behind «The four defects the live loop caught». What that costs the reader is root's rule, not
 this file's: *prefer a live check over an inference whenever a claim is about behaviour*.
 
@@ -108,7 +108,7 @@ this file's: *prefer a live check over an inference whenever a claim is about be
 
 The only caller is `_runConstrainedDecoding` (`@available(macOS 27.0,*)`; defined :1081, mask call
 :1223). The CLT SDK has no CoreAI and macOS 26 neither compiles nor runs this, so the fix is obvious
-(`-Float.infinity` + `continue`) but is neither made nor claimed until it runs on macOS 27 - the
+(`-Float.infinity` + `continue`) but is neither made nor claimed until it runs on macOS 27. The
 same-named § Open item keeps only the criterion and the pointer. Gate: the floored source-scan style of
 `V1EndpointCatalogTests` would fit, but it pins unrunnable code; a behavioural gate needs CI's macOS 27
 leg.
@@ -130,18 +130,18 @@ Run counts are not copied here on purpose: this file once carried a CLT number t
 outlived by the round that edited it, and invariant 1 says a number nobody re-greps drifts. Each leg
 prints its own counts; `CHANGELOG.md` prices each round's. What stays true between rounds: nothing red
 is the platform (`PlatformPremise.hasMacOS27` makes an unmet OS premise a skip, so a red is one
-verdict), and the residual reds are wall-clock budgets losing to parallelism — green standalone in
+verdict), and the residual reds are wall-clock budgets losing to parallelism. Green standalone in
 seconds, drifting in set run to run (`MCPStderrDiagnosisTests`, `EngineBusyAdmissionTests`, the
 rate-limit window).
 **The XCTest half is never run**: `make test` always passes `--disable-xctest`, because that half holds
-zero tests and its runner SEGVs at class realization on macOS < 27 — the mechanism and the refusal gate
-live in that target. Filtered routes cite swift-testing **IDs** — a suite *type* name, not display text.
+zero tests and its runner SEGVs at class realization on macOS < 27. The mechanism and the refusal gate
+live in that target. Filtered routes cite swift-testing **IDs**. A suite *type* name, not display text.
 
 **A lease must not span live network.** A lock held across a connect timeout serialises the whole run:
 three `ReadyHubDownloaderFlatTests` cases deliberately take the network path, and behind one lock the
 full suite went 122 s -> 370 s with 9 false reds. `HubClient` reads `HF_ENDPOINT` at construction
 (swift-huggingface `Sources/HuggingFace/Hub/HubClient.swift:116`, `detectHost()` at :189), so that suite
-pins it to a loopback port that refuses — same five tests, same assertions, 366.0 s -> 0.03 s, and no
+pins it to a loopback port that refuses. Same five tests, same assertions, 366.0 s -> 0.03 s, and no
 premise about whether the host has a network. `ProcessGlobalLease.waitBudget` is 60 s and on expiry
 *records and proceeds*: a leaked lease is a named red, never a hang. Round forensics (the 13-minute
 pre-deadline hang, 19 parked threads, `sample` naming the holder): CHANGELOG 10-26(11).
@@ -157,7 +157,7 @@ is unchanged: `shared` is the only instance production starts (`PerceptionEngine
 cost a verdict: `Issue.record("requires macOS 27")` made the platform look like a defect;
 `print("[X] SKIP …")` never reached the run summary, so untested work read as tested; and
 `.disabled("requires macOS 27 runtime; exercised in CI matrix")` does not revive when CI moves to
-macOS 27 — five `CoreAIVisionConfigTests` were dead that way. The shape that works is
+macOS 27. Five `CoreAIVisionConfigTests` were dead that way. The shape that works is
 `@Test(…, .enabled(if: PlatformPremise.hasMacOS27))` on a function carrying `@available(macOS 27.0, *)`:
 the annotation is what lets the body compile against the API, the condition is what skips it.
 `PlatformPremiseHonestyTests` floors a `.disabled(` scan over `Tests/` (300 files, 20
@@ -172,8 +172,8 @@ runs and `Tests/` contains no `.disabled(` at all.
 ## A test step that exits 0 without delivering a verdict (10-28)
 Both `Build & Test` legs printed `xctest summary (exit 0): Executed 0 tests, with 0 failures` and went green,
 which reads as an empty suite. It is not one: that line is XCTest's own summary, and `Tests/` holds no
-`XCTestCase` file, so it prints whatever the suite did; swift-testing's `Test run with N tests` line — the
-verdict — left the annotation only because a `::notice::` value ends at its first newline and the value
+`XCTestCase` file, so it prints whatever the suite did; swift-testing's `Test run with N tests` line. The
+verdict. Left the annotation only because a `::notice::` value ends at its first newline and the value
 carried two lines. Measured on a minimal package: `xcrun xctest` runs them.
 
 The misread is not the lesson; that nothing could go red is. An empty bundle exits 0 too.

@@ -1,23 +1,23 @@
-# CoreAI lane: consume upstream, stop forking — a proposal
+# CoreAI lane: consume upstream, stop forking. A proposal
 
-Status: **DECIDED — owner chose option 1 (keep the fork + mechanize maintenance), 11-12.** Option 3
+Status: **DECIDED. Owner chose option 1 (keep the fork + mechanize maintenance), 11-12.** Option 3
 (runtime-loaded engine) was verified *feasible* by a dlopen spike but **deferred**: the stable-C-interface
-project cost isn't justified now. Option 2 (raise the floor to macOS 27) stays off the table — macOS 14
+project cost isn't justified now. Option 2 (raise the floor to macOS 27) stays off the table. MacOS 14
 delivery is fixed. Mechanization is underway: `coreai-delta` (per-file code-debt view, `upstream-drift.sh`)
 landed and is gated. The hand-ports (fp8 #328, #412 pending CI) are patches on the fork and stand.
 
 **Option 3 spike (11-12), kept for the record:** a macOS 14 host `dlopen`s a separately-built engine
-dylib and calls a `@_cdecl` C interface — works. The link-time platform wall (SwiftPM won't link a
+dylib and calls a `@_cdecl` C interface. Works. The link-time platform wall (SwiftPM won't link a
 macOS 27 product into a macOS 14 target) is bypassed because dlopen is runtime, not link-time; the real
 engine's runtime gate is its CoreAI.framework dependency (absent < 27). So "no fork + macOS 14" is
 *feasible*; the cost is flattening the engine's async Swift API to a stable C ABI + dylib build/sign.
 Deferred, not ruled out.
 
 **Delta-view nuance:** the raw per-file delta is not all debt. Small deltas are mostly already-adjudicated
-inert (e.g. ImagePreprocessor's `loadCGImage`/`renderToContext` public — ocoreai has no caller) or cosmetic
+inert (e.g. ImagePreprocessor's `loadCGImage`/`renderToContext` public. Ocoreai has no caller) or cosmetic
 (InputEmbeddings TODO removal); large deltas (SequentialEngine 1134 L, StaticShape 873 L) are largely
 *deliberate* shape divergence. The real sync debt is the named open verdicts (the 16, e.g. #412 done,
-#490 next), read with the window-log adjudication — not the raw delta numbers.
+#490 next), read with the window-log adjudication, not the raw delta numbers.
 
 ## Phase 2 integration finding (11-12): the platform wall
 
@@ -27,18 +27,18 @@ target.** SwiftPM's platform check is manifest-level (`product.minPlatform ≤ t
 `-Xswiftc -target arm64-apple-macosx27.0` does not bypass it (`this target supports 14.0`). Contrast:
 mlx-swift-lm's floor is macOS 14, so the FM adapter links; coreai-models' floor is macOS 27, so it
 cannot. A second, solvable collision also surfaced (ocoreai's local `CXGrammar` C bridge renamed
-`CXGrammarFork` to avoid the target-name clash with upstream's) — but the platform wall is fundamental.
+`CXGrammarFork` to avoid the target-name clash with upstream's), but the platform wall is fundamental.
 
-**This corrects the proposal's premise:** the fork is *not* "an accident of the platform floor" — it is
+**This corrects the proposal's premise:** the fork is *not* "an accident of the platform floor". It is
 the mechanism that reconciles macOS 14 delivery with macOS 27 CoreAI. Source-level `@available(macOS 27)`
 gating compiles macOS 27 code into the macOS 14 single binary; product linking cannot. omlx/Bionic
 consume engines because they lack this "macOS 14 binary must also carry macOS 27 CoreAI" constraint.
 
-**Consumption therefore requires a delivery-model change — an owner decision:**
-1. **Keep the fork + mechanize maintenance** (per-file diff + 3-way merge + verbatim script-copy) —
+**Consumption therefore requires a delivery-model change. An owner decision:**
+1. **Keep the fork + mechanize maintenance** (per-file diff + 3-way merge + verbatim script-copy),
    respects the platform constraint, cuts the sync tax, no delivery change. The pragmatic path.
-2. Raise ocoreai's floor to macOS 27 — enables consumption, abandons macOS 14 delivery.
-3. Runtime-loaded engine extension (the Bionic model) — macOS 14 host binary dlopens a macOS 27 engine
+2. Raise ocoreai's floor to macOS 27. Enables consumption, abandons macOS 14 delivery.
+3. Runtime-loaded engine extension (the Bionic model). MacOS 14 host binary dlopens a macOS 27 engine
    library; high cost in Swift.
 
 The "no fork" north star is blocked by the platform floor unless the delivery model changes. Phases 0–1
@@ -50,7 +50,7 @@ macOS 14 target is gated on the decision above.
 ocoreai's essence is `mlx-swift-lm + coreai-models + agent`. The MLX side already **consumes**
 upstream (SPM pin, MLX lane through upstream `ChatSession`); sync there is `bump pin`. The CoreAI
 side **forks** ~9000 lines instead. The fork is the platform-floor workaround (see the Phase 2 finding
-above), not mere inertia — but it carries a perpetual hand-sync tax. The aspiration is to make CoreAI
+above), not mere inertia, but it carries a perpetual hand-sync tax. The aspiration is to make CoreAI
 symmetric with MLX *if the delivery model allows*:
 
 - `coreai-models` becomes a **trait-gated SPM dependency** (macOS 27 lane only).
@@ -59,28 +59,28 @@ symmetric with MLX *if the delivery model allows*:
 
 ## Why it is feasible (measured, not inferred)
 
-1. **The compile floor is solved — trait-gating experiment passed.** An isolated two-package test
+1. **The compile floor is solved. Trait-gating experiment passed.** An isolated two-package test
    (11-12, since removed): a dependency whose source fails to compile on *any* SDK was **not built**
    when its enabling trait was off (`swift build` succeeded); with the trait on + a macOS 27 consumer
-   it built. Mechanism is `.when(traits:)` on the product dependency — ocoreai already uses it for the
+   it built. Mechanism is `.when(traits:)` on the product dependency. Ocoreai already uses it for the
    FM adapter (`Package.swift:129`). `enabledDependencies` does **not** exist in this SwiftPM (6.4);
    the experiment corrected that assumption. Default Xcode SDK here is 27.2 (CoreAI present); shipping
-   is CLT 26.5 — trait-off skips the build on either.
+   is CLT 26.5. Trait-off skips the build on either.
 2. **The fork is nearly all upstream, not ocoreai glue.** The engines (`CoreAIPipelinedEngine` 1925 L,
    `CoreAISequentialVLMEngine` 1246, `CoreAISequentialEngine` 722, `CoreAIStaticShapeEngine` 659), the
    constrained stack (`GuidedGeneration/` 2097 L, Apple BSD-3 headers, `XGrammarWrapper` → CXGrammar),
-   and the verbatim mirrors are all forks of files upstream maintains — upstream ships the full
+   and the verbatim mirrors are all forks of files upstream maintains. Upstream ships the full
    `DecodingStrategies/` + `GuidedGeneration/` + CXGrammar (xgrammar 0.2.2). Consuming upstream brings
    them; they are not ocoreai-native logic to preserve.
 3. **The agent-facing contract already exists and is upstream-shaped.** ocoreai's `InferenceEngine`
    protocol (`CoreAIEngine.swift:286`) is near-verbatim upstream's (`InferenceEngine.swift:173`:
    `generate/reset/warmup/cancel/supportsLogits/lastPrefixHitCount` identical). The shared IR types
    (`InferenceStubs.swift`: `SamplingConfiguration`, `InferenceOptions`, …) are explicitly the
-   "intermediate representation between handler layer and backend" — always compiled, backend-agnostic.
+   "intermediate representation between handler layer and backend". Always compiled, backend-agnostic.
    The agent talks to the IR; only the backend adapter changes.
 4. **Comparators converge on the same shape.** omlx: pinned `mlx==0.32.4` + **274** thin post-load
    patches, no wholesale fork, patches back off as upstream evolves. LM Studio **Bionic** (ocoreai's
-   exact category — local open-model work/code agent): agent app + downloadable engine runtimes +
+   exact category. Local open-model work/code agent): agent app + downloadable engine runtimes +
    plugin extensions. Both own the agent and consume the engines.
 
 ## Change surface
@@ -91,24 +91,24 @@ EngineFactory/TokenHistory/supports inside `CoreAIEngine.swift` and the no-basel
 
 **Keep (ocoreai's value):** the IR (`InferenceStubs` shared types); the `InferenceEngine` /
 `MultimodalInferenceEngine` protocols (agent-facing); the agent layer (`EngineInference`, routes via
-`any InferenceEngine` — stable interface ⇒ minimal change); `CoreAIModelLoader` (model prep, adapted).
+`any InferenceEngine`. Stable interface ⇒ minimal change); `CoreAIModelLoader` (model prep, adapted).
 
 **Add (thin):** the trait-gated `coreai-models` dependency; an **adapter** mapping ocoreai IR ↔ upstream
 types (`SamplingConfiguration`/`InferenceOptions`/`InternalModelConfig` → upstream `ModelConfig` etc.)
-and wrapping upstream engines to conform to ocoreai's protocol — order hundreds of lines, against
+and wrapping upstream engines to conform to ocoreai's protocol. Order hundreds of lines, against
 ~9000. Patches only where a divergence is genuinely required.
 
 **Divergences mostly dissolve:** `fatalError` is upstream's code (ocoreai's zero-`fatalError` rule
-governs ocoreai-owned code, not dependencies — same as mlx-swift-lm); memory-based chunking defaults
+governs ocoreai-owned code, not dependencies. Same as mlx-swift-lm); memory-based chunking defaults
 are passed through the adapter's config. Forking created these "divergences"; consuming removes them.
 
 ## Phases
 
-0. trait-gating — **done, proven.**
-1. Consumability spike — **done, proven (11-12).** An isolated consumer depending on `coreai-models`
+0. trait-gating. **done, proven.**
+1. Consumability spike. **done, proven (11-12).** An isolated consumer depending on `coreai-models`
    (path) + hummingbird `from: 2.25.0` resolved (exit 0) and **built `CoreAILM` clean** (58 s, only
    benign upstream warnings). The feared hummingbird conflict does **not** occur: the root's `from`
-   overrides the transitive `exact: 2.22.0` (resolved 2.28.1) — **no patch needed**. xgrammar 0.2.2
+   overrides the transitive `exact: 2.22.0` (resolved 2.28.1). **no patch needed**. xgrammar 0.2.2
    matches. Next: add the dep to ocoreai itself (trait-gated), coexist with the fork, zero behaviour change.
 2. Write the adapter; route **one** engine variant (e.g. Sequential) through upstream behind a flag.
 3. Parity-verify on **CI xcode-27** against the fork; flip variant by variant.
@@ -126,7 +126,7 @@ are passed through the adapter's config. Forking created these "divergences"; co
 - **Scope appetite:** this is a one-time architecture refactor of the CoreAI lane, not a quick win.
   Owner decides whether to invest now vs keep the fork and mechanize its maintenance (per-file diff +
   3-way merge) as the lower-risk alternative.
-- **Upstream consumability — RESOLVED by the Phase 1 spike:** `CoreAILM` resolves and builds as an SPM
+- **Upstream consumability. RESOLVED by the Phase 1 spike:** `CoreAILM` resolves and builds as an SPM
   dependency alongside ocoreai's hummingbird 2.25+; no hummingbird patch required. Remaining: confirm the
   specific engine API surface the adapter needs is public (read during Phase 2).
 

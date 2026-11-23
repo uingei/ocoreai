@@ -38,7 +38,7 @@ enum TranscriptPart: Codable, Hashable, Sendable {
     /// Context was auto-compacted (oldest turns pruned) to fit the model's
     /// window before this turn. Carries how many messages were removed so the
     /// UI can tell the user their earlier context was pruned.
-    /// Codex #42319 "live compaction status". Ocoreai surfaces it as a
+    /// Codex #42319 "live compaction status". ocoreai surfaces it as a
     /// per-turn badge instead of a TUI banner (no terminal surface here).
     case compactionNote(removedCount: Int)
 

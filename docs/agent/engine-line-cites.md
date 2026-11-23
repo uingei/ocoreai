@@ -1,7 +1,7 @@
-# Engine line cites — markers, out of the guide
+# Engine line cites. Markers, out of the guide
 
 The host injects root `AGENTS.md` plus every `AGENTS.md` to the cwd, truncated at
-32 KiB (`WorkspaceContext.maxDocBytes`). The gates that checked these cites retired 11-16 with the bespoke docs contract —
+32 KiB (`WorkspaceContext.maxDocBytes`). The gates that checked these cites retired 11-16 with the bespoke docs contract,
 sweep `docs/agent/*.md`, so one hop out loses nothing.
 
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:342 Task.sleep(until: deadline -->

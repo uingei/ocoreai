@@ -8608,7 +8608,7 @@ the definition of done here; CI on macos-26 stays the authority for what the sui
 **10-27(13) The injected file was the largest in the field, and the caps protecting it could not go red** (P2 doc discipline / symbols `context-budget-could-not-bite`, `doc-size-is-not-rank`)
 
 - **Measured all 21 comparator trees before touching anything, and the number was uncomfortable:** root
-  `AGENTS.md` sizes. Mlx-swift-lm 3490, goose 6212, vllm 6358, pi 8638, hermes-agent 11952, opencode
+  `AGENTS.md` sizes. mlx-swift-lm 3490, goose 6212, vllm 6358, pi 8638, hermes-agent 11952, opencode
   14544, deepseek-harness 19113, openclaw 19168, **ocoreai 24866**. Ours was the largest of every tree in
   the set, 1.7× opencode and 2.1× hermes-agent, and 51% of our own corpus (hermes 7.5%, vllm 13%, opencode
   18%). `coreai-models` (Apple's own reference) and `omlx` (the closest sibling product) ship **zero**
@@ -9958,7 +9958,7 @@ the definition of done here; CI on macos-26 stays the authority for what the sui
 - **门**, `Tests/ocoreaiTests/HubPathTraversalTests.swift`(12)：8 条合法路径 → 精确 components；17 条危险串 → 逐条对 `reason`；拒绝文案精确等值（控制字符转义后仍是可读且惰的字符串）；真符号链接逃逸断言（**尾段尚不存在**那一型才是真攻击）+ 悬空链接仍含住 + 正向对照（同目录合法子路径必须过）；`flatTarget` 直接谓词断言；两条自 floor 源码扫（`appendingPathComponent` 命中 ≥4、`HubRelativePath` 命中 ≥5，且每条 `cacheDir.appendingPathComponent(` 行必须含 `flattened`）。
 - **活体（探针 20，15 passed / 0 failed / 3 measured）**。六条危险 id 全部 400 且 `error.param` 说出 `model`/`revision`、值回显、`Content-Type: application/json`（不是 `text/event-stream`：流根本没开，客户端 SDK 也就没承诺过下载）；`/tmp/…-escaped` 未出现；合法 `org/name` 正常开流并吐出 `data:{…DownloadSSEEvent}`；六连拒后 `/health` 仍 200。**同一支探针的反面教训**：修前那次是 7 passed / 8 failed，而其中「既有校验未受影响」两条**绿着**。因为每条请求都 400，只是怪的字段不对；从此每条拒绝腿都必须说出它怪了哪个字段（大小写不敏感，第二次跑证明错的是断言不是服务器）。
 - **未做/未证**。扫描范围是两条下载车道 + 路由器 13 个入站 DTO；`UI/Views/ModelView.swift:332` 的 `models--<encoded>` 经查与 temp 同形（`/` 先换成 `--`）⇒ 构造上安全，未纳入改动；iOS 侧下载端点零验证（§ Open iOS 那条不变）；远端 manifest 拒答路径的活体形状没有真镜像可造 ⇒ 由 `unsafeManifestPath` 的构造 + 单测覆盖，标注为读码结论。
-**10-20(续17) 关掉一条读完的窗口：#358 补读、#328 逐行比对（并顺手把「只能全采或全不采」的仪表缺口补上）**(P0 上游偏离 + P1 执行链). Coreai-models 的 `bd61eb1..9e120659a`(+8) 窗口在续12 逐条裁完 7 条，剩 `#358` 因 `git fetch` 超时没读，于是**整条窗口按纪律不 adopt**（10-14 定下的规矩：钉到未读点＝把没读过的段落伪装成已裁决）。本轮 clone 里已有该 commit（HEAD 就是它），补读完毕 ⇒ 这条轴第一次可以如实收口。
+**10-20(续17) 关掉一条读完的窗口：#358 补读、#328 逐行比对（并顺手把「只能全采或全不采」的仪表缺口补上）**(P0 上游偏离 + P1 执行链). coreai-models 的 `bd61eb1..9e120659a`(+8) 窗口在续12 逐条裁完 7 条，剩 `#358` 因 `git fetch` 超时没读，于是**整条窗口按纪律不 adopt**（10-14 定下的规矩：钉到未读点＝把没读过的段落伪装成已裁决）。本轮 clone 里已有该 commit（HEAD 就是它），补读完毕 ⇒ 这条轴第一次可以如实收口。
 
 - **#358 Remove prerelease allow（`9e12065`）＝透明**。改动实测 16 个文件：14 个 `models/*/export.py` 的 uv 头删 `prerelease = "allow"` + `pyproject.toml` 一行 + `uv.lock` 重解析（161+/160-）。**0 个 Swift 文件**，且 `LICENSE` 未被触碰 ⇒ AGENTS.md § Upstream Audit #2 的「Python/export-side commits are consumer-transparent：ocoreai 无 Python 也无 export 面」直接适用；顺带确认可提交 manifest 里 `apple.pin=9e120659a…` 指的就是这条 commit，其 `LICENSE` 字节仍与本地文本一致（Class-I 每轮重算）。
 - **#328 fp8 KV Cache resizing＝本仓真偏离，且比修前的上游更静默**。上游只改 `KVCache+CoreAI.swift` 三行：`case .float8e5m2, .float8e4m3fn, .float8e8m0fn, .float4e2m1fn: return .float16` → `case .float8e4m3fn: return .float8e4m3` + `case .float8e5m2: return .float8e5m2`。逐行对完本仓：`Engine/KVCache+CoreAI.swift:618` **就是修前那一行的逐字副本**（四类 fp8/fp4 全映射 `.float16`），而我们的 `default` 分支（`:627-628`）连上游那句 `fatalError` 都换成了 `return .float16` ⇒ 两条路都不会响。后果的形状：buffer 由 CoreAI 自己的 `minimumByteCount` 分配（`:468-469`），MPS 视图却按 `mpsDataType` 拿 `.float16` 造（`:490`→`:553-571`）。若某 checkpoint 的 KV state 真是 fp8（1 字节/元素），视图就是分配量的 2×，扩容时的 identity copy 直接越界。
@@ -10845,7 +10845,7 @@ the definition of done here; CI on macos-26 stays the authority for what the sui
 - **Persistent-perception system**. PerceptionEngine (13 files, 3,045 LOC in `Multimodal/`): full 7-channel scheduler (camera, screen, network, filesystem, internet, system, speaker) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only).
 - **CoreAI sequential engine family alignment**. Option A p1: align CoreAI engine types with upstream sequential/variant architecture
 - **MTP speculative decoding**, `generate(::mtpDrafter:)` path with streaming reasoning events
-- **Upstream pin d667610**. Mlx-swift-lm synced 2026-08-14: Qwen3.5 JSON tool-call fallback, Qwen3.5 MTP speculative decoding, ThinkingBudget enforcement, KVCache limits, TurboFlash, CacheConfiguration engine, KVCacheRound staged rounds. ReasoningEventEmitter ✅ (12 refs), KVCacheRuntime ✅ (turboQuant/affine). Gaps at time of entry: ThinkingBudget hard-budget ❌ (✅ wired 08-14, 686161c), CoreAI grammar ❌ (✅ wired 08-15, b69b934 + c4c0a43 pipelined), AgentLoop gap: dead code
+- **Upstream pin d667610**. mlx-swift-lm synced 2026-08-14: Qwen3.5 JSON tool-call fallback, Qwen3.5 MTP speculative decoding, ThinkingBudget enforcement, KVCache limits, TurboFlash, CacheConfiguration engine, KVCacheRound staged rounds. ReasoningEventEmitter ✅ (12 refs), KVCacheRuntime ✅ (turboQuant/affine). Gaps at time of entry: ThinkingBudget hard-budget ❌ (✅ wired 08-14, 686161c), CoreAI grammar ❌ (✅ wired 08-15, b69b934 + c4c0a43 pipelined), AgentLoop gap: dead code
 
 ### Bug Fixes
 

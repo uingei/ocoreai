@@ -29,7 +29,7 @@ public struct AdmissionResult: Sendable, Codable {
     public let estimatedCostMB: Double
 
     /// Recommended compute channel from HardwareRouter (nil when router unavailable).
-    /// The dispatcher should respect this. E.g. .ane means the request was admitted
+    /// The dispatcher should respect this, e.g. .ane means the request was admitted
     /// but should be routed to CoreAI/ANE rather than MLX/GPU.
     public let recommendedChannel: ComputeChannel?
 

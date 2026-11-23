@@ -148,7 +148,7 @@ final class ToolParameter: Codable, Equatable, @unchecked Sendable {
         self.properties = properties
     }
 
-    /// Static shorthands for dictionary literals. E.g. `["key": .string]`。
+    /// Static shorthands for dictionary literals, e.g. `["key": .string]`。
     /// 不可变全局 `let` + 类属性全 `let` → 无数据竞争面。
     static let string = ToolParameter(type: .string)
     static let integer = ToolParameter(type: .integer)

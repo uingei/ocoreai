@@ -480,7 +480,7 @@ fi
 # `wireMaxTokens=8` / `Generation budget: maxTokens=8`.
 #
 # Root cause, and why only the guided/tool session leaked: sampling lives on the
-# `ChatSession`, not on the call. Mlx-swift-lm declares `public var generateParameters`
+# `ChatSession`, not on the call. mlx-swift-lm declares `public var generateParameters`
 # (ChatSession.swift:361) and `streamMap` captures that stored property when the stream
 # starts (ChatSession.swift:1037-1043), so `streamDetails(to:)` carries no parameters at all. A pooled session
 # reused on the next turn therefore generates under whatever budget it was created with.

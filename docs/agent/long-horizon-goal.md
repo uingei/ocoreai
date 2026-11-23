@@ -1,4 +1,4 @@
-# Long-horizon goal — the four numbers, the ladder, and what would kill it
+# Long-horizon goal. The four numbers, the ladder, and what would kill it
 
 > Long form behind the active goal's first rung. The objective is not a feature list: it is **the cost of
 > turning a change into a fact**. Everything here is re-computable with the commands quoted next to each
@@ -22,10 +22,10 @@ against (owner's release act above Rung zero; the receipt shape the corpus ships
 `references-problem-map.md` § Field-solved here); **reference implementation** = something outside this
 repo consumes `/v1` or the published skill without our coaching (instruments: `api.github.com`
 subscribers/forks, and any named external consumer recorded in a CHANGELOG round). Both halves ride
-rungs 1 and 6 of § Rung zero — the re-aim ranks an end that ladder already contains; it adds no rung,
+rungs 1 and 6 of § Rung zero. The re-aim ranks an end that ladder already contains; it adds no rung,
 and today's parity measurement (530 commits/30 d vs peers' 542–608, `measured 11-20`) says the gap to
 that end is distribution, not engineering. The owner's same-day follow-ups fixed the criterion: **what is
-wanted is best practice, not uniqueness** — each axis is held to the corpus's best practice, whose strict
+wanted is best practice, not uniqueness**. Each axis is held to the corpus's best practice, whose strict
 definition and three questions live at `comparator-repos.md` § *How to use* 5; the three ledgers narrow
 candidates and never substitute for the effect test.
 
@@ -40,120 +40,120 @@ claim coverage → 1.0. The product surface grows only where a gate already meas
 
 | # | quantity | value | how to re-measure |
 |---|---|---|---|
-| B | smallest provable improvement | **6 discordant cells** | `mcnemar_exact(b,0) < 0.05` first holds at b=6 (b=5 → 0.0625) — `scripts/eval/_repeat_stats.py` |
-| B′ | tasks that can produce a cell | set size, pass/fail split, noise band: `scripts/eval/README.md` (not restated here — a figure in two homes drifts) | `_repeat_stats.py` on the base root |
+| B | smallest provable improvement | **6 discordant cells** | `mcnemar_exact(b,0) < 0.05` first holds at b=6 (b=5 → 0.0625), `scripts/eval/_repeat_stats.py` |
+| B′ | tasks that can produce a cell | set size, pass/fail split, noise band: `scripts/eval/README.md` (not restated here; a figure in two homes drifts) | `_repeat_stats.py` on the base root |
 | C | cost of one verdict | minutes; the floor is inference throughput, so ≤3 min/proposal is throughput-bound, not orchestration | `stat -f %m` on the run dirs → deltas |
 | G | goal-post write surface | **0** (allow = 1 prefix, protected = 15 judgement paths) | `scripts/eval/autoloop-allow.txt` / `autoloop-protected.txt`, gated by `scripts/eval/_autoab_selftest.py` + `_autoab_mutate.py` |
 | S | claim coverage | incomplete: doc claims + probe-index reproduce; the MTP-acceptance gap closed 11-19 weight-free (script-declared telemetry rides the same `.done` slots the real engine fills, read by `ScriptedEngineTests`; the real engine's fill waits the live drafter, `open-items.md`); truncation disclosed, ungated | `ScriptedEngineTests` + probe 37 + rung 3 |
 
 
 **Why B is the constraint**: stable-pass tasks give *no* upward evidence yet *can* trip the regression veto,
-so the shape is asymmetric on purpose — a sub-point effect is not measurable at any α, and that effort is not
+so the shape is asymmetric on purpose. A sub-point effect is not measurable at any α, and that effort is not
 conservative, it is invisible.
 
 ## The ladder
 
-1. **Resolution first** — critical-task share ≥12: **met** (the share and its floors live in
+1. **Resolution first**. Critical-task share ≥12: **met** (the share and its floors live in
    `scripts/eval/README.md`). Structured output is on the board and probe 12 still fails open-ended; §7
-   keeps the grounded half open — a read-turn cannot emit the call its JSON integers come from. Screening
+   keeps the grounded half open. A read-turn cannot emit the call its JSON integers come from. Screening
    criteria were tried against the mid-band tasks and **none moved B′ past window noise** (per-round
    windows: CHANGELOG).
-2. **Beat** — C 12 min → ≤3 min: engine stays warm across proposals, contract-class changes judge at
+2. **Beat**. C 12 min → ≤3 min: engine stays warm across proposals, contract-class changes judge at
    k=1 by byte-exact gates (they are decidable, so they must not spend statistical budget). *Failure
-   signal*: the floor is inference throughput, not orchestration. Measured answer first — every agent
+   signal*: the floor is inference throughput, not orchestration. Measured answer first. Every agent
    tree here judges its loop against a fake or mock provider, so the floor moves by taking the model out
    of contract claims before it moves by making inference faster (`docs/agent/open-items.md`).
    **Landed 10-27(20):** `Engine/ScriptedInference.swift` + probe 37 decide that class at k=1 in ~4 s with
    nothing resident (`engineBackend: scripted`; the scoreboard refuses a replayed run), and CI runs it as a
    step of its own: green on the runner since 10-29 (4 s there, 2 s here), so the class is decided off-box at k=1.
-3. **Coverage** — S gaps 3 → 0 (a fourth, silent instruction truncation, is disclosed since 10-29 and still ungated — rung 5's *Budget* half): publish MTP acceptance where MTP runs (or keep MTP off the capability face, which is honest today), disclose truncated structured output rather than 200 + invalid JSON, and the UI's focus/number rules are pinned (`UIFocusDisciplineTests`). *Failure signal*: a capability row that
+3. **Coverage**. S gaps 3 → 0 (a fourth, silent instruction truncation, is disclosed since 10-29 and still ungated. Rung 5's *Budget* half): publish MTP acceptance where MTP runs (or keep MTP off the capability face, which is honest today), disclose truncated structured output rather than 200 + invalid JSON, and the UI's focus/number rules are pinned (`UIFocusDisciplineTests`). *Failure signal*: a capability row that
    cannot name its measurement site survives a review cycle → the review, not the code, is broken.
-4. **Anti-self-deception** — the mutation set only grows; each cycle re-proves the judges catch a real
+4. **Anti-self-deception**. The mutation set only grows; each cycle re-proves the judges catch a real
    defect, not just a fabricated board. *Failure signal*: a mutation escapes. Measured floor for the board this
-   rung judges by (10-27(22), k=3 over the then-39-task board — the set is 45 today (`_eval.py count`), and
+   rung judges by (10-27(22), k=3 over the then-39-task board. The set is 45 today (`_eval.py count`), and
    **the 45-task band is unmeasured**, so re-run `scripts/eval/repeat.sh` before pricing a new arm on it):
    one run is **±6 tasks (15.5 pp)**, so an unpaired Δ under
-   9 tasks and a paired one under 6 clean flips are not evidence — which retroactively disqualifies several
-   earlier rounds whose single-run deltas were read as improvement. It shows up across sessions too — the
-   `docs=none` arm read 22.67 / 24.67 / 25.00 on 10-27 under byte-identical `tasks=`/`tools=` digests — so
+   9 tasks and a paired one under 6 clean flips are not evidence, which retroactively disqualifies several
+   earlier rounds whose single-run deltas were read as improvement. It shows up across sessions too. The
+   `docs=none` arm read 22.67 / 24.67 / 25.00 on 10-27 under byte-identical `tasks=`/`tools=` digests, so
    re-running one arm is not re-deriving one number, which is why `binary=` is a conditions field.
-5. **What a turn is handed** — all three halves of the turn are priced, and the third is new. *Tools*
+5. **What a turn is handed**. All three halves of the turn are priced, and the third is new. *Tools*
    (10-27(22)): handing the turn 40 tools instead of 6 cost **−18.8 pp** on the same 39 tasks (k=3, paired,
    McNemar exact p < 0.0001). *Text* (10-27(24), replicated twice): injecting this repo's ~21.5 KB
    `AGENTS.md` cost **25.00 → 16.33/39** (−22.2 pp, p < 0.0001; replicate −19.7 pp), the premise floor having
-   proved the doc reached all 39 turns — per-turn instructions cost a small checkpoint roughly what handing it
+   proved the doc reached all 39 turns. Per-turn instructions cost a small checkpoint roughly what handing it
    every tool costs, and the traces say why: the doc gets *edited* as if it were the task's file, and the tool
    call arrives as narration. The next slice is
-   *selection* on both axes, not *registration* (curve, replicates, distillate: `docs/agent/open-items.md`). *Budget* (10-28, paid 10-29; re-read 11-06): the cap was hidden — the deepest chain sits at **32 737
+   *selection* on both axes, not *registration* (curve, replicates, distillate: `docs/agent/open-items.md`). *Budget* (10-28, paid 10-29; re-read 11-06): the cap was hidden. The deepest chain sits at **32 737
    of the loader's 32 768 B, 99.9 %** (`make docs-check` prints `deepest-chain=`) and the injector cut the
    tail without a word; the cut
    is now named to the model and served on `/v1/capabilities` as `instructionBudget` (probe 03 judges it). *Failure signal*: a capability row that cannot name its measurement site
    survives a review cycle.
 
-## Rung zero — adoption (the third kill criterion has fired)
+## Rung zero. Adoption (the third kill criterion has fired)
 
 "S = 1.0 with no adoption" is measured, not felt: trees with stars, forks, age and stars/day in
-`docs/agent/adoption-runbook.md` § The leaderboard (`api.github.com` — HEAD's only authority; a mirror proves
+`docs/agent/adoption-runbook.md` § The leaderboard (`api.github.com`. HEAD's only authority; a mirror proves
 content, never HEAD), and **ocoreai 1 star / 0 forks / 0 open issues / 1 remote tag = 1 release
 (`v0.1.16`, published 11-07; `v0.1.15`'s tag is since withdrawn too, as was `v0.1.14`'s pair;
-re-measured 11-09), 146 d old as of 11-07**. The gap is not the finding, the *shape* is — and the arithmetic that used to
+re-measured 11-09), 146 d old as of 11-07**. The gap is not the finding, the *shape* is, and the arithmetic that used to
 justify this section is **deleted, not softened (10-28(6))**: it read "the field's best sustained growth is
 ~408/day, so no honest engineering schedule reaches #1", yet `deepseek-ai/deepseek-harness` reached 263 687
 stars 76 days after creation, and `Niko1221/Strata` 34 577 in 34 days (rates per tree: the leaderboard).
-Neither elapsed time, star arithmetic nor throughput bounds #1 — the record is an eleven-week
-distribution event — and what does is whether something outside this repo defaults to it: each of the top
+Neither elapsed time, star arithmetic nor throughput bounds #1. The record is an eleven-week
+distribution event, and what does is whether something outside this repo defaults to it: each of the top
 four sits on a machine that manufactures one (two model vendors, one ecosystem, one institution-amplified
 phenomenon), and two of the three fastest movers are institution-shipped. So distribution comes first, the
 objective stays the wedge rank not the headline, the rungs that move a stranger's install decision this
-quarter are 1 (a tag per merge) and 6 (be consumed), and the cheapest parts are still unpaid — Discussions
+quarter are 1 (a tag per merge) and 6 (be consumed), and the cheapest parts are still unpaid. Discussions
 off, no homepage, `VISION.md` absent, 0 watchers (`subscribers_count`, 11-09). Every rung below is falsifiable:
 
 0. **Ship.** Done, and askable: `scripts/ci-status.sh` never calls a question it could not ask green.
 1. **Cadence, not one tag.** The eight installable trees publish 37 → 1 272 releases each, newest ≤9 d old
    (`bash scripts/audit-facts.sh` re-measures); this repo has **1 surviving release: `v0.1.16`, published
-   11-07** — the ten-step job green end to end, read-back sha-parity, asset 28 970 635 B, downloaded
+   11-07**. The ten-step job green end to end, read-back sha-parity, asset 28 970 635 B, downloaded
    within the hour of publishing (re-measured 11-07 against `api.github.com`; `audit-facts.sh` prints the
    ours line). `v0.1.14` published on 10-29 with the runner's own `${{ github.token }}` and was later
-   withdrawn with its tag; `v0.1.15`'s version-anchor tag followed it off the remote — 11-09: `tags_remote=1`.
+   withdrawn with its tag; `v0.1.15`'s version-anchor tag followed it off the remote, 11-09: `tags_remote=1`.
    The asset's `download_count` is a cumulative counter (5 at 11-09), so the 11-07 "downloaded within the hour"
    cannot be re-derived from it and stands as diary inference.
 <!-- The else-branch names the reason instead of a bare sentinel: on 11-12 the anonymous rate-limit
      made this claim print 9**9 (387420489) and the red row read like a value drift, costing a
-     mis-read round — a failing report owes the cause, not the symptom (§ Error Handling). -->
+     mis-read round. A failing report owes the cause, not the symptom (§ Error Handling). -->
 <!-- claim:releases_published=1 :: curl -sL --max-time 15 api.github.com/repos/uingei/ocoreai/releases | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else "UNAVAILABLE:"+str(d)[:70])' -->
    Why this claim is `=` where the repo's other pins are `>=` (a stated ruling, 11-06, after a round
    argued the opposite and the next round pinned it anyway): `docs-check` is not on the publish path,
-   so the first published release reds nothing that gates shipping — it generates the to-do that
+   so the first published release reds nothing that gates shipping. It generates the to-do that
    updates this very row. Red as a to-do, never as a toll.
    The tag *is* the version (`scripts/version.sh` prints the newest), so the next number is one past it and
-   belongs to no doc — `v0.1.14` sat in four files after it shipped. Two things ride on cadence: the trust
+   belongs to no doc, `v0.1.14` sat in four files after it shipped. Two things ride on cadence: the trust
    signals a first screen can show are its outputs (§ The first screen), and before self-serve publishing,
    build and
-   publish must split — ours runs repository code inside the job holding `contents: write`
-   (`competitor-iteration-paths.md` § The release cadence rule) — halved 10-29: `package.yml` builds the
+   publish must split. Ours runs repository code inside the job holding `contents: write`
+   (`competitor-iteration-paths.md` § The release cadence rule). Halved 10-29: `package.yml` builds the
    DMG and probe 41 judges it under `permissions: contents: read`, so a rehearsal can't publish. Green
    10-29 end to end: metallib, DMG, probe 41's 12 assertions (a real turn from a fresh directory), the
-   window proof — green, so now blocking — and a first green main run, steps at 4/3/7 s (no weights on a
+   window proof. Green, so now blocking, and a first green main run, steps at 4/3/7 s (no weights on a
    runner, so no checkpoint tier ran there). **The leg then went red on every run from 10-31 (run 12) and is
    green again as of run 25 (`90956d46`): DMG built, probe 41 `12 passed, 0 failed, 8 measured`, window proof
    green**, so `bash scripts/ci-status.sh` reads `DMG from a clean runner (no publish)=success` and
    "blocking" describes the gate and the state together. What was wrong took five runs and two instruments to
    see, and neither guess this file carried was among them: `d664f7b` was blamed for 5 d, and the inference
-   that replaced it — "the image moved", from one sha (`a64e79da`) going green as run 11 and red as run 12 —
+   that replaced it. "the image moved", from one sha (`a64e79da`) going green as run 11 and red as run 12,
    is retracted, because `api.github.com` lists no `macos-26-arm64` image across that boundary. Two defects,
    each measured on a runner: the delivery route resolved a Metal compiler through `xcrun` and never put it on
    PATH (fixed in the resolver that owns the route), and the runner's CLT is `swift=6.3.3` where compiling
-   `.metal` is a SwiftPM 6.4 capability — a green build, no shader payload, and not one sentence said about
-   it — so the payload comes from a producer this repo runs rather than from a hope. Rung 1 waited on one
+   `.metal` is a SwiftPM 6.4 capability. A green build, no shader payload, and not one sentence said about
+   it, so the payload comes from a producer this repo runs rather than from a hope. Rung 1 waited on one
    act, and the act landed: the owner authorised, `v0.1.16`'s tag pushed (at `bf074506`, 11-07) and the
-   ten-step job went **green end to end** — read-back sha-parity inside the job, asset 28 970 635 B,
+   ten-step job went **green end to end**. Read-back sha-parity inside the job, asset 28 970 635 B,
    downloaded inside the hour of publishing. The earlier halves stay as record: publish + read-back first
    ran green on `v0.1.14` (10-29, ten steps, read-back sha-parity, diary 10-29(50), asset digest
    `229604e0…`) and the owner withdrew that pair; `v0.1.15`'s tag push (run `42065758740`) then reached
-   `Release DMG` with every build leg green and died at step `Build DMG` on a bare exit 1 — the
-   diagnosis-and-producer epoch the paragraphs above pay for — never reaching publish. What had never
+   `Release DMG` with every build leg green and died at step `Build DMG` on a bare exit 1. The
+   diagnosis-and-producer epoch the paragraphs above pay for. Never reaching publish. What had never
    existed until 11-07 is a *surviving* release; it exists, and the open state moved from one act to a
-   cadence (home: the Adoption row). A tag is a hand, not a task — and a hand once spent buys one
+   cadence (home: the Adoption row). A tag is a hand, not a task, and a hand once spent buys one
    release, not a line of releases.
 2. **Sixty seconds to first token.** Honest today: `swift build -c release` (minutes) or an ad-hoc-signed
    DMG plus the Gatekeeper right-click. Rung = notarised artefact + Homebrew cask; the metric to floor is
@@ -162,90 +162,90 @@ off, no homepage, `VISION.md` absent, 0 watchers (`subscribers_count`, 11-09). E
    diary's). Not the rung yet: a clean machine also pays the first-run model download, and nothing here is
    notarised.
    The leader machine is four parts, each cited in `adoption-runbook.md`: a runtime-provisioning installer
-   script, a self-serve tap/cask, **update inside the app** (ours only *notifies* — `Core/UpdateCheck.swift`
-   returns a release-page URL to Settings; openclaw's mechanism is named in its own root —
+   script, a self-serve tap/cask, **update inside the app** (ours only *notifies*, `Core/UpdateCheck.swift`
+   returns a release-page URL to Settings; openclaw's mechanism is named in its own root,
    `appcast.xml`, `appcast-arm64.xml`, `appcast-x86_64.xml`, a per-arch feed the app polls), and a
    degraded-not-failed install.
 3. **Intake, then a demo.** The premise here was wrong once already (`grep -c '!\['` counts Markdown image
    syntax the CLI trees do not use; re-measured as `<img>` plus media refs a recording is a product-tree
-   habit, and capture machinery exists — `GUI_REQUIRE_PIXELS`, `scripts/e2e-gui-app.sh`). Corrected 10-28: 4
+   habit, and capture machinery exists, `GUI_REQUIRE_PIXELS`, `scripts/e2e-gui-app.sh`). Corrected 10-28: 4
    `.github/ISSUE_TEMPLATE` forms and 4 `README.md` media refs now exist, so intake's first commit landed and
    the demo has not. Past templates the leaders run bots that close stale intake, keep locales fresh, and
    apply an **intake policy to AI-authored contributions** (duplicate-work check, no busywork, fail-closed, a
-   human who defends it; `adoption-runbook.md` § The intake machine) — that is what 320 author emails in one
+   human who defends it; `adoption-runbook.md` § The intake machine), that is what 320 author emails in one
    14-day window costs. Our home for that policy is `CONTRIBUTING.md`, written when outside intake exists to
    apply it to.
-4. **A wedge the leaders structurally cannot copy — re-measured 11-04, and shorter than it said.** The list
+4. **A wedge the leaders structurally cannot copy. Re-measured 11-04, and shorter than it said.** The list
    this rung carried ("offline on Apple silicon, one binary, no API key, native screen/camera/speech, MTP lane
-   plus ANE constrained decoding — no comparator tree here combines them") is **contradicted by `mlx-serve`**:
+   plus ANE constrained decoding, no comparator tree here combines them") is **contradicted by `mlx-serve`**:
    offline on Apple silicon in one native app, no account (`README.md:5`), speech both in and out (`:50`, `:51`),
    MTP on the checkpoint's own trained head behind a runtime acceptance gate (`docs/performance.md:15`, `:20`),
    and a Neural Engine lane to 64K contexts that serves "on the GPU, logged by name" when a model will not fit
-   (`docs/reference.md:441`, `:451`, re-anchored 11-04 at mirror `6b39f8b8`) — axes: `comparator-repos.md` § `mlx-serve`. Three parts survive, each
+   (`docs/reference.md:441`, `:451`, re-anchored 11-04 at mirror `6b39f8b8`). Axes: `comparator-repos.md` § `mlx-serve`. Three parts survive, each
    checked against that tree today: **the agent and the engine in one binary** (it *hosts* Claude Code and
-   Codex — `README.md:49`); **screen as an agent input** (a pasted screenshot, no capture framework in its app);
+   Codex, `README.md:49`); **screen as an agent input** (a pasted screenshot, no capture framework in its app);
    **constrained decoding on the ANE** (its ANE lane refuses grammars, forced tool calls and a reasoning budget
-   *by name* against a declared `Caps` set — `docs/reference.md:454`). Camera capture went unmeasured there, so
+   *by name* against a declared `Caps` set, `docs/reference.md:454`). Camera capture went unmeasured there, so
    it is unstated here. **Re-measured the same day against a second tree, two of the three are gone**:
    `Rapid-MLX` ships a computer-use lane (`rapid_mlx/computer_use/{perception,ax_driver}.py`, an action naming a
    stale observation is refused) and its own agent with `write_file`/`patch`/`terminal`/`execute_code` **on by
    default** (`chat_runtime/tools/__init__.py:318-331`, `action_policy.py:26-30`, whose docstring says its own
    limit: "Deterministic approval heuristics, not an OS sandbox"). So *being* the agent and *seeing* the screen
-   are no longer distinguishing; what survives is the packaging — an app bundling a Python sidecar is not one
-   binary — and the pairing of grammar-constrained tool calling (`api/tool_grammar.py:1-8`, form only, never the
+   are no longer distinguishing; what survives is the packaging. An app bundling a Python sidecar is not one
+   binary, and the pairing of grammar-constrained tool calling (`api/tool_grammar.py:1-8`, form only, never the
    decision) with an ANE lane, which nothing here combines. Consequence for the identity sentence: **"codes" is
    table stakes, not a wedge**, and a hardware word never was one (next sentence). Axes: `comparator-repos.md`
    § `Rapid-MLX`. One asymmetry cuts against us: that ANE lane runs on macOS 26 **today**, while our ANE
    route is CoreAI-gated on macOS 27 and unverifiable on this host (§ Open), so a hardware word is not a wedge
-   — only what we measure on the OS we ship is. Ceiling stated honestly: it is a *niche* wedge, and the leaders
+, only what we measure on the OS we ship is. Ceiling stated honestly: it is a *niche* wedge, and the leaders
    are cloud-led, which is both why they do not copy it and why it caps this ceiling. "Auditable, airgapped
    coding agent" is still the framing with the larger audience, and it is a claim about measured behaviour, not
    about silicon.
 5. **Amplification, then retention.** 82 660 forks measured 10-28 against our 0 is not a code gap; it is a
    community machine, fed by issue latency and by the automation that keeps a large intake cheap
-   (`adoption-runbook.md` § The intake machine) — none of it a gate on our own prose.
-6. **Agents as clients — take this before any of the others.** The leader does not compete with a local
+   (`adoption-runbook.md` § The intake machine). None of it a gate on our own prose.
+6. **Agents as clients. Take this before any of the others.** The leader does not compete with a local
    engine, it *consumes* one: "Models and agent harnesses (Claude, Codex, local models) are plugins you can
    swap" (`../references/openclaw/README.md:20`), and ocoreai is the only tree here that is model *and*
-   harness on one die, offline, no key. `/v1/capabilities` serves `endpoints[]` (36 rows —
+   harness on one die, offline, no key. `/v1/capabilities` serves `endpoints[]` (36 rows,
    `V1EndpointCatalog.routes.count`, set-equality-gated by
    `V1EndpointCatalogTests`) and `skills/ocoreai/` is published, probe 39 executing every marker against a live
    `serve` and a real checkpoint. Landed 10-29: `GET /openapi.json`, rendered off that index and committed by
    `make openapi`, so a stale copy cannot survive `OpenAPIContractTests`. A generated client is the owner call
    left, since a public contract is a promise; so is the harder proof that a stranger's agent, handed only the
-   skill, finds it and finishes a task. `scripts/probes/40-stranger-agent-skill-task.sh` is that instrument — a seeded note whose
+   skill, finds it and finishes a task. `scripts/probes/40-stranger-agent-skill-task.sh` is that instrument. A seeded note whose
    VALUE is reachable only by a live call chain, plus a negative control that must reject a wrong deliverable.
    Probe 39 executes the artefact; probe 40 is read by it.
    Measured 11-04 and finished reading 11-08, counting only what was traced to product code:
    **nine of the twelve serving trees ship it** (`comparator-consensus.md` § The harness side is already built,
-   on their side — vllm's only hit is an example script, sglang's a unit test, so the ledger's 11/12 pattern-score
-   counts thin hits the count here refuses; every other serve-tree hit is app code — `strata connect`, MTPLX's
+   on their side. Vllm's only hit is an example script, sglang's a unit test, so the ledger's 11/12 pattern-score
+   counts thin hits the count here refuses; every other serve-tree hit is app code, `strata connect`, MTPLX's
    hermes env, TensorFold's `claude-cli.ts`, openclaw's codex-app-server catalog). The shape is a **command that hands a configured harness to the
-   caller** — `mlx-serve launch claude`
+   caller**, `mlx-serve launch claude`
    (`../references/mlx-serve/README.md:49`), `strata connect` printing per-tool setup (`../references/Strata/README.md:168`),
    ollama tuning model output limits *for Claude Code specifically* (`f9323416`) and a `Runner` per agent
    (`cmd/launch/claude.go:15`), Rapid-MLX's `launch <agent>` over 17 profiles with a reversible private profile
    and a merge that documents how it avoids deleting the user's own entries (`rapid_mlx/agents/isolated.py:23`,
    `config_merge.py:1-15`), openclaw's plugin-swap line.
    Ours now ships the launcher: `ocoreai connect <harness>` points the installed harness's
-   `ANTHROPIC_BASE_URL` at the probed bridge, writes no config file, and the child's exit is the whole undo —
+   `ANTHROPIC_BASE_URL` at the probed bridge, writes no config file, and the child's exit is the whole undo,
    the live half is judged by probe 55, and the launcher's env went through the same child-process ruling as
    every other spawn site. The README's agent section leads with it, so the shape the stranger reads matches
    the shape that ships. What rung 6 still owes is not a verb: probe 40 run to an outside witness (a
    stranger's agent handed only the skill finds the server and finishes the task), and the generated-client
    decision, which is a promise and stays the owner's.
-7. **Editors as clients (ACP)** — the rung `docs/agent/open-items.md` already cites: goose ships
+7. **Editors as clients (ACP)**. The rung `docs/agent/open-items.md` already cites: goose ships
    `agent-client-protocol` 2.2.0 and hermes-agent an `acp_adapter`; a third surface is a new core
    surface, so it waits on the owner.
 
-What this does **not** mean: retire B/C/G/S — they keep claims true once attention exists. What changed is the
+What this does **not** mean: retire B/C/G/S. They keep claims true once attention exists. What changed is the
 order of spending, because the objective's noun is the product, not the instrument.
 
 **The gate layer is frozen (10-28).** Measured, then cut (counts: CHANGELOG `gate-deletion-10-28`): one gate
 commit per three product commits while `git tag` stayed empty. A new check names the red it was sampled
-against and the reader whose action it changes, or nobody writes it. Freed attention has three addresses —
-rung 1 (a tag-per-merge policy), rung 2's open half (whether the advertised 40 — what `GET /v1/tools`
-returns today; the source declares 43 typed entries, the gap is opt-in, per `scripts/eval/README.md` —
+against and the reader whose action it changes, or nobody writes it. Freed attention has three addresses,
+rung 1 (a tag-per-merge policy), rung 2's open half (whether the advertised 40. What `GET /v1/tools`
+returns today; the source declares 43 typed entries, the gap is opt-in, per `scripts/eval/README.md`,
 suit a 4-bit checkpoint, priced
 at −18.8 pp, owner call), and the measured gallery a first screen needs (§ The first screen).
 
