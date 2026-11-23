@@ -161,7 +161,7 @@ machine-readable twin `models.json`, and `ModelGallerySyncTests` goes red if the
 if a verdict leaves the wire vocabulary, or if the pair is ever half-written.
 
 <!-- gallery:start -->
-No measured rows committed yet. Run the command above against a measured server.
+No measured rows committed yet — run the command above against a measured server.
 <!-- gallery:end -->
 
 ---
