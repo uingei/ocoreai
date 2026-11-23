@@ -7,7 +7,24 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased], 2026-09-05 → 2026-11-23
+## [Unreleased], 2026-09-05 → 2026-11-24
+
+**11-24 gate 全量盘点逐个裁定:两删、一并、一降级,其余按故障依据保留**。改了什么:owner 裁定盘点
+每个 blocking gate 并审。删:ci.yml governance 的文件存在性 step(从未红过;它声称的 "GitHub 拒绝渲染"
+由同 job 的 check-yaml 判,文件缺失只有人手删这一条一行的可见路径)、`.pre-commit-config.yaml` 的
+codespell hook(与 CI Spell step 同 job 同 `.codespellrc` 跑同一工具,版本 pin 分裂正是 swift-format
+吃掉 ~90 个 run 的形状;CI 的 pin 收回 `scripts/spell-check.sh` 一个家)。降级:Class-K(彩色 pictograph)
+的 violation 从红改为 advisory,它在本仓库从未红过,规范来自 HIG/comparator 而非观测故障;其前提自检
+(perl 探针、scan floor、dead exemption)保持硬门。注释纠偏:ci.yml code-pattern step 声称扫描
+try!/as!/fatalError/print 而 audit 里从无这些 class、spell-check.sh 的 hook 表述、`.pre-commit-config.yaml`
+指向已退役的 `make round-gates`、worktree-hygiene 的 "stash it deliberately" remedy(共享 cwd 里 stash 的
+pop 会把别的 session 的作品落到新 HEAD,实测过)改为 commit-only。open-items 记两行:root § Errors 的
+zero-force-unwrap 句子五种形状只有 `.first!` 与空 catch 有门(owner call:扩 `check()` 或收窄句子)、
+MCP live-child 套件在并行全量 run 下共享固定端口 8777 相撞。Premise/B/D/G/H/I/J/L/M/N、audit 四腿、
+push-ready 各腿均有 measured red,保留。本会话证明:植 🚀 样本 ⇒ Class-K 出 advisory 且不再置 FAIL,唯一
+红是 Class-I 归因检查抓住该样本无 notice(预期行为);planted-typo 自检的 `make audit` exit 0、
+`make spell` exit 0;六个历史 flaky 红(EngineBusyAdmission/MCPStderrDiagnosis/SleepSteerWake/
+CountTokensEndpoint/LoopGuardRemedy/Clock)一次过滤 run 53/53 绿。全程主线程,零 subagent。
 
 **11-23 coreai-models +46 窗口读完并 adopt:三个活 bug 落地,轴归零**。改了什么:owner 裁定上一轮
 "记台账不等于同步",这轮把 `0bfb548..ca2aecf`(+46,含镜像中途前进的一条)逐 commit 判完:每条与全部

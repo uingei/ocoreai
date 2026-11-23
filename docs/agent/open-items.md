@@ -5,6 +5,22 @@ where a number is unmeasured it says so, and where a fix is blocked by the host 
 which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes a rule in `AGENTS.md` or
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
+- **The root's zero-force-unwrap sentence has a gate for only two of its five shapes** (root § Errors,
+  Tools: `scripts/audit.swift_patterns.sh`). The root demands zero `try!`, `as!`, `fatalError`, `assert`,
+  and the audit's `check()` scans `.first!` (Class-F) and empty catch (Class-A) but nothing scans the
+  other four; the CI step comment even claimed it did until 11-24. The owner's gate review kept F and A
+  (a one-line `check()` each, crash/silent-failure shapes, and the only seats any part of that root
+  sentence has) despite no recorded crash; owner call: extend `check()` with the four names (the
+  known-bad-sample contract already fits), or narrow the root sentence to what a gate goes red for.
+  Measured by the 11-24 gate inventory: no scan of the four exists in `scripts/` or `Tests/` either.
+- **The MCP live-child suites share fixed port 8777 and collide under the parallel full run**
+  (Tests/, MCP/). The full-suite reds this session saw twice (`MCPStderrDiagnosisTests` ×2 among them)
+  do not reproduce filtered: 53 tests in 15 suites green in one run 11-24, whose log still prints
+  `FATAL: address already in use: 127.0.0.1:8777` from a sibling child — a green run passing on timing,
+  which is the red one run later losing. The same full run mixed reds from `EngineBusyAdmission`,
+  `SleepSteerWake` and `CountTokensEndpoint`, all green filtered. Owner call: a per-suite port lease in
+  `_lib`-style test helper, or pin those suites to a serial lane; an instrumented flake is not a gate.
+
 - **The root's comment rule and the tree's evidence practice contradict each other** (root § How we
   work, Engine/ and every area). The root line says a comment carries "no dates and no bug history,
   that is the commit message". The tree's shipped practice is the opposite on purpose: 416 comment
