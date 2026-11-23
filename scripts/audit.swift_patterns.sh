@@ -613,8 +613,10 @@ KEOF2
         echo "  result: $K_RAW line(s) with a pictograph, $((K_RAW - K_COUNT)) exempt (emoji AS the data) -> $K_COUNT violation(s)"
         if [ "$K_COUNT" -gt 0 ]; then
             printf '%s\n' "$K_CLEAN" | head -10 | sed 's/^/     /'
-            echo "  X $K_COUNT violation(s) - use Image(systemName:), a text-presentation glyph, or say why emoji IS the data"
-            FAIL=1
+            # Advisory (owner gate review 11-24): this class has never gone red here, and its norm is
+            # HIG plus comparator rule, not an observed failure. The premise checks above stay hard -
+            # a dead scan or a thin tree still cannot print Clean.
+            echo "  ⚠️  $K_COUNT advisory: use Image(systemName:), a text-presentation glyph, or say why emoji IS the data"
         else
             echo "  Clean"
         fi
