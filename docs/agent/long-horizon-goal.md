@@ -234,9 +234,22 @@ off, no homepage, `VISION.md` absent, 0 watchers (`subscribers_count`, 11-09). E
    the shape that ships. What rung 6 still owes is not a verb: probe 40 run to an outside witness (a
    stranger's agent handed only the skill finds the server and finishes the task), and the generated-client
    decision, which is a promise and stays the owner's.
-7. **Editors as clients (ACP)**. The rung `docs/agent/open-items.md` already cites: goose ships
-   `agent-client-protocol` 2.2.0 and hermes-agent an `acp_adapter`; a third surface is a new core
-   surface, so it waits on the owner.
+7. **Editors as clients (ACP) — the face shipped 11-24; the registry premise that held it died.** The
+   corpus is on our side and the distribution dream is not. Measured 11-24: ACP is the largest
+   external-consumption channel in `~/references` (Zed, Neovim `codecompanion`/`avante`, Emacs
+   `agent-shell`, marimo as clients; goose, hermes-agent, and three more agents ship server sides), while
+   the ACP Registry's own listing rules (read at the spec 11-24) demand a binary per OS — macOS **and**
+   Linux **and** Windows — plus at least one `authMethod`. This product is single-platform with no account
+   and no key, so `authMethods: []` is honest and a registry listing is unreachable, not declined. The old
+   rung-7 sentence cited `docs/agent/open-items.md` for this rung; that row no longer exists there, the
+   citation was dead prose. What ships (`Sources/ocoreai/ACP/`, commit `65d8285e`): `ocoreai acp`, the GUI's
+   own `DirectInferenceClient` lane, `ApprovalBroker` translated into `session/request_permission` (ACP is
+   not headless, so approval answers here where the wire lanes deny), bridge forced off through
+   `HttpBridgePolicy.CallerIntent.forcedOff`, refusals standing in for every unbuilt promise
+   (`loadSession:false`, image/audio by name, caller MCP servers by count). Gated by probe 62 (22 live
+   assertions, weight-free scripted lane) and `ACP{Mode,Framing,StopReason}Tests` (11). What the rung still
+   owes is the `open-items.md` row "ACP face: what remains", and one witness no probe can fake: an editor
+   driving a real turn.
 
 What this does **not** mean: retire B/C/G/S. They keep claims true once attention exists. What changed is the
 order of spending, because the objective's noun is the product, not the instrument.

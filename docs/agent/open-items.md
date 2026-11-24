@@ -5,6 +5,20 @@ where a number is unmeasured it says so, and where a fix is blocked by the host 
 which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes a rule in `AGENTS.md` or
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
+- **The ACP face ships what it proves; six methods and one witness remain** (ACP/, long-horizon-goal
+  rung 7). Shipped 11-24 (`65d8285e`): `ocoreai acp` over stdio, gated by probe 62 (22 live assertions,
+  scripted lane) and `ACP{Mode,Framing,StopReason}Tests` (11). Every unshipped capability is a refusal at
+  the surface (`loadSession:false`, image/audio by name, caller `mcpServers` and non-empty
+  `additionalDirectories` by count), so the face never claims more than the engine delivered. What remains
+  is mechanical, not a decision: `session/load`/`resume`/`list` against `SessionManager`, model choice via
+  `configOptions` + `session/set_config_option`, caller-supplied MCP servers (needs the MCP child
+  confinement ruling below), and `tool_call_update status:"completed"` only once real tool dispatch runs
+  inside the ACP turn (today the scripted lane proves surfacing, not completion). The one thing no probe
+  can fake is a real editor driving a real turn. Owner call: none of these blocks the shipped face; the
+  registry listing stays unreachable by the registry's own three-OS + authMethod rules (read 11-24) and is
+  not on anyone's queue.
+
+
 - **The full-run reds in the MCP/steer/admission suites do not reproduce filtered; mechanism unproven**
   (Tests/, MCP/). Two full runs on this host lost issues in `MCPStderrDiagnosisTests`,
   `EngineBusyAdmission`, `SleepSteerWake` and `CountTokensEndpoint`; one filtered run over the six
