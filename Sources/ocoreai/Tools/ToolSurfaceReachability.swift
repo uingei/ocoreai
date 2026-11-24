@@ -109,7 +109,12 @@ enum ToolSurfaceReachability {
         let k1 = 1.2
         let b = 0.75
         var scores = [Double](repeating: 0, count: documents.count)
-        for token in Set(queryTokens) {
+        // Deduplicate in first-occurrence order, never via `Set` iteration: Dictionary and Set
+        // carry per-instance hash salt, so a Set's order can differ between two builds of the
+        // same elements in one process — and token order moves the last bits of the Double
+        // sum, which is exactly the byte-determinism this rank promises.
+        var seenTokens = Set<String>()
+        for token in queryTokens where seenTokens.insert(token).inserted {
             let withToken = counts.filter { $0[token] != nil }.count
             guard withToken > 0 else { continue }
             let idf = log(
