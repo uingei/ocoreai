@@ -314,7 +314,16 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   goose's emulator asks for one schema at a time (`tool_emulation.rs:62`), `pi` ranks deferred tools with BM25
   and keeps them offered across compaction. Three trees, one shape, which changes the owner question from
   "what shortlist" to "what is installed, and who pays for the fetch". Wants a per-turn shortlist (whose
-  score, who pays a wrong pick) plus the composer half. The pattern to extend is the knob already gated: render the checkpoint's template
+  score, who pays a wrong pick) plus the composer half. **Fetch cost, measured 11-24 against a live
+  `GET /v1/tools`** (the 25 092 B figure above is the rendered GUI surface; the wire document is 24 130 B):
+  40 declarations = 23 997 B, the measured 6-tool arm = 4 302 B, the 34 deferred tools as
+  `name: description` = 9 060 B; all 40 compacted that way would be 10 380 B, 43.3 % of full (the shape
+  read at goose's `tool_parsing.rs:4`). The
+  pure half of the mechanism landed 11-24 dark: `ToolSurfaceReachability` (tokenizer, BM25 rank with a
+  name-ascending tie-break, `residentSurface` = core ∪ discovered, `compactListing`) with
+  `ToolSurfaceReachabilityTests` (8, exact ranks) — **no call sites yet**, so it changes no turn; the
+  `tool_search` entry, its opt-in flag and the per-session discovered set are the next unit, and the
+  default stays off until a board arm prices it against the two resident arms. The pattern to extend is the knob already gated: render the checkpoint's template
   with a sentinel at load, record it (`ReasoningEffortLedger`), publish on `/v1/models`, refuse a demanded
   word 400 naming the knob and both exits. Codex's `code_mode_warning.rs:6-24` shape, fail-open pinned.
   `ReasoningEffortHonestyTests` + probe 38. Refusal half built 11-21 behind `settings.toolsSurface.enforce`

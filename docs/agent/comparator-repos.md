@@ -55,7 +55,10 @@ Contains: loop shape, tool-result handling. Second axis (10-28): the ops machine
   `prompt-surface-diff.yml` renders, from production code, the system prompt and `tools[]` a stock install
   sends, per surface and model family, and a stale snapshot fails a test. Third axis, re-read 11-04 at mirror
   `9302ba9e21`: a **skills tier**, 44 under `skills/`
-  against **142** under `optional-skills/`, which "are not copied to `~/.hermes/skills/` during setup" and are
+  against **141** `SKILL.md` under `optional-skills/` (re-counted 11-24 at local HEAD `39ca68b38f`; the
+  11-04 read said 142 at mirror `9302ba9e21`; the delta is `optional-skills/yuanbao/SKILL.md`, moved out
+  of core in `0acc079a01`), which "are not
+  copied to `~/.hermes/skills/` during setup" and are
   reached by `hermes skills browse|search|install` (`optional-skills/DESCRIPTION.md`; the consequence is §
   Open's tool-surface row, not restated here). And a capability face that carries its own
   refusal boundary in frontmatter: `unbroker` removes a person's data from broker sites and states what it

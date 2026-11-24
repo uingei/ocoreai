@@ -9,6 +9,20 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased], 2026-09-05 → 2026-11-24
 
+**11-24 域 B 起步:tool surface 的 fetch 代价测出来,reachable 机制的纯函数半边暗着落地**。改了什么:owner
+项「surface 对 loaded model 未设门」的下一格。先在活的 `GET /v1/tools`(scripted lane,无权重)重测账:40
+声明 23 997 B(文档 24 130 B)、测得 6-tool arm 4 302 B、34 个 deferred 按 `name: description` 9 060 B、全
+40 紧凑化 10 380 B=43.3%——「谁付 fetch 的钱」从推断变成数。复验三棵树 cite:goose `tool_emulation.rs`
+(实站 `crates/oi-kit-local-inference/src/`,11-20 的 rename 记账正确)、pi
+`tool-search/tool.ts:1-21`(exposure 轴 + 命中 load 进 active set、跨 resume/fork 存活)、hermes
+`optional-skills` 实数 141 个 `SKILL.md`。落地 `Sources/ocoreai/Tools/ToolSurfaceReachability.swift`:
+tokenizer(snake/camel 单遍切词)、BM25(k1 1.2/b 0.75,同分按名升序保证 byte-determinism)、
+`residentSurface`(core ∪ discovered,注册序)、`compactListing`。**无调用点**:flag、`tool_search` entry
+与 per-session discovered set 是下一格,默认 OFF 之前 board 上要有一条 arm 对着两条 resident arm 定价。
+本会话证明:`ToolSurfaceReachabilityTests` 8 tests green(精确排名、真 tie 用例、limit/excluding、listing
+一工具一行且换行被压平)、`make format-check` exit 0。我自己写错的一条断言(`last` 在单命中时即 first)
+按真实行为改掉,并把 tie-break 独立成用例。红门:`ToolSurfaceReachabilityTests`。全程主线程,零 subagent。
+
 **11-24 ACP face 落地:`ocoreai acp` 用 stdio 说 Agent Client Protocol,原 rung 7 的前提被自己的登记规则改判**。
 改了什么:owner 指令「对 ~/references deep research 调整长期方向」。测量结论:ACP 是语料里最大的外部消费
 通道(Zed/Neovim/Emacs/marimo 等客户端 + 五个已发布 agent 实现),而旧 rung 7 押注的 registry 分发被其
