@@ -195,8 +195,11 @@ Borrow: consumed. Adopted as manifest schema 2 (`pin` + `licenseSha256` + `verif
   difference (`scripts/eval/_conditions.py:46-57`), writes the wire's own `finish` word beside every task
   (`scripts/eval/_eval.py:349`), and never resumes a scored run, so `0a40ff8`'s class cannot arise here. The
   gap is `742d48f`, whose subject is the finding: "Every launcher except the improver passed the whole host
-  environment to agent subprocesses, keys included". We do that at six `Process()` sites; proof, scope and
-  the owner call are in `open-items.md`.
+  environment to agent subprocesses, keys included". This cell read 11-04 and our half went stale: every
+  launcher now starts from `ChildProcessEnv` (re-measured 11-25 across all eight `Process()` sites under
+  `Sources/` — each sets `environment` from `sanitized()` or, for `connect`, `removingSecrets` keeping the
+  caller's contract keys), the policy pinned to exact values by `ChildProcessEnvTests` since 11-18. The open
+  MCP row in `open-items.md` beside it is file/network confinement, not env.
 
 - `TensorFold`. Zig engine, "Metal or CUDA kernels directly" (`README.md:4`; `zig/`, `app/`, HIP docs), 1 843
   commits in 14 d, read 11-04. Its axis is **invariant 1 as a user-facing artefact**: the **receipt**, a
