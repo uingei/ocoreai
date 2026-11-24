@@ -9,6 +9,20 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased], 2026-09-05 → 2026-11-24
 
+**11-24 owner 项落地:root § Errors 补齐 Class-O..R、锚点规则裁定、自我改判上一轮的 MCP 错读**。改了
+什么:owner 指令「包括 owner 项」。① `scripts/audit.swift_patterns.sh` 新增四个 `check()` 类(`try!`/
+`as!`/`fatalError(`/`assert(`),各带 known-bad 样本自测;干净树 0 命中 exit 0,植入四形状文件报 4
+violations exit 1。两个范畴裁定:`assertionFailure` 不在 root 句内故不扫(3 个站点均 debug-only 且有
+fallback);`LoRAModelSupport` 里 "(as!" 是 reason 字符串在引用上游 cast、不是 cast,模式要求操作符前
+导空格,0 误报。② root § How we work 的注释规则按 invariant 1 裁定:禁 bug 叙事,`measured <date>` /
+`read at reference HEAD <date>` 证据锚点保留,416 条锚点不再会被顺从旧句的 session 剥掉;注入面行为
+判词随 closed-log 记录。③ 自我纠错:上一轮 open-items 把测试日志里的 `FATAL: address already in use:
+127.0.0.1:8777` 读成端口相撞,实际那是 `MCPStderrDiagnosisTests` 内嵌 python heredoc 的 planted
+complaint、绿 run 也打印(仪器输出当缺陷读,自己 convict 自己);该行改判为「并行全量下 timing-budget
+敏感、机制未证」,红样本复现前不抬预算不调度。④ 两条已裁定行移入 closed-items-log。本会话证明:上述
+植桩样本与清树各跑一次,`make audit`、`make spell`、`InstructionBudgetSingleSourceTests`(AGENTS.md 改
+后)全绿 exit 0。红门:Class-O..R 的 known-bad 自测(死模式即红)。全程主线程,零 subagent。
+
 **11-24 gate 全量盘点逐个裁定:两删、一并、一降级,其余按故障依据保留**。改了什么:owner 裁定盘点
 每个 blocking gate 并审。删:ci.yml governance 的文件存在性 step(从未红过;它声称的 "GitHub 拒绝渲染"
 由同 job 的 check-yaml 判,文件缺失只有人手删这一条一行的可见路径)、`.pre-commit-config.yaml` 的
