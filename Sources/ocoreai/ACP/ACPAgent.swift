@@ -358,8 +358,15 @@ final class ACPAgent {
             return
         }
         let declared = await OcoreaiEngine.shared.activeToolRegistry?.toToolDefs()
+        // Same arm choice as the GUI seam; the ACP session id is the engine's convKey here, so
+        // a tool_search hit in this session re-enters the next turn's declarations.
+        let reachable = SettingsStore.shared.toolSurfaceReachableEnabled
         let tools = ToolSurfaceCuration.apply(
-            declared, enabled: SettingsStore.shared.toolSurfaceCurationEnabled)
+            declared,
+            enabled: SettingsStore.shared.toolSurfaceCurationEnabled,
+            reachable: reachable,
+            discovered: reachable
+                ? await ToolSurfaceDiscovery.shared.names(for: sessionId) : [])
         let request = InferenceRequest(
             modelId: model,
             messages: [Message(role: "user", content: text)],

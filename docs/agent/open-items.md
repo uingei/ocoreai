@@ -319,7 +319,18 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   flag is structurally unreachable, so the flip waits on the owner accepting the wire-lane arms (same checkpoint, same
   six names) as evidence, or on the GUI-driving harness the repo does not have (§ "GUI e2e proves the window, not the
   driving"). The field's answer, read 11-04, is not a smarter shortlist but a
-  surface that is **reachable rather than resident**, and three trees reached for it independently: hermes
+  surface that is **reachable rather than resident**, and three trees reached for it independently. That next
+  unit landed 11-25 behind `settings.toolSurface.reachable.enabled` (default OFF): `tool_search` registers at
+  boot only while the flag was on (the `update_plan` route), `ToolSurfaceDiscovery` keys the discovered set by
+  the dispatch's conversation key (GUI: `inferenceSessionId`; ACP: its session id), and both registry-building
+  seams compose core ∪ search ∪ discovered through `ToolSurfaceCuration.apply(reachable:discovered:)`, so a
+  hit declares itself on the next turn; an off build differs by exactly the absent tool name
+  (`ToolSearchWiringTests`, incl. the scan of one flag seat per lane). The rank's byte-determinism promise was
+  funded the same day: its query dedup iterated a per-instance-salted `Set`, so scores drifted in the last
+  bits between identical calls (the committed equality assertion read 3/5 red); dedup now runs in
+  first-occurrence order. What the flag still does not do: inject the deferred tools' `compactListing` into
+  any prompt (that text is an agent-facing behaviour verdict the board arm owns), and the default stays off
+  until that arm prices it. Three trees reached for it independently: hermes
   ships 142 skills in `optional-skills/` that "are not copied to `~/.hermes/skills/` during setup" and are
   installed by a `hermes skills install` verb
   (`../references/hermes-agent/optional-skills/DESCRIPTION.md`; row: `comparator-repos.md`),
@@ -333,9 +344,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   read at goose's `tool_parsing.rs:4`). The
   pure half of the mechanism landed 11-24 dark: `ToolSurfaceReachability` (tokenizer, BM25 rank with a
   name-ascending tie-break, `residentSurface` = core ∪ discovered, `compactListing`) with
-  `ToolSurfaceReachabilityTests` (8, exact ranks) — **no call sites yet**, so it changes no turn; the
-  `tool_search` entry, its opt-in flag and the per-session discovered set are the next unit, and the
-  default stays off until a board arm prices it against the two resident arms. The wiring decision was
+  `ToolSurfaceReachabilityTests` (8, exact ranks) — landed with zero call sites, so it changed no turn;
+  the `tool_search` entry, its opt-in flag and the per-session discovered set joined them 11-25 (status
+  above), and the default stays off until a board arm prices it against the two resident arms. The wiring decision was
   measured, not picked: 11-24 against a live scripted-lane serve, a call for a name the request never
   declared still comes back on the wire (the lane hands calls to the caller, so declaration is the
   contract there), and on a native lane a real model cannot emit what its template never carried. So a

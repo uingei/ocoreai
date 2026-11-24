@@ -461,6 +461,7 @@ public final class OcoreaiEngine {
             skillRegistry: skRegistry,
             updatePlanEnabled: SettingsStore.shared.updatePlanEnabled,
             planRecovery: PlanTaskStore.shared,
+            toolSurfaceReachableEnabled: SettingsStore.shared.toolSurfaceReachableEnabled,
         )
         let mcpTransport = MCPStdioTransport(log: logger)
         _mcpBridge = MCPBridge(

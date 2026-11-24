@@ -184,6 +184,15 @@ final class SettingsStore {
         set { defaults.set(newValue, forKey: Key.toolSurfaceCurationEnabled.rawValue) }
     }
 
+    /// reachable tool surface opt-in（**默认 false** = 今天的 surface 逐字节不变）。ON 的语义：
+    /// boot 注册 `tool_search`（off-path 不注册，同 `updatePlanEnabled` 路线），每轮把 deferred
+    /// 工具请出声明面、把本会话 discovered 的名字请回来（`ToolSurfaceCuration.apply(reachable:)`）。
+    /// 翻默认属 owner 裁决，先等 board 臂定价（open-items § tool-surface）。
+    var toolSurfaceReachableEnabled: Bool {
+        get { defaults.bool(forKey: Key.toolSurfaceReachableEnabled.rawValue) }
+        set { defaults.set(newValue, forKey: Key.toolSurfaceReachableEnabled.rawValue) }
+    }
+
     /// mid-turn steer opt-in（**默认 false**，flag-staged per 11-11 adopt 裁决；
     /// 翻默认要 paired board + probe 21 chat arm 绿。见 `InferenceOptions.midTurnSteer`）。
     var midTurnSteerEnabled: Bool {
@@ -671,6 +680,10 @@ final class SettingsStore {
 
         // tools[] 收窄（ToolSurfaceCuration opt-in，默认 false）
         case toolSurfaceCurationEnabled = "settings.toolSurface.curation.enabled"
+
+        // reachable tool surface（tool_search 注册 + 每会话 discovered 集，默认 false；
+        // 注册在 boot 生效，臂选择在每轮生效；翻默认等 board 臂，见 open-items § tool-surface）
+        case toolSurfaceReachableEnabled = "settings.toolSurface.reachable.enabled"
 
         // mid-turn steer（flag-staged，默认 false）
         case midTurnSteerEnabled = "settings.steer.midTurn.enabled"

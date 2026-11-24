@@ -1132,10 +1132,20 @@ final class ChatState {
             // loop (the same engine path the HTTP wire proves live).
             let fullSurface: [ToolDef]? =
                 await OcoreaiEngine.shared.activeToolRegistry?.toToolDefs()
-            // Opt-in curation (`settings.toolSurface.curation.enabled`, default off =
-            // the P0-3 semantics above unchanged); the off/on split is `apply`'s, tested.
+            // The conversation's own key, minted once so the discovered-set lookup and the
+            // request's sessionId are the same string (the engine's convKey, § SteerQueue).
+            let sessionKey = inferenceSessionId ?? "chat-\(UUID().uuidString.prefix(8))"
+            // Opt-in curation (`settings.toolSurface.curation.enabled`) and the reachable arm
+            // (`settings.toolSurface.reachable.enabled`), both default off = the P0-3 semantics
+            // above unchanged; the arm choice is `apply`'s, tested. Reachable ON reads this
+            // conversation's discovered set so a `tool_search` hit declares itself next turn.
+            let reachable = SettingsStore.shared.toolSurfaceReachableEnabled
             let toolSurface = ToolSurfaceCuration.apply(
-                fullSurface, enabled: SettingsStore.shared.toolSurfaceCurationEnabled)
+                fullSurface,
+                enabled: SettingsStore.shared.toolSurfaceCurationEnabled,
+                reachable: reachable,
+                discovered: reachable
+                    ? await ToolSurfaceDiscovery.shared.names(for: sessionKey) : [])
 
             let request = InferenceRequest(
                 modelId: model,
@@ -1146,7 +1156,7 @@ final class ChatState {
                 topP: samplingCfg.topP.map(Double.init),
                 topK: samplingCfg.topK,
                 maxTokens: samplingCfg.maxTokens,
-                sessionId: inferenceSessionId ?? "chat-\(UUID().uuidString.prefix(8))",
+                sessionId: sessionKey,
                 cancellation: cancellation,
                 reasoningEffort: samplingCfg.reasoningEffort,
                 midTurnSteer: SettingsStore.shared.midTurnSteerEnabled,

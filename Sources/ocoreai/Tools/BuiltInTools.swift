@@ -18,11 +18,15 @@ import Foundation
 ///     `tools.update_plan.enabled` default→false；ocoreai 无 plan prompt-hint 注入面，
 ///     off-path 与上游一致 = 不注册即无指引；显式 true 才注册）。
 ///   - planRecovery: 任务态 checkpoint 消费者（Recover 片 1；nil = 纯内存事件面）。
+///   - toolSurfaceReachableEnabled: `tool_search` opt-in (**default false**, same boot-time route as
+///     `updatePlanEnabled`): registered only when on, so an off build's surface is byte-identical.
+///     The per-turn arm choice lives in `ToolSurfaceCuration.apply(reachable:)`.
 func bootstrapBuiltInTools(
     registry: ToolRegistry,
     skillRegistry: SkillRegistry? = nil,
     updatePlanEnabled: Bool = false,
     planRecovery: PlanRecoverySeam? = nil,
+    toolSurfaceReachableEnabled: Bool = false,
 ) async {
     // ── info ────────────────────────────────────────────────────────────────
     struct InfoArgs: Codable {
@@ -774,4 +778,10 @@ func bootstrapBuiltInTools(
     // clock. Codex 0.150.1 基线对齐（curr_time / sleep 原值命名）。
     try? await registry.register(CurrTimeClient.toolEntry())
     try? await registry.register(SleepClient.toolEntry())
+
+    // tool_search: the reachable tool surface's one declared door, registered only while the
+    // opt-in was on at boot (the update_plan route). Off = today's surface, byte for byte.
+    if toolSurfaceReachableEnabled {
+        try? await registry.register(ToolSearchTool.toolEntry(registry: registry))
+    }
 }
