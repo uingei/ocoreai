@@ -18,7 +18,9 @@
 - The same ruling retires the old default "one-pass in this thread, no sub-agent": delegates run as
   `poteto-agent`s under pstack's routing, and the owner still reviews every commit.
 - Replies, commits and prose follow pstack's unslop / technical-writing; a comment says the *why*
-  the code cannot, ≤3 lines, no dates and no bug history, that is the commit message.
+  the code cannot, ≤3 lines, no bug narrative (that is the commit message). A `measured <date>` or
+  `read at reference HEAD <date>` anchor stays: the date marks where its quote can be re-checked
+  (invariant 1, ruled over the sweep's count 11-24).
 - What pstack cannot own and this file must: the two invariants, the repo rules below, and every
   gate named here.
 
