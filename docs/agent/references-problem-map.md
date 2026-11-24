@@ -18,7 +18,15 @@ had not been run since 10-28. Run today: **56 trees on disk; 7 had no registry r
 pin-1 label, not rows). `MTPLX`'s row was stale in kind, not just date (its fresh row names the defect).
 Rows added, so the registry again answers for every clone on disk.
 
-## Field-solved here (open. The four findings that change something)
+**Re-measured 11-25, and the claim went false exactly as this section's law predicts.** Disk is 58 clones;
+one carried no row (`mlx`, Apple's C++/Metal core, clone born 11-23, HEAD `5598dfa0a` 11-24), so a tree
+arrived and went unread for two days because nothing diffed disk against registry. The diff is now the
+script `scripts/audit-registry-coverage.sh` (in `make audit`), and its first run named both faults of the
+hand-written sweep in one pass: it missed `mlx` and reported `coreai-models` as a hole, because that tree's
+row shares a bullet with `mlx-swift-lm` (`comparator-repos.md`) and the naive regex reads one name per
+bullet. Row added; the script runs green.
+
+## Field-solved here (open. The five findings that change something; the fifth is an absence)
 
 1. **`foundation-models-utilities` is a consumer channel we already satisfy and never advertise.**
    Measured: Apple's package drives Apple's `LanguageModelSession` against *any* OpenAI-compatible
@@ -75,6 +83,15 @@ Rows added, so the registry again answers for every clone on disk.
    owner's download-plus-upstream-port decision already lives in the `Qwen3.8-Flash-Next` row, but the
    pressure is now "a small tree ships it", which is the same class as the ladder's field-ceiling
    pattern.
+5. **`mlx` is not where the flagship loads: an absence, measured.** At `5598dfa0a` (11-24) the words `qsa`,
+   `ngram`, `MTP` and `speculative` appear **zero times in the whole clone** (grep, 0 files each), and the
+   pin-1 window is unchanged at **+9** (`api.github.com` compare `bf5a5d438...main` re-read 11-25; upstream
+   `main` has not moved since `6759555f2` 11-20). So finding 4's gap closes only through Swift-side model
+   code we author or through upstream `mlx-swift-lm`: pulling the C++ core forward buys nothing here. Same
+   tree, second datum: its Metal and common backends read exactly one runtime env var
+   (`MLX_METAL_GPU_ARCH`, a `getenv` sweep), so our memory-pressure route (`MemoryTracker`, `OOMGuard`) has
+   no upstream env rung to ride either. Consequence: a kernel-class ceiling is ours to decide, and this row
+   is read before any custom-kernel spend, not after.
 
 ## Tree → problem → exists here?
 
@@ -91,6 +108,7 @@ detail; "registry (dated)" there means the problem statement is that row's, not 
 | llama.cpp | engine depth on one bet: grammar, MTP, Peg tools | axes, no consumption | registry (dated) |
 | mlx-swift-lm | LLM/VLM layer on MLX (pin 1) | consumed (pin) | § Upstream 1 |
 | mlx-swift | the Swift array framework itself | consumed transitively | new row, measured 11-20 |
+| mlx | the kernel/allocator substrate every MLX binding shares | yes, transitively; read for the first time 11-25 | new row + this §5, measured 11-25 |
 | mlx-lm | Python reference for MLX models + finetune | no; out of stack | new row, measured 11-20 |
 | mlx-serve | same product sentence, foreign engine | the wedge is what it lacks | registry (dated); goal § Rung zero 4 |
 | Rapid-MLX | our sentence shipped, app+server, agents wired | four axes, no home yet | registry (dated) |
@@ -143,8 +161,18 @@ detail; "registry (dated)" there means the problem statement is that row's, not 
 
 ## What this map changes, and its gate
 
-Problems 1 and 3 feed existing owner calls (Adoption's channel; § Open's tool-surface) rather than new
-work; problem 2 is registered as an owner call with its ladder rung named; problem 4 moves no row. The
-gate layer stays frozen, so nothing new reddens: this doc's own decay instrument is the registry
-header's diary loop (re-runnable from disk by construction) and the new rows' `file:line` cites, each
-read off HEAD today and re-anchorable by any future round.
+Problems 1 and 3 feed existing owner calls (Adoption's channel; § Open's tool-surface) rather than new work;
+problem 4 moves no row. **Problem 2 is ruled (maintainer ruling 11-25, the day design authority moved into
+this thread): adopted, first slice diagnostics only, behind an opt-in flag.** The consumer exists today (the
+Execute → Verify loop pays a full `swift build` per edit), so `sourcekit-lsp` diagnostics after an edit is a
+surface with a real reader; the DAP lane is refused for exactly that reason, nothing in the loop debugs. The
+spend is not authorised until the board prices one arm of it, and `ToolSurfaceReachability`'s dark landing is
+the precedent for "built, unflagged, one arm short".
+
+One gate was added 11-25 against the freeze, and it pays the two debts § Working here demands. The red it was
+sampled against: `mlx` on disk since 11-23 carrying no row, found only because a round hand-diffed the disk.
+The reader whose action changes: the round re-deriving the corpus, which until now had to guess whether
+registry silence meant absence. Its floor is its own hit count (`row_names >= 50`, `covered >= 50`), so a scan
+that stopped matching reddens as `INSTRUMENT BROKEN` rather than as coverage. This doc's other decay
+instrument stays the registry header's diary loop, re-runnable from disk by construction, plus each new row's
+`file:line` cites, read off HEAD today and re-anchorable by any future round.

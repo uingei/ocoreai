@@ -3,6 +3,10 @@
 > Long form behind § *Upstream Audit Dependencies* 5. Cells are **dated snapshots** off the local
 > clone; re-measure the diary column **from the disk**, so the command cannot itself go stale:
 > `for r in $(ls "$HOME/references"); do printf "%s=%s\n" "$r" "$(grep -c -- "$r" CHANGELOG.md)"; done`
+>. Coverage is a different question from freshness and is now an instrument, not a habit:
+> `bash scripts/audit-registry-coverage.sh` (in `make audit`) names every clone carrying no row, floors its
+> own hit count, and counts a multi-name bullet as a row for **each** name it carries, which is the shape
+> that let a one-name regex report `coreai-models` as a hole while missing `mlx` (11-25).
 >. Nothing re-derives these lists since 10-28 (P16 was deleted as prose-shape), so a stale cell is
 > yours to notice. Coupling re-derives two ways, both printed: `git grep -lE '`<tree>`|references/<tree>'`
 > counts **cite coupling**, the loose `git grep -l <tree>` counts **name mentions** and is
@@ -657,6 +661,19 @@ Contains: the MLX Swift API; model code it explicitly delegates. "LLM and VLM im
   in mlx-swift-lm" (`README.md:15`).
 Borrow: nothing beyond pin 1; registered so the sweep answers for the substrate checkout when the pin row
   moves (§ Upstream 1 owns that mechanics).
+
+- `mlx`. ml-explore's C++/Metal MLX core, the kernel substrate pin 1 sits on (HEAD `5598dfa0a` 11-24, clone
+  arrived 11-23), registered 11-25 by the sweep that found the hole (`scripts/audit-registry-coverage.sh`)
+Contains: the allocator and scheduler (`allocator.h:53` `Allocator::malloc` is the pure-virtual every backend
+  implements; `scheduler.cpp`), a runtime knob registry with no env dependency (`config.h:13-14`
+  `Config::update/get`, `:34` `register_config_handler`), and the Metal kernel sources no Swift binding
+  exposes (`backend/metal/kernels/*.metal`, `arange.metal` …). A `getenv` sweep of the Metal and common
+  backends returns one runtime variable, `MLX_METAL_GPU_ARCH`, so upstream pressure policy is API, not env.
+Borrow: axis, no consumption, priced by two measured absences. `qsa`, `ngram`, `MTP` and `speculative` are
+  zero times in the whole clone (grep, 0 files each, 11-25), so the Qwen3.8-Flash-Next load gap does **not**
+  close by consuming the core; and the knob sweep says our `MemoryTracker`/`OOMGuard` route has no upstream
+  env rung to ride. This is where a kernel-class ceiling is decided, so it is read before any custom-kernel
+  spend is proposed, not after.
 
 - `oh-my-pi`, `can1357/oh-my-pi` (Stencil Labs, **a fork of `pi`**; HEAD `63bfb67d16` 11-20), registered
   11-20 on the owner's deep-research read. Named once by `Strata`'s row as a hosted harness, never read

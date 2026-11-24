@@ -9,6 +9,8 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased], 2026-09-05 → 2026-11-24
 
+**11-25 registry 的「每台 clone 都有 row」从习惯变成 instrument;一条 absence 把 flagship 的路线收窄**。改了什么: 设计权移入本线程后的第一轮,先修登记面。`~/references/mlx`(Apple 的 C++/Metal MLX core,clone 11-23 到盘,HEAD `5598dfa0a` 11-24)带了 row 没有,两天没人发现,因为没有任何东西 diff 磁盘与 registry。新增 `scripts/audit-registry-coverage.sh` 并接进 `make audit`;它第一趟就把同一把手工 sweep 的两个反向错误同时报出:漏掉 `mlx`,又把 `coreai-models` 报成洞(它的 row 与 `mlx-swift-lm` 共用一条 bullet,一名一条目的正则看不见第二个名字)。floor 是自身命中数(`row_names>=50`、`covered>=50`),所以扫描失效会红成 `INSTRUMENT BROKEN` 而不是红成覆盖率。脚本用 `grep` 不用 `rg`——`rg` 不在脚本子进程的 PATH 上,一条调不到自己的门不算绿。row 补齐后 `references-problem-map.md` § Corpus 重测为 58 台,并落下 finding 5 的 absence:`qsa`/`ngram`/`MTP`/`speculative` 在全树各 0 命中(grep),pin-1 窗口仍是 **+9**(`api.github.com` compare `bf5a5d438...main` 11-25 重读,上游 `main` 自 `6759555f2` 11-20 未动),Metal/common 两个 backend 只读一个 runtime env `MLX_METAL_GPU_ARCH`。合起来的判断:把 C++ core 拉前进对 Qwen3.8-Flash-Next 的装载缺口什么也不买,我们的内存压力路线也没有上游 env 梯可踩。顺带按 maintainer ruling 判掉 problem 2(oh-my-pi 的 LSP/DAP 面):采纳但首片只 diagnostics、走 opt-in flag,因为消费者今天就存在(Execute → Verify 每次 edit 付一次整 build);DAP 拒绝,理由正是 loop 里没有调试消费者。本会话证明: 脚本先 exit 1 指名 `mlx`,补 row 后 exit 0(`disk=58 row_names=76 covered=58`),`make audit` 全绿含 `makefile-parse-check`(26 recipes)与 `docs-type-existence`。红门: `scripts/audit-registry-coverage.sh`,在 `make audit` 里。全程主线程,零 subagent,`~/references` 只读。
+
 **11-24 域 B 起步:tool surface 的 fetch 代价测出来,reachable 机制的纯函数半边暗着落地**。改了什么:owner
 项「surface 对 loaded model 未设门」的下一格。先在活的 `GET /v1/tools`(scripted lane,无权重)重测账:40
 声明 23 997 B(文档 24 130 B)、测得 6-tool arm 4 302 B、34 个 deferred 按 `name: description` 9 060 B、全

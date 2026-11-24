@@ -377,6 +377,9 @@ audit:
 	@# A dead type name in the architecture docs teaches an architecture that does not exist:
 	@# ARCHITECTURE.md diagrammed BackendProtocol.swift for weeks after 2123143 deleted it.
 	bash scripts/docs-type-existence.sh
+	@# The registry claims it answers for every clone on disk; a clone that arrives silently makes that
+	@# claim false and makes registry silence read as absence. `mlx` sat unread 11-23→11-25 this way.
+	bash scripts/audit-registry-coverage.sh
 	@# The CI diagnosis channel is code too: a workflow command carrying a raw `%` is dropped by
 	@# GitHub's parser, and a leg that publishes only a tail publishes the wrong part of its own log.
 	@# Sampled against every red packaging run since 10-31, seven of which reported nine compiler warnings
