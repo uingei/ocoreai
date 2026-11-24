@@ -769,6 +769,20 @@ else
     fi
 fi
 
+# --- Class-O..R: the four force-unwrap shapes the root's § Errors sentence names ---
+# The root demands zero try!, as!, fatalError, assert, and until 11-24 only .first! (Class-F) and
+# empty catch (Class-A) had gates, so that sentence was a claim without the red invariant 1 demands.
+# Each alternative self-tests against its own known-bad line, per check(); debug-only
+# assertionFailure sites are not in scope because the root sentence does not name them.
+check "Class-O: try! force-try" 'try\!' \
+    'let d = try! Data(contentsOf: url)'
+check "Class-P: as! force-cast" ' as\!' \
+    'let m = model as! any LLMModel'
+check "Class-Q: fatalError() trap" 'fatalError\(' \
+    'fatalError("unreachable state")'
+check "Class-R: assert() in shipped code" '(^|[^.[:alnum:]_])assert\(' \
+    'assert(count > 0, "queue drained")'
+
 if [ "$FAIL" -eq 0 ]; then
     echo "✅ All audits passed"
     exit 0
