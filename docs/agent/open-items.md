@@ -323,7 +323,13 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   name-ascending tie-break, `residentSurface` = core ∪ discovered, `compactListing`) with
   `ToolSurfaceReachabilityTests` (8, exact ranks) — **no call sites yet**, so it changes no turn; the
   `tool_search` entry, its opt-in flag and the per-session discovered set are the next unit, and the
-  default stays off until a board arm prices it against the two resident arms. The pattern to extend is the knob already gated: render the checkpoint's template
+  default stays off until a board arm prices it against the two resident arms. The wiring decision was
+  measured, not picked: 11-24 against a live scripted-lane serve, a call for a name the request never
+  declared still comes back on the wire (the lane hands calls to the caller, so declaration is the
+  contract there), and on a native lane a real model cannot emit what its template never carried. So a
+  hit must become a **declaration** on the next turn (pi's load), and because `ToolEntry.handler` takes
+  only its argument string, the discovered set belongs to the lane that builds the defs (GUI:
+  `inferenceSessionId`; ACP: its own session id), not to the tool. The pattern to extend is the knob already gated: render the checkpoint's template
   with a sentinel at load, record it (`ReasoningEffortLedger`), publish on `/v1/models`, refuse a demanded
   word 400 naming the knob and both exits. Codex's `code_mode_warning.rs:6-24` shape, fail-open pinned.
   `ReasoningEffortHonestyTests` + probe 38. Refusal half built 11-21 behind `settings.toolsSurface.enforce`
