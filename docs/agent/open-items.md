@@ -19,7 +19,19 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   not on anyone's queue.
 
 
-- **The full-run reds in the MCP/steer/admission suites do not reproduce filtered; mechanism unproven**
+- **The LSP diagnostics slice is ruled and unfunded; the loop still pays a whole build per edit** (Tools/,
+  Engine/). Ruled 11-25, the day design authority moved into this thread: consume `sourcekit-lsp` (the host
+  carries it, `xcrun --find sourcekit-lsp` → the Xcode toolchain binary, measured) and expose **one**
+  agent-facing diagnostics op behind an opt-in flag. The DAP lane is refused, not deferred: nothing in the
+  loop debugs, so it would be a surface with no consumer. Premise measured 11-25: word-boundary grep for
+  `lsp`/`sourcekit` in `Sources/ocoreai/Tools/` returns 0 hits, and the case-insensitive sweep's 6 hits are
+  `lSp` substrings, so that scan only means anything with `-w` (the lesson consensus § What the corpus did
+  not know, bullet 5 already carries). Spend gate: one board arm against the two resident arms
+  (`scripts/eval/`), because `ToolSurfaceReachability` is this repo's precedent for machinery that stayed
+  dark for want of a priced arm. Evidence home: `references-problem-map.md` § Field-solved here 2 and
+  § What this map changes.
+
+
   (Tests/, MCP/). Two full runs on this host lost issues in `MCPStderrDiagnosisTests`,
   `EngineBusyAdmission`, `SleepSteerWake` and `CountTokensEndpoint`; one filtered run over the six
   suites 11-24 passed 53/53, with the suite whose budget is 2.0 s finishing in 2.02 s. This row first

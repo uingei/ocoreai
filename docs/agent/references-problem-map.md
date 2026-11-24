@@ -60,9 +60,10 @@ bullet. Row added; the script runs green.
    `symbols`, plus a debug-adapter lane (`evaluate`). The README's 31 tools / 14 LSP ops / 28 DAP ops is
    its first screen's claim. Here: zero `lsp`/`dap`/`sourcekit` in `Sources/ocoreai/Tools/` (measured
    grep); our coding loop's feedback after an edit is a full build plus the edit-repair round trip
-   (`EditMismatchRecoveryTests`). The problem exists here, unsolved; the remedy is a new agent-facing
-   tool surface, so it is an **owner call per root § Adoption's ladder**, not audit work. Footprint
-   ladder note: sourcekit-lsp already exists as the mechanism to consume. Adjacent axes on the same
+   (`EditMismatchRecoveryTests`). The problem exists here, unsolved, and the remedy is a new agent-facing
+   tool surface, so it was an owner call; **ruled 11-25, ruling text at § What this map changes**. Footprint
+   ladder note: sourcekit-lsp already exists as the mechanism to consume, and the host carries it
+   (`xcrun --find sourcekit-lsp` → the Xcode toolchain's binary, measured 11-25). Adjacent axes on the same
    shelf, one line each: `mnemopi` (a local SQLite memory engine for its agents), `snapcompact`
    (bitmap-frame vision compaction), `metaharness` (benchmark runner + run storage + live dashboard,
    the board display our `scripts/eval` has no analogue of). All inferred-not-priced for us.
@@ -144,7 +145,7 @@ detail; "registry (dated)" there means the problem statement is that row's, not 
 | BrowserGym | silently-skipped ≠ passed | one home (SWE-bench row) | registry (dated) |
 | Hybrid-Computer-Use | refuse actions planned on stale state | § Open multimodal | registry (dated) |
 | HyperAgents | none; placeholder | none | registry (dated), removal candidate |
-| oh-my-pi | IDE-grade feedback (LSP+DAP) in the loop | **yes; unsolved, owner call** | new row + this §2, measured 11-20 |
+| oh-my-pi | IDE-grade feedback (LSP+DAP) in the loop | **yes; unsolved, ruled 11-25: diagnostics slice, flagged** | new row + this §2 + § What this map changes |
 | gemini-cli | enterprise CLI honesty incl. its own staleness | premise feeds § Open tool-surface | new row + this §3, measured 11-20 |
 | OpenHands | UI state + locale completeness | gates exist, harder | registry (dated) |
 | modelcontextprotocol | dated wire substrate for tools | consumed as spec | registry (dated) |
