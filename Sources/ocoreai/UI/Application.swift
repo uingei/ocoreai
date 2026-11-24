@@ -23,6 +23,8 @@ import SwiftUI
 ///   • `ocoreai --version` / `-v` → print the bundle version, exit 0.
 ///   • `ocoreai --help` / `-h` / `help` → usage, exit 0.
 ///   • `ocoreai connect …` → `HarnessConnect` (see its header). Exits with its own code.
+///   • `ocoreai acp` → `ACPAgentRuntime` (see its header). Windowless engine, no HTTP bridge, and
+///     Agent Client Protocol messages on stdio, which is how an editor drives this agent.
 ///   • `ocoreai serve --help` → the same usage, exit 0; any other argument after `serve` →
 ///     usage on stderr and exit 64 (`EX_USAGE`), booting nothing.
 ///   • anything else → `OcoreaiGUIApp.main()`. The untouched SwiftUI path,
@@ -75,6 +77,30 @@ struct OcoreaiApp {
                 HarnessConnect.run(
                     harness: harness, binaryName: binaryName,
                     dryRun: dryRun, harnessArgs: harnessArgs))
+        }
+        switch ACPMode.request(for: CommandLine.arguments) {
+        case .notACP: break
+        case .help:
+            FileHandle.standardOutput.write(Data((ACPMode.usageText() + "\n").utf8))
+            exit(0)
+        case .refused(let unrecognized):
+            // Same rule as `serve`: a token this face cannot honour is named before anything boots,
+            // because after it boots the only reader of the refusal is a log line in a subprocess
+            // the editor already thinks it is talking to.
+            FileHandle.standardError.write(
+                Data(
+                    ("ocoreai: 'acp' takes no arguments — \""
+                        + unrecognized.joined(separator: "\" \"")
+                        + "\" would have been ignored. See `ocoreai acp --help`.\n").utf8))
+            exit(64)  // EX_USAGE
+        case .run:
+            #if os(macOS)
+            ACPAgentRuntime.run()
+            #else
+            FileHandle.standardError.write(
+                Data("ocoreai: 'acp' is a macOS face — there is no windowless host here\n".utf8))
+            exit(64)
+            #endif
         }
         switch HeadlessMode.serveRequest(for: CommandLine.arguments) {
         case .run:

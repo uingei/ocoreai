@@ -18,6 +18,7 @@ bash scripts/probes/run.sh 02        # just one
 **Needs a real Metal device — except 37**, which loads no model by design, and except **38 §1** /
 **39 §1–§1b** / **40 §1**, which are contract tiers written to run without weights; 39 §2 and 40 §2 run the
 measured lane when a checkpoint and a working engine are present and print their own reason when they are not.
+**62** loads no model either — it drives `ocoreai acp` on the scripted lane over stdio.
 **41** needs Metal but no weights — it boots the binary inside a `.dmg` — and it is the one probe whose
 input is an artefact rather than a tree: with no `dist/ocoreai-*.dmg` and no `$OCOREAI_ARTIFACT_DMG` it
 fails with the remedy, because a green that never had a subject proves nothing.
@@ -558,6 +559,19 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     (`stop_reason:"error"` stays not-a-success). Green 11-21, 9 passed. Fails when: a failed turn
     claims a clean finish again, the error event loses its payload, or the failure exit stops
     closing blocks or terminating the stream.
+- `62-acp-stdio.sh` — does `ocoreai acp` actually speak ACP to a client over stdio? Weight-free
+    (scripted lane), and the one probe whose subject is a stdio subprocess, not a served port. A
+    Python driver holds one `ocoreai acp` child across the whole session, line-buffered, because
+    shell pipes cannot read a live pipe line-by-line — the same defect `FileHandle.readData(ofLength:)`
+    hid in the first implementation (lines arrived only at EOF). §0 refuses `acp --port` exit 64 and
+    answers `acp --help` exit 0 before anything boots; §1 drives initialize → session/new →
+    session/prompt → an unknown method, and while the child is still alive samples stdout purity
+    (every line re-parsed as JSON), the bridge staying down (`lsof` lists zero listening sockets),
+    and the version half of `agentInfo.version` against `--version`. Refusals are legs too: an empty
+    `cwd`, non-empty `additionalDirectories`, and `session/bogus` must each be refused naming what
+    they refused. Green 11-24, 22 passed. Fails when: stdout carries a non-JSON byte, the turn
+    double-answers or loses `stopReason`, the bridge opens a socket, EOF stops exiting 0, or a
+    refusal goes silent.
 - `_lib.sh` — shared harness
 Fails when: —
 

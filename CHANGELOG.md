@@ -9,6 +9,25 @@ heading are when the work landed (measured from git).
 
 ## [Unreleased], 2026-09-05 → 2026-11-24
 
+**11-24 ACP face 落地:`ocoreai acp` 用 stdio 说 Agent Client Protocol,原 rung 7 的前提被自己的登记规则改判**。
+改了什么:owner 指令「对 ~/references deep research 调整长期方向」。测量结论:ACP 是语料里最大的外部消费
+通道(Zed/Neovim/Emacs/marimo 等客户端 + 五个已发布 agent 实现),而旧 rung 7 押注的 registry 分发被其
+owning rules 证伪——登记条目要求 macOS+Linux+Windows 三平台二进制与至少一个 authMethod,本产品单平台、
+无账号无 key,故 registry 不可达,方向改为直接 stdio face。落地:新 `Sources/ocoreai/ACP/`(纯 codec
+`ACPFraming` + 动词分类 `ACPMode` + `@MainActor` `ACPAgent`),复用既有缝而非新缝:`DirectInferenceClient`
+跑 turn、`ApprovalBroker` 翻 `session/request_permission`(ACP 非 headless,审批可以在这里回答)、
+`SessionWorkspace.setDirectory` 收 cwd、`HttpBridgePolicy` 新增 `CallerIntent.forcedOff` 强制关桥、
+`AppInfo.shortVersion` 作版本唯一真相。invariant 2 全部以拒绝呈现:非空 `mcpServers`/`additionalDirectories`
+按数拒绝、image/audio 具名拒绝、未知方法带方法名回 −32601、`loadSession:false`。本会话证明:live drive
+实跑(`OCOREAI_SCRIPTED_ENGINE` 权重自由)initialize→session/new→prompt→未知方法全链路,stdout 每行
+JSON、`stopReason:end_turn`、EOF exit 0;仪器 `scripts/probes/62-acp-stdio.sh` 22 passed,
+`ACP(Mode|Framing|StopReason)Tests` 11 passed,连同 `HttpBridgePolicy|HeadlessServeMode|EnvKeysDocumentation`
+共 30 tests green,`make format-check` exit 0。修掉的两个真缺陷由测试判出:`completeLines` 名义一行实际
+只出一行(改名 `completeLine`, reader 显式循环),JSON `true` 经 Foundation 桥成 NSNumber 使布尔 id 逃过
+`.unsupportedID`(按 objCType 拒绝)。首版还有一个 readData(ofLength:) 在活管道上只在 EOF 才交行的缺陷,
+由 stderr 仪器定位后改为 detached 线程 `Darwin.read` 逐次读。红门:probe 62(stdout 纯度、桥零监听套接字、
+单次应答、拒绝具名、EOF exit)+ ACP 三 suite。全程主线程,零 subagent。
+
 **11-24 owner 项落地:root § Errors 补齐 Class-O..R、锚点规则裁定、自我改判上一轮的 MCP 错读**。改了
 什么:owner 指令「包括 owner 项」。① `scripts/audit.swift_patterns.sh` 新增四个 `check()` 类(`try!`/
 `as!`/`fatalError(`/`assert(`),各带 known-bad 样本自测;干净树 0 命中 exit 0,植入四形状文件报 4

@@ -232,7 +232,10 @@ public final class OcoreaiEngine {
     ///
     /// Circuit breaker: if 3 consecutive startups fail, the circuit opens for 60s.
     /// Call `resetCircuitBreaker()` to unblock.
-    public func start() async {
+    /// Boot the engine core, then the HTTP bridge if ``HttpBridgePolicy`` allows it.
+    /// - Parameter serveHTTP: `false` forces the bridge off for this call (the stdio ACP face owns
+    ///   stdout and must not take the port a running `serve` holds). `nil` follows the policy.
+    public func start(serveHTTP: Bool? = nil) async {
         // Single-instance gate (first thing before any engine work). A
         // second live instance would re-load full model weights and race the
         // first on GPU memory, port, and cache. flock is kernel-released on
@@ -641,9 +644,11 @@ public final class OcoreaiEngine {
         // opts back in (documented on start(); default-safe = off).
         // non-appStore: HTTP always on (dev/bridge delivery surface).
         let enableHTTPEnv = ProcessInfo.processInfo.environment[HttpBridgePolicy.envVar]
+        let callerIntent: HttpBridgePolicy.CallerIntent =
+            serveHTTP == false ? .forcedOff : .followPolicy
         #if appStore
         let bridgeOn = HttpBridgePolicy.shouldStart(
-            appStoreCompiled: true, enableEnv: enableHTTPEnv)
+            appStoreCompiled: true, enableEnv: enableHTTPEnv, callerIntent: callerIntent)
         if bridgeOn {
             logger.info(
                 "App Store build — Bridge Path (HTTP) enabled via \(HttpBridgePolicy.envVar) opt-in"
@@ -655,7 +660,7 @@ public final class OcoreaiEngine {
         }
         #else
         let bridgeOn = HttpBridgePolicy.shouldStart(
-            appStoreCompiled: false, enableEnv: enableHTTPEnv)
+            appStoreCompiled: false, enableEnv: enableHTTPEnv, callerIntent: callerIntent)
         if bridgeOn {
             logger.info("Development build — Bridge Path (HTTP) enabled")
         } else {
