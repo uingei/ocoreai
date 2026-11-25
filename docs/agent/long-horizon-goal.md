@@ -250,8 +250,11 @@ off, no homepage, `VISION.md` absent, 0 watchers (`subscribers_count`, 11-09). E
    made `session/request_permission` an answered request, `initialize` a negotiation, and dropped the
    un-advertised `notice` updates, and the same day the direct lane began persisting its answered turns:
    `session/list` and `session/load` (`loadSession:true`) replay a stored conversation in order before
-   the load answers. Gated by probe 62 (31 live
-   assertions, weight-free scripted lane) and `ACP*Tests` (23, 8 suites). What the rung still
+   the load answers, and 11-26 gave the editor its model picker: `session/new`/`session/load` publish a
+   `model`-category `select` and `session/set_config_option` moves it (a value the machine cannot
+   answer with is refused by name), with a load replaying a conversation across all its per-model rows.
+   Gated by probe 62 (43 live
+   assertions, weight-free scripted lane) and `ACP*Tests` (28, 9 suites). What the rung still
    owes is the `open-items.md` row "The ACP face ships what it proves", and one witness no probe can fake: an editor
    driving a real turn.
 
