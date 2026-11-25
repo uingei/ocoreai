@@ -50,10 +50,14 @@ struct ACPModeTests {
         // the "not offered" sentence names only what is still refused.
         #expect(usage.contains("session/list"))
         #expect(usage.contains("session/load"))
-        // The clause before "are not offered" back to the previous period is the refusal
-        // sentence; it must name the refused methods and no others, wherever the wraps land.
+        #expect(usage.contains("session/set_config_option"))
+        // The clause before "not offered" back to the previous period is the refusal
+        // sentence; it must name the refused methods and no others. Whitespace is normalized
+        // first: the literal wraps "not\noffered", and a re-wrap must not silently disarm
+        // the instrument — a scan that stops matching because of formatting is vacuous.
+        let flat = usage.replacingOccurrences(of: "\n", with: " ")
         let notOffered =
-            usage.components(separatedBy: "not offered").first?
+            flat.components(separatedBy: "not offered").first?
             .components(separatedBy: ".").last ?? ""
         #expect(notOffered.contains("session/resume"))
         #expect(!notOffered.contains("session/list"), "usage still calls a spoken method unoffered")

@@ -26,10 +26,12 @@
 # object, an unknown method is not refused with -32601 quoting the method, a refused session/new
 # shape is accepted, the bridge opens a listening socket anyway, EOF does not exit 0,
 # `acp --help`/a bad token stops refusing cleanly, an answered turn is absent from
-# session/list, session/load answers before its replay finished or replays a different order,
-# or a loaded session cannot continue. The permission handshake is gated in ACPFramingTests,
-# not here: the scripted lane surfaces tool calls without dispatching them, so no weight-free
-# drive parks an approval — the same boundary this probe's completion claim stops at.
+# session/list, session/load answers before its replay finished, replays a different order, or
+# answers without the model selector, session/new omits the selector, set_config_option accepts
+# a model this machine cannot answer with / a boolean / an unknown configId, or a loaded session
+# cannot continue. The permission handshake is gated in ACPFramingTests, not here: the scripted
+# lane surfaces tool calls without dispatching them, so no weight-free drive parks an approval —
+# the same boundary this probe's completion claim stops at.
 
 set -uo pipefail
 
@@ -242,13 +244,59 @@ for i, line in enumerate(tail):
 tag("replay-seq", " ".join(seq))
 tag("replay-last", "1" if response_at == len(tail) - 1 else "0")
 lr = json.loads(loaded) if loaded else {}
-tag("replay-result", "empty" if lr.get("result") == {} else json.dumps(lr.get("result"))[:60])
+tag("replay-result", "config-options"
+    if sorted((lr.get("result") or {}).keys()) == ["configOptions"]
+    else json.dumps(lr.get("result"))[:60])
 
 send({"jsonrpc": "2.0", "id": 11, "method": "session/prompt",
       "params": {"sessionId": sid, "prompt": [{"type": "text", "text": "and again"}]}})
 again = reply(11)
 tag("reload-stop", (json.loads(again).get("result") or {}).get("stopReason")
     if again and "result" in again else "no-reply")
+
+# The editor's model picker: session/new must carry the selector, session/set_config_option
+# must answer with the full option state, and a value this machine cannot answer with — a
+# nonce id, a boolean, an unknown configId — must be refused by name, never accepted.
+newj = json.loads(new) if new and "result" in new else {}
+co = (newj.get("result") or {}).get("configOptions") or []
+model_opts = [o for o in co if o.get("id") == "model"]
+tag("config-one-option", len(model_opts))
+opt = model_opts[0] if model_opts else {}
+tag("config-kind", opt.get("type"))
+tag("config-category", opt.get("category"))
+tag("config-current", opt.get("currentValue"))
+tag("config-listed", "1" if "scripted-model" in
+    [o.get("value") for o in (opt.get("options") or [])] else "0")
+
+send({"jsonrpc": "2.0", "id": 20, "method": "session/set_config_option",
+      "params": {"sessionId": sid, "configId": "model", "value": "scripted-model"}})
+setok = json.loads(reply(20) or "{}")
+so = (setok.get("result") or {}).get("configOptions") or []
+tag("set-current", (so[0].get("currentValue") if so else "none"))
+
+NONCE = "nonce-" + os.urandom(4).hex() + "/never-downloaded"
+send({"jsonrpc": "2.0", "id": 21, "method": "session/set_config_option",
+      "params": {"sessionId": sid, "configId": "model", "value": NONCE}})
+bad = json.loads(reply(21) or "{}").get("error") or {}
+tag("set-unknown-error", bad.get("code"))
+tag("set-unknown-quotes", "1" if NONCE in str(bad.get("message", "")) else "0")
+
+send({"jsonrpc": "2.0", "id": 22, "method": "session/set_config_option",
+      "params": {"sessionId": sid, "configId": "model", "type": "boolean", "value": True}})
+boo = json.loads(reply(22) or "{}").get("error") or {}
+tag("set-bool-error", boo.get("code"))
+tag("set-bool-quotes", "1" if "boolean" in str(boo.get("message", "")).lower() else "0")
+
+send({"jsonrpc": "2.0", "id": 23, "method": "session/set_config_option",
+      "params": {"sessionId": sid, "configId": "speed", "value": "fast"}})
+sp = json.loads(reply(23) or "{}").get("error") or {}
+tag("set-configid-quotes", "1" if "speed" in str(sp.get("message", "")) else "0")
+
+send({"jsonrpc": "2.0", "id": 24, "method": "session/prompt",
+      "params": {"sessionId": sid, "prompt": [{"type": "text", "text": "keep going"}]}})
+keep = reply(24)
+tag("switch-stop", (json.loads(keep).get("result") or {}).get("stopReason")
+    if keep and "result" in keep else "no-reply")
 
 send({"jsonrpc": "2.0", "id": 3, "method": "session/bogus", "params": {}})
 bogus = reply(3)
@@ -321,8 +369,20 @@ want list-matches 1 "the answered turn is the store's row: session/list reports 
 want replay-seq "user_message_chunk agent_thought_chunk agent_message_chunk tool_call" \
   "session/load replays the stored turn in conversation order, the scripted tool call without a result never closes"
 want replay-last 1 "the load response arrives only after every entry has been streamed (v1 MUST)"
-want replay-result empty "session/load answers the empty result the v1 schema spells"
+want replay-result config-options "session/load answers the current model selector, the re-opened shard's model included"
 want reload-stop end_turn "a loaded session continues: the next prompt answers end_turn on the re-fed history"
+want config-one-option 1 "session/new publishes exactly one config option: the model selector"
+want config-kind select "the selector is a v1 select"
+want config-category model "the selector carries category 'model' for the client's picker"
+want config-current scripted-model "the current value is the model this session answers with"
+want config-listed 1 "the current model is among the published choices"
+want set-current scripted-model "set_config_option answers the COMPLETE option state with the new value"
+want set-unknown-error -32602 "a model id off the published list is refused, not accepted blind"
+want set-unknown-quotes 1 "the refusal quotes the id the client sent"
+want set-bool-error -32602 "a boolean is refused: no boolean option is published"
+want set-bool-quotes 1 "the boolean refusal says which exit exists"
+want set-configid-quotes 1 "an unknown configId is refused by the name the client sent"
+want switch-stop end_turn "the session keeps answering after a set_config_option round-trip"
 BOGUS_MSG="$(driv bogus-message)"; case "$BOGUS_MSG" in *session/bogus*) probe_ok "the refusal quotes the method the client sent";; *) probe_fail "the refusal does not quote the method (said: '$BOGUS_MSG')" " a client cannot fix a bare code";; esac
 want purity-bad 0 "every stdout line is JSON — stdout carries protocol messages only"
 want listen-count 0 "the HTTP bridge stays down: no listening socket for the whole session"

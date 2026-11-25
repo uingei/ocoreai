@@ -24,7 +24,12 @@ struct ACPSessionLoadTests {
         try await store.open()
         let compressor = SessionCompressor(store: store, fts: FTS5Search(store: store))
         let capture = Capture()
-        let agent = ACPAgent(write: { capture.lines.append($0) }, store: { compressor })
+        // The model list is injected so no assertion can ride on whatever this host's
+        // disk holds: the load response carries a selector, and its value must be literal.
+        let agent = ACPAgent(
+            write: { capture.lines.append($0) },
+            store: { compressor },
+            models: { ["a/model-a", "b/model-b"] })
         agent.becomeReady()
         return (agent, capture, store, compressor, path)
     }
@@ -49,7 +54,7 @@ struct ACPSessionLoadTests {
             "only \(capture.lines.count) of \(count) promised lines arrived; first: \(arrived)")
     }
 
-    @Test("replay streams every entry in order and only then answers with the empty result")
+    @Test("replay streams every entry in order and only then answers with the model selector")
     func replayThenResponse() async throws {
         let (agent, capture, store, compressor, path) = try await openAgent()
         defer {
@@ -110,7 +115,16 @@ struct ACPSessionLoadTests {
             (lastUpdateIndex ?? Int.max) < lines.count - 1,
             "the response must arrive after every entry has been streamed")
         let response = try #require(lines.last)
-        #expect((response["result"] as? [String: Any])?.isEmpty == true)
+        // The stored row was written under "m1", which this machine's (injected) option
+        // list no longer carries: the honest current value is the picker's first choice,
+        // not a model the next turn could not load.
+        let data = try #require(response["result"])
+        let optionsJSON = try JSONSerialization.data(
+            withJSONObject: try #require(
+                (data as? [String: Any])?["configOptions"]))
+        let options = try JSONDecoder().decode([ACPSessionConfigOption].self, from: optionsJSON)
+        #expect(options.map(\.currentValue) == ["a/model-a"])
+        #expect(options.first?.options.map(\.value) == ["a/model-a", "b/model-b"])
 
         // The failed call's update says failed; the unanswered call never closes.
         let toolUpdates = lines.compactMap { line -> [String: Any]? in

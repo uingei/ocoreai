@@ -263,6 +263,40 @@ struct ACPInitializeResult: Codable, Equatable {
 
 struct ACPNewSessionResult: Codable, Equatable {
     let sessionId: String
+    /// Present exactly when this session has a selector to offer (v1: the agent MAY).
+    var configOptions: [ACPSessionConfigOption]? = nil
+}
+
+/// v1 `SessionConfigOption`, select arm only. A boolean option requires the client to
+/// advertise `session.configOptions.boolean`, which no request of this build reads, so
+/// `type` is always `"select"` and `currentValue` always a string id. Field order matches
+/// the schema's own example, so a hand-read wire line reads like the spec.
+struct ACPSessionConfigOption: Codable, Equatable {
+    struct Choice: Codable, Equatable {
+        let value: String
+        let name: String
+    }
+
+    let id: String
+    let name: String
+    let category: String
+    let type: String
+    let currentValue: String
+    let options: [Choice]
+}
+
+/// `session/set_config_option` answers the COMPLETE option state (v1 MUST), never a delta,
+/// so a dependent change is visible in the same response.
+struct ACPSetConfigOptionResult: Codable, Equatable {
+    let configOptions: [ACPSessionConfigOption]
+}
+
+/// Inbound `session/set_config_option` params. `value` is deliberately not here: v1 allows
+/// a string or a boolean, and which one arrived decides the refusal, so the handler reads
+/// it from the raw JSON instead of a shape that would blur the two.
+struct ACPSetConfigOptionParams: Decodable, Equatable {
+    let sessionId: String?
+    let configId: String?
 }
 
 /// Inbound `session/load` params: `sessionId` and an absolute `cwd` are required by the
@@ -274,9 +308,13 @@ struct ACPLoadSessionParams: Decodable, Equatable {
     let additionalDirectories: [String]?
 }
 
-/// `session/load` answers `{}` once every entry has been replayed — the schema carries
-/// no fields the v1 face fills today.
-struct ACPEmptyResult: Codable, Equatable {}
+/// `session/load` answers once every entry has been replayed. All v1 result fields are
+/// optional, so a build with no selector still answers `{}`; with one, it carries the
+/// current option state exactly as `session/new` does — the re-opened conversation's
+/// model is the newest stored row's, and the editor's picker must show that, not a guess.
+struct ACPLoadSessionResult: Codable, Equatable {
+    var configOptions: [ACPSessionConfigOption]? = nil
+}
 
 struct ACPPromptResult: Codable, Equatable {
     let stopReason: String

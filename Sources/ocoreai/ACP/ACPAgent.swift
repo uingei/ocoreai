@@ -22,6 +22,10 @@ import AppKit
 struct ACPSession: Equatable {
     let id: String
     let cwd: String
+    /// The model this session answers with, a published `configOptions` value, set at
+    /// session creation and moved by `session/set_config_option`. Nil only while no
+    /// selector was publishable, and then `runTurn` answers on the configured default.
+    var modelId: String? = nil
     /// A loaded conversation the engine in *this* process has never seen: the stored
     /// history that rides along on the first prompt so the model answers with its past.
     /// Consumed once; after that the engine's own session is the history.
@@ -107,14 +111,40 @@ final class ACPAgent {
     /// opens the store while this face is already reading stdin. A test injects its own.
     private let store: @MainActor () -> SessionCompressor?
 
+    /// The models the editor may choose, sorted: the union `GET /v1/models` publishes —
+    /// disk-ready under the model root ∪ resident — plus the configured default, minus the
+    /// embedder, which answers `/v1/embeddings` but cannot take a turn. A test injects its
+    /// own list so its assertions are literals, not whatever sits on this host's disk.
+    private let models: @MainActor () async -> [String]
+
     init(
         write: @escaping (Data) -> Void,
         store: @escaping @MainActor () -> SessionCompressor? = {
             OcoreaiEngine.shared.activeSessionCompressor
+        },
+        models: @escaping @MainActor () async -> [String] = {
+            var ids: Set<String> = []
+            let rootP = ModelStore.root.standardizedFileURL.path
+            for ready in ModelStore.discoverReady()
+            where ready.weightsDir.standardizedFileURL.path.hasPrefix(rootP + "/") {
+                ids.insert(ModelStore.normalizeModelId(ready.id))
+            }
+            if let pool = OcoreaiEngine.shared.activeEnginePool {
+                for entry in await pool.listModels() {
+                    if let raw = entry["id"], !raw.isEmpty {
+                        ids.insert(ModelStore.normalizeModelId(raw))
+                    }
+                }
+                let configured = ModelStore.normalizeModelId(pool.config.defaultModelId)
+                if !configured.isEmpty { ids.insert(configured) }
+            }
+            ids.remove(ModelStore.normalizeModelId(EmbeddingService.canonicalModelId))
+            return ids.sorted()
         }
     ) {
         self.write = write
         self.store = store
+        self.models = models
     }
 
     /// Bridges the one approval truth (`ApprovalBroker`, asked from because `ToolEntry.isDestructive`)
@@ -213,13 +243,14 @@ final class ACPAgent {
         case "session/cancel": handleCancel(message)
         case "session/list": handleListSessions(message)
         case "session/load": handleLoadSession(message)
+        case "session/set_config_option": handleSetConfigOption(message)
         case "authenticate":
             fail(
                 message, code: ACPFraming.methodNotFoundCode,
                 "authenticate: this agent holds no credential to obtain — the model is local and "
                     + "initialize already answers \"authMethods\": []")
         case "session/resume", "session/close", "session/delete",
-            "session/set_mode", "session/set_config_option", "logout":
+            "session/set_mode", "logout":
             fail(
                 message, code: ACPFraming.methodNotFoundCode,
                 "\(message.method): not offered by this build — agentCapabilities is the promise")
@@ -324,9 +355,135 @@ final class ACPAgent {
         SessionWorkspace.setDirectory(cwd)
         let session = ACPSession(id: "acp-\(UUID().uuidString.prefix(8))", cwd: cwd)
         sessions[session.id] = session
-        write(
-            ACPFraming.response(
-                id: message.id ?? .number(0), result: ACPNewSessionResult(sessionId: session.id)))
+        let requestId = message.id ?? .number(0)
+        // The session registers synchronously — the very next stdin line can be its prompt —
+        // and only the selector list takes the hop, so the prompt never races the option
+        // state: no client can address this session before the response carries its id.
+        Task { [weak self] in
+            guard let self else { return }
+            let options = await self.models()
+            let current = Self.pickCurrentModel(
+                options: options,
+                configuredDefault:
+                    OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? "")
+            self.sessions[session.id]?.modelId = current
+            self.write(
+                ACPFraming.response(
+                    id: requestId,
+                    result: ACPNewSessionResult(
+                        sessionId: session.id,
+                        configOptions: Self.configOptions(
+                            current: current, options: options))))
+        }
+    }
+
+    // MARK: - session config options
+
+    /// The only config option this build publishes. No agent capability gates `select`
+    /// options in v1; publishing the option IS the promise, and `session/new` and
+    /// `session/load` carry it, so the method needs no separate advertisement.
+    nonisolated static let modelConfigID = "model"
+
+    /// The model a new session answers with: the configured default when it is among the
+    /// published choices (the default seam always inserts it, so that is the rule), else
+    /// the first choice, else nothing — a machine serving no model promises no selector.
+    nonisolated static func pickCurrentModel(
+        options: [String], configuredDefault: String
+    ) -> String? {
+        let wanted = ModelStore.normalizeModelId(configuredDefault)
+        if options.contains(wanted) { return wanted }
+        return options.first
+    }
+
+    /// v1 `SessionConfigOption[]` for this build's single selector. `name` doubles as the
+    /// choice label because the published id (`org/name`) is already the human-readable
+    /// name the Models page shows.
+    nonisolated static func configOptions(
+        current: String?, options: [String]
+    ) -> [ACPSessionConfigOption] {
+        guard let current else { return [] }
+        return [
+            ACPSessionConfigOption(
+                id: modelConfigID, name: "Model", category: "model", type: "select",
+                currentValue: current,
+                options: options.map { .init(value: $0, name: $0) }),
+        ]
+    }
+
+    private func handleSetConfigOption(_ message: ACPIncoming) {
+        guard initialized else {
+            fail(
+                message, code: ACPFraming.invalidRequestCode,
+                notReadyReason(for: "session/set_config_option"))
+            return
+        }
+        guard let id = message.id else { return }  // a notification has nothing to answer
+        guard let params = message.params(as: ACPSetConfigOptionParams.self),
+            let sessionId = params.sessionId, let configId = params.configId
+        else {
+            fail(
+                message, code: ACPFraming.invalidParamsCode,
+                "session/set_config_option: needs \"sessionId\" and \"configId\"")
+            return
+        }
+        guard sessions[sessionId] != nil else {
+            fail(
+                message, code: ACPFraming.invalidParamsCode,
+                "session/set_config_option: \"\(sessionId)\" is not a session of this "
+                    + "process — session/new opens one")
+            return
+        }
+        guard configId == Self.modelConfigID else {
+            fail(
+                message, code: ACPFraming.invalidParamsCode,
+                "session/set_config_option: \"\(configId)\" is not a config option of "
+                    + "this agent — \"\(Self.modelConfigID)\" is the only id it publishes")
+            return
+        }
+        // v1 allows a string or a boolean `value`, and which one arrived decides the
+        // refusal, so the raw JSON answers that — a Decodable shape would blur them.
+        guard let json = message.paramsJSON,
+            let dict = try? JSONSerialization.jsonObject(with: json) as? [String: Any]
+        else {
+            fail(
+                message, code: ACPFraming.invalidParamsCode,
+                "session/set_config_option: \"params\" are unreadable")
+            return
+        }
+        // Foundation bridges JSON `true` to NSNumber, same as the id read on the inbound side.
+        if let flag = dict["value"] as? NSNumber, String(cString: flag.objCType) == "c" {
+            fail(
+                message, code: ACPFraming.invalidParamsCode,
+                "session/set_config_option: this agent publishes no boolean options — "
+                    + "send a model id string for \"\(Self.modelConfigID)\"")
+            return
+        }
+        guard let value = dict["value"] as? String else {
+            fail(
+                message, code: ACPFraming.invalidParamsCode,
+                "session/set_config_option: \"value\" must be a model id string")
+            return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            let options = await self.models()
+            guard options.contains(value) else {
+                self.write(
+                    ACPFraming.error(
+                        id: id, code: ACPFraming.invalidParamsCode,
+                        message: "session/set_config_option: \"\(value)\" is not a model "
+                            + "this machine can answer with — session/new configOptions "
+                            + "carries the \(options.count) ids it can"))
+                return
+            }
+            self.sessions[sessionId]?.modelId = value
+            self.write(
+                ACPFraming.response(
+                    id: id,
+                    result: ACPSetConfigOptionResult(
+                        configOptions: Self.configOptions(
+                            current: value, options: options))))
+        }
     }
 
     // MARK: - session/list
@@ -515,8 +672,26 @@ final class ACPAgent {
                     if page.count < pageSize { break }
                     offset += pageSize
                 }
-                self.sessions[sessionId] = ACPSession(id: sessionId, cwd: cwd, refeed: refeed)
-                self.write(ACPFraming.response(id: id, result: ACPEmptyResult()))
+                // The newest shard names the model the re-opened conversation answers
+                // with; if this machine no longer serves it, the honest current value is
+                // the picker's first choice, not a model the next turn cannot load.
+                let options = await self.models()
+                let stored = ModelStore.normalizeModelId(newest.modelId)
+                let current =
+                    options.contains(stored) ? stored
+                    : Self.pickCurrentModel(
+                        options: options,
+                        configuredDefault:
+                            OcoreaiEngine.shared.activeEnginePool?.config
+                                .defaultModelId ?? "")
+                self.sessions[sessionId] = ACPSession(
+                    id: sessionId, cwd: cwd, modelId: current, refeed: refeed)
+                self.write(
+                    ACPFraming.response(
+                        id: id,
+                        result: ACPLoadSessionResult(
+                            configOptions: Self.configOptions(
+                                current: current, options: options))))
             } catch {
                 self.write(
                     ACPFraming.error(
@@ -689,7 +864,9 @@ final class ACPAgent {
                         + OcoreaiEngine.shared.lifecycleState.rawValue + ")"))
             return
         }
-        let model = pool.config.defaultModelId
+        // The session's chosen model wins; the configured default is the fallback only for
+        // the no-selector build (a machine that serves no model at all).
+        let model = sessions[sessionId]?.modelId ?? pool.config.defaultModelId
         guard !model.isEmpty else {
             write(
                 ACPFraming.error(
