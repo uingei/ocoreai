@@ -6,8 +6,9 @@ which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
 - **The ACP face ships what it proves; six methods and one witness remain** (ACP/, long-horizon-goal
-  rung 7). Shipped 11-24 (`65d8285e`): `ocoreai acp` over stdio, gated by probe 62 (22 live assertions,
-  scripted lane) and `ACP{Mode,Framing,StopReason}Tests` (11). Every unshipped capability is a refusal at
+  rung 7). Shipped 11-24 (`65d8285e`), made v1-conformant 11-25 (request-shaped permission, negotiated
+  `initialize`, no un-advertised notices): `ocoreai acp` over stdio, gated by probe 62 (26 live assertions,
+  scripted lane) and `ACP{Mode,Framing,PermissionWire,Negotiation,StopReason}Tests` (14). Every unshipped capability is a refusal at
   the surface (`loadSession:false`, image/audio by name, caller `mcpServers` and non-empty
   `additionalDirectories` by count), so the face never claims more than the engine delivered. What remains
   is mechanical, not a decision: `session/load`/`resume`/`list` against `SessionManager`, model choice via

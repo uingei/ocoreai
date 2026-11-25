@@ -41,6 +41,9 @@ final class ACPAgent {
     private var gate: EngineGate = .starting
     private var queued: [String] = []
     private var initialized = false
+    /// The version a client asked for that we could not accept, until an accepted handshake clears
+    /// it. A client that ignores the negotiation still gets refused, with this number in the reason.
+    private var declinedVersion: Int?
     private var sessions: [String: ACPSession] = [:]
     private var turnTasks: [String: Task<Void, Never>] = [:]
     private var turnCancellations: [String: InferenceCancellation] = [:]
@@ -51,6 +54,8 @@ final class ACPAgent {
     /// id we sent, so one response line resumes exactly one parked tool call.
     private var permissionContinuations: [Int: CheckedContinuation<ACPPermissionOutcome, Never>] =
         [:]
+    /// Starts above the range an editor counts its own request ids in, so an echoed id can never
+    /// be ambiguous about which direction the message went.
     private var nextPermissionID = 100_000
 
     init(write: @escaping (Data) -> Void) {
@@ -173,6 +178,18 @@ final class ACPAgent {
         write(ACPFraming.error(id: id, code: code, message: reason))
     }
 
+    /// Why a session method cannot run yet: either the handshake never came, or it was answered
+    /// with a version this build does not speak and the client did not leave.
+    private func notReadyReason(for method: String) -> String {
+        if let asked = declinedVersion {
+            return
+                "\(method): initialize answered protocolVersion \(ACPMode.protocolVersion) to its "
+                + "\(asked) and the client stayed — close the connection, or re-initialize with "
+                + "\(ACPMode.protocolVersion)"
+        }
+        return "\(method) before initialize — the handshake comes first"
+    }
+
     private func describe(_ error: ACPFramingError) -> String {
         switch error {
         case .notJSON: return "not JSON"
@@ -193,14 +210,11 @@ final class ACPAgent {
                 "initialize: needs \"\(ACPFraming.protocolVersionKey)\"")
             return
         }
-        guard asked == ACPMode.protocolVersion else {
-            fail(
-                message, code: ACPFraming.invalidParamsCode,
-                "initialize: protocolVersion \(asked) is not spoken here — this agent speaks "
-                    + "\(ACPMode.protocolVersion)")
-            return
-        }
-        initialized = true
+        // v1 initialization is a negotiation, not a gate: on a version we do not speak we MUST
+        // still answer with the latest one we support, and the client closes the connection if
+        // that is unusable. A client that stays and prompts anyway gets the refusal below.
+        initialized = asked == ACPMode.protocolVersion
+        declinedVersion = initialized ? nil : asked
         write(
             ACPFraming.response(
                 id: message.id ?? .number(0),
@@ -221,7 +235,7 @@ final class ACPAgent {
         guard initialized else {
             fail(
                 message, code: ACPFraming.invalidRequestCode,
-                "session/new before initialize — the handshake comes first")
+                notReadyReason(for: "session/new"))
             return
         }
         guard let params = message.params(as: ACPNewSessionParams.self),
@@ -261,7 +275,9 @@ final class ACPAgent {
 
     private func handlePrompt(_ message: ACPIncoming) {
         guard initialized else {
-            fail(message, code: ACPFraming.invalidRequestCode, "session/prompt before initialize")
+            fail(
+                message, code: ACPFraming.invalidRequestCode,
+                notReadyReason(for: "session/prompt"))
             return
         }
         guard let id = message.id else {
@@ -396,17 +412,11 @@ final class ACPAgent {
             }
         } catch {
             // The failure report carries the framework's own words, never a bare "turn failed".
+            // v1 `notice` updates go only to clients that advertised `session.notices`, and this
+            // build reads no client capabilities, so the cause travels on the JSON-RPC error (the
+            // contract channel for a failed turn) and on stderr, where the editor shows the log.
             let cause = error.localizedDescription
-            write(
-                ACPFraming.notification(
-                    method: "session/update",
-                    params: [
-                        "sessionId": sessionId,
-                        "update": [
-                            "sessionUpdate": "notice", "severity": "error",
-                            "title": "Turn failed", "description": cause,
-                        ],
-                    ]))
+            ACPStderr.log("turn failed: \(cause)")
             payload = ACPFraming.error(id: id, code: ACPFraming.internalErrorCode, message: cause)
         }
         write(payload)
@@ -431,6 +441,17 @@ final class ACPAgent {
         }
         switch chunk.metadata {
         case .toolCall(let call):
+            // rawInput is any JSON value: the parsed object renders readable in an editor, and
+            // arguments that are not JSON ride as their own string rather than being dropped.
+            let rawInput: Any
+            if let arguments = call.arguments,
+                let parsed = try? JSONSerialization.jsonObject(
+                    with: Data(arguments.utf8), options: [.fragmentsAllowed])
+            {
+                rawInput = parsed
+            } else {
+                rawInput = call.arguments ?? ""
+            }
             update(
                 sessionId,
                 [
@@ -439,7 +460,7 @@ final class ACPAgent {
                     "title": call.name,
                     "name": call.name,
                     "status": "in_progress",
-                    "rawInput": call.arguments ?? "",
+                    "rawInput": rawInput,
                 ])
         case .toolResult(let result):
             update(
@@ -493,24 +514,10 @@ final class ACPAgent {
         let outcome: ACPPermissionOutcome = await withCheckedContinuation { continuation in
             permissionContinuations[requestID] = continuation
             write(
-                ACPFraming.notification(
+                ACPFraming.request(
+                    id: .number(requestID),
                     method: "session/request_permission",
-                    params: [
-                        "sessionId": sessionId,
-                        "toolCall": [
-                            "toolCallId": "approval-\(row.id.uuidString.prefix(8))",
-                            "title": "\(row.toolName): \(row.snippet)",
-                            "rawInput": row.arguments,
-                        ],
-                        "options": [
-                            ["optionId": "allow-once", "name": "Allow once", "kind": "allow_once"],
-                            [
-                                "optionId": "allow-session", "name": "Allow for this session",
-                                "kind": "allow_always",
-                            ],
-                            ["optionId": "reject", "name": "Deny", "kind": "reject_once"],
-                        ],
-                    ]))
+                    params: Self.permissionRequestParams(sessionId: sessionId, row: row)))
         }
         let decision: ApprovalDecision
         switch outcome.outcome {
@@ -520,6 +527,29 @@ final class ACPAgent {
         default: decision = .denied(reason: "the editor cancelled the approval request")
         }
         _ = await OcoreaiEngine.shared.activeApprovalBroker?.resolve(id: row.id, decision: decision)
+    }
+
+    /// The request's params, v1 shape: `sessionId`, `toolCall` (required `toolCallId`), `options`
+    /// whose kinds are exactly three of the schema's four `PermissionOptionKind` words.
+    nonisolated static func permissionRequestParams(
+        sessionId: String, row: PendingApproval
+    ) -> [String: Any] {
+        [
+            "sessionId": sessionId,
+            "toolCall": [
+                "toolCallId": "approval-\(row.id.uuidString.prefix(8))",
+                "title": "\(row.toolName): \(row.snippet)",
+                "rawInput": row.arguments,
+            ],
+            "options": [
+                ["optionId": "allow-once", "name": "Allow once", "kind": "allow_once"],
+                [
+                    "optionId": "allow-session", "name": "Allow for this session",
+                    "kind": "allow_always",
+                ],
+                ["optionId": "reject", "name": "Deny", "kind": "reject_once"],
+            ],
+        ]
     }
 
     /// A response line (it carries no `method`) answers one permission request we sent.

@@ -569,9 +569,14 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     (every line re-parsed as JSON), the bridge staying down (`lsof` lists zero listening sockets),
     and the version half of `agentInfo.version` against `--version`. Refusals are legs too: an empty
     `cwd`, non-empty `additionalDirectories`, and `session/bogus` must each be refused naming what
-    they refused. Green 11-24, 22 passed. Fails when: stdout carries a non-JSON byte, the turn
-    double-answers or loses `stopReason`, the bridge opens a socket, EOF stops exiting 0, or a
-    refusal goes silent.
+    they refused. The v1 legs added 11-25: a foreign `protocolVersion` is ANSWERED with ours (the
+    client closes the connection itself) and a client that stayed gets no session; `tool_call`'s
+    `rawInput` is the parsed object, not its escaped string. The permission handshake is gated in
+    `ACPPermissionWireTests`, not here — the scripted lane surfaces tool calls without dispatching
+    them, so no weight-free drive parks an approval. Green 11-25, 26 passed. Fails when: stdout
+    carries a non-JSON byte, the turn double-answers or loses `stopReason`, a foreign version is
+    refused instead of negotiated, the bridge opens a socket, EOF stops exiting 0, or a refusal goes
+    silent.
 - `_lib.sh` — shared harness
 Fails when: —
 

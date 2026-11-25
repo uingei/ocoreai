@@ -7,7 +7,23 @@ questions: what improved, what same-session output proves it, and which gate goe
 note and `README.md`; a `## <dates>` section below groups the rounds of an older period, and dates on a
 heading are when the work landed (measured from git).
 
-## [Unreleased], 2026-09-05 → 2026-11-24
+## [Unreleased], 2026-09-05 → 2026-11-25
+
+**11-25 ACP face 对着 v1 spec 重读,四处偏差定罪并修在根上**。改了什么:上一线程的 WIP 由本线程收口并落地,
+`~/references` 的 ACP v1 规约逐处对质,四处与我们 11-24 落地的不符。① `session/request_permission` 是
+**request**,不是 notification——客户端只回答带 id 的消息并回显该 id,我们发的形状会把 tool call 永久停住;
+现从 100_000 起发 id,回显 id 的方向绝无歧义。② `initialize` 的版本是**谈判**不是门:对我们不说的版本仍须以
+result 回我们支持的最新版本,关连接是客户端的职责;此前直接 `-32602`,守约客户端在第一步就丢掉谈判机会。客户
+端不走又要 session,得到一条写明两个版本的拒绝。③ turn 失败不再发 `notice` update——v1 只对声明了
+`session.notices` 的客户端发 notice,本 build 不读 client capabilities,原因只走 JSON-RPC error(turn 失败的
+契约通道)与 stderr。④ `tool_call` 的 `rawInput` 是任意 JSON value:可解析的参数以解析后的对象呈现(编辑器
+直接可读),不可解析以原字符串呈现,不再降级成转义串。收口同时修掉上一线程没编译过的测试:嵌套 `#require`
+是编译器拒绝的递归展开,拆成两行。本会话证明:`ACP|ToolSearchWiring` 25/25 绿(permission 线形状、echo 解码、
+谈判全序列——外版本得我方版本、赖着不走的客户端无 session、未开会话按名拒绝),probe 62 live 26 PASS,含
+`tool-raw={"path": "README.md"}`、`neg-error=none`、`neg-session=error`。permission 握手在单测门,不在
+probe:scripted lane 不 dispatch tool call,没有无权重驱动能 park 一条 approval,probe 头写明这条边界。
+红门:`ACPPermissionWireTests`、`ACPNegotiationTests`、probe 62 的谈判/rawInput 断言。顺带把 scan-based gate
+的读源逻辑收成 `Tests/ocoreaiTests/RepoSourceScan.swift` 一个家。全程主线程,零 subagent,`~/references` 只读。
 
 **11-25 reachable tool surface 的下一单元落地,flag 暗着:一次 `tool_search` 命中,下一轮就是一条声明**。改了什么:11-24 落下的纯函数半边今天有了调用面。`tool_search` 成为注册工具,只在 boot 时 flag 开才注册(`settings.toolSurface.reachable.enabled`,默认 **OFF**,走 `update_plan` 同一条 boot 路线,off build 的注册差集恰是这一个名字);每会话 discovered 集住进 `ToolSurfaceDiscovery`,键是 dispatch 已经携带的 conversation key(GUI 的 `inferenceSessionId`、ACP 的 session id),不新造第二身份;两个自己组声明面的 seam(`ChatViewModel`、`ACPAgent`)改走 `ToolSurfaceCuration.apply(reachable:discovered:)`,臂选择一处家:reachable ON 且 `tool_search` 真在面上才收窄,否则退回今天的语义(运行时才翻 flag、工具没注册的面不会被切成回不去的窄臂)。命中的名字记入本会话集合,下一轮由组面的 lane 变成声明(pi 的 load,`tool.ts:1-21`);无 conversation 的调用照实说「Nothing recorded」,不发明一个没人构建的 next turn(invariant 2)。本会话证明:`ToolSearchWiringTests` 11 测试断精确值(注册差集、臂组合的精确序、结果串逐字、limit 页与驱逐、每 lane 一个 flag seat 的 floor-scan),邻接组 `ToolSurface|ToolSearch|Destructive|LoopGuard|EditLines|ACP|UpdatePlan|ToolSpec|AttemptLedger|EditMismatch|LoopStall` 105/105。默认 OFF,不动任何今天的 turn;`compactListing` 仍未注入任何 prompt(那是等 board 臂的 agent-facing 文本),flip 属 owner。红门:`ToolSearchWiringTests` 全套,加既有 `ToolSurfaceCurationHonestyTests`(off=逐字节不变)。
 

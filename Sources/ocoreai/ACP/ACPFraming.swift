@@ -121,6 +121,13 @@ enum ACPFraming {
         line(["jsonrpc": "2.0", "method": method, "params": params])
     }
 
+    /// A request WE send the client. ACP's agent→client methods (`session/request_permission`) are
+    /// requests, not notifications: a client answers only a message carrying an id, and echoes that
+    /// id back, so a permission line without one parks the tool call forever.
+    static func request(id: ACPID, method: String, params: [String: Any]) -> Data {
+        line(["jsonrpc": "2.0", "id": id.jsonObject, "method": method, "params": params])
+    }
+
     static func error(id: ACPID?, code: Int, message: String) -> Data {
         line([
             "jsonrpc": "2.0",

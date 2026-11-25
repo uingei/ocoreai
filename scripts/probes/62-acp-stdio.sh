@@ -21,9 +21,13 @@
 # pass by having no driver.
 #
 # Fails when: stdout carries a non-JSON line, initialize/session new/prompt lose exact values or
-# stopReason, the approval-bearing turn never answers its request, an unknown method is not refused
-# with -32601 quoting the method, a refused session/new shape is accepted, the bridge opens a
-# listening socket anyway, EOF does not exit 0, or `acp --help`/a bad token stops refusing cleanly.
+# stopReason, a foreign protocolVersion is refused instead of answered with ours, a client that
+# stays after a declined negotiation gets a session, tool_call's rawInput is not the parsed
+# object, an unknown method is not refused with -32601 quoting the method, a refused session/new
+# shape is accepted, the bridge opens a listening socket anyway, EOF does not exit 0, or
+# `acp --help`/a bad token stops refusing cleanly. The permission handshake is gated in
+# ACPFramingTests, not here: the scripted lane surfaces tool calls without dispatching them, so
+# no weight-free drive parks an approval — the same boundary this probe's completion claim stops at.
 
 set -uo pipefail
 
@@ -121,6 +125,19 @@ def reply(rid):
             return False
     return wait_for(matches)
 
+# v1 initialization is a negotiation: a version we do not speak is ANSWERED with ours (the
+# client closes the connection itself), and sessions stay closed until an accepted handshake.
+send({"jsonrpc": "2.0", "id": 6, "method": "initialize",
+      "params": {"protocolVersion": 2}})
+neg = reply(6)
+negj = json.loads(neg) if neg else {}
+tag("neg-error", "error" if "error" in negj else "none")
+tag("neg-version", (negj.get("result") or {}).get("protocolVersion"))
+send({"jsonrpc": "2.0", "id": 7, "method": "session/new",
+      "params": {"cwd": os.getcwd(), "mcpServers": []}})
+sn = reply(7)
+tag("neg-session", "error" if sn and '"error"' in sn else "none")
+
 send({"jsonrpc": "2.0", "id": 0, "method": "initialize",
       "params": {"protocolVersion": 1, "clientCapabilities": {"fs": {"readTextFile": True}}}})
 init = reply(0)
@@ -178,6 +195,7 @@ for line in out:
         texts.append(((upd.get("content") or {}).get("text")) or "")
 tag("msg-joined", "".join(texts))
 tool_title = ""
+tool_raw = ""
 for line in out:
     try:
         msg = json.loads(line)
@@ -186,7 +204,9 @@ for line in out:
     upd = (msg.get("params") or {}).get("update") or {}
     if upd.get("sessionUpdate") == "tool_call":
         tool_title = f"{upd.get('title')}|{upd.get('status')}"
+        tool_raw = json.dumps(upd.get("rawInput"), sort_keys=True)
 tag("tool-call", tool_title)
+tag("tool-raw", tool_raw)
 
 send({"jsonrpc": "2.0", "id": 3, "method": "session/bogus", "params": {}})
 bogus = reply(3)
@@ -250,6 +270,10 @@ want message-chunks 2 "the turn streams its message as chunks"
 want msg-joined "$EXPECTED_TEXT" "the chunks rejoin byte-exact to the scripted text"
 want tool-calls 1 "the tool call surfaces as a tool_call update"
 want tool-call "$EXPECTED_TOOL|in_progress" "tool_call carries the call's own name and in_progress"
+want tool-raw '{"path": "README.md"}' "rawInput is the parsed object an editor can render, not its escaped string"
+want neg-error none "a foreign protocolVersion is negotiated, not refused (v1 initialization)"
+want neg-version 1 "the declined client is answered with the latest version we speak"
+want neg-session error "a client that stayed after the declined negotiation gets no session"
 want bogus-code -32601 "an unknown method is refused with method-not-found"
 BOGUS_MSG="$(driv bogus-message)"; case "$BOGUS_MSG" in *session/bogus*) probe_ok "the refusal quotes the method the client sent";; *) probe_fail "the refusal does not quote the method (said: '$BOGUS_MSG')" " a client cannot fix a bare code";; esac
 want purity-bad 0 "every stdout line is JSON — stdout carries protocol messages only"

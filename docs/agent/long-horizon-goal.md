@@ -246,8 +246,10 @@ off, no homepage, `VISION.md` absent, 0 watchers (`subscribers_count`, 11-09). E
    own `DirectInferenceClient` lane, `ApprovalBroker` translated into `session/request_permission` (ACP is
    not headless, so approval answers here where the wire lanes deny), bridge forced off through
    `HttpBridgePolicy.CallerIntent.forcedOff`, refusals standing in for every unbuilt promise
-   (`loadSession:false`, image/audio by name, caller MCP servers by count). Gated by probe 62 (22 live
-   assertions, weight-free scripted lane) and `ACP{Mode,Framing,StopReason}Tests` (11). What the rung still
+   (`loadSession:false`, image/audio by name, caller MCP servers by count); the v1 conformance round 11-25
+   made `session/request_permission` an answered request, `initialize` a negotiation, and dropped the
+   un-advertised `notice` updates. Gated by probe 62 (26 live
+   assertions, weight-free scripted lane) and `ACP{Mode,Framing,PermissionWire,Negotiation,StopReason}Tests` (14). What the rung still
    owes is the `open-items.md` row "ACP face: what remains", and one witness no probe can fake: an editor
    driving a real turn.
 

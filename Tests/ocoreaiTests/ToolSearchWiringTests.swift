@@ -205,54 +205,33 @@ struct ToolSearchWiringTests {
             await store.names(for: "conv-\(ToolSurfaceDiscovery.maxConversations + 7)").isEmpty)
     }
 
-    // MARK: - the wiring, scanned with its own floors
-
-    private static func source(_ relative: String) throws -> String {
-        var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        for _ in 0 ..< 6 {
-            let candidate = dir.appendingPathComponent(relative)
-            if FileManager.default.fileExists(atPath: candidate.path) {
-                return try String(contentsOf: candidate, encoding: .utf8)
-            }
-            let parent = dir.deletingLastPathComponent()
-            if parent.path == dir.path { break }
-            dir = parent
-        }
-        throw MissingRepoFile(path: "\(dir.path)/\(relative)")
-    }
-
-    struct MissingRepoFile: Error, CustomStringConvertible {
-        let path: String
-        var description: String { "no repo file at \(path) (walked up from \(#filePath))" }
-    }
-
-    private static func count(_ pattern: String, in text: String) throws -> Int {
-        try NSRegularExpression(pattern: pattern)
-            .matches(in: text, range: NSRange(text.startIndex..., in: text)).count
-    }
+    // MARK: - the wiring, scanned with its own floors (reader: RepoSourceScan)
 
     /// The flag is read exactly where the surface is built or registered: boot once, each
     /// lane-building seam once. A lane that starts narrowing without the flag, or a third
     /// reader, reddens here. Floors run first so a rename cannot pass vacuously.
     @Test("the flag has one boot seat and one seat per registry-building lane")
     func flagHasOneSeatPerLane() throws {
-        let app = try Self.source("Sources/ocoreai/App.swift")
-        let gui = try Self.source("Sources/ocoreai/UI/ViewModels/ChatViewModel.swift")
-        let acp = try Self.source("Sources/ocoreai/ACP/ACPAgent.swift")
+        let app = try RepoSourceScan.source("Sources/ocoreai/App.swift")
+        let gui = try RepoSourceScan.source("Sources/ocoreai/UI/ViewModels/ChatViewModel.swift")
+        let acp = try RepoSourceScan.source("Sources/ocoreai/ACP/ACPAgent.swift")
         // Floors: the seams exist before anything counts.
         #expect(app.contains("await bootstrapBuiltInTools("))
         #expect(gui.contains("ToolSurfaceCuration.apply("))
         #expect(acp.contains("ToolSurfaceCuration.apply("))
         #expect(
-            try Self.count(#"SettingsStore\.shared\.toolSurfaceReachableEnabled"#, in: app) == 1)
+            try RepoSourceScan.count(
+                #"SettingsStore\.shared\.toolSurfaceReachableEnabled"#, in: app) == 1)
         #expect(
-            try Self.count(#"SettingsStore\.shared\.toolSurfaceReachableEnabled"#, in: gui) == 1)
+            try RepoSourceScan.count(
+                #"SettingsStore\.shared\.toolSurfaceReachableEnabled"#, in: gui) == 1)
         #expect(
-            try Self.count(#"SettingsStore\.shared\.toolSurfaceReachableEnabled"#, in: acp) == 1)
+            try RepoSourceScan.count(
+                #"SettingsStore\.shared\.toolSurfaceReachableEnabled"#, in: acp) == 1)
         // Registration lives in exactly one place.
-        let boot = try Self.source("Sources/ocoreai/Tools/BuiltInTools.swift")
+        let boot = try RepoSourceScan.source("Sources/ocoreai/Tools/BuiltInTools.swift")
         #expect(
-            try Self.count(#"ToolSearchTool\.toolEntry\("#, in: boot) == 1,
+            try RepoSourceScan.count(#"ToolSearchTool\.toolEntry\("#, in: boot) == 1,
             "one registration seat, and it is behind the boot flag")
     }
 }
