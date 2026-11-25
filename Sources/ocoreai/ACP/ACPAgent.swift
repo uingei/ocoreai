@@ -406,7 +406,7 @@ final class ACPAgent {
             ACPSessionConfigOption(
                 id: modelConfigID, name: "Model", category: "model", type: "select",
                 currentValue: current,
-                options: options.map { .init(value: $0, name: $0) }),
+                options: options.map { .init(value: $0, name: $0) })
         ]
     }
 
@@ -678,12 +678,13 @@ final class ACPAgent {
                 let options = await self.models()
                 let stored = ModelStore.normalizeModelId(newest.modelId)
                 let current =
-                    options.contains(stored) ? stored
+                    options.contains(stored)
+                    ? stored
                     : Self.pickCurrentModel(
                         options: options,
                         configuredDefault:
                             OcoreaiEngine.shared.activeEnginePool?.config
-                                .defaultModelId ?? "")
+                            .defaultModelId ?? "")
                 self.sessions[sessionId] = ACPSession(
                     id: sessionId, cwd: cwd, modelId: current, refeed: refeed)
                 self.write(
