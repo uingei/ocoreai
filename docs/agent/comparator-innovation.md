@@ -310,9 +310,14 @@ that catches a drifted cite; where a number moved since the last read it is stat
    Apple-silicon trees chose host backing independently), and an embedded native MTP head (omlx
    `model_settings.py:42`; Rapid-MLX `detect.py:82-84`. "The outer checkpoint advertises qwen4_exp").
    Dates are bounded by the mirror pulls (§ *How an arrival is datable here*), so "same window" is
-   window-bounded inference, not a field claim. What it costs us: our pin has no `qwen4_exp` (the
-   open-items row), and the converged shape is the acceptance checklist the next Pin-1 bump audit can
-   carry.
+   window-bounded inference, not a field claim. **Addendum 11-26, the sixth tree changes what the convergence
+   proves.** TensorFold reached the same three mechanisms *without* the config-class inheritance: its own
+   Zig/Metal engine (`zig/src/families/flashnext/`) reads the checkpoint's `indexer_*`, gates host-backed PLE
+   by name (`--ple-on-ssd` requires `qwen4_exp`, `zig/src/core/engine_api.zig:243-244`) and serves the native
+   MTP head on our die (its CHANGELOG 1.3.5, re-read 11-26). So the three mechanisms are the checkpoint's own
+   contract; "inherit the 3.5 contract" is the MLX-family packaging of it. What it costs us: our pin has no
+   `qwen4_exp`; the open-items row now prices the wait (ruled 11-26, dated tripwire), and this case carries
+   that checklist.
 
 ## What this costs. Three numbers in our own docs that were wrong while I read them
 

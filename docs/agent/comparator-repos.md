@@ -201,19 +201,28 @@ Borrow: consumed. Adopted as manifest schema 2 (`pin` + `licenseSha256` + `verif
   caller's contract keys), the policy pinned to exact values by `ChildProcessEnvTests` since 11-18. The open
   MCP row in `open-items.md` beside it is file/network confinement, not env.
 
-- `TensorFold`. Zig engine, "Metal or CUDA kernels directly" (`README.md:4`; `zig/`, `app/`, HIP docs), 1 843
-  commits in 14 d, read 11-04. Its axis is **invariant 1 as a user-facing artefact**: the **receipt**, a
-  portable evidence record a measurement travels in.
-Contains: `docs/receipts/` holds 16 (MTP chain, KV pages, drafter counts, per-device), each naming its own
+- `TensorFold`. Zig engine, "Metal or CUDA kernels directly" (`README.md:4`; `zig/`, `app/`, HIP docs),
+  4 002 commits in 14 d re-read 11-26 at `f36acccd` (1 843 at the 11-04 read). Its axis is **invariant 1 as a
+  user-facing artefact**: the **receipt**, a portable evidence record a measurement travels in.
+Contains: `docs/receipts/` holds 16 bundles (MTP chain, KV pages, drafter counts, per-device), each naming its own
   pinned commits (`README.md:221`); a receipt carries hardware and attempt rows and **never** prompt text,
   output, machine names, serials, addresses or local paths (`docs/community-benchmarks.md:16`); a run whose
   reply cannot qualify is still written, "with null fingerprints and exit status 1" (`docs/cache-benchmarks.md:69`);
   draft counts stay local because the published board has no field for them, "since equal timings do not" prove
   a drafter ran (`docs/community-benchmarks.md:16`); a claim from a stale device says "have not been reproduced
-  on the maintained tree" (`docs/WINDOWS.md:6`).
+  on the maintained tree" (`docs/WINDOWS.md:6`). Second axis, measured 11-26: it **serves `qwen4_exp` on
+  Metal** — the architecture our pin lacks. `zig/src/families/flashnext/` reads the checkpoint's `indexer_*`
+  budget (`config.zig:242-246`), gates the host-backed PLE by name (`--ple-on-ssd` requires `qwen4_exp`,
+  `zig/src/core/engine_api.zig:243-244`) and ships the native MTP head with bit-exact depth parity; the M5
+  Ultra numbers under its CHANGELOG 1.3.5 (`#4964`) are the tree's own receipt, not a measurement here. The
+  consequence is ruled in the open-items Pin-1 row, not restated. Third axis: its agent front door ships as
+  text — the README sends a coding agent to `docs/recipes/SKILL.md` ("Building with a coding agent?"), a
+  Claude Code guide for a local server and its prompt prefix landed 11-25, and the install verbs are `brew`
+  + `pull` + `serve`.
 Borrow: the shape, not the machinery, `scripts/eval/`'s run dirs are evidence but not a *portable* one, and
   nothing here publishes one. Named pattern only: the gate layer is frozen (10-28), and a published receipt
-  needs a consumer that exists today.
+  needs a consumer that exists today. The contributor skill is rung 6's front door at a tree on our die,
+  priced as the same named pattern, not a task.
 
 - `Strata`. Local-AI product: desktop app, agent terminal, C++ engine across CUDA/HIP/SYCL/Metal, and the
   closest *product* shape to ours in growth terms, 34 577 stars in 34 days (1 016/day; 2 381 commits in 14 d)
@@ -462,12 +471,13 @@ top-k indices across draft steps (mean accepted length **4.06** at four steps, T
 at rung 3's acceptance gap); +51B N-gram embedding tables prefetched from host memory. The capacity route
 unified memory is built for, rung 4's wedge made concrete; 256K native (`../references/Qwen3.8-Flash-Next/README.md:115`);
 and a NoPE ablation whose post-training endless-generation rate jumps (§2.1.1). The field's stalls are
-trained-in, one more datum on the terminal-word call. At pin `4ab267996`: `Libraries/MLXVLM/VLMModelFactory.swift:95-98`
-registers `qwen3_5|qwen3_5_moe|qwen3_8|qwen3_8_moe` onto `Qwen35` (`GatedDeltaNet`, `HybridAttentionSchedule`)
-and `Qwen35MTP` (`Libraries/MLXVLM/Models/Qwen35MTP.swift:99`); QSA and N-gram appear **zero** times pin-wide
-⇒ the flagship will not load there (inference by absence, not run); dense `Qwen3.8-27B-4bit` does
-(`VLMModelFactory.swift:286`); the on-disk `Jundot` `…-mtp` cache entries are 12 KB README stubs. Entry
-presence, not weight presence.
+trained-in, one more datum on the terminal-word call. At the current pin `bf5a5d438` (all three sites re-read 11-26): the factories
+register `qwen3_5|qwen3_5_moe|qwen3_8|qwen3_8_moe` onto `Qwen35` (`GatedDeltaNet`, `HybridAttentionSchedule`)
+and `Qwen35MTP` (`Libraries/MLXVLM/Models/Qwen35MTP.swift`); QSA, N-gram, `indexer` and `ple_layer` appear
+**zero** times pin-wide
+⇒ the flagship will not load there (inference by absence, not run); dense `Qwen3.8-27B-4bit`
+(`VLMModelFactory.qwen3_8_27B_4bit`) does; the on-disk `Jundot` `…-mtp` cache entries are KB README stubs
+(8 KB over 2 files, re-measured 11-26). Entry presence, not weight presence.
 Borrow: the priced shape the board's one-checkpoint curve aims at (§ Open in `open-items.md`); what it cannot
 price is exactly what this family is: MTP acceptance, GDN cache economics, 256K tool calls. Closing it is an
 owner download decision plus an upstream QSA/N-gram port, not gate work.

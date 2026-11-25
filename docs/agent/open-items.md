@@ -615,18 +615,25 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   noise band, set size and paired-flip floor. Owner call: cut them, or record that their length is the deliberate cost
   of being the declared single home. Leaving the two numbers unreadable as either normal or not.
 - **The pin serves 2 of 3 Qwen generations; Flash-Next is the missing architecture, not a missing config**
-  (Engine/, Upstream Pin-1). Measured at the `mlx-swift-lm` checkout `4ab2679`: `qwen3_8*` is registered
-  (`LLMModelFactory.swift:73-75`), so Qwen3.8-27B loads today with its companion drafter
+  (Engine/, Upstream Pin-1). Measured at `4ab2679`, re-read 11-26 at the pin `bf5a5d438`: `qwen3_8*` is
+  registered (`LLMModelFactory.swift:73-75`), so Qwen3.8-27B loads today with its companion drafter
   `mlx-community/Qwen3.8-27B-MTP-4bit` (`MTPDrafterModelFactory.swift:41`). The only gap is weights never
   fetched on this host (owner action); 3.6-35B-A3B already serves with a native MTP head (its config
   `mtp_num_hidden_layers: 1`; `Qwen35TextMTPRegistration.swift:26` keyed on `qwen3_5_moe`; registered at
   `EnginePool.swift:460`). **Flash-Next cannot load**: the checkpoint advertises outer `model_type:
   qwen4_exp` (live-fetched via hf-mirror — `Qwen4ExpForConditionalGeneration`, `indexer_budget`,
-  `ple_layer_ids`) and `qwen4` appears nowhere in the pin tree; the failure is honest by name
-  (`ModelFactoryError.unsupportedModelType`, checkout `ModelFactory.swift:11`). No owner call while upstream
-  lacks it. Four comparator trees converged on the shape it would have (inherit the 3.5 contract + QSA
-  indexer + host-backed PLE + native MTP head; cites in `comparator-innovation.md` § *Diffusion observed*
-  case 7), and that paragraph doubles as the Pin-1 bump audit's acceptance checklist. The rejected shortcut
+  `ple_layer_ids`) and `qwen4` appears nowhere in the pin tree (re-measured 11-26 at `bf5a5d438`:
+  case-insensitive `qwen4` is 0 hits across the whole checkout); the failure is honest by name
+  (`ModelFactoryError.unsupportedModelType`, checkout `ModelFactory.swift:11`).
+  **"No owner call while upstream lacks it" died 11-26: the sentence priced our pin and named it the field.**
+  `qwen4_exp` serves on Apple silicon inside this corpus today — on the MLX route (ollama `mlxrunner`,
+  Rapid-MLX) and on a native Metal route (TensorFold `zig/src/families/flashnext/`, under its CHANGELOG
+  1.3.5's own M5 Ultra receipt; that weight is 79 GiB TFQ3, outside this product's 4-bit envelope, so the
+  receipt prices distribution, not parity). Ruled 11-26: keep consuming upstream. The local port becomes a
+  filed engine project when a pin checkout taken after 12-15 still greps `qwen4` zero — the same instrument
+  as this sentence — and then the three mechanisms of `comparator-innovation.md` § *Diffusion observed*
+  case 7 (inherit the 3.5 contract + QSA indexer + host-backed PLE + native MTP head) are its acceptance
+  checklist. The rejected shortcut
   is filed because it is cheap: aliasing `qwen4_exp` onto `Qwen35Configuration` would silently drop the
   `indexer_*/ple_*` weights and answer anyway. The surface claiming more than the engine delivered
   (invariant 2).
