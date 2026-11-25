@@ -46,7 +46,18 @@ struct ACPModeTests {
         let usage = ACPMode.usageText()
         #expect(usage.contains("session/prompt"))
         #expect(usage.contains("Registry"))
-        #expect(!usage.contains("session/load: supported"))
+        // Invariant 2 in both directions: the usage names what the dispatch now speaks, and
+        // the "not offered" sentence names only what is still refused.
+        #expect(usage.contains("session/list"))
+        #expect(usage.contains("session/load"))
+        // The clause before "are not offered" back to the previous period is the refusal
+        // sentence; it must name the refused methods and no others, wherever the wraps land.
+        let notOffered =
+            usage.components(separatedBy: "not offered").first?
+            .components(separatedBy: ".").last ?? ""
+        #expect(notOffered.contains("session/resume"))
+        #expect(!notOffered.contains("session/list"), "usage still calls a spoken method unoffered")
+        #expect(!notOffered.contains("session/load"), "usage still calls a spoken method unoffered")
     }
 }
 
@@ -177,7 +188,7 @@ struct ACPFramingTests {
         let payload = ACPInitializeResult(
             protocolVersion: ACPMode.protocolVersion,
             agentCapabilities: ACPAgentCapabilities(
-                loadSession: false,
+                loadSession: true,
                 promptCapabilities: ACPPromptCapabilities(
                     image: false, audio: false, embeddedContext: true),
                 sessionCapabilities: ACPSessionCapabilities(list: [:])),
@@ -188,7 +199,7 @@ struct ACPFramingTests {
         #expect(result?["protocolVersion"] as? Int == 1)
         #expect(result?["authMethods"] as? [String] == [])
         let caps = result?["agentCapabilities"] as? [String: Any]
-        #expect(caps?["loadSession"] as? Bool == false)
+        #expect(caps?["loadSession"] as? Bool == true)
         let sessions = caps?["sessionCapabilities"] as? [String: Any]
         #expect(
             sessions?["list"] as? [String: Any] != nil,
@@ -303,6 +314,14 @@ struct ACPNegotiationTests {
         let acceptedLine = try #require(capture.lines.last)
         let accepted = try #require(jsonObject(acceptedLine))
         #expect(accepted["error"] == nil)
+        // The accepted handshake is where the real promises go out — not the DTO shape test,
+        // which can only prove encoding, never what this build passes at the call site.
+        let caps = try #require(
+            (accepted["result"] as? [String: Any])?["agentCapabilities"] as? [String: Any])
+        #expect(caps["loadSession"] as? Bool == true)
+        #expect(
+            (caps["sessionCapabilities"] as? [String: Any])?["list"] != nil,
+            "session/list support is negotiated from the live initialize, not just the DTO")
         agent.receive(
             #"{"jsonrpc":"2.0","id":9,"method":"session/prompt","params":{"sessionId":"never-opened","prompt":[]}}"#
         )

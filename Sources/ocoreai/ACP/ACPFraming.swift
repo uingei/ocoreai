@@ -265,6 +265,19 @@ struct ACPNewSessionResult: Codable, Equatable {
     let sessionId: String
 }
 
+/// Inbound `session/load` params: `sessionId` and an absolute `cwd` are required by the
+/// v1 schema; the MCP list is read only to be refused, same rule as `session/new`.
+struct ACPLoadSessionParams: Decodable, Equatable {
+    let sessionId: String?
+    let cwd: String?
+    let mcpServers: [ACPMCPServer]?
+    let additionalDirectories: [String]?
+}
+
+/// `session/load` answers `{}` once every entry has been replayed — the schema carries
+/// no fields the v1 face fills today.
+struct ACPEmptyResult: Codable, Equatable {}
+
 struct ACPPromptResult: Codable, Equatable {
     let stopReason: String
 }

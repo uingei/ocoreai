@@ -251,6 +251,49 @@ actor SessionCompressor {
         }
     }
 
+    /// The newest row a client's own key resolves to, whatever cwd state it carries:
+    /// `session/load` accepts a key the client already holds (the load request itself
+    /// declares the cwd), while `session/list` only shows rows whose cwd was recorded.
+    func clientSessionRow(externalKey: String) async throws -> SessionModel? {
+        let sql = """
+            SELECT id, model_id, created_at, updated_at, message_count, token_count, summary,
+            ttl_days, workspace_directory, external_key
+            FROM sessions WHERE external_key = ?
+            ORDER BY updated_at DESC, id DESC LIMIT 1
+            """
+        do {
+            let rows = try await store.query(sql, parameters: [externalKey])
+            return rows.first.flatMap { SessionModel(from: $0) }
+        } catch let sqliteErr as SQLiteError {
+            throw sqliteErr
+        } catch {
+            throw SQLiteError.queryFailed(detail: "clientSessionRow failed: \(error)")
+        }
+    }
+
+    /// One page of the conversation in replay order: oldest first, every role that renders
+    /// as a message (`tool` rows are plumbing, not bubbles). ``transcriptAscending`` filters
+    /// to what a *client* sent; a replay must also show the replies, so the filter differs
+    /// and so the query does too — second hand-written list, first lying replay.
+    func replayRows(sessionId: Int64, limit: Int, offset: Int) async throws -> [MessageModel] {
+        let sql = """
+            SELECT id, session_id, role, content, created_at, token_count, tool_calls, reasoning
+            FROM messages
+            WHERE session_id = ? AND role IN ('user', 'assistant')
+            ORDER BY created_at ASC, id ASC
+            LIMIT ? OFFSET ?
+            """
+        do {
+            let rows = try await store.query(
+                sql, parameters: [sessionId, max(1, limit), max(0, offset)])
+            return rows.compactMap { MessageModel(from: $0) }
+        } catch let sqliteErr as SQLiteError {
+            throw sqliteErr
+        } catch {
+            throw SQLiteError.queryFailed(detail: "replayRows failed: \(error)")
+        }
+    }
+
     /// List sessions with filtering.
     /// - Parameters:
     ///   - modelId: Optional model filter

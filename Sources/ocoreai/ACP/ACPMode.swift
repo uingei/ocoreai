@@ -47,9 +47,10 @@ enum ACPMode {
         so an editor-launched agent never collides with a `ocoreai serve` you already run.
 
         Speaks ACP protocol version \(protocolVersion): initialize, session/new, session/prompt,
-        session/cancel, and session/request_permission (bridged to the same approval broker the
-        GUI answers from). session/load, session/resume and session/list are not offered and say
-        so; caller-supplied MCP servers are refused by name instead of being dropped quietly.
+        session/cancel, session/list, session/load (replays the stored conversation), and
+        session/request_permission (bridged to the same approval broker the GUI answers from).
+        session/resume is not offered and says so; caller-supplied MCP servers are refused by
+        name instead of being dropped quietly.
 
         The turn is handed the same tool surface the GUI hands (`settings.toolSurface.curation`),
         and no instruction corpus. ACP clients normally also offer to install agents from the ACP

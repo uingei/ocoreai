@@ -22,6 +22,10 @@ import AppKit
 struct ACPSession: Equatable {
     let id: String
     let cwd: String
+    /// A loaded conversation the engine in *this* process has never seen: the stored
+    /// history that rides along on the first prompt so the model answers with its past.
+    /// Consumed once; after that the engine's own session is the history.
+    var refeed: [TranscriptEntry] = []
 }
 
 /// What one ACP turn actually showed the editor, collected alongside the live stream so the
@@ -208,12 +212,13 @@ final class ACPAgent {
         case "session/prompt": handlePrompt(message)
         case "session/cancel": handleCancel(message)
         case "session/list": handleListSessions(message)
+        case "session/load": handleLoadSession(message)
         case "authenticate":
             fail(
                 message, code: ACPFraming.methodNotFoundCode,
                 "authenticate: this agent holds no credential to obtain — the model is local and "
                     + "initialize already answers \"authMethods\": []")
-        case "session/load", "session/resume", "session/close", "session/delete",
+        case "session/resume", "session/close", "session/delete",
             "session/set_mode", "session/set_config_option", "logout":
             fail(
                 message, code: ACPFraming.methodNotFoundCode,
@@ -273,7 +278,7 @@ final class ACPAgent {
                 result: ACPInitializeResult(
                     protocolVersion: ACPMode.protocolVersion,
                     agentCapabilities: ACPAgentCapabilities(
-                        loadSession: false,
+                        loadSession: true,
                         promptCapabilities: ACPPromptCapabilities(
                             image: false, audio: false, embeddedContext: true),
                         sessionCapabilities: ACPSessionCapabilities(list: [:])),
@@ -432,6 +437,154 @@ final class ACPAgent {
         return formatter.string(from: date)
     }
 
+    // MARK: - session/load
+
+    /// Replay page size. The v1 MUST is the *whole* conversation, so this walks to the
+    /// end of the store rather than capping history at one page.
+    static let replayPageSize = 200
+
+    private func handleLoadSession(_ message: ACPIncoming) {
+        guard initialized else {
+            fail(
+                message, code: ACPFraming.invalidRequestCode,
+                notReadyReason(for: "session/load"))
+            return
+        }
+        guard let id = message.id else { return }
+        guard let params = message.params(as: ACPLoadSessionParams.self),
+            let sessionId = params.sessionId, !sessionId.isEmpty,
+            let cwd = params.cwd, cwd.hasPrefix("/")
+        else {
+            fail(
+                message, code: ACPFraming.invalidParamsCode,
+                "session/load: needs \"sessionId\" and an absolute \"cwd\" — the same "
+                    + "shape session/new opened with")
+            return
+        }
+        if let servers = params.mcpServers, !servers.isEmpty {
+            fail(
+                message, code: ACPFraming.invalidParamsCode,
+                "session/load: this build connects none of the \(servers.count) "
+                    + "caller-supplied MCP server(s) — send \"mcpServers\": []")
+            return
+        }
+        if let extra = params.additionalDirectories, !extra.isEmpty {
+            fail(
+                message, code: ACPFraming.invalidParamsCode,
+                "session/load: tools are scoped to \"cwd\" here and will not silently "
+                    + "widen to \(extra.count) additional directories")
+            return
+        }
+        guard let compressor = store() else {
+            write(
+                ACPFraming.error(
+                    id: id, code: ACPFraming.internalErrorCode,
+                    message: "session/load: no session store is open in this process"))
+            return
+        }
+        // The load request declares the working directory; tools follow it from here,
+        // the same anchor session/new sets.
+        SessionWorkspace.setDirectory(cwd)
+        let pageSize = Self.replayPageSize
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                guard let row = try await compressor.clientSessionRow(externalKey: sessionId)
+                else {
+                    self.write(
+                        ACPFraming.error(
+                            id: id, code: ACPFraming.invalidParamsCode,
+                            message: "session/load: nothing in this store answers to "
+                                + "\"\(sessionId)\" — session/list answers with the ids that can load"
+                        ))
+                    return
+                }
+                var refeed: [TranscriptEntry] = []
+                var offset = 0
+                // The response goes out only after every entry has been streamed (v1 MUST).
+                while true {
+                    let page = try await compressor.replayRows(
+                        sessionId: row.id, limit: pageSize, offset: offset)
+                    for stored in page {
+                        self.replay(sessionId: sessionId, stored: stored, refeed: &refeed)
+                    }
+                    if page.count < pageSize { break }
+                    offset += pageSize
+                }
+                self.sessions[sessionId] = ACPSession(id: sessionId, cwd: cwd, refeed: refeed)
+                self.write(ACPFraming.response(id: id, result: ACPEmptyResult()))
+            } catch {
+                self.write(
+                    ACPFraming.error(
+                        id: id, code: ACPFraming.internalErrorCode,
+                        message: "session/load: the session store refused the read: "
+                            + error.localizedDescription))
+            }
+        }
+    }
+
+    /// One stored row becomes exactly the `session/update` lines the live stream once sent:
+    /// thought before reply, each tool call opened then closed with the status its record
+    /// actually earned (a recorded failure never replays as a completion).
+    private func replay(
+        sessionId: String, stored row: MessageModel,
+        refeed: inout [TranscriptEntry]
+    ) {
+        switch row.role {
+        case "user":
+            guard !row.content.isEmpty else { return }
+            update(
+                sessionId,
+                [
+                    "sessionUpdate": "user_message_chunk", "messageId": "u-\(row.id)",
+                    "content": ["type": "text", "text": row.content],
+                ])
+            refeed.append(TranscriptEntry(role: "user", content: row.content))
+        case "assistant":
+            if let thought = row.reasoning, !thought.isEmpty {
+                update(
+                    sessionId,
+                    [
+                        "sessionUpdate": "agent_thought_chunk", "messageId": "t-\(row.id)",
+                        "content": ["type": "text", "text": thought],
+                    ])
+            }
+            if !row.content.isEmpty {
+                update(
+                    sessionId,
+                    [
+                        "sessionUpdate": "agent_message_chunk", "messageId": "m-\(row.id)",
+                        "content": ["type": "text", "text": row.content],
+                    ])
+                refeed.append(TranscriptEntry(role: "assistant", content: row.content))
+            }
+            for record in row.toolCalls ?? [] {
+                update(
+                    sessionId,
+                    [
+                        "sessionUpdate": "tool_call", "toolCallId": record.callId,
+                        "title": record.toolName, "name": record.toolName,
+                        "status": "pending", "rawInput": record.arguments,
+                    ])
+                guard let summary = record.resultSummary else { continue }
+                update(
+                    sessionId,
+                    [
+                        "sessionUpdate": "tool_call_update", "toolCallId": record.callId,
+                        "status": record.resultFailed == true ? "failed" : "completed",
+                        "content": [
+                            [
+                                "type": "content",
+                                "content": ["type": "text", "text": summary],
+                            ]
+                        ],
+                    ])
+            }
+        default:
+            break
+        }
+    }
+
     // MARK: - session/prompt
 
     private func handlePrompt(_ message: ACPIncoming) {
@@ -462,9 +615,14 @@ final class ACPAgent {
         let cancellation = InferenceCancellation.cancellable()
         turnCancellations[sessionId] = cancellation
         turnOrder.append(sessionId)
+        // A loaded session's stored history rides on its first prompt; after that the
+        // engine's own conversation is the history, so the refeed is consumed here.
+        let refeed = sessions[sessionId]?.refeed ?? []
+        sessions[sessionId]?.refeed = []
         turnTasks[sessionId] = Task { [weak self] in
             await self?.runTurn(
-                id: id, sessionId: sessionId, text: text, cancellation: cancellation)
+                id: id, sessionId: sessionId, text: text, cancellation: cancellation,
+                refeed: refeed)
         }
     }
 
@@ -511,7 +669,8 @@ final class ACPAgent {
     }
 
     private func runTurn(
-        id: ACPID, sessionId: String, text: String, cancellation: InferenceCancellation
+        id: ACPID, sessionId: String, text: String, cancellation: InferenceCancellation,
+        refeed: [TranscriptEntry] = []
     ) async {
         defer {
             turnTasks[sessionId] = nil
@@ -544,9 +703,11 @@ final class ACPAgent {
             reachable: reachable,
             discovered: reachable
                 ? await ToolSurfaceDiscovery.shared.names(for: sessionId) : [])
+        var transcript = refeed.map { Message(role: $0.role, content: $0.content) }
+        transcript.append(Message(role: "user", content: text))
         let request = InferenceRequest(
             modelId: model,
-            messages: [Message(role: "user", content: text)],
+            messages: transcript,
             tools: tools,
             sessionId: sessionId,
             cancellation: cancellation)

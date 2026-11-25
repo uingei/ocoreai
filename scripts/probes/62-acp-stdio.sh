@@ -24,10 +24,12 @@
 # stopReason, a foreign protocolVersion is refused instead of answered with ours, a client that
 # stays after a declined negotiation gets a session, tool_call's rawInput is not the parsed
 # object, an unknown method is not refused with -32601 quoting the method, a refused session/new
-# shape is accepted, the bridge opens a listening socket anyway, EOF does not exit 0, or
-# `acp --help`/a bad token stops refusing cleanly. The permission handshake is gated in
-# ACPFramingTests, not here: the scripted lane surfaces tool calls without dispatching them, so
-# no weight-free drive parks an approval — the same boundary this probe's completion claim stops at.
+# shape is accepted, the bridge opens a listening socket anyway, EOF does not exit 0,
+# `acp --help`/a bad token stops refusing cleanly, an answered turn is absent from
+# session/list, session/load answers before its replay finished or replays a different order,
+# or a loaded session cannot continue. The permission handshake is gated in ACPFramingTests,
+# not here: the scripted lane surfaces tool calls without dispatching them, so no weight-free
+# drive parks an approval — the same boundary this probe's completion claim stops at.
 
 set -uo pipefail
 
@@ -83,8 +85,12 @@ Never a repo artefact beyond this probe: the session is the subject."""
 import json, os, subprocess, sys, tempfile, threading, time
 
 BIN, SCRIPT = sys.argv[1], sys.argv[2]
+# OCOREAI_DATA_DIR is the store's lease: HOME alone does not move it (NSHomeDirectory
+# ignores $HOME), and without the lease these probe rows would land on the operator's
+# real session page.
 env = dict(os.environ,
            HOME=tempfile.mkdtemp(prefix="ocoreai-acp-home-"),
+           OCOREAI_DATA_DIR=tempfile.mkdtemp(prefix="ocoreai-acp-data-"),
            OCOREAI_SCRIPTED_ENGINE=SCRIPT,
            OCOREAI_DEFAULT_MODEL="scripted-model",
            OCOREAI_ALLOW_MULTI_INSTANCE="1")
@@ -208,6 +214,42 @@ for line in out:
 tag("tool-call", tool_title)
 tag("tool-raw", tool_raw)
 
+# Durability, listable, loadable: the turn just answered must now BE the store's row,
+# session/list must report exactly it, and session/load must replay it before answering.
+send({"jsonrpc": "2.0", "id": 8, "method": "session/list", "params": {}})
+listing = reply(8)
+entries = ((json.loads(listing).get("result") or {}).get("sessions") or []) if listing else []
+one = len(entries) == 1 and entries[0].get("sessionId") == sid \
+    and entries[0].get("cwd") == os.getcwd() and "T" in str(entries[0].get("updatedAt"))
+tag("list-matches", "1" if one else "0 " + json.dumps(entries)[:120])
+
+boundary = len(out)
+send({"jsonrpc": "2.0", "id": 10, "method": "session/load",
+      "params": {"sessionId": sid, "cwd": os.getcwd(), "mcpServers": []}})
+loaded = reply(10)
+seq, response_at = [], None
+tail = out[boundary:]
+for i, line in enumerate(tail):
+    try:
+        msg = json.loads(line)
+    except Exception:
+        continue
+    upd = (msg.get("params") or {}).get("update") or {}
+    if upd.get("sessionUpdate"):
+        seq.append(upd["sessionUpdate"])
+    if msg.get("id") == 10:
+        response_at = i
+tag("replay-seq", " ".join(seq))
+tag("replay-last", "1" if response_at == len(tail) - 1 else "0")
+lr = json.loads(loaded) if loaded else {}
+tag("replay-result", "empty" if lr.get("result") == {} else json.dumps(lr.get("result"))[:60])
+
+send({"jsonrpc": "2.0", "id": 11, "method": "session/prompt",
+      "params": {"sessionId": sid, "prompt": [{"type": "text", "text": "and again"}]}})
+again = reply(11)
+tag("reload-stop", (json.loads(again).get("result") or {}).get("stopReason")
+    if again and "result" in again else "no-reply")
+
 send({"jsonrpc": "2.0", "id": 3, "method": "session/bogus", "params": {}})
 bogus = reply(3)
 if bogus:
@@ -254,7 +296,7 @@ want() { # want <tag> <expected> <claim>
 }
 
 want init-version 1 "initialize answers the one protocol version we speak"
-want init-load-session False "session/load is refused at capability level, not promised"
+want init-load-session True "loadSession is promised because the transcript is stored and replayed"
 want init-image False "image blocks are refused at capability level"
 want init-audio False "audio blocks are refused at capability level"
 want init-embedded True "embedded context is the one prompt capability kept"
@@ -275,6 +317,12 @@ want neg-error none "a foreign protocolVersion is negotiated, not refused (v1 in
 want neg-version 1 "the declined client is answered with the latest version we speak"
 want neg-session error "a client that stayed after the declined negotiation gets no session"
 want bogus-code -32601 "an unknown method is refused with method-not-found"
+want list-matches 1 "the answered turn is the store's row: session/list reports exactly it, cwd and stamp included"
+want replay-seq "user_message_chunk agent_thought_chunk agent_message_chunk tool_call" \
+  "session/load replays the stored turn in conversation order, the scripted tool call without a result never closes"
+want replay-last 1 "the load response arrives only after every entry has been streamed (v1 MUST)"
+want replay-result empty "session/load answers the empty result the v1 schema spells"
+want reload-stop end_turn "a loaded session continues: the next prompt answers end_turn on the re-fed history"
 BOGUS_MSG="$(driv bogus-message)"; case "$BOGUS_MSG" in *session/bogus*) probe_ok "the refusal quotes the method the client sent";; *) probe_fail "the refusal does not quote the method (said: '$BOGUS_MSG')" " a client cannot fix a bare code";; esac
 want purity-bad 0 "every stdout line is JSON — stdout carries protocol messages only"
 want listen-count 0 "the HTTP bridge stays down: no listening socket for the whole session"
