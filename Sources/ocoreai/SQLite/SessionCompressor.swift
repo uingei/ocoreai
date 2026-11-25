@@ -219,6 +219,38 @@ actor SessionCompressor {
         }
     }
 
+    /// The sessions an external client can be *shown*: it re-opens a session by its own key,
+    /// and ACP's `SessionInfo.cwd` is required, so a row is visible only when it carries both
+    /// `external_key` (the loadable id) and `workspace_directory` (the honest cwd). GUI rows
+    /// opened by row id have neither and stay unlisted rather than being shown under an id
+    /// nothing can load or a cwd nobody recorded.
+    func listClientVisibleSessions(
+        limit: Int, offset: Int, cwd: String? = nil,
+    ) async throws -> [SessionModel] {
+        var sql = """
+            SELECT id, model_id, created_at, updated_at, message_count, token_count, summary,
+            ttl_days, workspace_directory, external_key
+            FROM sessions
+            WHERE external_key IS NOT NULL AND workspace_directory IS NOT NULL
+            """
+        var params: [AnyHashable] = []
+        if let cwd {
+            sql += " AND workspace_directory = ?"
+            params.append(cwd)
+        }
+        sql += " ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+        params.append(max(1, limit))
+        params.append(max(0, offset))
+        do {
+            let rows = try await store.query(sql, parameters: params)
+            return rows.compactMap { SessionModel(from: $0) }
+        } catch let sqliteErr as SQLiteError {
+            throw sqliteErr
+        } catch {
+            throw SQLiteError.queryFailed(detail: "listClientVisibleSessions failed: \(error)")
+        }
+    }
+
     /// List sessions with filtering.
     /// - Parameters:
     ///   - modelId: Optional model filter
@@ -1074,6 +1106,7 @@ extension SessionModel {
         self.summary = row["summary"]?.asString
         self.ttlDays = Self.getInt(row, "ttl_days") ?? 180
         self.workspaceDirectory = row["workspace_directory"]?.asString
+        self.externalKey = row["external_key"]?.asString
     }
 
     private static func getInt(_ row: [String: SendableValue], _ key: String) -> Int? {

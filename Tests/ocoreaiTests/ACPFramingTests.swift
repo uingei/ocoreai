@@ -179,7 +179,8 @@ struct ACPFramingTests {
             agentCapabilities: ACPAgentCapabilities(
                 loadSession: false,
                 promptCapabilities: ACPPromptCapabilities(
-                    image: false, audio: false, embeddedContext: true)),
+                    image: false, audio: false, embeddedContext: true),
+                sessionCapabilities: ACPSessionCapabilities(list: [:])),
             agentInfo: ACPImplementation(name: "ocoreai", title: "ocoreai", version: "9.9.9"),
             authMethods: [])
         let line = ACPFraming.response(id: .number(0), result: payload)
@@ -188,6 +189,10 @@ struct ACPFramingTests {
         #expect(result?["authMethods"] as? [String] == [])
         let caps = result?["agentCapabilities"] as? [String: Any]
         #expect(caps?["loadSession"] as? Bool == false)
+        let sessions = caps?["sessionCapabilities"] as? [String: Any]
+        #expect(
+            sessions?["list"] as? [String: Any] != nil,
+            "session/list support is advertised the way the schema spells it: list: {}")
         let prompts = caps?["promptCapabilities"] as? [String: Any]
         #expect(prompts?["image"] as? Bool == false)
         #expect(prompts?["audio"] as? Bool == false)

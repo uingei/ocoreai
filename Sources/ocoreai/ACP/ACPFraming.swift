@@ -223,6 +223,32 @@ struct ACPPromptCapabilities: Codable, Equatable {
 struct ACPAgentCapabilities: Codable, Equatable {
     let loadSession: Bool
     let promptCapabilities: ACPPromptCapabilities
+    let sessionCapabilities: ACPSessionCapabilities
+}
+
+/// v1 `SessionCapabilities`: supplying `{}` for a capability means the method is spoken;
+/// an absent key means it is not. This build speaks `session/list`.
+struct ACPSessionCapabilities: Codable, Equatable {
+    let list: [String: String]
+}
+
+/// Inbound `session/list` params. All fields optional per the v1 schema.
+struct ACPListSessionsParams: Codable, Equatable {
+    let cwd: String?
+    let cursor: String?
+}
+
+/// Outbound `session/list` line: `SessionInfo` carries a required `cwd`, so the agent
+/// lists only sessions whose cwd it actually recorded.
+struct ACPSessionInfo: Codable, Equatable {
+    let sessionId: String
+    let cwd: String
+    let updatedAt: String
+}
+
+struct ACPListSessionsResult: Codable, Equatable {
+    let sessions: [ACPSessionInfo]
+    var nextCursor: String?
 }
 
 struct ACPInitializeResult: Codable, Equatable {

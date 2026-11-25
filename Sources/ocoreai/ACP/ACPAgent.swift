@@ -99,8 +99,18 @@ final class ACPAgent {
     /// be ambiguous about which direction the message went.
     private var nextPermissionID = 100_000
 
-    init(write: @escaping (Data) -> Void) {
+    /// The session store, asked for when a method needs it rather than at boot: the engine
+    /// opens the store while this face is already reading stdin. A test injects its own.
+    private let store: @MainActor () -> SessionCompressor?
+
+    init(
+        write: @escaping (Data) -> Void,
+        store: @escaping @MainActor () -> SessionCompressor? = {
+            OcoreaiEngine.shared.activeSessionCompressor
+        }
+    ) {
         self.write = write
+        self.store = store
     }
 
     /// Bridges the one approval truth (`ApprovalBroker`, asked from because `ToolEntry.isDestructive`)
@@ -197,12 +207,13 @@ final class ACPAgent {
         case "session/new": handleNewSession(message)
         case "session/prompt": handlePrompt(message)
         case "session/cancel": handleCancel(message)
+        case "session/list": handleListSessions(message)
         case "authenticate":
             fail(
                 message, code: ACPFraming.methodNotFoundCode,
                 "authenticate: this agent holds no credential to obtain — the model is local and "
                     + "initialize already answers \"authMethods\": []")
-        case "session/load", "session/resume", "session/list", "session/close", "session/delete",
+        case "session/load", "session/resume", "session/close", "session/delete",
             "session/set_mode", "session/set_config_option", "logout":
             fail(
                 message, code: ACPFraming.methodNotFoundCode,
@@ -264,7 +275,8 @@ final class ACPAgent {
                     agentCapabilities: ACPAgentCapabilities(
                         loadSession: false,
                         promptCapabilities: ACPPromptCapabilities(
-                            image: false, audio: false, embeddedContext: true)),
+                            image: false, audio: false, embeddedContext: true),
+                        sessionCapabilities: ACPSessionCapabilities(list: [:])),
                     agentInfo: ACPImplementation(
                         name: "ocoreai", title: "ocoreai", version: AppInfo.shortVersion),
                     authMethods: [])))
@@ -310,6 +322,114 @@ final class ACPAgent {
         write(
             ACPFraming.response(
                 id: message.id ?? .number(0), result: ACPNewSessionResult(sessionId: session.id)))
+    }
+
+    // MARK: - session/list
+
+    /// Rows per `session/list` page. The store caps nothing; the page size is this face's.
+    static let listPageSize = 50
+
+    private func handleListSessions(_ message: ACPIncoming) {
+        guard initialized else {
+            fail(
+                message, code: ACPFraming.invalidRequestCode,
+                notReadyReason(for: "session/list"))
+            return
+        }
+        guard let id = message.id else { return }  // a notification has nothing to answer
+        var cwd: String?
+        var offset = 0
+        // All params are optional; a present-but-unreadable one is refused, never defaulted.
+        if let json = message.paramsJSON, json != Data("null".utf8) {
+            guard let params = message.params(as: ACPListSessionsParams.self) else {
+                fail(
+                    message, code: ACPFraming.invalidParamsCode,
+                    "session/list: \"cwd\" must be a string path and \"cursor\" a string token")
+                return
+            }
+            if let requested = params.cwd {
+                guard requested.hasPrefix("/") else {
+                    fail(
+                        message, code: ACPFraming.invalidParamsCode,
+                        "session/list: \"cwd\" must be an absolute path, got \"\(requested)\"")
+                    return
+                }
+                cwd = requested
+            }
+            if let token = params.cursor {
+                guard let decoded = Self.decodeListCursor(token), decoded >= 0 else {
+                    fail(
+                        message, code: ACPFraming.invalidParamsCode,
+                        "session/list: \"\(token)\" is not a cursor this agent issued — "
+                            + "omit \"cursor\" for the first page")
+                    return
+                }
+                offset = decoded
+            }
+        }
+        guard let compressor = store() else {
+            write(
+                ACPFraming.error(
+                    id: id, code: ACPFraming.internalErrorCode,
+                    message: "session/list: no session store is open in this process"))
+            return
+        }
+        let pageSize = Self.listPageSize
+        Task { [weak self] in
+            do {
+                // Over-fetch one: a full page plus one row is what earns a nextCursor.
+                let rows = try await compressor.listClientVisibleSessions(
+                    limit: pageSize + 1, offset: offset, cwd: cwd)
+                let more = rows.count > pageSize
+                // One conversation can own a row per model (`resolveSession`'s keying);
+                // the client knows one id, so the newest row per key is the entry.
+                var seen: Set<String> = []
+                var infos: [ACPSessionInfo] = []
+                for row in rows.prefix(pageSize) {
+                    guard let key = row.externalKey, let dir = row.workspaceDirectory,
+                        !dir.isEmpty, seen.insert(key).inserted
+                    else { continue }
+                    infos.append(
+                        ACPSessionInfo(
+                            sessionId: key, cwd: dir, updatedAt: Self.iso8601(row.updatedAt)))
+                }
+                self?.write(
+                    ACPFraming.response(
+                        id: id,
+                        result: ACPListSessionsResult(
+                            sessions: infos,
+                            nextCursor: more ? Self.listCursor(offset: offset + pageSize) : nil)))
+            } catch {
+                self?.write(
+                    ACPFraming.error(
+                        id: id, code: ACPFraming.internalErrorCode,
+                        message: "session/list: the session store refused the query: "
+                            + error.localizedDescription))
+            }
+        }
+    }
+
+    /// The client must treat cursors as opaque, so any reversible token is legal and
+    /// offset-in-base64 is the smallest. The page size belongs to this agent and is stable
+    /// across a pagination walk.
+    nonisolated static func listCursor(offset: Int) -> String {
+        Data("offset:\(offset)".utf8).base64EncodedString()
+    }
+
+    nonisolated static func decodeListCursor(_ token: String) -> Int? {
+        guard let data = Data(base64Encoded: token),
+            let text = String(data: data, encoding: .utf8),
+            text.hasPrefix("offset:"),
+            let value = Int(text.dropFirst("offset:".count))
+        else { return nil }
+        return value
+    }
+
+    nonisolated static func iso8601(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.string(from: date)
     }
 
     // MARK: - session/prompt
@@ -464,9 +584,7 @@ final class ACPAgent {
         // Store before answering: what the editor reads back must be as durable as what it
         // just read. A failed store does not retroactively fail a delivered turn (the GUI and
         // wire lanes treat it the same way), but it says so on stderr, where the editor shows logs.
-        if let compressor = OcoreaiEngine.shared.activeSessionCompressor,
-            let session = sessions[sessionId]
-        {
+        if let compressor = store(), let session = sessions[sessionId] {
             do {
                 try await Self.persistTurn(
                     to: compressor, session: session, modelId: model, userText: text,
@@ -545,7 +663,8 @@ final class ACPAgent {
                     "rawInput": rawInput,
                 ])
         case .toolResult(let result):
-            record.noteResult(id: result.id, summary: result.resultSummary, failed: result.failure != nil)
+            record.noteResult(
+                id: result.id, summary: result.resultSummary, failed: result.failure != nil)
             update(
                 sessionId,
                 [

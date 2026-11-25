@@ -20,6 +20,10 @@ struct SessionModel: Codable {
     /// Bound worktree working directory (codex new_worktree), or nil when the
     /// session uses the global configured workspace.
     var workspaceDirectory: String?
+    /// The client's own conversation key, or nil for rows no client can name (GUI rows
+    /// open by row id). It is what `session/load` matches on and what `session/list`
+    /// must report, so only rows carrying it are visible to an external client.
+    var externalKey: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -31,6 +35,7 @@ struct SessionModel: Codable {
         case ttlDays = "ttl_days"
         case modelId = "model_id"
         case workspaceDirectory = "workspace_directory"
+        case externalKey = "external_key"
     }
 }
 
