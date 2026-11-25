@@ -486,8 +486,11 @@ final class ACPAgent {
         Task { [weak self] in
             guard let self else { return }
             do {
-                guard let row = try await compressor.clientSessionRow(externalKey: sessionId)
-                else {
+                // One client key spans one row per model (`resolveSession`'s keying), so the
+                // whole conversation is the union of its shards, oldest first; the newest
+                // shard names the model the re-opened conversation answers with now.
+                let rows = try await compressor.clientSessionRows(externalKey: sessionId)
+                guard let newest = rows.first else {
                     self.write(
                         ACPFraming.error(
                             id: id, code: ACPFraming.invalidParamsCode,
@@ -501,10 +504,11 @@ final class ACPAgent {
                 SessionWorkspace.setDirectory(cwd)
                 var refeed: [TranscriptEntry] = []
                 var offset = 0
+                let shardIds = rows.map { $0.id }.reversed()
                 // The response goes out only after every entry has been streamed (v1 MUST).
                 while true {
                     let page = try await compressor.replayRows(
-                        sessionId: row.id, limit: pageSize, offset: offset)
+                        sessionIds: Array(shardIds), limit: pageSize, offset: offset)
                     for stored in page {
                         self.replay(sessionId: sessionId, stored: stored, refeed: &refeed)
                     }

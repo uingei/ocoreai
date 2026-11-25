@@ -132,6 +132,60 @@ struct ACPSessionLoadTests {
         #expect(calls.allSatisfy { $0["status"] as? String == "pending" })
     }
 
+    @Test("a conversation that switched models replays as one conversation, not its last shard")
+    func splitAcrossModelRows() async throws {
+        // `resolveSession` keys one client conversation as one row PER MODEL — the engine
+        // partitions a conversation the same way — so a session that switched models owns
+        // two rows. The v1 MUST is the whole conversation; replaying only the newest row
+        // would silently delete everything the editor saw before the switch.
+        let (agent, capture, store, compressor, path) = try await openAgent()
+        defer {
+            Task { await store.close() }
+            cleanup(path)
+        }
+
+        var first = ACPTurnRecord()
+        first.assistantText = "on the first model"
+        try await ACPAgent.persistTurn(
+            to: compressor, session: ACPSession(id: "acp-split", cwd: NSTemporaryDirectory()),
+            modelId: "model-a", userText: "start", record: first)
+        var second = ACPTurnRecord()
+        second.assistantText = "on the second model"
+        try await ACPAgent.persistTurn(
+            to: compressor, session: ACPSession(id: "acp-split", cwd: NSTemporaryDirectory()),
+            modelId: "model-b", userText: "switch", record: second)
+
+        let previousAnchor = SessionWorkspace.currentDirectory()
+        defer { SessionWorkspace.setDirectory(previousAnchor) }
+        agent.receive(
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}"#)
+        agent.receive(
+            #"{"jsonrpc":"2.0","id":2,"method":"session/load","params":{"sessionId":"acp-split","cwd":"\#(NSTemporaryDirectory())","mcpServers":[]}}"#
+        )
+        // init + 4 updates (user/assistant × 2 turns) + response.
+        try await waitFor(capture, count: 6)
+        let lines = objects(capture)
+        var texts: [String] = []
+        var roles: [String] = []
+        for line in lines {
+            guard line["method"] as? String == "session/update",
+                let params = line["params"] as? [String: Any],
+                let update = params["update"] as? [String: Any],
+                let kind = update["sessionUpdate"] as? String,
+                kind == "user_message_chunk" || kind == "agent_message_chunk"
+            else { continue }
+            roles.append(kind == "user_message_chunk" ? "user" : "assistant")
+            let content = update["content"] as? [String: Any]
+            texts.append((content?["text"] as? String) ?? "")
+        }
+        #expect(
+            roles == ["user", "assistant", "user", "assistant"],
+            "both model shards replay, in conversation order")
+        #expect(
+            texts == ["start", "on the first model", "switch", "on the second model"],
+            "the pre-switch history is part of the conversation the editor re-opens")
+    }
+
     @Test("unknown id, relative cwd, caller-supplied MCP servers: each refused by name")
     func refusals() async throws {
         let (agent, capture, store, _, path) = try await openAgent()
