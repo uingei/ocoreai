@@ -44,7 +44,8 @@ struct ACPTranscriptTests {
         try await ACPAgent.persistTurn(
             to: compressor, session: session, modelId: "m1", userText: "Capital?", record: record)
 
-        let rowId = try await compressor.resolveSession(externalKey: "acp-transcript1", modelId: "m1")
+        let rowId = try await compressor.resolveSession(
+            externalKey: "acp-transcript1", modelId: "m1")
         let row = try #require(await compressor.getSession(rowId))
         #expect(row.workspaceDirectory == "/tmp/editor-project")
         let listed = try await rowsOldestFirst(compressor, rowId)
@@ -68,7 +69,9 @@ struct ACPTranscriptTests {
         #expect(after[2].content == "And Germany?")
     }
 
-    @Test("tool records pair by id; a failed result says failed; a call without a result says nothing")
+    @Test(
+        "tool records pair by id; a failed result says failed; a call without a result says nothing"
+    )
     func toolCallFailureBitIsRecorded() async throws {
         let (store, path) = try await openStore()
         defer { Task { await store.close() } }
@@ -90,7 +93,8 @@ struct ACPTranscriptTests {
             try await rowsOldestFirst(compressor, rowId).first { $0.role == "assistant" })
         let calls = try #require(assistant.toolCalls)
         #expect(calls.map(\.callId) == ["c1", "c2", "c3"], "call order is the conversation's")
-        #expect(calls[0].arguments == ["path": "x"], "args ride in the same flat shape the GUI stores")
+        #expect(
+            calls[0].arguments == ["path": "x"], "args ride in the same flat shape the GUI stores")
         #expect(calls[0].resultFailed == false)
         #expect(calls[1].resultFailed == true, "a failed result must not replay as a completion")
         #expect(calls[2].resultFailed == nil, "no result yet is not a completion either")
@@ -108,6 +112,7 @@ struct ACPTranscriptTests {
             record: ACPTurnRecord())
         let rowId = try await compressor.resolveSession(externalKey: "acp-empty", modelId: "m1")
         let stored = try await rowsOldestFirst(compressor, rowId)
-        #expect(stored.map(\.role) == ["user"], "an empty assistant row would replay as a blank bubble")
+        #expect(
+            stored.map(\.role) == ["user"], "an empty assistant row would replay as a blank bubble")
     }
 }
