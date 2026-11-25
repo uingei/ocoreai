@@ -24,6 +24,47 @@ struct ACPSession: Equatable {
     let cwd: String
 }
 
+/// What one ACP turn actually showed the editor, collected alongside the live stream so the
+/// stored rows are exactly what the client saw — including a turn the user stopped mid-answer.
+struct ACPTurnRecord {
+    struct Call {
+        let id: String
+        let name: String
+        let arguments: String?
+        var summary: String?
+        var failed = false
+    }
+
+    var assistantText = ""
+    var reasoningText = ""
+    private(set) var calls: [Call] = []
+
+    mutating func noteCall(id: String, name: String, arguments: String?) {
+        calls.append(Call(id: id, name: name, arguments: arguments))
+    }
+
+    /// A result whose id matches nothing live still belongs to the conversation; dropping it
+    /// would store a call that never ends. It rides as its own record instead.
+    mutating func noteResult(id: String, summary: String, failed: Bool) {
+        if let index = calls.firstIndex(where: { $0.id == id }) {
+            calls[index].summary = summary
+            calls[index].failed = failed
+        } else {
+            calls.append(Call(id: id, name: "", arguments: nil, summary: summary, failed: failed))
+        }
+    }
+
+    func toolCallRecords() -> [ToolCallRecord] {
+        calls.map { call in
+            ToolCallRecord(
+                callId: call.id, toolName: call.name,
+                arguments: ChatState.parseToolArguments(call.arguments),
+                resultSummary: call.summary, durationMs: nil,
+                resultFailed: call.summary == nil ? nil : call.failed)
+        }
+    }
+}
+
 @MainActor
 final class ACPAgent {
 
@@ -393,9 +434,10 @@ final class ACPAgent {
         var payload: Data
         var finish = "stop"
         var engineWords: String?
+        var record = ACPTurnRecord()
         do {
             for await chunk in try await DirectInferenceClient.shared.stream(request: request) {
-                emit(sessionId: sessionId, chunk: chunk)
+                emit(sessionId: sessionId, chunk: chunk, record: &record)
                 if let error = chunk.error { engineWords = error }
                 if let reason = chunk.stopReason { finish = reason }
                 if Task.isCancelled || cancellation.isCancelled { break }
@@ -419,11 +461,49 @@ final class ACPAgent {
             ACPStderr.log("turn failed: \(cause)")
             payload = ACPFraming.error(id: id, code: ACPFraming.internalErrorCode, message: cause)
         }
+        // Store before answering: what the editor reads back must be as durable as what it
+        // just read. A failed store does not retroactively fail a delivered turn (the GUI and
+        // wire lanes treat it the same way), but it says so on stderr, where the editor shows logs.
+        if let compressor = OcoreaiEngine.shared.activeSessionCompressor,
+            let session = sessions[sessionId]
+        {
+            do {
+                try await Self.persistTurn(
+                    to: compressor, session: session, modelId: model, userText: text,
+                    record: record)
+            } catch {
+                ACPStderr.log("turn not stored: \(error.localizedDescription)")
+            }
+        }
         write(payload)
     }
 
-    private func emit(sessionId: String, chunk: DirectChatChunk) {
+    /// Append one ACP turn to the store the app's session pages read, so an editor
+    /// conversation outlives the editor. The key is the ACP session id (one row per
+    /// conversation and model, `resolveSession`'s existing rule) and the editor's cwd rides
+    /// `workspace_directory`, the one home a session's cwd has.
+    nonisolated static func persistTurn(
+        to compressor: SessionCompressor, session: ACPSession, modelId: String,
+        userText: String, record: ACPTurnRecord
+    ) async throws {
+        let rowId = try await compressor.resolveSession(externalKey: session.id, modelId: modelId)
+        try await compressor.bindWorkspace(session.cwd, for: rowId)
+        _ = try await compressor.addMessage(
+            sessionId: rowId, role: "user", content: userText,
+            tokenCount: TokenEstimate.promptTokens(userText))
+        let calls = record.toolCallRecords()
+        let hasReasoning = !record.reasoningText.isEmpty
+        guard !record.assistantText.isEmpty || hasReasoning || !calls.isEmpty else { return }
+        _ = try await compressor.addMessage(
+            sessionId: rowId, role: "assistant", content: record.assistantText,
+            tokenCount: TokenEstimate.promptTokens(record.assistantText),
+            toolCalls: calls.isEmpty ? nil : calls,
+            reasoning: hasReasoning ? record.reasoningText : nil)
+    }
+
+    private func emit(sessionId: String, chunk: DirectChatChunk, record: inout ACPTurnRecord) {
         if let thought = chunk.reasoningContent, !thought.isEmpty {
+            record.reasoningText += thought
             update(
                 sessionId,
                 [
@@ -432,6 +512,7 @@ final class ACPAgent {
                 ])
         }
         if let text = chunk.text, !text.isEmpty {
+            record.assistantText += text
             update(
                 sessionId,
                 [
@@ -441,6 +522,7 @@ final class ACPAgent {
         }
         switch chunk.metadata {
         case .toolCall(let call):
+            record.noteCall(id: call.id, name: call.name, arguments: call.arguments)
             // rawInput is any JSON value: the parsed object renders readable in an editor, and
             // arguments that are not JSON ride as their own string rather than being dropped.
             let rawInput: Any
@@ -463,6 +545,7 @@ final class ACPAgent {
                     "rawInput": rawInput,
                 ])
         case .toolResult(let result):
+            record.noteResult(id: result.id, summary: result.resultSummary, failed: result.failure != nil)
             update(
                 sessionId,
                 [

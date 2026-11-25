@@ -79,6 +79,10 @@ struct ToolCallRecord: Codable {
     let arguments: [String: String]
     let resultSummary: String?
     let durationMs: Double?
+    /// Whether the reported result was a failure; `nil` = never recorded. A summary alone
+    /// cannot tell success from failure, and a replay guessing "completed" would assert
+    /// a completion the tool never had — so the lanes that know, say so.
+    var resultFailed: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
         case callId = "call_id"
@@ -86,6 +90,7 @@ struct ToolCallRecord: Codable {
         case arguments
         case resultSummary = "result_summary"
         case durationMs = "duration_ms"
+        case resultFailed = "result_failed"
     }
 }
 
