@@ -246,11 +246,13 @@ off, no homepage, `VISION.md` absent, 0 watchers (`subscribers_count`, 11-09). E
    own `DirectInferenceClient` lane, `ApprovalBroker` translated into `session/request_permission` (ACP is
    not headless, so approval answers here where the wire lanes deny), bridge forced off through
    `HttpBridgePolicy.CallerIntent.forcedOff`, refusals standing in for every unbuilt promise
-   (`loadSession:false`, image/audio by name, caller MCP servers by count); the v1 conformance round 11-25
+   (image/audio by name, caller MCP servers by count); the v1 conformance round 11-25
    made `session/request_permission` an answered request, `initialize` a negotiation, and dropped the
-   un-advertised `notice` updates. Gated by probe 62 (26 live
-   assertions, weight-free scripted lane) and `ACP{Mode,Framing,PermissionWire,Negotiation,StopReason}Tests` (14). What the rung still
-   owes is the `open-items.md` row "ACP face: what remains", and one witness no probe can fake: an editor
+   un-advertised `notice` updates, and the same day the direct lane began persisting its answered turns:
+   `session/list` and `session/load` (`loadSession:true`) replay a stored conversation in order before
+   the load answers. Gated by probe 62 (31 live
+   assertions, weight-free scripted lane) and `ACP*Tests` (23, 8 suites). What the rung still
+   owes is the `open-items.md` row "The ACP face ships what it proves", and one witness no probe can fake: an editor
    driving a real turn.
 
 What this does **not** mean: retire B/C/G/S. They keep claims true once attention exists. What changed is the

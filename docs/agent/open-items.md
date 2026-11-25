@@ -5,19 +5,24 @@ where a number is unmeasured it says so, and where a fix is blocked by the host 
 which. A resolution goes to `docs/agent/closed-items-log.md`; a decision becomes a rule in `AGENTS.md` or
 the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the symbol).
 
-- **The ACP face ships what it proves; six methods and one witness remain** (ACP/, long-horizon-goal
-  rung 7). Shipped 11-24 (`65d8285e`), made v1-conformant 11-25 (request-shaped permission, negotiated
-  `initialize`, no un-advertised notices): `ocoreai acp` over stdio, gated by probe 62 (26 live assertions,
-  scripted lane) and `ACP{Mode,Framing,PermissionWire,Negotiation,StopReason}Tests` (14). Every unshipped capability is a refusal at
-  the surface (`loadSession:false`, image/audio by name, caller `mcpServers` and non-empty
-  `additionalDirectories` by count), so the face never claims more than the engine delivered. What remains
-  is mechanical, not a decision: `session/load`/`resume`/`list` against `SessionManager`, model choice via
-  `configOptions` + `session/set_config_option`, caller-supplied MCP servers (needs the MCP child
-  confinement ruling below), and `tool_call_update status:"completed"` only once real tool dispatch runs
-  inside the ACP turn (today the scripted lane proves surfacing, not completion). The one thing no probe
-  can fake is a real editor driving a real turn. Owner call: none of these blocks the shipped face; the
-  registry listing stays unreachable by the registry's own three-OS + authMethod rules (read 11-24) and is
-  not on anyone's queue.
+- **The ACP face ships what it proves; the durable half landed 11-25, four debts and one witness remain**
+  (ACP/, long-horizon-goal rung 7). Shipped 11-24 (`65d8285e`), made v1-conformant 11-25 (request-shaped
+  permission, negotiated `initialize`, no un-advertised notices), and made durable the same day, against the
+  open row's own convicted premise ("load/resume/list is mechanical against `SessionManager`" — the direct
+  lane persisted nothing, so there was nothing to load): an answered turn now lands in `SessionCompressor`
+  before the response goes out, and `session/list` + `session/load` reopen a conversation the editor lost
+  (`85f8952c`..`7f0a1893`, plus `2d0c5375`: `bindWorkspace` stamped nanoseconds into a microsecond
+  `updated_at`, and rows so stamped pinned every `ORDER BY updated_at DESC`). `loadSession:true` and
+  `sessionCapabilities.list` are promises kept, each gate red-sampled against the pre-fix shape; a refused
+  or unknown `session/load` no longer moves the process-wide workspace anchor (`1f201c0c`, self-convicted
+  from full-suite reds). Gated by probe 62 (31 live assertions, scripted lane) and `ACP*Tests` (23 across
+  8 suites). What remains: model choice via `configOptions` + `session/set_config_option`; caller-supplied
+  MCP servers (await the MCP child confinement ruling below); `tool_call_update status:"completed"` on a
+  live turn only once real dispatch runs inside the ACP turn (replay already closes stored calls by their
+  `resultFailed` bit). `session/resume` stays refused by design: a stdio agent's live session cannot
+  outlive the connection, and `load` is the honest re-open. The one thing no probe can fake is a real
+  editor driving a real turn. The registry listing stays unreachable by the registry's own three-OS +
+  authMethod rules (read 11-24) and is not on anyone's queue.
 
 
 - **The LSP diagnostics slice is ruled and unfunded; the loop still pays a whole build per edit** (Tools/,
