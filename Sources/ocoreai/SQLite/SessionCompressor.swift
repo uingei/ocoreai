@@ -274,13 +274,15 @@ actor SessionCompressor {
 
     /// Persist the session's worktree working directory. The bind and clear
     /// paths use separate statements because the prepared-statement binder has
-    /// no NULL binding path.
+    /// no NULL binding path. The stamp is microseconds like every other writer of
+    /// `updated_at` — a nanosecond one reads back as year ~52 000 and pins the row
+    /// on top of every `ORDER BY updated_at DESC` list.
     func bindWorkspace(_ directory: String, for sessionId: Int64) async throws {
         do {
             try await store.execute(
                 sql: "UPDATE sessions SET workspace_directory = ?, updated_at = ? WHERE id = ?",
                 parameters: [
-                    directory, Int64(Date().timeIntervalSince1970 * 1_000_000_000), sessionId,
+                    directory, Int64(Date().timeIntervalSince1970 * 1_000_000), sessionId,
                 ])
         } catch {
             throw SQLiteError.executionFailed(detail: "bindWorkspace failed: \(error)")

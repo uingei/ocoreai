@@ -105,4 +105,33 @@ struct SessionWorkspaceBindingTests {
             listed2.first { $0.id == sid }?.workspaceDirectory == nil, "clear 后 listSessions nil")
         await store.close()
     }
+
+    /// The bind stamps `updated_at`; a unit mismatch is invisible in the directory round trip
+    /// and fatal in the ordering the list page is built on. Sampled red 11-25 against the
+    /// nanosecond stamp: the read-back date was year ~52 000 and the bound row led the list.
+    @Test("bind 的 updated_at 走微秒：读回近此刻, 且不让绑定行永远霸占 ORDER BY updated_at DESC")
+    func bindStampsMicrosecondsLikeEveryOtherWriter() async throws {
+        let p = tempDBPath()
+        defer { cleanup(p) }
+        let store = SQLiteStore(path: p)
+        try await store.open()
+        let comp = SessionCompressor(store: store, fts: FTS5Search(store: store))
+
+        let bound = try await comp.createSession(modelId: "stamp-probe")
+        try await comp.bindWorkspace("/tmp/ws-stamp-\(UUID().uuidString.prefix(8))", for: bound)
+        let row = try await comp.getSession(bound)
+        let stamp = try #require(row?.updatedAt)
+        #expect(
+            abs(stamp.timeIntervalSinceNow) < 120,
+            "bind 后读回应为此刻附近, got \(stamp) — 单位错了就是年份漂移")
+
+        // A row touched later by ordinary traffic must still win the DESC ordering.
+        try await comp.addMessage(sessionId: bound, role: "user", content: "old", tokenCount: 1)
+        let later = try await comp.createSession(modelId: "stamp-probe")
+        let listed = try await comp.listSessions(limit: 20)
+        #expect(
+            listed.first?.id == later,
+            "新会话应排最前; bound 行霸榜说明 bind 的 stamp 单位又漂了")
+        await store.close()
+    }
 }
