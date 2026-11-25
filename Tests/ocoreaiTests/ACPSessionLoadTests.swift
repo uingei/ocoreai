@@ -44,7 +44,9 @@ struct ACPSessionLoadTests {
             if capture.lines.count >= count { return }
             try await Task.sleep(nanoseconds: 2_000_000)
         }
-        Issue.record("only \(capture.lines.count) of \(count) promised lines arrived")
+        let arrived = capture.lines.prefix(4).compactMap { String(data: $0, encoding: .utf8) }
+        Issue.record(
+            "only \(capture.lines.count) of \(count) promised lines arrived; first: \(arrived)")
     }
 
     @Test("replay streams every entry in order and only then answers with the empty result")
@@ -64,14 +66,26 @@ struct ACPSessionLoadTests {
         record.noteResult(id: "c2", summary: "boom", failed: true)
         record.noteCall(id: "c3", name: "read_file", arguments: nil)
         try await ACPAgent.persistTurn(
-            to: compressor, session: ACPSession(id: "acp-load1", cwd: "/tmp/lp"),
+            to: compressor, session: ACPSession(id: "acp-load1", cwd: NSTemporaryDirectory()),
             modelId: "m1", userText: "go", record: record)
+
+        // The load moves the process-wide workspace anchor; the test owns that write and
+        // restores it. An accepted load landing on a missing directory is what once poisoned
+        // another suite's spawn cwd, so the accepted cwd must really exist.
+        let previousAnchor = SessionWorkspace.currentDirectory()
+        defer { SessionWorkspace.setDirectory(previousAnchor) }
+        let workDir = NSTemporaryDirectory()
 
         agent.receive(
             #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}"#)
-        agent.receive(
-            #"{"jsonrpc":"2.0","id":2,"method":"session/load","params":{"sessionId":"acp-load1","cwd":"/tmp/lp","mcpServers":[]}}"#
-        )
+        let loadBody: [String: Any] = [
+            "jsonrpc": "2.0", "id": 2, "method": "session/load",
+            "params": ["sessionId": "acp-load1", "cwd": workDir, "mcpServers": [String]()],
+        ]
+        let loadLine = try #require(
+            String(
+                data: try JSONSerialization.data(withJSONObject: loadBody), encoding: .utf8))
+        agent.receive(loadLine)
         // init + 8 updates (user, thought, message, 3×tool_call, 2×tool_call_update) + response.
         try await waitFor(capture, count: 10)
         let lines = objects(capture)
@@ -125,6 +139,12 @@ struct ACPSessionLoadTests {
             Task { await store.close() }
             cleanup(path)
         }
+        // A refused load must not move the process-wide workspace anchor. Sampled red 11-25:
+        // the pre-fix handler setDirectory'd before the store check, this file's own "/t"
+        // poisoned another suite's spawn cwd through ExecTools.effectiveCwd.
+        let previousAnchor = SessionWorkspace.currentDirectory()
+        SessionWorkspace.setDirectory("/tmp")
+        defer { SessionWorkspace.setDirectory(previousAnchor) }
 
         agent.receive(
             #"{"jsonrpc":"2.0","id":1,"method":"session/load","params":{"sessionId":"x","cwd":"/t"}}"#
@@ -132,6 +152,7 @@ struct ACPSessionLoadTests {
         let early = try #require(objects(capture).last)
         #expect(
             (early["error"] as? [String: Any])?["code"] as? Int == ACPFraming.invalidRequestCode)
+        #expect(SessionWorkspace.currentDirectory() == "/tmp")
 
         agent.receive(
             #"{"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":1}}"#)
@@ -143,6 +164,9 @@ struct ACPSessionLoadTests {
         let unknownError = try #require(unknown["error"] as? [String: Any])
         #expect(unknownError["code"] as? Int == ACPFraming.invalidParamsCode)
         #expect((unknownError["message"] as? String)?.contains("nope") == true)
+        #expect(
+            SessionWorkspace.currentDirectory() == "/tmp",
+            "an id the store never heard of must not relocate every other session's tools")
 
         agent.receive(
             #"{"jsonrpc":"2.0","id":4,"method":"session/load","params":{"sessionId":"nope","cwd":"relative"}}"#

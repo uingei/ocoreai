@@ -482,9 +482,6 @@ final class ACPAgent {
                     message: "session/load: no session store is open in this process"))
             return
         }
-        // The load request declares the working directory; tools follow it from here,
-        // the same anchor session/new sets.
-        SessionWorkspace.setDirectory(cwd)
         let pageSize = Self.replayPageSize
         Task { [weak self] in
             guard let self else { return }
@@ -499,6 +496,9 @@ final class ACPAgent {
                         ))
                     return
                 }
+                // The anchor moves only for a load that was accepted: a refused or unknown
+                // id must not relocate where every other session's tools run.
+                SessionWorkspace.setDirectory(cwd)
                 var refeed: [TranscriptEntry] = []
                 var offset = 0
                 // The response goes out only after every entry has been streamed (v1 MUST).
