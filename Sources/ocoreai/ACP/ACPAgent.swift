@@ -1119,6 +1119,15 @@ struct ACPCancelParams: Decodable {
 
 // MARK: - Runtime
 
+/// Outside the macOS gate below: the shared handlers call this on every platform the ACP face
+/// compiles on, and a failure report belongs wherever the reporter compiles.
+enum ACPStderr {
+    static func log(_ message: String) {
+        FileHandle.standardError.write(Data("ocoreai acp: \(message)\n".utf8))
+        fflush(stderr)
+    }
+}
+
 #if os(macOS)
 @MainActor
 enum ACPAgentRuntime {
@@ -1165,13 +1174,6 @@ enum ACPStdout {
     static func write(_ data: Data) {
         FileHandle.standardOutput.write(data)
         fflush(stdout)
-    }
-}
-
-enum ACPStderr {
-    static func log(_ message: String) {
-        FileHandle.standardError.write(Data("ocoreai acp: \(message)\n".utf8))
-        fflush(stderr)
     }
 }
 
