@@ -149,7 +149,7 @@ detail; "registry (dated)" there means the problem statement is that row's, not 
 | gemini-cli | enterprise CLI honesty incl. its own staleness | premise feeds § Open tool-surface | new row + this §3, measured 11-20 |
 | OpenHands | UI state + locale completeness | gates exist, harder | registry (dated) |
 | modelcontextprotocol | dated wire substrate for tools | consumed as spec | registry (dated) |
-| agent-client-protocol | editors as harness consumers | owner call (ACP) | registry (dated) |
+| agent-client-protocol | editors as harness consumers | **yes; face shipped 11-24** (long-horizon rung 7; owed witness: a real editor driving a turn) | `Sources/ocoreai/ACP/`; registry row now stale in kind, not date |
 | claude-skills-official | how a skill routes | consumed 11-09 | registry (dated); probe 39 |
 | claude-plugins-official | the plugin channel + validator | consumed 11-09 | registry (dated) |
 | nanoGPT | a dated reference's death by pointer | pattern axis | registry (dated) |

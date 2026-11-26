@@ -78,11 +78,11 @@ lesson, told live); the *ours*-column moves with the tree the same day.
 | Evals or benchmark tree | shippable | 22/34 | yes (26) |
 | Third-party notice manifest | shippable | 20/34 | yes (43) |
 | Screen capture / computer use in code | agent | 12/14 | yes (17) |
-| Deferred / filtered tool surface | agent | 12/14 | **no** (§ The ledger: our 2 hits are noise) |
+| Deferred / filtered tool surface | agent | 12/14 | **mechanism shipped 11-25**, default OFF (`tool_search` + `ToolSurfaceReachability` behind `settings.toolSurface.reachable.enabled`; `ToolSearchWiringTests`) — until the board arm prices the flip, a turn still carries the whole registry, so the field axis is held in code, not in behavior |
 | `SKILL.md` files published | agent | 11/14, median **14** | **1** (`skills/ocoreai/`) |
 | Release tags | shippable | 29/34, median **209** | **3** tags; all three inside the newest 30-d window (`v0.1.14` 10-29 → `v0.1.16` 11-07), 1 surviving release |
 | **Wires a third-party coding agent to itself** | serve | **11/12** | **yes on the wire**; probe 53 runs claude's own loop cloud-severed on `/v1/messages` (11-08); the product code (detection, config writer) is still ours to ship (§ The harness side) |
-| **Speaks ACP (the editor↔agent protocol)** | agent | **8/14, and 8/8 editing now** | **no** (§ Direction 8) |
+| **Speaks ACP (the editor↔agent protocol)** | agent | **8/14, and 8/8 editing now** | **yes, shipped 11-24** (`Sources/ocoreai/ACP/`, gate seats: probe 62 + `ACP*Tests`; the 11-08 read this cell carried died with `65d8285e`) |
 | **OS confinement profile for the child process** | agent | 6/14, honest read 5 | **no** (§ Where the field confines) |
 | Committed machine-readable HTTP contract | serve | **2/12**; us + `ollama`: precedent, not consensus | yes (`openapi.json`, generated) |
 | Published client *package* | serve | **2/12** (`openclaw`, `sglang`); thin, and not ours | no |
@@ -214,6 +214,10 @@ own loop, every cloud credential unset, the only base URL ours, an on-disk exact
 8 engine-served turns. That closes the discovery question. The wire works for a harness that owes us nothing,
 but it is not what the eleven score on: they ship product code (detection, config writers), and
 `/v1/capabilities` plus `openapi.json` still describe us to a client that has to configure itself.
+**That sentence is the 11-08 state; the product half landed 11-25.** `ocoreai connect <harness>`
+(`Core/HarnessConnect.swift`) launches an installed harness pointed at our probed bridge — chosen shape: env
+handover, **no user config file written**, so the non-destructive-merge question the eleven answer with
+`config_merge.py`-style machinery never opens here; probe 55 judges the launch, README § agent section leads with it.
 
 Why this is the round's real finding: root § Adoption says to spend on "a harness consuming us", and this says the
 harness side is not an open research question in this field. It is a config file plus a detection routine that
@@ -383,9 +387,11 @@ yet a task.
    up with; ours landed the same day (rows: `comparator-repos.md`) and typed install is one `/plugin install` line
    the validator itself prints.
 3. **Ship the harness side** (§ The harness side): **11 of 12 serving trees do it; the wire half landed 11-08**,
-   probe 53 proves a cloud-severed claude finishes a real job on our endpoint alone. The product half is the
-   `launch <agent>`-equivalent: detection plus a reversible config writer with the non-destructive-merge rule
-   from the docstring above. A route that edits the *user's* files, so the owner's call, not engineering.
+   probe 53 proves a cloud-severed claude finishes a real job on our endpoint alone. **The product half landed
+   11-25**: `ocoreai connect <harness>` (`Core/HarnessConnect.swift`, probe 55) — the reversible-config-writer
+   design question dissolved by taking the env-handover shape (writes no user file, the child's exit is the undo).
+   What the rung still owes is outside code: an outside harness choosing us without our coaching
+   (`long-horizon-goal.md` § Rung zero 6).
 4. **Skills and deferred tool loading are the same economy** (median 14 SKILL.md against our 1; 12/14 agent trees
    defer or filter the tool surface) and we hold the problem, 40 advertised, 6 scored. Without the mechanism.
    The *outbound* half closed 11-09 (one skill published on the harness's own install machine, frontmatter reduced to
@@ -410,14 +416,13 @@ yet a task.
    tables and advertise exactly those two, which sits us in the first half without pretending to nine. Filling
    `ja/ko/fr/es` is enumerable work with no observed request from anyone who asked, so: recorded as a gap, **not**
    scheduled, and `availableLocales` stays restricted to what has a table, which is what keeps it a gap and not a lie.
-8. **ACP is a measured majority we sit outside**, 8/14 agent trees speak it, 8/8 of those are editing it, and its
-   arrivals here are dated 03-14 → 10-13, so the spread is open (§ The protocol that spread in
-   `comparator-innovation.md`). It stays an owner call: an inbound wire is ladder rung 6, and the
-   consumer-with-a-name test is **not** met on this box, no editor ran us, and the client lists are comparator
-   claims (§ Upstream 5). What the round changes is the shape of the ask: ACP's `session/request_permission`
-   primitive is an *external consumer of the destructive truth we already keep in one home*
-   (`ToolEntry.isDestructive` → `securityPrecheck`), so the cheapest honest slice is an adapter over that gate,
-   never a second approval mechanism.
+8. **ACP is a measured majority we now hold. The call was taken 11-24 (`65d8285e`) and the face shipped the
+   way this item demanded** — an adapter over the one destructive home (`ToolEntry.isDestructive` →
+   `ApprovalBroker` → `session/request_permission`), no second approval mechanism. The debt left is the same
+   one this item always named: the consumer-with-a-name test is **not** met on this box — no real editor has
+   driven a turn through us (the instrument that cannot fake it: `open-items.md` § The ACP face; probes cannot
+   substitute), and the field spread (8/14, 8/8 editing, arrivals 03-14 → 10-13) is comparator-side inference
+   for what clients exist (§ Upstream 5).
 
 ## The ledger: false positives that would have become claims
 
