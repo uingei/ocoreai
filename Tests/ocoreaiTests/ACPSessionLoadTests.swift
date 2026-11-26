@@ -56,6 +56,11 @@ struct ACPSessionLoadTests {
 
     @Test("replay streams every entry in order and only then answers with the model selector")
     func replayThenResponse() async throws {
+        // An accepted load moves the process-wide workspace anchor inside `ACPAgent`, so the
+        // anchor is leased, not hand-restored: a concurrent lease holder read a nil anchor in
+        // between and wrote its test file into the repo root (the 11-27 `x.py`).
+        let lease = ProcessGlobalLease()
+        defer { lease.release() }
         let (agent, capture, store, compressor, path) = try await openAgent()
         defer {
             Task { await store.close() }
@@ -74,11 +79,8 @@ struct ACPSessionLoadTests {
             to: compressor, session: ACPSession(id: "acp-load1", cwd: NSTemporaryDirectory()),
             modelId: "m1", userText: "go", record: record)
 
-        // The load moves the process-wide workspace anchor; the test owns that write and
-        // restores it. An accepted load landing on a missing directory is what once poisoned
-        // another suite's spawn cwd, so the accepted cwd must really exist.
-        let previousAnchor = SessionWorkspace.currentDirectory()
-        defer { SessionWorkspace.setDirectory(previousAnchor) }
+        // An accepted load landing on a missing directory is what once poisoned another
+        // suite's spawn cwd, so the accepted cwd must really exist.
         let workDir = NSTemporaryDirectory()
 
         agent.receive(
@@ -152,6 +154,8 @@ struct ACPSessionLoadTests {
         // partitions a conversation the same way — so a session that switched models owns
         // two rows. The v1 MUST is the whole conversation; replaying only the newest row
         // would silently delete everything the editor saw before the switch.
+        let lease = ProcessGlobalLease()
+        defer { lease.release() }
         let (agent, capture, store, compressor, path) = try await openAgent()
         defer {
             Task { await store.close() }
@@ -169,8 +173,6 @@ struct ACPSessionLoadTests {
             to: compressor, session: ACPSession(id: "acp-split", cwd: NSTemporaryDirectory()),
             modelId: "model-b", userText: "switch", record: second)
 
-        let previousAnchor = SessionWorkspace.currentDirectory()
-        defer { SessionWorkspace.setDirectory(previousAnchor) }
         agent.receive(
             #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}"#)
         agent.receive(
@@ -202,6 +204,8 @@ struct ACPSessionLoadTests {
 
     @Test("unknown id, relative cwd, caller-supplied MCP servers: each refused by name")
     func refusals() async throws {
+        let lease = ProcessGlobalLease()
+        defer { lease.release() }
         let (agent, capture, store, _, path) = try await openAgent()
         defer {
             Task { await store.close() }
@@ -210,9 +214,7 @@ struct ACPSessionLoadTests {
         // A refused load must not move the process-wide workspace anchor. Sampled red 11-25:
         // the pre-fix handler setDirectory'd before the store check, this file's own "/t"
         // poisoned another suite's spawn cwd through ExecTools.effectiveCwd.
-        let previousAnchor = SessionWorkspace.currentDirectory()
         SessionWorkspace.setDirectory("/tmp")
-        defer { SessionWorkspace.setDirectory(previousAnchor) }
 
         agent.receive(
             #"{"jsonrpc":"2.0","id":1,"method":"session/load","params":{"sessionId":"x","cwd":"/t"}}"#
