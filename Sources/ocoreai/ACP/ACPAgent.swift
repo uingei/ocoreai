@@ -1117,6 +1117,14 @@ struct ACPCancelParams: Decodable {
     let sessionId: String?
 }
 
+// Shared by ACPAgent's turn and failure paths on every Apple target.
+enum ACPStderr {
+    static func log(_ message: String) {
+        // FileHandle writes directly; there is no stdio buffer to flush.
+        FileHandle.standardError.write(Data("ocoreai acp: \(message)\n".utf8))
+    }
+}
+
 // MARK: - Runtime
 
 #if os(macOS)
@@ -1168,12 +1176,6 @@ enum ACPStdout {
     }
 }
 
-enum ACPStderr {
-    static func log(_ message: String) {
-        FileHandle.standardError.write(Data("ocoreai acp: \(message)\n".utf8))
-        fflush(stderr)
-    }
-}
 
 /// Leftover bytes of a partially received message. Owned by the reader thread alone, and handed
 /// out only as whole lines, so no other actor ever sees a half message.
