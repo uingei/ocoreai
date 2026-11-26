@@ -515,8 +515,21 @@ Borrow: confirmation, nothing taken. Our verifier is a shell rc an answer cannot
   same confirmation SWE-bench's row already holds once). Typed verifiers are an axis only if the board's scope
   grows, which is the owner's call.
 
-- `harbor`. The Terminal-Bench authors' eval/optimize framework (+133 commits/14 d); unread until 11-14.
-Contains/Borrow: external-task supply if the board ever wants one. Read when that problem is live.
+- `harbor`. The Terminal-Bench authors' eval/optimize framework and the benchmark the field publishes to
+  (76 commits/14 d, HEAD `cf4bd004` 11-25; the "+133/14 d" this row carried was the 11-14 snapshot). Read
+  11-26, and it is more than the "external-task supply" this row guessed: a **generic ACP client adapter**
+  makes any ACP agent benchmarkable (`src/harbor/agents/installed/acp.py`; distribution kinds
+  `binary|npx|uvx|local` `:45`, checksummed binary archives with `darwin` targets `:563,:583-584`), with an
+  `acp:<id>` shorthand that resolves `agentclientprotocol/registry` (`acp_registry.py:10-11,15`); every run
+  persists as an **ATIF** trajectory receipt (`models/trajectories/trajectory.py:15-19`, current marker
+  `ATIF-v1.8` `models/README.md:24`). The wall, measured: the adapter installs and starts the agent **inside**
+  the sandbox environment (`acp.py:1166,:1733`, `environment.exec`), so a leaderboard entry needs an agent
+  binary that runs there (Linux; `environments/apple_container.py` runs Linux VMs on macOS hosts) and our
+  engine is Metal-only — the same three-OS-shaped wall as the ACP Registry's listing rules. The reachable
+  form of the re-aim's benchmark half is therefore **the field's harness on our wire**: `harbor run --agent
+  claude-code` (`README.md`, Terminal-Bench-2.0 section) with `ANTHROPIC_BASE_URL` pointed at our
+  `/v1/messages` bridge is a Terminal-Bench number on a model this box serves, priced by sandbox→host
+  networking and the owner's download, not by new surface here.
 
 - `SWE-ReX`. Sandboxed-shell runtime interface, dormant since 2026-05; registered 11-14, zero prior cites.
   Adjacent to our exec/eval domain; read only when a live cite reaches for it.

@@ -26,7 +26,7 @@ hand-written sweep in one pass: it missed `mlx` and reported `coreai-models` as 
 row shares a bullet with `mlx-swift-lm` (`comparator-repos.md`) and the naive regex reads one name per
 bullet. Row added; the script runs green.
 
-## Field-solved here (open. The five findings that change something; the fifth is an absence)
+## Field-solved here (open. The six findings that change something; the fifth is an absence)
 
 1. **`foundation-models-utilities` is a consumer channel we already satisfy and never advertise.**
    Measured: Apple's package drives Apple's `LanguageModelSession` against *any* OpenAI-compatible
@@ -93,6 +93,21 @@ bullet. Row added; the script runs green.
    (`MLX_METAL_GPU_ARCH`, a `getenv` sweep), so our memory-pressure route (`MemoryTracker`, `OOMGuard`) has
    no upstream env rung to ride either. Consequence: a kernel-class ceiling is ours to decide, and this row
    is read before any custom-kernel spend, not after.
+6. **`harbor` is the benchmark the field publishes to, and its receipt is a versioned format.** Measured
+   11-26 at `cf4bd004`: the official Terminal-Bench-2.0 harness, whose corpus README says all frontier
+   agent builders use it to track progress and compare (`../references/terminal-bench/README.md:6`, read
+   at `9f70ba7f`), so the `long-horizon-goal.md` re-aim's *benchmark* half has one concrete shape on disk:
+   a run persists as an **ATIF** trajectory (`../references/harbor/src/harbor/models/trajectories/
+   trajectory.py:15-19`; the marker inventory, and the rule that an omitted version means the format's
+   fixed historical baseline, never "latest", lives at `src/harbor/models/README.md`), and a **generic ACP
+   client adapter** makes any ACP agent runnable on the board (`src/harbor/agents/installed/acp.py`,
+   distributions `binary|npx|uvx|local` `:45`, `darwin` binary targets `:563,:583-584`). The product
+   cannot enter: the adapter installs and starts the agent **inside** the sandbox environment
+   (`acp.py:1166,:1733`), which is Linux — the ACP Registry's three-OS wall, now measured on the benchmark
+   side too. The reachable form is the field's harness on our wire: a `harbor run --agent claude-code`
+   whose `ANTHROPIC_BASE_URL` points at our `/v1/messages` bridge publishes a Terminal-Bench number on a
+   model this box serves. Priced by sandbox→host networking and the owner's download, not by new surface;
+   until someone runs it, the finding changes the *shape* of the benchmark ambition, not its ledger.
 
 ## Tree → problem → exists here?
 
@@ -134,7 +149,7 @@ detail; "registry (dated)" there means the problem statement is that row's, not 
 | harness2 | unforgeable grades + asset provenance | consumed (schema 2); env-scrub gap | registry (dated); open-items |
 | SWE-bench | a score that cannot lie (vacuity floor) | confirmed, nothing taken | registry (dated) |
 | terminal-bench | continuous benchmark hygiene | confirmation | registry (dated) |
-| harbor | external task supply for a board | not live | registry (dated) |
+| harbor | the benchmark run made publishable and comparable (ATIF receipts + generic harness adapters, ACP included) | product cannot enter the board (the adapter runs the agent inside the Linux sandbox); reachable half: field harnesses on our `/v1` | this §6 + registry row, measured 11-26 |
 | SWE-agent | agent–computer interface as config | axis only | registry (dated, stale clone) |
 | mini-swe-agent | the price ceiling of harness simplicity | foil axis | registry (dated) |
 | aider | failed-edit round trip as prompt contract | consumed | registry (dated); edit-repair row |
