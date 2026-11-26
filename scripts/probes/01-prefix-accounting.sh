@@ -182,6 +182,23 @@ NOREUSE="${NOREUSE:-0}"
 REUSE_LINES="$(grep -E "Prefix cache reused [0-9]+ of [0-9]+ prompt tokens for $SESSION" "$PROBE_LOG" 2>/dev/null || true)"
 REUSED="$(printf '%s' "$REUSE_LINES" | grep -c . || true)"
 REUSED="${REUSED:-0}"
+# A collapsed tool turn re-enters once with a recovery steer (`b6da09d6`, 11-21): the second
+# pass is paid and accounted out loud exactly like a first (a cold-turn collapse re-enters
+# too, but owes no accounting line — `withheld=0` speaks `.nothing`), and the re-entry's
+# numbers — not the collapse's — ride the wire's final .done. An accounting line that lands
+# between a steer line and the next request's pool line belongs to the re-entry, not to a
+# new warm turn: §C nets it out, §B/§D compare the wire against the pass the response carried.
+STEERS="$(grep -c "Degenerate tool turn on $SESSION — re-entering" "$PROBE_LOG" 2>/dev/null || true)"
+STEERS="${STEERS:-0}"
+REENTRY="$(awk -v s="Degenerate tool turn on $SESSION" -v a="prompt tokens for $SESSION:" -v z="reused no tokens for $SESSION:" '
+  index($0, "Session pool HIT:") || index($0, "Session REWOUND") { steer = 0; next }
+  index($0, s) { steer = 1; next }
+  steer && (index($0, a) || index($0, z)) { if (index($0, z)) n++; else r++; steer = 0 }
+  END { print r + 0, n + 0 }' "$PROBE_LOG" 2>/dev/null || true)"
+REENTRY="${REENTRY:-0 0}"
+read -r REENTRY_REUSE REENTRY_NO <<< "$REENTRY"
+REENTRY_REUSE="${REENTRY_REUSE:-0}"
+REENTRY_NO="${REENTRY_NO:-0}"
 
 # A. premise floor
 if [ "$HITS" -ge 1 ]; then
@@ -193,14 +210,16 @@ fi
 # C. every warm turn speaks, both directions. "reused no tokens" is the case the HIT line
 # cannot see; "reused N" is the case that would otherwise be invisible the other way.
 ACCOUNTED=$(( NOREUSE + REUSED ))
+REENTRY=$(( REENTRY_REUSE + REENTRY_NO ))
+WARM_ACCOUNTED=$(( ACCOUNTED - REENTRY ))
 if [ "$HITS" -lt 1 ]; then
   probe_fail "$HITS warm turn(s) — nothing to check, so assertion C proves nothing"
-elif [ "$ACCOUNTED" -eq "$HITS" ]; then
-  probe_ok "all $HITS warm turn(s) accounted out loud — $REUSED reused, $NOREUSE paid the full prefill"
-elif [ "$ACCOUNTED" -gt "$HITS" ]; then
-  probe_fail "$ACCOUNTED accounting line(s) for $HITS warm turn(s) — the engine narrates turns that never happened"
+elif [ "$WARM_ACCOUNTED" -eq "$HITS" ]; then
+  probe_ok "all $HITS warm turn(s) accounted out loud, plus $REENTRY recovery re-prefill(s) ($STEERS steer line(s) total — a cold-turn collapse re-enters owed no accounting line) — $REUSED reused, $NOREUSE paid the full prefill"
+elif [ "$WARM_ACCOUNTED" -gt "$HITS" ]; then
+  probe_fail "$WARM_ACCOUNTED base accounting line(s) for $HITS warm turn(s) — the engine narrates turns that never happened"
 else
-  probe_fail "$HITS warm turn(s) but only $ACCOUNTED accounted ($REUSED reused + $NOREUSE no-reuse) — a warm turn stayed silent, which is indistinguishable from a quiet full prefill"
+  probe_fail "$HITS warm turn(s) but only $WARM_ACCOUNTED accounted ($REUSED reused + $NOREUSE no-reuse, minus $REENTRY re-entries) — a warm turn stayed silent, which is indistinguishable from a quiet full prefill"
 fi
 
 # B. wire vs engine, per turn. Both directions are contradictions worth failing: cached>0
@@ -217,12 +236,14 @@ for v in "$T2_CACHED" "$T3_CACHED" "$T4_CACHED"; do
   case "$v" in ''|*[!0-9]*) continue ;; esac
   if [ "$v" -gt 0 ]; then WIRE_REUSE=$(( WIRE_REUSE + 1 )); else WIRE_ZEROS=$(( WIRE_ZEROS + 1 )); fi
 done
-if [ "$NOREUSE" -gt "$WIRE_ZEROS" ]; then
-  probe_fail "engine logged $NOREUSE turn(s) with cached=0 while the wire reported zero cached on only $WIRE_ZEROS — a response claimed reuse the engine denied"
-elif [ "$REUSED" -gt "$WIRE_REUSE" ]; then
-  probe_fail "engine logged $REUSED reused turn(s) while the wire showed reuse on only $WIRE_REUSE — the log claims savings the responses hid"
+NOREUSE_WARM=$(( NOREUSE - REENTRY_NO ))
+REUSED_WARM=$(( REUSED - REENTRY_REUSE ))
+if [ "$NOREUSE_WARM" -gt "$WIRE_ZEROS" ]; then
+  probe_fail "engine logged $NOREUSE_WARM turn(s) with cached=0 while the wire reported zero cached on only $WIRE_ZEROS — a response claimed reuse the engine denied"
+elif [ "$REUSED_WARM" -gt "$WIRE_REUSE" ]; then
+  probe_fail "engine logged $REUSED_WARM reused turn(s) while the wire showed reuse on only $WIRE_REUSE — the log claims savings the responses hid"
 else
-  probe_ok "wire and log agree — wire: $WIRE_REUSE reused / $WIRE_ZEROS full prefill, log: $REUSED reused / $NOREUSE full prefill, max cached_tokens=$MAX_CACHED"
+  probe_ok "wire and log agree — wire: $WIRE_REUSE reused / $WIRE_ZEROS full prefill, log (warm turns): $REUSED_WARM reused / $NOREUSE_WARM full prefill, max cached_tokens=$MAX_CACHED"
 fi
 
 # D. the whole, not just the part. Until 10-21 the wire published the prefilled SUFFIX as
@@ -241,14 +262,44 @@ try:
 except Exception as e:
     print("ERR cannot read log: %s" % e)
     sys.exit()
-logged = re.findall(
-    r"Prefix cache reused (\d+) of (\d+) prompt tokens for %s" % re.escape(session), text)
+acct = re.compile(
+    r"Prefix cache reused (?:(\d+) of (\d+) prompt tokens|no tokens) for %s" % re.escape(session))
+steer_m = "Degenerate tool turn on %s —" % session
+logged = []
+reentries = 0
+pending_steer = False
+for line in text.splitlines():
+    if "Session pool HIT:" in line or "Session REWOUND" in line:
+        # A new request began; a steer whose re-entry owed no accounting line (a cold-turn
+        # collapse has none to owe) must not eat the base line of the next turn.
+        pending_steer = False
+        continue
+    if steer_m in line:
+        pending_steer = True
+        continue
+    m = acct.search(line)
+    if not m:
+        continue
+    if pending_steer:
+        # The recovery numbers are the ones the wire carries — a re-entry replaces the
+        # collapsed line of the same turn. A collapse that recovers into a no-reuse pass
+        # leaves the reused pair set for the zero side (§B ties that one).
+        reentries += 1
+        pending_steer = False
+        if m.group(1) is None:
+            if logged:
+                logged.pop()
+        elif logged:
+            logged[-1] = (m.group(1), m.group(2))
+    elif m.group(1) is not None:
+        logged.append((m.group(1), m.group(2)))
 wturns = [(c, p) for c, p in wire if c.isdigit() and p.isdigit() and int(c) > 0]
 if not logged and not wturns:
     print("SKIP no reused turn in this run")
     sys.exit()
 if len(logged) != len(wturns):
-    print("FAIL %d reused turn(s) in the log but %d on the wire" % (len(logged), len(wturns)))
+    print("FAIL %d reused turn(s) in the log but %d on the wire (%d recovery pass(es) folded in)"
+          % (len(logged), len(wturns), reentries))
     sys.exit()
 bad = [(lc, lp, wc, wp) for (lc, lp), (wc, wp) in zip(logged, wturns) if (lc, lp) != (wc, wp)]
 if bad:
