@@ -193,6 +193,20 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   again that evening (`git ls-remote --heads https://github.com/ml-explore/mlx-swift-lm` exit 0, refs listed).
   A flapping host premise, so re-test that one line before the hand; nothing was re-resolved blind. Owner call
   unchanged: the bump is a hand, not a gate.
+
+  **The header's "+9 at 11-23" is a stale count, convicted 11-26 against the instrument.** `make drift` now
+  reads `mlx-swift-lm HEAD=6759555f2 +9 vs base=bf5a5d438` (mirror `~/references/mlx-swift-lm` is AT
+  `6759555f2`, 11-19; `git merge-base --is-ancestor` says the pin is 9 behind main), and that live +9 is a
+  *different* set than the one this row read 11-23 — re-enumerated `pin..HEAD` oldest→newest:
+  `#733 7517abc, #800/#803 5a14024, #802 ca661dc, #772 cb59e9a, #812 4c21c84, #809 5a4418c, #716 4daac23,
+  #817 f764e2b, #813 6759555` (11-17→11-19), **none of them an ancestor of the pin** (all pending). #747
+  (`2775ddd`) IS an ancestor of `bf5a5d438`, so this row's "#747 inert here at keep==0" stays true — it is
+  consumed, just inert; the stale number was the header, not that finding. Two of the live +9 are ours-shaped,
+  both read at the mirror this round, both **consume-at-bump** (owner push window, § Upstream 1), not local
+  defects: **#733** adds optional `logitSampler:`/`logitProcessor:` to `GuidedGenerationLoop.run` (nil keeps
+  greedy; a sampler picking a grammar-excluded token throws) — the guided-gen primitive the "thinking is
+  uncounted on the tools lane" row and the per-iteration-grammar shape would ride, once the pin carries it;
+  **#812** first half fixes the Qwen XML `
 - **A no-tool turn steers and stops, both halves flag-staged** (Engine/). Upstream #608/#798 at the
   `bf5a5d438` pin owns mid-turn input: `steer(_:policy:)` ends a step at the next safe point *inside a
   thought* (upstream-app measured 0.22-0.30 s steer-to-new-text vs 6.9-8.1 s pre-#798), and

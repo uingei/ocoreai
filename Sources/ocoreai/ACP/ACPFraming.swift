@@ -322,11 +322,12 @@ struct ACPPromptResult: Codable, Equatable {
 
 // MARK: - Outgoing requests (agent → client)
 
-struct ACPPermissionOption: Codable, Equatable {
-    let optionId: String
-    let name: String
-    let kind: String
-}
+// The `session/request_permission` `options` array is written as a literal dict in
+// `ACPAgent.permissionRequestParams`, not through a Codable type: the params carry three
+// heterogeneous sections (`sessionId`, `toolCall`, `options`) and the typed option struct that
+// first shipped here went unreferenced once that request became request-shaped (11-25). The wire
+// shape it would have carried is gated where it is written (`ACPFramingTests` pins the three
+// `kind` words in offer order), so no type is needed to hold it.
 
 struct ACPPermissionOutcome: Decodable, Equatable {
     /// `{"outcome":"selected","optionId":…}` or `{"outcome":"cancelled"}`.
