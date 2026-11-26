@@ -598,10 +598,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   path**. The toggles start `false` (`UI/Models/MultimodalState.swift:42,51`) and gate the perception engine, while
   `captureGate` asks only what TCC measured (`MultimodalHandler.swift:160-176,275-295`) and the camera leg will
   `startCapture()` for the caller (`:177-179`); the comparator's equivalent is a server-side default-off flag whose
-  refusal names itself and carries a `recovery` array (`rapid_mlx/routes/cua.py:429-431,925-936`). **(c) a frame has
-  no ceiling and no cache directive**. It caps one observation at 4 MiB and answers a named 413 (`:426,988`) and
-  stamps `Cache-Control: no-store` on the frame and on the error alike (`:510,918-919`), where our capture response
-  sets no cache header anywhere (the only `no-cache` in `Sources/**` is `SSEHelpers.swift:74`).
+  refusal names itself and carries a `recovery` array (`rapid_mlx/routes/cua.py:429-431,925-936`). **(c) the capture payload has no byte ceiling.** TensorFold caps one observation at 4 MiB and answers a named 413 (`:426,988`). Our no-store half is already closed: `captureWireResponse` applies `Cache-Control: no-store` to all capture branches, including permission-gate refusals (CHANGELOG 11-15; `CaptureNoStoreWireTests` + probe 04); it is not a remaining gap. The open part is an enforced, measured response-size limit.
   Owner call, not a task (§ Working here: a speculative edge names mode, likelihood and cost before anything is
   written): mode = a caller holding a key asks for `screen` or `microphone` from another machine, or the person at the
   box has toggled that channel off; likelihood = deterministic once the key exists, not a race; cost = three small
