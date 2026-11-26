@@ -123,8 +123,10 @@ func anthropicMessagesHandler(
     // Safety check: filter harmful input before scheduling
     if let contentGuard = streamGuard {
         // One reader of "what text did the client send", shared with the prompt the model
-        // gets (`AnthropicMessage.plainText`). The guard and the prompt must not disagree.
-        let messageText: String = request.messages.first?.plainText ?? ""
+        // gets (`AnthropicMessage.plainText(availableTools:)`, same declared set on both
+        // reads). The guard and the prompt must not disagree.
+        let messageText: String =
+            request.messages.first?.plainText(availableTools: request.declaredToolNames) ?? ""
         if !messageText.isEmpty {
             let result = await contentGuard.checkInput(messageText)
             if result.isBlocked {
@@ -166,7 +168,8 @@ func anthropicMessagesHandler(
     // ═══════════════════════════════════════════════════════
     // Phase 1: Submit to scheduler (OOMGuard + priority queue)
     // ═══════════════════════════════════════════════════════
-    let promptText: String = request.messages.first?.plainText ?? ""
+    let promptText: String =
+        request.messages.first?.plainText(availableTools: request.declaredToolNames) ?? ""
 
     let schedulingRequest = SchedulingRequest(
         id: "msg-\(UUID().uuidString.prefix(8))",
@@ -449,7 +452,7 @@ func anthropicMessagesHandler(
 /// the agent's own (user instructions first, then skills/workspace/memory), exactly as it
 /// does for `userSystemPrompt` on `/v1/chat/completions`.
 func anthropicConversationMessages(request: AnthropicMessageRequest) throws -> [Message] {
-    try anthropicMappedConversation(request.messages)
+    try anthropicMappedConversation(request.messages, availableTools: request.declaredToolNames)
 }
 
 func buildAnthropicMessageList(

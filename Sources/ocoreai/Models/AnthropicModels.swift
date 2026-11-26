@@ -57,6 +57,11 @@ struct AnthropicMessageRequest: Decodable {
     /// Tool definitions (Anthropic format)
     var tools: [AnthropicTool]? = nil
 
+    /// The names this request declares callable. The ONE set the `tool_reference` renderer
+    /// consults before claiming a name is available this turn; absent from it, the name
+    /// still rides into the prompt without the claim (see ``AnthropicToolResultContent``).
+    var declaredToolNames: Set<String> { Set((tools ?? []).map(\.name)) }
+
     /// Tool choice strategy
     var toolChoice: AnthropicToolChoice? = nil
 
@@ -288,13 +293,15 @@ struct AnthropicContentBlock: Decodable {
     /// that cannot be tied to a call is still content the model should see.
     ///
     /// Nil means "no text": media (carried as its own part) or a type this route refuses.
-    var promptTextContribution: String? {
+    /// - Parameter availableTools: the names the request declares callable, read by the
+    ///   `tool_reference` rendering. See ``AnthropicToolResultContent/text(availableTools:)``.
+    func promptTextContribution(availableTools: Set<String>? = nil) -> String? {
         switch type {
         case "text":
             return (text?.isEmpty == false) ? text : nil
         case "tool_result":
             let tag = toolUseId.map { "tool_result · \($0)" } ?? "tool_result"
-            let body = content?.text ?? ""
+            let body = content?.text(availableTools: availableTools) ?? ""
             let failed = (isError == true) ? " [failed]" : ""
             return "[\(tag)\(failed)] \(body.isEmpty ? "no output" : body)"
         case "tool_use":
@@ -330,7 +337,12 @@ enum AnthropicToolResultContent: Decodable {
     /// count, the answer "I did not find a tool named …" beside the same name as TEXT
     /// getting it back). Precedent: splash renders references as naming text
     /// (`server/dialects/anthropic.py:388-407`). A reference with no `tool_name` names nothing.
-    var text: String {
+    ///
+    /// Availability is a claim about this turn's `tools[]`, not about the search, so
+    /// `Available tool:` renders only for a name `availableTools` declares and every other
+    /// reference names itself without the claim. sglang refuses the unresolvable by name;
+    /// that exit is for a request, and history never requests (ruled 11-26).
+    func text(availableTools: Set<String>?) -> String {
         switch self {
         case .text(let s): return s
         case .blocks(let blocks):
@@ -339,7 +351,8 @@ enum AnthropicToolResultContent: Decodable {
                 case "text": return block.text
                 case "tool_reference":
                     guard let name = block.toolName, !name.isEmpty else { return nil }
-                    return "Available tool: \(name)"
+                    return availableTools?.contains(name) == true
+                        ? "Available tool: \(name)" : "Tool reference: \(name)"
                 default: return nil
                 }
             }
@@ -388,12 +401,17 @@ extension AnthropicMessage {
     /// Best-effort text of this message. The content-safety guard, prompt-injection
     /// detection and the metrics token count read this. A block the route cannot carry
     /// contributes nothing here, which is not a silent drop: the same request is refused by
-    /// name at ``toInternalMessages()`` before any token is produced.
-    var plainText: String {
+    /// name at ``toInternalMessages(attachableResultIDs:availableTools:)`` before any token
+    /// is produced. Pass the request's ``AnthropicMessageRequest/declaredToolNames`` so the
+    /// guard and the prompt render `tool_reference` with one availability answer.
+    func plainText(availableTools: Set<String>? = nil) -> String {
         switch content {
         case .some(.text(let s)): return s
         case .some(.blocks(let blocks)):
-            return blocks.compactMap(\.promptTextContribution).joined(separator: "\n")
+            return
+                blocks
+                .compactMap { $0.promptTextContribution(availableTools: availableTools) }
+                .joined(separator: "\n")
         case .none:
             return ""
         }
@@ -428,7 +446,12 @@ extension AnthropicMessage {
     ///   declares. A `tool_result` whose id is absent folds to its text form instead of
     ///   emitting a tool turn no template will render. See ``anthropicMappedConversation``.
     ///   `nil` (a lone message, as unit-mapped) treats every present id as attachable.
-    func toInternalMessages(attachableResultIDs declared: Set<String>? = nil) throws -> [Message] {
+    /// - Parameter availableTools: the names the request declares callable; a
+    ///   `tool_reference` renders as available only against this set.
+    func toInternalMessages(
+        attachableResultIDs declared: Set<String>? = nil,
+        availableTools: Set<String>? = nil
+    ) throws -> [Message] {
         switch content {
         case .some(.text(let s)):
             return [Message(role: role, content: .text(s))]
@@ -458,7 +481,9 @@ extension AnthropicMessage {
                             type: "image_url", text: nil,
                             imageUrl: ContentPart.ImageURL(url: url)))
                 case "text":
-                    if let contribution = block.promptTextContribution {
+                    if let contribution = block.promptTextContribution(
+                        availableTools: availableTools)
+                    {
                         texts.append(contribution)
                     }
                 case "tool_use" where role == "assistant":
@@ -479,13 +504,16 @@ extension AnthropicMessage {
                     } else {
                         orphan = false
                     }
-                    if orphan, let contribution = block.promptTextContribution {
+                    if orphan,
+                        let contribution = block.promptTextContribution(
+                            availableTools: availableTools)
+                    {
                         // Attaches to nothing, is still content: the same rendering the
                         // missing-id fallback uses, so guard and prompt never split.
                         texts.append(contribution)
                         break
                     }
-                    let body = block.content?.text ?? ""
+                    let body = block.content?.text(availableTools: availableTools) ?? ""
                     let text =
                         (block.isError == true)
                         ? "Error: \(body.isEmpty ? "the call failed" : body)"
@@ -493,7 +521,10 @@ extension AnthropicMessage {
                     results.append(
                         Message(role: "tool", content: .text(text), toolCallID: block.toolUseId))
                 default:
-                    guard let contribution = block.promptTextContribution else {
+                    guard
+                        let contribution = block.promptTextContribution(
+                            availableTools: availableTools)
+                    else {
                         throw AppError.invalidRequest(
                             "Unsupported Anthropic content block type '\(block.type)' — this route carries text, image, tool_result and tool_use, and refuses the rest by name rather than dropping it"
                         )
@@ -1174,7 +1205,13 @@ struct AnthropicMetadata: Decodable {
 /// counted them: the two-rendering split ``AnthropicContentBlock/promptTextContribution``
 /// warns about. An unattachable result folds to its text form, the same rule as a missing
 /// correlation id: a result that cannot be attached is still content.
-func anthropicMappedConversation(_ messages: [AnthropicMessage]) throws -> [Message] {
+/// - Parameter availableTools: the names the request declares callable (`tools[]`), read
+///   by the `tool_reference` rendering. Production callers pass
+///   ``AnthropicMessageRequest/declaredToolNames``; a lone mapped message renders
+///   references without an availability claim.
+func anthropicMappedConversation(
+    _ messages: [AnthropicMessage], availableTools: Set<String>? = nil
+) throws -> [Message] {
     var declared: Set<String> = []
     for turn in messages where turn.role == "assistant" {
         if case .some(.blocks(let blocks)) = turn.content {
@@ -1183,7 +1220,9 @@ func anthropicMappedConversation(_ messages: [AnthropicMessage]) throws -> [Mess
             }
         }
     }
-    return try messages.flatMap { try $0.toInternalMessages(attachableResultIDs: declared) }
+    return try messages.flatMap {
+        try $0.toInternalMessages(attachableResultIDs: declared, availableTools: availableTools)
+    }
 }
 
 /// Convert Anthropic request to internal ChatCompletionRequest
@@ -1192,7 +1231,8 @@ func toChatCompletionRequest(_ req: AnthropicMessageRequest) throws -> ChatCompl
     // One mapping and one correlation pass for every caller: the same
     // `anthropicMappedConversation` the messages route uses, so detection/metrics and the
     // prompt the model sees cannot disagree about what the client sent.
-    let messages: [Message] = try anthropicMappedConversation(req.messages)
+    let messages: [Message] = try anthropicMappedConversation(
+        req.messages, availableTools: req.declaredToolNames)
 
     // Convert tools
     let tools: [ToolDef]? = req.tools?.map { $0.toOpenAITool() }

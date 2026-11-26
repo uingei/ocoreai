@@ -105,7 +105,7 @@ struct AnthropicBlockHonestyTests {
         // The payload each shape carries is still reachable after decoding.
         #expect(parsed[1].source?.mediaURL == "data:image/png;base64,AAAA")
         #expect(parsed[2].toolUseId == "toolu_1")
-        #expect(parsed[2].content?.text == "42")
+        #expect(parsed[2].content?.text(availableTools: nil) == "42")
         #expect(parsed[3].name == "get_weather")
     }
 
@@ -162,20 +162,33 @@ struct AnthropicBlockHonestyTests {
     /// `role:"tool"` turn with the `tool_call_id` it answers, not prose inside the user turn.
     /// (The prose it used to be is quoted below. The answer stayed correct on this
     /// checkpoint even so, which is why no probe caught it: the deviation is structural.)
+    /// `available` is the arm's request-level `tools[]`: the availability claim
+    /// (`Available tool:`) renders only for a declared name; an undeclared name stays
+    /// visible as `Tool reference:` without the claim (ruled 11-26, open-items — the
+    /// field's carry/refuse exits read at probe 07 §2c; a 400 is for a request, and
+    /// history never requests).
     @Test(
         "tool_result reaches the prompt as a tool turn carrying its call id",
         arguments: [
             (
                 "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"The value is 42.\"}",
+                [String](),
                 "The value is 42."
             ),
             (
                 "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_2\",\"content\":[{\"type\":\"text\",\"text\":\"sunny, 30C\"}]}",
+                [String](),
                 "sunny, 30C"
             ),
             (
                 "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_3\",\"content\":[{\"type\":\"tool_reference\",\"tool_name\":\"weather_api\"}]}",
+                ["weather_api"],
                 "Available tool: weather_api"
+            ),
+            (
+                "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_5\",\"content\":[{\"type\":\"tool_reference\",\"tool_name\":\"weather_api\"}]}",
+                ["read_file"],
+                "Tool reference: weather_api"
             ),
             (
                 #"""
@@ -184,13 +197,23 @@ struct AnthropicBlockHonestyTests {
                   {"type":"tool_reference","tool_name":"weather_api"},
                   {"type":"tool_reference","tool_name":"calendar_api"}]}
                 """#,
+                ["weather_api", "calendar_api"],
                 "searched\nAvailable tool: weather_api\nAvailable tool: calendar_api"
             ),
-        ] as [(String, String)])
-    func toolResultDelivers(blockJSON: String, expected: String) throws {
+            (
+                #"""
+                {"type":"tool_result","tool_use_id":"toolu_6","content":[
+                  {"type":"tool_reference","tool_name":"weather_api"},
+                  {"type":"tool_reference","tool_name":"calendar_api"}]}
+                """#,
+                ["weather_api"],
+                "Available tool: weather_api\nTool reference: calendar_api"
+            ),
+        ] as [(String, [String], String)])
+    func toolResultDelivers(blockJSON: String, available: [String], expected: String) throws {
         let turns = try message(
             "{\"role\":\"user\",\"content\":[\(blockJSON),{\"type\":\"text\",\"text\":\"so what is the weather?\"}]}"
-        ).toInternalMessages()
+        ).toInternalMessages(availableTools: Set(available))
         // Result first, commentary after: a tool turn has to sit where the template expects
         // a result, and `[user, tool]` renders as a result with no call before it.
         #expect(turns.map(\.role) == ["tool", "user"])
@@ -426,8 +449,56 @@ struct AnthropicBlockHonestyTests {
             #"{"role":"user","content":[{"type":"text","text":"and then?"},{"type":"tool_result","tool_use_id":"t","content":"done"}]}"#
         )
         #expect(
-            withResult.plainText == "and then?\n[tool_result · t] done",
-            "the guard must see the tool output too: \(withResult.plainText)")
+            withResult.plainText() == "and then?\n[tool_result · t] done",
+            "the guard must see the tool output too: \(withResult.plainText())")
+    }
+
+    /// The guard (`plainText`) and the prompt (`toInternalMessages`) must give a
+    /// `tool_reference` the SAME availability answer for the same declared set. Two
+    /// availability answers is how probe 07 §2c's guard once read content the model
+    /// never got.
+    @Test("guard and prompt give one tool_reference one availability answer")
+    func availabilityWordingAgreesAcrossReaders() throws {
+        let withRef = try message(
+            #"{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","content":[{"type":"tool_reference","tool_name":"weather_api"}]}]}"#
+        )
+        let declared: Set<String> = ["weather_api"]
+        #expect(
+            withRef.plainText(availableTools: declared)
+                == "[tool_result · t2] Available tool: weather_api")
+        #expect(
+            textOf(try withRef.toInternalMessages(availableTools: declared)[0])
+                == "Available tool: weather_api")
+        #expect(
+            withRef.plainText(availableTools: ["read_file"])
+                == "[tool_result · t2] Tool reference: weather_api")
+        #expect(
+            textOf(try withRef.toInternalMessages(availableTools: ["read_file"])[0])
+                == "Tool reference: weather_api")
+    }
+
+    /// The production wiring, asserted at the mapper the routes use: the request's own
+    /// `tools[]` decides the wording. If the set ever stops being threaded, the declared
+    /// name renders as the neutral one and this goes red.
+    @Test("the request's tools[] decides the availability wording (wired, not inferred)")
+    func declaredToolsDecideWiring() throws {
+        let req = try request(
+            """
+            {"model":"m","max_tokens":8,
+             "tools":[{"name":"weather_api","description":"d","input_schema":{"type":"object"}}],
+             "messages":[
+               {"role":"user","content":"search for tools"},
+               {"role":"assistant","content":[{"type":"tool_use","id":"c1","name":"search","input":{}}]},
+               {"role":"user","content":[{"type":"tool_result","tool_use_id":"c1","content":[
+                 {"type":"tool_reference","tool_name":"weather_api"},
+                 {"type":"tool_reference","tool_name":"calendar_api"}]}]}]}
+            """
+        )
+        #expect(req.declaredToolNames == ["weather_api"])
+        let mapped = try toChatCompletionRequest(req).messages
+        let toolTurn = try #require(mapped.first { $0.role == "tool" })
+        #expect(
+            textOf(toolTurn) == "Available tool: weather_api\nTool reference: calendar_api")
     }
 
     @Test("the system field still flattens text blocks (regression for the string-typed enum)")

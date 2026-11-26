@@ -46,6 +46,7 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   § What this map changes.
 
 
+- **The full-run reds in the MCP/steer/admission suites do not reproduce filtered; mechanism unproven**
   (Tests/, MCP/). Two full runs on this host lost issues in `MCPStderrDiagnosisTests`,
   `EngineBusyAdmission`, `SleepSteerWake` and `CountTokensEndpoint`; one filtered run over the six
   suites 11-24 passed 53/53, with the suite whose budget is 2.0 s finishing in 2.02 s. This row first
@@ -57,19 +58,23 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   raising a budget without one is hiding a claim.
 
 
-- **The nameless `tool_reference` exits by silent drop. A guard side-effect, not a picked exit**
-  (Models/). The defect this row described (billed-but-invisible; `111c120f` shipped the instrument, its
-  nonce-isolated WHOLE arms landed 905/908/905) closed 11-11: references render `Available tool:
-  <tool_name>` at the one accessor the guard and the prompt share (`AnthropicModels.swift:342`), live 15/15
-  on probe 07 with the name echoed like the TEXT control; the closed-log row carries the numbers and the
-  splash precedent. What the shipped guard chose **without a decision**: a reference with no `tool_name`
-  contributes nothing (`AnthropicModels.swift:341`). Strata's documented drop (a gone MCP server must not
-  fail the session, `../references/Strata/serve/frontend.py:664-673`), while sglang's GLM template refuses
-  the unresolvable by name; the field's three exits (carry / render / refuse. Vllm and sglang cites at
-  `07 §2c` header) collapsed to render-and-drop. A face named for the first time, unmeasured: a delivered
-  name absent from the turn's `tools[]` still renders `Available tool: <name>`. Availability asserted for a
-  tool nothing measured. Owner call: keep Strata's drop or refuse by name, and whether an unknown name owes
-  a refusal instead of an assertion.
+- **The nameless `tool_reference` still exits by silent drop; the availability claim closed 11-26**
+  (Models/). The billed-but-invisible defect (`111c120f` shipped the instrument, its nonce-isolated WHOLE
+  arms landed 905/908/905) closed 11-11: references render as naming text at the ONE accessor the guard and
+  the prompt share (`AnthropicToolResultContent/text`), live 15/15 on probe 07 §2c with the name echoed like
+  the TEXT control; the closed-log row carries the numbers and the splash precedent. 11-26 closed the face
+  that row had named unmeasured: `Available tool:` renders only for a name the request's `tools[]` declares
+  (`AnthropicMessageRequest.declaredToolNames` threaded through both readers — one reference, one
+  availability answer), every other reference names itself `Tool reference: <name>` without the claim.
+  sglang's refuse-by-name is a REQUEST exit and history never requests (ruled 11-26); vllm and sglang's
+  carry-the-name cites stay at the `07 §2c` header. Gates: `AnthropicBlockHonestyTests` (the
+  declared/undeclared/mixed arms, the guard↔prompt agreement test, and the wiring test through
+  `toChatCompletionRequest` — if the set ever stops being threaded, the declared arm drops to the neutral
+  wording and that goes red). What stays open is an exit chosen without a decision: a reference with no
+  `tool_name` contributes nothing (the `toolName` guard in `AnthropicToolResultContent/text`). Strata's
+  documented drop (a gone MCP server must not fail the session,
+  `../references/Strata/serve/frontend.py:664-673`) is the shipped shape, but nothing ruled it. Owner call:
+  keep the drop or refuse by name.
 - **A warm re-send of an identical anonymous conversation bills the server's own previous turn**
   (Engine/, Handlers/). Measured 11-10 against a live serve, three `/v1/messages` re-fires of ONE
   stateless conversation: cold `input=899, cache_read=0`; warm `input=59, cache_read=908`, next re-send
