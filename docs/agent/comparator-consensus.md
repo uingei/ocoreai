@@ -265,9 +265,12 @@ window, and concept heat over `OC_TREND_DAYS=60`).
   **29·22 tags minted** to our **1·0**. Same order of work, two orders of magnitude apart on the thing a stranger
   can install. That kills the "we are too busy building" reading of § Adoption's cadence row: publishing is not
   capacity, it is a decision per merge.
-- **21 of the 23 installable comparators minted a tag in the last 30 days.** The two that did not: `MTPLX` (which
-  went from 827 commits/30 d to **0**. The MTP-for-MLX comparator has been quiet for a month, so our MTP lane now
-  has no active sibling to read) and `harness2` (a 21-commit research drop).
+- **22 of the 23 installable comparators minted a tag in the last 30 days** (re-measured 11-26). The cell's
+  original shape excluded `MTPLX` too ("827 commits/30 d to 0, quiet for a month") — a stale window count read
+  against the clone, convicted by the same file's own `MTPLX` registry row, which read that tree's live
+  product three days after the quiet claim. Today: `b16e30ee` (11-24), 490 commits/30 d, tags
+  `v2.12.3`→`v2.13.3`. The one that still did not: `harness2` (a 21-commit research drop). The lesson the
+  corpus's own file proves: an activity count is worth the fetch behind it; HEAD-age and tags beat windows.
 - **Concept heat says nothing in this corpus is dormant, so heat ranks nothing.** Every axis printed
   present = edited-now (14/14 rules readers, 12/12 serving trees on KV, 12/12 deferred-tool trees, **8/8 ACP
   speakers**). The useful reading is therefore the *minority* axes: the ones where few trees hold the mechanism and

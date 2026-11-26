@@ -75,21 +75,6 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   documented drop (a gone MCP server must not fail the session,
   `../references/Strata/serve/frontend.py:664-673`) is the shipped shape, but nothing ruled it. Owner call:
   keep the drop or refuse by name.
-- **A warm re-send of an identical anonymous conversation bills the server's own previous turn**
-  (Engine/, Handlers/). Measured 11-10 against a live serve, three `/v1/messages` re-fires of ONE
-  stateless conversation: cold `input=899, cache_read=0`; warm `input=59, cache_read=908`, next re-send
-  `cache_read=970`. The whole (`input + cache_read`, the identity `AnthropicCacheUsage` declares a
-  breakdown may never exceed) reads 967 → 1029 against a 899-token render, growing per re-send, and
-  `StdTurn fed=3 of 3 divergence=0 upstreamCached=908…` names the mechanism: the std lane's `:anon:` slot
-  treats a re-send as a continuation, so its own previous answer's KV and positions ride into the request's
-  account and the conditioning. `PromptTokenAccounting`'s add-back (Handlers guide §"a usage field carries
-  the quantity its name claims") is not the site. Its numbers are engine-scope truth, correct for a real
-  continuation where the caller re-sends the answer as history; the site is upstream's `cachedPromptTokenCount`
-  being session-scope where the wire promises request-scope. Repair shape: truncate at the divergence point
-  so the cache-read portion is request-scope (and the answer regenerates, as stateless means); the choice to
-  gate `:anon:` KV sharing is the owner's. It sits on the loop seams the open rows around Pin 1 call
-  sensitive. Instrument: probe 07 §2c's nonce-isolated NOTE lines print each arm's whole; 59-token
-  cold-looking arms next to a growing cache_read are this row's return.
 - **Sessions carry a TTL promise nobody enforces** (SQLite/, Scheduler/). Every `INSERT INTO sessions`
   writes `ttl_days` (default 180, configurable: `SessionCompressor.swift:114,120,72`; read back at
   `:1073`), and no code enforces it: the enforcer `purgeExpired()` had **zero callers** repo-wide
@@ -283,11 +268,18 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   on acceptance, which the ruling keeps with the loop-flag flip.
   ③ The field spends that same counter as lane *policy*, not a published number: `mlx-serve` stops speculation
   mid-decode once per-draft acceptance falls under break-even and stays off for the request
-  (`../references/mlx-serve/docs/performance.md:20`). Nobody else is moving on it: `MTPLX`. The tree our own
-  lane is measured against, and the only comparator here whose HEAD was asked of the remote rather than the
-  clone (`git ls-remote`, 11-04). Sits at `9882703f`, dated **10-03**, 32 d quiet with 0 commits in 14 d, so
-  its row is current rather than stale and no new drafter behaviour is pending there. The movement is on our
-  own side of the boundary: pin 1's `#581` resumable Qwen MTP, one row above. **Ruled 11-11:** the 27 are
+  (`../references/mlx-serve/docs/performance.md:20`, re-read at site 11-26 — the gate is there, sticky per
+  request, plus a prompt-time repetition gate ahead of it). `MTPLX`, the tree our own lane is measured
+  against, was carried here as "32 d quiet, no new drafter behaviour pending" — **the quiet-month is dead;
+  it came from a stale window count, not from the tree** (this file's own registry row read the live product
+  on 11-20). Re-measured 11-26 at `b16e30ee` (11-24): 490 commits/30 d, tags `v2.12.3`→`v2.13.3`, the 2.13.x
+  run 11-22→11-24, and the releases are MTP-lane movement: `2.13.2` makes three draft proposals the
+  Inkling-2-Mini default depth, `2.12.3` resumes a saved prompt after the last committed token and answers an
+  uncovered restore by name (`no_snapshot_coverage`), and the tree ships a **demotion ledger**
+  (`mtplx/demotions.py`, "Nothing goes slow in silence": every exit from the lane the engine was built to run
+  records a count and one plain line, read by `/health`, the request log and `doctor --explain`). What was
+  NOT read today: whether its lane stops speculation on per-draft acceptance — the three-proposal default is
+  a depth choice read off a release note, not a cutoff. **Ruled 11-11:** the 27 are
   deleted (②); whether the lane acts on acceptance *at all* rides the loop-flag flip. Lane policy written
   for a loop being retired pays twice, and the scripted engine makes the real gate one emit and one read
   on the surviving seam, not a new surface. Why no scan owns this: two attempts on 11-04 failed in opposite directions (one flagged 233 tests,

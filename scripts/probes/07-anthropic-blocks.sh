@@ -355,6 +355,36 @@ else
   esac
 fi
 
+# A warm re-send bills what it renders. One body shared across three fires — nonce included,
+# so all three seed the SAME anonymous conversation. An anonymous replay must be an idempotent
+# cold re-send: each fire pays its own render and `cache_read_input_tokens` stays 0.
+# Measured 11-10 before the nonce existed: fires 2–3 answered at input_tokens=59 with
+# cache_read=908→970 — the `:anon:` slot read the re-send as a continuation and billed its own
+# previous answer into this request's account (and its conditioning). The release-site discard
+# closed the mechanism in code 11-16 (a turn whose prompt the ledger cannot describe never
+# enters the pool); re-measured 11-26 on this host at HEAD (gemma-4-e2b-it-4bit): three fires,
+# each input=909 (cache_read=0, so whole=input), `Not pooling session … tool or media traffic` on
+# every release (SessionPool.swift:1083). This arm is the trap that keeps it closed. The signature is WHOLE, not bare input: a regressed discard
+# reads a suffix input (looks cold) beside a grown cache_read, so `whole` crosses the render
+# and three identical fires stop agreeing (invariant 2: a billed field may not carry more than
+# this request rendered).
+probe_section "warm re-send — an anonymous replay bills its own render, not the server's history"
+ts_probe "re-send fire 1 (shared nonce)" "[{\"type\":\"text\",\"text\":\"$TOOLSEARCH_NAME\"}]" 'arm-warmtrap'
+W1_STATUS="$TS_STATUS"; W1_WHOLE="$TS_WHOLE"
+ts_probe "re-send fire 2 (same nonce, same bytes)" "[{\"type\":\"text\",\"text\":\"$TOOLSEARCH_NAME\"}]" 'arm-warmtrap'
+W2_STATUS="$TS_STATUS"; W2_WHOLE="$TS_WHOLE"
+ts_probe "re-send fire 3 (same nonce, same bytes)" "[{\"type\":\"text\",\"text\":\"$TOOLSEARCH_NAME\"}]" 'arm-warmtrap'
+W3_STATUS="$TS_STATUS"; W3_WHOLE="$TS_WHOLE"
+if [ "${W1_STATUS:-}" != 200 ]; then
+  bad "warm-trap fire 1 is unusable (HTTP ${W1_STATUS:-none}) — no re-send verdict would mean anything"
+elif [ "${W2_STATUS:-}" != 200 ] || [ "${W3_STATUS:-}" != 200 ]; then
+  bad "a warm-trap re-send did not answer 200 (fire 2 HTTP ${W2_STATUS:-none}, fire 3 HTTP ${W3_STATUS:-none}) — a replayed anonymous conversation must stay answerable"
+elif [ "$W2_WHOLE" != "$W1_WHOLE" ] || [ "$W3_WHOLE" != "$W1_WHOLE" ]; then
+  bad "warm-trap whole tokens moved across identical re-fires ($W1_WHOLE → $W2_WHOLE → $W3_WHOLE): a fire is billed more than it renders — the 11-10 shape (the pool billing its own previous answer). The server log's `StdTurn … upstreamCached=` and `Not pooling session` lines name which premise broke."
+else
+  ok "warm re-send: three identical fires bill the same whole $W1_WHOLE — the replay pays its own render, none of the server's history"
+fi
+
 probe_section "server-typed tool definitions, tool_removal, defer_loading — REPORTED, the judges split here"
 probe_api POST /v1/messages "$(python3 - "$PROBE_MODEL" <<'PY'
 import json, sys
@@ -444,12 +474,12 @@ fi
 
 # ── verdict ───────────────────────────────────────────────────────────────────
 # Baseline (2) + four block shapes (1 each) + the tool-search section (2-3, the delivery check
-# is conditional on the control arm) + the vision cross-check + this floor is ~11. 9 sits under
-# that and well above zero: a route that stopped answering, or a section that stopped emitting
-# verdicts, fails instead of passing vacuously.
-if [ "$CHECKS" -ge 9 ]; then
+# is conditional on the control arm) + the warm re-send section (1) + the vision cross-check +
+# this floor is ~12. 10 sits under that and well above zero: a route that stopped answering, or
+# a section that stopped emitting verdicts, fails instead of passing vacuously.
+if [ "$CHECKS" -ge 10 ]; then
   ok "premise floor: $CHECKS verdicts issued by this run"
 else
-  probe_fail "only $CHECKS verdicts issued (< 9) — this probe silently stopped measuring"
+  probe_fail "only $CHECKS verdicts issued (< 10) — this probe silently stopped measuring"
 fi
 probe_summary "$PROBE_NAME"
