@@ -21,8 +21,9 @@
 /// value a test invented does not. One lock covers all of them: contention costs seconds, a
 /// missed collision costs a false green.
 ///
-/// Gate: `ProcessGlobalLeaseDisciplineTests`. A floored scan that fails when a test file mutates
-/// one of these globals without taking a lease, plus the save/restore contract itself.
+/// Gate: adoption is Class-S of `scripts/audit.swift_patterns.sh` (floored, no-build, so
+/// `push-ready` / `make audit` / the ubuntu lint leg read it every round); the save/restore
+/// contract is `ProcessGlobalLeaseDisciplineTests`.
 import Foundation
 import Testing
 

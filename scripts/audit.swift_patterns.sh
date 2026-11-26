@@ -783,6 +783,73 @@ check "Class-Q: fatalError() trap" 'fatalError\(' \
 check "Class-R: assert() in shipped code" '(^|[^.[:alnum:]_])assert\(' \
     'assert(count > 0, "queue drained")'
 
+# --- Class-S: a Tests/ file that mutates a process-global holds the lease ---
+# Provenance (11-27): this scan lived in ProcessGlobalLeaseDisciplineTests, so reading its verdict
+# cost a debug build and a Metal run, and nobody paid it. ACPSessionLoadTests entered the offender
+# list with 1f201c0c (11-25) and sat red for two days; mid-lease it restored a saved nil anchor over
+# a lease holder's own, and that holder's relative write_file landed at the process cwd - a test
+# body appeared as an untracked file in the repo root. A pure file-pattern scan has no business
+# waiting behind a GPU suite: this seat runs in push-ready, `make audit` and the ubuntu lint leg.
+# The lease save/restore contract itself stays a Swift test; this class keeps only adoption, with
+# the same semantics the Swift scan measured: comment lines stripped, `unsetenv(` neutralized
+# (restoring is not mutating), the exemption asserted by exact path so a second one goes red.
+echo ""
+echo "[Class-S: process-global mutators in Tests/ hold the lease]"
+S_TESTS="$ROOT/Tests"
+S_FLOOR=15
+S_IMPL="Tests/ocoreaiTests/ProcessGlobalLease.swift"
+S_RX='SessionWorkspace\.setDirectory\(|setenv\(|putenv\('
+# Self-tests, per check(): the mutator pattern must still see both known-bad shapes, and the
+# neutralized restore shape must still stay invisible. A scan that stopped matching reports Clean
+# forever; that is the failure mode this repo keeps tripping over.
+S_PROBE=0
+printf '%s\n' 'SessionWorkspace.setDirectory(dir.path)' | grep -qE "$S_RX" && S_PROBE=$((S_PROBE + 1))
+printf '%s\n' 'setenv(key, "v", 1)' | grep -qE "$S_RX" && S_PROBE=$((S_PROBE + 1))
+printf '%s\n' 'unsetenv(key)' | sed 's/unsetenv(/unSETENV(/g' | grep -qE "$S_RX" \
+    || S_PROBE=$((S_PROBE + 1))
+if [ "$S_PROBE" != "3" ]; then
+    echo "  X dead scan: only $S_PROBE/3 self-test shapes behave (pattern or neutralizer moved)"
+    FAIL=1
+elif [ ! -d "$S_TESTS" ]; then
+    echo "  X no $S_TESTS in $ROOT - the scan cannot run, which is not a Clean"
+    FAIL=1
+else
+    S_MUT=0
+    S_OFF=0
+    S_EXEMPT=0
+    while IFS= read -r s_file; do
+        s_rel="${s_file#"$ROOT"/}"
+        if grep -vE '^[[:space:]]*(//|\*)' "$s_file" | sed 's/unsetenv(/unSETENV(/g' \
+            | grep -qE "$S_RX"; then
+            S_MUT=$((S_MUT + 1))
+            if [ "$s_rel" = "$S_IMPL" ]; then
+                S_EXEMPT=$((S_EXEMPT + 1))
+                continue
+            fi
+            if ! grep -q 'ProcessGlobalLease(' "$s_file"; then
+                echo "  X UNLEASED $s_rel mutates a process-global and takes no lease"
+                S_OFF=$((S_OFF + 1))
+            fi
+        fi
+    done < <(find "$S_TESTS" -name '*.swift' | sort)
+    echo "  scan: $S_MUT mutator file(s) (floor $S_FLOOR), $S_EXEMPT exemption(s), $S_OFF offender(s)"
+    if [ "$S_MUT" -lt "$S_FLOOR" ]; then
+        echo "    X scan premise unmet: the mutator patterns stopped seeing the suites that mutate"
+        FAIL=1
+    fi
+    if [ "$S_EXEMPT" != "1" ]; then
+        echo "    X exactly the lease implementation may mutate unleased, measured $S_EXEMPT"
+        FAIL=1
+    fi
+    if [ "$S_OFF" -gt 0 ]; then
+        echo "    remedy: take a ProcessGlobalLease (Tests/ocoreaiTests/ProcessGlobalLease.swift);"
+        echo "    release() restores what the process held before the lease"
+        FAIL=1
+    elif [ "$S_MUT" -ge "$S_FLOOR" ]; then
+        echo "  Clean"
+    fi
+fi
+
 if [ "$FAIL" -eq 0 ]; then
     echo "✅ All audits passed"
     exit 0
