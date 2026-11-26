@@ -206,7 +206,12 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   defects: **#733** adds optional `logitSampler:`/`logitProcessor:` to `GuidedGenerationLoop.run` (nil keeps
   greedy; a sampler picking a grammar-excluded token throws) — the guided-gen primitive the "thinking is
   uncounted on the tools lane" row and the per-iteration-grammar shape would ride, once the pin carries it;
-  **#812** first half fixes the Qwen XML `
+  **#812** first half fixes the Qwen XML `<parameter>` scan — a value left unclosed is now ended by the next
+  line-initial `<parameter=` (Qwen's own reference-parser shape; the shipped bug swallowed every later
+  parameter into the first argument and replayed four times in a live multi-turn run), second half reclassifies
+  a well-formed call to an undeclared tool from `malformedSyntax` to `undeclaredTool` **naming it** — the same
+  refuse-by-name shape our `settings.toolsSurface.enforce` row wants, so the undeclared-tool face should read
+  this parser's behavior at the bump, not re-derive it.
 - **A no-tool turn steers and stops, both halves flag-staged** (Engine/). Upstream #608/#798 at the
   `bf5a5d438` pin owns mid-turn input: `steer(_:policy:)` ends a step at the next safe point *inside a
   thought* (upstream-app measured 0.22-0.30 s steer-to-new-text vs 6.9-8.1 s pre-#798), and
