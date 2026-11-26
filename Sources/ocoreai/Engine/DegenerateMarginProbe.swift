@@ -240,9 +240,9 @@ enum DegenerateMarginProbe {
                     // is off by default: upstream delivers a terminating stop token to the handler
                     // only on request, and hands it that step's log probabilities only under the
                     // same flag.
-                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2944 handler.receivesStopTokens
-                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2956 logProbabilities: includeStopToken
-                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/TokenLoopHandler.swift:69 receivesStopTokens
+                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift handler.receivesStopTokens
+                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift logProbabilities: includeStopToken
+                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/TokenLoopHandler.swift receivesStopTokens
                     // Left at default a collapsed reconstruction stops after step 1 and the
                     // terminating EOS carries no number. Measured 10-23: 25 of 95 probe turns
                     // reported exactly one step, and every one of them was a collapse.

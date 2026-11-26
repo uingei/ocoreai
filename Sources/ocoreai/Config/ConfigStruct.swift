@@ -569,9 +569,9 @@ public struct BackendConfig: Sendable, Codable, Equatable {
 /// Backed by mlx-swift-lm ``GenerateParameters.kvBits`` /\
 /// ``GenerateParameters.quantizedKVStart`` / ``GenerateParameters.kvScheme``
 /// (mlx-swift-lm MLXLMCommon/Evaluate.swift:166 `kvBits`, :172 `quantizedKVStart`, :197 `kvScheme`).
-// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:166 public var kvBits
-// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:172 public var quantizedKVStart
-// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:197 public var kvScheme
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift public var kvBits
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift public var quantizedKVStart
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift public var kvScheme
 public struct KVCacheQuantizationConfig: Sendable, Codable, Equatable {
     /// Master toggle. Enabled means KV cache quantization is active.
     public var enabled: Bool

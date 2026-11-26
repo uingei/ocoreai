@@ -163,7 +163,7 @@ struct MessageHistoryKey: Hashable, Sendable, Codable {
     /// Media-carrying turns cannot be reconciled with a restored snapshot: a vision
     /// encoder attends an image beside a cached prefix differently than cold
     /// (upstream `ChatSession.swift:711-707`), so these turns block disk reuse.
-    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:773 image-bearing turn continues warm
+    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift image-bearing turn continues warm
     var hasMedia: Bool = false
     /// Tool traffic renders into the prompt as control text that a caller-supplied
     /// message list does not describe faithfully, so a ledger containing it is not
@@ -198,7 +198,7 @@ enum ConversationIdentity {
 /// Upstream persists raw KV state only and says the caller owns the transcript:
 /// "A restored raw cache therefore uses fragment-based continuation"
 /// (`ChatSession.swift:1804-1790`). The session continues from whatever tokens the
-// anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2162 A restored raw cache therefore uses
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift A restored raw cache therefore uses
 /// file happens to hold and cannot check them against a chat template. Accepting one
 /// without proof re-attaches a previous conversation's context to a new request, so
 /// this manifest is the proof, and no manifest means no reuse.
@@ -208,7 +208,7 @@ struct KVCacheManifest: Codable, Sendable {
     /// A v1 file cannot state its reserve, and upstream will not realize a cache whose plan
     /// differs from the live generation parameters: `requirePlan` throws
     /// `kvCacheConfigurationChanged` (`ChatSession.swift:312`), which would surface as a
-    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:365 throw ChatSessionError.kvCacheConfigurationChanged
+    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift throw ChatSessionError.kvCacheConfigurationChanged
     /// failed turn for every conversation that persisted before a plan change. Refusing the
     /// snapshot here turns that into what it actually is. One cold turn, and says so on
     /// the ledger instead of the error path.
@@ -274,7 +274,7 @@ struct KVCacheManifest: Codable, Sendable {
         let instructionsMatch = instructionsHash == requestedInstructionsHash
         // A vision encoder attends an image beside a cached prefix differently than
         // cold (upstream `ChatSession.swift:711-707`), and the pixels are not in the
-        // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:773 image-bearing turn continues warm
+        // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift image-bearing turn continues warm
         // manifest, so a media turn on either side is unverifiable.
         guard !messages.contains(where: \.hasMedia),
             !incomingMessages.contains(where: \.hasMedia)
@@ -663,7 +663,7 @@ actor MLXSessionPool {
                 // token-level common prefix, and upstream verifies the trim landed before
                 // trusting it (the verify-and-downgrade block that opens at
                 // ChatSession.swift:1285). Editing a past turn is the most common state change a
-                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1515 Verify and downgrade to a rebuild
+                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift Verify and downgrade to a rebuild
                 // coding-agent UI makes, and every such turn used to re-prefill everything:
                 // measured 10-21 (probe 27, gemma-4-e2b-it-4bit, one session) a warm
                 // appended turn reused 734 of 758 tokens while the edited resend reused 0.
@@ -760,13 +760,13 @@ actor MLXSessionPool {
                 // Sampling lives on the session, not on the call: upstream captures
                 // `ChatSession.generateParameters` when a stream starts
                 // (`ChatSession.swift:371`, capture list at `:1037-1043`), so a reused
-                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:431 public var generateParameters
-                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1153 generateParameters = parameters
+                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift public var generateParameters
+                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift generateParameters = parameters
                 // session that keeps turn 1's parameters answers turn 2 under turn 1's
                 // `max_tokens`/`temperature`/`seed`. Measured, and named in
                 // ``staleSamplingFields``. Cache-affecting changes stay upstream's job
                 // (`ChatSession.swift:1244-1248` rebuilds from its retained transcript).
-                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1232 rebuild the cache from it
+                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift rebuild the cache from it
                 let overriddenFields = Self.staleSamplingFields(
                     before: pooled.session.generateParameters,
                     after: genParams
@@ -1281,7 +1281,7 @@ actor MLXSessionPool {
     ///
     /// Upstream persists raw KV state and leaves the transcript to the caller
     /// (`ChatSession.swift:1804-1790`): a restored session continues from whatever
-    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:2162 A restored raw cache therefore uses
+    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift A restored raw cache therefore uses
     /// tokens the file happens to hold, with no chat template to reconcile against.
     /// Accepting one without proof grafts a previous conversation's context onto a
     /// new request, so every refusal here is also a deletion. A snapshot this build
@@ -1401,7 +1401,7 @@ actor MLXSessionPool {
         // MLX dispatches its loader on the file extension (`MLX/IO.swift`) and only
         // recognises `safetensors` here. Upstream documents the snapshot as a
         // `.safetensors` file (`KVCache.swift:2229`). With a `.mlx` suffix every save
-        // anchor:mlx-swift-lm Libraries/MLXLMCommon/KVCache.swift:2229 The URL to the
+        // anchor:mlx-swift-lm Libraries/MLXLMCommon/KVCache.swift The URL to the
         // failed "Unknown extension mlx", so this persistence never wrote a byte.
         return cacheDirectory.appendingPathComponent(safeKey + ".safetensors")
     }
@@ -1635,7 +1635,7 @@ actor MLXSessionPool {
     /// - `!carriesMedia`: a media placeholder is the same tokens for different pixels, so
     ///   shared tokens cannot prove a shared prefix, and upstream refuses to reconcile those
     ///   (ChatSession.swift:340-347). The fork would start cold while this line claimed a
-    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:415 return .history(history)
+    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift return .history(history)
     ///   rewind.
     /// - `laneCanSpend`: this turn generates through the pooled `ChatSession`. Guided gen and
     ///   MTP build their own KV cache and release the slot before generating, so a rewind
@@ -1672,7 +1672,7 @@ actor MLXSessionPool {
     /// Why this exists: sampling does not travel with the call. Upstream reads the
     /// session's *stored* parameters when a stream starts
     /// (`ChatSession.swift:371` declares `public var generateParameters`, and `streamMap`
-    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:431 public var generateParameters
+    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift public var generateParameters
     /// captures that property in its task capture list at `:1037-1043`), so handing a pooled
     /// session back untouched means the next turn on that conversation generates under the
     /// previous turn's knobs. Measured 10-19 on this host

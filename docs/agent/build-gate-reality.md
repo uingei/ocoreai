@@ -83,9 +83,9 @@ live assertion about the pair (`scripts/probes/`), not a test of the handler alo
 
 ## Anchors for the cites above (`make anchor-check`. Retired 11-16; the markers remain as comments)
 
-<!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml:126-128 Infra: verify MetalToolchain installed -->
-<!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml:137 xcodebuild build-for-testing -->
-<!-- anchor:mlx-swift Source/MLX/GPU+Metal.swift:54-55 metallib load path -->
+<!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml Infra: verify MetalToolchain installed -->
+<!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml xcodebuild build-for-testing -->
+<!-- anchor:mlx-swift Source/MLX/GPU+Metal.swift metallib load path -->
 
 ## Why the full suite once looked unrunnable here
 

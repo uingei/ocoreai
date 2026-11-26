@@ -549,9 +549,9 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
 - **Upstream already ships a scripted engine; ours has to be re-judged when the planned half lands**
   (Engine/), `MLXScriptedLM` is a published product at the pin, and its scripted tokenizer implements
   upstream's own `Tokenizer` protocol
-  <!-- anchor:mlx-swift-lm Libraries/MLXScriptedLM/Tokenizer/ScriptedTokenizer.swift:11 public struct ScriptedTokenizer -->
+  <!-- anchor:mlx-swift-lm Libraries/MLXScriptedLM/Tokenizer/ScriptedTokenizer.swift public struct ScriptedTokenizer -->
   while its library README still lists tool calls and reasoning in transcripts as *Planned*
-  <!-- anchor:mlx-swift-lm Libraries/MLXScriptedLM/README.md:20 Planned -->
+  <!-- anchor:mlx-swift-lm Libraries/MLXScriptedLM/README.md Planned -->
 . Exactly the half `Engine/ScriptedInference.swift` exists to decide at k=1, so today's lane is no
   duplicate of delivered upstream capability. Re-open: upstream shipping transcript tool calls; check the
   pin diff on that library at the next bump.

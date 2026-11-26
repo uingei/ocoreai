@@ -269,9 +269,9 @@ struct TokenBiasCache: @unchecked Sendable {
 /// 上游实证:
 ///   - `MLXGuidedGeneration/GuidedGenerationLoop.swift`. MaxTokens 耗尽且语法未终止时
 ///     `throw GuidedGenerationError.incompleteOutput` (emit 已流式输出, 部分文本在)。
-// anchor:mlx-swift-lm Libraries/MLXGuidedGeneration/GuidedGenerationLoop.swift:478 throw GuidedGenerationError.incompleteOutput
+// anchor:mlx-swift-lm Libraries/MLXGuidedGeneration/GuidedGenerationLoop.swift throw GuidedGenerationError.incompleteOutput
 ///   - `MLXFoundationModels/MLXLanguageModel.swift` 的两处 `catch GuidedGenerationError.incompleteOutput`,
-// anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:1539 } catch GuidedGenerationError.incompleteOutput {
+// anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift } catch GuidedGenerationError.incompleteOutput {
 ///     canonical 下游处理: `incomplete = true` 保留已产出,
 ///     照常收尾, **不 throw**; prematureEOS 不在吸收清单(上游只 catch incompleteOutput)。
 ///   - `GuidedGenerationError.swift` (全文件 15 行)。上游对该错误的原文
@@ -310,7 +310,7 @@ func absorbGuidedGenerationPartialOutput(
 /// force-closing zone. The opposite of what the zones are for (upstream's Soft/Hard-zone
 /// comment block in `GuidedGenerationLoop.swift`: hard = the last `hardReserve` tokens,
 /// i.e. hard < completion).
-// anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:1122 structuralReserve * 3, maxTokens / 4)
+// anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift structuralReserve * 3, maxTokens / 4)
 ///
 /// Live, 10-13, gemma-4-e2b-it-4bit, `json_schema` `{"answer": integer}`:
 /// `max_tokens` 24 and 32 → `{"answer"\n  \n:1111…` until the budget, never

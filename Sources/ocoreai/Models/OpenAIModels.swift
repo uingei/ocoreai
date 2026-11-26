@@ -1295,12 +1295,12 @@ struct Usage: Encodable {
 /// is what this turn **prefilled** ("When a session reuses a KV-cache prefix only the remaining
 /// suffix is fed to the model, so this counts fewer tokens than the rendered prompt",
 /// mlx-swift-lm's own words on `promptTokenCount`), while `cachedPromptTokenCount` is the prefix its KV
-// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:3112 counts fewer tokens than the rendered prompt
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift counts fewer tokens than the rendered prompt
 /// cache kept. Upstream's own total is `cached + prefilled` (`totalPromptTokenCount`'s getter),
-// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:3180 cachedPromptTokenCount + promptTokenCount
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift cachedPromptTokenCount + promptTokenCount
 /// and mlx-swift-lm emits exactly that as its input-token count at its
 /// `totalTokenCount: info.totalPromptTokenCount` sites in `MLXLanguageModel.swift`.
-// anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:1467 totalTokenCount: info.totalPromptTokenCount,
+// anchor:mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift totalTokenCount: info.totalPromptTokenCount,
 ///
 /// Publishing the prefilled suffix instead was the deviation this exists to prevent. Measured 10-21
 /// on this host, three warm turns on `/v1/chat/completions` answered `prompt_tokens` 30, 44 and 54
