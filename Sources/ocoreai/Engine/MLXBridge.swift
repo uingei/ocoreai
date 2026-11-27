@@ -964,6 +964,23 @@ nonisolated func makeKVCacheRewind(maxTokens: Int = kvCacheRewindReserveTokens)
     return try? MLXLMCommon.KVCacheConfiguration.Rewind(maxTokens: maxTokens)
 }
 
+/// A caller's requested KV capacity, resolved where the typed configuration is built.
+///
+/// It never travels as upstream's legacy `GenerateParameters.maxKVSize`: this file always
+/// sets `kvCache`, and upstream's `resolvedKVCacheConfiguration` throws
+/// `conflictingLegacyConfiguration` for the pair (read at pin `bf5a5d438`,
+/// `KVCachePlan.swift`). `preservedPrefixTokens` mirrors that function's own legacy mapping,
+/// so the field keeps the semantics it had before the typed path became unconditional.
+nonisolated func makeKVCacheCapacity(maxTokens: Int?)
+    -> MLXLMCommon.KVCacheConfiguration.Capacity?
+{
+    // Out of domain (`<= 0`) means no capacity: `SamplingDomain` refuses that on the wires that
+    // carry the field, and `Capacity.init` would throw on it.
+    guard let maxTokens, maxTokens > 0 else { return nil }
+    return try? MLXLMCommon.KVCacheConfiguration.Capacity(
+        maxTokens: maxTokens, preservedPrefixTokens: min(4, maxTokens - 1))
+}
+
 /// Convert legacy KV cache quantization parameters to the typed
 /// ``KVCacheConfiguration`` API (mlx-swift-lm Evaluate.swift L74-79).
 ///
@@ -977,11 +994,35 @@ nonisolated func makeKVCacheConfiguration(
     fallbackBits: Int?,
     fallbackGroupSize: Int,
     fallbackQuantizedKVStart: Int,
-    fallbackScheme: String?
+    fallbackScheme: String?,
+    capacityTokens: Int? = nil
 ) -> MLXLMCommon.KVCacheConfiguration? {
+    let capacity = makeKVCacheCapacity(maxTokens: capacityTokens)
+    // Every exit carries the reserve and the caller's capacity, so this is the only place
+    // either can be forgotten. `KVCapacityDeliveryTests` pins the pair on every exit.
+    func configured(_ strategy: MLXLMCommon.KVCacheConfiguration.Strategy)
+        -> MLXLMCommon.KVCacheConfiguration
+    {
+        // A bounded cache turns every attention layer into a rotating one, and a rotating
+        // cache satisfies no compression strategy (`KVCacheLeaf.supports`, read at the pin),
+        // so with a capacity there is nothing left to compress. `.allowPartial` is what
+        // upstream's own legacy route used for this pair; the strict policy stays for every
+        // unbounded request, where "no layer can compress" is a real refusal.
+        // The truth of what got applied is on `GET /v1/models/:model/kv-cache`.
+        let compatibility: MLXLMCommon.KVCacheConfiguration.CompatibilityPolicy =
+            capacity == nil ? .requireAtLeastOneLayer : .allowPartial
+        return MLXLMCommon.KVCacheConfiguration(
+            capacity: capacity, strategy: strategy,
+            compatibility: compatibility, rewind: makeKVCacheRewind())
+    }
+
     // Primary source: global kvCacheQuant config
     if let config = kvCacheQuant {
-        guard config.enabled else { return nil }
+        guard config.enabled else {
+            // Compression off, but a caller may still have asked for a KV capacity, and a
+            // nil here would drop it without a word. Without one this exit is unchanged.
+            return capacity == nil ? nil : configured(.fullPrecision)
+        }
         let bits = config.bits ?? 4
         let groupSize = config.groupSize > 0 ? config.groupSize : 64
         let compressionStart = max(0, config.quantizedKVStart)
@@ -1023,9 +1064,11 @@ nonisolated func makeKVCacheConfiguration(
                     ))
             }
         } catch {
-            return nil
+            // Unusable compression config: no compression, but the caller's capacity and the
+            // reserve still apply — dropping them here would be a second silent loss.
+            return configured(.fullPrecision)
         }
-        return MLXLMCommon.KVCacheConfiguration(strategy: strategy, rewind: makeKVCacheRewind())
+        return configured(strategy)
     }
 
     // Fallback: sampling-level kvBits field
@@ -1060,16 +1103,15 @@ nonisolated func makeKVCacheConfiguration(
                     ))
             }
         } catch {
-            return nil
+            return configured(.fullPrecision)
         }
-        return MLXLMCommon.KVCacheConfiguration(strategy: strategy, rewind: makeKVCacheRewind())
+        return configured(strategy)
     }
 
     // No quantization was asked for, but the cache is still worth configuring: without a
     // rewind reserve every edited resend rebuilds from scratch (measured above), and
     // `.fullPrecision` says out loud what `nil` used to mean implicitly.
-    return MLXLMCommon.KVCacheConfiguration(
-        strategy: .fullPrecision, rewind: makeKVCacheRewind())
+    return configured(.fullPrecision)
 }
 
 private func parseTurboScheme(_ scheme: String) -> (Int, Int)? {
@@ -1143,16 +1185,16 @@ nonisolated func makeGenerateParameters(
     // Pass maxTokens through directly. Upstream default is nil (no limit).
     // Hard-coding 1024 truncated all requests without explicit maxTokens config.
     params.maxTokens = maxTokens
-    // Typed KV cache configuration. Avoids legacy kvBits/kvScheme/kvGroupSize
-    // which conflict with upstream KVCacheConfiguration (Evaluate.swift L74-79:
-    // "Set either GenerateParameters.kvCache or the legacy KV-cache fields, not both")
-    // Upstream applies typed config via KVCachePlan internally.
+    // One typed KV cache configuration, and no legacy KV field anywhere below it: upstream
+    // refuses the pair ("Set either GenerateParameters.kvCache or the legacy KV-cache fields,
+    // not both", Evaluate.swift L74-79), so compression AND a requested capacity ride here.
     let kvCacheConfig = makeKVCacheConfiguration(
         kvCacheQuant: kvCacheQuant,
         fallbackBits: sampling.kvBits,
         fallbackGroupSize: sampling.kvGroupSize,
         fallbackQuantizedKVStart: sampling.quantizedKVStart,
-        fallbackScheme: sampling.kvScheme
+        fallbackScheme: sampling.kvScheme,
+        capacityTokens: sampling.maxKVSize
     )
     params.kvCache = kvCacheConfig
     #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
@@ -1240,10 +1282,10 @@ nonisolated func makeGenerateParameters(
     case "unchunked": params.prefill.chunking = .unchunked
     default: break  // .balanced is both our and upstream default
     }
-    // Max KV cache size. Enables RotatingKVCache when set
-    if let maxKVSize = sampling.maxKVSize {
-        params.maxKVSize = maxKVSize
-    }
+    // Deliberately no `params.maxKVSize`: a requested capacity rides `params.kvCache` above.
+    // The legacy field beside a typed configuration makes upstream throw
+    // `conflictingLegacyConfiguration` before the first token, which is how every
+    // `max_kv_size` request died until this line went (measured 11-28, probe 10 §6).
     // Context window sizes for repetition/presence/frequency penalties
     params.repetitionContextSize = sampling.repetitionContextSize
     params.presenceContextSize = sampling.presenceContextSize

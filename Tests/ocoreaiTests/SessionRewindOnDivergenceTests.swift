@@ -276,15 +276,17 @@ struct SessionRewindOnDivergenceTests {
         // gemma-4-e2b-it-4bit, the edited turn answered correctly and reused 0 tokens;
         // with the reserve the same turn reused 718 of 758. A knob that quietly stops
         // being requested costs latency and nothing goes red, so the request itself gets a
-        // gate here. One home, three exits from the resolver (quantized, fallback-bits,
-        // unquantized), and the size stated where a reader can find it.
+        // gate here. It is now a count of ONE: the resolver builds its configuration in a
+        // single place, so no exit can forget the reserve (11-28, when the exits grew and the
+        // per-exit copies were folded into it). `KVCapacityDeliveryTests` asserts the pair on
+        // every exit by calling the resolver, which is the half a text scan cannot see.
         let bridgeSource = try read("Sources/ocoreai/Engine/MLXBridge.swift")
-        let reserveSites =
+        let configurationSites =
             bridgeSource
-            .components(separatedBy: "rewind: makeKVCacheRewind()").count - 1
+            .components(separatedBy: "MLXLMCommon.KVCacheConfiguration(").count - 1
         #expect(
-            reserveSites == 3,
-            "every exit of makeKVCacheConfiguration must carry the reserve; found \(reserveSites) of 3"
+            configurationSites == 1,
+            "makeKVCacheConfiguration must build its configuration in one place, or an exit can drop the reserve; found \(configurationSites)"
         )
         #expect(
             bridgeSource.contains("let kvCacheRewindReserveTokens = "),
