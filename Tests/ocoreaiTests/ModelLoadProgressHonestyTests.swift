@@ -156,12 +156,16 @@ struct ModelLoadProgressHonestyTests {
         let measured = ModelLoadProgress.measure(
             modelId: "test/clock", enteredAt: entered, store: emptyStore())
         #expect(measured.elapsedSeconds == 0, "a fresh clock must not lead the load")
-        try await Task.sleep(for: .seconds(1))
+        // The waited window is injected, not slept, since 11-27: `measure` reads
+        // `enteredAt.duration(to: .now)` straight, and the 1 s `Task.sleep` this test used to
+        // spend overran to 4.4 s in the 16 s set run (the same timer-wake tail as the steer-wake
+        // family) — a premise the assertion never needed and a tail it could not bound.
+        let enteredEarlier = ContinuousClock.now - .seconds(2)
         let later = ModelLoadProgress.measure(
-            modelId: "test/clock", enteredAt: entered, store: emptyStore())
+            modelId: "test/clock", enteredAt: enteredEarlier, store: emptyStore())
         #expect(
-            (1 ... 3).contains(later.elapsedSeconds),
-            "the wait was clocked as \(later.elapsedSeconds)s against a 1 s window")
+            (2 ... 3).contains(later.elapsedSeconds),
+            "the wait was clocked as \(later.elapsedSeconds)s against a 2 s window")
     }
 
     // MARK: - The two wire shapes

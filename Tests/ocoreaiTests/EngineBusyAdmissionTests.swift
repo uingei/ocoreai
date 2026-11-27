@@ -59,7 +59,11 @@ struct EngineBusyAdmissionTests {
             return max(0, worst - 50)
         }
         let start = DispatchTime.now()
-        let acquired = await model.acquireInference(waiting: .seconds(5))
+        // The window is 8 s, not 5, since 11-27: the lease convoy fix cut the set run from
+        // 302 s to 16 s, the load tail on a timer wake grew with the density (slack 3371/3385 ms
+        // over four set runs), and the defect signature needs to stay far above that tail.
+        // Only the red path pays the longer window — the green path returns at release + poll.
+        let acquired = await model.acquireInference(waiting: .seconds(8))
         let waitedMs = Self.msSince(start)
         let freedAtMs = await releaser.value
         let controlMs = await control.value
@@ -67,16 +71,15 @@ struct EngineBusyAdmissionTests {
 
         #expect(
             acquired,
-            "the lock freed at \(freedAtMs)ms of a 5000ms window and the waiter missed it")
+            "the lock freed at \(freedAtMs)ms of an 8000ms window and the waiter missed it")
         // The defect this suite exists for is `Task.sleep(until: deadline)` inside the pending
         // loop: it reaches the guard only when the window closes, so its signature is a wake
-        // slack of ~4.8 s against a release at ~120 ms. The bound sits between the two measured
-        // ends of this host's behaviour and that signature: the worst set-run wake here was
-        // 2194 ms (3350 tests sharing one pool; the control reads low because a saturated
-        // clock's tail is far worse than its median), and 3 s stays clearly under the defect.
-        // Both ends are re-measurable, and the control term keeps the bound honest on a host
-        // slower than this one.
-        let budgetMs = max(3000, 4 * controlMs)
+        // slack of ~7.9 s against a release at ~120 ms. The floor sits above this host's
+        // measured load tail (worst 3385 ms in the 16 s set runs of 11-27; the older 2194 ms in
+        // the 300 s layout) and far below that signature; the control term keeps the bound
+        // honest on a host slower than this one (ratio slack/control measured 10-14 there).
+        // Both ends are re-measurable.
+        let budgetMs = max(4500, 12 * controlMs)
         #expect(
             wakeSlackMs < budgetMs,
             """

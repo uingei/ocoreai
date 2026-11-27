@@ -342,10 +342,16 @@ struct MiddlewareChainTests {
 
     @Test("Rate limit: burst=2 → 3rd request 429")
     func testRateLimitExhaustion() async throws {
+        // Refill out of the running — 0.001/s, one token per thousand seconds — the shape
+        // `MiddlewareEnvelopeDisciplineTests.oneShotRateLimit` already proved: at 5/s a token
+        // returned every 200 ms and the three sequential router hops only stayed inside that
+        // window while the scheduler was idle (measured 11-27: once the set run compressed to
+        // 16 s a hop occasionally ran longer, the 3rd request refueled, and this gate read
+        // `200 OK` against its own name). The burst-exhaustion shape needs no wall clock.
         let tiny = RateLimitProvider.Config(
-            globalRate: 5, globalBurst: 2,
-            perModelRate: 5, perModelBurst: 2,
-            perIPRate: 5, perIPBurst: 2, enabled: true
+            globalRate: 0.001, globalBurst: 2,
+            perModelRate: 0.001, perModelBurst: 2,
+            perIPRate: 0.001, perIPBurst: 2, enabled: true
         )
         let (app, dbs) = try await Self.makeApp(authKeys: [], rlConfig: tiny)
         defer { cleanupE2E(dbs) }

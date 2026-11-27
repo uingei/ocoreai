@@ -178,8 +178,10 @@ struct SystemSleepBackendTests {
             milliseconds: 30_000, wakeCheck: SleepWake.session(key))
         let took = elapsedMs(start)
         #expect(outcome == .interrupted)
-        // 睡到 deadline 的写法会在这里停满 30 s(codex #55644 同一形状的错误)。
-        #expect(took < 2_000, "took \(took)ms — a pre-queued steer must end the wait at once")
+        // 睡到 deadline 的写法会在这里停满 30 s(codex #55644 同一形状的错误)。界取 3600 而非
+        // 2000: 11-27 全量缩到 16 s 后, 外部事件叫醒同族实测尾到 2944 ms(见
+        // `steerArrivingMidWaitEndsItEarly` 的重测注), 30 s 的缺陷签名仍远在界上。
+        #expect(took < 3_600, "took \(took)ms — a pre-queued steer must end the wait at once")
     }
 
     @Test("正向: 等待途中到达的转向在一个节拍内结束等待")
@@ -190,7 +192,10 @@ struct SystemSleepBackendTests {
         // 那 60 ms 的睡眠能迟到几秒。11-02 全量实测 `took ≥ 2500` 红在这一行, 而轮询唤醒
         // 本身没有错。界因此钉在「转向真正到场之后」, 与 `EngineBusyAdmissionTests
         // .queueWakesOnRelease` 同一形状: 返回时刻 + 控制项量本机此刻一次 50 ms 睡眠的代价,
-        // 慢机器上界自己放大。缺陷签名(睡到 deadline)是 30 000 ms, 仍远在一切界之上。
+        // 慢机器上界自己放大。11-27 重测: 租约 convoy 修好后全量从 302 s 缩到 16 s, 唤醒的调度
+        // 尾随密度变长(四轮全量实测 slack 2056/2853/2873/2944 ms, 同时 control 145–270 ms,
+        // 比值 10–14), 地板与系数按这组实测重钉。缺陷签名(睡到 deadline)是 30 000 ms, 仍远在
+        // 一切界之上。
         let arrival = Task<Int, Never> {
             let t0 = DispatchTime.now().uptimeNanoseconds
             try? await Task.sleep(nanoseconds: 60_000_000)
@@ -214,7 +219,7 @@ struct SystemSleepBackendTests {
         let controlMs = await control.value
         let wakeSlackMs = took > arrivedAtMs ? took - arrivedAtMs : 0
         #expect(outcome == .interrupted)
-        let budgetMs = max(2000, 4 * controlMs)
+        let budgetMs = max(3600, 12 * controlMs)
         #expect(
             wakeSlackMs < budgetMs,
             """
@@ -285,7 +290,8 @@ struct SleepWireWordingTests {
         let took = elapsedMs(start)
         #expect(out.contains("Sleep interrupted by new input."), "tool result was: \(out)")
         #expect(!out.contains("Sleep completed."), "tool result was: \(out)")
-        #expect(took < 2_000, "took \(took)ms — the promise in the tool description broke")
+        // 3600 而非 2000: 叫醒调度尾随同族重测(11-27, 实测 2811 ms 红过), 词面承诺的形状不变。
+        #expect(took < 3_600, "took \(took)ms — the promise in the tool description broke")
     }
 
     @Test("无会话键 ⇒ 同一工具睡满全程并报 `Sleep completed.`, 不臆造中断")
