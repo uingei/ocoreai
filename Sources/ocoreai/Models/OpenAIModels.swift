@@ -2078,6 +2078,27 @@ struct ModelSamplingPatch: Decodable {
     var defaultModel: Bool? = nil
     var pinned: Bool? = nil
 
+    /// `max_kv_size` obeys the chat wires' rule here too (`SamplingDomain`: at least 1), so one
+    /// knob is not in domain on one face and storable nonsense on the other. A stored value is
+    /// not "unset": measured 11-28, `{"max_kv_size":0}` answered 200 here and then failed every
+    /// later turn for that model, and it still reads back as though it had taken effect.
+    ///
+    /// The sibling integer knobs stay unrefused. Each was stored as 0 against a live `serve` the
+    /// same day and the next turn answered, so refusing them would be a new promise with no
+    /// defect behind it; `max_context_window` reads 0 as "inherit" (`ContextWindowPolicy.resolve`).
+    func numericDomainError() -> AppError? {
+        guard let maxKVSize else { return nil }
+        guard
+            let violation = SamplingDomain.firstViolation(
+                SamplingKnobs(
+                    counts: [SamplingKnobs.Count(field: "max_kv_size", value: maxKVSize)]))
+        else {
+            return nil
+        }
+        return .invalidParameter(
+            param: violation.param, message: violation.message, value: violation.value)
+    }
+
     /// Merge partial fields into a full ``ModelSamplingConfig``.
     func toConfig() -> ModelSamplingConfig {
         merged(onto: .default)

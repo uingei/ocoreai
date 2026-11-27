@@ -866,6 +866,12 @@ func buildRouter(
         let modelId = try await resolvedPathModelId(
             raw: context.parameters.getCatchAll().joined(separator: "/"))
         let patch = try await request.decode(as: ModelSamplingPatch.self, context: context)
+        // An out-of-domain knob here is not a bad turn, it is a bad state: the value is stored
+        // and every later turn for that model inherits it. Refused by name, same rule and same
+        // sentence as the chat wires.
+        if let refusal = patch.numericDomainError() {
+            throw refusal
+        }
         // default_model must point at a CHAT model. The embedder is
         // resolvable but never chatable (chat route fast-400s it); making
         // it default would 400 every model-less request. Same truth source

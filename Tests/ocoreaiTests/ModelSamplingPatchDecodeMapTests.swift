@@ -50,6 +50,41 @@ struct ModelSamplingPatchDecodeMapTests {
         #expect(try patch(#"{}"#).maxKVSize == nil)
     }
 
+    /// The stored value outlives the request, so an out-of-domain one is a state, not a bad
+    /// turn: measured 11-28, `{"max_kv_size":0}` was accepted here and every later turn for that
+    /// model then failed the KV-cache plan. One rule with the chat wires, one sentence.
+    @Test(
+        "max_kv_size keeps the chat wires' domain rule on this face",
+        arguments: [0, -3]
+    )
+    func maxKVSizeDomain(sent: Int) throws {
+        let error = try patch(#"{"max_kv_size": \#(sent)}"#).numericDomainError()
+        guard case .some(.invalidParameter(let param, let message, let value)) = error else {
+            Issue.record("max_kv_size \(sent) must be refused by name")
+            return
+        }
+        #expect(param == "max_kv_size")
+        #expect(value == String(sent))
+        #expect(message == "max_kv_size must be at least 1, got \(sent).")
+    }
+
+    @Test("an absent or in-domain max_kv_size meets no refusal")
+    func maxKVSizeDomainAccepts() throws {
+        // The sibling integer knobs were each stored as 0 against a live serve on 11-28 and the
+        // next turn answered, so this face still accepts them; that line is what this asserts.
+        let accepted = [
+            #"{}"#,
+            #"{"max_kv_size": 1}"#,
+            #"{"prefill_step_size":0,"repetition_context_size":0,"repetition_penalty_window":0,"#
+                + #""presence_context_size":0,"frequency_context_size":0,"max_context_window":0}"#,
+        ]
+        for json in accepted {
+            if let refusal = try patch(json).numericDomainError() {
+                Issue.record("\(json) must be accepted, got: \(refusal)")
+            }
+        }
+    }
+
     @Test("repetition_context_size decodes → repetitionContextSize")
     func repetitionContextSize() throws {
         let p = try patch(#"{"repetition_context_size": 40}"#)
