@@ -200,6 +200,14 @@ struct ToolDefinitionInjectionTests {
 struct EmptyMessageGuardTests {
     @Test("empty raw messages throw when system prompt is also empty")
     func emptyRawThrows() async throws {
+        // This guard fires only while the process-global workspace anchor is unset
+        // (`MessageBuilder` injects `SessionWorkspace.currentDirectory()`'s context, so an
+        // anchor another suite moved through production code makes the prompt non-empty
+        // and the throw disappears). A reader of the DEFAULT global state holds the lease:
+        // same rule as today's mover round (11-27), sampled against this suite's full-run
+        // red — the convoy's reader half.
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         let tmpPath = "/tmp/ocoreai_test_empty_\(UUID().uuidString.prefix(8)).db"
         let store = SQLiteStore(path: tmpPath)
         try await store.open()

@@ -127,6 +127,13 @@ struct CountTokensEndpointTests {
 
     @Test("POST /v1/messages/count_tokens is wired (not a 404 route-not-found)")
     func anthropicCountTokensRouteExists() async throws {
+        // This test asserts the answer of the REAL lane: while a leased suite legitimately
+        // runs the scripted lane, `ScriptedInference.isEnabled` is set process-wide,
+        // `acquire("no-such-model")` succeeds as a scripted handle, and this route answers
+        // 200-heuristic instead of naming the model (full-run red sampled 11-27). A reader
+        // of that default holds the lease. Same rule as today's mover round (ad1bf49a).
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         let (db1, db2) = (Self.uuidPath(), Self.uuidPath())
         defer {
             try? FileManager.default.removeItem(atPath: db1)

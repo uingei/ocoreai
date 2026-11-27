@@ -46,16 +46,22 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   § What this map changes.
 
 
-- **The full-run reds in the MCP/steer/admission suites do not reproduce filtered; mechanism unproven**
-  (Tests/, MCP/). Two full runs on this host lost issues in `MCPStderrDiagnosisTests`,
-  `EngineBusyAdmission`, `SleepSteerWake` and `CountTokensEndpoint`; one filtered run over the six
-  suites 11-24 passed 53/53, with the suite whose budget is 2.0 s finishing in 2.02 s. This row first
-  claimed a fixed-port 8777 collision from a `FATAL: address already in use` log line and was convicted
-  the same day: that line is the fixture's planted complaint inside `MCPStderrDiagnosisTests`' python
-  heredoc and prints on green runs (an instrument's output read as a bind failure). What survives:
-  timing-budget sensitivity under the parallel full run. Owner call: a serial lane or a raised budget
-  for those suites, and only after a red-sampled reproduction — an unproven flake is not a gate, and
-  raising a budget without one is hiding a claim.
+- **The full-run reds in the MCP/steer/admission suites do not reproduce filtered; the convoy's two
+  proven members are fixed, the timing trio is unproven** (Tests/, MCP/). Two full runs on this host lost
+  issues in `MCPStderrDiagnosisTests`, `EngineBusyAdmission`, `SleepSteerWake` and `CountTokensEndpoint`;
+  one filtered run over the six suites 11-24 passed 53/53, with the suite whose budget is 2.0 s finishing
+  in 2.02 s. This row first claimed a fixed-port 8777 collision from a `FATAL: address already in use`
+  log line and was convicted the same day: that line is the fixture's planted complaint inside
+  `MCPStderrDiagnosisTests`' python heredoc and prints on green runs (an instrument's output read as a
+  bind failure). 11-27 convicted and closed two members with mechanisms, both the convoy's READER half
+  (a suite asserting a *default* process-global goes red while a leased holder legitimately moves it):
+  `CountTokensEndpoint` (`ScriptedInference` set process-wide by a leased scripted suite turns the
+  unknown-model 404 into a 200-heuristic) and `MessageBuilderTests` (a moved workspace anchor injects a
+  non-empty system prompt and the empty-guard stops throwing). Both now hold `ProcessGlobalLease`, each
+  red-sampled its own full-run red that day (round in `CHANGELOG.md`). What survives: timing-budget
+  sensitivity for `MCPStderrDiagnosisTests`/`EngineBusyAdmission`/`SleepSteerWake`. Owner call: a serial
+  lane or a raised budget for those suites, and only after a red-sampled reproduction — an unproven flake
+  is not a gate, and raising a budget without one is hiding a claim.
 
 
 - **The nameless `tool_reference` still exits by silent drop; the availability claim closed 11-26**
