@@ -528,6 +528,34 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   (this host has no resident measured set and no server on 8080 as of 11-19), which is an owner act beside
   publishing, since publishing a catalog is promising it stays true.
 
+- **Codex-class harnesses cannot reach us at all: we speak the field's two dialects, and Codex now speaks only Responses** (Handlers/, Router/).
+  Measured 11-28 on this host: `codex-cli 0.162.1`, given a throwaway `CODEX_HOME` whose provider is our own server
+  (`base_url = http://127.0.0.1:<port>/v1`), sent no turn at all — five `Reconnecting... n/5` lines, then
+  `ERROR: unexpected status 404 Not Found: Route POST /v1/responses does not exist ...`, exit 1, against the same server
+  whose `/v1/messages` face probe 53 exists to prove (that probe was not re-run for this row; the claim borrowed is only
+  that the face is registered, which `endpoints[]` publishes). And there is no config half to fix on their side: at the reference
+  HEAD (`045a11fe2c`, read 11-28) `WireApi` has exactly one case (`~/references/codex/codex-rs/model-provider-info/src/lib.rs:120-124`),
+  and `wire_api = "chat"` is refused with a message telling the operator to set `responses` (same file, `:113` and `:143`).
+  So this is a face we lack, not a knob we left off. Their sibling constant `LEGACY_OLLAMA_CHAT_PROVIDER_ID` (`:114`)
+  records that the chat route to Codex was open once and closed on purpose.
+  Shipped practice, cited: sglang registers `/v1/responses` with retrieve and cancel (`srt/entrypoints/http_server.py:2099,2118,2126`);
+  ollama registers it plus `/v1/responses/compact` (`server/routes.go:2451-2452`) and keeps Codex-specific path machinery
+  beside it (`internal/proxy/codex_desktop.go:29` — "Codex appends /v1/responses and related paths"); llama.cpp documents
+  `/v1/responses` and `/v1/responses/input_tokens` (`tools/server/README.md:1706,1815`); vllm's is a module, not a route
+  (`entrypoints/openai/responses/api_router.py:49`; protocol 1 236 + serving 1 510 + streaming_events 1 408 + utils 599 lines).
+  The price is therefore the item model, the SSE event vocabulary and the stored/background response lifecycle — not the handler.
+  Calibrated so this row cannot be read as "the field moved, build it": chat is still what harnesses dial. `OpenHands` and
+  `aider` name `/v1/responses` zero times and `chat/completions` 11 and 3; the trees that do name Responses (opencode,
+  qwen-code, goose, cline, hermes-agent) name `chat/completions` too, so they reach us today. Those are file counts, not
+  traffic — they narrow the candidate, they decide nothing (`comparator-repos.md` § How to use 5).
+  Honest today, and ungated because nothing claims otherwise: the miss answers with a well-formed envelope naming method
+  and path and pointing at `GET /v1/capabilities`, whose `endpoints[]` enumerates every face actually registered. Adjudicated
+  against cheapening this instead of filing it: printing the two dialect names inside that 404 would restate `endpoints[]`
+  in a second home, and would move Codex not at all, since it has no chat wire to switch to.
+  Owner call (a public promise, so not root's): build the Responses face as a translator over the existing chat pipeline —
+  ollama's shape, which is the only rung here that does not add an engine path — or record that Codex-class harnesses are
+  out of scope, and stop counting them in the adoption plan.
+
 - **`/v1/embeddings` had no probe seat; its declared fields have one now** (Handlers/, Engine/),
   measured 11-05 against the cached canonical embedder with real weights, on a live server. What is sound:
   1024-dim, l2 norm 1.000183 (the pooler normalizes before its layer norm, so exactly-1 was never the
