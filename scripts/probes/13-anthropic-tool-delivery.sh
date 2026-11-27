@@ -656,13 +656,13 @@ probe_note "count_tokens=$COUNTED vs the same request's usage.input_tokens=$ANT_
 if [ -z "$COUNTED" ] || [ -z "$ANT_IN" ]; then
   probe_fail "count_tokens or usage reported nothing (count=$COUNTED usage=$ANT_IN)"
 else
-  # The pre-flight measures the message list with the message tokenizer; usage reports the
-  # engine's measured prefill, which includes the chat template's per-message framing. The
-  # gap is a constant of a few tokens per turn. Recorded, not hidden, and a gross
-  # mismatch (the old 24-vs-774) still fails here.
+  # Both numbers render the same template feed (tools included since 11-27; probe 02's
+  # tools arms pin that), and both runs this session measured the gap at exactly 0. The
+  # window stays at 16 for a checkpoint whose engine accounting drifts by the per-turn
+  # framing, but a gross mismatch (the old 24-vs-774, or a tools-blind seam) fails here.
   GAP=$(( COUNTED > ANT_IN ? COUNTED - ANT_IN : ANT_IN - COUNTED ))
   if [ "$GAP" -le 16 ]; then
-    probe_ok "count_tokens pre-flights the same prompt (|gap|=$GAP tokens = template framing)"
+    probe_ok "count_tokens pre-flights the same prompt (|gap|=$GAP; measured 0 at reference)"
   else
     probe_fail "count_tokens said $COUNTED, the request cost $ANT_IN — the pre-flight budgets a different prompt"
   fi

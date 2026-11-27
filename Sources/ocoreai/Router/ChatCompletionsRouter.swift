@@ -535,11 +535,13 @@ func buildRouter(
     /// hundreds of tokens on this server (measured 10-19: 24 against the 774 the same
     /// request actually cost).
     ///
-    /// What it cannot know is the chat template's per-message framing: the count comes from
-    /// the message tokenizer, while `usage.input_tokens` reports the engine's own measured
-    /// prefill. That difference is a constant of a few tokens per turn (measured 769
-    /// counted against 774 charged, a 2-message turn), so treat the pre-flight as a floor
-    /// for budgeting, not an exact figure.
+    /// The count renders the same template feed `/v1/messages` sends, `tools[]` included:
+    /// a checkpoint's chat template interpolates the tool schemas, so counting only the
+    /// messages under-reads a tool-bearing prompt by the whole schema block. Measured
+    /// 11-27 on a real Claude Code 2.1.332 request (12 tools): 5 410 counted against
+    /// 12 577 prefilled. What remains between this number and `usage.input_tokens` is
+    /// the engine's own per-turn accounting, a few tokens (measured 769 counted against
+    /// 774 charged, a toolless 2-message turn).
     routes.post("/v1/messages/count_tokens") { request, context in
         let countRequest = try await request.decode(
             as: AnthropicMessageRequest.self, context: context)
@@ -550,11 +552,24 @@ func buildRouter(
                 "Nothing to count: `messages`/`system` carry no text "
                     + "(media-only parts are not countable)")
         }
+        // The surface a `/v1/messages` turn of this same body would render: the same
+        // tool→ToolDef mapping, the same `tool_choice:none` zero rule, the same
+        // `resolveToolSurface` choke. No new throw: this route counts bodies the
+        // messages route may later refuse, and says so with its own number.
+        let countToolDefs: [ToolDef]? = countRequest.tools?.map { $0.toOpenAITool() }
+        let countToolChoice: String? = countRequest.toolChoice?.openAIVocabulary
+        let countDeclaredNames: [String]? =
+            countToolChoice == "none" ? [] : countToolDefs?.map { $0.function.name }
+        let countSurface = await toolSurfaceForCount(
+            registry: enginePool.toolRegistry,
+            declaredNames: countDeclaredNames,
+            declaredTools: countToolDefs)
         let counted = try await countPromptTokens(
             messages,
             modelId: countRequest.model,
             enginePool: enginePool,
             logger: logger,
+            tools: countSurface.isEmpty ? nil : countSurface,
         )
         return try Response.json(
             AnthropicCountTokensResponse(
@@ -1487,12 +1502,13 @@ func countPromptTokens(
     modelId: String,
     enginePool: EnginePool,
     logger: Logger,
+    tools: [[String: any Sendable]]? = nil,
 ) async throws -> (count: Int, backend: String) {
     let handle = try await enginePool.acquire(model: modelId)
     defer { Task { await handle.release() } }
 
     do {
-        let tokens = try await handle.tokenize(messages: messages)
+        let tokens = try await handle.tokenize(messages: messages, tools: tools)
         return (tokens.count, "real")
     } catch {
         logger.warning(

@@ -193,8 +193,20 @@ final class DirectTokenizer: Sendable {
         _tokenizer = tokenizer
     }
 
-    func tokenize(messages: [[String: String]]) async throws -> [Int32] {
-        let tokenIds = try _tokenizer.applyChatTemplate(messages: messages)
+    /// Render the feed through the model's own chat template and count it.
+    ///
+    /// `tools` rides the template context exactly as an engine turn's does, because a
+    /// template that iterates `tools` renders their schemas into the prompt — measured
+    /// 11-27 against a real Claude Code request: 12 tool schemas added 7 167 tokens to
+    /// the engine's prefill while a tools-blind count called the prompt 5 410. A count
+    /// that drops them is not a floor, it is a different number (AGENTS.md invariant 2).
+    /// A template that ignores `tools` renders the same text with or without them, so
+    /// passing them is honest for both checkpoint classes.
+    func tokenize(
+        messages: [[String: String]],
+        tools: [[String: any Sendable]]? = nil
+    ) async throws -> [Int32] {
+        let tokenIds = try _tokenizer.applyChatTemplate(messages: messages, tools: tools)
         return tokenIds.map(Int32.init)
     }
 

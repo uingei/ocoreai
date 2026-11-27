@@ -455,13 +455,26 @@ func chatCompletionsHandler(
             }
         }
 
+        /// The tool surface this turn renders into the prompt, from the same choke the
+        /// engine's turn reaches it through (`effectiveTools` + the `tool_choice:none`
+        /// zero rule + `resolveToolSurface`). Counting without it under-reads the prompt
+        /// by the whole schema block, and this is the number Phase 3.5's context-window
+        /// wall and `get_context_remaining` budget on (measured 11-27 on a real 12-tool
+        /// request: 5 410 counted against 12 577 prefilled).
+        let countSurface = await toolSurfaceForCount(
+            registry: enginePool.toolRegistry,
+            declaredNames:
+                request.toolChoice == "none" ? [] : request.tools?.map { $0.function.name },
+            declaredTools: effectiveTools(from: request))
+
         /// Phase 3: Tokenize messages for prompt token count.
         /// (Token count needed for metrics; actual inference passes messages directly on MLX path.)
         /// On MLX backend the tokenizer manager is a stub (real tokenizer lives in ChatSession),
         /// so we gracefully fall back to a character-based heuristic instead of blocking the request.
         var promptTokenCount: Int
         do {
-            let tok = try await handle.tokenize(messages: fullMessages)
+            let tok = try await handle.tokenize(
+                messages: fullMessages, tools: countSurface.isEmpty ? nil : countSurface)
             promptTokenCount = tok.isEmpty ? 1 : tok.count
         } catch {
             logger.warning(

@@ -240,13 +240,35 @@ func anthropicMessagesHandler(
         }
     }
 
+    // Phase 3b's tool-surface derivations, hoisted above the count: a counted prompt
+    // that omits `tools[]` is not a floor, it is a different number than the one the
+    // engine measures. Measured 11-27 against a real Claude Code 2.1.332 `/v1/messages`
+    // request (12 tools, 31 916 schema chars): 5 410 counted against 12 577 prefilled.
+    let declaredTools: [ToolDef]? = chatRequest.tools
+    /// Anthropic's demand, translated once (`any`→required, `tool`→function:<name>).
+    let toolChoice: String? = request.toolChoice?.openAIVocabulary
+    /// `tool_choice:{"type":"none"}` = zero tools this turn; declaring nothing is also
+    /// zero (the engine's `resolveToolSurface` choke). Same shape as ChatHandler's.
+    let declaredToolNames: [String]? = {
+        if toolChoice == "none" { return [] }
+        return declaredTools?.map { $0.function.name }
+    }()
+    /// The surface the engine will render, from the same choke the engine reaches it
+    /// through: registry spec wins per name, a declared name this server does not
+    /// register renders the caller's own schema.
+    let templateTools: [[String: any Sendable]] = await toolSurfaceForCount(
+        registry: enginePool.toolRegistry,
+        declaredNames: declaredToolNames,
+        declaredTools: declaredTools)
+
     /// Input token count (metrics). Tokenize or CJK-heuristic (chat Phase 3).
     /// On the MLX axis the tokenizer registry is empty (real tokenizer lives in
     /// the engine), so we gracefully fall back to a character-based estimate
     /// instead of blocking the request. Same discipline as Chat/Completions.
     var inputTokenCount: Int
     do {
-        let tok = try await handle.tokenize(messages: fullMessages)
+        let tok = try await handle.tokenize(
+            messages: fullMessages, tools: templateTools.isEmpty ? nil : templateTools)
         inputTokenCount = max(1, tok.count)
     } catch {
         logger.warning(
@@ -288,15 +310,8 @@ func anthropicMessagesHandler(
     // tool path never ran, so a call the model made had nothing to be recognised by and
     // nothing to be constrained by, and the `.toolCall` event was dropped at both consuming sites.
     // ═══════════════════════════════════════════════════════
-    let declaredTools: [ToolDef]? = chatRequest.tools
-    /// Anthropic's demand, translated once (`any`→required, `tool`→function:<name>).
-    let toolChoice: String? = request.toolChoice?.openAIVocabulary
-    /// `tool_choice:{"type":"none"}` = zero tools this turn; declaring nothing is also
-    /// zero (the engine's `resolveToolSurface` choke). Same shape as ChatHandler's.
-    let declaredToolNames: [String]? = {
-        if toolChoice == "none" { return [] }
-        return declaredTools?.map { $0.function.name }
-    }()
+    // `declaredTools` / `toolChoice` / `declaredToolNames` are derived once above the
+    // input-token count (Phase 2), which renders the same surface into its template feed.
     /// Forcing follows the DEMAND, never the presence of a declaration. One rule for
     /// every face of the product (`shouldConstrainOutput`, Models/OpenAIModels.swift).
     let useGuidedGeneration = shouldConstrainOutput(

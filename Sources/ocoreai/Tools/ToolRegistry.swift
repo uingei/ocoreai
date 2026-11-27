@@ -173,6 +173,26 @@ func resolveToolSurface(
     )
 }
 
+/// The tool surface a COUNTING pass must render into its template feed: exactly the
+/// ``resolveToolSurface`` output an engine turn of the same declaration would get, so
+/// `count_tokens` predicts the prompt the engine will prefill instead of a tools-blind
+/// half of it (measured 11-27: 5 410 counted against 12 577 prefilled on a 12-tool
+/// request). `nil` declared names = no-tools route, `[]` = declared empty → zero tools.
+func toolSurfaceForCount(
+    registry: ToolRegistry?,
+    declaredNames: [String]?,
+    declaredTools: [ToolDef]?
+) async -> [[String: any Sendable]] {
+    guard let declaredNames, !declaredNames.isEmpty else { return [] }
+    let registrySpecs: [[String: any Sendable]] =
+        if let registry { await registry.toToolSpecs() } else { [] }
+    return resolveToolSurface(
+        specs: registrySpecs,
+        declaredNames: declaredNames,
+        declaredSpecsJSON: openAIToolSpecsJSON(from: declaredTools)
+    ).surface
+}
+
 actor ToolRegistry {
     /// Audit trail for tool execution logging (nil = auditing disabled)
     private let auditTrail: AuditTrail?

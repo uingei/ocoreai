@@ -123,6 +123,14 @@ read `GET /v1/capabilities`, invariant 2 cuts both ways):
   executes every marker, 14 `exec:` on the scripted lane (nothing resident) and 5 `exec-model:` against a
   ready checkpoint. Flooring its own marker counts at 12/4 so a scan that stops matching is red, not
   vacuously green. CI runs it as its own step since 10-29 (7 s on the runner).
+- **A real harness consumed the wire, measured 11-27**: Claude Code 2.1.332's own
+  `/v1/messages?beta=true` request (captured live: `context_management`, `output_config`, adaptive
+  `thinking`, a `role:"system"` message, 12 tools with cache_control blocks) replays green against the
+  bridge, and a headless `claude -p` turn completes end to end against a resident checkpoint. That replay
+  convicted a 2.3x counting lie the harness would budget on (tools were never in the counted prompt; the
+  seam and probe 02's arms are the fix and the gate; round in `CHANGELOG.md`). The marketplace install
+  (`/plugin install ocoreai --marketplace uingei/ocoreai`) validates green on `claude plugin validate`
+  (Provides: skills: ocoreai) — install and consumption are now both measured, not promised.
 ## The first screen. Twenty lines decide
 
 - **Badge the artefact, not the language**: opencode `README.md:12-14` (Discord members, npm version,

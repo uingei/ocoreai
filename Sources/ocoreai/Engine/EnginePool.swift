@@ -477,7 +477,18 @@ actor EnginePool {
 
     // MARK: - Tokenization
 
-    func tokenize(modelId: String, messages: [Message]) async throws -> [Int32] {
+    /// Render a feed (plus this turn's tool surface, if any) through the model's chat
+    /// template and count it.
+    ///
+    /// `tools` must be the resolved surface, not the raw declaration: the same dicts
+    /// ``resolveToolSurface`` returns, because that is what the engine turn renders. A
+    /// count without them under-reads a tool-bearing prompt by the whole schema block
+    /// (measured 11-27: 5 410 counted against 12 577 prefilled on a 12-tool request).
+    func tokenize(
+        modelId: String,
+        messages: [Message],
+        tools: [[String: any Sendable]]? = nil
+    ) async throws -> [Int32] {
         guard let provider = await tokenizerManager.getTokenizer(for: modelId) else {
             throw AppError.modelNotFound(modelId)
         }
@@ -489,7 +500,7 @@ actor EnginePool {
             }
             return ["role": msg.role, "content": text]
         }
-        return try await provider.tokenize(messages: dicts)
+        return try await provider.tokenize(messages: dicts, tools: tools)
     }
 
     func detokenize(modelId: String, tokens: [Int32]) async throws -> String {

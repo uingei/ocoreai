@@ -49,10 +49,17 @@ struct EngineHandle {
 
     /// Tokenize messages using the model's tokenizer.
     ///
-    /// - Parameter messages: Message array
+    /// - Parameters:
+    ///   - messages: Message array
+    ///   - tools: The resolved tool surface this turn will render (`resolveToolSurface`'s
+    ///     output). Pass it whenever the turn declares tools, or the count silently
+    ///     omits the schema block the model will see.
     /// - Returns: Token ID array
-    func tokenize(messages: [Message]) async throws -> [Int32] {
-        try await pool.tokenize(modelId: modelId, messages: messages)
+    func tokenize(
+        messages: [Message],
+        tools: [[String: any Sendable]]? = nil
+    ) async throws -> [Int32] {
+        try await pool.tokenize(modelId: modelId, messages: messages, tools: tools)
     }
 
     /// Detokenize token IDs back to text.

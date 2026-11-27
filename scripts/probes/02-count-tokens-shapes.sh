@@ -28,6 +28,9 @@
 #   • the system block counts into the prompt on BOTH endpoints (a shape that silently
 #     drops it shows up here. The failure mode the Anthropic `system`-besides-`messages`
 #     form used to have);
+#   • `tools[]` ride the count: declaring a tool raises `/v1/messages/count_tokens`, and
+#     the pre-flight then equals `usage.input_tokens` of the same body exactly (the
+#     template renders the schemas, so a tools-blind seam is a 2x lie, measured 11-27);
 #   • a body with none of prompt/input/messages is a 4xx naming the expected shapes,
 #     never a 500 and never "key not found".
 #
@@ -233,6 +236,51 @@ if [ "${SHAPES_OK:-0}" -ge 7 ]; then
   probe_ok "$SHAPES_OK wire shape(s) answered with a positive count"
 else
   probe_fail "only ${SHAPES_OK:-0} shape(s) produced a usable count (expected >= 7) — coverage of this endpoint is not what the section header claims"
+fi
+
+probe_section "tools[] ride the counted prompt — the pre-flight equals what the wire charges"
+# A checkpoint's chat template renders `tools[]` into the prompt (this repo probes that
+# fact per checkpoint: `chatTemplateRendersTools`). Measured 11-27 against a real Claude
+# Code 2.1.332 request: with the count seam blind to tools, the pre-flight answered
+# 5 410 for a prompt the engine prefilled at 12 577 — the schemas were over half the
+# request. Since the seam renders them, the pre-flight and the wire agree exactly.
+TOOLS_BODY="$(python3 - "$PROBE_MODEL" <<'PY'
+import json, sys
+tool = {"name": "lookup", "description": "Look up a word.",
+        "input_schema": {"type": "object",
+                         "properties": {"word": {"type": "string", "description": "the word"}},
+                         "required": ["word"]}}
+body = {"model": sys.argv[1], "max_tokens": 32,
+        "messages": [{"role": "user", "content": "Say OK."}],
+        "tools": [tool]}
+print(json.dumps(body))
+PY
+)"
+NO_TOOLS_BODY="$(printf '%s' "$TOOLS_BODY" | python3 -I -c 'import json,sys; b=json.load(sys.stdin); b.pop("tools"); print(json.dumps(b))')"
+probe_api POST /v1/messages/count_tokens "$TOOLS_BODY"
+CT_TOOLS="$(probe_json "$PROBE_BODY" 'input_tokens')"
+probe_api POST /v1/messages/count_tokens "$NO_TOOLS_BODY"
+CT_PLAIN="$(probe_json "$PROBE_BODY" 'input_tokens')"
+probe_api POST /v1/messages "$TOOLS_BODY"
+WIRE_IN="$(probe_json "$PROBE_BODY" 'usage.input_tokens')"
+if [ -z "$CT_TOOLS" ] || [ -z "$CT_PLAIN" ] || [ -z "$WIRE_IN" ]; then
+  probe_fail "tools-arm missing a number (count_with=${CT_TOOLS:-∅} count_without=${CT_PLAIN:-∅} wire=${WIRE_IN:-∅}) — one of the three calls did not answer"
+else
+  # Anti-vacuity with a discriminating floor, red-sampled 11-27: with the seam whole the
+  # delta is 91 (the schema block renders); with the seam blind it is still 44, because
+  # the message assembly puts a tool-name line in the system message regardless. 70
+  # separates the two shapes and this body's text is fixed, so both numbers are stable.
+  DELTA=$((CT_TOOLS - CT_PLAIN))
+  if [ "$DELTA" -ge 70 ]; then
+    probe_ok "declaring one tool adds $DELTA counted tokens (floor 70; 91 at reference) — the schema block rides the counted prompt"
+  else
+    probe_fail "tool declaration changed the count by only $DELTA tokens (floor 70; 91 at reference, 44 for the seam-blind shape) — the count seam stopped rendering tools[]"
+  fi
+  if [ "$CT_TOOLS" -eq "$WIRE_IN" ]; then
+    probe_ok "pre-flight $CT_TOOLS == usage.input_tokens $WIRE_IN on the same tool-bearing body — one number for one prompt"
+  else
+    probe_fail "pre-flight $CT_TOOLS vs wire $WIRE_IN disagree on the same tool-bearing body — a harness budgeting on count_tokens mispredicts what this server bills"
+  fi
 fi
 
 probe_section "negative case — a body with nothing to count"
