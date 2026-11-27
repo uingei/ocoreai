@@ -285,7 +285,12 @@ struct ACPNegotiationTests {
     }
 
     @Test("a foreign version gets our version as a result, sessions until an accepted handshake")
-    func negotiation() throws {
+    func negotiation() async throws {
+        // The suite feeds `session/new` to a live agent: today every such request is refused
+        // before the anchor move, but a suite that speaks that method holds the anchor lease,
+        // so moving the gate that refuses cannot silently write it back to an unleased shape.
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         let capture = Capture()
         let agent = ACPAgent { capture.lines.append($0) }
         agent.becomeReady()

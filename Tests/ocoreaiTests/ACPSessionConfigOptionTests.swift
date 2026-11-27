@@ -77,6 +77,10 @@ struct ACPSessionConfigOptionTests {
 
     @Test("session/new answers the model selector with the first choice as current")
     func newSessionCarriesModelOption() async throws {
+        // An accepted `session/new` moves the process-wide workspace anchor inside `ACPAgent`,
+        // so every suite that opens one holds the anchor lease (same rule as ACPSessionLoadTests).
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         let (_, capture, _) = try await openSession(models: ["a/model-a", "b/model-b"])
         let result = try #require(objects(capture).last?["result"] as? [String: Any])
         let options = try configOptions(from: result)
@@ -95,6 +99,8 @@ struct ACPSessionConfigOptionTests {
 
     @Test("set_config_option switches the model and answers with the full updated state")
     func setSwitchesAndAnswersFullState() async throws {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         let (agent, capture, sessionId) = try await openSession(
             models: ["a/model-a", "b/model-b"])
         receive(
@@ -116,6 +122,8 @@ struct ACPSessionConfigOptionTests {
     @Test(
         "unknown configId, unknown value, boolean value, foreign session: each refused by name")
     func refusals() async throws {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         let (agent, capture, sessionId) = try await openSession(
             models: ["a/model-a", "b/model-b"])
 

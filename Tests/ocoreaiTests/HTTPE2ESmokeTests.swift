@@ -266,6 +266,14 @@ struct HTTPHandlerE2ESmokeTests {
 
     @Test("POST /v1/chat/completions missing model → 400|503")
     func testMissingModel() async throws {
+        // This request's whole premise is that NO default model resolves. While
+        // `OCOREAI_SCRIPTED_ENGINE` is set, `EnginePool.defaultModelId()` answers the scripted
+        // lane's id (`ScriptedInference.isEnabled`), the payload resolves, and the smoke server
+        // serves the replay — outside the {400,503,500} union. Measured 11-27: this red twice in
+        // set runs whose scripted suites legitimately held the key under their own leases (the
+        // status went unprinted then; the expectation now prints it). The victim leases too.
+        let lease = await ProcessGlobalLease(envKeys: [ScriptedInference.environmentKey])
+        defer { lease.release() }
         let db1 = Self.uuidPath()
         let db2 = Self.uuidPath()
         defer { Self.cleanupDBs(db1, db2) }
@@ -280,12 +288,13 @@ struct HTTPHandlerE2ESmokeTests {
                 uri: "/v1/chat/completions",
                 method: .post,
                 headers: headers,
-                body: buf  // DEBUG: print status
+                body: buf
             ) { response in
                 // 400 (validation) or 503 (no model loaded → engineUnavailable) or 500. All prove the pipeline works
                 #expect(
                     response.status == .badRequest || response.status == .serviceUnavailable
-                        || response.status == .internalServerError)
+                        || response.status == .internalServerError,
+                    "status was \(response.status.code) \(response.status.reasonPhrase)")
             }
         }
     }

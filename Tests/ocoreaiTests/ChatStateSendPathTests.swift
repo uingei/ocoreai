@@ -42,6 +42,10 @@ struct ChatStateSendPathTests {
         "no engine: an ask fails honest — bubble kept, error shown, nothing fabricated"
     )
     func engineAbsentFailsHonest() async {
+        // `ChatState.chat` runs `ensureSession`, which clears the process-wide workspace anchor
+        // when it opens a session, so the send seam is an anchor driver (lease, don't hand-restore).
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         guard OcoreaiEngine.shared.activeEnginePool == nil else {
             print("[GUI-SEND] SKIP — an engine pool is live in this process")
             return
@@ -84,6 +88,8 @@ struct ChatStateSendPathTests {
             try await Task.sleep(for: .milliseconds(250))
             waited += 0.25
         }
+        // Deliberately unleased: this drive is one real turn (opt-in lane, minutes long), and a
+        // hold that long starves every waiter — the anti-shape `waitBudget` exists to name.
         // EnginePool is an actor: `config` is actor-isolated, so this hop is explicit.
         if let pool = engine.activeEnginePool {
             let model = await pool.config.defaultModelId

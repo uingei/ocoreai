@@ -110,11 +110,15 @@ struct ProactiveSuggestionAddressableTests {
 
 // MARK: - Store lifecycle tests (present / dedupe / dismiss / accept)
 
+// 持与 `ProactiveActionExecutorTests` 同一把裸 `ProcessGlobalLease`: 单槽 store 是进程全局,
+// 两边的多步序列互插会把对方的断言读红(11-27 实测的 b.md 泄漏正出自这里的收尾残留)。
 @Suite("ProactiveSuggestionStore — 生命周期")
 struct ProactiveSuggestionStoreTests {
     @MainActor
     @Test("present 写入 current（携带绝对路径）")
-    func presentSetsCurrent() {
+    func presentSetsCurrent() async {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         ProactiveSuggestionStore.shared.dismiss()
         ProactiveSuggestionStore.shared.present(filePath: "/tmp/proj/a.md")
         let cur = ProactiveSuggestionStore.shared.current
@@ -125,7 +129,9 @@ struct ProactiveSuggestionStoreTests {
 
     @MainActor
     @Test("同路径重复 present → 不新增(单槽)、刷新时间戳")
-    func dedupeKeepsSingleSlot() {
+    func dedupeKeepsSingleSlot() async {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         ProactiveSuggestionStore.shared.dismiss()
         ProactiveSuggestionStore.shared.present(filePath: "/tmp/proj/a.md")
         let idBefore = ProactiveSuggestionStore.shared.current?.id
@@ -135,7 +141,9 @@ struct ProactiveSuggestionStoreTests {
 
     @MainActor
     @Test("新文件替换旧建议")
-    func newFileReplaces() {
+    func newFileReplaces() async {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         ProactiveSuggestionStore.shared.dismiss()
         ProactiveSuggestionStore.shared.present(filePath: "/tmp/proj/a.md")
         ProactiveSuggestionStore.shared.present(filePath: "/tmp/proj/b.md")
@@ -145,7 +153,9 @@ struct ProactiveSuggestionStoreTests {
 
     @MainActor
     @Test("dismiss 清场")
-    func dismissClears() {
+    func dismissClears() async {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         ProactiveSuggestionStore.shared.present(filePath: "/tmp/proj/a.md")
         ProactiveSuggestionStore.shared.dismiss()
         #expect(ProactiveSuggestionStore.shared.current == nil)
@@ -153,7 +163,9 @@ struct ProactiveSuggestionStoreTests {
 
     @MainActor
     @Test("accept 返回可执行草稿(含完整路径)且不自动执行")
-    func acceptReturnsExecutableDraft() {
+    func acceptReturnsExecutableDraft() async {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         ProactiveSuggestionStore.shared.dismiss()
         ProactiveSuggestionStore.shared.present(filePath: "/Users/t/Downloads/report.pdf")
         let draft = ProactiveSuggestionStore.shared.accept()
@@ -165,14 +177,18 @@ struct ProactiveSuggestionStoreTests {
 
     @MainActor
     @Test("无建议 accept → notApplicable 哨兵")
-    func acceptNone() {
+    func acceptNone() async {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         ProactiveSuggestionStore.shared.dismiss()
         #expect(ProactiveSuggestionStore.shared.accept() == ProactiveSuggestionStore.notApplicable)
     }
 
     @MainActor
     @Test("草稿非空 = 非哨兵")
-    func draftIsReal() {
+    func draftIsReal() async {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         ProactiveSuggestionStore.shared.dismiss()
         ProactiveSuggestionStore.shared.present(filePath: "/tmp/proj/x.txt")
         let d = ProactiveSuggestionStore.shared.accept()

@@ -9,7 +9,11 @@ import Testing
 
 @testable import ocoreai
 
-@Suite("ProactiveActionExecutor — 批准→只读行动")
+@Suite(
+    "ProactiveActionExecutor — 批准→只读行动")
+// 每个触店 test 持一把裸 `ProcessGlobalLease`: `ProactiveSuggestionStore.shared` 是进程全局,
+// `ProactiveSuggestionStoreTests` 同场 present/dismiss, 而这里的 dismiss→present→observe→断言空
+// 跨 await, 会被邻居的 present 插进尾窗(11-27 全量实测: b.md 残留坐实 `current == nil`)。
 struct ProactiveActionExecutorTests {
     /// 落一个真临时文本文件，返回其绝对路径。
     private func makeTempFile(_ name: String, body: String) throws -> String {
@@ -44,6 +48,8 @@ struct ProactiveActionExecutorTests {
     @MainActor
     @Test("批准 + 可注册 read_file → 真观察文本(非失败) + 草稿非哨兵 + 文件短名在观察里")
     func successReadsAndObserves() async throws {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         let path = try makeTempFile("hello.txt", body: "hello observation\nline2")
         let registry = try await makeRegistry()
         ProactiveSuggestionStore.shared.dismiss()
@@ -69,6 +75,8 @@ struct ProactiveActionExecutorTests {
     @MainActor
     @Test("无 registry → 兜底: 仍给非哨兵草稿 + failureDetail 哨兵(不静默)")
     func noRegistryFallsBackToDraft() async {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         ProactiveSuggestionStore.shared.dismiss()
         ProactiveSuggestionStore.shared.present(filePath: "/tmp/proj/mystery.bin")
         let executor = ProactiveActionExecutor(registry: nil)
@@ -86,6 +94,8 @@ struct ProactiveActionExecutorTests {
     @MainActor
     @Test("无建议(空批/已清场) → 空观察草稿 + expired 哨兵(不产生行动)")
     func expiredNoSuggestion() async {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         ProactiveSuggestionStore.shared.dismiss()
         // 不 present 任何建议 → accept() = notApplicable 哨兵
         let executor = ProactiveActionExecutor(registry: nil)

@@ -2,6 +2,10 @@
 // Licensed under MIT.
 /// ChatState session ID clearing and lifecycle. Opaque identifier cleanup,
 /// cancel/inference interrupt, undo semantics, and model-switch safety.
+///
+/// The `resetConversation` drivers hold a `ProcessGlobalLease`: that method clears the
+/// process-wide workspace anchor unconditionally (`ChatViewModel`), and an unleased nil
+/// there sent another suite's relative `write_file` to the repo root (the 11-27 `x.py`).
 
 import Foundation
 import Testing
@@ -13,7 +17,9 @@ import ocoreaiTestUtilities
 struct ChatStateSessionTests {
 
     @MainActor @Test("resetConversation clears messages, responseText, errorMessage")
-    func resetClearsState() throws {
+    func resetClearsState() async throws {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         let s = ChatState.shared
         defer { s.resetForTesting() }
         s.messages = [ChatMessage(role: "user", content: "test")]
@@ -24,7 +30,9 @@ struct ChatStateSessionTests {
     }
 
     @MainActor @Test("resetConversation registers undo action")
-    func resetRegistersUndo() throws {
+    func resetRegistersUndo() async throws {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         let s = ChatState.shared
         defer { s.resetForTesting() }
         s.messages = [ChatMessage(role: "user", content: "test")]
@@ -33,7 +41,9 @@ struct ChatStateSessionTests {
     }
 
     @MainActor @Test("undoReset restores messages after reset")
-    func undoRestoresAfterReset() throws {
+    func undoRestoresAfterReset() async throws {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         let s = ChatState.shared
         defer { s.resetForTesting() }
         s.messages = [ChatMessage(role: "user", content: "hello")]
@@ -45,7 +55,9 @@ struct ChatStateSessionTests {
     }
 
     @MainActor @Test("undoReset consumes snapshot — double undo is a no-op")
-    func doubleUndoIsNoOp() throws {
+    func doubleUndoIsNoOp() async throws {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         let s = ChatState.shared
         defer { s.resetForTesting() }
         s.messages = [ChatMessage(role: "user", content: "hello")]
@@ -120,7 +132,9 @@ struct ChatStateSessionTests {
     }
 
     @MainActor @Test("B3: resetConversation closes the stream append gate (no ghost resumption)")
-    func resetClosesAppendGate() throws {
+    func resetClosesAppendGate() async throws {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         let s = ChatState.shared
         defer { s.resetForTesting() }
         s.messages = [ChatMessage(role: "user", content: "hi")]
@@ -134,7 +148,9 @@ struct ChatStateSessionTests {
     }
 
     @MainActor @Test("B3: partial response survives reset as recoverable interrupted message")
-    func resetRecoversPartialViaUndo() throws {
+    func resetRecoversPartialViaUndo() async throws {
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         let s = ChatState.shared
         defer { s.resetForTesting() }
         s.messages = [ChatMessage(role: "user", content: "hi")]

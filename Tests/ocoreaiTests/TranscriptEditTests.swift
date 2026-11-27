@@ -294,7 +294,10 @@ struct ChatStateEditTests {
     }
 
     @MainActor @Test("opening another conversation closes a stale editor")
-    func resetConversationClearsEditor() {
+    func resetConversationClearsEditor() async {
+        // `resetConversation` clears the process-wide workspace anchor (see ChatStateSessionTests).
+        let lease = await ProcessGlobalLease()
+        defer { lease.release() }
         let s = ChatState.shared
         defer { s.resetForTesting() }
         let user = ChatMessage(role: "user", content: "wording")
