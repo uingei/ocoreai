@@ -24,8 +24,8 @@ struct DegenerateMarginProbeModeTests {
     }
 
     @Test("unset means off — a normal run never pays for the probe")
-    func unsetIsOff() {
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MARGIN_PROBE"])
+    func unsetIsOff() async {
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MARGIN_PROBE"])
         defer { lease.release() }
         setMode(nil)
         #expect(!DegenerateMarginProbe.isEnabled)
@@ -33,8 +33,8 @@ struct DegenerateMarginProbeModeTests {
     }
 
     @Test("=1 is collapse-only: healthy turns still pay nothing")
-    func oneIsCollapseOnly() {
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MARGIN_PROBE"])
+    func oneIsCollapseOnly() async {
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MARGIN_PROBE"])
         defer { lease.release() }
         setMode("1")
         defer { setMode(nil) }
@@ -43,8 +43,8 @@ struct DegenerateMarginProbeModeTests {
     }
 
     @Test("=all widens the gate; an unrecognised value arms nothing")
-    func allWidensTheGate() {
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MARGIN_PROBE"])
+    func allWidensTheGate() async {
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MARGIN_PROBE"])
         defer { lease.release() }
         setMode("all")
         defer { setMode(nil) }

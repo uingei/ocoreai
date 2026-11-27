@@ -129,8 +129,8 @@ struct PresentationEchoGuardTests {
     // MARK: - the write tools
 
     @Test("write_file lands clean bytes and says it repaired the payload")
-    func writeFileStripsChromeAndSaysSo() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func writeFileStripsChromeAndSaysSo() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let dir = try workspace("src.txt", "KERNEL-7\n").deletingLastPathComponent()
         defer { SessionWorkspace.clear() }
@@ -148,8 +148,8 @@ struct PresentationEchoGuardTests {
     }
 
     @Test("a clean write keeps saying plain OK")
-    func cleanWriteIsPlainOK() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func cleanWriteIsPlainOK() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         _ = try workspace("src.txt", "KERNEL-7\n")
         defer { SessionWorkspace.clear() }
@@ -161,8 +161,8 @@ struct PresentationEchoGuardTests {
     }
 
     @Test("unrepairable chrome still lands, and comes back OK-but-invalid")
-    func unrepairableChromeLandsFlagged() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func unrepairableChromeLandsFlagged() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         _ = try workspace("src.txt", "KERNEL-7\n")
         defer { SessionWorkspace.clear() }
@@ -174,8 +174,8 @@ struct PresentationEchoGuardTests {
     }
 
     @Test("edit_file repairs a replacement carrying echoed chrome")
-    func editFileRepairsReplacement() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func editFileRepairsReplacement() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try workspace("note.txt", "KERNEL-7\n")
         defer { SessionWorkspace.clear() }
@@ -189,8 +189,8 @@ struct PresentationEchoGuardTests {
     }
 
     @Test("chrome already in the file does not condemn an unrelated edit")
-    func judgeSuppliedTextNotTheFile() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func judgeSuppliedTextNotTheFile() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         _ = try workspace("log.txt", "name = x\n─── total_lines: 1 (full) ───\nstale = 1\n")
         defer { SessionWorkspace.clear() }

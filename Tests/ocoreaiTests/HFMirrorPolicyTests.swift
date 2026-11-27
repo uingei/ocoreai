@@ -120,12 +120,12 @@ struct HFMirrorPolicyTests {
     }
 
     @Test("apply writes the resolved endpoint into the real process env")
-    func applyWritesResolvedEndpointToProcessEnv() {
+    func applyWritesResolvedEndpointToProcessEnv() async {
         // This ran disabled while `setenv` had no owner: it writes the process-wide HF_ENDPOINT, and
         // `SettingsStoreTests` asserts the *canonical* value out of that same environment, so the two
         // could trade places mid-run. A lease makes them mutually exclusive and restores the key on
         // the way out, which is what turns "re-run standalone when touching apply()" into a gate.
-        let lease = ProcessGlobalLease(envKeys: ["HF_ENDPOINT"])
+        let lease = await ProcessGlobalLease(envKeys: ["HF_ENDPOINT"])
         defer { lease.release() }
         let suiteName = "hfmirror.apply.\(UUID().uuidString)"
         let suite = UserDefaults(suiteName: suiteName)!

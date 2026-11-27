@@ -35,7 +35,7 @@ struct LoopGuardRemedyTests {
 
     @Test("the 4th identical read names the file, the count, and the next step")
     func refusalNamesTheCallAndARemedy() async throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         _ = try seeded("sum100.py", "def total(n):\n    return n * (n + 1) // 2\n")
         defer { SessionWorkspace.clear() }
@@ -63,7 +63,7 @@ struct LoopGuardRemedyTests {
 
     @Test("the refusal echoes addressing keys only — a body never rides the wire twice")
     func bodyNeverLeaksIntoTheRefusal() async throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         _ = try seeded("x.py", "print(1)\n")
         defer { SessionWorkspace.clear() }
@@ -90,7 +90,7 @@ struct LoopGuardRemedyTests {
 
     @Test("varying the arguments clears the cycle — the guard reads identity, not the tool name")
     func differentArgumentsPass() async throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         // One directory for both files: `seeded` moves the session workspace each call, so a
         // second call would strand the first file outside the anchor.

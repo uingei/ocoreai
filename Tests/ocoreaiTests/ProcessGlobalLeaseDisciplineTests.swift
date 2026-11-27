@@ -20,12 +20,12 @@ import Testing
 struct ProcessGlobalLeaseDisciplineTests {
 
     @Test("release restores the prior value")
-    func releaseRestoresThePriorValue() {
+    func releaseRestoresThePriorValue() async {
         let key = "OCOREAI_LEASE_DISCIPLINE_PROBE"
         setenv(key, "outer", 1)
         defer { unsetenv(key) }
 
-        let lease = ProcessGlobalLease(envKeys: [key])
+        let lease = await ProcessGlobalLease(envKeys: [key])
         setenv(key, "inner", 1)
         #expect(
             ProcessInfo.processInfo.environment[key] == "inner", "the lease does not block writes")
@@ -36,11 +36,11 @@ struct ProcessGlobalLeaseDisciplineTests {
     }
 
     @Test("a key the process did not have is not left behind")
-    func releaseClearsAnInventedKey() {
+    func releaseClearsAnInventedKey() async {
         let key = "OCOREAI_LEASE_DISCIPLINE_PROBE_2"
         unsetenv(key)
 
-        let lease = ProcessGlobalLease(envKeys: [key])
+        let lease = await ProcessGlobalLease(envKeys: [key])
         setenv(key, "invented", 1)
         lease.release()
         #expect(

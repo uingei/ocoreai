@@ -41,8 +41,8 @@ struct ScriptedEngineTests {
     }
 
     @Test("defaults are real — a one-segment script is legal")
-    func minimalScriptIsLegal() throws {
-        let lease = ProcessGlobalLease(envKeys: [Self.envKey])
+    func minimalScriptIsLegal() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [Self.envKey])
         defer { lease.release() }
         _ = try writeScript(#"{"segments":["only one"]}"#, lease: lease)
         // A synthesized Decodable ignores property defaults and demanded every key, which made the
@@ -61,7 +61,7 @@ struct ScriptedEngineTests {
 
     @Test("the turn is the script, in order, with the declared counts")
     func streamMatchesTheScript() async throws {
-        let lease = ProcessGlobalLease(envKeys: [Self.envKey])
+        let lease = await ProcessGlobalLease(envKeys: [Self.envKey])
         defer { lease.release() }
         _ = try writeScript(
             """
@@ -104,7 +104,7 @@ struct ScriptedEngineTests {
 
     @Test("declared speculation telemetry arrives verbatim at the seam the app reads")
     func declaredDraftTelemetryRidesDone() async throws {
-        let lease = ProcessGlobalLease(envKeys: [Self.envKey])
+        let lease = await ProcessGlobalLease(envKeys: [Self.envKey])
         defer { lease.release() }
         _ = try writeScript(
             """
@@ -131,7 +131,7 @@ struct ScriptedEngineTests {
 
     @Test("an unknown finishReason is a named error, never an empty turn")
     func unknownFinishReasonFailsLoudly() async throws {
-        let lease = ProcessGlobalLease(envKeys: [Self.envKey])
+        let lease = await ProcessGlobalLease(envKeys: [Self.envKey])
         defer { lease.release() }
         _ = try writeScript(#"{"segments":["x"],"finishReason":"bogus"}"#, lease: lease)
         let got = try await collect()
@@ -147,7 +147,7 @@ struct ScriptedEngineTests {
 
     @Test("a script that is not there reports the path it looked for")
     func missingScriptNamesThePath() async throws {
-        let lease = ProcessGlobalLease(envKeys: [Self.envKey])
+        let lease = await ProcessGlobalLease(envKeys: [Self.envKey])
         defer { lease.release() }
         let path = NSTemporaryDirectory() + "ocoreai-script-\(UUID().uuidString).json"
         setenv(Self.envKey, path, 1)
@@ -160,8 +160,8 @@ struct ScriptedEngineTests {
     }
 
     @Test("the switch is the environment, and only the environment")
-    func switchIsTheEnvironmentAlone() {
-        let lease = ProcessGlobalLease(envKeys: [Self.envKey])
+    func switchIsTheEnvironmentAlone() async {
+        let lease = await ProcessGlobalLease(envKeys: [Self.envKey])
         defer { lease.release() }
         unsetenv(Self.envKey)
         #expect(!ScriptedInference.isEnabled)

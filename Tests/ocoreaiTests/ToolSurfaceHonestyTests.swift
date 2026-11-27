@@ -273,8 +273,8 @@ struct ToolSurfaceEnforcementTests {
 
     /// Leases the scripted engine so the flag-OFF arms replay a real turn instead of touching
     /// a real checkpoint; the refusal arm throws before the lane matters either way.
-    private func scriptedLane() throws -> ProcessGlobalLease {
-        let lease = ProcessGlobalLease(envKeys: [ScriptedInference.environmentKey])
+    private func scriptedLane() async throws -> ProcessGlobalLease {
+        let lease = await ProcessGlobalLease(envKeys: [ScriptedInference.environmentKey])
         let path = NSTemporaryDirectory() + "ocoreai-tool-surface-\(UUID().uuidString).json"
         try Data(#"{"segments":["ok"]}"#.utf8).write(to: URL(fileURLWithPath: path))
         setenv(ScriptedInference.environmentKey, path, 1)
@@ -283,7 +283,7 @@ struct ToolSurfaceEnforcementTests {
 
     @Test("flag ON + observed prose_only + declared tools → refused naming knob and both exits")
     func flagOnRefusesADeclaringRequest() async throws {
-        let lease = try scriptedLane()
+        let lease = try await scriptedLane()
         defer { lease.release() }
         let fixture = try await Fixture.make(label: "test.tool-surface.on")
         defer { fixture.cleanup() }
@@ -302,7 +302,7 @@ struct ToolSurfaceEnforcementTests {
 
     @Test("flag OFF: the ledger changes nothing about the same request")
     func flagOffBehavesAsToday() async throws {
-        let lease = try scriptedLane()
+        let lease = try await scriptedLane()
         defer { lease.release() }
         let seeded = try await Fixture.make(label: "test.tool-surface.off-seeded")
         defer { seeded.cleanup() }
@@ -324,7 +324,7 @@ struct ToolSurfaceEnforcementTests {
 
     @Test("flag ON never refuses a caller that declared no tools[]")
     func flagOnNeverRefusesADeclaredNothingRequest() async throws {
-        let lease = try scriptedLane()
+        let lease = try await scriptedLane()
         defer { lease.release() }
         let seeded = try await Fixture.make(label: "test.tool-surface.ontools-seeded")
         defer { seeded.cleanup() }
@@ -344,7 +344,7 @@ struct ToolSurfaceEnforcementTests {
 
     @Test("flag ON + a delivered call on record → the declaration passes through")
     func flagOnPassesAMeasuredPositive() async throws {
-        let lease = try scriptedLane()
+        let lease = try await scriptedLane()
         defer { lease.release() }
         let fixture = try await Fixture.make(label: "test.tool-surface.positive")
         defer { fixture.cleanup() }
@@ -398,7 +398,7 @@ struct ToolSurfaceEnforcementTests {
 
     @Test("/v1/messages meets the same refusal: flag ON + prose_only + declared tools")
     func messagesFaceRefusesADeclaringRequest() async throws {
-        let lease = try scriptedLane()
+        let lease = try await scriptedLane()
         defer { lease.release() }
         let fixture = try await Fixture.make(label: "test.tool-surface.msg-on")
         defer { fixture.cleanup() }
@@ -416,7 +416,7 @@ struct ToolSurfaceEnforcementTests {
 
     @Test("/v1/messages with the flag OFF: the ledger changes nothing about the same request")
     func messagesFaceFlagOffBehavesAsToday() async throws {
-        let lease = try scriptedLane()
+        let lease = try await scriptedLane()
         defer { lease.release() }
         let seeded = try await Fixture.make(label: "test.tool-surface.msg-off-seeded")
         defer { seeded.cleanup() }

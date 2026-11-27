@@ -28,8 +28,8 @@ struct WorkspacePathAnchorTests {
     }
 
     @Test("OCOREAI_WORKSPACE anchors relative paths, and beats a stored setting")
-    func envAnchorWins() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func envAnchorWins() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let ws = try Self.sandbox()
         try "def add(a, b):\n    return a + b\n"
@@ -55,8 +55,8 @@ struct WorkspacePathAnchorTests {
     }
 
     @Test("a stated workspace that does not exist (or is a file) is no anchor")
-    func envAnchorValidated() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func envAnchorValidated() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let dir = try Self.sandbox()
         let file = dir.appendingPathComponent("plain.txt")
@@ -79,8 +79,8 @@ struct WorkspacePathAnchorTests {
     }
 
     @Test("a refusal names the absolute path it looked at and who anchored it")
-    func refusalIsRecoverable() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func refusalIsRecoverable() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let ws = try Self.sandbox()
         SessionWorkspace.setDirectory(ws.path)
@@ -103,8 +103,8 @@ struct WorkspacePathAnchorTests {
     /// host is configured, so the assertion follows the measured anchor instead of assuming
     /// one (a gate that only passes on a pristine machine is a gate that gets ignored).
     @Test("the refusal names the anchor it really used, including the no-workspace case")
-    func fallbackIsTruthful() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func fallbackIsTruthful() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         SessionWorkspace.clear()
         unsetenv(WorkspaceContext.workspaceEnvironmentKey)

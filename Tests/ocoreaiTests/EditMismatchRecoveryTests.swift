@@ -42,8 +42,8 @@ struct EditMismatchRecoveryTests {
         """
 
     @Test("a miss quotes the file's real lines, as text the caller can copy verbatim")
-    func mismatchQuotesActualLines() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func mismatchQuotesActualLines() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("sum100.py", Self.sum100)
         defer { SessionWorkspace.clear() }
@@ -86,8 +86,8 @@ struct EditMismatchRecoveryTests {
     /// claimed a refusal for `"  return a +"` against a four-space line, and the tool was
     /// right to match it. The test was wrong, not the engine).
     @Test("deeper indentation than the file has is refused, and the real indent is quoted")
-    func indentationDriftIsRefusedAndAnswered() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func indentationDriftIsRefusedAndAnswered() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let body = "def add(a, b):\n    return a +\n"
         let url = try seeded("calc.py", body)
@@ -114,8 +114,8 @@ struct EditMismatchRecoveryTests {
     @Test(
         "a multi-match refusal names the knob that resolves it, and using it works",
         arguments: [3])
-    func multiMatchRefusalNamesTheRemedy(n: Int) throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func multiMatchRefusalNamesTheRemedy(n: Int) async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         // Measured 10-22 (two rounds): `edit-replace-all` was 0/3 with a bare count in the
         // refusal, and stayed 0/3 after naming `occurrences: 3`. The model read the count and
@@ -152,8 +152,8 @@ struct EditMismatchRecoveryTests {
     /// `replace_all` states the intent without making the caller count: it cannot be wrong
     /// about N, which is the failure the count-based knob kept hitting.
     @Test("replace_all rewrites every occurrence without the caller naming a count")
-    func replaceAllNeedsNoCount() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func replaceAllNeedsNoCount() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("notes.md", "FOO bar\nbaz FOO\nFOO end\n")
 
@@ -179,7 +179,7 @@ struct EditMismatchRecoveryTests {
     /// (AGENTS.md: a knob the wire accepts must reach the engine).
     @Test("a model's {replace_all: true} tool call decodes and dispatches")
     func wireKnobReachesTheEngine() async throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("notes.md", "FOO bar\nbaz FOO\nFOO end\n")
 
@@ -201,8 +201,8 @@ struct EditMismatchRecoveryTests {
     /// `format_exec_output_for_model` publishes `Total output lines` whenever it shows less
     /// than it has. A silent clip can drop the exact line the caller needed.
     @Test("a clipped hint states the file's real size instead of trailing off")
-    func clippedHintStatesTotals() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func clippedHintStatesTotals() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         var lines: [String] = []
         for i in 0 ..< 120 {
@@ -242,8 +242,8 @@ struct EditMismatchRecoveryTests {
     /// read the file first". The data was there; the next action was not. So a refusal that
     /// quoted everything names the retry and closes the exit that loses the task.
     @Test("a whole-file quote orders the retry instead of a round trip it already served")
-    func wholeFileQuoteOrdersTheRetry() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func wholeFileQuoteOrdersTheRetry() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded(
             "capacity.py", "def fits(load, limit):\n    return load < limit\n")
@@ -284,8 +284,8 @@ struct EditMismatchRecoveryTests {
     /// decided by the match itself (attempted only after a raw miss, accepted only when the
     /// stripped string matches `expected`), and the verdict says out loud that it happened.
     @Test("a quote copied from read_file is stripped to match, and says so")
-    func copiedReadChromeIsStrippedToMatch() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func copiedReadChromeIsStrippedToMatch() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let body = "def first_n(items, n):\n    return items[0:n - 1]\n"
         let url = try seeded("page.py", body)
@@ -307,8 +307,8 @@ struct EditMismatchRecoveryTests {
     /// The false-positive floor: `1|alpha` is legitimate content in a pipe-delimited file, so a
     /// raw match is never second-guessed and no repair is claimed.
     @Test("genuine pipe-delimited content matches raw and is never called chrome")
-    func pipeDelimitedContentMatchesRaw() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func pipeDelimitedContentMatchesRaw() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let body = "1|alpha\n2|beta\n"
         let url = try seeded("table.txt", body)
@@ -327,8 +327,8 @@ struct EditMismatchRecoveryTests {
     /// asking for exactly that line. `edit_file` can empty a file and no file tool deletes one,
     /// so the refusal has to say which route exists, or the turn dies on a two-line file.
     @Test("an empty newString names the removal route the retry cannot be")
-    func deletionIntentNamesTheRemovalRoute() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func deletionIntentNamesTheRemovalRoute() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("stale.log", "old\n")
         defer { SessionWorkspace.clear() }
@@ -351,8 +351,8 @@ struct EditMismatchRecoveryTests {
     @Test(
         "no-op against a file that already holds the text says so, with the place count",
         arguments: [("def total(n):\n    return 1\n", "def total(n):", 1)])
-    func noOpAlreadyThereNamesTheState(existing: String, quoted: String, places: Int) throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func noOpAlreadyThereNamesTheState(existing: String, quoted: String, places: Int) async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("app.py", existing)
         defer { SessionWorkspace.clear() }
@@ -372,8 +372,8 @@ struct EditMismatchRecoveryTests {
     }
 
     @Test("a no-op whose text is not in the file gets the quoted-file recovery, ordered")
-    func noOpNotThereQuotesAndOrders() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func noOpNotThereQuotesAndOrders() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("sum100.py", Self.sum100)
         defer { SessionWorkspace.clear() }

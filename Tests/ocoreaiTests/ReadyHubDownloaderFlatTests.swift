@@ -39,8 +39,8 @@ private let unreachableHubEndpoint = "http://127.0.0.1:9"
 /// the rest of the run), and leaving `HF_ENDPOINT` alone cost 122 s per network-path test on a
 /// host that black-holes the hub, which serialized behind this very lease.
 @discardableResult
-private func freshModelRoot() -> (URL, cleanup: @Sendable () -> Void) {
-    let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR", "HF_ENDPOINT"])
+private func freshModelRoot() async -> (URL, cleanup: @Sendable () -> Void) {
+    let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR", "HF_ENDPOINT"])
     let dir = FileManager.default.temporaryDirectory
         .appendingPathComponent("readyhub-dl-\(UUID().uuidString)")
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -70,7 +70,7 @@ struct ReadyHubDownloaderFlatTests {
 
     @Test("local-ready dir returns flat target without network")
     func localReadyShortCircuit() async throws {
-        let (root, cleanup) = freshModelRoot()
+        let (root, cleanup) = await freshModelRoot()
         defer { cleanup() }
 
         let flat = root.appendingPathComponent("mlx-community").appendingPathComponent("tiny-model")
@@ -100,7 +100,7 @@ struct ReadyHubDownloaderFlatTests {
 
     @Test("local dir missing a requested glob takes the network path")
     func incompleteDirGoesToNetwork() async throws {
-        let (root, cleanup) = freshModelRoot()
+        let (root, cleanup) = await freshModelRoot()
         defer { cleanup() }
 
         // weights present, but `*.jinja` (a requested pattern) missing
@@ -126,7 +126,7 @@ struct ReadyHubDownloaderFlatTests {
 
     @Test("useLatest=true bypasses local short-circuit")
     func useLatestBypassesLocalHit() async throws {
-        let (root, cleanup) = freshModelRoot()
+        let (root, cleanup) = await freshModelRoot()
         defer { cleanup() }
 
         let flat = root.appendingPathComponent("org").appendingPathComponent("model")
@@ -150,7 +150,7 @@ struct ReadyHubDownloaderFlatTests {
 
     @Test("nil flatRoot preserves legacy HubCache path")
     func nilFlatRootUsesLegacy() async throws {
-        let (root, cleanup) = freshModelRoot()
+        let (root, cleanup) = await freshModelRoot()
         defer { cleanup() }
 
         let dl = ReadyHubDownloader(hub: ModelStore.readyHubClient(), flatRoot: nil)
@@ -172,7 +172,7 @@ struct ReadyHubDownloaderFlatTests {
 
     @Test("invalid repo id throws invalidRepositoryID before any I/O")
     func invalidIdThrows() async throws {
-        let (root, cleanup) = freshModelRoot()
+        let (root, cleanup) = await freshModelRoot()
         defer { cleanup() }
 
         let dl = ReadyHubDownloader(hub: ModelStore.readyHubClient(), flatRoot: root)

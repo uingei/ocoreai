@@ -44,8 +44,8 @@ struct CoreAIModelIdRoutingGateTests {
     }
 
     @Test("single-slash id with a local CoreAI asset resolves to the rooted dir")
-    func singleSlashWithAssetResolves() throws {
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+    func singleSlashWithAssetResolves() async throws {
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
         defer { lease.release() }
         try setup()
         defer { tearDown() }
@@ -63,8 +63,8 @@ struct CoreAIModelIdRoutingGateTests {
     }
 
     @Test("multi-segment root-relative id also resolves")
-    func multiSegmentResolves() throws {
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+    func multiSegmentResolves() async throws {
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
         defer { lease.release() }
         try setup()
         defer { tearDown() }
@@ -77,8 +77,8 @@ struct CoreAIModelIdRoutingGateTests {
     }
 
     @Test("single-slash id WITHOUT a local CoreAI asset is rejected")
-    func singleSlashWithoutAssetRejected() throws {
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+    func singleSlashWithoutAssetRejected() async throws {
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
         defer { lease.release() }
         try setup()
         defer { tearDown() }
@@ -89,8 +89,8 @@ struct CoreAIModelIdRoutingGateTests {
     }
 
     @Test("hub-prefixed ids are rejected even when a same-named rooted dir holds an asset")
-    func hubPrefixRejected() throws {
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+    func hubPrefixRejected() async throws {
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
         defer { lease.release() }
         try setup()
         defer { tearDown() }
@@ -107,8 +107,8 @@ struct CoreAIModelIdRoutingGateTests {
     }
 
     @Test("empty and bare-name ids are rejected")
-    func emptyOrBareRejected() throws {
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+    func emptyOrBareRejected() async throws {
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
         defer { lease.release() }
         try setup()
         defer { tearDown() }
@@ -117,8 +117,8 @@ struct CoreAIModelIdRoutingGateTests {
     }
 
     @Test("absolute-path id still resolves (old behavior preserved)")
-    func absolutePathStillResolves() throws {
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+    func absolutePathStillResolves() async throws {
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
         defer { lease.release() }
         try setup()
         defer { tearDown() }
@@ -133,8 +133,8 @@ struct CoreAIModelIdRoutingGateTests {
     @Test(
         "CoreAI-local fallback URL(fileURLWithPath: modelId) is invalid — resolvedRoot is authoritative (proves the 2nd-layer bug + fix contract)"
     )
-    func coreAILocalFallbackIsInvalidUrl() throws {
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+    func coreAILocalFallbackIsInvalidUrl() async throws {
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
         defer { lease.release() }
         try setup()
         defer { tearDown() }

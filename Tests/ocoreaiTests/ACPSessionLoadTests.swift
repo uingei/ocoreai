@@ -59,7 +59,7 @@ struct ACPSessionLoadTests {
         // An accepted load moves the process-wide workspace anchor inside `ACPAgent`, so the
         // anchor is leased, not hand-restored: a concurrent lease holder read a nil anchor in
         // between and wrote its test file into the repo root (the 11-27 `x.py`).
-        let lease = ProcessGlobalLease()
+        let lease = await ProcessGlobalLease()
         defer { lease.release() }
         let (agent, capture, store, compressor, path) = try await openAgent()
         defer {
@@ -154,7 +154,7 @@ struct ACPSessionLoadTests {
         // partitions a conversation the same way — so a session that switched models owns
         // two rows. The v1 MUST is the whole conversation; replaying only the newest row
         // would silently delete everything the editor saw before the switch.
-        let lease = ProcessGlobalLease()
+        let lease = await ProcessGlobalLease()
         defer { lease.release() }
         let (agent, capture, store, compressor, path) = try await openAgent()
         defer {
@@ -204,7 +204,7 @@ struct ACPSessionLoadTests {
 
     @Test("unknown id, relative cwd, caller-supplied MCP servers: each refused by name")
     func refusals() async throws {
-        let lease = ProcessGlobalLease()
+        let lease = await ProcessGlobalLease()
         defer { lease.release() }
         let (agent, capture, store, _, path) = try await openAgent()
         defer {

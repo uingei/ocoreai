@@ -89,7 +89,7 @@ struct ModelStoreTests {
     // MARK: - hubReadyDir
 
     @Test("hubReadyDir resolves new-root snapshot, then legacy home cache")
-    func hubReadyDirResolution() throws {
+    func hubReadyDirResolution() async throws {
         let rootURL = Self.tmpRoot.appendingPathComponent("root")
         let fm = FileManager.default
         let home = fm.homeDirectoryForCurrentUser
@@ -108,7 +108,7 @@ struct ModelStoreTests {
         _ = newSnap
 
         // env redirect → root points at our tmp tree
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
         defer { lease.release() }
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
         defer { unsetenv("OCOREAI_MODELS_DIR") }
@@ -143,7 +143,7 @@ struct ModelStoreTests {
     // MARK: - msReadyDir
 
     @Test("msReadyDir resolves master revision first, main second")
-    func msReadyDirResolution() throws {
+    func msReadyDirResolution() async throws {
         let rootURL = Self.tmpRoot.appendingPathComponent("root")
         let fm = FileManager.default
 
@@ -159,7 +159,7 @@ struct ModelStoreTests {
                 .appendingPathComponent("modelscope/org/b/main/model.safetensors"))
         _ = (master, main)
 
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
         defer { lease.release() }
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
         defer { unsetenv("OCOREAI_MODELS_DIR") }
@@ -174,7 +174,7 @@ struct ModelStoreTests {
     // MARK: - discoverReady
 
     @Test("discoverReady finds HF + MS + local models, deduped by id")
-    func discoverReady() throws {
+    func discoverReady() async throws {
         let rootURL = Self.tmpRoot.appendingPathComponent("root")
         let fm = FileManager.default
 
@@ -195,7 +195,7 @@ struct ModelStoreTests {
         try FileManager.default.createDirectory(at: brokenDir, withIntermediateDirectories: true)
         try Data().write(to: broken)
 
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
         defer { lease.release() }
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
         defer { unsetenv("OCOREAI_MODELS_DIR") }
@@ -222,7 +222,7 @@ struct ModelStoreTests {
     // MARK: - removeReady
 
     @Test("removeReady deletes new root + legacy location for both providers")
-    func removeReady() throws {
+    func removeReady() async throws {
         let rootURL = Self.tmpRoot.appendingPathComponent("root")
         let fm = FileManager.default
         let home = fm.homeDirectoryForCurrentUser
@@ -248,7 +248,7 @@ struct ModelStoreTests {
             .appendingPathComponent("ms/ns/repoX")
         _ = try Self.file(at: msFlat.appendingPathComponent("master/model.safetensors"))
 
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
         defer { lease.release() }
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
         defer { unsetenv("OCOREAI_MODELS_DIR") }
@@ -299,9 +299,9 @@ struct ModelStoreTests {
     // MARK: - MS 平铺规范布局(omlx 对齐)
 
     @Test("msRepoDir is flat root/<org>/<name>; msReadyDir honors valid safetensors")
-    func msFlatLayout() throws {
+    func msFlatLayout() async throws {
         let rootURL = Self.tmpRoot.appendingPathComponent("msflat")
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
         defer { lease.release() }
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
         defer { unsetenv("OCOREAI_MODELS_DIR") }
@@ -351,7 +351,7 @@ struct ModelStoreTests {
     @Test(
         "discoverReady accepts CoreAI asset dirs (no safetensors) under local/ and flat root/org/name/"
     )
-    func discoverReadyAcceptsCoreAIAssets() throws {
+    func discoverReadyAcceptsCoreAIAssets() async throws {
         let rootURL = Self.tmpRoot.appendingPathComponent("root")
         let fm = FileManager.default
 
@@ -363,7 +363,7 @@ struct ModelStoreTests {
         let emptyDir = rootURL.appendingPathComponent("Qwen/EmptyDir")
         try fm.createDirectory(at: emptyDir, withIntermediateDirectories: true)
 
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
         defer { lease.release() }
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
         defer { unsetenv("OCOREAI_MODELS_DIR") }
@@ -408,7 +408,7 @@ struct ModelStoreTests {
     @Test(
         "discoverReady surfaces the REAL export layout (bundle root: metadata.json + tokenizer/ + <name>.aimodel dir)"
     )
-    func discoverReadyAcceptsRealExportLayout() throws {
+    func discoverReadyAcceptsRealExportLayout() async throws {
         let rootURL = Self.tmpRoot.appendingPathComponent("root-real")
         let fm = FileManager.default
         let bundle =
@@ -430,7 +430,7 @@ struct ModelStoreTests {
                 .appendingPathComponent(
                     "qwen2_5_1_5b_instruct_4bit_weights_8bit_kv_cache_dynamic.aimodel/main.mlirb"))
 
-        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        let lease = await ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
         defer { lease.release() }
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
         defer { unsetenv("OCOREAI_MODELS_DIR") }

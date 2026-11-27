@@ -169,7 +169,7 @@ struct SettingsStoreHFMirrorTests {
     /// HF_ENDPOINT is process-wide: lease it, so the value is both restored *and* not raced
     /// against another suite that reads the mirror policy (the lease owns save/restore now).
     private func withEnvRestore(_ body: () async throws -> Void) async rethrows {
-        let lease = ProcessGlobalLease(envKeys: ["HF_ENDPOINT"])
+        let lease = await ProcessGlobalLease(envKeys: ["HF_ENDPOINT"])
         defer { lease.release() }
         try await body()
     }

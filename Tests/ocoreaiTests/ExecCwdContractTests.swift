@@ -56,7 +56,7 @@ struct ExecCwdContractTests {
 
     @Test("a relative cwd anchors on the workspace, not on the process directory")
     func relativeCwdAnchorsOnWorkspace() async throws {
-        let lease = ProcessGlobalLease()
+        let lease = await ProcessGlobalLease()
         defer { lease.release() }
         let ws = try makeScratch()
         defer { try? FileManager.default.removeItem(at: ws) }
@@ -67,7 +67,7 @@ struct ExecCwdContractTests {
 
     @Test("both exec lanes start in the same directory when no cwd is given")
     func lanesShareTheDefault() async throws {
-        let lease = ProcessGlobalLease()
+        let lease = await ProcessGlobalLease()
         defer { lease.release() }
         let ws = try makeScratch()
         defer { try? FileManager.default.removeItem(at: ws) }

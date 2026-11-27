@@ -39,8 +39,8 @@ struct EditLinesContractTests {
         """
 
     @Test("the numbering edit_lines accepts is the numbering read_file prints")
-    func numberingHasOneHome() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func numberingHasOneHome() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         _ = try seeded("sum100.py", Self.sum100)
         defer { SessionWorkspace.clear() }
@@ -55,8 +55,8 @@ struct EditLinesContractTests {
     }
 
     @Test("rewriting exactly the line read_file numbered 3 fixes the off-by-one")
-    func replacesOneNumberedLine() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func replacesOneNumberedLine() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("sum100.py", Self.sum100)
         defer { SessionWorkspace.clear() }
@@ -77,8 +77,8 @@ struct EditLinesContractTests {
     }
 
     @Test("end_line == start_line - 1 inserts without deleting anything")
-    func insertsWithoutDeleting() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func insertsWithoutDeleting() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("notes.md", "one\nthree\n")
         defer { SessionWorkspace.clear() }
@@ -90,8 +90,8 @@ struct EditLinesContractTests {
     }
 
     @Test("start_line total+1 appends at end of file and keeps the trailing newline")
-    func appendsAtEOF() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func appendsAtEOF() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("notes.md", "one\ntwo\n")
         defer { SessionWorkspace.clear() }
@@ -104,8 +104,8 @@ struct EditLinesContractTests {
     }
 
     @Test("empty new_text deletes the range")
-    func deletesRange() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func deletesRange() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("notes.md", "keep\ndrop1\ndrop2\nkeep2\n")
         defer { SessionWorkspace.clear() }
@@ -117,8 +117,8 @@ struct EditLinesContractTests {
     }
 
     @Test("a line number past the end clamps onto the append position and names both numbers")
-    func outOfRangeClampsAndDiscloses() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func outOfRangeClampsAndDiscloses() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("notes.md", "a\nb\nc\n")
         defer { SessionWorkspace.clear() }
@@ -133,8 +133,8 @@ struct EditLinesContractTests {
     }
 
     @Test("a line number below the first line clamps onto line 1 instead of refusing")
-    func belowRangeClampsToTheTop() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func belowRangeClampsToTheTop() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("notes.md", "a\nb\nc\n")
         defer { SessionWorkspace.clear() }
@@ -146,8 +146,8 @@ struct EditLinesContractTests {
     }
 
     @Test("a range that already reads as newText answers its state, and never claims a write")
-    func noOpAnswersWithTheState() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func noOpAnswersWithTheState() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("notes.md", "a\nb\nc\n")
         defer { SessionWorkspace.clear() }
@@ -168,8 +168,8 @@ struct EditLinesContractTests {
     }
 
     @Test("a no-op at the append position quotes the line it sits against")
-    func noOpAtAppendPositionQuotesTheTail() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func noOpAtAppendPositionQuotesTheTail() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("notes.md", "a\nb\nc\n")
         defer { SessionWorkspace.clear() }
@@ -183,7 +183,7 @@ struct EditLinesContractTests {
     }
     @Test("the wire accepts snake_case and it reaches the engine")
     func wireSnakeCaseReachesTheEngine() async throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("notes.md", "old-one\nold-two\nkeep\n")
         defer { SessionWorkspace.clear() }

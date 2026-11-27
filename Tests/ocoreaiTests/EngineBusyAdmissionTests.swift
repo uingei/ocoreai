@@ -158,8 +158,8 @@ struct EngineBusyAdmissionTests {
             ("0", 0), ("3", 3), ("999", EngineBusySignal.maxWaitSeconds),
             ("-4", 0), ("soon", EngineBusySignal.defaultWaitSeconds),
         ])
-    func waitKnob(_ raw: String, _ expected: Int) throws {
-        let lease = ProcessGlobalLease(envKeys: [EngineBusySignal.envWait])
+    func waitKnob(_ raw: String, _ expected: Int) async throws {
+        let lease = await ProcessGlobalLease(envKeys: [EngineBusySignal.envWait])
         defer { lease.release() }
         setenv(EngineBusySignal.envWait, raw, 1)
         #expect(EngineBusySignal.waitSeconds == expected, "raw \(raw) must clamp to \(expected)")

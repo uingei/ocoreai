@@ -102,8 +102,8 @@ struct LineEndingFidelityTests {
     ]
 
     @Test("edit_file writes those bytes and no others", arguments: cases)
-    func editFileByteFidelity(_ pair: Pair) throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func editFileByteFidelity(_ pair: Pair) async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("f.txt", pair.seed)
         defer { SessionWorkspace.clear() }
@@ -136,8 +136,8 @@ struct LineEndingFidelityTests {
     }
 
     @Test("a genuine miss on a CRLF file stays a refusal, and never writes")
-    func crlfMissStillRefused() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func crlfMissStillRefused() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("f.txt", "a\r\nb\r\nc\r\n")
         defer { SessionWorkspace.clear() }
@@ -176,8 +176,8 @@ struct LineEndingFidelityTests {
         ])
     func editLinesKeepsEndings(
         label: String, seed: String, start: Int, end: Int, newText: String, expected: String
-    ) throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    ) async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("f.txt", seed)
         defer { SessionWorkspace.clear() }
@@ -193,8 +193,8 @@ struct LineEndingFidelityTests {
     }
 
     @Test("an edit_lines call that changes nothing says OK-no-change on a CRLF file too")
-    func okNoChangeReachesACrlfFile() throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func okNoChangeReachesACrlfFile() async throws {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("f.txt", "a\r\nb\r\nc\r\n")
         defer { SessionWorkspace.clear() }

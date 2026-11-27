@@ -41,7 +41,7 @@ struct LoopStallTerminationTests {
     /// Three runs, six correctable refusals, terminal from the ninth zero-gain event.
     @Test("the same unchanged call climbs to a terminal verdict, exact vector")
     func zeroGainLadderVector() async throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         _ = try seeded("loop.py", "print(1)\n")
         defer { SessionWorkspace.clear() }
@@ -77,7 +77,7 @@ struct LoopStallTerminationTests {
 
     @Test("the terminal verdict quotes its evidence and forbids instead of inviting")
     func terminalWordingIsAnEndingNotAnInvitation() async throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         _ = try seeded("end.py", "print(1)\n")
         defer { SessionWorkspace.clear() }
@@ -117,7 +117,7 @@ struct LoopStallTerminationTests {
     /// refusing it stops the model verifying its own edit and makes the refusal untrue.
     @Test("a re-read after the file changed runs and returns the new bytes")
     func freshContentIsNotARepeat() async throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         _ = try seeded("page.py", "print(1)\n")
         defer { SessionWorkspace.clear() }
@@ -145,7 +145,7 @@ struct LoopStallTerminationTests {
 
     @Test("a different tool succeeding does not buy a stuck call back")
     func pingPongCannotResetTheLadder() async throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         // One directory for both files: `seeded` moves the session workspace each call,
         // so the second file is written into the directory the first one chose.
@@ -186,7 +186,7 @@ struct LoopStallTerminationTests {
     /// Loop accounting is per turn (codex's unit): the next user message owns a fresh budget.
     @Test("a new turn buys a fresh loop budget")
     func turnTokenScopesTheLadder() async throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         _ = try seeded("turn.py", "print(1)\n")
         defer { SessionWorkspace.clear() }

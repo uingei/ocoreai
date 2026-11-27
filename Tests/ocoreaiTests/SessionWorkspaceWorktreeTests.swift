@@ -71,8 +71,8 @@ private enum GitProbe {
 struct SessionWorkspacePointerTests {
 
     @Test("set → get round-trip, clear → nil")
-    func pointerRoundTrip() {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func pointerRoundTrip() async {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         defer { SessionWorkspace.clear() }
         SessionWorkspace.setDirectory("/tmp/probe-ws-1")
@@ -84,8 +84,8 @@ struct SessionWorkspacePointerTests {
     }
 
     @Test("effectiveCwd: explicit cwd wins over the session pointer")
-    func explicitCwdWins() {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func explicitCwdWins() async {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         defer { SessionWorkspace.clear() }
         SessionWorkspace.setDirectory("/tmp/session-dir")
@@ -93,8 +93,8 @@ struct SessionWorkspacePointerTests {
     }
 
     @Test("effectiveCwd: session pointer above the global workspace")
-    func sessionPointerAboveGlobal() {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+    func sessionPointerAboveGlobal() async {
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         defer {
             SessionWorkspace.clear()
@@ -148,7 +148,7 @@ struct SessionWorkspaceWorktreeTests {
 
     @Test("not a repository → notARepository")
     func notARepo() async throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let base = tempBase()
         defer { try? FileManager.default.removeItem(atPath: base) }
@@ -168,7 +168,7 @@ struct SessionWorkspaceWorktreeTests {
 
     @Test("no resolvable default branch → noDefaultBranch")
     func noDefaultBranch() async throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let base = tempBase()
         defer { try? FileManager.default.removeItem(atPath: base) }
@@ -198,7 +198,7 @@ struct SessionWorkspaceWorktreeTests {
 
     @Test("happy path: detached worktree at default-branch sha, bound to session")
     func happyPath() async throws {
-        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        let lease = await ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let base = tempBase()
         defer {
