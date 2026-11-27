@@ -28,6 +28,8 @@
 #                       a fact about this prompt, not proof of an inert knob (the sign
 #                       itself is pinned where it can be pinned: PenaltySignDeliveryTests,
 #                       against the upstream condition at the pin).
+#   5. MAX_KV_SIZE. The turn must answer, and the model-sampling PATCH must refuse an
+#                       out-of-domain value by name. Decisive: HTTP status and `error.param`.
 #
 # Needs a real Metal device: run unsandboxed (`bash scripts/probes/run.sh 10`). Bodies are
 # built with single-quoted JSON. MacOS bash 3.2 mis-parses nested quoted command
@@ -237,5 +239,46 @@ overlaps "presence_penalty=-2.0" ',"presence_penalty":-2.0'
 overlaps "frequency_penalty=+2.0" ',"frequency_penalty":2.0'
 overlaps "frequency_penalty=-2.0" ',"frequency_penalty":-2.0'
 probe_note "sign correctness lives in PenaltySignDeliveryTests (mapping + upstream context-size premise); this section records what a real model did with the values"
+
+# ── 5. max_kv_size must reach the engine, and its domain is one rule ─────────
+# Measured 11-28, before the fix: this knob answered 500 on every request. The bridge set
+# upstream's legacy `GenerateParameters.maxKVSize` beside the typed `kvCache` the same function
+# always builds, and upstream refuses the pair before the first token. Two gates decoded the
+# field and neither had ever sent it, so the whole section below exists because a decode test
+# cannot see a request. The 400 arm is here too: the same field is in domain on the chat wire
+# and storable nonsense on `PATCH /v1/models/:model/sampling`, and a stored value outlives the
+# request (a stored 0 made every later turn for that model fail).
+probe_section "5 — max_kv_size: the turn answers, and the refusal names the field"
+
+ENC_MODEL="$(python3 -c 'import sys;print(sys.argv[1].replace("/", "%2F"))' "$PROBE_MODEL")"
+
+ask ',"max_kv_size":2048' "$BANANA_PROMPT" 32
+if [ "$ANSWER_STATUS" != "200" ]; then
+  probe_fail "max_kv_size on a chat turn -> HTTP $ANSWER_STATUS (a legal knob must be accepted): $(printf %.200s "$PROBE_BODY")"
+elif [ -z "$ANSWER" ]; then
+  probe_fail "max_kv_size turn returned no content — the knob was accepted and delivered nothing"
+else
+  probe_ok "max_kv_size=2048 answered 200: $(printf %.40s "$ANSWER")"
+fi
+# What the bounded cache costs is not asserted, it is named: bounding the cache turns every
+# attention layer into a rotating one and a rotating cache satisfies no compression strategy,
+# so this turn ran uncompressed. `GET /v1/models/:model/kv-cache` reports the truth.
+probe_note "a bounded cache cannot be compressed; the applied strategy reads back on /v1/models/:model/kv-cache"
+
+probe_api PATCH "/v1/models/$ENC_MODEL/sampling" '{"max_kv_size":0}'
+if [ "$PROBE_STATUS" = "400" ]; then
+  refused_param="$(probe_json "$PROBE_BODY" 'error.param')"
+  if [ "$refused_param" = "max_kv_size" ]; then
+    probe_ok "PATCH stores no out-of-domain capacity: 400 naming max_kv_size"
+  else
+    probe_fail "PATCH refused a stored 0 but named \"$refused_param\", not max_kv_size"
+  fi
+else
+  probe_fail "PATCH {\"max_kv_size\":0} -> HTTP $PROBE_STATUS — a stored 0 poisoned every later turn for this model: $(printf %.200s "$PROBE_BODY")"
+fi
+# Nothing above mutates state: the refusal is a refusal. The capacity that DOES apply is proven
+# weight-free in KVCapacityDeliveryTests, which asserts the object handed upstream; a probe
+# could only prove it by overwriting the operator's per-model sampling config, and resetting
+# that face means DELETE, which wipes unrelated overrides.
 
 probe_summary "$PROBE_NAME"
