@@ -850,6 +850,68 @@ else
     fi
 fi
 
+# --- Class-S2: a Tests/ file that drives an anchor-moving production route holds the lease ---
+# Provenance (11-27): Class-S greps the mutation literal, and the repo-root `x.py` came back
+# anyway, because the remaining writers reach `SessionWorkspace` THROUGH production code:
+# `session/new`/`session/load` move the anchor inside `ACPAgent`, and `ChatState.resetConversation`
+# plus the `chat` → `ensureSession` path clear it inside `ChatViewModel`. No file pattern follows
+# that hop, so this class matches the DRIVE literal the test itself sends. The floor is the
+# measured driver-file count; each probe line re-verifies one shape, including the two over-match
+# negatives (a same-named local helper, the MLX prompt API) — a scan that stopped seeing drivers
+# would otherwise report Clean forever.
+echo ""
+echo "[Class-S2: indirect anchor drivers in Tests/ hold the lease]"
+S2_TESTS="$ROOT/Tests"
+S2_FLOOR=6
+S2_RX='"method":"session/new"|"method":"session/load"|createWorktreeSession|\.chat\(.*model:|\.resetConversation\('
+S2_PROBE=0
+printf '%s\n' 'agent.receive(#"{"jsonrpc":"2.0","method":"session/new"}"#)' | grep -qE "$S2_RX" \
+    && S2_PROBE=$((S2_PROBE + 1))
+printf '%s\n' 'agent.receive(#"{"jsonrpc":"2.0","method":"session/load"}"#)' | grep -qE "$S2_RX" \
+    && S2_PROBE=$((S2_PROBE + 1))
+printf '%s\n' 'let t = try await SessionWorkspace.createWorktreeSession()' | grep -qE "$S2_RX" \
+    && S2_PROBE=$((S2_PROBE + 1))
+printf '%s\n' 'await state.chat(marker, model: "m")' | grep -qE "$S2_RX" \
+    && S2_PROBE=$((S2_PROBE + 1))
+printf '%s\n' 's.resetConversation()' | grep -qE "$S2_RX" \
+    && S2_PROBE=$((S2_PROBE + 1))
+printf '%s\n' 'let o = Self.chat(",\"presence_penalty\":-1.5")' | grep -qE "$S2_RX" \
+    || S2_PROBE=$((S2_PROBE + 1))
+printf '%s\n' 'let p = prompt: .chat(ChatKit.Chat.Native.system(sp))' | grep -qE "$S2_RX" \
+    || S2_PROBE=$((S2_PROBE + 1))
+if [ "$S2_PROBE" != "7" ]; then
+    echo "  X dead scan: only $S2_PROBE/7 self-test shapes behave (driver pattern moved or over-matches)"
+    FAIL=1
+elif [ ! -d "$S2_TESTS" ]; then
+    echo "  X no $S2_TESTS in $ROOT - the scan cannot run, which is not a Clean"
+    FAIL=1
+else
+    S2_DRV=0
+    S2_OFF=0
+    while IFS= read -r s2_file; do
+        s2_rel="${s2_file#"$ROOT"/}"
+        if grep -vE '^[[:space:]]*(//|\*)' "$s2_file" | grep -qE "$S2_RX"; then
+            S2_DRV=$((S2_DRV + 1))
+            if ! grep -q 'ProcessGlobalLease(' "$s2_file"; then
+                echo "  X UNLEASED $s2_rel drives an anchor-moving route through production code"
+                S2_OFF=$((S2_OFF + 1))
+            fi
+        fi
+    done < <(find "$S2_TESTS" -name '*.swift' | sort)
+    echo "  scan: $S2_DRV driver file(s) (floor $S2_FLOOR), $S2_OFF offender(s)"
+    if [ "$S2_DRV" -lt "$S2_FLOOR" ]; then
+        echo "    X scan premise unmet: the driver patterns stopped seeing the suites that drive"
+        FAIL=1
+    fi
+    if [ "$S2_OFF" -gt 0 ]; then
+        echo "    remedy: the anchor moved (or cleared) inside ACPAgent/ChatViewModel while this"
+        echo "    suite spoke the route; take the lease — see the 11-27 repo-root \`x.py\`"
+        FAIL=1
+    elif [ "$S2_DRV" -ge "$S2_FLOOR" ]; then
+        echo "  Clean"
+    fi
+fi
+
 if [ "$FAIL" -eq 0 ]; then
     echo "✅ All audits passed"
     exit 0
