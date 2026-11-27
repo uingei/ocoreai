@@ -180,8 +180,8 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   upstream `Samplers/CompositeSampler.swift` became `ReferenceSampler.swift` (#545) and the ledger
   maps by the cited path, so our CPU-sampler copy tracks a dead path. The manual instrument is in
   the window log. `make drift` prints both counts every round.
-- **The mlx-swift-lm window (+9 at 11-23; the `+6` below is the 11-05 reading) hands us a truth we
-  cannot read until the bump** (Engine/). Read 11-05 in
+- **The mlx-swift-lm window (+15 at 11-28; the `+9` and `+6` below are the 11-23 and 11-05 readings) hands us a
+  truth we cannot read until the bump** (Engine/). Read 11-05 in
   a local clone at `c8dabc6`: `GenerateCompletionInfo` gains `speculativeDecodingFallbackReason`
   (`Evaluate.swift:3083`) naming the five reasons a session with speculation configured ran plain
   generation. We already consume that struct's siblings (`passthroughReason`,
@@ -218,6 +218,18 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   a well-formed call to an undeclared tool from `malformedSyntax` to `undeclaredTool` **naming it** — the same
   refuse-by-name shape our `settings.toolsSurface.enforce` row wants, so the undeclared-tool face should read
   this parser's behavior at the bump, not re-derive it.
+
+  **The window moved again: `make drift` reads `mlx-swift-lm HEAD=026d599e5 +15 commits vs base=bf5a5d438` (11-28).**
+  Six commits over the 11-26 reading — #773 (per-row rotary/scaling in batched LLM+VLM), #830 (LFM2-MoE expert
+  order), #829 (segsum batch mask), #822 (full-vocabulary entropy beside token log probabilities, in
+  `Evaluate.swift`), #727 (the reserve's decode cost, below), #835 (Bonsai 2.5 Hadamard rotation in one Metal pass).
+  Read so far, by consumption surface: **#727 read in full** (it is ours-shaped, see the rewind row: our pin pays
+  the concatenation the commit removes, measured flat on this host's shapes), **#822 read at its diff** (it adds a
+  field to the logprob result; `grep -rn entropy Sources/` finds no consumer, so it is consumption-at-bump, not a
+  local gap), **#773/#830/#829/#835 read at title and file list only** — they touch `MLXLLM`/`MLXVLM` model
+  internals and one Metal kernel, none of them a symbol this tree names, and they are named here rather than
+  stamped clean: the bump's own read owes each of them a verdict (`scripts/upstream-drift.sh`'s ledger is the
+  instrument that refuses a silent skip). Bump still the owner's push window (§ Upstream 1: a hand, not a gate).
 - **A no-tool turn steers and stops, both halves flag-staged** (Engine/). Upstream #608/#798 at the
   `bf5a5d438` pin owns mid-turn input: `steer(_:policy:)` ends a step at the next safe point *inside a
   thought* (upstream-app measured 0.22-0.30 s steer-to-new-text vs 6.9-8.1 s pre-#798), and
@@ -310,12 +322,39 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   on the surviving seam, not a new surface. Why no scan owns this: two attempts on 11-04 failed in opposite directions (one flagged 233 tests,
   the other zero) because `extension String` in `Sources` makes a plain `String?` annotation look like a
   production reach, only reading, or a mutation that must go red, decides it.
-- **Rewind is landed; the reserve is visible and overridable, still untuned** (Engine/), 1024 rows measured on
+- **Rewind is landed; the reserve is visible, overridable, untuned — and its cost is now measured** (Engine/), 1024 rows measured on
   one checkpoint, not tuned to model or memory pressure, so an edit further back than the reserve still pays its
   full prefix. Since 11-11 the number is not hidden: the kv-cache endpoint publishes `rewindReserve` with its
   `basis`, and `OCOREAI_KV_REWIND_RESERVE_TOKENS` overrides once at boot (0=off; a negative or unparseable value
   keeps the default and says so on the wire). Tuning can now be priced against a number the operator can set.
   `SessionRewindOnDivergenceTests` + `KVCacheRewindReserveTests` + probe 27 hold the wiring and the number.
+  **What the reserve costs, measured 11-28 on this host** (`gemma-4-e2b-it-4bit`, marginal ms/token by differencing
+  two lengths over one prompt, medians of 3): reserve 1024 vs 0 reads 10.84/10.98 ms/tok unbounded and
+  11.22-11.49/11.20-11.57 ms/tok with `max_kv_size: 2048` — flat inside run-to-run noise across prompt lengths 1.5 k-2.2 k.
+  The reason is structural, not luck: at `keep == 0` the pin's `RotatingKVCache.retainedView` returns a slice, so
+  the concatenation upstream measured fires only with a pinned prefix (`keep > 0`, i.e. a requested capacity) and a
+  window big enough that the copy dwarfs one layer's attention. Upstream #727 measured that shape at 12.0 → 8.8 tok/s
+  (granite-4.1-8b, 8 192-row window, 1 024 reserve, ~1.3 GB copied per token) and fixed it on 11-26; our pin
+  `bf5a5d438` predates it (`git merge-base --is-ancestor fa4c14a bf5a5d438` → exit 1), so the pairing is exposed, not
+  free: `max_kv_size` now sets `preservedPrefixTokens = min(4, n-1)`, which is the concatenating shape, and the copy
+  is bounded by the caller's own window. Owner call stays the tuning one; the #727 half arrives with the bump.
+- **A bounded cache and a compressed cache cannot compose; the trade is stated only on one face** (Engine/, UI/).
+  `max_kv_size` (a wire field on the OpenAI chat face, and the GUI's per-model "Max KV" box) now reaches the engine
+  as a typed capacity (`MLXBridge.makeKVCacheCapacity`). Bounding the cache turns every attention layer into a
+  rotating one, and a rotating leaf satisfies no compression strategy (`KVCacheLeaf.supports`, read at pin
+  `bf5a5d438`), so a bounded request runs uncompressed — and `EngineConfig.kvCacheQuantization` defaults to enabled
+  with `kvScheme: "turbo4"`, which makes that every bounded request, not a corner. Measured 11-28 on
+  `gemma-4-e2b-it-4bit` with the capacity stored on the model: `capacityDisposition: fully_applied`,
+  `capacityAppliedLayerCount: 3`, `compressedLayerCount: 0`, `skippedLayerCount: 15`. The choice is upstream's own
+  legacy shape (`.allowPartial`, the policy `KVCachePlan` used for this pair before our typed path existed), so the
+  strict `noCompatibleLayers` refusal — a 500 naming neither knob — is what the alternative shipped as.
+  Owner call (a promise, so not root's to make): refuse the pair per request naming both exits, disclose it on the
+  turn, or say it in the "Max KV" hint copy (`Localization` `Models.ParamMaxKVHint`, both locales), which today
+  reads "Max KV cache size (enables rotating cache)" and mentions no trade. What is honest today: the turn claims no
+  compression it did not deliver, and the one face built to answer "what did the cache actually do" says so.
+  `KVCapacityDeliveryTests` pins the policy split (bounded → partial, unbounded → demand it), so a silent flip of
+  either half goes red.
+
 - **Reasoning-lane traffic is priced, still not warm** (Engine/). The no-tools lane pays its own
   turn into `KVCachePriceLedger` (never the never-fed session); residency honestly stays
   `not_observed`. Probe 35 §2-3. The owner's pooling call covers the rest: the lane frees its

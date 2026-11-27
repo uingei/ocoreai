@@ -1285,7 +1285,7 @@ nonisolated func makeGenerateParameters(
     // Deliberately no `params.maxKVSize`: a requested capacity rides `params.kvCache` above.
     // The legacy field beside a typed configuration makes upstream throw
     // `conflictingLegacyConfiguration` before the first token, which is how every
-    // `max_kv_size` request died until this line went (measured 11-28, probe 10 §6).
+    // `max_kv_size` request died until this line went (measured 11-28, probe 10 §5).
     // Context window sizes for repetition/presence/frequency penalties
     params.repetitionContextSize = sampling.repetitionContextSize
     params.presenceContextSize = sampling.presenceContextSize
