@@ -46,6 +46,9 @@ let package = Package(
         // DependencyPinStatementTests — this sentence named 0.32.2 as the pin long after
         // 0.32.3 landed (bumped in 0401256), and no check read this file: a statement about
         // the contract that contradicted it (AGENTS.md invariant 1).
+        // `swift build` prints "dependency 'mlx-swift' is not used by any target" about this
+        // declaration, and acting on that advice is the trap: no target names an MLX product (they
+        // arrive through mlx-swift-lm), so fixing the tag is this declaration's only job.
         //
         // Why an exact tag and not a range: upstream's own 0.32.2 release notes open with "Use
         // release 0.32.3", because an app linking 0.32.2 crashes at launch on macOS/iOS
