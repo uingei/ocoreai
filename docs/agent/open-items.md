@@ -528,6 +528,26 @@ the area guide, with its gate. Per-item evidence is in `CHANGELOG.md` (grep the 
   (this host has no resident measured set and no server on 8080 as of 11-19), which is an owner act beside
   publishing, since publishing a catalog is promising it stays true.
 
+- **`/v1/models` publishes the window the wall does not honor while an override is in force** (Handlers/, Router/).
+  Measured 11-28 on one live server, two reads of the same model: `PATCH {"max_context_window":4096}` → 200 and the
+  sampling face echoes `max_context_window: 4096`, while `GET /v1/models` still publishes `max_model_len: 131072`; the
+  same server then refused a 15 077-token turn with `400 context_window_exhausted` and `cap: 4096`. The refusal is the
+  honest half — it carries `post_tokens`, `cap` and a branchable `error_code`, and the resolver behind it is gated
+  (`ContextWindowPolicyTests`: override wins, a non-positive override falls through to declared, the boundary is exact).
+  The inventory is the lying half: it is filled from the weights config (`ModelStore.contextLength`) in
+  `ChatCompletionsRouter`'s `GET /v1/models` and never consults `EnginePool.effectiveContextWindow`, which is what the
+  wall, the direct client and the GUI all read. So an HTTP client that sizes its budget off the inventory — every
+  harness does — over-fills by design and pays a 400 to learn the truth; that is invariant 2 on the field a client
+  budget-reads, not a provenance nicety. Out of the box the two agree (no override ⇒ declared == effective), so the
+  exposure is operator-configured servers, which is where a shared harness points.
+  Owner call (it moves what a published field means, so not root's): publish the effective window in `max_model_len`
+  (a server's own serving limit is the number a client must budget against; the declared number then reads on the
+  `basis` the GUI's Params sheet already shows), or add a field carrying `{effective, source}` beside it, or record
+  that the inventory means "what the checkpoint declares" and put the pairing in the refusal's advice text instead.
+  None chosen silently here: narrowing a published field is the one move an HTTP client cannot detect, and a second
+  field is a second home for a number that has one resolver. This row quotes no comparator practice — none was read
+  for it, and `comparator-repos.md` § How to use 5 is the rule that says a shape needs a read `file:line` to be cited.
+
 - **Codex-class harnesses cannot reach us at all: we speak the field's two dialects, and Codex now speaks only Responses** (Handlers/, Router/).
   Measured 11-28 on this host: `codex-cli 0.162.1`, given a throwaway `CODEX_HOME` whose provider is our own server
   (`base_url = http://127.0.0.1:<port>/v1`), sent no turn at all — five `Reconnecting... n/5` lines, then

@@ -35,14 +35,17 @@
 ///    `ResolvedContextWindow.source` and is logged at the wall
 ///    (`ChatHandler.swift:434` message + `:439` `windowSource` metadata).
 ///    Where this is surfaced to a human (landed 10-12): the Params sheet renders
-///    `"131K · from model"` vs `"32K · set by you"`
-///    (`ModelParamsView.swift:333`, resolved via `ModelManager.swift:452` →
-///    `EnginePool.effectiveContextWindow`, so GUI and engine read ONE parser) and
-///    the chat watermark carries the same label (`ChatView.swift:690`).
-///    STILL open: `/v1/models` publishes only the bare declared number
-///    (`contextLength`, `ChatCompletionsRouter.swift:177`), so an HTTP client
-///    cannot tell auto-detected from hand-configured. Stated as open rather than
-///    claimed as done.
+///    `"131K · from model"` vs `"32K · set by you"` (`ModelParamsView.contextWindowValueText`,
+///    resolved via `ModelManager.resolvedContextWindow` → `EnginePool.effectiveContextWindow`,
+///    so GUI and engine read ONE parser) and the chat watermark carries the same label
+///    (`ChatView.contextWatermark`).
+///    STILL open, and 11-28 measured it as worse than the 10-12 wording said: the HTTP inventory
+///    publishes the DECLARED number only (`max_model_len`, filled from `ModelStore.contextLength`
+///    in `ChatCompletionsRouter`'s `GET /v1/models`), never this resolver. So while an override is
+///    in force the wire states a window the wall refuses: measured on one server, the inventory
+///    read `max_model_len: 131072` with `max_context_window: 4096` stored, and a 15 077-token turn
+///    came back 400 `context_window_exhausted` with `cap: 4096`. The client learns the real cap
+///    only by paying that 400. (`contextLength` left the wire on its one-release promise.)
 /// 3. Unknown stays unknown. A model with no parsable window reports `nil`, never a
 ///    fabricated default (codex `unknown` path; the existing honesty contract).
 ///
